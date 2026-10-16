@@ -6,8 +6,7 @@
 | --- | --- | --- |
 | `app.entities` | 템플릿 업무 대상의 최신 네 속성. 검색 색인에서 제외 | `20261003194119_example_entity.sql` |
 | `app.tasks` | 일회성·반복 할일의 최신 상태와 결과 기록 참조. 선택 엔터티·당시 문맥 저장 | `20261003000000_activity.sql`, `20261005162844_optional_entity_links.sql` |
-| `app.records` | 일반 메모·수행 결과·변경 메모의 통합 기록. 삭제된 대상과 과거 원칙 캡처도 보존 | `20261003000000_activity.sql`, `20261004090531_current_principle_changes.sql` |
-| `app.principles` | 사용자별 현재 원칙 문서. 업무 역할은 현재 문서에만 접근 | `20261003065427_principles.sql`, `20261006190000_retire_unused_contracts.sql` |
+| `app.records` | 일반 메모·수행 결과·변경 메모의 통합 기록. 삭제된 대상의 당시 문맥도 보존 | `20261003000000_activity.sql`, `20261004090531_current_principle_changes.sql` |
 | `app.tags` | 소유자·범위별 고유 태그 | `20261003080756_tags.sql`, `20261004090531_current_principle_changes.sql` |
 | `app.entity_tags` | 같은 소유자의 엔터티·태그 연결 | `20261004090531_current_principle_changes.sql` |
 | `app.task_tags` | 같은 소유자의 할일·태그 연결 | `20261003081643_task_tags.sql` |
@@ -18,7 +17,7 @@
 | `private.request_results` | 소유자별 요청 키·입력 fingerprint·성공 결과의 30일 보관 | `20261011022626_request_results.sql`, `20261011051306_request_retention_30_days.sql` |
 | `private.passage_effects` | 원본 식별·성공 벡터·실제 전송 횟수·lease·fence·결과 불명을 보관하는 단일 구간 원장 | `20261011024823_external_effect_ledger.sql`, `20261011052130_flatten_passage_effects.sql` |
 
-`20261006210000_remove_legacy_principle_tables.sql`은 마지막 원칙 자료 이관 후 보존용 4개 테이블과 재이관 절차를 제거한다. 기존 기록과 당시 캡처는 유지한다. 과거 migration에 나오는 삭제된 객체는 현행 스키마가 아니다. 업그레이드 검증은 [`tests/migrations/`](../tests/migrations/README.md)에서 찾는다.
+`20261006210000_remove_legacy_principle_tables.sql`은 마지막 원칙 자료 이관 후 보존용 4개 테이블과 재이관 절차를 제거한다. 사용자 원칙과 해당 보존본은 `20261015171304_remove_principles.sql`에서 명시 삭제한다. 다른 기존 기록과 당시 문맥은 유지한다. 과거 migration에 나오는 삭제된 객체는 현행 스키마가 아니다. 업그레이드 검증은 [`tests/migrations/`](../tests/migrations/README.md)에서 찾는다.
 
 `20261006210100_derive_mcp_audience_from_issuer.sql`은 Auth issuer에서 MCP audience를 계산하도록 hook을 교체하고 주소 설정 테이블을 제거한다.
 

@@ -29,13 +29,13 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     const path = (id: string) => `/entities/${encodeURIComponent(id)}`;
     await page.goto(path(x.id));
     const detail = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
-    const links = detail.getByRole("region", { name: "연결된 자료", exact: true });
-    await expect(links.getByRole("heading", { name: "연결된 자료", exact: true })).toBeVisible();
+    const links = detail.getByRole("region", { name: /^연결된 자료(?: \(\d+개\))?$/ });
+    await expect(links.getByRole("heading", { name: /^연결된 자료(?: \(\d+개\))?$/ })).toBeVisible();
     await links.getByRole("button", { name: "자료 연결", exact: true }).click();
     await links.getByLabel("자료 종류", { exact: true }).selectOption(otherType.id);
     const search = links.getByRole("searchbox", { name: "자료 제목 검색", exact: true });
     await search.fill(y.title);
-    await expect(links.getByText(otherType.label, { exact: false }).last()).toBeVisible();
+    await expect(links.getByRole("group", { name: "자료 검색 결과", exact: true }).getByText(otherType.label, { exact: false })).toBeVisible();
     await links.getByRole("button", { name: `${y.title} 연결`, exact: true }).click();
     const confirmation = page.locator("dialog.modal-action[open]:visible");
     const memo = confirmation.getByLabel("기록 메모", { exact: true });
@@ -57,7 +57,8 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     await confirmation.getByRole("button", { name: "해제하고 저장", exact: true }).click();
     await expect(confirmation).not.toBeVisible();
     await page.reload();
-    await expect(links.getByText("연결된 자료가 없습니다.", { exact: true })).toBeVisible();
+    await expect(links.getByRole("heading", { name: "연결된 자료 (0개)", exact: true })).toBeVisible();
+    await expect(links.getByRole("list").getByRole("listitem")).toHaveCount(0);
     expect((await mcp.call("list_entity_links", { id: x.id })).items).toEqual([]);
     await detail.getByRole("button", { name: "편집", exact: true }).click();
     await expect(detail.getByRole("button", { name: "저장", exact: true })).toBeVisible();

@@ -5,7 +5,7 @@ import { workspaceSearchScope } from "./search-scope.ts";
 /** The public search contract accepts both existing UUIDs and server-issued dated IDs. */
 export function searchAnchor(hash: string) {
   try {
-    const match = /^#search-(task|record|principle)-(.+)$/.exec(decodeURIComponent(hash));
+    const match = /^#search-(task|record)-(.+)$/.exec(decodeURIComponent(hash));
     if (!match) return undefined;
     const parsed = searchInput.shape.anchor.safeParse({ kind: match[1], id: match[2] });
     return parsed.success ? parsed.data : undefined;

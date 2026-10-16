@@ -130,14 +130,14 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
         text.selectNodeContents(heading);
         const textBox = text.getBoundingClientRect();
         const firstSectionBox = document.querySelector(section)!.getBoundingClientRect();
+        const headingBox = heading.closest(".page-heading")!.getBoundingClientRect();
         return {
           layout: {
             headerHeight: headerBox.height,
             headerOffset: headerBox.top - pageBox.top,
             textHeight: textBox.height,
             textOffset: textBox.top - pageBox.top,
-            firstSectionOffset: firstSectionBox.top - pageBox.top,
-            headerToSectionGap: firstSectionBox.top - headerBox.bottom,
+            headingToSectionGap: firstSectionBox.top - headingBox.bottom,
           },
           page: pick(".app-main > .panel", ["width", "gap", "padding"]),
           heading: pick(".page-title", ["font-size", "line-height", "font-weight", "color"]),

@@ -116,7 +116,6 @@ dbTest("HTTP/MCP semantic queries beyond twenty use one send and preserve provid
       allowedOrigins: [],
     },
     unused,
-    unused,
     injected,
     () => Promise.resolve(A),
   );

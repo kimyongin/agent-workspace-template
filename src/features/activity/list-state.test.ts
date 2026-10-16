@@ -33,8 +33,8 @@ describe("list return paths",()=>{
     for (const pages of ["0", "-1", "1.5", "oops"]) expect(requestedPages(new URLSearchParams({ pages }))).toBe(1);
     expect(requestedPages(new URLSearchParams({ pages: "10000000" }))).toBe(250);
   });
-  it("restores dated server IDs and legacy UUIDs for task, record and principle list focus",()=>{
-    for(const kind of ["tasks","records","principles"] as const){
+  it("restores dated server IDs and legacy UUIDs for task and record list focus",()=>{
+    for(const kind of ["tasks","records"] as const){
       for(const id of ["20261011-OGL83YTE","00000000-0000-4000-8000-000000000001"]){
         const returned=new URL(listDetailVisit(kind,{pathname:`/${kind}`,search:"?pages=3",hash:""},id,200).back,"https://activity.invalid");
         expect(anchorId(kind,returned.hash)).toBe(id);

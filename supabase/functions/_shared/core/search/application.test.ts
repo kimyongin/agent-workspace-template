@@ -75,9 +75,9 @@ Deno.test("검색 호출 경계: 잘못된 커서·키워드는 외부 호출 �
   assertEquals(state.counts(), { calls: 0 });
 });
 
-Deno.test("current task/principle searches use keyword lookup without embedding", async () => {
+Deno.test("current task searches use keyword lookup without embedding", async () => {
   const state = deps({ embed: () => Promise.resolve(vector) });
-  const q = searchInput.parse({ query: "질의", kinds: ["task", "principle"], limit: 1 });
+  const q = searchInput.parse({ query: "질의", kinds: ["task"], limit: 1 });
   const first = await search(state.d, actor, q);
   await search(state.d, actor, { ...q, cursor: first.next_cursor! });
   assertEquals(state.counts(), { calls: 0 });

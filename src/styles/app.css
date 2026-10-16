@@ -562,7 +562,7 @@ textarea.input {
 }
 
 /* 목록 제목은 상세로 가는 주 조작이므로 누름 영역을 44px 이상으로 둔다(글자 크기는 그대로). */
-.list-item a.item-title, .current-document a.item-title {
+.list-item a.item-title {
   display: inline-flex;
   width: fit-content;
   max-width: 100%;
@@ -621,9 +621,6 @@ textarea.input {
 .detail-section .props dd { margin: 0; }
 .read-context { display: grid; gap: var(--space-2); min-width: 0; }
 .read-context > .label, .read-context > .section-title { margin: 0; }
-.current-document h2 { margin: 0; }
-.current-document .item-title { font-size: 1.125rem; line-height: 1.75rem; }
-.current-document > .secondary, .current-document > .meta { margin: 0; }
 .search-form { display: grid; gap: var(--space-3); }
 .search-form > .btn { justify-self: start; }
 .search-filters { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit,minmax(min(100%,12rem),1fr)); }
@@ -813,7 +810,6 @@ textarea.input {
 .modal-action .dialog-title { max-height: min(5.25rem, calc(var(--surface-height,100dvh) * .2)); overflow: auto; }
 .modal-action .modal-head, .modal-action .modal-foot { padding: var(--space-3) var(--space-4); }
 .modal-action .modal-body { padding: var(--space-4); }
-.historical-document { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
 .settings form .actions { justify-content: flex-end; }
 .settings > a[href="/logout"] { margin-top: var(--space-2); color: var(--muted-ink); }
 .search-page { display: grid; gap: var(--space-6); }
@@ -843,7 +839,6 @@ textarea.input {
 .notice { border-left: 2px solid var(--control-border); }
 .notice-error { border-color: var(--danger); }
 .notice-success { border-color: var(--success); }
-.current-document { background: var(--panel); border: 1px solid var(--line); }
 .auth-panel { background: var(--panel); border: 1px solid var(--line); width: min(100%,32rem); align-self: center; }
 @media(max-width:639px) { .input { font-size: 1rem; line-height: 1.5rem; } .btn-input { min-height: calc(1.5rem + 22px); } }
 @media(min-width:1024px) and (min-height:320px) {

@@ -34,8 +34,6 @@ import { RecordDetailPage } from "../features/activity/RecordDetailPage.tsx";
 import { RecordsPage } from "../features/activity/RecordsPage.tsx";
 import { TaskDetailPage } from "../features/activity/TaskDetailPage.tsx";
 import { TasksPage } from "../features/activity/TasksPage.tsx";
-import { PrinciplesPage } from "../features/principles/PrinciplesPage.tsx";
-import { PrincipleDetailPage } from "../features/principles/PrincipleDetailPage.tsx";
 import { TagsPage } from "../features/tags/TagsPage.tsx";
 import { TagSettingsPage } from "../features/tags/TagSettingsPage.tsx";
 import { SearchPage } from "../features/search/SearchPage.tsx";
@@ -82,8 +80,6 @@ const workspaceRoutes = [
   { path: "tasks/:id", element: <TaskDetailPage /> },
   { path: "records", element: <RecordsPage /> },
   { path: "records/:id", element: <RecordDetailPage /> },
-  { path: "principles", element: <PrinciplesPage /> },
-  { path: "principles/:id", element: <PrincipleDetailPage /> },
   { path: "search", element: <SearchPage /> },
   { path: "status", element: <StatusPage /> },
 ];

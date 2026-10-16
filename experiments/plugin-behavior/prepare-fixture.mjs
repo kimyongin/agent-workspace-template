@@ -15,7 +15,7 @@ import { cleanupSavingRecords } from './saving-session.mjs';
 import { cleanupRoundtrip, prepareRoundtripProfile } from './roundtrip-session.mjs';
 
 const [operation, source, clientName, outputDirectory, scenario = 'normal'] = process.argv.slice(2);
-if (!['normal', 'missing', 'conflict', 'roundtrip'].includes(scenario)) throw new Error('Only owned documented preparation scenarios');
+if (!['normal', 'roundtrip'].includes(scenario)) throw new Error('Only owned documented preparation scenarios');
 if (!['setup', 'baseline', 'verify', 'cleanup'].includes(operation) || !source || !['codex-cli', 'claude-cli'].includes(clientName) || !outputDirectory || process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local') throw new Error('Root exclusive-local handoff required: prepare-fixture.mjs setup|baseline|verify|cleanup <allocated-source> <client> <outside-output>');
 const output = await outsideDirectory(outputDirectory), fixturePath = resolve(output, `${clientName}-fixture.json`);
 const { chromium } = await import(pathToFileURL(resolve(source, 'node_modules/@playwright/test/index.mjs')).href);
@@ -49,7 +49,7 @@ try {
     await ownedConsent(page, env, journal, save);
     journal.state = 'creating'; await save(); await browser.close();
   } else journal = await readJournal(fixturePath, endpoint, clientName);
-  const ownsBusiness = Boolean(journal.roundtrip) || ['record', 'task', 'principle', 'entity', 'tag'].some(kind => journal[kind]);
+  const ownsBusiness = Boolean(journal.roundtrip) || ['record', 'task', 'entity', 'tag'].some(kind => journal[kind]);
   if (journal.token && journal.state !== 'cleaned') {
     const claims = JSON.parse(Buffer.from(journal.token.split('.')[1], 'base64url').toString());
     if (claims.exp * 1000 <= Date.now() + 30000) throw new Error('Fixture OAuth expired; no blind client retry');
@@ -65,14 +65,6 @@ try {
     journal.state = 'creating'; await save();
     await createOwned(journal, save, call, 'task', { kind: 'once', title: `${journal.marker}-task`, entity_ids: [journal.entity.id] });
     journal.entity = await call('update_entity', { id: journal.entity.id, expected_version: journal.entity.version, schema_version: journal.entity.schema_version, properties: { prop_2: 11 } }); await save();
-    if (scenario === 'missing') {
-      await save(); await call('delete_principle', { id: journal.principle.id, expected_version: journal.principle.version });
-      journal.deleted = { principle: true }; await save();
-    }
-    if (scenario === 'conflict') {
-      await save(); journal.principle = await call('update_principle', { id: journal.principle.id, expected_version: journal.principle.version, title: journal.principle.title, body: '대상 속성 2가 20 이상일 때만 검토를 실행한다. 20 미만이면 실행을 보류하고 확인할 점을 준비한다.' }); await save();
-      journal.record = await call('update_record', { id: journal.record.id, expected_version: journal.record.version, body: `원문 검증 코드는 ${journal.originalDetail}이다. 대상 속성 2가 11일 때도 검토를 즉시 실행해도 된다는 이전 판단을 남겼다. 현재 판단 기준과 일치하는지는 별도 확인이 필요하다.` }); await save();
-    }
     journal.baseline = await readPreparationState(call); journal.state = 'ready'; await save();
     console.log(JSON.stringify({ operation, clientName, state: journal.state, syntheticOwner: true, fixturePath, counts: journal.baseline.counts, rawAuthOrBodiesLogged: false }));
     }

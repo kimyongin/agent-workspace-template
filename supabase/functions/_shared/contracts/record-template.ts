@@ -2,11 +2,11 @@ import { z } from "zod";
 import { codePointLength, TEXT_LIMITS } from "./common.ts";
 import { tagIds } from "./tag.ts";
 
-export const TEMPLATE_MODELS = ["entity", "task", "principle"] as const;
+export const TEMPLATE_MODELS = ["entity", "task"] as const;
 export const TEMPLATE_ACTIONS = ["create", "update", "delete", "restore", "stop", "resume"] as const;
 export type TemplateModel = typeof TEMPLATE_MODELS[number];
 export type TemplateAction = typeof TEMPLATE_ACTIONS[number];
-export const templateModelNames = { entity: "엔터티", task: "할일", principle: "원칙" };
+export const templateModelNames = { entity: "엔터티", task: "할일" };
 export const templateActionNames: Record<TemplateAction, string> = {
   create: "등록",
   update: "수정",
@@ -34,14 +34,11 @@ export const templateFields: Record<TemplateModel, Record<string, string>> = {
     엔터티: "entity_ids",
     중단기간: "pauses",
   },
-  principle: { 제목: "title", 본문: "body" },
 };
 export function modelActions(model: TemplateModel): TemplateAction[] {
   return model === "entity"
     ? ["create", "update", "delete", "restore"]
-    : model === "task"
-    ? ["create", "update", "delete", "stop", "resume"]
-    : ["create", "update", "delete"];
+    : ["create", "update", "delete", "stop", "resume"];
 }
 export function templateVariables(model: TemplateModel, action: TemplateAction, propertyKeys: string[] = []): string[] {
   return [
@@ -118,7 +115,6 @@ const entityActions = actions.extend({
 });
 export const recordTemplates = z.strictObject({
   task: actions.optional(),
-  principle: actions.optional(),
   entity_types: z.record(z.string().uuid(), entityActions).optional(),
 }).superRefine((settings, context) => {
   for (const [typeId, group] of Object.entries(settings.entity_types ?? {})) {

@@ -9,7 +9,7 @@ import { DetailTabs } from "./DetailTabs.tsx";
 import "./workspace.css";
 
 type Tab = { id: string; location: Location; title: string; returnTo?: string };
-const kindLabels: Record<string, string> = { entities: "자료", tasks: "할 일", records: "기록", principles: "원칙" };
+const kindLabels: Record<string, string> = { entities: "자료", tasks: "할 일", records: "기록" };
 const href = (location: Location) => `${location.pathname}${location.search}${location.hash}`;
 function destination(to: To, from: Location): string {
   if (typeof to !== "string") return `${to.pathname ?? from.pathname}${to.search ? (to.search.startsWith("?") ? to.search : `?${to.search}`) : ""}${to.hash ?? ""}`;

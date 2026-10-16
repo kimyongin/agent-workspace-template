@@ -308,7 +308,6 @@ test("자료 연결 작성·실패 초안·성공 후 조회 실패와 모달 �
   let saved = false, failSave = true;
   const bodies: Record<string, unknown>[] = [];
   await page.route("**/api/entities**", route => route.fulfill(decodeURIComponent(new URL(route.request().url()).pathname).endsWith(entity.id) ? saved ? { status: 503, json: { code: "internal", message: "관련 자료 조회 실패" } } : { json: entity } : { json: { items: [entity], next_cursor: null } }));
-  await page.route("**/api/principles**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.route("**/api/tasks", route => { bodies.push(route.request().postDataJSON()); if (failSave) return route.fulfill({ status: 400, json: { code: "validation", message: "저장 실패" } }); saved = true; return route.fulfill({ status: 201, json: { id: "created" } }); });
   await page.route("**/api/records", route => { bodies.push(route.request().postDataJSON()); return route.fulfill({ status: 201, json: { id: "record-created" } }); });
   await page.goto(url);

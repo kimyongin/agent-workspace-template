@@ -38,7 +38,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).analysis?.status;
     }, { timeout: 30000 }).toBe("succeeded");
     const row = page.locator("article").filter({
-      has: page.getByRole("heading", { name: `${entity.id} · 변환 실패` }),
+      has: page.getByRole("heading", { name: `${entity.title} · ${entity.source} · ${entity.external_id} · 변환 실패` }),
     });
     await expect(row).toBeVisible();
     await expect(row).toContainText("001");
@@ -156,10 +156,10 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
     await page.getByLabel("실패한 자료만 보기").check();
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
     await expect(page.locator("article")).toHaveCount(1);
-    await expect(page.locator("article")).toContainText(bad.id);
+    await expect(page.locator("article")).toContainText(bad.external_id);
     release();
     await expect(page.locator("article")).toHaveCount(1);
-    await expect(page.locator("article")).not.toContainText(good.id);
+    await expect(page.locator("article")).not.toContainText(good.external_id);
   } finally {
     release();
     await mcp.close();

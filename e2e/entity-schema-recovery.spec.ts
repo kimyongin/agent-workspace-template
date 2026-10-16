@@ -75,7 +75,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: recovery.id })).executable;
     }, { timeout: 30_000 }).toBe(true);
-    const row = page.locator("article").filter({ has: page.getByRole("heading", { name: `${entity.id} · 변경`, exact: true }) });
+    const row = page.locator("article").filter({ has: page.getByRole("heading", { name: `${entity.title} · ${entity.source} · ${entity.external_id} · 변경`, exact: true }) });
     await expect(row).toBeVisible();
     await expect(row).toContainText("현재 값 7 → 복구 제거");
     const recoveryReady = await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: recovery.id });

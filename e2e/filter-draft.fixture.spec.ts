@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
     app_metadata: {},
     user_metadata: {},
   };
-  await installWorkspaceApi(page, remote, { entities: [entity()], tasks: [], records: [], principles: [], tags: [] });
+  await installWorkspaceApi(page, remote, { entities: [entity()], tasks: [], records: [], tags: [] });
   await page.addInitScript(
     (user) =>
       localStorage.setItem(

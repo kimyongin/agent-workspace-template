@@ -10,7 +10,6 @@ const menuChoices = [
   { id: "products", label: "상품", icon: "box" },
   { id: "tasks", label: "할 일", icon: "tool" },
   { id: "records", label: "기록", icon: "book" },
-  { id: "principles", label: "원칙", icon: "star" },
 ];
 const initialMenus = menuChoices.map((entry) => entry.id);
 

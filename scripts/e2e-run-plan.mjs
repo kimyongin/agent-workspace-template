@@ -2,7 +2,7 @@ import { isAbsolute } from "node:path";
 import { statSync } from "node:fs";
 export const fixtureConfigs = [
   "e2e/collection-fixture.config.ts", "e2e/detail-workspace.config.ts",
-  "e2e/entity-tags-fixtures.config.ts", "e2e/principle-current.config.ts",
+  "e2e/entity-tags-fixtures.config.ts",
   "playwright.activity.config.ts", "e2e/navigation-fixture.config.ts",
   "e2e/type-navigation.config.ts", "e2e/typed-entity-consumers.config.ts",
   "e2e/schema-editor-read.config.ts", "e2e/schema-job-history.config.ts",

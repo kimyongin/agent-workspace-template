@@ -11,13 +11,12 @@ class SqlSearchStore implements SearchStore {
   sources() {
     const tx = this.tx;
     const originals =
-      tx`select owner_id,'task'::text as kind,id,title,body,updated_at as at,status,entity_ids,kind as task_kind,null::text as record_kind,null::boolean as is_current,${
+      tx`select owner_id,'task'::text as kind,id,title,body,updated_at as at,status,entity_ids,kind as task_kind,null::text as record_kind,${
         tagIdsColumn(tx, "task")
       } from app.tasks
-      union all select owner_id,'record',id,body,body,occurred_at,null::text,entity_ids,null::text,record_kind,null::boolean,${
+      union all select owner_id,'record',id,body,body,occurred_at,null::text,entity_ids,null::text,record_kind,${
         tagIdsColumn(tx, "record")
-      } from app.records
-      union all select owner_id,'principle',id,title,body,saved_at,null::text,'{}'::text[],null::text,null::text,is_current,'[]'::jsonb from app.principles where is_current`;
+      } from app.records`;
     return tx`select s.*,i.generation,case
       when s.kind<>'record' then 'excluded'
       when i.input_hash=encode(extensions.digest(s.body,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}
@@ -28,7 +27,6 @@ class SqlSearchStore implements SearchStore {
   filters(q: SearchInput) {
     const tx = this.tx;
     return tx`kind in ${tx(q.kinds)}
-      and (kind<>'principle' or is_current)
       ${q.task_kind ? tx`and (kind<>'task' or task_kind=${q.task_kind})` : tx``}
       ${q.task_status ? tx`and (kind<>'task' or status=${q.task_status})` : tx``}
       ${q.record_kind ? tx`and (kind<>'record' or record_kind=${q.record_kind})` : tx``}

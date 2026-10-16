@@ -5,18 +5,15 @@ import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
-import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import * as entity from "../../functions/_shared/core/entity/application.ts";
-import * as principle from "../../functions/_shared/core/principles/application.ts";
 import * as tag from "../../functions/_shared/core/tags/application.ts";
 import * as settings from "../../functions/_shared/core/settings/application.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { directEntitySource, entityFixture } from "./_entity.ts";
-import { principleCreate } from "../../functions/_shared/contracts/principle.ts";
 import { recordCreate } from "../../functions/_shared/contracts/record.ts";
 import { tagCreate } from "../../functions/_shared/contracts/tag.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
@@ -25,7 +22,6 @@ const sql = connect(urls.pooler, { max: 6, prepare: false });
 const clock = { now: () => new Date("2026-10-11T12:00:00Z") };
 const ad = { uow: new SqlUnitOfWork(sql), clock };
 const ed = { uow: new SqlEntityUnitOfWork(sql) };
-const pd = { uow: new SqlPrincipleUnitOfWork(sql) };
 const td = { uow: new SqlTagUnitOfWork(sql) };
 const sd = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock };
 const keyed = (actor: Actor): Actor => ({ ...actor, request: { key: crypto.randomUUID() } });
@@ -87,7 +83,7 @@ dbTest("completion, recurring transitions, occurrence and record mutations repla
   }
 });
 
-dbTest("tag and current principle writes replay without reapplying changed or deleted objects", async () => {
+dbTest("tag writes replay without reapplying changed or deleted objects", async () => {
   const f = await fixtureOwner(admin);
   try {
     const createdTag = await replay(
@@ -100,16 +96,6 @@ dbTest("tag and current principle writes replay without reapplying changed or de
     );
     await replay(f.actor, (a) => tag.deleteTag(td, a, createdTag.id, renamed.version));
     assertEquals((await tag.listTags(td, f.actor, { limit: 100, scope: "record" })).items, []);
-    const created = await replay(
-      f.actor,
-      (a) => principle.createPrinciple(pd, a, principleCreate.parse({ title: "rule", body: "first" })),
-    );
-    const updated = await replay(
-      f.actor,
-      (a) => principle.updatePrinciple(pd, a, created.id, { expected_version: 1, body: "second" }),
-    );
-    await replay(f.actor, (a) => principle.deletePrinciple(pd, a, created.id, updated.version));
-    assertEquals((await principle.currentPrinciple(pd, f.actor)).current, null);
   } finally {
     await f.cleanup();
   }
@@ -203,7 +189,6 @@ import { createHttpApp } from "../../functions/_shared/adapters/http/app.ts";
 import { entityTools } from "../../functions/_shared/adapters/mcp/entity-tools.ts";
 import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
 import { tagTools } from "../../functions/_shared/adapters/mcp/tag-tools.ts";
-import { principleTools } from "../../functions/_shared/adapters/mcp/principle-tools.ts";
 import { settingsTools } from "../../functions/_shared/adapters/mcp/settings-tools.ts";
 dbTest("HTTP and MCP share canonical creation and settings payloads and reject retired allocation", async () => {
   const f = await fixtureOwner(admin);
@@ -212,7 +197,6 @@ dbTest("HTTP and MCP share canonical creation and settings payloads and reject r
     const app = createHttpApp(
       ad,
       { basePath: "/api", allowedOrigins: [], token: {} as never },
-      pd,
       td,
       {} as never,
       () => Promise.resolve(f.actor),
@@ -223,13 +207,11 @@ dbTest("HTTP and MCP share canonical creation and settings payloads and reject r
       ...entityTools(ed),
       ...activityTools(ad),
       ...tagTools(td),
-      ...principleTools(pd),
       ...settingsTools(sd),
     ];
     const cases = [
       { path: "/records", name: "create_record", input: { body: "cross transport" }, status: 201 },
       { path: "/tags", name: "create_tag", input: { name: "cross tag" }, status: 201 },
-      { path: "/principles", name: "create_principle", input: { title: "cross principle" }, status: 201 },
       {
         path: "/entities",
         name: "create_entity",
@@ -269,7 +251,6 @@ dbTest("HTTP and MCP share canonical creation and settings payloads and reject r
       const [path, validInput] of [
         ["/records", { body: "old" }],
         ["/tags", { name: "old" }],
-        ["/principles", { title: "old" }],
         ["/tasks", { kind: "once", title: "old" }],
       ] as const
     ) {

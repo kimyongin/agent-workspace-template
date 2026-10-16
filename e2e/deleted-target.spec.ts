@@ -2,15 +2,15 @@ import { createFixtureEntity } from "./entity-schema-support.ts";
 import { openDetailEditor } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
-import { savePrinciple } from "./principle-support.ts";
 
-for(const kind of ["entity","task","principle"] as const)test(`삭제된 ${kind}: 이전 변경 기록은 연결 행에서 당시 metadata 보존`,async({page})=>{
+
+for(const kind of ["entity","task"] as const)test(`삭제된 ${kind}: 이전 변경 기록은 연결 행에서 당시 metadata 보존`,async({page})=>{
   await devLogin(page);
   const mcp=await mcpClient(await mcpTokenViaConsent(page));
   let target:{id:string;version:number}|undefined,deleted=false;
   try{
     const title=unique(`삭제 대상 ${kind}`);
-    target=(kind==="principle"?await savePrinciple(mcp,{title,body:"당시 본문"}):kind==="entity"?await createFixtureEntity(mcp,{prop_1:title,prop_2:10,prop_4:"a"}):await mcp.call("create_task",{kind:"once",title,body:"삭제 뒤 역사 확인"})) as {id:string;version:number};
+    target=(kind==="entity"?await createFixtureEntity(mcp,{prop_1:title,prop_2:10,prop_4:"a"}):await mcp.call("create_task",{kind:"once",title,body:"삭제 뒤 역사 확인"})) as {id:string;version:number};
     const events=await mcp.call("list_records",{record_kind:"change",limit:50});
     const historical=events.items.find((r:{change?:{target_kind:string;target_id:string;action:string}})=>r.change?.target_kind===kind&&r.change.target_id===target!.id&&r.change.action!=="delete");
     expect(historical).toBeTruthy();expect(historical.change.path).toBeTruthy();

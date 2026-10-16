@@ -53,7 +53,8 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
     await expect(editing.getByLabel("번호", { exact: true })).toHaveValue(stored.external_id);
     await expect(editing.getByLabel("번호", { exact: true })).toHaveAttribute("readonly", "");
-    await expect(editing).toContainText("저장 후 종류를 변경할 수 없습니다");
+    await expect(editing.getByLabel("발급처", { exact: true })).toHaveValue(stored.source_label);
+    await expect(editing.getByLabel("발급처", { exact: true })).toHaveAttribute("readonly", "");
     await editing.getByRole("button", { name: "취소", exact: true }).click();
     await closeDetail(page, title);
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${typeId}`));

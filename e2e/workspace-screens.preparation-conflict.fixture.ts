@@ -23,7 +23,7 @@ test("#335 준비 충돌 후 확인 취소는 초안을 보존하고 편집 취�
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"], ["principles", 4, "제목"]] as const) {
+for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"]] as const) {
   for (const stage of ["prepare", "write"] as const) {
     test(`#335 ${kind}: ${stage} 충돌 후 초안 보존·최신 조회`, async ({ page }) => {
       const state = await fixtures(page, stage === "write" ? { failWrite: "conflict" } : {});

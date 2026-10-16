@@ -52,7 +52,6 @@ function toRecordResult(record: ActivityRecord): RecordResult {
     entity_context: record.entity_context ?? [],
     record_kind: record.record_kind ?? "user",
     change: record.change ?? null,
-    applied_principle_snapshots: record.applied_principle_snapshots ?? [],
   };
 }
 

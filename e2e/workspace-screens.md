@@ -14,7 +14,7 @@
 | 문서 본문·markdown·표·스크롤·변경 정보 표시 | [content-display](workspace-screens.content-display.fixture.ts) |
 | 폭별 시각 위계·shell/reflow·공통 카드·필터 정렬 | [responsive-layout](workspace-screens.responsive-layout.fixture.ts) |
 | 목록 조건·검색·날짜/시간대·cursor·scroll/초점 복원 | [list-restoration](workspace-screens.list-restoration.fixture.ts) |
-| 엔터티/기록/원칙/태그 작성·편집·삭제·snapshot 보존 | [record-lifecycle](workspace-screens.record-lifecycle.fixture.ts) |
+| 엔터티/기록/태그 작성·편집·삭제·사건 정보 보존 | [record-lifecycle](workspace-screens.record-lifecycle.fixture.ts) |
 
 예를 들어 관계를 바꾸면 해당 파일로 발견 목록과 실행 범위를 확인한다.
 

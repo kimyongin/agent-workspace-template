@@ -6,8 +6,6 @@ import type { StatusDeps } from "./core/status/application.ts";
 import postgres from "postgres";
 import { SqlUnitOfWork } from "./adapters/supabase/activity-store.ts";
 import type { ActivityDeps } from "./core/activity/application.ts";
-import { SqlPrincipleUnitOfWork } from "./adapters/supabase/principle-store.ts";
-import type { PrincipleDeps } from "./core/principles/application.ts";
 import { SqlTagUnitOfWork } from "./adapters/supabase/tag-store.ts";
 import type { TagDeps } from "./core/tags/application.ts";
 import type { SearchDeps } from "./core/search/application.ts";
@@ -34,7 +32,6 @@ function required(name: string): string {
 }
 
 let deps: ActivityDeps | undefined;
-let principles: PrincipleDeps | undefined;
 let connection: postgres.Sql | undefined;
 let tags: TagDeps | undefined;
 let search: SearchDeps | undefined;
@@ -59,9 +56,6 @@ function database() {
     idle_timeout: 20,
     onnotice: () => {},
   });
-}
-export function principleDeps(): PrincipleDeps {
-  return principles ??= { uow: new SqlPrincipleUnitOfWork(database()) };
 }
 
 /** 트랜잭션 풀러(Supavisor) 연결. prepared statement를 지원하지 않으므로 prepare: false. */

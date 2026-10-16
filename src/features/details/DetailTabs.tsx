@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type DragEvent } from "react";
 
 type Tab = { id: string; title: string };
 type Placement = { id: string; before: boolean };
-const icons: Record<string, string> = { entities: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z", tasks: "m3 12 3 3 5-6M14 6h7M14 12h7M14 18h7", records: "M5 3h14v18H5zM8 7h8M8 11h8M8 15h5", principles: "M5 3h14v18H5zM8 7h8M8 11h8M8 15h5" };
+const icons: Record<string, string> = { entities: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z", tasks: "m3 12 3 3 5-6M14 6h7M14 12h7M14 18h7", records: "M5 3h14v18H5zM8 7h8M8 11h8M8 15h5" };
 
 /** The strip owns drag presentation and keyboard interaction; the workspace owns tab order and visits. */
 export function DetailTabs({ tabs, active, enabled, isBusy, select, close, reorder }: {

@@ -1,24 +1,20 @@
 import { entityKey } from "./workspace-data.ts";
 import { openDetailEditor } from "../ui-actions.ts";
 import { expect, type Page } from "@playwright/test";
-import { base, entity, fixtureType, id, principle, record, stamp, task, type WorkspaceRows } from "./workspace-data.ts";
+import { base, entity, fixtureType, id,  record, stamp, task, type WorkspaceRows } from "./workspace-data.ts";
 import { installWorkspaceApi } from "./workspace-api.ts";
 
-export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2], ["record", "records", 31], [
-  "principle",
-  "principles",
-  4,
-]] as const;
+export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2], ["record", "records", 31]] as const;
 
 export const connectedTarget = (page: Page, kind: typeof targetCases[number][0]) =>
   form(page).getByRole("region", {
-    name: `${{ entity: "연결된 자료", task: "할 일", record: "기록", principle: "원칙" }[kind]} (1개)`,
+    name: `${{ entity: "연결된 자료", task: "할 일", record: "기록" }[kind]} (1개)`,
     exact: true,
   });
 
 export async function fixtures(
   page: Page,
-  options: { long?: boolean; emptyPrinciple?: boolean; failWrite?: "unknown" | "conflict"; hold?: boolean } = {},
+  options: { long?: boolean; failWrite?: "unknown" | "conflict"; hold?: boolean } = {},
 ) {
   const user = {
     id: id(901), aud: "authenticated", email: "workspace-screens@example.test",
@@ -37,7 +33,7 @@ export async function fixtures(
     entities: [entity()],
     tasks: [task()],
     records: [record()],
-    principles: options.emptyPrinciple ? [] : [principle(), principle(5, false)],
+
     tags: [{ ...base(10, ""), name: "같은 이름", scope: "entity" }, {
       ...base(11, ""),
       name: "같은 이름",
@@ -47,7 +43,7 @@ export async function fixtures(
   if (options.long) {
     rows.entities[0].properties.prop_1 = rows.entities[0].title = "긴제목".repeat(25);
     rows.entities[0].display_properties.prop_1 = rows.entities[0].title;
-    for (const row of [...rows.tasks, ...rows.records, ...rows.principles]) {
+    for (const row of [...rows.tasks, ...rows.records]) {
       row.body = "긴 본문\n\n".repeat(150);
       if ("title" in row) row.title = "긴제목".repeat(32);
     }

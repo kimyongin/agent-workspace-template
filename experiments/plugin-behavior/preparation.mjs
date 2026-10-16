@@ -7,8 +7,7 @@ export async function readPreparationState(call) {
 }
 
 export async function readBusinessOriginals(call) {
-  const state = { current: await call('get_current_principle', {}) };
-  state.principles = state.current.current ? [state.current.current] : [];
+  const state = {};
   for (const kind of ['entities', 'tasks', 'records', 'tags']) {
     const scopes = kind === 'tags' ? [{ scope: 'entity' }, { scope: 'task' }, { scope: 'record' }] : [{}];
     const rows = [];

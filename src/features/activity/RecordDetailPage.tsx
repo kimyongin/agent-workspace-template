@@ -3,7 +3,7 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { RecordRelations } from "./RecordRelations.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
-import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
+import { ChangeContext, type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
@@ -60,7 +60,7 @@ export function RecordDetailPage() {
 
       <div className="detail-stack">{record.body&&<section className="detail-section record-content" aria-label="내용"><MarkdownContent text={record.body}/></section>}
       {management}
-      <div className="detail-relations"><RecordRelations record={record}/><PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/></div></div>
+      <div className="detail-relations"><RecordRelations record={record}/></div></div>
       {editor.active && editReady && (
         <RecordFormModal
           editing systemRecord={record.record_kind==="change"}

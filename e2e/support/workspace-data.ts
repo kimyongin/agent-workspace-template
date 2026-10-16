@@ -3,7 +3,6 @@ import { initialEntityDefinition } from "../../supabase/functions/_shared/contra
 import type { EntityDetail } from "../../supabase/functions/_shared/contracts/entity.ts";
 import type { TaskDetail, TaskListItem } from "../../supabase/functions/_shared/contracts/task.ts";
 import type { RecordResult } from "../../supabase/functions/_shared/contracts/record.ts";
-import type { PrincipleResult } from "../../supabase/functions/_shared/contracts/principle.ts";
 import type { TagResult } from "../../supabase/functions/_shared/contracts/tag.ts";
 export const stamp = "2026-10-04T03:00:00Z";
 export const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -91,21 +90,12 @@ export const record = (n = 3): RecordResult => ({
   tag_ids: [],
   entity_ids: [],
   entity_context: [],
-  applied_principle_snapshots: [],
 });
-export const principle = (n = 4, current = true): PrincipleResult => ({
-  ...identity(n),
-  title: current ? "현재 기준" : "과거 기준",
-  body: "상세 본문",
-  is_current: current,
-  saved_at: stamp,
-  origin: "saved",
-  legacy_context: null,
-});
+
 export type WorkspaceRows = {
   entities: EntityDetail[];
   tasks: (TaskDetail & TaskListItem)[];
   records: RecordResult[];
-  principles: PrincipleResult[];
+
   tags: TagResult[];
 };

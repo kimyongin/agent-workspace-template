@@ -1,4 +1,4 @@
-// 할 일·기록·원칙에서 함께 쓰는 내용 입력과 저장 실패·미저장 보호.
+// 할 일·기록에서 함께 쓰는 내용 입력과 저장 실패·미저장 보호.
 import { useRecordConfirmation, type RecordMemo } from "./RecordConfirmation.tsx";
 import type { PrepareRecordMemo, PreparedRecordMemo } from "@contracts/record-preparation.ts";
 import { contentLabels } from "@contracts/common.ts";
@@ -13,7 +13,7 @@ export interface TextDraft {
   body: string;
 }
 
-/** 할 일·원칙의 제목과 본문 입력 묶음. */
+/** 할 일의 제목과 본문 입력 묶음. */
 export function TextFields(
   { draft, set, errors }: { draft: TextDraft; set: (patch: Partial<TextDraft>) => void; errors: Record<string, string> },
 ) {

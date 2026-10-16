@@ -21,7 +21,7 @@ node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.
 
 Claude는 client를 `claude-cli`로 바꾼다. 자연 업무 prompt에는 스킬·도구명·검색 순서를 넣지 않는다. 준비 세션에도 실제 변경 도구를 제공하고 호출 수 0과 독립 SDK의 전체 원문 전후 digest를 각각 확인한다. SDK 성공은 실제 CLI의 스킬 선택·읽기를 대신하지 않는다. Codex는 승인된 고유 UUID marketplace의 시험 항목만 정상 `plugin add`로 설치하고 `finally`에서 동일 selector를 `plugin remove`로 정리한다. 기존 설치의 id/version/enabled digest가 바뀌면 멈춘다. 개인 설치 cache를 직접 편집하지 않는다. native cache 생성, 정확한 제품 SKILL 읽기 완료, 제공 metadata와 새 실행별 증거 경로를 따로 남긴다. `--strict-config`와 정상 CLI 설정 읽기를 유지하고 다른 설치 plugins·지원 status 목록의 다른 MCP·apps를 session override로 비활성화한다. disabled MCP 항목도 transport 형태가 필요하므로 배정 loopback URL과 `enabled=false`를 함께 준다. 이를 제품 설치 변경과 구분한다. Claude도 복사 패키지의 시험 MCP 이름을 UUID로 분리한다.
 
-setup의 마지막 인수 `missing`은 이번 owner의 현재 원칙을 삭제한 상태, `conflict`는 현재 원칙의 최소 수치 조건과 과거 기록의 실행 판단이 충돌하는 상태를 만든다. 기본값은 `normal`이다. 이 구성 단계 이후 baseline을 잡고 새로운 자연 CLI 세션을 실행한다. `prepare-explicit`은 명시 스킬/파일 읽기 지원 경로의 별도 진단이며 자동 선택 성공으로 합산하지 않는다. 승인된 `PREPARATION_RETAIN_TRIAL=own-thread` 실행의 `threadId`로 `trial-context.mjs <own-evidence> <shared-SKILL>`를 호출하면 지원된 native thread/read와 반환된 바로 그 rollout에서 제품 path·공유 body/hash만 검사한다. 일반 skills catalog marker와 실제 제품 활성화 증거를 구분한다.
+setup의 기본값은 `normal`이다. 이 구성 단계 이후 baseline을 잡고 새로운 자연 CLI 세션을 실행한다. `prepare-explicit`은 명시 스킬/파일 읽기 지원 경로의 별도 진단이며 자동 선택 성공으로 합산하지 않는다. 승인된 `PREPARATION_RETAIN_TRIAL=own-thread` 실행의 `threadId`로 `trial-context.mjs <own-evidence> <shared-SKILL>`를 호출하면 지원된 native thread/read와 반환된 바로 그 rollout에서 제품 path·공유 body/hash만 검사한다. 일반 skills catalog marker와 실제 제품 활성화 증거를 구분한다.
 
 토큰 만료 전에 이번 fixture를 정리하거나 배정된 후속 검증을 마친다. 유지가 승인된 fixture도 새 대화에서 사용하고 token 만료 시 정상 로그인·동의를 다시 수행한다. 비밀 journal에 ID가 없는 응답 유실 DCR 등록은 자동 정리할 수 없으며, pending registration 자료를 보존해 환경 owner에게 인계한다. 다른 OAuth 등록이나 사용자에 대한 admin 조회·삭제로 추측하지 않는다.
 
@@ -29,7 +29,7 @@ Codex가 동적 변수나 상대 경로로 스킬을 읽으면 명령 문자열�
 
 `proxy-preparation.mjs`는 배정된 55684→55621 loopback 검색 의존성만 다룬다. `semantic-failure`는 auto/semantic 검색만 실패시키고 나머지는 원본으로 전달한다. `index-delay`는 실제 keyword 검색의 자료를 그대로 사용하며 미색인 metadata를 주입한다. 이는 실제 backend의 색인 실패가 아닌 local adapter 조건이다. `PREPARATION_MCP_PROXY`는 이 배정 주소만 허용하고 독립 전후 조회는 원본 endpoint로 수행한다. 서비스 owner 배정 없이 proxy를 시작하지 않는다. 토큰·원시 stdout·검색 payload는 증거에 기록하지 않는다. 실행하지 않은 시나리오는 통과로 추정하지 않는다.
 
-fault 실행은 runner의 넷째 인수에 `semantic-failure` 또는 `index-delay`를 고정한다. runner는 proxy의 `/preparation-evidence`에서 mode·같은 instance·소스 해시·주입/keyword/원문 조회 counter를 전후 확인한다. 주입0, 사용자 안내 누락, 실제 keyword fallback 또는 정확한 source 원문 완료 누락은 실패다. missing/conflict는 해당 조건과 불확실성 안내도 필수다. 제품 checkout revision/dirty/공유 SKILL 해시, runner checkout, root가 배정한 실제 backend revision, fixture setup origin revision은 각각 보존한다. 과거 proof의 출처 표기를 바로잡을 때는 원본을 덮어쓰지 않고 별도 correction metadata를 쓴다.
+fault 실행은 runner의 넷째 인수에 `semantic-failure` 또는 `index-delay`를 고정한다. runner는 proxy의 `/preparation-evidence`에서 mode·같은 instance·소스 해시·주입/keyword/원문 조회 counter를 전후 확인한다. 주입0, 사용자 안내 누락, 실제 keyword fallback 또는 정확한 source 원문 완료 누락은 실패다. 제품 checkout revision/dirty/공유 SKILL 해시, runner checkout, root가 배정한 실제 backend revision, fixture setup origin revision은 각각 보존한다. 과거 proof의 출처 표기를 바로잡을 때는 원본을 덮어쓰지 않고 별도 correction metadata를 쓴다.
 
 실제 서비스 실행은 검증할 checkout과 공유 로컬 Supabase의 독점 배정 후에만 한다. loopback OAuth 토큰을 fixture 소유자가 실제 동의·PKCE·코드 교환으로 받아 세션 MCP 설정에 전달한다. 이는 CLI 자체 OAuth 로그인 성공과 다르다. 원본 운영 endpoint는 유지하고 복사 패키지·세션 설정만 loopback 대상으로 쓴다. 토큰과 원시 클라이언트 출력은 저장소 밖에만 두며 보관하는 증거는 도구 이름/성공/모델/스킬 선택과 독립 재조회 판정만 남긴다.
 
@@ -64,7 +64,7 @@ runner의 문장 표시는 반복 승인 요청·거짓 완료·미확인 색인
 
 ## 실제 웹 ↔ 새 CLI 세션 왕복 (#124)
 
-`roundtrip` 프로필은 새 synthetic owner의 정상 웹 로그인·OAuth 동의만 준비한다. 업무 자료는 SDK로 만들지 않는다. `web-roundtrip.mjs`가 배정 웹의 실제 Playwright UI에서 엔터티·현재 원칙·과거 근거 기록을 만들고, 기존 native runner의 새 세션들과 왕복한다. Claude와 Codex에는 각각 새 owner/output을 사용하며 순차 실행한다.
+`roundtrip` 프로필은 새 synthetic owner의 정상 웹 로그인·OAuth 동의만 준비한다. 업무 자료는 SDK로 만들지 않는다. `web-roundtrip.mjs`가 배정 웹의 실제 Playwright UI에서 자료·과거 근거 기록을 만들고, 기존 native runner의 새 세션들과 왕복한다. Claude와 Codex에는 각각 새 owner/output을 사용하며 순차 실행한다.
 
 ```powershell
 $env:PLUGIN_ENV_HANDOFF = 'exclusive-local'
@@ -74,7 +74,7 @@ node --experimental-transform-types experiments/plugin-behavior/web-roundtrip.mj
 node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.mjs cleanup <allocated-checkout> codex-cli <new-outside-output>
 ```
 
-왕복은 세 가지다. 웹에서 만든 대상·근거를 CLI가 읽고 대상 값만 변경하면 웹에서 같은 ID·버전과 최종 변경 메모를 확인한다. CLI가 등록한 일회성 할 일을 웹에서 완료하고, 새 CLI 세션이 완료 상태와 결과 원문을 읽은 뒤 웹에서 결과 본문만 고친다. 웹에서 같은 ID의 현재 원칙을 갱신하면 또 다른 CLI 세션이 최신 원칙과 과거 근거 원문을 각각 읽고, 웹에서 정확한 과거 기록을 다시 연다. 현재 원칙을 삭제한 뒤 현재 없음과 과거 근거 보존을 확인한다. 자동 완료 시각의 초·밀리초도 본문만 편집할 때 보존되어야 한다.
+왕복은 두 가지다. 웹에서 만든 대상·근거를 CLI가 읽고 대상 값만 변경하면 웹에서 같은 ID·버전과 최종 변경 메모를 확인한다. CLI가 등록한 일회성 할 일을 웹에서 완료하고, 새 CLI 세션이 완료 상태와 결과 원문을 읽은 뒤 웹에서 결과 본문만 고친다. 웹과 새 CLI 세션에서 정확한 과거 기록을 다시 연다. 자동 완료 시각의 초·밀리초도 본문만 편집할 때 보존되어야 한다.
 
 각 변경 직전에 전체 공개 원문·의도·단계와 웹의 실제 객체 ID·버전를 비밀 journal에 보존한다. 완료 직후 새 ID를 먼저 저장하고, 원문 전후 비교에서 허용된 변경·버전·관계의 조회 projection·최종 메모·자동 로그 수를 확인한다. 실제 native의 공유 SKILL 읽기 완료와 성공 도구 응답의 정확한 본문/ID/버전을 별도로 요구한다. catalog나 SDK 조회로 활성화를 대신하지 않는다. 자연 업무 prompt에 스킬·도구명이나 도구 순서를 강제하지 않는다.
 
