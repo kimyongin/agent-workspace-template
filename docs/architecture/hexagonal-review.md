@@ -35,6 +35,34 @@ Pinecone은 임베딩 생성 공급자로 사용하며 Pinecone 벡터 인덱스
 
 Storage와 Realtime은 실제 첨부·자동 갱신 요구가 생길 때 추가한다. 웹은 GitHub Pages에 배포한다. 새 프로젝트의 서비스 설정과 비밀값은 독립적으로 구성한다.
 
+### 비동기 처리 용어
+
+실행 기술, 작업 처리 역할, 실행 인스턴스를 구분한다. 사용자에게 설명할 때는 `worker`만으로 이 셋을 함께 가리키지 않는다.
+
+| 용어 | 뜻과 구분 |
+| --- | --- |
+| Edge Function (엣지 함수) | Supabase가 배포·실행하는 서버 함수. 실행 기술을 가리키며, 사용자 API나 대기 작업 처리에 모두 사용할 수 있다. |
+| 작업 처리기 (worker / consumer) | 대기 작업을 가져와 처리하는 프로그램의 역할. 별도 서버를 뜻하지 않으며, 이 프로젝트에서는 검색 처리 함수와 스키마 처리 함수로 구체적으로 부른다. |
+| Edge Function 실행 인스턴스 | 함수를 실행하는 환경 한 개. Supabase 문서의 `Edge Function worker`는 이 뜻이며, 작업 처리 역할과 구분한다. |
+| 상주 작업 처리기 | 계속 실행하면서 대기 작업을 가져오는 독립 프로그램. 별도 실행 환경의 운영이 필요한 대안이며, 현재 구성에 추가하기로 결정한 것은 아니다. |
+| 큐 / 작업 테이블 | 처리할 작업과 상태를 보관하는 곳. 작업을 넣는 것과 실제 처리 프로그램을 실행하는 것은 별개다. 검색은 pgmq 큐를, 스키마 분석·값 변환은 작업 테이블을 사용한다. |
+| 예약 실행 (Cron) | 정해진 시간에 실행 요청을 보내는 기능. 이 프로젝트에서는 pg_net을 통해 처리 함수에 HTTPS 요청을 보낸다. |
+| Background Tasks (백그라운드 작업) | Edge Function이 응답 후에도 같은 인스턴스에서 처리를 이어가는 기능. `waitUntil()`을 사용하며 실행 제한을 받는다. DB에 작업을 보관하고 Cron으로 처리하는 현재 방식과 구분한다. |
+| 처리 함수 호출 토큰 | 처리 함수의 HTTP 실행 요청을 인증하는 비밀값. 현재 두 함수는 같은 `PROCESSING_TOKEN`과 Vault의 `processing_token`을 사용한다. 사용자 로그인 토큰·DB 접속 자격 증명과 구분하며 Supabase의 별도 토큰 종류를 뜻하지 않는다. |
+
+현재 역할과 코드 이름은 검색 처리 함수 `index-worker`, 스키마 처리 함수 `entity-schema-worker`로 대응한다. 설명 용어를 정리한 것이며 함수명·환경변수·호출 계약을 변경하지 않는다. 두 함수 모두 Supabase Edge Functions로 실행되며 별도 상주 서버를 운영하는 구성이 아니다.
+
+```text
+웹·MCP → DB에 작업 등록
+Cron → pg_net HTTPS 요청 + 호출 토큰 → 처리 함수 → DB의 작업 처리·결과 저장
+```
+
+이 흐름은 실행 구조이며 특정 환경에서 Cron이 등록·활성화됐다는 증거가 아니다.
+
+`내부 호출`은 서버 운영용 호출이라는 뜻으로만 사용한다. 인터넷에서 접근 가능한 HTTPS 주소를 내부 네트워크 전용 주소라고 설명하지 않는다. 호출 토큰은 실행 권한을 제한하며 네트워크 접근을 차단하는 설정은 아니다. DB 접속 인증은 이 호출 인증과 별도로 유지한다. 실제 인증·일정·처리 완료 검증은 [운영 방법](../operations/runbook.md)이 소유한다.
+
+공식 용어의 근거: [Edge Functions](https://supabase.com/docs/guides/functions), [실행 인스턴스와 제한](https://supabase.com/docs/guides/functions/limits), [Queues의 consumer](https://supabase.com/docs/guides/queues), [예약 실행](https://supabase.com/docs/guides/functions/schedule-functions), [Background Tasks](https://supabase.com/docs/guides/functions/background-tasks).
+
 ## Google 로그인과 MCP 인증
 
 기본 웹 로그인은 웹→Supabase Auth→Google 인증→Supabase callback→웹 복귀 흐름이다. 앱의 사용자 식별과 서버 권한은 검증된 Supabase 사용자 문맥을 따른다. Google의 access token을 앱 업무 API나 MCP의 인증 토큰으로 그대로 사용하지 않는다.

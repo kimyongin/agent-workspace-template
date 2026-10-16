@@ -65,6 +65,9 @@
 | 성공 재현 결과 | 같은 저장 요청을 다시 확인할 때 돌려주는 당시 성공 내용. 현재 값과 구분하며 보관 한도를 넘는 결과는 전체 저장을 취소한다. | [재시도 결정](docs/adr/0018-server-ids-and-request-idempotency.md) |
 | 트랜잭션 | 함께 성공해야 하는 저장을 한 번에 처리하는 것. 하나라도 실패하면 전부 취소되어 반쪽만 저장되는 일을 막는다. | [ADR-0003](docs/adr/0003-core-rules-and-local-transactions.md) |
 | 큐 | 오래 걸리는 일을 줄 세워 두고 따로 처리하는 대기열. 예: 새 기록을 검색용으로 정리하는 일. 저장은 바로 끝나고 검색 반영은 조금 늦을 수 있다. | [아키텍처](docs/architecture/hexagonal-review.md#큐-기반-비동기-작업) |
+| 검색 처리 함수 | 저장된 기록을 검색할 수 있도록 준비하는 비동기 처리 프로그램. 기존 문서의 검색 worker는 이 역할을 뜻한다. | [비동기 처리 용어](docs/architecture/hexagonal-review.md#비동기-처리-용어) |
+| 스키마 처리 함수 | 자료 속성 변경의 영향을 분석하고 승인된 값 변환 작업을 처리하는 비동기 처리 프로그램. 기존 문서의 스키마 worker는 이 역할을 뜻한다. | [비동기 처리 용어](docs/architecture/hexagonal-review.md#비동기-처리-용어) |
+| 처리 함수 호출 토큰 | 서버가 검색·스키마 처리 함수의 실행을 요청할 때 권한을 확인하는 비밀값. 사용자 로그인 토큰이나 DB 접속 자격 증명과 구분한다. | [비동기 처리 용어](docs/architecture/hexagonal-review.md#비동기-처리-용어) |
 | 임베딩 | 글의 의미를 숫자 목록(벡터)으로 바꾸는 것. 뜻이 비슷한 글을 찾는 의미 검색에 쓴다. | [검색](docs/architecture/search.md) |
 | 본문 구간 (chunk) | 긴 기록 본문을 검색용으로 나눈 부분. 원문에서 다시 만들 수 있으며 직접 입력하거나 편집하는 별도 기록이 아니다. | [검색](docs/architecture/search.md) |
 | 대표 문구 | 기록 목록·연결에서 본문을 짧게 보여 주는 표시값. 별도 제목·요약으로 저장하지 않는다. | [내용 모델 결정](docs/adr/0014-minimal-content-model.md) |
