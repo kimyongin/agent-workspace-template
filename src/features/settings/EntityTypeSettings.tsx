@@ -86,8 +86,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       (type_id ? selector.current : creationName.current)?.focus();
     }
   }, [loading, location.state?.materialTypeFocus, type_id]);
-  const { attempt, busy, uncertain } = useWriteAttempt();
-  const createdTypeId = useRef<string | null>(null);
+  const { attempt, busy, uncertain } = useWriteAttempt<EntityType>();
   const readLatestBasics = async () => {
     if (!type_id || busy || uncertain || latestBusy) return;
     setError("");
@@ -186,25 +185,24 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       input: type_id ? definitions.basicSaveInput() : { label, icon_id: icon, representative_label: representative },
     };
     try {
-      await attempt.run(async () => {
-        const saved = await api<EntityType>(
+      const saved = await attempt.run(() =>
+        api<EntityType>(
           current.method,
           current.path,
           current.input,
           undefined,
           attempt.requestKey(),
-        );
-        if (!mounted.current) return;
-        if (session) invalidateEntityTypeCatalog(session.user.id);
-        if (type_id) {
-          definitions.acceptBasicSave(saved);
-        } else {
-          definitions.cancelBasics();
-          setRepresentative("이름");
-          createdTypeId.current = saved.id;
-        }
-        setMessage("자료 종류를 저장했습니다.");
-      });
+        )
+      );
+      if (!saved || !mounted.current) return;
+      if (session) invalidateEntityTypeCatalog(session.user.id);
+      if (type_id) {
+        definitions.acceptBasicSave(saved);
+      } else {
+        definitions.cancelBasics();
+        setRepresentative("이름");
+      }
+      setMessage("자료 종류를 저장했습니다.");
       if (type_id) {
         try {
           await definitions.refresh();
@@ -214,11 +212,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           }
         }
       }
-      // A retry replays the first callback, so its confirmed result must outlive a save invocation.
-      if (createdTypeId.current) {
+      if (!type_id) {
         requestAnimationFrame(() => {
-          if (mounted.current && createdTypeId.current) {
-            navigate(`/settings/entity-types/${createdTypeId.current}`, { state: { materialTypeFocus: true } });
+          if (mounted.current) {
+            navigate(`/settings/entity-types/${saved.id}`, { state: { materialTypeFocus: true } });
           }
         });
       }

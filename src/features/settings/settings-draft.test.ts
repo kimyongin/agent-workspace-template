@@ -203,6 +203,11 @@ test("업무 설정 응답 불명은 같은 키·입력·기준 버전으로 재
   expect(settings.snapshot().uncertain).toBe(true);
   settings.edit(()=>({memo:"다른 내용"}));await settings.read();await settings.save();
   expect(calls).toHaveLength(2);expect(calls[1]).toEqual(calls[0]);expect(settings.snapshot().uncertain).toBe(false);
+  expect(settings.snapshot()).toMatchObject({
+    saved: { version: 3, value: { memo: "저장할 내용" } },
+    draft: { memo: "저장할 내용" },
+    dirty: false,
+  });
 });
 
 
