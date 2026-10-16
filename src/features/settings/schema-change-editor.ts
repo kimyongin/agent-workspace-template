@@ -45,6 +45,21 @@ function draftFingerprint(value: unknown): string {
 }
 const clone = (v: SchemaDefinition) => structuredClone({ schema: v.schema });
 export type EditState = { dirty: boolean; busy: boolean; uncertain: boolean; error?: boolean };
+type ReviewAction = {
+  kind:
+    | "sync-pending"
+    | "sync-required"
+    | "retry"
+    | "restart"
+    | "review"
+    | "analyzing"
+    | "analyze"
+    | "reanalyze"
+    | "migration"
+    | "publish";
+  disabled: boolean;
+  run?: () => void | Promise<void>;
+};
 /** Owns a material's schema-change editing intent, reads, and writes.
  * Published definitions come from the settings owner; rows and focus stay in the UI.
  */
@@ -533,6 +548,21 @@ export function useSchemaChangeEditor(
     });
 
   const editable = () => !busy && !uncertain && !disabled && !readBusy && !startState.busy && !startState.uncertain;
+  // Action policy is shared by the displayed affordance and its execution guard.
+  // Field editing and conversion input retain their separate lifetime rules.
+  const actionReady = editable() && !planSyncNeeded;
+  const canRetry = !busy && !disabled && !planSyncNeeded;
+  const canReview = uncertain ? canRetry : actionReady;
+  const reviewSaved = plan?.status === "invalid" && plan.analysis?.status === "succeeded";
+  const reviewDisabled = !canReview || !!plan?.recovery || (!dirty && !uncertain && !reviewSaved);
+  const emptyPublication = !!plan && !plan.recovery && plan.analysis?.status === "succeeded" &&
+    plan.analysis.total === 0;
+  const canAnalyze = actionReady && !dirty && !!plan &&
+    !["analyzing", "applied", "cancelled", "stale"].includes(plan.status);
+  const canPublish = actionReady && !dirty && plan?.status === "ready" &&
+    (plan.change_kind === "compatible" || emptyPublication) && plan.analysis?.failed === 0;
+  const canRestart = actionReady && !plan?.recovery;
+  const canDiscard = actionReady && !dirty && !!plan && !["applied", "cancelled"].includes(plan.status);
   const editField = (key: string, field: EntityField) => {
     if (editable() && !plan?.recovery) setField(key, field);
   };
@@ -641,24 +671,24 @@ export function useSchemaChangeEditor(
     }
   };
   const review = () => {
-    if (!uncertain && !editable()) return;
+    if (!canReview) return;
     if (!uncertain && !dirty && plan) return analyze();
     if (uncertain || validateFields()) return write("save");
     return Promise.resolve();
   };
   const analyze = () => {
-    if (editable() && !dirty && plan && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) {
+    if (canAnalyze) {
       return write("analyze");
     }
   };
   const publish = () => {
-    if (
-      editable() && !dirty && plan?.status === "ready" &&
-      (plan.change_kind === "compatible" || (!plan.recovery && plan.analysis?.total === 0)) &&
-      plan.analysis?.failed === 0
-    ) {
-      return write("apply");
-    }
+    if (canPublish) return write("apply");
+  };
+  const restartReview = () => {
+    if (canRestart && validateFields()) return write("restart");
+  };
+  const discard = () => {
+    if (canDiscard) return write("discard");
   };
   const startNewChange = () => {
     if (busy || uncertain || dirty || disabled || readBusy) return;
@@ -727,6 +757,29 @@ export function useSchemaChangeEditor(
   const changeCount = changedFields.length +
     Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
     (draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
+  const historyAction = (): ReviewAction | null => {
+    if (!plan || ["applied", "cancelled"].includes(plan.status)) return null;
+    if (planSyncNeeded) return { kind: readBusy ? "sync-pending" : "sync-required", disabled: true };
+    if (uncertain) return { kind: "retry", disabled: !canRetry, run: review };
+    if ((staleInput || plan.status === "stale") && !plan.recovery) {
+      return { kind: "restart", disabled: !canRestart, run: restartReview };
+    }
+    if (dirty) return { kind: "review", disabled: !canReview, run: review };
+    if (acceptedAnalysis !== null || plan.status === "analyzing") return { kind: "analyzing", disabled: true };
+    if (
+      !["analyzing", "applied", "cancelled", "stale"].includes(plan.status) &&
+      (!plan.analysis || plan.analysis.status === "failed")
+    ) {
+      return { kind: plan.analysis ? "reanalyze" : "analyze", disabled: !canAnalyze, run: analyze };
+    }
+    if (plan.change_kind === "migration_required" && !emptyPublication && plan.executable) {
+      return { kind: "migration", disabled: !actionReady };
+    }
+    if ((plan.change_kind === "compatible" || emptyPublication) && plan.status !== "stale") {
+      return { kind: "publish", disabled: !canPublish, run: publish };
+    }
+    return null;
+  };
   return {
     view: {
       draft,
@@ -749,9 +802,7 @@ export function useSchemaChangeEditor(
       uncertain,
       readBusy,
       startState,
-      analysisPending: acceptedAnalysis !== null,
       restartedFrom,
-      staleInput,
       planSyncNeeded,
       migrationEdited:
         draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }),
@@ -771,24 +822,22 @@ export function useSchemaChangeEditor(
       if (editable() && !plan?.recovery) reorder(key, offset);
     },
     validateFields,
-    review,
-    analyze,
-    publish,
-    discard: () => {
-      if (
-        !busy && !disabled && !readBusy && !startState.busy && !startState.uncertain &&
-        (uncertain || (plan && !dirty && !["applied", "cancelled"].includes(plan.status)))
-      ) return write("discard");
-      return Promise.resolve();
+    actions: {
+      review: {
+        visible: !plan?.recovery && (!plan || dirty || reviewSaved),
+        disabled: reviewDisabled,
+        run: () => { if (!reviewDisabled) return review(); },
+      },
+      history: historyAction(),
+      discard: { disabled: !canDiscard, run: discard },
+      conversionVisible: !!plan && !planSyncNeeded && !emptyPublication &&
+        (plan.change_kind === "migration_required" || !!plan.recovery || migration.rules.length > 0 ||
+          migration.overrides.length > 0 || (plan.analysis?.failed ?? 0) > 0),
     },
     startNewChange,
     loadPlan,
     refreshDefinition,
     refreshPlan,
-    restartReview: () => {
-      if (!editable() || plan?.recovery || planSyncNeeded) return;
-      if (validateFields()) return write("restart");
-    },
     refreshChanges,
     moreChanges,
     migrationStateChanged: startStateChange,

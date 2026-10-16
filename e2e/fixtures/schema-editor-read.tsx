@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { type PropertyDraft, PropertyFields } from "../../src/features/entity/property-fields.tsx";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Link } from "react-router";
+import { BrowserRouter, Link, useLocation } from "react-router";
 import { SchemaEditor } from "../../src/features/settings/SchemaEditor.tsx";
+import { useSchemaChangeEditor } from "../../src/features/settings/schema-change-editor.ts";
 import { type EntityType, initialEntityDefinition } from "../../supabase/functions/_shared/contracts/entity-type.ts";
 import "../../src/styles/app.css";
 import "../../src/features/settings/settings.css";
@@ -76,6 +77,42 @@ function EmptyInputsFixture() {
     </>
   );
 }
+function ReviewActionsFixture() {
+  const location = useLocation();
+  const [disabled, setDisabled] = useState(false);
+  const editor = useSchemaChangeEditor({
+    type,
+    definition,
+    disabled,
+    selectionSearch: location.search,
+    onState,
+    onApplied,
+    onFieldKeysChanged: () => {},
+    onInvalidField: () => {},
+    onReviewed: () => {},
+  });
+  const action = editor.actions.history;
+  return (
+    <>
+      <output aria-label="현재 행동">{action?.kind ?? "none"}</output>
+      <output aria-label="행동 차단">{String(action?.disabled ?? true)}</output>
+      <button onClick={() => setDisabled(!disabled)}>상위 차단 전환</button>
+      <button onClick={() => editor.migrationStateChanged({ busy: true, uncertain: false, error: false })}>
+        변환 접수 대기
+      </button>
+      <button onClick={() => editor.migrationStateChanged({ busy: false, uncertain: true, error: false })}>
+        변환 접수 결과 불명
+      </button>
+      <button onClick={() => editor.migrationStateChanged({ busy: false, uncertain: false, error: false })}>
+        변환 접수 종료
+      </button>
+      <button onClick={() => void editor.refreshPlan()}>상태 조회</button>
+      {/* Invoke the public command without a DOM disabled guard to verify its own policy. */}
+      <button onClick={() => void action?.run?.()}>행동 실행 요청</button>
+      <button onClick={() => void editor.actions.review.run()}>속성 검토 요청</button>
+    </>
+  );
+}
 const onState = () => {};
 const onApplied = async () => "";
 createRoot(document.getElementById("root")!).render(
@@ -84,7 +121,9 @@ createRoot(document.getElementById("root")!).render(
       <Link to="?change_id=a">변경안 A</Link>
       <Link to="?change_id=b">변경안 B</Link>
     </nav>
-    {new URLSearchParams(location.search).has("empty-inputs")
+    {new URLSearchParams(location.search).has("action-probe")
+      ? <ReviewActionsFixture />
+      : new URLSearchParams(location.search).has("empty-inputs")
       ? <EmptyInputsFixture />
       : <SchemaEditor type={type} definition={definition} onState={onState} onApplied={onApplied} />}
   </BrowserRouter>,
