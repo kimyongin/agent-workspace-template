@@ -1,4 +1,4 @@
-# ADR-0022: 자료 종류 정의를 단일 JSON Schema 문서로 관리
+# ADR-0023: 자료 종류 정의를 단일 JSON Schema 문서로 관리
 
 - 상태: 채택, 구현·검증은 [스펙 #468](https://github.com/kimyongin/agent-workspace-template/issues/468)
 - 날짜: 2026-10-16

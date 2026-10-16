@@ -108,11 +108,11 @@ test("shortcut editing has its own section with compact rows, bounded selection 
   await page.getByLabel("닉네임", { exact: true }).fill("보존할 초안");
   await section.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(section.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
-  await select.selectOption({ label: "원칙" });
-  await section.getByRole("button", { name: "원칙 추가", exact: true }).click();
+  await select.selectOption({ label: "전체 자료" });
+  await section.getByRole("button", { name: "전체 자료 추가", exact: true }).click();
   await expect(select).toHaveValue("");
   await expect(select).toBeDisabled();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["재료", "할 일", "기록", "원칙"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["재료", "할 일", "기록", "전체 자료"]);
   await section.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["재료", "상품", "할 일", "기록"]);
   await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue("보존할 초안");
@@ -182,7 +182,7 @@ test("external tab metadata preserves dirty preview until conflict is reviewed",
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks"), ref("records")] });
   await page.goto("/settings/navigation");
   await page.getByRole("button", { name: "기록 위로 이동" }).click();
-  state.setMetadata({ version: 1, refs: [ref("principles")] });
+  state.setMetadata({ version: 1, refs: [ref("records")] });
   await page.evaluate((id) => {
     const channel = new BroadcastChannel("workspace-decorative-profile");
     channel.postMessage(id);
@@ -192,7 +192,7 @@ test("external tab metadata preserves dirty preview until conflict is reviewed",
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
   await expect(page.getByRole("button", { name: "메뉴 바로가기 저장" })).toBeDisabled();
   await page.getByRole("button", { name: "최신 설정 사용" }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["원칙"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록"]);
   expect(state.writes).toEqual([]);
 });
 test("unknown refs remain explicit and live rename archive restore do not rewrite preferences", async ({ page, baseURL }) => {
@@ -211,7 +211,7 @@ test("unknown refs remain explicit and live rename archive restore do not rewrit
   expect(state.metadata().workspace_navigation).toEqual(preference);
   expect(state.writes).toEqual([]);
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "원칙", exact: true })).toBeVisible();
+  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "기록", exact: true })).toBeVisible();
 });
 test("invalid navigation reads fallback without hidden writes and all profile destinations stay reachable at short 200% layout", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("logout")] });
@@ -220,7 +220,7 @@ test("invalid navigation reads fallback without hidden writes and all profile de
   await page.setViewportSize({ width: 320, height: 300 });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-  for (const label of ["전체 자료", "원칙", "설정", "사용 가이드", "로그아웃"]) {
+  for (const label of ["전체 자료", "기록", "설정", "사용 가이드", "로그아웃"]) {
     const link = page.locator("#nav-profile-options").getByRole("link", { name: label, exact: true });
     await link.scrollIntoViewIfNeeded();
     await expect(link).toBeVisible();
@@ -242,7 +242,7 @@ test(
     );
     const preference = {
       version: 1,
-      refs: [{ kind: "type", id: types[11].id }, ref("tasks"), ref("records"), ref("principles")],
+      refs: [{ kind: "type", id: types[11].id }, ref("tasks"), ref("records"), ref("entities")],
     };
     const state = await fixture(page, baseURL!, preference);
     state.setTypes(types);
@@ -270,11 +270,11 @@ test(
 );
 test("profile identifies current location when its shortcut is hidden", async ({ page, baseURL }) => {
   await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] });
-  await page.goto("/principles");
+  await page.goto("/records");
   await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
-  await expect(page.getByRole("button", { name: "내 프로필 · 원칙 현재 화면", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("button", { name: "내 프로필 · 기록 현재 화면", exact: true })).toHaveAttribute("aria-current", "page");
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "원칙", exact: true })).toHaveAttribute(
+  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "기록", exact: true })).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -282,8 +282,8 @@ test("profile identifies current location when its shortcut is hidden", async ({
 test("pending save prevents duplicate submission and departure until authoritative GET", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] });
   await page.goto("/settings/navigation");
-  await page.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption({ label: "원칙" });
-  await page.getByRole("button", { name: "원칙 추가", exact: true }).click();
+  await page.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption({ label: "기록" });
+  await page.getByRole("button", { name: "기록 추가", exact: true }).click();
   let release!: () => void;
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -329,7 +329,7 @@ test("late old account metadata cannot overwrite the new account navigation", as
       json: {
         ...account,
         id: otherId,
-        user_metadata: { workspace_navigation: { version: 1, refs: [ref("principles")] } },
+        user_metadata: { workspace_navigation: { version: 1, refs: [ref("records")] } },
       },
     });
   });
@@ -341,9 +341,9 @@ test("late old account metadata cannot overwrite the new account navigation", as
     const { error } = await supabase.auth.setSession({ access_token, refresh_token: "other-refresh" });
     if (error) throw error;
   }, otherToken);
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["원칙"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록"]);
   release();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["원칙"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록"]);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("sb-127-auth-token")!).user.id)).toBe(otherId);
 });
 

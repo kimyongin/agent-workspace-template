@@ -4,14 +4,14 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
-import { createMaterialTemplateDraft, createRecordModelDraft } from "./material-template-drafts.ts";
+import { createMaterialTemplateDraft, createTaskTemplateDraft } from "./material-template-drafts.ts";
 import { MaterialSettingsSection, type MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { SettingsHeading } from "./SettingsHeading.tsx";
 import "./settings.css";
-type Target = { id: string; label: string; model: "entity" | "task" | "principle"; typeId?: string };
+type Target = { id: string; label: string; model: "entity" | "task"; typeId?: string };
 export function RecordSettingsPage() {
   const catalog = useEntityTypes();
-  const targets: Target[] = [...(catalog.types ?? []).map(type => ({ id: `type:${type.id}`, label: type.label, model: "entity" as const, typeId: type.id })), { id: "task", label: "할 일", model: "task" }, { id: "principle", label: "원칙", model: "principle" }];
+  const targets: Target[] = [...(catalog.types ?? []).map(type => ({ id: `type:${type.id}`, label: type.label, model: "entity" as const, typeId: type.id })), { id: "task", label: "할 일", model: "task" }];
   const [selected, setSelected] = useState("task");
   const [visited, setVisited] = useState(["task"]);
   const [states, setStates] = useState<Record<string, MaterialSectionState>>({});
@@ -34,7 +34,7 @@ export function RecordSettingsPage() {
   </section>;
 }
 function TargetEditor({ target, report }: { target: Target; report: (id: string, state: MaterialSectionState) => void }) {
-  const [resource] = useState(() => target.typeId ? createMaterialTemplateDraft(target.typeId) : createRecordModelDraft(target.model as "task" | "principle"));
+  const [resource] = useState(() => target.typeId ? createMaterialTemplateDraft(target.typeId) : createTaskTemplateDraft());
   const [state, setState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const onStateChange = useCallback((next: MaterialSectionState) => { setState(next); report(target.id, next); }, [report, target.id]);
   useEffect(() => {

@@ -7,7 +7,7 @@ const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { prepare: false, max: 2 }),
   d = { uow: new SqlSearchUnitOfWork(sql) };
 dbTest(
-  "search actual SQL filters task kind/status, current principle only, record kind, coverage/anchor/cursor",
+  "search actual SQL filters task kind/status, record kind, coverage/anchor/cursor",
   async () => {
     const f = await fixtureOwner(admin);
     try {
@@ -20,9 +20,6 @@ dbTest(
       await admin`insert into app.tasks(id,owner_id,kind,status,title,body,recurrence,timezone) values(${
         ids[2]
       },${owner},'recurring','active',${token},'반복','{"freq":"daily","starts_on":"2026-01-01"}','Asia/Seoul')`;
-      await admin`insert into app.principles(id,owner_id,title,body,is_current) values(${
-        ids[3]
-      },${owner},${token},'현재',true),(${ids[4]},${owner},${token},'과거',false)`;
       await admin`insert into app.records(id,owner_id,body,record_kind) values(${ids[5]},${owner},${token},'user'),(${
         ids[6]
       },${owner},${token},'change')`;
@@ -31,7 +28,6 @@ dbTest(
         const [extra, expected] of [
           [{ kinds: ["task"], task_kind: "recurring" }, [ids[2]]],
           [{ kinds: ["task"], task_status: "done" }, [ids[1]]],
-          [{ kinds: ["principle"] }, [ids[3]]],
           [{ kinds: ["record"], record_kind: "change" }, [ids[6]]],
         ] as const
       ) {

@@ -8,7 +8,7 @@ import {
   fixtureSchema,
   fixtureType,
   fixtureIdentity,
-  principle,
+
   record,
   stamp,
   task,
@@ -140,7 +140,7 @@ export async function installWorkspaceApi(
       searches.push(body);
       const selected = String((body.kinds as string[])[0]) + "s";
       return reply({
-        items: (storage[selected] ?? []).filter((r) => selected !== "principles" || r.is_current).map((r) => ({
+        items: (storage[selected] ?? []).map((r) => ({
           id: r.id,
           kind: selected.slice(0, -1),
           title: selected === "records" ? recordDisplayText(String(r.body ?? "")) : r.title,
@@ -163,11 +163,8 @@ export async function installWorkspaceApi(
       return reply({ code: "invalid_input", message: `Unexpected fixture endpoint ${url.pathname}` }, 400);
     }
     if (method === "GET") {
-      if (kind === "principles" && key === "current") {
-        return reply({ current: storage.principles.find((r) => r.is_current) ?? null });
-      }
       if (key) {
-        const found = storage[kind].find((r) => r.id === key && (kind !== "principles" || r.is_current));
+        const found = storage[kind].find((r) => r.id === key);
         return found ? reply(found) : reply({ code: "not_found", message: "삭제된 자료" }, 404);
       }
       if (plan) {
@@ -182,7 +179,7 @@ export async function installWorkspaceApi(
         items = items.filter((row) => !row.deleted_at && (!typeId || row.entity_type_id === typeId) && (!keyword || String(row.title).toLowerCase().includes(keyword)) && row.id !== url.searchParams.get("link_candidate_for"));
       }
       if (kind === "tags") items = items.filter((r) => r.scope === (url.searchParams.get("scope") ?? "record"));
-      if (kind === "principles") return reply({ code: "not_found", message: "지원하지 않는 원칙 목록" }, 404);
+
       if (kind === "records" && url.searchParams.get("task_id")) {
         items = items.filter((r) => r.task_id === url.searchParams.get("task_id"));
       }
@@ -221,13 +218,6 @@ export async function installWorkspaceApi(
         if (found) Object.assign(found, { deleted_at: stamp, version: found.version + 1 });
       } else storage[kind] = storage[kind].filter((r) => r.id !== key);
       return route.fulfill({ status: 204 });
-    }
-    if (kind === "principles" && method === "POST" && !key) {
-      const current = storage.principles.find((r) => r.is_current);
-      if (current) return reply({ code: "conflict", message: "현재 원칙이 있습니다" }, 409);
-      const saved = { ...principle(sequence++), ...body };
-      storage.principles.unshift(saved);
-      return reply(saved, 201);
     }
     if (method === "POST" && !key) {
       const saved: FakeRow = {

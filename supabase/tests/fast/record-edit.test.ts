@@ -22,16 +22,6 @@ function fixture(kind: "user" | "result" | "change") {
     task_id: kind === "result" ? crypto.randomUUID() : null,
     occurrence_on: kind === "result" ? "2026-10-06" : null,
     tag_ids: [],
-    applied_principle_snapshots: [{
-      id: crypto.randomUUID(),
-      title: "당시 제목",
-      summary: "당시 요약",
-      body: "당시 전체 원문",
-      version: 1,
-      saved_at: "2020-01-02T00:00:00.000Z",
-      status: "inactive",
-      captured_at: "migration",
-    }],
     change: kind === "change"
       ? {
         event_id: crypto.randomUUID(),
@@ -117,7 +107,6 @@ for (const kind of ["user", "result", "change"] as const) {
       f.initial.task_id,
       f.initial.occurrence_on,
     ]);
-    assertEquals(updated.applied_principle_snapshots, f.initial.applied_principle_snapshots);
     assertEquals("applied_principle_ids" in updated, false);
     assertEquals(f.jobs.length, 1);
     assertEquals(await f.call({ expected_version: 2, body: "정정" }), updated);

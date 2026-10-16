@@ -1,6 +1,6 @@
 # ADR-0020: 자료 종류별 JSON Schema와 불변 게시 버전
 
-- 상태: 채택. schema/display 및 metadata/schema 분리 결정은 [ADR-0022](0022-single-schema-document.md)로 대체. 기존 구현 근거는 [스펙 #343](https://github.com/kimyongin/agent-workspace-template/issues/343).
+- 상태: 채택. schema/display 및 metadata/schema 분리 결정은 [ADR-0023](0023-single-schema-document.md)로 대체. 기존 구현 근거는 [스펙 #343](https://github.com/kimyongin/agent-workspace-template/issues/343).
 - 날짜: 2026-10-12
 - 승인 근거: #343의 다중 타입·JSONB·schema evolution·아이콘·메뉴 대화 합의
 
@@ -10,7 +10,7 @@
 
 ## 최초 결정과 유지하는 보장
 
-종류·속성·표시의 현재 정본과 버전 정책은 ADR-0022를 따른다. 아래의 분리 저장·독립 metadata version은 최초 구현의 근거이며, 속성 키·자료 종류·권한·변환/복구 보장은 계속 유지한다.
+종류·속성·표시의 현재 정본과 버전 정책은 ADR-0023를 따른다. 아래의 분리 저장·독립 metadata version은 최초 구현의 근거이며, 속성 키·자료 종류·권한·변환/복구 보장은 계속 유지한다.
 
 
 단일 entities에 entity_type_id와 properties JSONB, 마지막 저장에 적용한 schema_version을 둔다. 사용자별 자료 종류는 label/icon_id/보관 상태와 metadata version을 가진다. 타입별 current schema 포인터와 immutable schema/display 게시 버전을 별도로 보존한다. 생성 이후 자료 종류 변경은 제공하지 않는다. source+external_id는 owner 전체에서 유일하며 자료 종류는 식별자 범위를 나누지 않는다.
@@ -33,4 +33,4 @@
 
 ## 결과
 
-고정 업무 컬럼 배제 결정은 JSON Schema 기반 업무 속성으로 대체한다. 중첩 자유 JSON·타입별 전용 테이블·범용 payload/workflow engine은 만들지 않는다. 타입 설정/버전 첫 경로는 #344, 자료 저장·진화·마이그레이션·동적 화면·관계·초기화는 후속 티켓으로 구현하며 이 문서의 채택은 배포·운영 DB 적용 완료를 뜻하지 않는다. 상위 고정 네 탭 결정은 #343의 프로필+사용자 바로가기 계약으로 대체한다.
+고정 업무 컬럼 배제 결정은 JSON Schema 기반 업무 속성으로 대체한다. 중첩 자유 JSON·타입별 전용 테이블·범용 payload/workflow engine은 만들지 않는다. 타입 설정/버전 첫 경로는 #344, 자료 저장·진화·마이그레이션·동적 화면·관계·초기화는 후속 티켓으로 구현하며 이 문서의 채택은 배포·운영 DB 적용 완료를 뜻하지 않는다. 상위 고정 자료·할 일·기록 결정은 #343의 프로필+사용자 바로가기 계약으로 대체한다.

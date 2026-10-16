@@ -3,7 +3,7 @@ export interface Keyset {
   id: string;
 }
 export interface IndexJob {
-  kind: "task" | "record" | "principle";
+  kind: "task" | "record";
   id: string;
   input_hash: string;
 }

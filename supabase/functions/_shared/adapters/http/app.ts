@@ -10,8 +10,6 @@ import { statusRoutes } from "./status-routes.ts";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { ActivityDeps } from "../../core/activity/application.ts";
-import type { PrincipleDeps } from "../../core/principles/application.ts";
-import { principleRoutes } from "./principle-routes.ts";
 import { AppError } from "../../core/shared/errors.ts";
 import { type TokenPolicy, verifyActor } from "../auth/verify.ts";
 import { toErrorBody } from "../errors.ts";
@@ -37,7 +35,6 @@ export interface HttpConfig {
 export function createHttpApp(
   deps: ActivityDeps,
   config: HttpConfig,
-  principles: PrincipleDeps,
   tags: TagDeps,
   search: SearchDeps,
   // Test assembly can inject an Actor verifier; production always defaults to token verification.
@@ -80,7 +77,6 @@ export function createHttpApp(
   });
 
   app.route("/", activityRoutes(deps));
-  app.route("/", principleRoutes(principles));
   app.route("/", tagRoutes(tags));
   app.route("/", searchRoutes(search));
   if (entities) app.route("/", entityRoutes(entities));

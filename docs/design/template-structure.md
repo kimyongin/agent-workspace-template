@@ -32,7 +32,6 @@ agent-workspace-template/
 │  ├─ features/
 │  │  ├─ auth/                     # Google 로그인, 앱 세션, MCP OAuth 동의
 │  │  ├─ activity/                 # 할 일·기록·활동 목록
-│  │  ├─ principles/               # 사용자 원칙
 │  │  ├─ entity/                   # 단일 예제 엔터티(도메인 교체 대상)
 │  │  ├─ details/                  # 상세 조회·편집 준비, 작업 영역의 탭·URL·이동 보호
 │  │  ├─ collections/              # 목록 페이지 수명·복원·재시도
@@ -48,7 +47,7 @@ agent-workspace-template/
 │  ├─ migrations/                  # 테이블·RLS·제약·pgmq·pgvector 설정
 │  ├─ schema/OVERVIEW.md            # 스키마 색인
 │  ├─ functions/
-│  │  ├─ api/index.ts              # 웹 HTTP: 작업·기록·원칙·검색
+│  │  ├─ api/index.ts              # 웹 HTTP: 작업·기록·검색
 │  │  ├─ mcp/index.ts              # 외부 에이전트 MCP
 │  │  ├─ index-worker/index.ts     # 비동기 worker: 검색 색인
 │  │  └─ _shared/
@@ -57,7 +56,6 @@ agent-workspace-template/
 │  │     │  │  ├─ domain.ts        # Task, ActivityRecord, 업무 규칙
 │  │     │  │  ├─ ports.ts         # 조회·저장·트랜잭션 계약
 │  │     │  │  └─ application/     # 작성·조회·완료·기록 편집
-│  │     │  ├─ principles/        # 사용자 원칙 모델·유스케이스·포트
 │  │     │  ├─ entity/            # 단일 예제 엔터티 모델·유스케이스·포트
 │  │     │  ├─ search/            # 검색·색인 유스케이스와 포트
 │  │     │  └─ shared/            # 실제 공통 Actor·업무 오류만
@@ -104,7 +102,7 @@ agent-workspace-template/
 - 검색 이름은 search다. HTTP 검색은 api의 /search에 둔다. index-worker는 권한과 실행 계기가 다른 내부 작업이므로 분리한다. knowledge 접두어는 사용하지 않는다.
 - 웹은 업무 API 응답을 사용한다. DB 행 타입, 서버 bootstrap/adapters를 브라우저로 가져오지 않는다. API DTO·DB 행·도메인 모델을 구분하되 형식적인 변환 클래스를 의무화하지 않는다.
 - plugins/workspace는 MCP 연결과 제품 스킬을 함께 배포하는 플러그인 원본이다. manifest·연결 설정·스킬·참고 문서를 포함한다. 트리의 꺾쇠 항목은 설명용 자리이며 실제 파일명이 아니다. 지원 클라이언트는 Claude와 Codex로 확정했다. 각 클라이언트의 공식 형식과 endpoint/등록 앱 참조 방식을 확인한 뒤 실제 파일명을 문서화한다. 클라이언트별 manifest는 같은 skills/workspace를 참조하고 제품 스킬을 클라이언트별로 복제하지 않는다. 하나의 manifest가 모든 에이전트에 설치된다고 가정하지 않는다.
-- AGENTS는 프로젝트 개발 문맥, .agents/skills의 SKILL은 개발 방법, plugins/workspace의 SKILL은 제품 사용 규칙, principles는 사용자 원칙 데이터다. 개발용 [코드 설계 원칙](../architecture/principles.md)과 다르다. workspace라는 제품 이름이 다중 조직·멤버십 모델을 자동으로 요구하지 않는다.
+- AGENTS는 프로젝트 개발 문맥, .agents/skills의 SKILL은 개발 방법, plugins/workspace의 SKILL은 제품 사용 규칙. 개발용 [코드 설계 원칙](../architecture/principles.md)은 개발 기준을 소유한다. workspace라는 제품 이름이 다중 조직·멤버십 모델을 자동으로 요구하지 않는다.
 
 ## 다음 작업
 

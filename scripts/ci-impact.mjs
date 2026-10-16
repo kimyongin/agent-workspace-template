@@ -84,7 +84,7 @@ const isDocument = (path) => /^docs\/.*\.(?:md|html|txt|svg|png|jpe?g|webp|gif|p
 // execution config/tools and unknown future areas retain full verification.
 function isWebPath(path) {
   if (/auth|oauth|token|login|logout|consent/i.test(path)) return false;
-  return /^src\/(?:features\/(?:activity|collections|details|entity|principles|relations|search|settings|status|tags)\/|components\/|styles\/).*\.(?:ts|tsx|css)$/.test(path)
+  return /^src\/(?:features\/(?:activity|collections|details|entity|relations|search|settings|status|tags)\/|components\/|styles\/).*\.(?:ts|tsx|css)$/.test(path)
     || /^e2e\/[^/]+\.(?:spec|fixture)\.ts$/.test(path)
     || /^e2e\/fixtures\/[^/]+\.(?:tsx|html)$/.test(path);
 }

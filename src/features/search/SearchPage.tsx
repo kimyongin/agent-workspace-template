@@ -12,7 +12,7 @@ import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { useSearchRead } from "./useSearchRead.ts";
 import { activityTags } from "../activity/activity-filters.ts";
-const kinds = { task: "할 일", record: "기록", principle: "원칙" } as const;
+const kinds = { task: "할 일", record: "기록" } as const;
 export function SearchPage() {
   const { formatDateTime } = useDisplayTime();
   useDetailExploration();
@@ -106,7 +106,7 @@ export function SearchPage() {
         title="검색"
         id="search-title"
         tabIndex={-1}
-        description="할 일·기록·원칙을 키워드나 의미로 찾아봅니다."
+        description="할 일·기록을 키워드나 의미로 찾아봅니다."
       />
       <div className="query-bar mixed-query-bar">
         <form
@@ -144,7 +144,7 @@ export function SearchPage() {
         </form>
         {(params.has("status") || params.has("principle_view")) && (
           <Notice kind="error">
-            이 링크에는 지원하지 않는 검색 조건이 있습니다. 조건을 지운 뒤 현재 원칙이나 통합 기록을 검색하세요.{" "}
+            이 링크에는 지원하지 않는 검색 조건이 있습니다. 조건을 지운 뒤 할 일이나 기록을 검색하세요.{" "}
             <button
               type="button"
               className="btn"
@@ -196,8 +196,10 @@ export function SearchPage() {
                 )}
               </Field>
             </div>
-            <p className="help">현재 원칙은 원칙 탭에서 확인하고, 과거 변경과 근거는 기록을 검색해 원문을 읽으세요.</p>
-            {(editing.draft.has("tag_ids") || selectedKind === "principle" && !!selectedTag) && (
+            <p className="help">
+              현재 자료는 자료 목록에서 확인하고, 과거 변경과 근거는 기록을 검색해 원문을 읽으세요.
+            </p>
+            {editing.draft.has("tag_ids") && (
               <div className="form">
                 <TagReadProvider dictionary={dictionary}>
                   <TagNames scope={selectedKind === "task" ? "task" : "record"} ids={activityTags(editing.draft)} />
@@ -205,7 +207,7 @@ export function SearchPage() {
                 <button type="button" className="btn" onClick={clearTags}>저장된 태그 조건 해제</button>
               </div>
             )}
-            {selectedKind !== "principle" && (
+            {
               <TagFilter
                 dictionary={dictionary}
                 value={selectedTag}
@@ -218,7 +220,7 @@ export function SearchPage() {
                   });
                 }}
               />
-            )}
+            }
             <EntityPicker
               value={editing.draft.get("entity_id") ?? ""}
               onChange={(id) => changeFilter("entity_id", id ?? "")}

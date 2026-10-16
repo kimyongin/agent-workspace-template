@@ -8,16 +8,14 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { entityCreate, entityListQuery } from '../../supabase/functions/_shared/contracts/entity.ts';
 import { tagCreate, tagListQuery } from '../../supabase/functions/_shared/contracts/tag.ts';
-import { principleCreate } from '../../supabase/functions/_shared/contracts/principle.ts';
 import { recordCreate, recordListQuery } from '../../supabase/functions/_shared/contracts/record.ts';
 import { taskCreate, taskListQuery } from '../../supabase/functions/_shared/contracts/task.ts';
 import { requestKey } from '../../supabase/functions/_shared/contracts/request.ts';
 // The same public input contracts used by HTTP/MCP; no core/runtime dependency.
-const creates = { tag: tagCreate, entity: entityCreate, principle: principleCreate, record: recordCreate, task: taskCreate };
+const creates = { tag: tagCreate, entity: entityCreate, record: recordCreate, task: taskCreate };
 const schemas = new Map(Object.entries(creates).map(([kind, contract]) => [`create_${kind}`, { parse(input) { const { request_key, ...body } = input; requestKey.parse(request_key); return { ...contract.parse(body), request_key }; } }]));
 for (const [name, contract] of Object.entries({ list_entities: entityListQuery, list_tags: tagListQuery, list_records: recordListQuery, list_tasks: taskListQuery })) schemas.set(name, contract);
 for (const kind of Object.keys(creates)) { schemas.set(`get_${kind}`, z.strictObject({ id: z.string() })); schemas.set(`delete_${kind}`, z.strictObject({ id: z.string(), expected_version: z.number(), request_key: requestKey.optional() })); }
-schemas.set('get_current_principle', z.strictObject({}));
 const typeId = '00000000-0000-4000-8000-000000000001';
 const scalarType = async () => ({ id: typeId, schema_version: 2, label: '검사 자료 test' });
 const entityInput = marker => ({ entity_type_id: typeId, schema_version: 2, properties: { prop_1: marker, prop_2: 7, prop_3: '2026-10-04', prop_4: 'b' } });
@@ -28,7 +26,7 @@ function journal() {
   return { journalVersion: 1, clientName: 'codex-cli', endpoint, marker: 'plugin-codex-cli-abcdef12', originalDetail: 'SOURCE-test', state: 'creating', ownerId: 'own-owner', oauthClientId: 'own-client', token: `mock.${claims}.mock` };
 }
 function service() {
-  const rows = { tag: new Map(), entity: new Map(), principle: new Map(), record: new Map() };
+  const rows = { tag: new Map(), entity: new Map(), record: new Map() };
   let fault, oauthAttempts = 0; const receipts = new Map();
   const calls = [], queries = [], inputs = [];
   return {
@@ -39,7 +37,6 @@ function service() {
       assert(schemas.has(name), `Actual MCP ToolDef missing: ${name}`);
       input = schemas.get(name).parse(input); // Real input contract before any mock effect.
       calls.push(name); inputs.push({ name, input: structuredClone(input) });
-      if (name === 'get_current_principle') return { current: [...rows.principle.values()].find(row => row.is_current) ?? null };
       const [verb, suffix] = name.split('_');
       const kind = suffix === 'entities' ? 'entity' : suffix.replace(/s$/, '');
       if (verb === 'create') {
@@ -47,7 +44,7 @@ function service() {
         const key = input.request_key;
         if (receipts.has(key)) return structuredClone(receipts.get(key));
         const { request_key, ...body } = input;
-        const object = { ...body, id: kind === 'entity' ? `app:${randomUUID()}` : randomUUID(), version: 1, ...(kind === 'entity' ? { title: input.properties.prop_1 } : {}), ...(kind === "principle" ? { is_current: true } : {}) };
+        const object = { ...body, id: kind === 'entity' ? `app:${typeId}:${randomUUID()}` : randomUUID(), version: 1, ...(kind === 'entity' ? { title: input.properties.prop_1 } : {}) };
         receipts.set(key, structuredClone(object));
         rows[kind].set(object.id, object);
         if (fault === `after:${kind}`) { fault = undefined; throw new Error('lost create response'); }
@@ -55,7 +52,7 @@ function service() {
       }
       if (verb === 'list') {
         queries.push({ kind, ...input });
-        const values = [...rows[kind].values()].filter((value) => kind !== 'principle' || input.view === 'all' || (input.view === 'history' ? !value.is_current : value.is_current));
+        const values = [...rows[kind].values()];
         const offset = input.cursor ? Number(input.cursor.split(':').at(-1)) : 0;
         if (input.cursor) assert(input.cursor.startsWith(`${kind}:${input.view ?? '-'}:`), 'Cursor must remain scoped to its view');
         return { items: values.slice(offset, offset + 1), next_cursor: offset + 1 < values.length ? `${kind}:${input.view ?? '-'}:${offset + 1}` : null };
@@ -146,7 +143,7 @@ test('journal write failure stops mutation; existing journals and owner/endpoint
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('inventory failure after all four creates leaves every ID available for partial cleanup', async () => {
+test('inventory failure after all three creates leaves every ID available for partial cleanup', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'plugin-journal-'));
   const path = resolve(root, 'fixture.json');
   try {
@@ -157,7 +154,7 @@ test('inventory failure after all four creates leaves every ID available for par
     await assert.rejects(setupOwned(data, save, api.call, async () => {
       inventoryCalls++;
       const persisted = await readJournal(path, endpoint, 'codex-cli');
-      for (const kind of ['tag', 'entity', 'principle', 'record']) assert.equal(persisted[kind].id, data[kind].id);
+      for (const kind of ['tag', 'entity', 'record']) assert.equal(persisted[kind].id, data[kind].id);
       throw new Error('listTools transport failure');
     }, scalarType), /listTools/);
     assert.equal(inventoryCalls, 1);
@@ -166,30 +163,5 @@ test('inventory failure after all four creates leaves every ID available for par
     await cleanupOwned(data, save, api.call, api.oauth);
     assert(Object.values(api.rows).every((rows) => rows.size === 0));
     assert.equal(data.state, 'cleaned');
-    assert.equal(api.calls.filter(name => name === 'get_current_principle').length, 2);
   } finally { await rm(root, { recursive: true, force: true }); }
-});
-
-test('cleanup reads only the owned current principle and never uses retired history discovery', async () => {
-  const root = await mkdtemp(resolve(tmpdir(), 'plugin-journal-')); const path = resolve(root, 'fixture.json');
-  try {
-    const data = journal(), api = service(), save = () => saveJournal(path, data);
-    await saveJournal(path, data, true);
-    const foreign = randomUUID(); api.rows.principle.set(foreign, { id: foreign, title: 'archived data', is_current: false, version: 9 });
-    await setupOwned(data, save, api.call, async () => ({ tools: [...schemas.keys()].map(name => ({ name })) }), scalarType);
-    assert(!schemas.has('list_principles')); assert(!schemas.has('correct_principle'));
-    await cleanupOwned(data, save, api.call, api.oauth);
-    assert(api.rows.principle.has(foreign)); assert(!api.rows.principle.has(data.principle.id));
-    assert(!api.calls.includes('list_principles')); assert.equal(api.oauthAttempts, 1);
-    assert.equal((await readJournal(path, endpoint, 'codex-cli')).token, undefined);
-  } finally { await rm(root, { recursive: true, force: true }); }
-});
-
-test('setup refuses an existing foreign current principle before any fixture mutation', async () => {
-  const data = journal(), api = service();
-  const id = randomUUID(); api.rows.principle.set(id, { id, title: 'existing current', is_current: true, version: 9 });
-  await assert.rejects(setupOwned(data, async () => {}, api.call, async () => ({ tools: [] })), /existing current/);
-  assert.deepEqual(api.calls, ['get_current_principle']);
-  assert.equal(api.rows.principle.get(id).version, 9);
-  assert.equal(api.rows.tag.size + api.rows.entity.size + api.rows.record.size, 0);
 });

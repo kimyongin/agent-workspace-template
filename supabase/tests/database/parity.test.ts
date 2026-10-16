@@ -3,7 +3,6 @@
 import { assertEquals } from "@std/assert";
 import type { z } from "zod";
 import { recordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
-import { principleCreate, principleResult } from "../../functions/_shared/contracts/principle.ts";
 import { taskCreate, taskResult } from "../../functions/_shared/contracts/task.ts";
 import { connect, dbTest, devUsers, urls } from "./_db.ts";
 
@@ -11,7 +10,7 @@ const admin = connect(urls.admin, { max: 1 });
 const { a: A } = await devUsers(admin);
 
 /** 한 행을 넣어 보고 롤백한다. CHECK·NOT NULL 위반이면 false. */
-async function dbAccepts(table: "tasks" | "records" | "principles", row: Record<string, unknown>): Promise<boolean> {
+async function dbAccepts(table: "tasks" | "records", row: Record<string, unknown>): Promise<boolean> {
   try {
     await admin.begin(async (tx) => {
       await tx`insert into ${tx("app." + table)} ${tx({ owner_id: A, ...row })}`;
@@ -35,7 +34,6 @@ const boundaries = (field: "title" | "body", max: number, min: number) => [
   { name: `${field} ${max + 1}자`, value: "가".repeat(max + 1) },
   ...(min > 0 ? [{ name: `${field} 빈 값`, value: "" }] : []),
 ];
-const record = { title: "제목", body: "" };
 const onceTask = { kind: "once", title: "제목", body: "" };
 for (const [field, max, min] of [["title", 100, 1], ["body", 22000, 0]] as const) {
   for (const b of boundaries(field, max, min)) {
@@ -43,10 +41,7 @@ for (const [field, max, min] of [["title", 100, 1], ["body", 22000, 0]] as const
       const input = { ...onceTask, [field]: b.value };
       assertEquals(await dbAccepts("tasks", { ...input, status: "open" }), contractAccepts(taskCreate, input));
     });
-    dbTest(`원칙 parity: ${b.name}`, async () => {
-      const input = { title: "제목", body: "", [field]: b.value };
-      assertEquals(await dbAccepts("principles", input), contractAccepts(principleCreate, input));
-    });
+
     if (field === "body") {
       dbTest(`기록 parity: ${b.name}`, async () => {
         const input = { body: b.value };
@@ -85,20 +80,4 @@ dbTest("기록: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다"
     (await columns("records")).map((k) => k === "change_metadata" ? "change" : k).sort(),
     Object.keys(recordResult.shape).filter((k) => k !== "tag_ids").sort(),
   );
-});
-
-dbTest("원칙: legacy fields rejected by current input and retired DB aliases and current result columns", async () => {
-  assertEquals(
-    principleCreate.safeParse({ ...{ ...record, applies_when: "legacy" } }).success,
-    false,
-  );
-  assertEquals(
-    principleCreate.safeParse({
-      ...{ ...record, entity_id: `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}` },
-    })
-      .success,
-    false,
-  );
-  assertEquals(principleCreate.safeParse({ ...{ ...record, tag_ids: [] } }).success, false);
-  assertEquals(await columns("principles"), Object.keys(principleResult.shape).sort());
 });

@@ -84,7 +84,7 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     return rows.map((row) => row.id as string);
   }
   async target(model: TemplateModel, id: string) {
-    const table = model === "entity" ? "entities" : model === "task" ? "tasks" : "principles";
+    const table = model === "entity" ? "entities" : "tasks";
     const [row] = model === "entity"
       ? await this
         .tx`select e.*,t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version as current_schema_version,v.schema from app.entities e
@@ -92,7 +92,6 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
         join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where e.id=${id}`
       : await this.tx`select * from app.${this.tx(table)} where id=${id}`;
     if (!row) return null;
-    if (model === "principle" && !row.is_current) return null;
     const facts = model === "entity"
       ? {
         source: row.source,
@@ -107,12 +106,10 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
           (field) => [field, row[field] instanceof Date ? row[field].toISOString().slice(0, 10) : row[field]],
         ),
       );
-    if (model !== "principle") {
-      const tags = await this.tx`select tag_id from ${this.tx(`app.${model}_tags`)} where ${
-        this.tx(`${model}_id`)
-      }=${id}`;
-      facts.tag_ids = tags.map((tag) => tag.tag_id);
-    }
+    const tags = await this.tx`select tag_id from ${this.tx(`app.${model}_tags`)} where ${
+      this.tx(`${model}_id`)
+    }=${id}`;
+    facts.tag_ids = tags.map((tag) => tag.tag_id);
     return { version: Number(row.version), facts: facts as ChangeFacts, deleted_at: row.deleted_at };
   }
 }

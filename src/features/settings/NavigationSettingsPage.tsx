@@ -42,7 +42,7 @@ export function NavigationSettings(
   const dirty = !equal(draft, baseline);
   const refs = draft?.refs ?? defaultNavigationRefs(types);
   const choices = resolveNavigationRefs([
-    ...["entities", "tasks", "principles", "records"].map((id) => ({ kind: "builtin", id } as NavigationRef)),
+    ...["entities", "tasks", "records"].map((id) => ({ kind: "builtin", id } as NavigationRef)),
     ...types.map((type) => ({ kind: "type" as const, id: type.id })),
   ], types);
   const available = choices.filter((entry) => !refs.some((ref) => key(ref) === entry.key));

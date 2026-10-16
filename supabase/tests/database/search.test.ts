@@ -33,9 +33,6 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     await tx`insert into app.records(id,owner_id,body,occurred_at) values(${sameId},${users.a},${
       token + " 재활용 %_"
     },${at})`;
-    await tx`insert into app.principles(id,owner_id,title,body,updated_at,saved_at,is_current) values(${sameId},${users.a},'원칙',${
-      token + " 재활용 %_"
-    },${at},${at},true)`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${tagId})`;
     await tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${users.a},${sameId},${taskTag})`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${scopeTag})`;
@@ -57,10 +54,17 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     first = searchResult.parse(await search(d, A, base));
   assertEquals(first.semantic_coverage, { pending: 1, excluded: 0 });
   assertEquals(first.items[0].kind, "task");
-  assertEquals((await search(d, A, { ...base, anchor: { kind: "principle", id: sameId } })).anchor_page, null);
-  assertEquals((await search(d, B, { ...base, anchor: { kind: "principle", id: sameId } })).anchor_page, null);
   assertEquals(
-    (await search(d, A, { ...base, query: "없는 말", anchor: { kind: "principle", id: sameId } })).anchor_page,
+    (await search(d, A, { ...base, anchor: { kind: "record", id: crypto.randomUUID() } })).anchor_page,
+    null,
+  );
+  assertEquals(
+    (await search(d, B, { ...base, anchor: { kind: "record", id: crypto.randomUUID() } })).anchor_page,
+    null,
+  );
+  assertEquals(
+    (await search(d, A, { ...base, query: "없는 말", anchor: { kind: "record", id: crypto.randomUUID() } }))
+      .anchor_page,
     null,
   );
   assert(first.next_cursor);
@@ -95,7 +99,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
   const foreign = await search(d, B, searchInput.parse({ query: token, tag_id: tagId }));
   assertEquals(foreign.semantic_coverage.pending, 0);
   assertEquals(foreign.items, []);
-  assertEquals((await search(d, A, searchInput.parse({ query: token }))).items.length, 3);
+  assertEquals((await search(d, A, searchInput.parse({ query: token }))).items.length, 2);
   assertEquals(
     (await search(d, A, searchInput.parse({ query: token, kinds: ["record"], from: "2026-10-04T00:00:00Z" }))).items,
     [],

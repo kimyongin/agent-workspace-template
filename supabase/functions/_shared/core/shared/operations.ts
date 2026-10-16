@@ -1,4 +1,4 @@
-// 활동과 원칙에서 실제로 함께 쓰는 요청 재시도·목록 커서·검색 입력 해시.
+// 자료·할 일·기록에서 함께 쓰는 목록 커서·검색 입력 해시.
 import type { Actor } from "./actor.ts";
 import { id, isoDateTime } from "../../contracts/common.ts";
 import { invalidInput } from "./errors.ts";

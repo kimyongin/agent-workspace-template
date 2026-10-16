@@ -1,7 +1,6 @@
 import {expect } from "@playwright/test";
 import { test, devLogin,mcpClient,mcpTokenViaConsent,unique } from "./support.ts";
 import { chooseTag, applyTabFilters, openTabFilters } from "./ui-actions.ts";
-import {savePrinciple} from "./principle-support.ts";
 // This suite checks native-dialog history restoration; retained wide panels are covered separately.
 test.beforeEach(async({page,isMobile})=>{if(!isMobile)await page.setViewportSize({width:1024,height:720});});
 test("웹 검색→태그 범위→MCP 결과 비교→본문 원문 확인",async({page})=>{
@@ -22,21 +21,21 @@ test("웹 검색→태그 범위→MCP 결과 비교→본문 원문 확인",asy
   }finally{await mcp.close();}
 });
 
-test("세 원문 종류의 검색 상세 왕복·뒤로 가기·새로고침이 추가 페이지와 초점을 복원한다",async({page})=>{
+test("두 원문 종류의 검색 상세 왕복·뒤로 가기·새로고침이 추가 페이지와 초점을 복원한다",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
     const marker=unique("검색 복원"),titles:string[]=[];
-    for(const kind of ["record","task","principle"]){const title=kind==="record"?`record ${marker}`:unique(kind);titles.push(title);if(kind==="principle")await savePrinciple(mcp,{title,body:marker});else await mcp.call(`create_${kind}`,{...(kind==="task"?{kind:"once",title}:{}),body:kind==="record"?title:marker});}
+    for(const kind of ["record","task"]){const title=kind==="record"?`record ${marker}`:unique(kind);titles.push(title);await mcp.call(`create_${kind}`,{...(kind==="task"?{kind:"once",title}:{}),body:kind==="record"?title:marker});}
     for(let i=0;i<21;i++)await mcp.call("create_record",{body:`${unique("추가 결과")} ${marker}`});
     await page.goto(`/search?q=${encodeURIComponent(marker)}&mode=keyword&record_kind=user`);await expect(page.locator(".list .item-title")).toHaveCount(20);
-    await page.getByRole("button",{name:"더 보기",exact:true}).click();await expect(page.locator(".list .item-title")).toHaveCount(24);
+    await page.getByRole("button",{name:"더 보기",exact:true}).click();await expect(page.locator(".list .item-title")).toHaveCount(23);
     for(const [index,title] of titles.entries()){
       const link=page.getByRole("link",{name:title,exact:true});await link.scrollIntoViewIfNeeded();await link.click();
       await expect(page.getByRole("heading",{name:index===0?"기록":title,exact:true})).toBeVisible();
       if(index===0)for(let i=0;i<21;i++)await mcp.call("create_record",{body:`${unique("동시 추가")} ${marker}`});
       if(index===0)await page.goBack();else await page.getByRole("button",{name:/^이전: 검색/}).click();
-      await expect(page.locator(".list .item-title")).toHaveCount(45);await expect(link).toBeFocused();
-      await page.reload();await expect(page.locator(".list .item-title")).toHaveCount(45);await expect(link).toBeFocused();
+      await expect(page.locator(".list .item-title")).toHaveCount(44);await expect(link).toBeFocused();
+      await page.reload();await expect(page.locator(".list .item-title")).toHaveCount(44);await expect(link).toBeFocused();
       await expect(link).toBeInViewport();expect(new URL(page.url()).searchParams.get("pages")).toBe("2");
     }
   }finally{await mcp.close();}

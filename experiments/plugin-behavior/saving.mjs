@@ -54,7 +54,7 @@ function unchangedEntities(before, after) {
   if (before.entities.length !== after.entities.length) return false;
   return before.entities.every(entity => {
     const current = after.entities.find(row => row.id === entity.id);
-    if (!current || !equal(without(entity, ['tasks', 'records', 'principles']), without(current, ['tasks', 'records', 'principles']))) return false;
+    if (!current || !equal(without(entity, ['tasks', 'records']), without(current, ['tasks', 'records']))) return false;
     return entityProjectionMatches(current, after, entity);
   });
 }
@@ -69,7 +69,7 @@ export function verifyStoredChange(before, after, fixture, mode) {
   const events = created.filter(row => row.record_kind === 'change');
   const needsEvent = ['save-record', 'save-response-loss'].includes(mode);
   const creationEvent = event => Boolean(target && event.change?.target_kind === 'record' && event.change.target_id === target.id && typeof event.change.target_title === 'string' && event.change.action === 'create' && event.change.source === 'mcp' && event.change.path === `/records/${target.id}` && event.change.before === null && typeof event.change.event_id === 'string' && event.change.event_id && equal(event.entity_ids, target.entity_ids) && (event.change.after === null || ['id', 'body', 'version', 'entity_ids'].every(key => equal(event.change.after?.[key], target[key]))));
-  let allowedChange = ['current', 'principles', 'tags'].every(kind => equal(before[kind], after[kind])) && unchangedEntities(before, after);
+  let allowedChange = ['tags'].every(kind => equal(before[kind], after[kind])) && unchangedEntities(before, after);
   allowedChange &&= before.records.every(old => {
     const current = after.records.find(row => row.id === old.id);
     return mode === 'save-memo' && old.id === target?.id ? current && equal(without(old, ['body', 'version', 'updated_at']), without(current, ['body', 'version', 'updated_at'])) && current.version === old.version + 1 : equal(old, current);

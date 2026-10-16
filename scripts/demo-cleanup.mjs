@@ -149,7 +149,7 @@ export async function runCleanup(sql, manifest, approvedDigest) {
     if (manifest.reset_template_paths.length) await tx`update app.user_business_settings set settings=${tx.json(report.updatedSettings)}, version=version+1, updated_at=now() where owner_id=${manifest.owner_id} and id='record_templates'`;
     const after = await inventoryFor(tx, manifest.owner_id);
     for (const [table, deleted] of Object.entries(report.selection)) {
-      const keys = table.startsWith('pgmq.') ? ['msg_id'] : table === 'private.passage_effects' ? ['id'] : ['owner_id', ...['id', 'entity_id', 'other_id', 'type_id', 'schema_version', 'job_id', 'analysis_id', 'record_id', 'task_id', 'tag_id', 'ordinal', 'principle_id'].filter(k => deleted.some(r => k in r))];
+      const keys = table.startsWith('pgmq.') ? ['msg_id'] : table === 'private.passage_effects' ? ['id'] : ['owner_id', ...['id', 'entity_id', 'other_id', 'type_id', 'schema_version', 'job_id', 'analysis_id', 'record_id', 'task_id', 'tag_id', 'ordinal'].filter(k => deleted.some(r => k in r))];
       if (deleted.some(r => after[table]?.some(s => keys.every(k => s[k] === r[k])))) throw new Error('residual cleanup reference');
     }
     return { mode: 'applied', ...report, residual_rows: 0 };

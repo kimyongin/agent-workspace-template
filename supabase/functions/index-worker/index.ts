@@ -12,7 +12,7 @@ const input = z.strictObject({
   check_configuration: z.literal(true).optional(),
   limit: z.number().int().min(1).max(5).default(5),
   owner_id: dataId.optional(),
-  kind: z.enum(["task", "record", "principle"]).optional(),
+  kind: z.enum(["task", "record"]).optional(),
   id: dataId.optional(),
 });
 let sql: postgres.Sql | undefined;

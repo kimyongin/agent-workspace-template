@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 export function assertJournal(journal, endpoint, clientName) {
   if (journal.journalVersion !== 1 || journal.endpoint !== endpoint || journal.clientName !== clientName ||
       !new RegExp(`^plugin-${clientName}-[a-f0-9]{8,12}$`).test(journal.marker)) throw new Error('Fixture journal ownership mismatch');
-  for (const kind of ['tag', 'entity', 'principle', 'record', 'task']) {
+  for (const kind of ['tag', 'entity', 'record', 'task']) {
     if (journal[kind] && !ownedName(journal, kind, journal[kind])) throw new Error('Fixture journal object identity mismatch');
   }
   if (journal.pendingCreate && (!/^[a-f0-9-]{36}$/.test(journal.pendingCreate.input.request_key ?? '') || 'id' in journal.pendingCreate.input || !Object.keys(plurals).includes(journal.pendingCreate.kind) || !ownedName(journal, journal.pendingCreate.kind, journal.pendingCreate.input))) throw new Error('Pending fixture identity mismatch');
@@ -52,7 +52,7 @@ export async function createOwned(journal, save, call, kind, input) {
   return object;
 }
 
-const plurals = { tag: 'tags', entity: 'entities', principle: 'principles', record: 'records', task: 'tasks' };
+const plurals = { tag: 'tags', entity: 'entities', record: 'records', task: 'tasks' };
 function ownedName(journal, kind, object) {
   if (kind === 'record') return object.tag_ids?.includes(journal.tag?.id) && object.entity_ids?.includes(journal.entity?.id) &&
     (object.id === journal.record?.id || object.request_key === journal.pendingCreate?.input.request_key && object.body === journal.pendingCreate.input.body);
@@ -60,7 +60,6 @@ function ownedName(journal, kind, object) {
     object.title === `${journal.marker}-${kind}`;
 }
 async function listPageSet(call, kind) {
-  if (kind === 'principle') { const { current } = await call('get_current_principle', {}); return current ? [current] : []; }
   const all = [], seen = new Set();
   let cursor;
   do {
@@ -79,9 +78,6 @@ async function listAll(call, kind) {
 
 export async function setupOwned(journal, save, call, listTools, prepareType) {
   const { marker, originalDetail } = journal;
-  const { current } = await call('get_current_principle', {});
-  const ownPending = journal.pendingCreate?.kind === 'principle' && current && ownedName(journal, 'principle', current);
-  if (current && current.id !== journal.principle?.id && !ownPending) throw new Error('Fixture refuses existing current principle before writes');
   if (!journal.entityType) {
     if (typeof prepareType !== 'function') throw new Error('Explicit typed scalar fixture provider required');
     journal.entityType = await prepareType({ call });
@@ -89,8 +85,7 @@ export async function setupOwned(journal, save, call, listTools, prepareType) {
   }
   const tag = await createOwned(journal, save, call, 'tag', { name: marker });
   const entity = await createOwned(journal, save, call, 'entity', { entity_type_id: journal.entityType.id, schema_version: journal.entityType.schema_version, properties: { prop_1: marker, prop_2: 7, prop_3: '2026-10-04', prop_4: 'b' } });
-  await createOwned(journal, save, call, 'principle', { title: `${marker}-principle`, body: '결과 기록에는 원문에서 읽은 검증 코드를 정확히 남기고 대상 속성 2의 현재 값도 함께 적는다.' });
-  await createOwned(journal, save, call, 'record', { body: `${marker}-source\n\n당시 확인한 원문 검증 코드는 ${originalDetail}이다. 대상 속성 2는 7이며 현재 원문과 원칙을 다시 비교한다.`, tag_ids: [tag.id], entity_ids: [entity.id] });
+  await createOwned(journal, save, call, 'record', { body: `${marker}-source\n\n당시 확인한 원문 검증 코드는 ${originalDetail}이다. 대상 속성 2는 7이며 현재 원문과 자료를 다시 비교한다.`, tag_ids: [tag.id], entity_ids: [entity.id] });
   const tools = (await listTools()).tools.map(({ name }) => name).sort();
   Object.assign(journal, { tools, state: 'ready' });
   await save();
@@ -118,7 +113,7 @@ export async function cleanupOwned(journal, save, call, deleteOAuth) {
   }
   journal.resultsCleaned = true;
   await save();
-  for (const kind of ['record', 'task', 'principle', 'entity', 'tag']) {
+  for (const kind of ['record', 'task', 'entity', 'tag']) {
     const object = journal[kind];
     if (!object || journal.deleted[kind]) continue;
     const current = (await listAll(call, kind)).find(({ id }) => id === object.id);

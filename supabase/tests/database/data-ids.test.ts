@@ -14,9 +14,7 @@ dbTest("서버 날짜형 ID 기본값은 모델 연결과 기존 참조를 지�
       const [record] =
         await tx`insert into app.records(owner_id,body,task_id) values(${owner.actor.userId},'키 검증',${task.id}) returning id`;
       await tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${owner.actor.userId},${task.id},${tag.id})`;
-      const [principle] =
-        await tx`insert into app.principles(owner_id,title,body,is_current) values(${owner.actor.userId},'키 검증','',true) returning id`;
-      for (const value of [tag.id, task.id, record.id, principle.id]) assert(format.test(value));
+      for (const value of [tag.id, task.id, record.id]) assert(format.test(value));
       const [linked] =
         await tx`select r.task_id,t.title from app.records r join app.tasks t on t.id=r.task_id and t.owner_id=r.owner_id where r.id=${record.id}`;
       assertEquals(linked.task_id, task.id);

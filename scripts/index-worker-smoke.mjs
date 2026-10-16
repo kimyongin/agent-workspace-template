@@ -32,7 +32,7 @@ async function work(kind, id) {
   return await res.json();
 }
 try {
-  for (const kind of ["task", "record", "principle"]) {
+  for (const kind of ["task", "record"]) {
     const body = `서버 오류를 점검하고 복구 절차를 기록했다. 본문 표식 ${crypto.randomUUID()}`;
     const item = await api("POST", `/${kind}s`, {
       ...(kind === "record" ? {} : { title: "임베딩 시험" }), body, ...(kind === "task" ? { kind: "once" } : {}) });

@@ -1,62 +1,55 @@
 import { createHash } from 'node:crypto';
 import { entityProjectionMatches } from './entity-projection.mjs';
 
-export const roundtripModes = ['roundtrip-entity', 'roundtrip-task', 'roundtrip-task-read', 'roundtrip-principle-read'];
+export const roundtripModes = ['roundtrip-entity', 'roundtrip-task', 'roundtrip-task-read'];
 const canonical = v => Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canonical(v[k])])) : v;
 const equal = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 const omit = (v, keys) => Object.fromEntries(Object.entries(v ?? {}).filter(([k]) => !keys.includes(k)));
 const stamp = v => typeof v === 'string' && Number.isFinite(Date.parse(v));
 export const digestRoundtrip = state => createHash('sha256').update(JSON.stringify(canonical(state))).digest('hex');
-export const emptyRoundtrip = state => state.current?.current === null && ['entities', 'tasks', 'records', 'principles', 'tags'].every(k => state[k]?.length === 0);
+export const emptyRoundtrip = state => ['entities', 'tasks', 'records', 'tags'].every(k => state[k]?.length === 0);
 
 // Complete get_* originals, not lists/search snippets or the model's answer.
 export function verifyRoundtrip(before, after, fixture, mode) {
   if (mode.endsWith('-read')) return { pass: equal(before, after), unchanged: equal(before, after), originalReads: true, newIds: {} };
-  const intent = fixture.roundtrip.intent ?? {}, kinds = ['entities', 'tasks', 'records', 'principles', 'tags'];
+  const intent = fixture.roundtrip.intent ?? {}, kinds = ['entities', 'tasks', 'records', 'tags'];
   const newIds = Object.fromEntries(kinds.map(k => [k, after[k].filter(v => !before[k].some(old => old.id === v.id)).map(v => v.id)]));
   const created = Object.fromEntries(kinds.map(k => [k, after[k].filter(v => newIds[k].includes(v.id))]));
   const events = created.records.filter(r => r.record_kind === 'change');
-  const singular = mode.includes('entity') ? 'entity' : mode.includes('principle') ? 'principle' : mode === 'web-source' || mode === 'web-memo' ? 'record' : 'task';
+  const singular = mode.includes('entity') ? 'entity' : mode === 'web-source' || mode === 'web-memo' ? 'record' : 'task';
   const plural = singular === 'entity' ? 'entities' : singular + 's';
-  const action = ['web-entity', 'web-source', 'web-principle', 'roundtrip-task'].includes(mode) ? 'create' : mode === 'web-complete' ? 'complete' : mode === 'web-principle-delete' ? 'delete' : 'update';
+  const action = ['web-entity', 'web-source', 'roundtrip-task'].includes(mode) ? 'create' : mode === 'web-complete' ? 'complete' : 'update';
   const target = action === 'create' ? created[plural].find(row => singular === 'record' ? row.record_kind === 'user' : true) : after[plural].find(row => row.id === intent.id);
   const old = before[plural].find(row => row.id === intent.id);
-  const id = target?.id ?? (action === 'delete' ? old?.id : null);
+  const id = target?.id ?? null;
   const expectedEvents = ['web-complete', 'web-memo'].includes(mode) ? 0 : 1;
   let scope = Boolean(id) && events.length === expectedEvents && equal(before.tags, after.tags);
-  const eventTarget = target ?? old;
-  const eventEntities = singular === 'entity' ? [id] : eventTarget?.entity_ids ?? [];
-  if (expectedEvents) scope &&= events.every(e => e.change?.target_kind === singular && e.change.target_id === id && (singular === 'record' ? typeof e.change.target_title === 'string' : e.change.target_title === eventTarget?.title) && e.change.action === action && e.change.source === (mode.startsWith('web-') ? 'http' : 'mcp') && e.change.path === (action === 'delete' ? null : `/${plural}/${encodeURIComponent(id)}`) && typeof e.change.event_id === 'string' && e.change.event_id.length > 0 && e.change.before === null && e.change.after === null && equal(e.entity_ids, eventEntities) && (intent.memoBody === undefined || e.body === intent.memoBody));
+  const eventEntities = singular === 'entity' ? [id] : target?.entity_ids ?? [];
+  if (expectedEvents) scope &&= events.every(e => e.change?.target_kind === singular && e.change.target_id === id && (singular === 'record' ? typeof e.change.target_title === 'string' : e.change.target_title === target?.title) && e.change.action === action && e.change.source === (mode.startsWith('web-') ? 'http' : 'mcp') && e.change.path === `/${plural}/${encodeURIComponent(id)}` && typeof e.change.event_id === 'string' && e.change.event_id.length > 0 && e.change.before === null && e.change.after === null && equal(e.entity_ids, eventEntities) && (intent.memoBody === undefined || e.body === intent.memoBody));
   for (const kind of kinds) {
     const expected = kind === 'records' ? expectedEvents + (mode === 'web-source' || mode === 'web-complete' ? 1 : 0) : kind === plural && action === 'create' ? 1 : 0;
     scope &&= created[kind].length === expected;
-    scope &&= after[kind].length === before[kind].length + expected - (kind === plural && action === 'delete' ? 1 : 0);
+    scope &&= after[kind].length === before[kind].length + expected;
     for (const previous of before[kind]) {
       const current = after[kind].find(v => v.id === previous.id);
-      if (kind === plural && previous.id === id && action === 'delete') { scope &&= !current; continue; }
       if (!current) { scope = false; continue; }
-      let mutable = kind === 'entities' ? ['tasks', 'records', 'principles'] : [];
+      let mutable = kind === 'entities' ? ['tasks', 'records'] : [];
       if (kind === 'tasks' && mode === 'web-memo') mutable.push('result_record');
       if (kind === plural && previous.id === id && action !== 'create') {
-        mutable = [...mutable, 'version', 'updated_at', ...(mode === 'roundtrip-entity' ? ['properties', 'display_properties'] : mode === 'web-complete' ? ['status', 'completed_at', 'result_record_id', 'result_record'] : mode === 'web-principle-update' ? ['body', 'saved_at'] : ['body'])];
+        mutable = [...mutable, 'version', 'updated_at', ...(mode === 'roundtrip-entity' ? ['properties', 'display_properties'] : mode === 'web-complete' ? ['status', 'completed_at', 'result_record_id', 'result_record'] : ['body'])];
         scope &&= current.version === previous.version + 1;
         if (mode === 'roundtrip-entity') scope &&= ['properties', 'display_properties'].every(field => equal(omit(previous[field], ['prop_2']), omit(current[field], ['prop_2'])));
-        if (mode === 'web-principle-update') scope &&= stamp(current.saved_at) && Date.parse(current.saved_at) >= Date.parse(previous.saved_at);
       }
       scope &&= equal(omit(previous, mutable), omit(current, mutable));
       if (kind === 'entities') scope &&= entityProjectionMatches(current, after, previous);
       if (kind === 'tasks' && mode === 'web-memo') { const result = after.records.find(r => r.id === current.result_record_id); scope &&= equal(omit(previous, ['result_record']), omit(current, ['result_record'])) && equal(current.result_record, result ? { id: result.id, body: result.body } : null); }
     }
   }
-  if (singular !== 'principle') scope &&= equal(before.current, after.current) && equal(before.principles, after.principles);
-  else scope &&= equal(after.current.current, action === 'delete' ? null : target);
   let content = false;
   if (mode === 'web-entity') content = target?.title === fixture.marker && target.properties?.prop_1 === fixture.marker && target.properties.prop_2 === 7 && target.properties.prop_3 === '2026-10-06' && target.properties.prop_4 === 'b' && entityProjectionMatches(target, after);
   if (mode === 'roundtrip-entity') content = target?.properties?.prop_2 === 11 && events[0]?.body === intent.memoBody;
   if (mode === 'web-source') content = target?.body === intent.body && equal(target.entity_ids, [fixture.entity.id]);
-  if (mode === 'web-principle') content = target?.title === `${fixture.marker}-principle` && target.body === intent.body;
-  if (mode === 'web-principle-update' || mode === 'web-memo') content = target?.body === intent.body;
-  if (mode === 'web-principle-delete') content = !target && after.current.current === null;
+  if (mode === 'web-memo') content = target?.body === intent.body;
   if (mode === 'roundtrip-task') content = target?.title === `${fixture.marker}-task` && target.kind === 'once' && target.status === 'open' && target.body === intent.body && equal(target.entity_ids, [fixture.entity.id]);
   if (mode === 'web-complete') {
     const result = created.records.find(r => r.record_kind === 'result');
@@ -75,7 +68,7 @@ export async function finishRoundtripPhase(journal, save, after) {
   const pending = journal.roundtrip.pending;
   if (!pending) throw new Error('Missing durable phase intent');
   const proof = verifyRoundtrip(pending.before, after, journal, pending.mode);
-  for (const kind of ['entities', 'tasks', 'records', 'principles', 'tags']) journal.roundtrip.owned[kind] = [...new Set([...(journal.roundtrip.owned[kind] ?? []), ...(proof.newIds[kind] ?? [])])];
+  for (const kind of ['entities', 'tasks', 'records', 'tags']) journal.roundtrip.owned[kind] = [...new Set([...(journal.roundtrip.owned[kind] ?? []), ...(proof.newIds[kind] ?? [])])];
   if (proof.pass) { journal.roundtrip.completed.push(pending.mode); delete journal.roundtrip.pending; }
   await save();
   return proof;
@@ -87,7 +80,6 @@ export function roundtripPrompt(mode, f) {
     'roundtrip-entity': `대상의 속성 2만 7에서 11로 바꾸고 다른 속성은 보존해 줘. 변경 기록의 최종 메모 본문은 "${f.roundtrip.intent.memoBody}"로 남겨 줘.`,
     'roundtrip-task': `이 대상에 일회성 할 일 하나를 등록해 줘. 제목은 "${f.marker}-task", 본문은 "${f.roundtrip.intent.body}"로 해 줘. 이번에는 등록만 하고 완료하지 마.`,
     'roundtrip-task-read': `완료한 할 일 ${f.task?.id}와 그 결과 기록의 원문을 살펴보고 상태와 결과 본문, 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
-    'roundtrip-principle-read': `지금 판단 기준과 ${f.originalDetail}가 있는 과거 기록 원문을 비교해 줘. 각각 어떤 수치 조건인지 설명하고 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
   }[mode];
   if (!request) throw new Error('Unknown roundtrip native phase');
   return context + request + ' 요청한 것 외에는 변경하지 마. 검색 반영을 확인하지 못했다면 완료로 추정하지 마.';
@@ -95,7 +87,7 @@ export function roundtripPrompt(mode, f) {
 
 export function assessRoundtripNative(e) {
   const failures = [];
-  for (const [name, ok] of Object.entries({ 'native-exit': e.exitCode === 0, 'shared-skill-read': e.completedSkillRead, 'actual-original-read': e.originalSourceRead, 'independent-public-contract': e.independent?.pass, 'current-principle-read': e.mode !== 'roundtrip-principle-read' || e.currentPrincipleRead, 'done-task-read': e.mode !== 'roundtrip-task-read' || e.completedTaskRead, 'read-only-native': !e.mode.endsWith('-read') || e.mutationCalls === 0 })) if (!ok) failures.push(name);
+  for (const [name, ok] of Object.entries({ 'native-exit': e.exitCode === 0, 'shared-skill-read': e.completedSkillRead, 'actual-original-read': e.originalSourceRead, 'independent-public-contract': e.independent?.pass, 'done-task-read': e.mode !== 'roundtrip-task-read' || e.completedTaskRead, 'read-only-native': !e.mode.endsWith('-read') || e.mutationCalls === 0 })) if (!ok) failures.push(name);
   if (e.mode.endsWith('-read') && !e.answer?.roundtrip?.correct) failures.push('roundtrip-answer');
   if (e.answer?.indexStatements?.affirmative) failures.push('unverified-index-completion');
   return { pass: failures.length === 0, failures };
@@ -130,48 +122,15 @@ export function roundtripAnswerProof(text, f, mode) {
     const resultBody = compact(clean).includes(compact(f.roundtrip.result.body));
     return { correct: taskId && resultId && done && !wrong && resultBody, taskId, resultId, state: wrong ? 'wrong' : done ? 'done' : 'unconfirmed', stateClaims, resultBody, sha256 };
   }
-  if (mode !== 'roundtrip-principle-read') return { correct: false, sha256 };
-  const expected = body => ({ value: /속성\s*2\s*(?:가|=|:)?\s*(\d+)/.exec(body)?.[1], action: /(진행|보류)/.exec(body)?.[1] });
-  const current = expected(f.principle.body), historical = expected(f.record.body);
-  const facts = { current: { matched: false, wrong: false, id: false, wrongId: false, claims: [] }, historical: { matched: false, wrong: false, id: false, wrongId: false, claims: [] } };
-  let context, lastValue;
-  // Bind predicates to their source clause; denied alternatives are not facts.
-  const scopeStart = /\n|[.!?;,]+|(?=(?:현재|지금|최신|과거|이전|당시|초기)(?:는|은|에는|의|\s+(?:원칙|판단|기준|조건|기록|원문|근거)))/;
-  for (const clause of clean.split(scopeStart)) {
-    const latest = /(?:현재|지금|최신)(?:는|은|에는|의|\s*(?:원칙|판단|기준|조건))/.test(clause);
-    const past = /(?:과거|이전|당시|초기)(?:는|은|에는|의|\s*(?:기록|원문|근거|조건|기준))/.test(clause);
-    const next = latest && !past ? 'current' : past && !latest ? 'historical' : context;
-    if (next !== context) lastValue = undefined;
-    context = next;
-    if (!context || (latest && past)) continue;
-    const proof = facts[context], wanted = context === 'current' ? current : historical;
-    const ownId = context === 'current' ? f.principle.id : f.record.id;
-    const otherId = context === 'current' ? f.record.id : f.principle.id;
-    proof.id ||= clause.includes(ownId); proof.wrongId ||= clause.includes(otherId);
-    const values = [...clause.matchAll(new RegExp(`(?<![A-Za-z0-9-])(${current.value}|${historical.value})(?![A-Za-z0-9-]|\\s*에서)`, 'g'))];
-    for (const action of clause.matchAll(/진행|보류/g)) {
-      const number = values.filter(v => v.index < action.index).at(-1);
-      const value = number?.[1] ?? lastValue;
-      if (!value) continue;
-      const tail = clause.slice(action.index + action[0].length).split(/속성\s*2|진행|보류/)[0];
-      const denied = /^.{0,15}(?:아니|아닙|않|못)/.test(tail);
-      const expectedCondition = value === wanted.value && action[0] === wanted.action;
-      const reason = denied ? expectedCondition ? 'denied-expected-condition' : 'negated-condition' : expectedCondition ? 'expected-condition' : 'unexpected-condition';
-      proof.claims.push({ reason, scope: context, sha256: createHash('sha256').update(clause).digest('hex') });
-      proof.matched ||= reason === 'expected-condition'; proof.wrong ||= reason === 'unexpected-condition' || reason === 'denied-expected-condition';
-    }
-    if (values.length) lastValue = values.at(-1)[1];
-  }
-  const latest = facts.current, past = facts.historical;
-  return { correct: latest.matched && !latest.wrong && latest.id && !latest.wrongId && past.matched && !past.wrong && past.id && !past.wrongId, latest, historical: past, sha256 };
+  return { correct: false, sha256 };
 }
 
-export function hasRoundtripOriginal(tool, payload, kind, original) {
-  const allowed = kind === 'principle' ? ['get_current_principle', 'get_principle'] : ['get_task', 'list_tasks'];
+export function hasRoundtripTaskOriginal(tool, payload, original) {
+  const allowed = ['get_task', 'list_tasks'];
   if (!allowed.includes(tool) || !original || !payload) return false;
-  if (typeof payload === 'string') { try { return hasRoundtripOriginal(tool, JSON.parse(payload), kind, original); } catch { return false; } }
+  if (typeof payload === 'string') { try { return hasRoundtripTaskOriginal(tool, JSON.parse(payload), original); } catch { return false; } }
   if (typeof payload !== 'object') return false;
-  const keys = kind === 'principle' ? ['id', 'body', 'version', 'is_current'] : ['id', 'body', 'version', 'status', 'result_record_id', 'result_record'];
+  const keys = ['id', 'body', 'version', 'status', 'result_record_id', 'result_record'];
   if (keys.every(k => equal(payload[k], original[k]))) return true;
-  return Object.values(payload).some(v => hasRoundtripOriginal(tool, v, kind, original));
+  return Object.values(payload).some(v => hasRoundtripTaskOriginal(tool, v, original));
 }

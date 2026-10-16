@@ -78,7 +78,7 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
   }, [location.pathname, requestedTypeId, session?.user.id]);
   const owner = location.pathname.startsWith("/settings") ? null : location.state?.workspaceOwner;
   const current = navigationSection(
-    typeof owner === "string" && /^\/(entities|tasks|records|principles|search)$/.test(owner)
+    typeof owner === "string" && /^\/(entities|tasks|records|search)$/.test(owner)
       ? owner
       : location.pathname,
   );
@@ -216,9 +216,9 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
               </div>
               <div className="nav-profile-business" aria-label="업무 메뉴">
                 {resolveNavigationRefs(
-                  ["entities", "tasks", "records", "principles"].map((id) => ({
+                  ["entities", "tasks", "records"].map((id) => ({
                     kind: "builtin" as const,
-                    id: id as "entities" | "tasks" | "records" | "principles",
+                    id: id as "entities" | "tasks" | "records",
                   })),
                   catalog.types ?? [],
                 ).map((entry) => (

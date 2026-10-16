@@ -36,7 +36,7 @@ export class SqlActorStore {
     const settings = (await settingsStore.get()).settings;
     const ids = effectiveRecordTemplate(
       settings.record_templates,
-      input.target_kind as "entity" | "task" | "principle",
+      input.target_kind as "entity" | "task",
       input.action,
       (input.after ?? input.before)?.entity_type_id,
     ).tag_ids;

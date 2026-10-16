@@ -7,7 +7,7 @@ type Frame = { key: string; path: string; title: string; scroll: number; focusKe
 type TrailState = { detailScope: string; detailVersion:2; detailTrail: Frame[] };
 type SnapshotsState = {scope:string;frames:Map<string,Frame>;views:Map<string,unknown>;transition:{key:string;path:To;state?:unknown}|null};
 const Snapshots = createContext<SnapshotsState | null>(null);
-const detailPath = /^\/(?:(entities|tasks|records|principles)\/[^/?#]+|tags(?:\/(?:entity|task|record))?)$/;
+const detailPath = /^\/(?:(entities|tasks|records)\/[^/?#]+|tags(?:\/(?:entity|task|record))?)$/;
 const tagOrigin = /^\/(entities|tasks|records|settings)$/;
 
 /** Recover only this owner's list context, even after crossing several detail kinds. */

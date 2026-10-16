@@ -2,14 +2,14 @@ import { fixtureIdentity } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
 import { entityKey } from "./support/workspace-data.ts";
 import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.ts";
-import { entity, task, record, principle, id, stamp } from "./support/workspace-data.ts";
+import { entity, task, record,  id, stamp } from "./support/workspace-data.ts";
 import { saveOnce } from "./ui-actions.ts";
 
 async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<string, unknown> = {}) {
   const t = { ...task(), title: "등심 구매하기", entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "등심", source: "selection" as const, captured_at: stamp }] };
   const r = { ...record(), body: "구매 기준을 정리했습니다.", task_id: id(2), entity_ids: [entityKey(1)], entity_context: t.entity_context };
   const e = { ...entity(1, { prop_1: "등심" }), tasks: { count: 1, items: [t] }, records: { count: 1, items: [r] } };
-  const state = await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [e, entity(6, { prop_1: "버섯" })], tasks: [t], records: [r], principles: [principle()], tags: [] }, options);
+  const state = await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [e, entity(6, { prop_1: "버섯" })], tasks: [t], records: [r],  tags: [] }, options);
   const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: metadata };
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
@@ -404,18 +404,7 @@ test("desktop: pending writes block tab switching, close, hide and navigation", 
   await expect(page.locator(".workspace-details")).toBeVisible(); await expect(page.getByRole("tab")).toHaveCount(2);
   state.release(); await expect(panel(page).getByRole("button", { name: "편집", exact: true })).toBeVisible(); expect(state.errors).toEqual([]);
 });
-test("desktop: record and principle details share tabs and keyboard selection", async ({ page }, info) => {
-  const state = await fixture(page); await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-  const records = panel(page).getByRole("region", { name: "기록 (1개)" }); await records.getByRole("button", { name: "구매 기준을 정리했습니다.", exact: true }).click(); await records.getByRole("link", { name: "구매 기준을 정리했습니다. 상세" }).click();
-  await expect(page.getByRole("tab")).toHaveCount(2);
-  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "원칙", exact: true }).click();
-  await page.locator(".workspace-list").getByRole("link", { name: "현재 기준", exact: true }).click(); await expect(page.getByRole("tab")).toHaveCount(3);
-  await page.screenshot({ path: info.outputPath("three-detail-tabs.png") });
-  await page.getByRole("tab", { name: "현재 기준", exact: true }).focus(); await page.keyboard.press("Home");
-  await expect(page.getByRole("tab", { name: "등심", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeFocused();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true); expect(state.errors).toEqual([]);
-});
+
 
 test("desktop: creation opens a viewer tab, deletion closes it and refreshes the list", async ({ page }) => {
   const state = await fixture(page); await page.goto("/tasks");
@@ -566,7 +555,6 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     {path:`/entities/${encodeURIComponent(entityKey(1))}`,domain:"검사 자료",title:"등심"},
     {path:`/tasks/${id(2)}`,domain:"할 일",title:"등심 구매하기"},
     {path:`/records/${id(3)}`,domain:"기록",title:null},
-    {path:`/principles/${id(4)}`,domain:"원칙",title:"현재 기준"},
   ]) {
     await page.goto(item.path);
     const view=page.locator("dialog.modal[open]:not(.modal-confirm)");
@@ -578,11 +566,11 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     if(item.title) await expect(view.locator(".modal-body .detail-title")).toHaveText(item.title);
     else await expect(view.locator(".record-content")).toHaveText("구매 기준을 정리했습니다.");
     const relation=view.locator(".detail-relations");
-    if(item.domain!=="원칙") {
+    {
       await expect(relation).toBeVisible();
       expect(await relation.evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe("1px");
       expect(await relation.evaluate(el=>parseFloat(getComputedStyle(el).paddingTop))).toBeGreaterThanOrEqual(24);
-    } else await expect(relation).toHaveCount(0);
+    }
     expect(await view.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
     if(item.domain==="할 일") await view.screenshot({path:info.outputPath(`detail-hierarchy-${width}.png`)});
     await view.getByRole("button",{name:"편집",exact:true}).click();
@@ -822,7 +810,7 @@ test("#341 기록 저장 대기는 이동을 막고 응답 뒤에만 작성 모�
   await panel(page).getByRole("button",{name:"기록 작성",exact:true}).click();
   await panel(page).getByRole("textbox",{name:/^본문/}).fill("대기 중에도 보호할 메모");
   await panel(page).getByRole("button",{name:"저장",exact:true}).click(); await state.pending;
-  await page.getByRole("navigation",{name:"주 메뉴"}).getByRole("link",{name:"원칙",exact:true}).click();
+  await page.getByRole("navigation",{name:"주 메뉴"}).getByRole("link",{name:"기록",exact:true}).click();
   await expect(page).toHaveURL(/action=record/);
   await expect(panel(page).getByRole("button",{name:"처리 중…",exact:true})).toBeDisabled();
   state.release();

@@ -10,7 +10,7 @@ import { useRelatedRead } from "./useRelatedRead.ts";
 import type { RelatedRead } from "./related-read.ts";
 import { ApiError } from "../../lib/api.ts";
 
-import { PreviewContents, previewKind, previewViewable, type Preview } from "./PreviewContents.tsx";
+import { PreviewContents, previewKind, type Preview } from "./PreviewContents.tsx";
 import { ListPreviewReadiness } from "./preview-readiness.ts";
 
 /** Current content only, never another relationship graph or a write during disclosure. */
@@ -36,7 +36,7 @@ export function RelatedPreviewItem({list,fallback,resource,...props}:ComponentPr
   },[readiness,path,expanded]);
   const onTagsReady=useCallback((ready:boolean)=>setTagsReady(ready),[]);
   const onPropertiesReady=useCallback((ready:boolean)=>setPropertiesReady(ready),[]);
-  useLayoutEffect(()=>{report.current?.settle(!!fallback||!!error||!!item&&(kind==="principles"||tagsReady&&(kind!=="entities"||propertiesReady)));},[item,error,tagsReady,propertiesReady,kind,readiness,expanded,fallback]);
+  useLayoutEffect(()=>{report.current?.settle(!!fallback||!!error||!!item&&tagsReady&&(kind!=="entities"||propertiesReady));},[item,error,tagsReady,propertiesReady,kind,readiness,expanded,fallback]);
   const hasFallback = !!fallback;
   useEffect(() => {
     if (!expanded || !path || hasFallback) { read.resource.closePreview(); return; }
@@ -57,7 +57,7 @@ export function RelatedPreviewItem({list,fallback,resource,...props}:ComponentPr
       if(body)body.scrollTop+=shift;else window.scrollBy(0,shift);
     });
   };
-  const viewable=!!item&&!error&&previewViewable(kind,item);
+  const viewable=!!item&&!error;
   const viewProps={className:"body-action",title:"상세","aria-label":`${props.title} 상세`};
   return <RelatedItem {...props} to={undefined} action={<>{props.action}{viewable&&(list?<Link {...list.link()} {...viewProps}><BodyActionFace icon="view">상세</BodyActionFace></Link>:<DetailLink {...viewProps} to={path} restoreKey={`view-related-${path}`}><BodyActionFace icon="view">상세</BodyActionFace></DetailLink>)}</>} disclosure={{expanded,toggle,content:<>{fallback}
     {!fallback&&!item&&!error&&<p className="secondary" role="status">불러오는 중…</p>}

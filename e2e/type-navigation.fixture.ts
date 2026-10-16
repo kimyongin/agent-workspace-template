@@ -180,7 +180,7 @@ test("typed shortcut and profile access preserve canonical list filters and Back
   await page.goBack();
   await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.id);
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "원칙", exact: true })).toBeVisible();
+  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "원칙", exact: true })).toHaveCount(0);
   await page.locator("#nav-profile-options").getByRole("link", { name: "전체 자료", exact: true }).click();
   await expect(page.getByRole("heading", { name: "전체 자료", level: 1 })).toBeVisible();
 });
@@ -246,7 +246,7 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   items = [materials];
   await page.reload();
   await expect(shortcuts.first()).toHaveAttribute("aria-label", "재료");
-  await expect(shortcuts.last()).toHaveAttribute("aria-label", "원칙");
+  await expect(shortcuts.last()).toHaveAttribute("aria-label", "기록");
   items = [
     materials,
     products,
@@ -1203,7 +1203,6 @@ for (const width of [320, 390]) {
         "/entities",
         "/tasks",
         "/records",
-        "/principles",
         "/settings",
         "/settings/entity-types",
         "/settings/tags",

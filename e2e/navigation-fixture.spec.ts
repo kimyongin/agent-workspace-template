@@ -62,11 +62,11 @@ async function signIn(page: Page, id = user.id) {
   }, id);
 }
 
-test("네 탭과 프로필은 320~1440px와 200%에서 조작 가능하다", async ({ page }, info) => {
+test("업무 메뉴와 프로필은 320~1440px와 200%에서 조작 가능하다", async ({ page }, info) => {
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 }); await page.goto("/settings");
     const nav = page.getByRole("navigation", { name: "주 메뉴" });
-    await expect(nav.getByRole("link")).toHaveCount(4);
+    await expect(nav.getByRole("link")).toHaveCount(3);
     await expect(nav.getByRole("button", { name:"메뉴", exact:true })).toHaveCount(0);
     await expect(page.locator(".workspace-header")).toHaveCount(1);
     await expect(page.locator(".workspace-header")).toBeHidden();
@@ -232,12 +232,11 @@ for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과
 });
 
 // #215 exercises the real App shell and URL filters without writing user data.
-test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 화면에서도 정렬된다", async ({ page }, info) => {
+test("#215 메인 목록 탭의 상단 구획·브랜드·필터 조작은 좁은 화면에서도 정렬된다", async ({ page }, info) => {
   test.setTimeout(90_000);
-  await page.route(/\/(?:functions\/v1\/)?api\/principles\/current$/, route => route.fulfill({ json: { current: null } }));
   for (const width of [320, 360, 390, 479, 480, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const [path, title] of [["entities", "전체 자료"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
+    for (const [path, title] of [["entities", "전체 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
       await page.goto(`/${path}`);
       const header = page.getByRole("region", { name: title, exact: true });
       await expect(header.getByRole("heading", { level: 1, name: title, exact: true })).toBeVisible();
@@ -250,10 +249,7 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
         await expect(page.locator(".navigation-brand")).toBeHidden();
         expect(await header.getByRole("heading", {level:1}).evaluate(el => getComputedStyle(el,"::before").backgroundImage)).not.toBe("none");
       }
-      if (path === "principles") {
-        await expect(page.getByRole("button", { name: /^필터/ })).toHaveCount(0);
-        continue;
-      }
+
       const search = header.getByRole("textbox", { name: path === "entities" ? "자료 제목 검색" : "검색어", exact: true }), toggle = header.getByRole("button", { name: /^필터 (열기|닫기)/ });
       const closedToggle = (await toggle.boundingBox())!;
       await expect(toggle).toHaveText("");
@@ -304,7 +300,7 @@ test("#217 아이콘 선택은 가용 폭을 채우고 팝오버 이모지는 �
     for (const tile of tiles) { expect(tile.width).toBeGreaterThanOrEqual(44); expect(tile.height).toBeGreaterThanOrEqual(44); }
     const profile = page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }); await profile.click();
     const popup = page.locator("#nav-profile-options");
-    const expectedLinks = ["전체 자료", fixtureType.label, "할 일", "기록", "원칙", "상태", "설정", "사용 가이드", "로그아웃"];
+    const expectedLinks = ["전체 자료", fixtureType.label, "할 일", "기록", "상태", "설정", "사용 가이드", "로그아웃"];
     for (const name of expectedLinks) await expect(popup.getByRole("link", { name, exact: true })).toHaveCount(1);
     await expect(popup.getByRole("link")).toHaveCount(expectedLinks.length);
     await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name: "전체 자료", exact:true })).toBeFocused();

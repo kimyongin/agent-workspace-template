@@ -16,7 +16,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
     row = entity(1, { prop_1: "필터 검사", prop_2: value }),
     schema = structuredClone(fixtureSchema);
   schema.schema.properties.prop_2 = { "x-order": 20, type: "string", title: "긴 값" };
-  await installWorkspaceApi(page, remote, { entities: [row], tasks: [], records: [], principles: [], tags: [] });
+  await installWorkspaceApi(page, remote, { entities: [row], tasks: [], records: [], tags: [] });
   await page.addInitScript(
     (user) =>
       localStorage.setItem(
@@ -113,7 +113,6 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
     entities: [row],
     tasks: [relatedTask],
     records: [],
-    principles: [],
     tags: [],
   });
   await page.addInitScript(

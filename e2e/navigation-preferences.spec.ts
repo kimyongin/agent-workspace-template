@@ -30,7 +30,7 @@ test("personal navigation partial save survives reload and login without changin
       await save.click();
       await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
     }
-    for (const label of ["원칙", "할 일"]) {
+    for (const label of ["기록", "할 일"]) {
       await page.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption({ label });
       await page.getByRole("button", { name: `${label} 추가`, exact: true }).click();
     }
@@ -39,20 +39,20 @@ test("personal navigation partial save survives reload and login without changin
     const after = await read();
     expect(after.workspace_navigation).toEqual({
       version: 1,
-      refs: [{ kind: "builtin", id: "principles" }, { kind: "builtin", id: "tasks" }],
+      refs: [{ kind: "builtin", id: "records" }, { kind: "builtin", id: "tasks" }],
     });
     const { workspace_navigation: _old, ...oldOther } = before;
     const { workspace_navigation: _next, ...newOther } = after;
     expect(newOther).toEqual(oldOther);
     await page.reload();
     await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).locator(".bottom-nav-inner > a"))
-      .toHaveText(["원칙", "할 일"]);
+      .toHaveText(["기록", "할 일"]);
     await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
     await page.locator("#nav-profile-options").getByRole("link", { name: "로그아웃", exact: true }).click();
     await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
     await devLogin(page);
     await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).locator(".bottom-nav-inner > a"))
-      .toHaveText(["원칙", "할 일"]);
+      .toHaveText(["기록", "할 일"]);
   } catch (cause) {
     bodyFailed = true;
     throw cause;

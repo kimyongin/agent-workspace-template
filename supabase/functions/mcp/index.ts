@@ -8,7 +8,6 @@ import {
   entityPairDeps,
   entityTypeDeps,
   env,
-  principleDeps,
   searchDeps,
   statusDeps,
   tagDeps,
@@ -19,7 +18,6 @@ Deno.serve(
   createMcpApp(
     activityDeps(),
     { resource, token: { audience: resource, issuer: env.authIssuer() } },
-    principleDeps(),
     tagDeps(),
     searchDeps(),
     entityDeps(),

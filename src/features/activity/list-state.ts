@@ -2,7 +2,7 @@ import { detailListLink, entityListReturnPath, entityListAnchor, internalListRet
 import { dataId } from "@contracts/data-id.ts";
 import { entityReferenceId } from "@contracts/entity-identity.ts";
 import { activityLocation } from "./activity-location.ts";
-export type ActivityListKind = "tasks" | "records" | "principles" | "entities";
+export type ActivityListKind = "tasks" | "records" | "entities";
 import { MAX_RESTORE_PAGES } from "../collections/paged-list.ts";
 
 export function requestedPages(params: URLSearchParams): number {
@@ -24,12 +24,12 @@ export function listScope(params: URLSearchParams): string {
 }
 
 export function listAnchor(kind: ActivityListKind, id: string): string {
-  return kind === "principles" ? `principle-${id}` : kind === "entities" ? `entity-${id}` : `activity-${kind}-${id}`;
+  return kind === "entities" ? `entity-${id}` : `activity-${kind}-${id}`;
 }
 
 export function anchorId(kind: ActivityListKind, hash: string): string | undefined {
   if (kind === "entities") hash = entityListAnchor(hash);
-  const prefix = kind === "principles" ? "principle" : kind === "entities" ? "entity" : `activity-${kind}`;
+  const prefix = kind === "entities" ? "entity" : `activity-${kind}`;
   if (!hash.startsWith(`#${prefix}-`)) return undefined;
   try {
     const id = decodeURIComponent(hash.slice(prefix.length + 2));

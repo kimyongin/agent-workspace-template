@@ -74,7 +74,6 @@ for (const width of [390, 1440]) {
       ["entities", "/entities"],
       ["tasks", "/tasks"],
       ["records", "/records"],
-      ["principles", "/principles"],
       ["search", "/search"],
       ["status", "/status"],
       ["guide", "/guide"],
@@ -87,7 +86,6 @@ for (const width of [390, 1440]) {
       ["entity-detail", `/entities/${encodeURIComponent(entityKey(1))}`],
       ["task-detail", `/tasks/${id(2)}`],
       ["record-detail", `/records/${id(3)}`],
-      ["principle-detail", `/principles/${id(4)}`],
       ["missing-page", "/unknown-page"],
     ];
     for (const [name, path] of paths) {
@@ -147,7 +145,6 @@ for (const width of [390, 1440]) {
         ["record-create", "/records?create=1"],
         ["entity-edit", `/entities/${encodeURIComponent(entityKey(1))}?edit=1`],
         ["record-edit", `/records/${id(3)}?edit=1`],
-        ["principle-edit", `/principles/${id(4)}?edit=1`],
       ]
     ) {
       await go(page, path);

@@ -16,7 +16,6 @@ test("default shortcuts follow active type identities with fixed business access
     "전체 자료",
     "할 일",
     "기록",
-    "원칙",
   ]);
   const types = [type("2", "상품"), type("1", "재료"), type("3", "보관", true)];
   expect(resolveNavigationRefs(defaultNavigationRefs(types), types).map((entry) => entry.label)).toEqual([
@@ -29,7 +28,6 @@ test("default shortcuts follow active type identities with fixed business access
     "상품",
     "할 일",
     "기록",
-    "원칙",
   ]);
 });
 test("type switches preserve common query and clear definition-specific state", () => {
@@ -64,5 +62,5 @@ test("archived pinned refs stay stored but do not consume visible shortcuts", as
   expect(visibleNavigationEntries(resolved).map((entry) => entry.to)).toEqual(["/tasks"]);
   expect(refs).toEqual([{ kind: "type", id: "1" }, { kind: "builtin", id: "tasks" }]);
   expect(currentNavigationName("entities", "/entities", "보관 자료")).toBe("보관 자료");
-  expect(currentNavigationName("principles", "/principles")).toBe("원칙");
+  expect(currentNavigationName("principles", "/principles")).toBe("현재 화면");
 });

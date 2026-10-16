@@ -2,16 +2,15 @@ import { entityReferenceId } from "./entity-identity.ts";
 import { z } from "zod";
 import { id, isoDateTime, pageInput, text } from "./common.ts";
 import { tagFilterIds } from "./tag.ts";
-export const searchKind = z.enum(["task", "record", "principle"]);
+export const searchKind = z.enum(["task", "record"]);
 export const searchInput = z.strictObject({
   task_kind: z.enum(["once", "recurring"]).optional(),
   task_status: z.enum(["open", "done", "active", "stopped"]).optional(),
   record_kind: z.enum(["user", "result", "change"]).optional(),
   query: text(1, 200),
-  kinds: z.array(searchKind).min(1).max(3).refine((v) => new Set(v).size === v.length).default([
+  kinds: z.array(searchKind).min(1).max(2).refine((v) => new Set(v).size === v.length).default([
     "task",
     "record",
-    "principle",
   ]),
   tag_id: id.optional(),
   tag_ids: tagFilterIds.optional(),

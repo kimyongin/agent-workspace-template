@@ -12,7 +12,7 @@
 
 ## 단일 정의 문서와 가져오기
 
-Draft 2020-12 문서는 루트의 x-type-id·x-version·title·description·x-icon·deprecated와 속성별 표준 제약 및 평평한 x- annotation을 함께 저장한다. 선택지는 oneOf/const/title로 코드·라벨·순서를 보존한다. 정의 문서는 PostgreSQL JSONB 표현으로 최대 256 KiB, 자료 properties는 64 KiB다. 표준 readOnly/default/deprecated/examples/multipleOf의 앱 처리 규칙은 공유 validator가 소유한다. 상세 결정은 [ADR-0022](../adr/0022-single-schema-document.md)를 따른다.
+Draft 2020-12 문서는 루트의 x-type-id·x-version·title·description·x-icon·deprecated와 속성별 표준 제약 및 평평한 x- annotation을 함께 저장한다. 선택지는 oneOf/const/title로 코드·라벨·순서를 보존한다. 정의 문서는 PostgreSQL JSONB 표현으로 최대 256 KiB, 자료 properties는 64 KiB다. 표준 readOnly/default/deprecated/examples/multipleOf의 앱 처리 규칙은 공유 validator가 소유한다. 상세 결정은 [ADR-0023](../adr/0023-single-schema-document.md)를 따른다.
 
 `entity_schema_versions`는 owner_id·schema·created_at과 문서에서 추출한 저장 생성 컬럼 type_id·schema_version만 가진다. 타입 테이블은 소유권·현재 포인터·발급 번호·작업 잠금·시각을 유지하며 이름·아이콘·보관과 독립 metadata 버전은 저장하지 않는다. 전환 전 역사에는 없었던 당시 종류 메타데이터를 만들지 않고 metadata_missing으로 알린다.
 

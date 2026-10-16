@@ -36,8 +36,8 @@ test("빈 계정에서 자료 준비와 모든 설정의 다음 행동을 찾고
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), heading).toBe(true);
     if (path.endsWith("records")) {
       const target = page.getByLabel("대상", { exact: true });
-      await expect(target.locator("option")).toHaveText(["할 일", "원칙"]);
-      await target.selectOption("principle");
+      await expect(target.locator("option")).toHaveText(["할 일"]);
+      await target.selectOption("task");
       await expect(page.getByRole("form", { name: "기록 자동 완성", exact: true })).toBeVisible();
     }
     if (path.endsWith("issuers")) {
@@ -48,7 +48,4 @@ test("빈 계정에서 자료 준비와 모든 설정의 다음 행동을 찾고
     await expect(page.getByRole("alert")).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`${path.split("/").at(-1)}-empty.png`), fullPage: true });
   }
-  await page.goto("/principles");
-  await expect(page.getByText("현재 원칙이 없습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "전체 기록 보기", exact: true })).toHaveAttribute("href", "/records");
 });

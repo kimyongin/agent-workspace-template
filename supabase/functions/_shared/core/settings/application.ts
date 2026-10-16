@@ -29,7 +29,6 @@ import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { type EntityCreate, entityCreate, entityUpdate } from "../../contracts/entity.ts";
-import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
 import { entityId } from "../../contracts/entity-identity.ts";
 import { checkedProperties, type EntityDefinitions, requireDefinition } from "../entity/values.ts";
 export interface BusinessSettingsStore extends RequestStore {
@@ -84,13 +83,7 @@ export function prepareBusinessRecord(
     }
     let prepared_input = content;
     if (input.action === "update" || input.action === "restore") {
-      const schema = input.action === "restore"
-        ? entityCreate
-        : input.model === "task"
-        ? taskUpdate
-        : input.model === "entity"
-        ? entityUpdate
-        : principleUpdate;
+      const schema = input.action === "restore" ? entityCreate : input.model === "task" ? taskUpdate : entityUpdate;
       const mutation = schema.safeParse({ ...content, expected_version: input.expected_version });
       if (!mutation.success) {
         throw invalidInput(
@@ -115,7 +108,7 @@ export function prepareBusinessRecord(
       }
     }
     if (input.action === "create") {
-      const schema = input.model === "task" ? taskCreate : input.model === "entity" ? entityCreate : principleCreate;
+      const schema = input.model === "task" ? taskCreate : entityCreate;
       const creationInput = content;
       const creation = schema.safeParse(creationInput);
       if (!creation.success) {
