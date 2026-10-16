@@ -174,9 +174,7 @@ export function SchemaEditor(
     uncertain,
     readBusy,
     startState,
-    analysisPending,
     restartedFrom,
-    staleInput,
     planSyncNeeded,
   } = editor.view;
   const {
@@ -222,11 +220,19 @@ export function SchemaEditor(
     jobs.items,
   );
   const activeJob = jobs.items.find(migrationActive);
-  const reviewSaved = propertiesOpen && plan?.status === "invalid" && plan.analysis?.status === "succeeded";
-  const emptyPublication = !!plan && !plan.recovery && plan.analysis?.status === "succeeded" &&
-    plan.analysis.total === 0;
-  const analysisNeeded = plan && !dirty && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status) &&
-    (!plan.analysis || plan.analysis.status === "failed");
+  const { actions } = editor;
+  const primaryAction = actions.history;
+  const actionLabels = {
+    "sync-pending": "상태 확인 중…",
+    "sync-required": "상태 확인 필요",
+    retry: "같은 요청 다시 확인",
+    restart: "최신 기준으로 다시 검토",
+    review: "보완 내용 검토",
+    analyzing: "검토 중…",
+    analyze: "변경 검토",
+    reanalyze: "검토 재시도",
+    publish: "변경 적용",
+  };
   const openEditing = () => {
     setPropertiesOpen(true);
     requestAnimationFrame(() => {
@@ -858,7 +864,7 @@ export function SchemaEditor(
               </BodyAction>
             </div>
             <p className="secondary">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
-            {!plan?.recovery && (!plan || dirty || reviewSaved) && (
+            {actions.review.visible && (
               <div className="settings-section-footer schema-review-actions">
                 {(dirty || plan && plan.status !== "applied") && (
                   <p className="secondary">
@@ -877,9 +883,8 @@ export function SchemaEditor(
                   </button>
                   <button
                     className="btn btn-primary"
-                    disabled={busy || disabled || readBusy || startState.busy || startState.uncertain ||
-                      Boolean(plan?.recovery) || (!dirty && !uncertain && !reviewSaved)}
-                    onClick={() => void editor.review()}
+                    disabled={actions.review.disabled}
+                    onClick={() => void actions.review.run()}
                   >
                     {busy ? "처리 중…" : uncertain ? "같은 요청 다시 확인" : "변경 검토"}
                   </button>
@@ -1189,10 +1194,7 @@ export function SchemaEditor(
                               ))}
                             </details>
                           )}
-                          {!planSyncNeeded && !emptyPublication && (plan.change_kind === "migration_required" ||
-                              plan.recovery || migration.rules.length > 0 ||
-                              migration.overrides.length > 0 ||
-                              (plan.analysis?.failed ?? 0) > 0)
+                          {actions.conversionVisible
                             ? (
                               <ConversionEditor
                                 key={plan.id}
@@ -1258,93 +1260,26 @@ export function SchemaEditor(
                                 <>
                                   <button
                                     className="btn btn-danger"
-                                    disabled={busy || uncertain || dirty || readBusy || planSyncNeeded ||
-                                      disabled || startState.busy ||
-                                      startState.uncertain}
+                                    disabled={actions.discard.disabled}
                                     onClick={() => setDiscardConfirm(true)}
                                   >
                                     폐기
                                   </button>
-                                  {planSyncNeeded
-                                    ? (
-                                      <button className="btn btn-primary" disabled>
-                                        {readBusy ? "상태 확인 중…" : "상태 확인 필요"}
-                                      </button>
-                                    )
-                                    : uncertain
-                                    ? (
-                                      <button
-                                        className="btn btn-primary"
-                                        disabled={busy || disabled}
-                                        onClick={() => void editor.review()}
-                                      >
-                                        같은 요청 다시 확인
-                                      </button>
-                                    )
-                                    : (staleInput || plan.status === "stale") && !plan.recovery
-                                    ? (
-                                      <button
-                                        className="btn btn-primary"
-                                        disabled={busy || uncertain || readBusy || disabled || planSyncNeeded}
-                                        onClick={() => void editor.restartReview()}
-                                      >
-                                        최신 기준으로 다시 검토
-                                      </button>
-                                    )
-                                    : dirty
-                                    ? (
-                                      <button
-                                        className="btn btn-primary"
-                                        disabled={busy || disabled || readBusy}
-                                        onClick={() => void editor.review()}
-                                      >
-                                        보완 내용 검토
-                                      </button>
-                                    )
-                                    : analysisPending ||
-                                        plan.status === "analyzing"
-                                    ? (
-                                      <button
-                                        className="btn btn-primary"
-                                        disabled
-                                      >
-                                        검토 중…
-                                      </button>
-                                    )
-                                    : analysisNeeded
-                                    ? (
-                                      <button
-                                        className="btn btn-primary"
-                                        disabled={busy || uncertain ||
-                                          disabled || readBusy || planSyncNeeded}
-                                        onClick={() => void editor.analyze()}
-                                      >
-                                        {plan.analysis ? "검토 재시도" : "변경 검토"}
-                                      </button>
-                                    )
-                                    : plan.change_kind ===
-                                          "migration_required" &&
-                                        !emptyPublication &&
-                                        plan.executable && !row.version
+                                  {primaryAction?.kind === "migration"
                                     ? (
                                       <MigrationStart
                                         plan={plan}
-                                        disabled={busy || uncertain || dirty || readBusy || planSyncNeeded ||
-                                          disabled}
+                                        disabled={primaryAction.disabled}
                                         onState={editor.migrationStateChanged}
                                       />
                                     )
-                                    : (plan.change_kind === "compatible" || emptyPublication) &&
-                                      plan.status !== "stale" && (
+                                    : primaryAction && (
                                       <button
                                         className="btn btn-primary"
-                                        disabled={busy || uncertain || dirty ||
-                                          disabled || readBusy || planSyncNeeded ||
-                                          plan.status !== "ready" ||
-                                          plan.analysis?.failed !== 0}
-                                        onClick={() => void editor.publish()}
+                                        disabled={primaryAction.disabled}
+                                        onClick={() => void primaryAction.run?.()}
                                       >
-                                        변경 적용
+                                        {actionLabels[primaryAction.kind]}
                                       </button>
                                     )}
                                 </>
@@ -1404,11 +1339,11 @@ export function SchemaEditor(
         message="이 변경안은 다시 적용할 수 없습니다. 현재 자료와 적용된 설정은 유지되며 변경 이력은 남습니다."
         confirmLabel="폐기"
         danger
-        confirmDisabled={busy || uncertain || dirty || disabled}
+        confirmDisabled={actions.discard.disabled}
         onCancel={() => setDiscardConfirm(false)}
         onConfirm={() => {
           setDiscardConfirm(false);
-          void editor.discard();
+          void actions.discard.run();
         }}
       />
       <ConfirmDialog

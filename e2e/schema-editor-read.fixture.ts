@@ -25,6 +25,30 @@ function plan(id: string): EntitySchemaChange {
     updated_at: "2026-10-12T00:00:00Z",
   };
 }
+function readyActionPlan(): EntitySchemaChange {
+  return {
+    ...plan("b"),
+    status: "ready",
+    analysis: {
+      id: "action-analysis",
+      status: "succeeded",
+      total: 1,
+      processed: 1,
+      failed: 0,
+      change_version: 1,
+      snapshot_fingerprint: "snapshot",
+      definition_fingerprint: "definition",
+      changed: 0,
+      unchanged: 1,
+      removed: 0,
+      replacements: 0,
+      retryable: false,
+      failure_reason: null,
+      errors: [],
+      created_at: "2026-10-12T00:00:00Z",
+    },
+  };
+}
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
     if (new URL(route.request().url()).origin === new URL(baseURL!).origin) {
@@ -35,6 +59,85 @@ test.beforeEach(async ({ page, baseURL }) => {
     }
     return route.fulfill({ json: { items: [] } });
   });
+});
+test("편집 interface의 행동 안내와 실행은 상위 차단과 변환 접수 대기를 함께 따른다", async ({ page }) => {
+  const current = readyActionPlan(), writes: string[] = [];
+  await page.route(`**${base}/b**`, (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: current });
+    writes.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ json: { ...current, status: "applied" } });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?action-probe&change_id=b");
+  await expect(page.getByLabel("현재 행동")).toHaveText("publish");
+  await expect(page.getByLabel("행동 차단")).toHaveText("false");
+  await page.getByRole("button", { name: "상위 차단 전환" }).click();
+  await expect(page.getByLabel("행동 차단")).toHaveText("true");
+  await page.getByRole("button", { name: "행동 실행 요청" }).click();
+  await page.getByRole("button", { name: "상위 차단 전환" }).click();
+  await page.getByRole("button", { name: "변환 접수 대기" }).click();
+  await expect(page.getByLabel("행동 차단")).toHaveText("true");
+  await page.getByRole("button", { name: "행동 실행 요청" }).click();
+  await page.getByRole("button", { name: "변환 접수 결과 불명" }).click();
+  await expect(page.getByLabel("행동 차단")).toHaveText("true");
+  await page.getByRole("button", { name: "행동 실행 요청" }).click();
+  await page.getByRole("button", { name: "변환 접수 종료" }).click();
+  await expect(page.getByLabel("행동 차단")).toHaveText("false");
+  await page.getByRole("button", { name: "행동 실행 요청" }).click();
+  await expect(page.getByLabel("현재 행동")).toHaveText("none");
+  expect(writes).toEqual([`${base}/b/apply`]);
+});
+
+test("편집 interface는 상태 조회 실패 뒤 이전 결과로 적용하거나 검토하지 않는다", async ({ page }) => {
+  const current = readyActionPlan(), writes: string[] = [];
+  let failRead = false;
+  await page.route(`**${base}/b**`, (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill(
+        failRead ? { status: 400, json: { code: "invalid", message: "조회 실패" } } : { json: current },
+      );
+    }
+    writes.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ json: { ...current, status: "applied" } });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?action-probe&change_id=b");
+  await expect(page.getByLabel("현재 행동")).toHaveText("publish");
+  failRead = true;
+  await page.getByRole("button", { name: "상태 조회", exact: true }).click();
+  await expect(page.getByLabel("현재 행동")).toHaveText("sync-required");
+  await expect(page.getByLabel("행동 차단")).toHaveText("true");
+  await page.getByRole("button", { name: "행동 실행 요청" }).click();
+  await page.getByRole("button", { name: "속성 검토 요청" }).click();
+  failRead = false;
+  await page.getByRole("button", { name: "상태 조회", exact: true }).click();
+  await expect(page.getByLabel("현재 행동")).toHaveText("publish");
+  await page.getByRole("button", { name: "행동 실행 요청" }).click();
+  await expect(page.getByLabel("현재 행동")).toHaveText("none");
+  expect(writes).toEqual([`${base}/b/apply`]);
+});
+
+test("편집 interface의 응답 불명 행동은 원래 적용 요청만 재확인한다", async ({ page }) => {
+  const current = readyActionPlan();
+  const writes: Array<{ path: string; key: string | undefined; body: unknown }> = [];
+  await page.route(`**${base}/b**`, (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: current });
+    writes.push({
+      path: new URL(route.request().url()).pathname,
+      key: route.request().headers()["idempotency-key"],
+      body: route.request().postDataJSON(),
+    });
+    return writes.length === 1 ? route.abort() : route.fulfill({ json: { ...current, status: "applied" } });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?action-probe&change_id=b");
+  await expect(page.getByLabel("현재 행동")).toHaveText("publish");
+  await page.getByRole("button", { name: "행동 실행 요청" }).click();
+  await expect(page.getByLabel("현재 행동")).toHaveText("retry");
+  await expect(page.getByLabel("행동 차단")).toHaveText("false");
+  await page.getByRole("button", { name: "행동 실행 요청" }).click();
+  await expect(page.getByLabel("현재 행동")).toHaveText("none");
+  expect(writes).toHaveLength(2);
+  expect(writes[0].path).toBe(`${base}/b/apply`);
+  expect(writes[0].key).toMatch(/^[0-9a-f-]{36}$/);
+  expect(writes[1]).toEqual(writes[0]);
 });
 test("늦은 이전 변경안 응답은 현재 변경안과 새 입력을 덮지 않는다", async ({ page }) => {
   let finish!: () => void, started!: () => void, delivered!: () => void;
