@@ -6,7 +6,6 @@ const material = {
   label: "재료",
   icon_id: "leaf",
   archived: false,
-  version: 1,
   schema_version: 1,
   next_property_number: 2,
   created_at: "2026-10-01T00:00:00Z",
@@ -25,6 +24,15 @@ const account = {
   app_metadata: {},
   user_metadata: { full_name: "Fixture", workspace_nickname: "보존할 이름", provider_value: "preserved" },
 };
+function schemaResult(type: typeof material) {
+  const { schema } = initialEntityDefinition("이름", { id: type.id, title: type.label, icon: type.icon_id });
+  return {
+    type,
+    type_id: type.id,
+    schema_version: type.schema_version,
+    schema: { ...schema, "x-version": type.schema_version, deprecated: type.archived },
+  };
+}
 async function fixture(page: Page, baseURL: string, initial: unknown = null) {
   let metadata: Record<string, unknown> = { ...account.user_metadata, workspace_navigation: initial };
   let types = [material, product], fail = false;
@@ -51,7 +59,7 @@ async function fixture(page: Page, baseURL: string, initial: unknown = null) {
       });
     }
     const selected = types.find((type) => url.pathname.startsWith(`/api/entity-types/${type.id}`));
-    if (selected) return route.fulfill({ json: url.pathname.endsWith("/schema") ? { type: selected, type_id: selected.id, schema_version: selected.schema_version, ...initialEntityDefinition("이름") } : selected });
+    if (selected) return route.fulfill({ json: url.pathname.endsWith("/schema") ? schemaResult(selected) : selected });
     if (await fulfillPreparation(route)) return;
     if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { items: [], next_cursor: null } });
     return route.abort();
@@ -347,13 +355,14 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
     const url = new URL(route.request().url());
     if (route.request().method() === "PATCH") {
       const { label, icon_id, archived } = route.request().postDataJSON();
-      current = { ...current, label, icon_id, archived, version: current.version + 1 };
+      expect(route.request().postDataJSON().expected_schema_version).toBe(current.schema_version);
+      current = { ...current, label, icon_id, archived, schema_version: current.schema_version + 1 };
       state.setTypes([current, product]);
       return route.fulfill({ json: current });
     }
     return route.fulfill({
       json: url.pathname.endsWith("/schema")
-        ? { type: current, type_id: current.id, schema_version: 1, ...initialEntityDefinition("이름") }
+        ? schemaResult(current)
         : (url.pathname.endsWith("/schemas") || url.pathname.endsWith("/schema-changes"))
         ? { items: [] }
         : current,

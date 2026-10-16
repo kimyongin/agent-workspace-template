@@ -27,11 +27,11 @@ import { initialEntityDefinition } from "../../functions/_shared/contracts/entit
 const entity_type_id = crypto.randomUUID();
 const definition = initialEntityDefinition("이름");
 Object.assign(definition.schema.properties, {
-  prop_2: { type: ["integer", "null"] },
-  prop_3: { type: ["string", "null"], format: "date" },
-  prop_4: { type: "string", enum: ["a", "b", "c"], default: "a" },
+  prop_2: { "x-order": 20, type: ["integer", "null"] },
+  prop_3: { "x-order": 30, type: ["string", "null"], format: "date" },
+  prop_4: { "x-order": 40, type: "string", oneOf: ["a", "b", "c"].map((value) => ({ const: value })), default: "a" },
 });
-definition.display.order.push("prop_2", "prop_3", "prop_4");
+
 const type = { id: entity_type_id, label: "재료", icon_id: "leaf", archived: false };
 function memory() {
   const rows = new Map<string, EntityValues>();

@@ -1,3 +1,5 @@
+import { fieldChoices } from "../../lib/schema-document.ts";
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { SchemaDefinition } from "@contracts/entity-schema-change.ts";
 
 /** Each property edits the representative in the same schema draft. */
@@ -8,8 +10,8 @@ export function SchemaRepresentativeSetting({ draft, propertyKey, disabled, choo
   chooseRepresentative: (key: string) => void;
 }) {
   const field = draft.schema.properties[propertyKey];
-  const eligible = !draft.display.archived.includes(propertyKey) &&
-    field.type === "string" && !field.format && !field.enum && draft.schema.required.includes(propertyKey) &&
+  const eligible = !schemaPresentation(draft).archived.includes(propertyKey) &&
+    field.type === "string" && !field.format && !fieldChoices(field) && draft.schema.required.includes(propertyKey) &&
     (field.minLength ?? 0) >= 1;
   return (
     <div className="schema-representative-setting">
@@ -18,7 +20,7 @@ export function SchemaRepresentativeSetting({ draft, propertyKey, disabled, choo
           type="radio"
           name="schema-representative"
           aria-label={`${field.title || "새 항목"} 자료 이름으로 사용`}
-          checked={draft.display.representative === propertyKey}
+          checked={schemaPresentation(draft).representative === propertyKey}
           disabled={disabled || !eligible}
           onChange={() => chooseRepresentative(propertyKey)}
         />

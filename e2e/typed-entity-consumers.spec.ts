@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 import { analyzeAndApply } from "./entity-schema-support.ts";
 import { openTabFilters } from "./ui-actions.ts";
 test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를 사용하며 과거 사실을 보존한다", async ({ page }) => {
@@ -21,25 +21,29 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       {
         op: "add_property",
         client_ref: "count",
-        field: { type: ["integer", "null"], title: "수량", minimum: 0, maximum: 1000 },
+        field: { "x-order": 20, type: ["integer", "null"], title: "수량", minimum: 0, maximum: 1000 },
       },
-      { op: "add_property", client_ref: "day", field: { type: ["string", "null"], format: "date", title: "날짜" } },
-      { op: "add_property", client_ref: "checked", field: { type: ["boolean", "null"], title: "검사" } },
+      {
+        op: "add_property",
+        client_ref: "day",
+        field: { "x-order": 30, type: ["string", "null"], format: "date", title: "날짜" },
+      },
+      { op: "add_property", client_ref: "checked", field: { "x-order": 40, type: ["boolean", "null"], title: "검사" } },
     ];
     let change = await mcp.call("create_entity_schema_change", {
       type_id: type.id,
-      expected_type_version: 1,
       expected_schema_version: 1,
       edits: additions,
     });
-    const display = { ...change.target.display, list_columns: ["prop_1", "prop_2", "prop_4"] };
     change = await mcp.call("update_entity_schema_change", {
       type_id: type.id,
       change_id: change.id,
-      expected_type_version: 1,
       expected_schema_version: 1,
       expected_change_version: change.version,
-      edits: [...additions, { op: "set_display", display }],
+      edits: additions.map((edit) => ({
+        ...edit,
+        field: { ...edit.field, "x-show-in-list": edit.client_ref !== "day" },
+      })),
     });
     await analyzeAndApply(mcp, type.id, change.id, change.version);
     const first = await mcp.call("create_entity", {
@@ -85,7 +89,9 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
     await template.getByLabel("액션", { exact: true }).selectOption("update");
     await template.getByLabel("메모 템플릿", { exact: true }).fill("値 $엔터티.이후.prop_2$ / $엔터티.이후.prop_4$");
     await template.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
-    await expect(template.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toHaveText("기록 자동 완성을 저장했습니다.");
+    await expect(template.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toHaveText(
+      "기록 자동 완성을 저장했습니다.",
+    );
     const updated = await mcp.call("update_entity", {
       id: second.id,
       expected_version: second.version,
@@ -99,7 +105,6 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       schema = await mcp.call("get_entity_schema", { type_id: type.id });
     const rename = await mcp.call("create_entity_schema_change", {
       type_id: type.id,
-      expected_type_version: current.version,
       expected_schema_version: 2,
       edits: [{
         op: "update_property",

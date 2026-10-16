@@ -21,7 +21,7 @@ const job = {
   status: "succeeded",
   type_id: "type-1",
   source_expires_at: "2026-11-10T12:00:00Z",
-  recovery: { status: "available", reason: null, current_type_version: 12, current_schema_version: 4 },
+  recovery: { status: "available", reason: null, current_schema_version: 4 },
 } as EntitySchemaMigration;
 
 it("완료 작업은 서버가 확인한 복구 가능 여부와 보존 기한을 함께 보여 준다", () => {
@@ -49,7 +49,7 @@ it("복구안 요청은 원본 작업과 현재 종류·속성 버전만 보내�
   expect(client.mock.calls[0]).toEqual([
     "POST",
     "/entity-schema-migrations/job-1/recovery-changes",
-    { expected_job_version: 7, expected_type_version: 12, expected_schema_version: 4 },
+    { expected_job_version: 7, expected_schema_version: 4 },
     undefined,
     expect.stringMatching(/^[0-9a-f-]{36}$/),
   ]);

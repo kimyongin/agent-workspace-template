@@ -1,3 +1,4 @@
+import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { initialEntityDefinition } from "../../contracts/entity-type.ts";
 import type { EntitySchemaChange, SchemaEdit } from "../../contracts/entity-schema-change.ts";
@@ -18,7 +19,7 @@ const actor = { userId: "owner", source: "http" as const, request: { key: "33333
 const addition: SchemaEdit = {
   op: "add_property",
   client_ref: "amount",
-  field: { type: "string", title: "수량" },
+  field: { "x-order": 20, type: "string", title: "수량" },
   required: false,
 };
 
@@ -62,7 +63,6 @@ async function fixture() {
         type_id: typeId,
         version: (saved?.version ?? 0) + 1,
         status: "draft",
-        source_type_version: 1,
         source_schema_version: 1,
         source_template_fingerprint: templateFingerprint,
         edits: p.edits,
@@ -101,7 +101,7 @@ async function fixture() {
       },
     },
   };
-  const input = { expected_type_version: 1, expected_schema_version: 1, edits: [addition] };
+  const input = { expected_schema_version: 1, edits: [addition] };
   return {
     deps,
     context,
@@ -116,7 +116,7 @@ Deno.test("public schema change create/update preserve reserved additions and un
   const f = await fixture();
   const created = await createEntitySchemaChange(f.deps, actor, typeId, f.input);
   assertEquals(created.reservations, { amount: "prop_2" });
-  assertEquals(created.target.schema.properties.prop_2, { type: "string", title: "수량" });
+  assertEquals(created.target.schema.properties.prop_2, { type: "string", title: "수량", "x-order": 20 });
   assertEquals(created.change_kind, "compatible");
   const unchanged = await updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
     ...f.input,
@@ -126,7 +126,7 @@ Deno.test("public schema change create/update preserve reserved additions and un
   const updated = await updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
     ...f.input,
     expected_change_version: 1,
-    edits: [{ ...addition, field: { type: "string", title: "갯수" } }],
+    edits: [{ ...addition, field: { "x-order": 20, type: "string", title: "갯수" } }],
   });
   assertEquals(updated.version, 2);
   assertEquals(updated.reservations, { amount: "prop_2" });
@@ -170,12 +170,12 @@ Deno.test("public schema change rejects unmatched removal rules without keeping 
 
 Deno.test("public schema change checks source before missing draft and preserves immutable recovery/version restrictions", async () => {
   const f = await fixture();
-  f.context.type.version = 2;
+  f.context.type.schema_version = 2;
   const stale = await assertRejects(() =>
     updateEntitySchemaChange(f.deps, actor, typeId, changeId, { ...f.input, expected_change_version: 1 })
   );
   assertEquals((stale as { code: string }).code, "schema_changed");
-  f.context.type.version = 1;
+  f.context.type.schema_version = 1;
   const created = await createEntitySchemaChange(f.deps, actor, typeId, f.input);
   for (
     const patch of [{ version: 2 }, { status: "applied" as const }, {
@@ -190,28 +190,51 @@ Deno.test("public schema change checks source before missing draft and preserves
   }
 });
 
-Deno.test("public change resolves same-batch new field references in the user's display order", async () => {
+Deno.test("public change reserves new fields while presentation travels with each field", async () => {
   const f = await fixture();
   const input = {
     ...f.input,
     edits: [
-      { ...addition, field: { type: "string", title: "상태", enum: ["available"] } },
-      { ...addition, client_ref: "sku", field: { type: "string", title: "상품명", minLength: 1 }, required: true },
       {
-        op: "set_display",
-        display: {
-          representative: "new_sku",
-          order: ["new_sku", "prop_1", "new_amount"],
-          list_columns: ["new_amount", "new_sku"],
-          archived: [],
-          option_labels: { new_amount: { available: "판매 중" } },
+        ...addition,
+        field: {
+          type: "string",
+          "x-order": 20,
+          "x-show-in-list": true,
+          "x-list-order": 10,
+          title: "상태",
+          oneOf: [{ const: "available", title: "판매 중" }],
         },
+      },
+      {
+        ...addition,
+        client_ref: "sku",
+        field: {
+          type: "string",
+          "x-order": 5,
+          "x-representative": true,
+          "x-show-in-list": true,
+          "x-list-order": 20,
+          title: "상품명",
+          minLength: 1,
+        },
+        required: true,
+      },
+      {
+        op: "update_property",
+        key: "prop_1",
+        field: {
+          ...initialEntityDefinition("이름").schema.properties.prop_1,
+          "x-representative": false,
+          "x-show-in-list": false,
+        },
+        required: true,
       },
     ],
     migration: { rules: [{ op: "fill", key: "new_sku", value: "기본 상품명" }] },
   };
   const created = await createEntitySchemaChange(f.deps, actor, typeId, input);
-  assertEquals(created.target.display, {
+  assertEquals(entitySchemaPresentation(created.target.schema), {
     representative: "prop_3",
     order: ["prop_3", "prop_1", "prop_2"],
     list_columns: ["prop_2", "prop_3"],
@@ -227,16 +250,37 @@ Deno.test("public change resolves same-batch new field references in the user's 
   const error = await assertRejects(() =>
     createEntitySchemaChange(f.deps, actor, typeId, {
       ...input,
-      edits: [{
-        op: "set_display",
-        display: {
-          representative: "new_missing",
-          order: ["prop_1"],
-          list_columns: [],
-          archived: [],
-          option_labels: {},
-        },
-      }],
+      migration: { rules: [{ op: "fill", key: "new_missing", value: "bad" }] },
+    })
+  );
+  assertEquals((error as { code: string }).code, "invalid_input");
+});
+
+Deno.test("archived type publishes metadata or an explicit unarchive with property edits", async () => {
+  const f = await fixture();
+  f.context.type.archived = true;
+  f.context.definition.schema.deprecated = true;
+  const metadata = await createEntitySchemaChange(f.deps, actor, typeId, {
+    ...f.input,
+    edits: [{ op: "set_metadata", title: "보관 이름" }],
+  });
+  assertEquals(metadata.target.schema.deprecated, true);
+  const error = await assertRejects(() => createEntitySchemaChange(f.deps, actor, typeId, f.input));
+  assertEquals((error as { code: string }).code, "entity_type_archived");
+  const restored = await createEntitySchemaChange(f.deps, actor, typeId, {
+    ...f.input,
+    edits: [...f.input.edits, { op: "set_metadata", deprecated: false }],
+  });
+  assertEquals(restored.target.schema.deprecated, false);
+  assertEquals(restored.target.schema.properties[restored.reservations.amount]["x-order"], 20);
+  assertEquals(f.context.type.archived, true);
+});
+Deno.test("semantically unchanged schema change never saves a new draft", async () => {
+  const f = await fixture();
+  const error = await assertRejects(() =>
+    createEntitySchemaChange(f.deps, actor, typeId, {
+      ...f.input,
+      edits: [{ op: "set_metadata", title: f.context.definition.schema.title, deprecated: false }],
     })
   );
   assertEquals((error as { code: string }).code, "invalid_input");

@@ -8,13 +8,19 @@ import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 it("reads a saved definition using option labels without exposing storage codes", () => {
   const definition = initialEntityDefinition("상품명");
   definition.schema.properties.prop_2 = {
+    "x-order": 20,
     type: "string",
     title: "판매 상태",
-    enum: ["available", "closed"],
+    oneOf: [{ const: "available" }, { const: "closed" }],
     default: "available",
   };
-  definition.display.order.push("prop_2");
-  definition.display.option_labels.prop_2 = { available: "판매 중", closed: "판매 종료" };
+  definition.schema.properties.prop_2 = {
+    ...definition.schema.properties.prop_2,
+    oneOf: Object.entries({ available: "판매 중", closed: "판매 종료" }).map(([value, title]) => ({
+      const: value,
+      title,
+    })),
+  };
   const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
   expect(html).toContain("판매 중, 판매 종료");
   expect(html).not.toContain("available");
@@ -23,21 +29,66 @@ it("reads a saved definition using option labels without exposing storage codes"
 
 it("preserves option values that share names with object prototype keys", () => {
   const definition = initialEntityDefinition("상품명");
-  definition.schema.properties.prop_2 = { type: "string", enum: ["constructor", "toString"] };
-  definition.display.order.push("prop_2");
-  definition.display.option_labels.prop_2 = {};
+  definition.schema.properties.prop_2 = {
+    "x-order": 30,
+    type: "string",
+    oneOf: [{ const: "constructor" }, { const: "toString" }],
+  };
   const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
   expect(html).toContain("constructor, toString");
 });
 
 it("does not reinterpret an older option using an unrelated current definition", () => {
   const target = initialEntityDefinition("상품명");
-  target.display.option_labels.prop_2 = { ready: "판매 중" };
-  const current = { ...initialEntityDefinition("상품명"), type_id: "type", schema_version: 9, created_at: "2026-10-01T00:00:00Z" };
-  current.display.option_labels.prop_2 = { ready: "현재의 다른 이름" };
-  const change = { source_schema_version: 1, target, diff: [{ path: "properties.prop_2.enum", before: ["ready"], after: ["ready"], before_present: true, after_present: true, kind: "compatible" }] } as unknown as EntitySchemaChange;
+  target.schema.properties.prop_2 = {
+    ...target.schema.properties.prop_2,
+    oneOf: Object.entries({ ready: "판매 중" }).map(([value, title]) => ({ const: value, title })),
+  };
+  const current = {
+    ...initialEntityDefinition("상품명"),
+    type_id: "type",
+    schema_version: 9,
+    created_at: "2026-10-01T00:00:00Z",
+  };
+  current.schema.properties.prop_2 = {
+    ...current.schema.properties.prop_2,
+    oneOf: Object.entries({ ready: "현재의 다른 이름" }).map(([value, title]) => ({ const: value, title })),
+  };
+  const change = {
+    source_schema_version: 1,
+    target,
+    diff: [{
+      path: "properties.prop_2.oneOf",
+      before: ["ready"],
+      after: ["ready"],
+      before_present: true,
+      after_present: true,
+      kind: "compatible",
+    }],
+  } as unknown as EntitySchemaChange;
   const html = renderToStaticMarkup(<SchemaChangeDiff change={change} definition={current} />);
   expect(html).toContain("ready");
   expect(html).toContain("판매 중");
   expect(html).not.toContain("현재의 다른 이름");
+});
+
+it("saved definition keeps the null branch title for defaults choices and examples", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = {
+    type: ["string", "null"],
+    "x-order": 20,
+    title: "진행 상태",
+    oneOf: [{ const: "a", title: "진행" }, { const: null, title: "미정" }, { const: "null", title: "문자 코드" }],
+    default: null,
+    examples: [null, "null"],
+  };
+  const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
+  expect(html).toContain("<dt>생성 기본값</dt><dd>미정</dd>");
+  expect(html).toContain("진행, 미정, 문자 코드");
+  expect(html).toContain("미정, 문자 코드");
+  expect(html).not.toContain("비워 두기");
+  definition.schema.properties.prop_2.default = "null";
+  expect(renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />)).toContain(
+    "<dt>생성 기본값</dt><dd>문자 코드</dd>",
+  );
 });

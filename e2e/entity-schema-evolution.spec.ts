@@ -177,12 +177,11 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     });
     const change = await mcp.call("create_entity_schema_change", {
       type_id: type.id,
-      expected_type_version: 1,
       expected_schema_version: 1,
       edits: [{
         op: "add_property",
         client_ref: "note",
-        field: { type: ["string", "null"], title: "메모" },
+        field: { "x-order": 20, type: ["string", "null"], title: "메모" },
         required: false,
       }],
     });

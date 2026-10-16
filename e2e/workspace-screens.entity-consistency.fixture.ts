@@ -102,15 +102,15 @@ test("schema retry preserves property input after a conflict", async ({ page }) 
 test("nonrepresentative false, null and archived properties remain readable", async ({ page }) => {
   const state = await fixtures(page);
   const schema = structuredClone(fixtureSchema);
-  schema.schema.properties.prop_5 = { type: "boolean", title: "판매 중" };
-  schema.display.order.push("prop_5");
-  schema.display.archived.push("prop_4");
+  schema.schema.properties.prop_5 = { "x-order": 50, type: "boolean", title: "판매 중" };
+
+  schema.schema.properties["prop_4"]["deprecated"] = true;
   state.rows.entities[0].properties.prop_5 = false;
   await page.route("**/api/entity-types/*/schema?schema_version=1", (route) => route.fulfill({ json: schema }));
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
   const properties = form(page).locator(".entity-detail-properties");
   await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^판매 중$/ }) })).toContainText("거짓");
-  await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^날짜$/ }) })).toContainText("미입력");
+  await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^날짜$/ }) })).toContainText("값 없음");
   await expect(properties.locator("dt", { hasText: /^분류 · 보관$/ })).toBeVisible();
   expect(state.writes).toHaveLength(0);
 });

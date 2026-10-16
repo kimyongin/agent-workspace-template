@@ -130,7 +130,6 @@ export const errorBody = z.object({
   fields: z.array(z.object({ path: z.string(), message: z.string() })).optional(),
   current: z.object({
     type_id: z.string(),
-    type_version: z.number().int().positive(),
     schema_version: z.number().int().positive(),
     change_id: z.string().optional(),
     change_version: z.number().int().positive().optional(),

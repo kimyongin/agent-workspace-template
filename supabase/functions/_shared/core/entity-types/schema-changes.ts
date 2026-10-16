@@ -1,3 +1,5 @@
+import { publicationDefinition } from "./schema-rules.ts";
+import { replayRetainedSchemaRequest } from "./retained-requests.ts";
 import {
   assertSchemaApplication,
   assertSchemaApplicationBindings,
@@ -37,7 +39,6 @@ export type SchemaChangeDraftContext = {
       | "id"
       | "version"
       | "status"
-      | "source_type_version"
       | "source_schema_version"
       | "source_template_fingerprint"
       | "edits"
@@ -97,11 +98,19 @@ function refs(typeId: string, id?: string) {
 }
 export function createEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, raw: unknown) {
   refs(typeId);
+  if (
+    raw && typeof raw === "object" && Object.hasOwn(raw, "expected_type_version") &&
+    !schemaChangeCreate.safeParse(raw).success
+  ) return replayRetainedSchemaRequest<EntitySchemaChange>(d, a, "entity-schema-change.create", typeId, raw);
   const i = parse(schemaChangeCreate, raw);
   return runWrite(d.uow, a, "entity-schema-change.create", typeId, i, (s) => prepareSchemaChange(s, typeId, i));
 }
 export function updateEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
   refs(typeId, id);
+  if (
+    raw && typeof raw === "object" && Object.hasOwn(raw, "expected_type_version") &&
+    !schemaChangeUpdate.safeParse(raw).success
+  ) return replayRetainedSchemaRequest<EntitySchemaChange>(d, a, "entity-schema-change.update", [typeId, id], raw);
   const i = parse(schemaChangeUpdate, raw);
   return runWrite(
     d.uow,
@@ -112,7 +121,7 @@ export function updateEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: st
     (s) => prepareSchemaChange(s, typeId, i, id),
   );
 }
-async function prepareSchemaChange(
+export async function prepareSchemaChange(
   s: SchemaChangeStore,
   typeId: string,
   input: ChangeInput & { expected_change_version?: number },
@@ -121,21 +130,25 @@ async function prepareSchemaChange(
   const context = await s.loadSchemaChangeDraft(typeId);
   const t = context.type;
   if (t.schema_write_locked) throw new AppError("schema_migration_in_progress", "마이그레이션 완료 후 다시 시도하세요");
-  if (t.version !== input.expected_type_version || t.schema_version !== input.expected_schema_version) {
+  if (t.schema_version !== input.expected_schema_version) {
     throw new AppError("schema_changed", "자료 종류나 속성 정의가 변경되었습니다", undefined, {
       type_id: t.id,
-      type_version: t.version,
+
       schema_version: t.schema_version,
     });
   }
-  if (t.archived) throw new AppError("entity_type_archived", "보관된 자료 종류를 먼저 복원하세요");
+  if (
+    t.archived && input.edits.some((e) => e.op !== "set_metadata") &&
+    !input.edits.some((e) => e.op === "set_metadata" && e.deprecated === false)
+  ) {
+    throw new AppError("entity_type_archived", "보관된 자료 종류를 먼저 복원하세요");
+  }
   const previous = id ? await s.lockExistingSchemaChange(typeId, id) : null;
   context.previous = previous;
   if (previous) {
     if (previous.version !== input.expected_change_version) throw conflict("변경 초안 버전이 변경되었습니다");
     if (["applied", "cancelled"].includes(previous.status)) throw conflict("완료된 변경은 수정할 수 없습니다");
     if (
-      previous.source_type_version !== input.expected_type_version ||
       previous.source_schema_version !== input.expected_schema_version
     ) {
       throw new AppError("schema_plan_stale", "새 정의를 기준으로 새 변경을 만드세요");
@@ -146,6 +159,10 @@ async function prepareSchemaChange(
   }
   const reservations = await s.reserveSchemaChangeProperties(typeId, input.edits, previous?.reservations ?? {});
   const resolved = resolveSchemaEdits(context.definition, input.edits, reservations);
+  publicationDefinition(resolved.target, t.id, t.schema_version + 1);
+  if (t.archived && input.edits.some((e) => e.op !== "set_metadata") && resolved.target.schema.deprecated !== false) {
+    throw new AppError("entity_type_archived", "속성 변경과 함께 보관 해제를 게시하세요");
+  }
   const migration = {
     rules: input.migration.rules.map((rule) => ({
       ...rule,
@@ -165,6 +182,9 @@ async function prepareSchemaChange(
     ...new Set(migration.overrides.map((o) => o.entity_id)),
   ]);
   compileMigration(resolved.target, migration);
+  if (!resolved.diff.length && !migration.rules.length && !migration.overrides.length) {
+    throw invalidInput("현재 정의와 같은 문서입니다. 게시할 변경이 없습니다");
+  }
   const kind = input.migration.rules.length || input.migration.overrides.length ? "migration_required" : resolved.kind;
   const templateVersion = await effectiveEntityTemplateFingerprint(templates, typeId);
   if (previous && templateVersion !== previous.source_template_fingerprint) {

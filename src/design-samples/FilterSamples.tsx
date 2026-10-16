@@ -10,24 +10,31 @@ import type { z } from "zod";
 const schema: EntitySchemaResult = {
   type_id: "00000000-0000-4000-8000-000000000001",
   schema_version: 1,
-  type_version: 1,
   type: { id: "00000000-0000-4000-8000-000000000001", label: "자료", icon_id: "book", archived: false },
   created_at: "2026-10-16T00:00:00Z",
   constraints: entitySchemaLimits,
   policy: entitySchemaPolicy,
   schema: {
     $schema: "https://json-schema.org/draft/2020-12/schema",
+    "x-type-id": "00000000-0000-4000-8000-000000000001",
+    "x-version": 1,
+    title: "자료",
+    "x-icon": "book",
+    deprecated: false,
     type: "object",
     additionalProperties: false,
-    properties: { prop_1: { type: "string", title: "이름" }, prop_2: { type: "string", title: "분류" } },
-    required: [],
-  },
-  display: {
-    representative: "prop_1",
-    order: ["prop_1", "prop_2"],
-    list_columns: ["prop_1"],
-    archived: [],
-    option_labels: {},
+    properties: {
+      prop_1: {
+        type: "string",
+        title: "이름",
+        minLength: 1,
+        "x-order": 10,
+        "x-representative": true,
+        "x-show-in-list": true,
+      },
+      prop_2: { type: "string", title: "분류", "x-order": 20 },
+    },
+    required: ["prop_1"],
   },
 };
 const tagOptions = [{ id: "report", name: "보고서" }, { id: "project", name: "프로젝트" }, {

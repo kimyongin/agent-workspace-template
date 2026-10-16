@@ -1,3 +1,4 @@
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import { TemplateMemoEditor, type TemplateMemoHandle } from "./TemplateMemoEditor.tsx";
 import { changedTemplateActions, templateFieldTarget } from "./record-template-actions.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
@@ -225,7 +226,9 @@ function RecordTemplateForm({
   const variables = templateVariables(
     model,
     action,
-    model === "entity" && schema ? schema.display.order.filter((key) => !schema.display.archived.includes(key)) : [],
+    model === "entity" && schema
+      ? schemaPresentation(schema).order.filter((key) => !schemaPresentation(schema).archived.includes(key))
+      : [],
   ).map((variable) => {
     const key = variable.split(".").at(-1)!;
     return {

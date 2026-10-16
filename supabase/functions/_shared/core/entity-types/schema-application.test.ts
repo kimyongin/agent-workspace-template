@@ -74,7 +74,6 @@ async function fixture(kind: "compatible" | "migration_required") {
         })
         : startEntitySchemaMigration(deps, actor, typeId, changeId, {
           expected_change_version: 1,
-          expected_type_version: 1,
           expected_schema_version: 1,
           analysis_id: analysisId,
           fingerprint: "a".repeat(64),

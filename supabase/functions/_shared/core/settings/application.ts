@@ -1,3 +1,4 @@
+import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import type { EntityTypeIdentity } from "../../contracts/entity-issuer.ts";
 import { assertImmutableType } from "../entity/application.ts";
 import type { RequestStore } from "../shared/request.ts";
@@ -172,16 +173,25 @@ export function prepareBusinessRecord(
         { ...before?.properties, ...(content.properties as Record<string, unknown> ?? {}) },
         patch,
         input.action === "create",
+        before?.properties,
       );
       content = {
         ...content,
         properties,
-        title: String(properties[definition.display.representative]),
+        title: String(properties[entitySchemaPresentation(definition.schema).representative]),
         property_labels: Object.fromEntries(
           Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
         ),
       };
-      if (input.action === "create") prepared_input = { ...prepared_input, properties };
+      if (input.action === "create") {
+        // Effective values render the memo; server-owned defaults are not user write input.
+        prepared_input = {
+          ...prepared_input,
+          properties: Object.fromEntries(
+            Object.entries(properties).filter(([key]) => !definition.schema.properties[key]?.readOnly),
+          ),
+        };
+      }
     }
     const after = input.action === "delete" ? null : {
       ...before,

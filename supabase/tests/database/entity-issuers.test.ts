@@ -385,31 +385,34 @@ dbTest(
       await asUser(
         sql,
         a.actor.userId,
-        (tx) => tx`update app.entity_types set label='상품' where id=${second.id}::uuid`,
+        async (tx) => {
+          await tx`insert into app.entity_schema_versions(owner_id,schema) select owner_id,schema||'{"x-version":2,"title":"상품"}'::jsonb from app.entity_schema_versions where type_id=${second.id} and schema_version=1`;
+          await tx`update app.entity_types set schema_version=2 where id=${second.id}`;
+        },
       );
       const { updateEntityType } = await import("../../functions/_shared/core/entity-types/application.ts");
       const changed = await updateEntityType(d, requestActor(a.actor), second.id, {
         label: "상품",
         icon_id: "star",
-        expected_type_version: 1,
+        expected_schema_version: 2,
       });
       assertEquals(changed.label, "상품");
       const archived = await updateEntityType(d, requestActor(a.actor), second.id, {
         archived: true,
-        expected_type_version: changed.version,
+        expected_schema_version: changed.schema_version,
       });
       assertEquals(
         (await assertRejects(() =>
           updateEntityType(d, requestActor(a.actor), second.id, {
             archived: false,
-            expected_type_version: archived.version,
+            expected_schema_version: archived.schema_version,
           }), AppError)).code,
         "invalid_input",
       );
       const restored = await updateEntityType(d, requestActor(a.actor), second.id, {
         label: "다른 상품",
         archived: false,
-        expected_type_version: archived.version,
+        expected_schema_version: archived.schema_version,
       });
       assertEquals(restored.archived, false);
     } finally {

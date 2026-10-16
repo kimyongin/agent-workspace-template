@@ -43,7 +43,6 @@ export function MigrationStart(
           `/entity-types/${plan.type_id}/schema-changes/${plan.id}/migrations`,
           {
             expected_change_version: plan.version,
-            expected_type_version: plan.source_type_version,
             expected_schema_version: plan.source_schema_version,
             analysis_id: plan.analysis!.id,
             fingerprint: plan.fingerprint,

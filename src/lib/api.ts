@@ -24,7 +24,8 @@ export async function api<T>(
     method = "POST";
     path = "/entities/query";
   }
-  const writing = method !== "GET" && !["/search", "/records/prepare", "/entities/query"].includes(path);
+  const writing = method !== "GET" &&
+    !["/search", "/records/prepare", "/entities/query", "/entity-schema-import/preview"].includes(path);
   let serialized = body === undefined ? undefined : JSON.stringify(body);
   if (writing) {
     if (!requestKey) throw new Error("업무 쓰기는 요청 키가 필요합니다");

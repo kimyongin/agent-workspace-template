@@ -1,3 +1,6 @@
+import { entityTypeIcons } from "@contracts/entity-type.ts";
+import { fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { SchemaDefinition } from "@contracts/entity-schema-change.ts";
 import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
 
@@ -7,7 +10,7 @@ export function SchemaDefinitionRead(
 ) {
   const keys = [
     ...new Set([
-      ...definition.display.order,
+      ...schemaPresentation(definition).order,
       ...Object.keys(definition.schema.properties),
     ]),
   ];
@@ -16,12 +19,49 @@ export function SchemaDefinitionRead(
       <h3 className="section-title">
         입력 항목 <span className="secondary">읽기 전용</span>
       </h3>
+      <dl className="props schema-definition-values">
+        <div>
+          <dt>종류 이름</dt>
+          <dd>{definition.schema.title ?? "당시 이름 기록 없음"}</dd>
+        </div>
+        <div>
+          <dt>아이콘</dt>
+          <dd>
+            {definition.schema["x-icon"]
+              ? entityTypeIcons.find((icon) => icon.id === definition.schema["x-icon"])?.label ?? "기본 아이콘"
+              : "당시 아이콘 기록 없음"}
+          </dd>
+        </div>
+        <div>
+          <dt>보관 상태</dt>
+          <dd>
+            {definition.schema.deprecated === undefined && !definition.schema.title
+              ? "당시 상태 기록 없음"
+              : definition.schema.deprecated
+              ? "보관"
+              : "사용 중"}
+          </dd>
+        </div>
+        {definition.schema.description && (
+          <div>
+            <dt>종류 설명</dt>
+            <dd>{definition.schema.description}</dd>
+          </div>
+        )}
+      </dl>
+      {!definition.schema.title && (
+        <p className="help">이 과거 버전에는 당시 종류 이름·아이콘·보관 상태가 기록되지 않았습니다.</p>
+      )}
       {keys.map((key) => {
         const field = definition.schema.properties[key];
         if (!field) {
           return null;
         }
-        const optionLabel = (value: string) => schemaOptionLabel(definition.display.option_labels[key], value);
+        const optionLabel = (value: string | null) =>
+          fieldChoiceTitle(field, value) ??
+            (value === null
+              ? "비워 두기"
+              : schemaOptionLabel(schemaPresentation(definition).option_labels[key], value));
         const values: Array<[string, string]> = [
           ["데이터 타입", fieldTypeLabel(field)],
           [
@@ -30,14 +70,25 @@ export function SchemaDefinitionRead(
           ],
           [
             "목록에 표시",
-            definition.display.list_columns.includes(key) ? "예" : "아니요",
+            schemaPresentation(definition).list_columns.includes(key) ? "예" : "아니요",
           ],
         ];
-        if (key === definition.display.representative) {
+        if (key === schemaPresentation(definition).representative) {
           values.push(["자료 이름", "사용"]);
         }
-        if (definition.display.archived.includes(key)) {
+        if (schemaPresentation(definition).archived.includes(key)) {
           values.push(["사용 상태", "사용 중지"]);
+        }
+        if (field.readOnly) values.push(["읽기 전용", "예"]);
+        if (field.examples?.length) {
+          values.push([
+            "입력 예시",
+            field.examples.map((value) =>
+              fieldChoices(field) && (typeof value === "string" || value === null)
+                ? optionLabel(value)
+                : schemaValueLabel(value)
+            ).join(", "),
+          ]);
         }
         if (field.description) {
           values.push(["설명", field.description]);
@@ -47,6 +98,7 @@ export function SchemaDefinitionRead(
             ["minLength", "최소 길이"],
             ["maxLength", "최대 길이"],
             ["minimum", "최소값"],
+            ["multipleOf", "배수"],
             [
               "maximum",
               "최대값",
@@ -64,16 +116,16 @@ export function SchemaDefinitionRead(
           values.push([
             "생성 기본값",
             field.default === null
-              ? "비워 두기"
-              : typeof field.default === "string" && field.enum
+              ? optionLabel(null)
+              : typeof field.default === "string" && fieldChoices(field)
               ? optionLabel(field.default)
               : schemaValueLabel(field.default),
           ]);
         }
-        if (field.enum) {
+        if (fieldChoices(field)) {
           values.push([
             "선택 항목",
-            field.enum.map((value) => value === null ? "비워 두기" : optionLabel(value)).join(", "),
+            fieldChoices(field)!.map(optionLabel).join(", "),
           ]);
         }
         return (

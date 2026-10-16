@@ -13,11 +13,11 @@ import { initialEntityDefinition } from "../../functions/_shared/contracts/entit
 const entity_type_id = crypto.randomUUID();
 const entityDefinition = initialEntityDefinition("이름");
 Object.assign(entityDefinition.schema.properties, {
-  prop_2: { type: ["integer", "null"], default: null },
-  prop_3: { type: ["string", "null"], format: "date", default: null },
-  prop_4: { type: "string", enum: ["a", "b", "c"], default: "a" },
+  prop_2: { "x-order": 20, type: ["integer", "null"], default: null },
+  prop_3: { "x-order": 30, type: ["string", "null"], format: "date", default: null },
+  prop_4: { "x-order": 40, type: "string", oneOf: ["a", "b", "c"].map((value) => ({ const: value })), default: "a" },
 });
-entityDefinition.display.order.push("prop_2", "prop_3", "prop_4");
+
 const definition = () =>
   Promise.resolve({
     ...entityDefinition,

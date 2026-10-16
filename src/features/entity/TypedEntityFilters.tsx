@@ -1,3 +1,5 @@
+import { fieldChoices } from "../../lib/schema-document.ts";
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import { isoDate } from "@contracts/common.ts";
 import { entityNumberDraft } from "@contracts/entity-number.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
@@ -35,7 +37,9 @@ export function TypedEntityFilters(
     const next = change(draft);
     onChange(next.length ? JSON.stringify(next) : "", sort);
   };
-  const keys = schema?.display.order.filter((key) => !schema.display.archived.includes(key)) ?? [];
+  const keys = schema
+    ? schemaPresentation(schema).order.filter((key) => !schema.schema.properties[key].deprecated)
+    : [];
   const update = (index: number, patch: Record<string, unknown>) =>
     setDraft((rows) =>
       rows.map((row, n) =>
@@ -85,7 +89,7 @@ export function TypedEntityFilters(
           )}
           {draft.map((row, index) => {
             const field = schema.schema.properties[row.key], kind = field ? fieldType(field) : null;
-            const operators = field?.enum || kind === "boolean"
+            const operators = fieldChoices(field) || kind === "boolean"
               ? ["eq"]
               : kind === "string" && !field?.format
               ? ["eq", "contains"]
@@ -152,7 +156,7 @@ export function TypedEntityFilters(
                             <option value="false">거짓</option>
                           </select>
                         )
-                        : field?.enum
+                        : fieldChoices(field)
                         ? (
                           <select
                             {...props}
@@ -161,9 +165,9 @@ export function TypedEntityFilters(
                             onChange={(event) => update(index, { value: event.target.value })}
                           >
                             <option value="">선택하세요</option>
-                            {field.enum.filter((value) => value !== null).map((value) => (
+                            {fieldChoices(field)!.filter((value) => value !== null).map((value) => (
                               <option key={value!} value={value!}>
-                                {displayedProperty(field, value, schema.display.option_labels[row.key])}
+                                {displayedProperty(field, value, schemaPresentation(schema).option_labels[row.key])}
                               </option>
                             ))}
                           </select>
@@ -220,18 +224,18 @@ export function validatePropertyFilters(raw: string | null, schema: EntitySchema
   const rows = z.array(entityPropertyFilter).parse(JSON.parse(raw));
   const parsed = rows.map((row) => {
     const field = schema.schema.properties[row.key];
-    if (!field || schema.display.archived.includes(row.key)) throw Error("속성 조건을 확인하세요.");
+    if (!field || field.deprecated) throw Error("속성 조건을 확인하세요.");
     if (row.operator === "unset") return { key: row.key, operator: row.operator };
     const kind = fieldType(field), value = "value" in row ? row.value : undefined;
     const normalized = kind === "integer" || kind === "number" ? entityNumberDraft(String(value ?? ""), kind) : value;
-    const allowed = field.enum || kind === "boolean"
+    const allowed = fieldChoices(field) || kind === "boolean"
       ? ["eq"]
       : kind === "string" && !field.format
       ? ["eq", "contains"]
       : ["eq", "gt", "gte", "lt", "lte"];
     if (
       !allowed.includes(row.operator) || kind === "boolean" && typeof normalized !== "boolean" ||
-      field.enum && !field.enum.includes(normalized as string) ||
+      fieldChoices(field) && !fieldChoices(field)!.includes(normalized as string) ||
       kind === "string" && (typeof normalized !== "string" || normalized.includes("\u0000") ||
           field.format === "date" && (normalized.startsWith("0000-") || !isoDate.safeParse(normalized).success))
     ) throw Error("속성 조건을 확인하세요.");

@@ -16,7 +16,6 @@ function plan(id: string): EntitySchemaChange {
     reservations: {},
     diff: [],
     analysis: null,
-    source_type_version: 1,
     source_schema_version: 1,
     source_template_fingerprint: "fixture-template",
     edits: [],
@@ -158,7 +157,7 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
       throw new Error("Expected new property in the public save request");
     }
     value.target.schema.properties.prop_2 = addition.field;
-    value.target.display.order.push("prop_2");
+
     value.reservations = { [addition.client_ref]: "prop_2" };
     lastSaved = value;
     return route.fulfill({ json: value });
@@ -336,7 +335,8 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await page.locator(
     ".schema-field .material-section-toggle[aria-expanded=true]",
   ).click();
-  await expect(page.getByRole("region", { name: "이름 속성", exact: true }).locator(".schema-field-heading")).toContainText("변경됨");
+  await expect(page.getByRole("region", { name: "이름 속성", exact: true }).locator(".schema-field-heading"))
+    .toContainText("변경됨");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
     true,
@@ -517,7 +517,7 @@ test("선택 항목 이름은 코드를 바꾸지 않고 미리보기에 반영�
   );
   await expect(page.getByText("기술 정보", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "선택 항목 추가", exact: true }).click();
-  await expect(page.getByLabel("선택 항목 3", { exact: true })).toHaveValue("option_1");
+  await expect(page.getByLabel("선택 항목 3", { exact: true })).toHaveValue("선택 항목 3");
   await page.getByRole("button", { name: "선택 항목 3 제거", exact: true }).click();
   await expect(page.getByLabel("선택 항목 3", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "변경 취소", exact: true }).click();
@@ -583,19 +583,19 @@ test("새 행의 타입과 필수 설정은 단순하며 삭제 취소와 사용
     .toBeChecked();
 });
 
-test("자료 폼에서 빈 선택 값은 하나로 표시하고 null·0·false와 이전 정의를 보존한다", async ({ page }) => {
+test("자료 폼에서 미입력과 명시적 null을 구분하고 0·false와 이전 정의를 보존한다", async ({ page }) => {
   await page.goto("/e2e/fixtures/schema-editor-read.html?empty-inputs=1");
   const result = page.getByLabel("입력 결과", { exact: true });
   await expect(result).toContainText('"prop_2":"0"');
   await expect(result).toContainText('"prop_3":false');
   await page.getByLabel("숫자 입력", { exact: true }).fill("");
   await expect(result).toContainText('"prop_2":null');
-  await page.getByLabel("참거짓 입력", { exact: true }).selectOption("unset");
+  await page.getByLabel("참거짓 입력", { exact: true }).selectOption("null");
   await expect(result).toContainText('"prop_3":null');
-  await page.getByLabel("선택 입력", { exact: true }).selectOption("unset");
+  await page.getByLabel("선택 입력", { exact: true }).selectOption("null");
   await expect(result).toContainText('"prop_4":null');
   await expect(page.getByLabel("선택 입력").getByRole("option", { name: "미입력", exact: true })).toHaveCount(1);
-  await expect(page.getByRole("option", { name: "값 없음", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("선택 입력").getByRole("option", { name: "값 없음", exact: true })).toHaveCount(1);
   await page.getByLabel("이전 텍스트", { exact: true }).fill("");
   await expect(result).not.toContainText('"prop_5"');
   await page.getByLabel("이전 선택", { exact: true }).selectOption("unset");
@@ -863,17 +863,26 @@ test("template-stale review creates a separate latest plan from the retained con
   const current = { ...plan("b"), change_kind: "migration_required" as const };
   let next: EntitySchemaChange | undefined;
   const creates: any[] = [];
-  await page.route(`**${base}**`, route => {
+  await page.route(`**${base}**`, (route) => {
     const url = new URL(route.request().url());
-    if (route.request().method() === "PATCH") return route.fulfill({ status: 409,
-      json: { code: "schema_plan_stale", message: "기록 템플릿이 변경되었습니다. 새 변경과 분석을 준비하세요" } });
+    if (route.request().method() === "PATCH") {
+      return route.fulfill({
+        status: 409,
+        json: { code: "schema_plan_stale", message: "기록 템플릿이 변경되었습니다. 새 변경과 분석을 준비하세요" },
+      });
+    }
     if (url.pathname === base) {
-      if (route.request().method() === "GET") return route.fulfill({ json: { items: [current, ...(next ? [next] : [])] } });
-      const body = route.request().postDataJSON(); creates.push(body);
+      if (route.request().method() === "GET") {
+        return route.fulfill({ json: { items: [current, ...(next ? [next] : [])] } });
+      }
+      const body = route.request().postDataJSON();
+      creates.push(body);
       next = { ...plan("latest"), migration: body.migration, target: current.target };
       return route.fulfill({ json: next });
     }
-    if (url.pathname.endsWith("/analyze")) return route.fulfill({ status: 202, json: { analysis_id: "queued", status: "queued" } });
+    if (url.pathname.endsWith("/analyze")) {
+      return route.fulfill({ status: 202, json: { analysis_id: "queued", status: "queued" } });
+    }
     if (url.pathname.endsWith("/rows")) return route.fulfill({ json: { items: [] } });
     return route.fulfill({ json: url.pathname.endsWith("/latest") ? next : current });
   });
@@ -886,10 +895,16 @@ test("template-stale review creates a separate latest plan from the retained con
   await expect(history.getByLabel("보완값", { exact: true })).toHaveValue("남길 보완값");
   await history.getByRole("button", { name: "최신 기준으로 다시 검토", exact: true }).click();
   await expect(history.locator('[data-change-version="1"]')).toHaveCount(1);
-  await expect(history.getByRole("link", { name: "이 변경안 직접 링크", exact: true })).toHaveAttribute("href", /change_id=latest/);
+  await expect(history.getByRole("link", { name: "이 변경안 직접 링크", exact: true })).toHaveAttribute(
+    "href",
+    /change_id=latest/,
+  );
   await expect(history.locator(".schema-history-row")).toHaveCount(2);
   expect(creates).toHaveLength(1);
-  expect(creates[0].migration).toEqual({ rules: [{ op: "fill", key: "prop_1", value: "남길 보완값", include_null: false }], overrides: [] });
+  expect(creates[0].migration).toEqual({
+    rules: [{ op: "fill", key: "prop_1", value: "남길 보완값", include_null: false }],
+    overrides: [],
+  });
   await expect(history).toContainText("기존 변경안은 이력에 유지됩니다");
 });
 
@@ -897,25 +912,73 @@ for (const terminal of ["cancelled", "succeeded"] as const) {
   test(`migration cancellation reconciles selected plan and preview with server ${terminal} result`, async ({ page }) => {
     let cancelled = false, waitingForPlan = false;
     let releasePlan!: () => void;
-    const planReady = new Promise<void>(resolve => { releasePlan = resolve; });
-    const current = { ...plan("b"), status: "ready" as const, change_kind: "migration_required" as const,
-      analysis: { id: "analysis-old", status: "succeeded" as const, total: 2, processed: 2, failed: 0,
-        change_version: 1, snapshot_fingerprint: "s", definition_fingerprint: "f", changed: 2, unchanged: 0,
-        removed: 0, replacements: 0, retryable: false, failure_reason: null, errors: [], created_at: plan("b").created_at } };
-    const job = () => ({ id: "job", type_id: current.type_id, type: { id: current.type_id, label: "재료", icon_id: "leaf", archived: false },
-      change_id: current.id, change_version: 1, analysis_id: "analysis-old", fingerprint: "f", source_type_version: 1,
-      source_schema_version: 1, version: cancelled ? 2 : 1, status: cancelled ? terminal : "queued", total: 2, processed: 0,
-      retryable: false, failure_reason: null, result: terminal === "succeeded" && cancelled ? { schema_version: 2, type_version: 2, total: 2, changed: 2, committed_at: current.created_at } : null,
-      source_expires_at: null, created_at: current.created_at, updated_at: current.updated_at });
-    await page.route(`**${base}**`, async route => {
+    const planReady = new Promise<void>((resolve) => {
+      releasePlan = resolve;
+    });
+    const current = {
+      ...plan("b"),
+      status: "ready" as const,
+      change_kind: "migration_required" as const,
+      analysis: {
+        id: "analysis-old",
+        status: "succeeded" as const,
+        total: 2,
+        processed: 2,
+        failed: 0,
+        change_version: 1,
+        snapshot_fingerprint: "s",
+        definition_fingerprint: "f",
+        changed: 2,
+        unchanged: 0,
+        removed: 0,
+        replacements: 0,
+        retryable: false,
+        failure_reason: null,
+        errors: [],
+        created_at: plan("b").created_at,
+      },
+    };
+    const job = () => ({
+      id: "job",
+      type_id: current.type_id,
+      type: { id: current.type_id, label: "재료", icon_id: "leaf", archived: false },
+      change_id: current.id,
+      change_version: 1,
+      analysis_id: "analysis-old",
+      fingerprint: "f",
+      source_schema_version: 1,
+      version: cancelled ? 2 : 1,
+      status: cancelled ? terminal : "queued",
+      total: 2,
+      processed: 0,
+      retryable: false,
+      failure_reason: null,
+      result: terminal === "succeeded" && cancelled
+        ? { schema_version: 2, total: 2, changed: 2, committed_at: current.created_at }
+        : null,
+      source_expires_at: null,
+      created_at: current.created_at,
+      updated_at: current.updated_at,
+    });
+    await page.route(`**${base}**`, async (route) => {
       const url = new URL(route.request().url());
       if (url.pathname === base) return route.fulfill({ json: { items: [current] } });
       if (url.pathname.endsWith("/rows")) return route.fulfill({ json: { items: [] } });
-      if (cancelled) { waitingForPlan = true; await planReady; }
-      return route.fulfill({ json: cancelled ? { ...current, status: terminal === "succeeded" ? "applied" : "draft", analysis: null, executable: false } : current });
+      if (cancelled) {
+        waitingForPlan = true;
+        await planReady;
+      }
+      return route.fulfill({
+        json: cancelled
+          ? { ...current, status: terminal === "succeeded" ? "applied" : "draft", analysis: null, executable: false }
+          : current,
+      });
     });
-    await page.route("**/api/entity-schema-migrations**", route => {
-      if (route.request().url().endsWith("/cancel")) { cancelled = true; return route.fulfill({ json: job() }); }
+    await page.route("**/api/entity-schema-migrations**", (route) => {
+      if (route.request().url().endsWith("/cancel")) {
+        cancelled = true;
+        return route.fulfill({ json: job() });
+      }
       return route.fulfill({ json: route.request().url().includes("?") ? { items: [job()] } : job() });
     });
     await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
@@ -927,8 +990,9 @@ for (const terminal of ["cancelled", "succeeded"] as const) {
     releasePlan();
     await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toHaveCount(0);
     await expect(history.getByText("검토 완료", { exact: true })).toHaveCount(0);
-    if (terminal === "cancelled") await expect(history.getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
-    else {
+    if (terminal === "cancelled") {
+      await expect(history.getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
+    } else {
       await expect(history).toContainText("적용됨");
       await expect(history.getByRole("button", { name: "변경 검토", exact: true })).toHaveCount(0);
     }
@@ -936,16 +1000,49 @@ for (const terminal of ["cancelled", "succeeded"] as const) {
 }
 
 test("conversion preview distinguishes numeric zero from text zero and puts changed values first", async ({ page }) => {
-  const current: EntitySchemaChange = { ...plan("b"), status: "ready", change_kind: "migration_required",
-    analysis: { id: "zero-analysis", status: "succeeded", total: 1, processed: 1, failed: 0,
-      change_version: 1, snapshot_fingerprint: "s", definition_fingerprint: "f", changed: 1, unchanged: 0,
-      removed: 0, replacements: 0, retryable: false, failure_reason: null, errors: [], created_at: plan("b").created_at } };
-  current.target.schema.properties.prop_2 = { type: "string", title: "가격" };
-  current.target.display.order.push("prop_2");
-  await page.route(`**${base}**`, route => {
+  const current: EntitySchemaChange = {
+    ...plan("b"),
+    status: "ready",
+    change_kind: "migration_required",
+    analysis: {
+      id: "zero-analysis",
+      status: "succeeded",
+      total: 1,
+      processed: 1,
+      failed: 0,
+      change_version: 1,
+      snapshot_fingerprint: "s",
+      definition_fingerprint: "f",
+      changed: 1,
+      unchanged: 0,
+      removed: 0,
+      replacements: 0,
+      retryable: false,
+      failure_reason: null,
+      errors: [],
+      created_at: plan("b").created_at,
+    },
+  };
+  current.target.schema.properties.prop_2 = { "x-order": 20, type: "string", title: "가격" };
+
+  await page.route(`**${base}**`, (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname.endsWith("/rows")) return route.fulfill({ json: { items: [{ entity_id: "product", before: { prop_1: "상품", prop_2: 0 },
-      after: { prop_1: "상품", prop_2: "0" }, after_bytes: 40, changed: true, removed: 0, replacements: 0, errors: [] }] } });
+    if (url.pathname.endsWith("/rows")) {
+      return route.fulfill({
+        json: {
+          items: [{
+            entity_id: "product",
+            before: { prop_1: "상품", prop_2: 0 },
+            after: { prop_1: "상품", prop_2: "0" },
+            after_bytes: 40,
+            changed: true,
+            removed: 0,
+            replacements: 0,
+            errors: [],
+          }],
+        },
+      });
+    }
     return route.fulfill({ json: url.pathname === base ? { items: [current] } : current });
   });
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
@@ -958,7 +1055,7 @@ test("conversion preview distinguishes numeric zero from text zero and puts chan
 
 test("first review includes reordered new fields, choice names, list display and the selected material name", async ({ page }) => {
   let posted: { edits: SchemaEdit[] } | undefined;
-  await page.route(`**${base}`, route => {
+  await page.route(`**${base}`, (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: { items: [] } });
     posted = route.request().postDataJSON();
     return route.fulfill({ status: 400, json: { code: "invalid_input", message: "제출 경계 확인" } });
@@ -986,22 +1083,46 @@ test("first review includes reordered new fields, choice names, list display and
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveText("제출 경계 확인");
   const additions = posted!.edits.filter((edit) => edit.op === "add_property");
-  const statusRef = `new_${additions.find(edit => edit.field.title === "상태")!.client_ref}`;
-  const nameRef = `new_${additions.find(edit => edit.field.title === "새 이름")!.client_ref}`;
-  expect(posted!.edits.find(edit => edit.op === "set_display")?.display).toEqual({
-    representative: nameRef, order: [nameRef, "prop_1", statusRef], list_columns: ["prop_1", statusRef],
-    archived: [], option_labels: { [statusRef]: { option_1: "판매 중" } },
+  const status = additions.find((edit) => edit.field.title === "상태")!.field;
+  const name = additions.find((edit) => edit.field.title === "새 이름")!.field;
+  expect(name).toMatchObject({ "x-representative": true, "x-order": 10 });
+  expect(status).toMatchObject({
+    "x-show-in-list": true,
+    "x-order": 30,
+    oneOf: [{ const: "option_1", title: "판매 중" }, { const: null }],
   });
 });
 
 test("an exact empty analysis offers direct definition apply without conversion controls or a job", async ({ page }) => {
-  const current: EntitySchemaChange = { ...plan("b"), status: "ready", change_kind: "migration_required",
-    analysis: { id: "empty-analysis", status: "succeeded", total: 0, processed: 0, failed: 0,
-      change_version: 1, snapshot_fingerprint: "s", definition_fingerprint: "f", changed: 0, unchanged: 0,
-      removed: 0, replacements: 0, retryable: false, failure_reason: null, errors: [], created_at: plan("b").created_at } };
+  const current: EntitySchemaChange = {
+    ...plan("b"),
+    status: "ready",
+    change_kind: "migration_required",
+    analysis: {
+      id: "empty-analysis",
+      status: "succeeded",
+      total: 0,
+      processed: 0,
+      failed: 0,
+      change_version: 1,
+      snapshot_fingerprint: "s",
+      definition_fingerprint: "f",
+      changed: 0,
+      unchanged: 0,
+      removed: 0,
+      replacements: 0,
+      retryable: false,
+      failure_reason: null,
+      errors: [],
+      created_at: plan("b").created_at,
+    },
+  };
   let applied = false;
-  await page.route(`**${base}**`, route => {
-    if (route.request().url().endsWith("/apply")) { applied = true; return route.fulfill({ json: { ...current, status: "applied" } }); }
+  await page.route(`**${base}**`, (route) => {
+    if (route.request().url().endsWith("/apply")) {
+      applied = true;
+      return route.fulfill({ json: { ...current, status: "applied" } });
+    }
     return route.fulfill({ json: new URL(route.request().url()).pathname === base ? { items: [current] } : current });
   });
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");

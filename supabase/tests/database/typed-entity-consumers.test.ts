@@ -24,20 +24,19 @@ const d = { uow: new SqlEntityUnitOfWork(sql) },
 async function typeFixture(owner: string, label: string, numeric = true) {
   const definition = initialEntityDefinition("이름");
   Object.assign(definition.schema.properties, {
-    prop_2: { type: numeric ? ["number", "null"] : "string", title: "값" },
-    prop_3: { type: ["string", "null"], format: "date", title: "날짜" },
-    prop_4: { type: ["boolean", "null"], title: "승인" },
-    prop_5: { type: "string", title: "옛 메모" },
+    prop_2: { "x-order": 20, "x-show-in-list": true, type: numeric ? ["number", "null"] : "string", title: "값" },
+    prop_3: { "x-order": 30, type: ["string", "null"], format: "date", title: "날짜" },
+    prop_4: { "x-order": 40, "x-show-in-list": true, type: ["boolean", "null"], title: "승인" },
+    prop_5: { "x-order": 50, deprecated: true, type: "string", title: "옛 메모" },
   });
-  definition.display.order.push("prop_2", "prop_3", "prop_4", "prop_5");
-  definition.display.list_columns.push("prop_2", "prop_4");
-  definition.display.archived.push("prop_5");
   return await admin.begin(async (tx) => {
     const [type] =
-      await tx`insert into app.entity_types(owner_id,label,next_property_number) values(${owner},${label},6) returning id`;
-    await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner},${type.id},1,${
+      await tx`insert into app.entity_types(owner_id,next_property_number) values(${owner},6) returning id`;
+    definition.schema["x-type-id"] = String(type.id);
+    definition.schema.title = label;
+    await tx`insert into app.entity_schema_versions(owner_id,schema) values(${owner},${
       tx.json(definition.schema as never)
-    },${tx.json(definition.display as never)})`;
+    })`;
     await new SqlEntityIssuerStore(tx, { userId: owner }).initializeTypeIdentity(type.id);
     return { id: String(type.id), definition };
   });
@@ -168,7 +167,10 @@ dbTest("typed list: scalar AND, missing/null order, stable ID ties, owner/type/r
         ),
       AppError,
     );
-    await admin`update app.entity_types set version=version+1 where id=${type.id}`;
+    await admin.begin(async (tx) => {
+      await tx`insert into app.entity_schema_versions(owner_id,schema) select owner_id,schema||'{"x-version":2,"title":"새 이름"}'::jsonb from app.entity_schema_versions where type_id=${type.id} and schema_version=1`;
+      await tx`update app.entity_types set schema_version=2 where id=${type.id}`;
+    });
     assertEquals(
       (await assertRejects(() => listEntities(d, owner.actor, { ...query, cursor }), AppError)).code,
       "invalid_input",

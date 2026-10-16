@@ -75,7 +75,9 @@ export function compileMigration(target: SchemaDefinition, plan: MigrationPlan, 
       if (!present || value === null) continue;
       if (rule.op === "map") {
         if (typeof value === "string" && Object.hasOwn(rule.mapping, value)) after[rule.key] = rule.mapping[value];
-        else if (!(rule.identity && target.schema.properties[rule.key].enum?.includes(value as string))) {
+        else if (
+          !(rule.identity && target.schema.properties[rule.key].oneOf?.some((option) => option.const === value))
+        ) {
           fail("선택 코드 매핑이 없습니다");
         }
       } else if (rule.to === "integer" || rule.to === "number") {

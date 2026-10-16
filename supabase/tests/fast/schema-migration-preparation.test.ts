@@ -8,9 +8,9 @@ import { effectiveEntityTemplateFingerprint } from "../../functions/_shared/core
 import { initialEntityDefinition } from "../../functions/_shared/contracts/entity-type.ts";
 Deno.test("migration preparation preserves explicit values, shared template/hash semantics and bounded output", async () => {
   const source = initialEntityDefinition("Name"), target = structuredClone(source);
-  target.schema.properties.prop_2 = { type: "integer", title: "수량" };
+  target.schema.properties.prop_2 = { "x-order": 20, type: "integer", title: "수량" };
   target.schema.required.push("prop_2");
-  target.display.order.push("prop_2");
+
   const templates = {
     entity: { update: { memo: "$엔터티.이후.prop_2$ · $엔터티.이전.제목$", tag_ids: ["one", "missing"] } },
   };

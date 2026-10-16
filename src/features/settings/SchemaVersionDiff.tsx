@@ -21,18 +21,30 @@ export function SchemaVersionDiff(
     maxLength: "최대 길이",
     minimum: "최소값",
     maximum: "최대값",
-    enum: "선택값",
+    oneOf: "선택 항목",
+    "x-order": "입력 순서",
+    "x-list-order": "목록 순서",
+    "x-representative": "자료 이름",
+    "x-show-in-list": "목록 표시",
+    deprecated: "사용 중지",
+    readOnly: "읽기 전용",
+    examples: "입력 예시",
+    multipleOf: "배수",
     default: "생성 기본값",
-  };
-  const displayNames = {
-    representative: "대표 속성",
-    order: "순서",
-    list_columns: "목록 표시",
-    archived: "보관 속성",
   };
   return (
     <section className="schema-version-diff" aria-label="버전 차이">
       <ul>
+        {([["title", "종류 이름"], ["description", "종류 설명"], ["x-icon", "종류 아이콘"], [
+          "deprecated",
+          "종류 보관",
+        ]] as const)
+          .filter(([name]) => JSON.stringify(before.schema[name]) !== JSON.stringify(after.schema[name]))
+          .map(([name, label]) => (
+            <li key={name}>
+              {label}: {schemaValueLabel(before.schema[name])} → {schemaValueLabel(after.schema[name])}
+            </li>
+          ))}
         {paths.filter((key) =>
           JSON.stringify(before.schema.properties[key]) !==
             JSON.stringify(after.schema.properties[key]) ||
@@ -70,43 +82,6 @@ export function SchemaVersionDiff(
             </li>
           );
         })}
-        {Object.entries(displayNames).filter(([name]) =>
-          JSON.stringify(before.display[name as keyof typeof displayNames]) !==
-            JSON.stringify(after.display[name as keyof typeof displayNames])
-        ).map(([name, label]) => (
-          <li key={name}>
-            {label}: {schemaValueLabel(
-              before.display[name as keyof typeof displayNames],
-              before,
-            )} → {schemaValueLabel(
-              after.display[name as keyof typeof displayNames],
-              after,
-            )}
-          </li>
-        ))}
-        {[
-          ...new Set([
-            ...Object.keys(before.display.option_labels),
-            ...Object.keys(after.display.option_labels),
-          ]),
-        ]
-          .filter((key) => JSON.stringify(before.display.option_labels[key]) !==
-            JSON.stringify(after.display.option_labels[key])
-          ).map((key) => (
-            <li key={`options-${key}`}>
-              {after.schema.properties[key]?.title ??
-                before.schema.properties[key]?.title ?? "선택 속성"} 표시 이름:{" "}
-              {Object.entries(before.display.option_labels[key] ?? {}).map((
-                [code, label],
-              ) => `${code}: ${label}`).join(
-                ", ",
-              ) || "없음"} → {Object.entries(after.display.option_labels[key] ?? {}).map((
-                [code, label],
-              ) => `${code}: ${label}`).join(
-                ", ",
-              ) || "없음"}
-            </li>
-          ))}
       </ul>
     </section>
   );

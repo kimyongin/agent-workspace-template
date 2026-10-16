@@ -51,7 +51,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     return tx`${tx.unsafe(columns.split(",").map((name) => "entities." + name).join(","))},${
       tagIdsColumn(tx, "entity")
     },
-      t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display,
+      t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version as current_schema_version,v.schema,
       issuer.label as source_label`;
   }
   private joined() {
@@ -72,7 +72,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     const tx = this.tx;
     // Shared type locks keep revision resolution and query on the same publication epoch.
     // Reading during preparation remains allowed; only the atomic pointer commit waits.
-    const rows = await tx`select id,version,schema_version from app.entity_types ${
+    const rows = await tx`select id,schema_version as version,schema_version from app.entity_types ${
       typeId ? tx`where id=${typeId}::uuid` : tx``
     } order by id for share`;
     return rows.map((row) => ({
@@ -123,7 +123,8 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async list(q: EntityQuery, after?: EntityKeyset, typeIds?: string[]) {
     const tx = this.tx;
     const definition = q.entity_type_id ? await this.definition(q.entity_type_id) : null;
-    const title = tx`entities.properties->>(v.display->>'representative')`;
+    const title =
+      tx`entities.properties->>(select key from jsonb_each(v.schema->'properties') where value->>'x-representative'='true' limit 1)`;
     const scalar = (key: string) => {
       const field = definition!.schema.properties[key], kind = fieldKind(field);
       const json = tx`entities.properties->${key}::text`, value = tx`entities.properties->>${key}::text`;
@@ -167,13 +168,13 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       ${q.tag_id ? tx`and ${hasTag(tx, "entity", q.tag_id)}` : tx``}
       ${
       q.link_candidate_for
-        ? tx`and not t.archived and entities.id<>${q.link_candidate_for} and not exists(select 1 from app.entity_pairs p where (p.entity_id=${q.link_candidate_for} and p.other_id=entities.id) or (p.other_id=${q.link_candidate_for} and p.entity_id=entities.id))`
+        ? tx`and not coalesce((v.schema->>'deprecated')::boolean,false) and entities.id<>${q.link_candidate_for} and not exists(select 1 from app.entity_pairs p where (p.entity_id=${q.link_candidate_for} and p.other_id=entities.id) or (p.other_id=${q.link_candidate_for} and p.entity_id=entities.id))`
         : tx``
     }
       ${
       q.keyword
         ? tx`and (position(lower(${q.keyword}) in lower(${title}))>0 or position(lower(${q.keyword}) in lower(entities.external_id))>0 or position(lower(${q.keyword}) in lower(entities.source))>0 ${
-          q.link_candidate_for ? tx`or position(lower(${q.keyword}) in lower(t.label))>0` : tx``
+          q.link_candidate_for ? tx`or position(lower(${q.keyword}) in lower(v.schema->>'title'))>0` : tx``
         })`
         : tx``
     }

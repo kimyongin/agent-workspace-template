@@ -19,17 +19,25 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     typeId = type.id;
     const definition = initialEntityDefinition("이름");
     Object.assign(definition.schema.properties, {
-      prop_2: { type: ["integer", "null"], title: "개수", default: 0 },
-      prop_3: { type: ["number", "null"], title: "무게" },
-      prop_4: { type: ["string", "null"], format: "date", title: "확인 날짜" },
-      prop_5: { type: ["boolean", "null"], title: "검사" },
-      prop_6: { type: ["string", "null"], enum: ["a", "b", null], title: "구분" },
+      prop_2: { "x-order": 20, type: ["integer", "null"], title: "개수", default: 0 },
+      prop_3: { "x-order": 30, type: ["number", "null"], title: "무게" },
+      prop_4: { "x-order": 40, type: ["string", "null"], format: "date", title: "확인 날짜" },
+      prop_5: { "x-order": 50, type: ["boolean", "null"], title: "검사" },
+      prop_6: {
+        "x-order": 60,
+        type: ["string", "null"],
+        oneOf: [{ const: "a" }, { const: "b" }, { const: null }],
+        title: "구분",
+      },
     });
-    definition.display.order = ["prop_1", "prop_2", "prop_3", "prop_4", "prop_5", "prop_6"];
-    definition.display.list_columns = ["prop_1"];
+    ["prop_1", "prop_2", "prop_3", "prop_4", "prop_5", "prop_6"].forEach((key, index) => {
+      definition.schema.properties[key]["x-order"] = (index + 1) * 10;
+    });
+    Object.entries(definition.schema.properties).forEach(([key, field]) => {
+      field["x-show-in-list"] = ["prop_1"].includes(key);
+    });
     const change = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
-      expected_type_version: 1,
       expected_schema_version: 1,
       edits: Object.entries(definition.schema.properties).filter(([key]) => key !== "prop_1").map(([key, field]) => ({
         op: "add_property",
@@ -76,7 +84,6 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     const currentType = await mcp.call("get_entity_type", { type_id: typeId });
     const next = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
-      expected_type_version: currentType.version,
       expected_schema_version: 2,
       edits: [{
         op: "update_property",

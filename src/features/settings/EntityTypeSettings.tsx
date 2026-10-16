@@ -1,5 +1,8 @@
-import {TypeIdentitySettings} from "./TypeIdentitySettings.tsx";
-import type {MaterialSectionState} from "./MaterialSettingsSection.tsx";
+import { SchemaImport } from "./SchemaImport.tsx";
+import type { EntitySchemaImportResult } from "@contracts/entity-schema-import.ts";
+import { materialSettingsPath } from "./material-settings-path.ts";
+import { TypeIdentitySettings } from "./TypeIdentitySettings.tsx";
+import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { createMaterialDefinition } from "./material-definition.ts";
 import { SettingsHeading } from "./SettingsHeading.tsx";
@@ -61,8 +64,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       setJobState({ ...state, uncertain: !!state.uncertain, error: !!state.error }),
     [],
   );
-  const [identityState,setIdentityState]=useState<MaterialSectionState>({dirty:false,busy:false});
-  const identityStateChange=useCallback((state:MaterialSectionState)=>setIdentityState(state),[]);
+  const [identityState, setIdentityState] = useState<MaterialSectionState>({ dirty: false, busy: false });
+  const identityStateChange = useCallback((state: MaterialSectionState) => setIdentityState(state), []);
+  const [importState, setImportState] = useState<MaterialSectionState>({ dirty: false, busy: false });
+  const importStateChange = useCallback((state: MaterialSectionState) => setImportState(state), []);
   const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
   const schemaStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain: boolean }) => setSchemaState(state),
@@ -103,11 +108,12 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     };
   }, []);
   const dirty = type_id ? basicDirty : label !== "" || icon !== "box" || representative !== "이름";
-  const protectedDraft = dirty || busy || uncertain || identityState.dirty || identityState.uncertain || identityState.busy ||
+  const protectedDraft = dirty || busy || uncertain || identityState.dirty || identityState.uncertain ||
+    identityState.busy ||
     schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
-    jobState.uncertain;
+    jobState.uncertain || importState.dirty || importState.busy || !!importState.uncertain;
   const anyBusy = busy || identityState.busy || schemaState.busy ||
-    jobState.busy;
+    jobState.busy || importState.busy;
   useEffect(() => {
     const controller = new AbortController();
     setSelectedSchema(null);
@@ -168,7 +174,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     }
   };
   const save = async () => {
-    if (busy || schemaState.busy || latestBusy || basicConflict || (!dirty && !uncertain)) return;
+    if (
+      busy || schemaState.busy || importState.busy || importState.uncertain || latestBusy || basicConflict ||
+      (!dirty && !uncertain)
+    ) return;
     setError("");
     setMessage("");
     const current = {
@@ -196,6 +205,15 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         }
         setMessage("자료 종류를 저장했습니다.");
       });
+      if (type_id) {
+        try {
+          await definitions.refresh();
+        } catch {
+          if (mounted.current) {
+            setError("자료 종류를 저장했습니다. 최신 정의를 불러오지 못했습니다. 정의를 다시 조회하세요.");
+          }
+        }
+      }
       // A retry replays the first callback, so its confirmed result must outlive a save invocation.
       if (createdTypeId.current) {
         requestAnimationFrame(() => {
@@ -237,7 +255,11 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       className="panel settings"
       aria-labelledby="entity-types-title"
     >
-      <SettingsHeading title="자료 설정" description="자료 종류별 입력 항목과 식별자, 변경 이력을 관리합니다." id="entity-types-title" />
+      <SettingsHeading
+        title="자료 설정"
+        description="자료 종류별 입력 항목과 식별자, 변경 이력을 관리합니다."
+        id="entity-types-title"
+      />
 
       {(type_id || items.length > 0) && (
         <div className="material-settings-toolbar">
@@ -286,17 +308,14 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       {catalog.error && (
         <p role="alert" className="error-text">
           자료 종류를 읽지 못했습니다.{" "}
-          <BodyAction icon="reset"  onClick={catalog.retry}>
+          <BodyAction icon="reset" onClick={catalog.retry}>
             자료 종류 다시 조회
           </BodyAction>
         </p>
       )}
       {error && <p role="alert" className="error-text">{error}</p>}
       {error && !loading && (!type_id || !type) && (
-        <BodyAction icon="reset"
-
-          onClick={() => void retryRead()}
-        >
+        <BodyAction icon="reset" onClick={() => void retryRead()}>
           조회 다시 시도
         </BodyAction>
       )}
@@ -322,11 +341,14 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 최신 저장값: {latestBasics.label} ·{" "}
                 {entityTypeIcons.find((value) => value.id === latestBasics.icon_id)?.label} ·{" "}
                 {latestBasics.archived ? "보관" : "사용 중"} · 버전{" "}
-                {latestBasics.version}. 변경한 입력은 유지했습니다. 비교한 뒤 기본 정보를 저장하거나 변경 취소로 최신
-                저장값을 사용하세요.
+                {latestBasics.schema_version}. 변경한 입력은 유지했습니다. 비교한 뒤 기본 정보를 저장하거나 변경 취소로
+                최신 저장값을 사용하세요.
               </p>
             )}
-            <fieldset className="settings-fields" disabled={busy || uncertain || latestBusy}>
+            <fieldset
+              className="settings-fields"
+              disabled={busy || uncertain || latestBusy || importState.busy || importState.uncertain}
+            >
               <Field label="자료 종류 이름">
                 {(props) => (
                   <input
@@ -388,7 +410,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             <div className="settings-section-footer">
               {uncertain && (
                 <p className="secondary" role="status">
-                  저장 여부를 알 수 없습니다. 같은 요청으로 다시 확인하세요. 새로고침 후에는 현재 상태를 조회한 뒤 새 작업을 시작하세요.
+                  저장 여부를 알 수 없습니다. 같은 요청으로 다시 확인하세요. 새로고침 후에는 현재 상태를 조회한 뒤 새
+                  작업을 시작하세요.
                 </p>
               )}
               <div className="actions">
@@ -405,7 +428,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   <button
                     type="button"
                     className="btn"
-                    disabled={busy || uncertain || latestBusy}
+                    disabled={busy || uncertain || latestBusy || importState.busy || importState.uncertain}
                     onClick={() => void readLatestBasics()}
                   >
                     {latestBusy ? "최신 기본 정보 읽는 중…" : "최신 기본 정보 확인"}
@@ -413,23 +436,31 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 )}
                 <button
                   className="btn btn-primary"
-                  aria-label={busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : type_id ? "기본 정보 저장" : "자료 종류 만들기"}
-                  disabled={anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
-                >
-                  {busy
+                  aria-label={busy
                     ? "저장 중…"
                     : uncertain
                     ? "같은 요청 다시 확인"
                     : type_id
-                    ? "저장"
+                    ? "기본 정보 저장"
                     : "자료 종류 만들기"}
+                  disabled={anyBusy || importState.uncertain || latestBusy || basicConflict || (!dirty && !uncertain)}
+                >
+                  {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : type_id ? "저장" : "자료 종류 만들기"}
                 </button>
               </div>
             </div>
           </form>
         </MaterialSettingsSection>
       )}
-      {!loading&&type_id&&type&&<TypeIdentitySettings typeId={type_id} onState={identityStateChange} disabled={busy||uncertain||schemaState.busy||schemaState.uncertain||jobState.busy||jobState.uncertain}/>}
+      {!loading && type_id && type && (
+        <TypeIdentitySettings
+          typeId={type_id}
+          onState={identityStateChange}
+          disabled={busy || uncertain || importState.busy || importState.uncertain || schemaState.busy ||
+            schemaState.uncertain || jobState.busy ||
+            jobState.uncertain}
+        />
+      )}
       {schema && type && (
         <SchemaEditor
           type={type}
@@ -446,12 +477,39 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           onMigrationApplied={definitions.migrationSucceeded}
           jobErrors={jobErrors}
           onJobState={jobStateChange}
-          jobDisabled={busy || uncertain || identityState.busy || identityState.uncertain || schemaState.busy || schemaState.uncertain}
+          jobDisabled={busy || uncertain || importState.busy || importState.uncertain || identityState.busy ||
+            identityState.uncertain || schemaState.busy ||
+            schemaState.uncertain}
           onApplied={definitions.published}
           onState={schemaStateChange}
-          disabled={busy || uncertain || identityState.busy || identityState.uncertain || jobState.busy || jobState.uncertain}
+          disabled={busy || uncertain || importState.busy || importState.uncertain || identityState.busy ||
+            identityState.uncertain || jobState.busy ||
+            jobState.uncertain}
         />
       )}
+      <SchemaImport
+        typeId={type_id}
+        type={type}
+        definition={schema}
+        disabled={busy || uncertain || identityState.busy || !!identityState.uncertain || schemaState.busy ||
+          schemaState.uncertain || jobState.busy || jobState.uncertain}
+        blockedByDraft={schemaState.dirty}
+        onState={importStateChange}
+        onPrepared={(result: EntitySchemaImportResult) => {
+          if (session && result.type) invalidateEntityTypeCatalog(session.user.id);
+          if (result.change && type_id) {
+            requestAnimationFrame(() =>
+              navigate(
+                materialSettingsPath(type_id, location.search, {
+                  change_id: result.change!.id,
+                  schema_version: null,
+                  job_id: null,
+                }),
+              )
+            );
+          }
+        }}
+      />
       <MaterialSettingsProtection
         dirty={protectedDraft}
         busy={anyBusy}

@@ -4,8 +4,8 @@ import { initialEntityDefinition } from "../../contracts/entity-type.ts";
 import { compileMigration } from "./conversions.ts";
 Deno.test("migration rejects identifier loss and coercion, retains literal zero and missing", () => {
   const d = initialEntityDefinition("Name");
-  d.schema.properties.prop_2 = { type: "integer" };
-  d.display.order.push("prop_2");
+  d.schema.properties.prop_2 = { "x-order": 20, type: "integer" };
+
   const convert = compileMigration(d, { rules: [{ op: "convert", key: "prop_2", to: "integer" }], overrides: [] });
   for (const value of ["01", " 1", "1e2", "1.0", "", "１２"]) {
     assertEquals(convert("a", { prop_1: "A", prop_2: value }).errors.length > 0, true);
@@ -15,9 +15,9 @@ Deno.test("migration rejects identifier loss and coercion, retains literal zero 
 });
 Deno.test("migration preserves null/false and applies only explicit fill, removal, override and enum maps", () => {
   const d = initialEntityDefinition("Name");
-  d.schema.properties.prop_2 = { type: ["boolean", "null"] };
+  d.schema.properties.prop_2 = { "x-order": 20, type: ["boolean", "null"] };
   d.schema.required.push("prop_2");
-  d.display.order.push("prop_2");
+
   const fill = compileMigration(d, {
     rules: [{ op: "fill", key: "prop_2", value: false, include_null: false }, { op: "remove", key: "prop_3" }],
     overrides: [],
@@ -25,7 +25,7 @@ Deno.test("migration preserves null/false and applies only explicit fill, remova
   assertEquals(fill("a", { prop_1: "A", prop_3: 0 }).after, { prop_1: "A", prop_2: false });
   assertEquals(fill("a", { prop_1: "A", prop_2: null }).after, { prop_1: "A", prop_2: null });
   assertEquals(fill("a", { prop_1: "A", prop_3: 0 }).removed, 1);
-  d.schema.properties.prop_2 = { type: "string", enum: ["b"] };
+  d.schema.properties.prop_2 = { "x-order": 20, type: "string", oneOf: ["b"].map((value) => ({ const: value })) };
   const map = compileMigration(d, {
     rules: [{ op: "map", key: "prop_2", mapping: { a: "b" }, identity: false }],
     overrides: [{ entity_id: "fixed", key: "prop_2", value: "b" }],
@@ -36,14 +36,14 @@ Deno.test("migration preserves null/false and applies only explicit fill, remova
 });
 Deno.test("migration validates real calendar, decimal limits and explicit replacements without mutating sources", () => {
   const d = initialEntityDefinition("Name");
-  d.schema.properties.prop_2 = { type: "string", format: "date" };
-  d.display.order.push("prop_2");
+  d.schema.properties.prop_2 = { "x-order": 20, type: "string", format: "date" };
+
   const date = compileMigration(d, { rules: [{ op: "convert", key: "prop_2", to: "date" }], overrides: [] });
   assertEquals(date("a", { prop_1: "A", prop_2: "2024-02-29" }).errors, []);
   for (const v of ["2023-02-29", "0000-01-01", "2024-2-29", "2024-02-29T00:00:00Z"]) {
     assertEquals(date("a", { prop_1: "A", prop_2: v }).errors.length > 0, true);
   }
-  d.schema.properties.prop_2 = { type: "number" };
+  d.schema.properties.prop_2 = { "x-order": 20, type: "number" };
   const numeric = compileMigration(d, { rules: [{ op: "convert", key: "prop_2", to: "number" }], overrides: [] });
   assertEquals(numeric("a", { prop_1: "A", prop_2: "0.123456" }).after?.prop_2, 0.123456);
   for (const v of ["0.1234567", "1000000001", "NaN", "Infinity", "0x10"]) {
@@ -60,9 +60,9 @@ Deno.test("migration validates real calendar, decimal limits and explicit replac
 });
 Deno.test("explicit missing fill composes with numeric conversion without replacing malformed present strings", () => {
   const d = initialEntityDefinition("Name");
-  d.schema.properties.prop_2 = { type: "number" };
+  d.schema.properties.prop_2 = { "x-order": 20, type: "number" };
   d.schema.required.push("prop_2");
-  d.display.order.push("prop_2");
+
   const convert = compileMigration(d, {
     rules: [{ op: "fill", key: "prop_2", value: 0, include_null: false }, {
       op: "convert",
@@ -77,8 +77,8 @@ Deno.test("explicit missing fill composes with numeric conversion without replac
 });
 Deno.test("migration public plan retains prototype-like mapping codes and Unicode entity references", () => {
   const d = initialEntityDefinition("Name");
-  d.schema.properties.prop_2 = { type: "string", enum: ["mapped"] };
-  d.display.order.push("prop_2");
+  d.schema.properties.prop_2 = { "x-order": 20, type: "string", oneOf: ["mapped"].map((value) => ({ const: value })) };
+
   const raw = {
     rules: [{
       op: "map",
@@ -117,13 +117,13 @@ Deno.test("migration public plan retains prototype-like mapping codes and Unicod
 Deno.test("trusted recovery restores removed same-meaning keys and distinguishes null/zero/false/empty/missing", () => {
   const target = initialEntityDefinition("Name");
   Object.assign(target.schema.properties, {
-    prop_2: { type: ["string", "null"] },
-    prop_3: { type: "integer" },
-    prop_4: { type: "boolean" },
-    prop_5: { type: "string" },
-    prop_6: { type: "string" },
+    prop_2: { "x-order": 20, type: ["string", "null"] },
+    prop_3: { "x-order": 30, type: "integer" },
+    prop_4: { "x-order": 40, type: "boolean" },
+    prop_5: { "x-order": 50, type: "string" },
+    prop_6: { "x-order": 60, type: "string" },
   });
-  target.display.order.push("prop_2", "prop_3", "prop_4", "prop_5", "prop_6");
+
   const transform = compileMigration(target, { rules: [], overrides: [] }, [
     "prop_1",
     "prop_2",

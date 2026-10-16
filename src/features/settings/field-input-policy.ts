@@ -11,13 +11,14 @@ export function fieldInputPolicy(
     ...field,
     type: required ? scalar : [scalar, "null"],
   };
-  if (field.enum) {
-    next.enum = [
-      ...field.enum.filter((value) => value !== null),
-      ...(required ? [] : [null]),
-    ];
+  if (field.oneOf) {
+    next.oneOf = required
+      ? field.oneOf.filter((option) => option.const !== null)
+      : field.oneOf.some((option) => option.const === null)
+      ? [...field.oneOf]
+      : [...field.oneOf, { const: null }];
   }
-  if (required && scalar === "string" && !field.format && !field.enum) {
+  if (required && scalar === "string" && !field.format && !field.oneOf) {
     next.minLength = Math.max(1, field.minLength ?? 0);
   }
   if (required && next.default === null) delete next.default;

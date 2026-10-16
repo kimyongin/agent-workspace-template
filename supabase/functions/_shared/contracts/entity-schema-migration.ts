@@ -2,14 +2,12 @@ import { z } from "zod";
 import type { EntityType } from "./entity-type.ts";
 export const schemaMigrationStart = z.strictObject({
   expected_change_version: z.number().int().positive(),
-  expected_type_version: z.number().int().positive(),
   expected_schema_version: z.number().int().positive(),
   analysis_id: z.string().uuid(),
   fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
 });
 export const schemaRecoveryCreate = z.strictObject({
   expected_job_version: z.number().int().positive(),
-  expected_type_version: z.number().int().positive(),
   expected_schema_version: z.number().int().positive(),
 });
 export const schemaMigrationAction = z.strictObject({ expected_job_version: z.number().int().positive() });
@@ -35,7 +33,6 @@ export type EntitySchemaMigration = {
   change_version: number;
   analysis_id: string;
   fingerprint: string;
-  source_type_version: number;
   source_schema_version: number;
   version: number;
   status: typeof schemaMigrationStatuses[number];
@@ -43,12 +40,11 @@ export type EntitySchemaMigration = {
   processed: number;
   retryable: boolean;
   failure_reason: string | null;
-  result: { schema_version: number; type_version: number; total: number; changed: number; committed_at: string } | null;
+  result: { schema_version: number; total: number; changed: number; committed_at: string } | null;
   recovery?: {
     status: "available" | "expired" | "unavailable" | "conflict";
     reason: string | null;
     conflicts?: Array<{ path: string; message: string }>;
-    current_type_version: number;
     current_schema_version: number;
   };
   source_expires_at: string | null;

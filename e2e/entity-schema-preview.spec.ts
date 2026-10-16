@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·MCP 결과·stale·모바일 초안 보존", async ({ page }) => {
   await devLogin(page);
@@ -16,14 +16,14 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       properties: { prop_1: "001" },
     });
     entityId = entity.id;
+    const current = await mcp.call("get_entity_schema", { type_id: typeId });
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
-      expected_type_version: 1,
       expected_schema_version: 1,
       edits: [{
         op: "update_property",
         key: "prop_1",
-        field: { type: "string", title: "이름", minLength: 1, maxLength: 2 },
+        field: { ...current.schema.properties.prop_1, maxLength: 2 },
         required: true,
       }],
     });
@@ -38,7 +38,10 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).analysis?.status;
     }, { timeout: 30000 }).toBe("succeeded");
     const row = page.locator("article").filter({
-      has: page.getByRole("heading", { name: `${entity.title} · ${entity.source} · ${entity.external_id} · 변환 실패` }),
+      has: page.getByRole("heading", {
+        name: `${entity.title} · ${entity.source} · ${entity.external_id} · 변환 실패`,
+        exact: true,
+      }),
     });
     await expect(row).toBeVisible();
     await expect(row).toContainText("001");
@@ -49,12 +52,15 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
-    const reviewed = page.waitForResponse(response =>
-      response.url().endsWith('/analyze') && response.request().method() === 'POST' && response.status() === 202
+    const reviewed = page.waitForResponse((response) =>
+      response.url().endsWith("/analyze") && response.request().method() === "POST" && response.status() === 202
     );
     await page.getByRole("button", { name: "보완 내용 검토", exact: true }).click();
     await reviewed;
-    await expect(page.getByRole("region", { name: "속성 변경 요약", exact: true })).toHaveAttribute("data-change-version", "2");
+    await expect(page.getByRole("region", { name: "속성 변경 요약", exact: true })).toHaveAttribute(
+      "data-change-version",
+      "2",
+    );
     await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
@@ -121,14 +127,14 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
         properties: { prop_1: "OK" },
       });
     ids.push(bad.id, good.id);
+    const current = await mcp.call("get_entity_schema", { type_id: typeId });
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
-      expected_type_version: 1,
       expected_schema_version: 1,
       edits: [{
         op: "update_property",
         key: "prop_1",
-        field: { type: "string", minLength: 1, maxLength: 2 },
+        field: { ...current.schema.properties.prop_1, maxLength: 2 },
         required: true,
       }],
     });
@@ -140,6 +146,8 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
     const delayed = new Promise<void>((resolve) => {
       release = resolve;
     });
+    let finishDelayed!: () => void;
+    const delayedFinished = new Promise<void>((resolve) => finishDelayed = resolve);
     let intercepted = false;
     await page.route(`**/schema-changes/${plan.id}/rows?**`, async (route) => {
       if (!intercepted && route.request().url().includes("failures_only=false")) {
@@ -148,18 +156,37 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
         await delayed;
         try {
           await route.fulfill({ response });
-        } catch { /* Aborted response must not update the page. */ }
+        } catch {
+          /* Aborted response must not update the page. */
+        } finally {
+          finishDelayed();
+        }
       } else await route.continue();
     });
     await page.goto(`/settings/entity-types/${typeId}/migrations?change_id=${plan.id}`);
     await expect.poll(() => intercepted).toBe(true);
     await page.getByLabel("실패한 자료만 보기").check();
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
-    await expect(page.locator("article")).toHaveCount(1);
-    await expect(page.locator("article")).toContainText(bad.external_id);
+    const articles = page.getByRole("article");
+    const failedHeading = articles.getByRole("heading", {
+      name: `${bad.title} · ${bad.source} · ${bad.external_id} · 변환 실패`,
+      exact: true,
+    });
+    const unchangedHeading = articles.getByRole("heading", {
+      name: `${good.title} · ${good.source} · ${good.external_id} · 무변경`,
+      exact: true,
+    });
+    await expect(articles).toHaveCount(1);
+    await expect(failedHeading).toBeVisible();
+    await expect(unchangedHeading).toHaveCount(0);
     release();
-    await expect(page.locator("article")).toHaveCount(1);
-    await expect(page.locator("article")).not.toContainText(good.external_id);
+    await delayedFinished;
+    await page.evaluate(() =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    );
+    await expect(articles).toHaveCount(1);
+    await expect(failedHeading).toBeVisible();
+    await expect(unchangedHeading).toHaveCount(0);
   } finally {
     release();
     await mcp.close();

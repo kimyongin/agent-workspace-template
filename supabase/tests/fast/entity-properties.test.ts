@@ -18,8 +18,8 @@ import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
 Deno.test("Typed entity usecase validates the final patch, uses defaults only at creation and preserves stored type", async () => {
   const typeId = crypto.randomUUID();
   const definition = initialEntityDefinition("이름");
-  definition.schema.properties.prop_2 = { type: ["integer", "null"], default: 7 };
-  definition.display.order.push("prop_2");
+  definition.schema.properties.prop_2 = { "x-order": 20, type: ["integer", "null"], default: 7 };
+
   const state: { row: EntityValues | null } = { row: null };
   const store = {
     executeRequest: (_: unknown, run: () => unknown) => run(),

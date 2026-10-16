@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 import { discardEditor, fillChangeMemo } from "./ui-actions.ts";
 
 test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 편집 초안·메모·키보드 보존", async ({ page }) => {
@@ -35,7 +35,8 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     await links.getByLabel("자료 종류", { exact: true }).selectOption(otherType.id);
     const search = links.getByRole("searchbox", { name: "자료 제목 검색", exact: true });
     await search.fill(y.title);
-    await expect(links.getByRole("group", { name: "자료 검색 결과", exact: true }).getByText(otherType.label, { exact: false })).toBeVisible();
+    const results = links.getByRole("group", { name: "자료 검색 결과", exact: true });
+    await expect(results.getByText(otherType.label, { exact: false })).toBeVisible();
     await links.getByRole("button", { name: `${y.title} 연결`, exact: true }).click();
     const confirmation = page.locator("dialog.modal-action[open]:visible");
     const memo = confirmation.getByLabel("기록 메모", { exact: true });
@@ -58,7 +59,7 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     await expect(confirmation).not.toBeVisible();
     await page.reload();
     await expect(links.getByRole("heading", { name: "연결된 자료 (0개)", exact: true })).toBeVisible();
-    await expect(links.getByRole("list").getByRole("listitem")).toHaveCount(0);
+    await expect(links.getByRole("list", { name: "목록", exact: true }).getByRole("listitem")).toHaveCount(0);
     expect((await mcp.call("list_entity_links", { id: x.id })).items).toEqual([]);
     await detail.getByRole("button", { name: "편집", exact: true }).click();
     await expect(detail.getByRole("button", { name: "저장", exact: true })).toBeVisible();

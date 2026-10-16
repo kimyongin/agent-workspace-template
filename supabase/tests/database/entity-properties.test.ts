@@ -24,28 +24,40 @@ dbTest(
     try {
       const first = await createEntityType(types, requestActor(owner.actor), { label: "재료", icon_id: "leaf" });
       const second = await createEntityType(types, requestActor(owner.actor), { label: "상품", icon_id: "package" });
-      const definition = initialEntityDefinition("이름");
+      const definition = initialEntityDefinition("이름", { id: first.id, title: first.label, icon: first.icon_id });
       Object.assign(definition.schema.properties, {
-        prop_2: { type: ["integer", "null"], title: "개수", default: 7 },
-        prop_3: { type: ["number", "null"], title: "무게" },
-        prop_4: { type: ["string", "null"], format: "date", title: "날짜" },
-        prop_5: { type: ["boolean", "null"], title: "검사" },
-        prop_6: { type: ["string", "null"], enum: ["a", "b", null], title: "선택" },
+        prop_2: { "x-order": 20, type: ["integer", "null"], title: "개수", default: 7 },
+        prop_3: { "x-order": 30, type: ["number", "null"], title: "무게" },
+        prop_4: { "x-order": 40, type: ["string", "null"], format: "date", title: "날짜" },
+        prop_5: { "x-order": 50, type: ["boolean", "null"], title: "검사" },
+        prop_6: {
+          "x-order": 60,
+          type: ["string", "null"],
+          oneOf: [{ const: "a" }, { const: "b" }, { const: null }],
+          title: "선택",
+        },
       });
-      definition.display.order = ["prop_1", "prop_2", "prop_3", "prop_4", "prop_5", "prop_6"];
-      const secondDefinition = initialEntityDefinition("상품명");
-      secondDefinition.schema.properties.prop_2 = { type: "string", format: "date", default: "2024-02-29" };
-      secondDefinition.display.order.push("prop_2");
+      const secondDefinition = initialEntityDefinition("상품명", {
+        id: second.id,
+        title: second.label,
+        icon: second.icon_id,
+      });
+      secondDefinition.schema.properties.prop_2 = {
+        "x-order": 20,
+        type: "string",
+        format: "date",
+        default: "2024-02-29",
+      };
       // Explicit fixture definition, not a product publishing shortcut.
       await admin.begin(async (tx) => {
         await tx`select id from app.entity_types where id=${first.id} for update`;
-        await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.actor.userId},${first.id},2,${
-          tx.json(definition.schema)
-        },${tx.json(definition.display)})`;
+        await tx`insert into app.entity_schema_versions(owner_id,schema) values(${owner.actor.userId},${
+          tx.json({ ...definition.schema, "x-type-id": first.id, "x-version": 2 })
+        })`;
         await tx`update app.entity_types set schema_version=2,next_property_number=7 where id=${first.id}`;
-        await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.actor.userId},${second.id},2,${
-          tx.json(secondDefinition.schema)
-        },${tx.json(secondDefinition.display)})`;
+        await tx`insert into app.entity_schema_versions(owner_id,schema) values(${owner.actor.userId},${
+          tx.json({ ...secondDefinition.schema, "x-type-id": second.id, "x-version": 2 })
+        })`;
         await tx`update app.entity_types set schema_version=2,next_property_number=3 where id=${second.id}`;
       });
       const input = {
@@ -91,10 +103,11 @@ dbTest(
       });
       assertEquals(changed.properties, { ...input.properties, prop_2: null });
       await updateEntityType(types, requestActor(owner.actor), first.id, {
-        expected_type_version: first.version,
+        expected_schema_version: 2,
         label: "材料",
         icon_id: "star",
       });
+      input.schema_version = 3;
       const renamed = await getEntity(entities, owner.actor, saved.id);
       assertEquals([renamed.type.label, renamed.type.icon_id, renamed.schema_version, renamed.version], [
         "材料",
@@ -130,7 +143,7 @@ dbTest(
       assertEquals(
         (await assertRejects(() =>
           updateEntity(entities, requestActor(owner.actor), saved.id, {
-            schema_version: 2,
+            schema_version: 3,
             expected_version: restored.version,
             properties: { prop_1: "blocked" },
           }), AppError)).code,
@@ -144,9 +157,14 @@ dbTest(
         external_id: "independent",
       });
       assertEquals(independent.properties.prop_2, "2024-02-29");
-      await admin`update app.entity_types set schema_write_locked=false,archived=true where id=${first.id}`;
+      await admin`update app.entity_types set schema_write_locked=false where id=${first.id}`;
+      await updateEntityType(types, requestActor(owner.actor), first.id, {
+        expected_schema_version: 3,
+        archived: true,
+      });
+      input.schema_version = 4;
       const edit = await updateEntity(entities, requestActor(owner.actor), saved.id, {
-        schema_version: 2,
+        schema_version: 4,
         expected_version: restored.version,
         properties: { prop_1: "보관 편집" },
       });
@@ -185,16 +203,15 @@ dbTest(
       let locked!: () => void, release!: () => void;
       const ready = new Promise<void>((resolve) => locked = resolve),
         gate = new Promise<void>((resolve) => release = resolve);
-      const definition = initialEntityDefinition("이름");
-      definition.schema.properties.prop_2 = { type: "string", default: "new" };
-      definition.display.order.push("prop_2");
+      const definition = initialEntityDefinition("이름", { id: a.id, title: a.label, icon: a.icon_id });
+      definition.schema.properties.prop_2 = { "x-order": 20, type: "string", default: "new" };
       const publication = admin.begin(async (tx) => {
         await tx`select id from app.entity_types where id=${a.id} for update`;
         locked();
         await gate;
-        await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.actor.userId},${a.id},2,${
-          tx.json(definition.schema)
-        },${tx.json(definition.display)})`;
+        await tx`insert into app.entity_schema_versions(owner_id,schema) values(${owner.actor.userId},${
+          tx.json({ ...definition.schema, "x-type-id": a.id, "x-version": 2 })
+        })`;
         await tx`update app.entity_types set schema_version=2 where id=${a.id}`;
       });
       await ready;
@@ -262,12 +279,11 @@ dbTest("Typed entity owner DB: the 64 KiB properties limit matches canonical SQL
   const entities = { uow: new SqlEntityUnitOfWork(sql) }, types = { uow: new SqlEntityTypeUnitOfWork(sql) };
   try {
     const type = await createEntityType(types, requestActor(owner.actor), { label: "한도 자료" });
-    const definition = initialEntityDefinition("이름");
+    const definition = initialEntityDefinition("이름", { id: type.id, title: type.label, icon: type.icon_id });
     const properties: EntityProperties = { prop_1: "size" };
     for (let n = 2; n <= 17; n++) {
       const key = `prop_${n}`;
-      definition.schema.properties[key] = { type: "string", maxLength: 4096 };
-      definition.display.order.push(key);
+      definition.schema.properties[key] = { "x-order": n * 10, type: "string", maxLength: 4096 };
       properties[key] = "x".repeat(4096);
     }
     const [size] = await admin`select octet_length(${admin.json(properties)}::jsonb::text)::int bytes`;
@@ -275,9 +291,9 @@ dbTest("Typed entity owner DB: the 64 KiB properties limit matches canonical SQL
     const [canonical] = await admin`select octet_length(${admin.json(properties)}::jsonb::text)::int bytes`;
     assertEquals(canonical.bytes, 65536);
     await admin.begin(async (tx) => {
-      await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.actor.userId},${type.id},2,${
-        tx.json(definition.schema)
-      },${tx.json(definition.display)})`;
+      await tx`insert into app.entity_schema_versions(owner_id,schema) values(${owner.actor.userId},${
+        tx.json({ ...definition.schema, "x-type-id": type.id, "x-version": 2 })
+      })`;
       await tx`update app.entity_types set schema_version=2,next_property_number=18 where id=${type.id}`;
     });
     const created = await createEntity(entities, requestActor(owner.actor), {

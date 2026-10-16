@@ -25,19 +25,42 @@ httpTest("type HTTP/MCP parity: create replay, icons, schema history and owner e
     );
     assertEquals((await call(b, "GET", `/entity-types/${type.id}/schema`)).status, 404);
     const mutation = {
-      expected_type_version: type.version,
       expected_schema_version: type.schema_version,
       label: "変更",
       icon_id: "book",
       archived: true,
     };
     const updated = await tool(client, "update_entity_type", { type_id: type.id, ...mutation });
-    assertEquals(updated.version, 2);
-    assertEquals(updated.schema_version, 1);
+    assertEquals(updated.schema_version, 2);
+    const definition = (await call(a, "GET", `/entity-types/${type.id}/schema`)).body;
+    assertEquals(definition.schema["x-type-id"], type.id);
+    assertEquals(definition.schema["x-version"], 2);
+    assertEquals(definition.schema.title, "変更");
+    assertEquals(definition.schema["x-icon"], "book");
+    assertEquals(definition.schema.deprecated, true);
+    assertEquals(Object.hasOwn(definition, "display"), false);
     const stale = await call(a, "PATCH", `/entity-types/${type.id}`, mutation);
     assertEquals(stale.status, 409);
     assertEquals(stale.body.code, "schema_changed");
-    assertEquals(stale.body.current.type_version, 2);
+    assertEquals(stale.body.current.schema_version, 2);
+    const restored = await tool(client, "update_entity_type", {
+      type_id: type.id,
+      expected_schema_version: 2,
+      archived: false,
+    });
+    assertEquals(restored.schema_version, 3);
+    assertEquals(restored.archived, false);
+    const original = (await call(a, "GET", `/entity-types/${type.id}/schema?schema_version=1`)).body;
+    assertEquals(original.schema.title, input.label);
+    assertEquals(original.schema["x-version"], 1);
+    const noChange = await call(a, "PATCH", `/entity-types/${type.id}`, {
+      expected_schema_version: 3,
+      label: "変更",
+      icon_id: "book",
+      archived: false,
+    });
+    assertEquals(noChange.status, 200);
+    assertEquals(noChange.body.schema_version, 3);
     assertEquals((await call(a, "POST", "/entity-types", { label: "invalid", icon_id: "url" })).status, 400);
   } finally {
     if (createdId) await admin`delete from app.entity_types where id=${createdId}`;

@@ -46,3 +46,29 @@ export async function executeSqlRequest<T>(
   await tx`select app.finish_request(${request.key}::uuid, ${tx.json(JSON.parse(json))})`;
   return result;
 }
+
+/** Read-only lookup; unlike begin_request this cannot allocate a new legacy request. */
+export async function replayRetainedSqlRequest<T>(
+  tx: postgres.TransactionSql,
+  actor: Actor,
+  request: RequestIdentity,
+): Promise<{ found: boolean; result?: T }> {
+  const [row] =
+    await tx`select app.replay_retained_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`;
+  const receipt = row.receipt as { state: string; result?: T; completed_at?: string };
+  if (receipt.state === "missing") return { found: false };
+  if (receipt.state === "replay") {
+    if (actor.request) {
+      actor.request.replayed = true;
+      actor.request.completed_at = receipt.completed_at;
+    }
+    return { found: true, result: receipt.result };
+  }
+  const code = ["idempotency_key_reused", "request_in_progress", "result_expired"].find((c) => c === receipt.state);
+  if (code === "idempotency_key_reused") throw new AppError(code, "같은 요청 키에 다른 입력을 사용할 수 없습니다");
+  if (code === "request_in_progress") {
+    throw new AppError(code, "동일 요청이 처리 중입니다. 같은 키와 입력으로 다시 시도하세요");
+  }
+  if (code === "result_expired") throw new AppError(code, "요청 결과의 30일 보관 기간이 지났습니다");
+  throw new AppError("internal", "요청 결과를 확인할 수 없습니다");
+}

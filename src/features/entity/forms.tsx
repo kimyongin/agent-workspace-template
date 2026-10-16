@@ -1,3 +1,5 @@
+import { fieldChoices } from "../../lib/schema-document.ts";
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { EntityTypeIdentity } from "@contracts/entity-issuer.ts";
 import { Link } from "react-router";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
@@ -110,7 +112,7 @@ export function EntityForm({
           initializedType.current = typeId;
           const defaults = Object.fromEntries(
             Object.entries(value.schema.properties).filter(([key, field]) =>
-              field.default !== undefined && !value.display.archived.includes(key)
+              field.default !== undefined && !field.readOnly && !field.deprecated
             ).map(([key, field]) => [key, field.default!]),
           );
           const draft = propertyDraft(defaults);
@@ -151,7 +153,7 @@ export function EntityForm({
   const acceptDefinition = () => {
     if (!pendingDefinition) return;
     const kind = (field: EntitySchemaResult["schema"]["properties"][string] | undefined) =>
-      field ? `${fieldType(field)}:${field.format ?? ""}:${field.enum ? "selection" : ""}` : "missing";
+      field ? `${fieldType(field)}:${field.format ?? ""}:${fieldChoices(field) ? "selection" : ""}` : "missing";
     setReviewKeys(
       Object.keys(properties).filter((key) =>
         kind(definition?.schema.properties[key]) !== kind(pendingDefinition.schema.properties[key])
@@ -164,11 +166,23 @@ export function EntityForm({
   };
   const activeType = types?.find((type) => type.id === typeId),
     label = activeType?.label ?? initial?.type.label ?? initialTypeLabel ?? "자료";
+  const effectiveProperties = !initial && !archived && definition
+    ? {
+      ...properties,
+      ...propertyDraft(Object.fromEntries(
+        Object.entries(definition.schema.properties).filter(([, field]) =>
+          field.readOnly && !field.deprecated && field.default !== undefined
+        ).map(([key, field]) => [key, field.default!]),
+      )),
+    }
+    : properties;
   const value = () => {
     if (!definition) throw new Error("자료 종류와 속성 정의를 확인하세요");
     const values = propertyValues(definition, properties);
     const writable = Object.fromEntries(
-      Object.entries(values).filter(([key]) => !definition.display.archived.includes(key)),
+      Object.entries(values).filter(([key]) =>
+        !definition.schema.properties[key]?.deprecated && !definition.schema.properties[key]?.readOnly
+      ),
     );
     return {
       entity_type_id: typeId,
@@ -232,7 +246,7 @@ export function EntityForm({
         submitDisabled={!!typeId &&
           (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
-          target: definition ? String(properties[definition.display.representative] ?? label) : label,
+          target: definition ? String(effectiveProperties[schemaPresentation(definition).representative] ?? label) : label,
           action: archived ? "복원" : initial ? "수정" : "등록",
         }}
         dirty={dirty}
@@ -245,7 +259,9 @@ export function EntityForm({
             ? {
               ...value(),
               properties: Object.fromEntries(
-                Object.entries(existing.properties).filter(([key]) => !definition!.display.archived.includes(key)),
+                Object.entries(existing.properties).filter(([key]) =>
+                  !schemaPresentation(definition!).archived.includes(key)
+                ),
               ),
               expected_version: existing.version,
               tag_ids: existing.tag_ids,
@@ -316,7 +332,10 @@ export function EntityForm({
           for (
             const key of definition.schema.required
           ) {
-            if (properties[key] === undefined && !definition.display.archived.includes(key)) {
+            if (
+              properties[key] === undefined && !definition.schema.properties[key]?.deprecated &&
+              !definition.schema.properties[key]?.readOnly
+            ) {
               errors[
                 `properties.${key}`
               ] = "필수 입력입니다";
@@ -328,9 +347,9 @@ export function EntityForm({
             if (old !== undefined && properties[key] === undefined) {errors[`properties.${key}`] =
                 "기존 값을 지우려면 값 없음으로 변경하세요. 미입력은 기존 값을 유지합니다.";}
           }
-          if (!String(properties[definition.display.representative] ?? "").trim()) {
+          if (!String(effectiveProperties[schemaPresentation(definition).representative] ?? "").trim()) {
             errors[
-              `properties.${definition.display.representative}`
+              `properties.${schemaPresentation(definition).representative}`
             ] = "이름은 공백만 입력할 수 없습니다";
           }
           const parsed = entityCreate.safeParse(fields);
@@ -417,7 +436,7 @@ export function EntityForm({
                     변경하지 않습니다.
                   </p>
                   <ul>
-                    {pendingDefinition.display.order.map((key) => (
+                    {schemaPresentation(pendingDefinition).order.map((key) => (
                       <li key={key}>
                         {pendingDefinition.schema.properties[key].title ?? key} ·{" "}
                         {String(pendingDefinition.schema.properties[key].type)}
@@ -561,12 +580,14 @@ export function EntityForm({
                 ? (
                   <PropertyFields
                     definition={definition}
-                    values={properties}
+                    values={effectiveProperties}
                     errors={errors}
                     onChange={(values) => {
                       lookup.current?.abort();
                       setReviewKeys((keys) => keys.filter((key) => values[key] === properties[key]));
-                      setProperties(values);
+                      setProperties(!initial && !archived
+                        ? Object.fromEntries(Object.entries(values).filter(([key]) => !definition.schema.properties[key]?.readOnly))
+                        : values);
                     }}
                   />
                 )

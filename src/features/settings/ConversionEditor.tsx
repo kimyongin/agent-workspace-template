@@ -1,3 +1,5 @@
+import { fieldChoices } from "../../lib/schema-document.ts";
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import { FilterPanel } from "../../components/TabSearch.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { schemaDiffLabel, schemaEntityLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
@@ -17,7 +19,7 @@ import { fieldType } from "../entity/property-fields.tsx";
 type Rule = MigrationPlan["rules"][number];
 function propertyValue(value: unknown, key: string, definition?: SchemaDefinition, showType = false) {
   const label = typeof value === "string"
-    ? schemaOptionLabel(definition?.display.option_labels[key], value)
+    ? schemaOptionLabel(definition ? schemaPresentation(definition).option_labels[key] : undefined, value)
     : schemaValueLabel(value);
   const kind = typeof value === "string"
     ? "텍스트"
@@ -36,8 +38,8 @@ function previewKeys(row: SchemaAnalysisRow) {
   return keys.sort((a, b) => Number(changed(b)) - Number(changed(a)));
 }
 function analysisRowTitle(row: SchemaAnalysisRow, target: SchemaDefinition, source?: SchemaDefinition) {
-  const before = source ? row.before[source.display.representative] : undefined;
-  const after = row.after?.[target.display.representative];
+  const before = source ? row.before[schemaPresentation(source).representative] : undefined;
+  const after = row.after?.[schemaPresentation(target).representative];
   const title = typeof before === "string" && before.length
     ? before
     : typeof after === "string" && after.length
@@ -88,7 +90,7 @@ function Literal(
             <option value="true">참</option>
           </select>
         )
-        : field.enum
+        : fieldChoices(field)
         ? (
           <select
             className="input"
@@ -97,7 +99,7 @@ function Literal(
             onChange={(e) => onChange(e.target.value)}
           >
             <option value="">선택하세요</option>
-            {field.enum.filter((v) => v !== null).map((code) => (
+            {fieldChoices(field)!.filter((v) => v !== null).map((code) => (
               <option key={code!} value={code!}>{schemaOptionLabel(optionLabels, code!)}</option>
             ))}
           </select>
@@ -196,7 +198,7 @@ export function ConversionEditor(
             <div className="settings-fields">
               {[
                 ...new Set([
-                  ...plan.target.display.order,
+                  ...schemaPresentation(plan.target).order,
                   ...plan.diff.filter((d) =>
                     d.after_present === false && /^properties\.(prop_[1-9][0-9]*)$/.test(d.path)
                   ).map(
@@ -263,7 +265,7 @@ export function ConversionEditor(
                                     : "숫자"}로 변환
                                 </option>
                               )}
-                              {f.enum && <option value="map">선택 코드 매핑</option>}
+                              {fieldChoices(f) && <option value="map">선택 코드 매핑</option>}
                             </>
                           )}
                         </select>
@@ -288,7 +290,7 @@ export function ConversionEditor(
                                         ? false
                                         : scalar === "number" || scalar === "integer"
                                         ? 0
-                                        : f.enum?.find((v) => v !== null) ?? "",
+                                        : fieldChoices(f)?.find((v) => v !== null) ?? "",
                                       ...(op === "fill" ? { include_null: false } : {}),
                                     } as Rule
                                     : undefined,
@@ -300,7 +302,7 @@ export function ConversionEditor(
                           {rule && (rule.op === "fill" || rule.op === "replace_failure") && (
                             <Literal
                               field={f}
-                              optionLabels={plan.target.display.option_labels[key]}
+                              optionLabels={schemaPresentation(plan.target).option_labels[key]}
                               value={rule.value}
                               onChange={(value) =>
                                 setRule(key, { ...rule, value: value as string | number | boolean | null })}
@@ -355,7 +357,9 @@ export function ConversionEditor(
                                   setRule(key, { ...r, mapping: { ...r.mapping, [code]: e.target.value } })}
                               >
                                 <option value="">선택</option>
-                                {f.enum?.filter((v) => v !== null).map((v) => <option key={v!} value={v!}>{v}</option>)}
+                                {fieldChoices(f)?.filter((v) => v !== null).map((v) => (
+                                  <option key={v!} value={v!}>{v}</option>
+                                ))}
                               </select>
                             )}
                           </Field>
@@ -458,7 +462,7 @@ export function ConversionEditor(
                         <>
                           <Literal
                             field={plan.target.schema.properties[key]}
-                            optionLabels={plan.target.display.option_labels[key]}
+                            optionLabels={schemaPresentation(plan.target).option_labels[key]}
                             value={o.value}
                             onChange={(v) => setOverride(row, key, v)}
                           />

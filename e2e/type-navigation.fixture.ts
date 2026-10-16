@@ -9,7 +9,6 @@ const type = (n: number, label: string, archived = false): EntityType => ({
   label,
   archived,
   icon_id: "leaf",
-  version: 1,
   schema_version: 1,
   next_property_number: 2,
   created_at: `2026-10-${String(n).padStart(2, "0")}T00:00:00Z`,
@@ -38,8 +37,8 @@ test.beforeEach(async ({ page, baseURL }) => {
         return route.fulfill({ json: fixtureIdentity(selected.id) });
       }
       if (url.pathname.endsWith("/schemas") || url.pathname.endsWith("/schema-changes")) {
-      return route.fulfill({ json: { items: [], next_before: null } });
-    }
+        return route.fulfill({ json: { items: [], next_before: null } });
+      }
       return route.fulfill({
         json: url.pathname.endsWith("/schema")
           ? { type: selected, type_id: selected.id, schema_version: 1, ...initialEntityDefinition("이름") }
@@ -70,9 +69,11 @@ test("자료 종류 읽기는 로그인 전 조회하지 않고 계정별 갱신
   let requests = 0, fail = false, label = "처음 자료";
   await page.route("**/api/entity-types?**", (route) => {
     requests++;
-    return route.fulfill(fail
-      ? { status: 503, json: { code: "internal", message: "조회 실패" } }
-      : { json: { items: [{ ...materials, label }], next_cursor: null } });
+    return route.fulfill(
+      fail
+        ? { status: 503, json: { code: "internal", message: "조회 실패" } }
+        : { json: { items: [{ ...materials, label }], next_cursor: null } },
+    );
   });
   await page.goto("/e2e/fixtures/entity-type-catalog.html");
   await page.getByRole("button", { name: "조회 다시 시도", exact: true }).click();
@@ -98,16 +99,24 @@ test("계정 전환과 화면 닫기는 늦은 자료 종류 응답을 복원하
   let finish!: () => void;
   let started!: () => void;
   let completed!: () => void;
-  const pending = new Promise<void>((resolve) => { finish = resolve; });
-  const reading = new Promise<void>((resolve) => { started = resolve; });
-  const delivered = new Promise<void>((resolve) => { completed = resolve; });
+  const pending = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const reading = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const delivered = new Promise<void>((resolve) => {
+    completed = resolve;
+  });
   let first = true;
   await page.route("**/api/entity-types?**", async (route) => {
     if (first) {
       first = false;
       started();
       await pending;
-      await route.fulfill({ json: { items: [{ ...materials, label: "이전 계정 자료" }], next_cursor: null } }).catch(() => {});
+      await route.fulfill({ json: { items: [{ ...materials, label: "이전 계정 자료" }], next_cursor: null } }).catch(
+        () => {},
+      );
       completed();
     } else await route.fulfill({ json: { items: [{ ...products, label: "새 계정 자료" }], next_cursor: null } });
   });
@@ -130,17 +139,29 @@ test("계정 전환과 화면 닫기는 늦은 자료 종류 응답을 복원하
 test("모든 페이지의 자료 종류가 목록과 생성 폼 및 종류 설정에 표시된다", async ({ page }) => {
   await page.route("**/api/entity-types?**", (route) => {
     const cursor = new URL(route.request().url()).searchParams.get("cursor");
-    return route.fulfill({ json: cursor
-      ? { items: [products, retired], next_cursor: null }
-      : { items: [materials], next_cursor: "second-page" } });
+    return route.fulfill({
+      json: cursor
+        ? { items: [products, retired], next_cursor: null }
+        : { items: [materials], next_cursor: "second-page" },
+    });
   });
   await page.goto("/entities");
-  await expect(page.getByLabel("자료 종류", { exact: true }).locator("option")).toContainText(["전체 자료", "재료", "상품", "보관 자료"]);
+  await expect(page.getByLabel("자료 종류", { exact: true }).locator("option")).toContainText([
+    "전체 자료",
+    "재료",
+    "상품",
+    "보관 자료",
+  ]);
   await page.goto(`/entities?entity_type_id=${products.id}&create=1`);
   const form = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
   await expect(form.getByLabel("자료 종류", { exact: true }).locator("option")).toContainText(["재료", "상품"]);
   await page.goto("/settings/entity-types");
-  await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText(["기존 종류 선택", "재료", "상품", "보관 자료 (보관)"]);
+  await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
+    "기존 종류 선택",
+    "재료",
+    "상품",
+    "보관 자료 (보관)",
+  ]);
 });
 test("typed shortcut and profile access preserve canonical list filters and Back", async ({ page }) => {
   await page.goto(`/entities?entity_type_id=${materials.id}&keyword=한글&tag_id=tag&sort=title&pages=2`);
@@ -198,7 +219,10 @@ test("typed creation requires selection and protects drafts before changing kind
 test("settings profile route keeps drafts and treats settings as account location", async ({ page }) => {
   await page.goto("/settings");
   await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
+  await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute(
+    "data-current",
+    "true",
+  );
   await page.getByLabel("닉네임", { exact: true }).fill("식별자 초안");
   await page.getByRole("link", { name: "할 일", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
@@ -297,7 +321,7 @@ test("a late old type list cannot replace current rows", async ({ page }) => {
           id: `app:${kind.id}:result`,
           title: kind.label + " 결과",
           type: kind,
-          tag_ids:[],
+          tag_ids: [],
         }],
         next_cursor: null,
       },
@@ -350,23 +374,23 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
     });
   const entity = {
     id: `app:${materials.id}:created`,
-    source:"app",
+    source: "app",
     external_id: "created",
-    source_label:"앱",
-    deleted_at:null,
-    entity_type_id:materials.id,
-    type:materials,
+    source_label: "앱",
+    deleted_at: null,
+    entity_type_id: materials.id,
+    type: materials,
     schema_version: 1,
-    current_schema_version:1,
+    current_schema_version: 1,
     properties: { prop_1: "새 재료" },
     display_properties: { prop_1: "새 재료" },
     title: "새 재료",
-    tag_ids:[],
-    version:1,
+    tag_ids: [],
+    version: 1,
     created_at: "2026-10-12T00:00:00Z",
     updated_at: "2026-10-12T00:00:00Z",
-    tasks:{items:[],count:0},
-    records:{items:[],count:0},
+    tasks: { items: [], count: 0 },
+    records: { items: [], count: 0 },
   };
   await page.route("**/api/entities{,?**}", async (route) => {
     if (route.request().method() !== "POST") return route.fallback();
@@ -382,7 +406,7 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
   });
   await page.route(
     `**/api/entities/${encodeURIComponent(entity.id)}{,?**}`,
-    route=>route.fulfill({json:entity}),
+    (route) => route.fulfill({ json: entity }),
   );
   await page.goto(`/entities?entity_type_id=${materials.id}`);
   await page.getByRole("button", { name: "재료 추가", exact: true }).click();
@@ -402,7 +426,7 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
   );
   await expect(page.getByText("새 재료", { exact: true }).first()).toBeVisible();
   expect(writes).toBe(1);
-  await page.getByRole("button",{name:"편집",exact:true}).click();
+  await page.getByRole("button", { name: "편집", exact: true }).click();
   const editing = page.getByRole("dialog", { name: "재료 편집", exact: true });
   await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
   await expect(editing.getByRole("combobox", { name: "자료 종류", exact: true })).toHaveCount(0);
@@ -427,7 +451,10 @@ test("clean settings navigation proceeds while initial record templates are stil
     await page.goto("/settings/records");
     await arrived;
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", {
+      name: "자료",
+      exact: true,
+    }).click();
     await expect(page).toHaveURL(/\/settings\/materials$/, { timeout: 1500 });
     await expect(page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true })).toHaveCount(0);
   } finally {
@@ -445,27 +472,27 @@ test("type selection remains scoped while a returned list catalog is loading", a
     });
   const entity = {
     id: `app:${materials.id}:returned`,
-    source:"app",
+    source: "app",
     external_id: "returned",
-    source_label:"앱",
-    deleted_at:null,
-    entity_type_id:materials.id,
-    type:materials,
+    source_label: "앱",
+    deleted_at: null,
+    entity_type_id: materials.id,
+    type: materials,
     schema_version: 1,
-    current_schema_version:1,
+    current_schema_version: 1,
     properties: { prop_1: "복귀 자료" },
     display_properties: { prop_1: "복귀 자료" },
     title: "복귀 자료",
-    tag_ids:[],
-    version:1,
+    tag_ids: [],
+    version: 1,
     created_at: "2026-10-12T00:00:00Z",
     updated_at: "2026-10-12T00:00:00Z",
-    tasks:{items:[],count:0},
-    records:{items:[],count:0},
+    tasks: { items: [], count: 0 },
+    records: { items: [], count: 0 },
   };
   await page.route(
     `**/api/entities/${encodeURIComponent(entity.id)}{,?**}`,
-    route=>route.fulfill({json:entity}),
+    (route) => route.fulfill({ json: entity }),
   );
   await page.route("**/api/entity-types{,?**}", async (route) => {
     if (reading) {
@@ -477,9 +504,7 @@ test("type selection remains scoped while a returned list catalog is loading", a
   try {
     const list = `/entities?entity_type_id=${materials.id}&keyword=복귀`;
     await page.goto(
-      `/entities/${encodeURIComponent(entity.id)}?list=${
-        encodeURIComponent(list)
-      }`,
+      `/entities/${encodeURIComponent(entity.id)}?list=${encodeURIComponent(list)}`,
     );
     await expect(page.getByRole("dialog", { name: "재료", exact: true })).toBeVisible();
     reading = true;
@@ -488,24 +513,43 @@ test("type selection remains scoped while a returned list catalog is loading", a
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${materials.id}`));
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.id);
     await expect(page.getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
-  } finally { release(); }
+  } finally {
+    release();
+  }
 });
 
 test("definition history reads beyond the first hundred versions and opens the immutable oldest snapshot", async ({ page }) => {
   const cursors: (string | null)[] = [];
   const readVersions: number[] = [];
-  await page.route(`**/api/entity-types/${materials.id}**`, route => {
+  await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/schema-changes") || url.pathname.endsWith("/identity")) return route.fallback();
     if (url.pathname.endsWith("/schemas")) {
-      const before = url.searchParams.get("before"); cursors.push(before);
+      const before = url.searchParams.get("before");
+      cursors.push(before);
       const versions = before ? [1] : Array.from({ length: 100 }, (_, n) => 101 - n);
-      return route.fulfill({ json: { items: versions.map(schema_version => ({ type_id: materials.id, schema_version, created_at: materials.created_at })), next_before: before ? null : 2 } });
+      return route.fulfill({
+        json: {
+          items: versions.map((schema_version) => ({
+            type_id: materials.id,
+            schema_version,
+            created_at: materials.created_at,
+          })),
+          next_before: before ? null : 2,
+        },
+      });
     }
     if (url.pathname.endsWith("/schema")) {
       const schema_version = Number(url.searchParams.get("schema_version") ?? 101);
       readVersions.push(schema_version);
-      return route.fulfill({ json: { type_id: materials.id, schema_version, created_at: materials.created_at, ...initialEntityDefinition(schema_version === 1 ? "최초 이름" : "현재 이름") } });
+      return route.fulfill({
+        json: {
+          type_id: materials.id,
+          schema_version,
+          created_at: materials.created_at,
+          ...initialEntityDefinition(schema_version === 1 ? "최초 이름" : "현재 이름"),
+        },
+      });
     }
     return route.fulfill({ json: { ...materials, schema_version: 101 } });
   });
@@ -520,7 +564,8 @@ test("definition history reads beyond the first hundred versions and opens the i
   const definition = oldest.getByRole("region", { name: "입력 항목 정의", exact: true });
   await expect(definition.getByRole("heading", { name: "최초 이름", exact: true })).toBeVisible();
   const field = definition.getByRole("region", { name: "최초 이름 정의", exact: true });
-  await expect(field.locator("dl > div").filter({ has: page.getByText("자료 이름", { exact: true }) }).locator("dd")).toHaveText("사용");
+  await expect(field.locator("dl > div").filter({ has: page.getByText("자료 이름", { exact: true }) }).locator("dd"))
+    .toHaveText("사용");
   await expect(definition.locator("input,select,textarea")).toHaveCount(0);
   await expect(oldest.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
   expect(readVersions).toContain(101);
@@ -532,10 +577,22 @@ test("definition history reads beyond the first hundred versions and opens the i
 
 test("numeric schema bounds keep invalid raw decimals and reject before creating a change", async ({ page }) => {
   const definition = initialEntityDefinition("이름");
-  definition.schema.properties.prop_2 = { type: "number", title: "정확한 수량" };
-  definition.display.order.push("prop_2");
+  definition.schema.properties.prop_2 = { "x-order": 20, type: "number", title: "정확한 수량" };
+
   let writes = 0;
-  await page.route(`**/api/entity-types/${materials.id}/schema`, (route) => route.fulfill({ json: { ...definition, type: materials, type_id: materials.id, schema_version: 1, created_at: materials.created_at } }));
+  await page.route(
+    `**/api/entity-types/${materials.id}/schema`,
+    (route) =>
+      route.fulfill({
+        json: {
+          ...definition,
+          type: materials,
+          type_id: materials.id,
+          schema_version: 1,
+          created_at: materials.created_at,
+        },
+      }),
+  );
   await page.route(`**/api/entity-types/${materials.id}/schema-changes`, (route) => {
     if (route.request().method() !== "GET") writes++;
     return route.fulfill({ json: { items: [], next_before: null } });
@@ -544,7 +601,7 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^정확한 수량 항목 (?:펼치기|접기)$/, exact: true }).click();
   const section = page.getByRole("region", { name: "정확한 수량 속성", exact: true });
-  await section.getByText("추가 설정", {exact:true}).click();
+  await section.getByText("추가 설정", { exact: true }).click();
   const input = section.getByLabel("최소값", { exact: true });
   await input.fill("1.0000000000000001");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
@@ -555,17 +612,42 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
 
 test("conversion literals preserve unsafe drafts and removed properties permit explicit removal", async ({ page }) => {
   const target = initialEntityDefinition("이름");
-  target.schema.properties.prop_2 = { type: "number", title: "수량" };
-  target.display.order.push("prop_2");
+  target.schema.properties.prop_2 = { "x-order": 20, type: "number", title: "수량" };
+
   const changeId = "00000000-0000-4000-8000-000000000701";
-  const plan = { id: changeId, type_id: materials.id, source_type_version: 1, source_schema_version: 1,
-    source_template_fingerprint: "fixture", version: 1, status: "draft", change_kind: "migration_required",
-    edits: [], migration: { rules: [], overrides: [] }, executable: false, reservations: {}, target,
-    fingerprint: "fixture", analysis: null, created_at: materials.created_at, updated_at: materials.updated_at,
-    diff: [{ path: "properties.prop_3", before: { type: "integer", title: "이전 수량" }, after: null,
-      before_present: true, after_present: false, kind: "migration_required", reason: "속성 제거", next_action: "명시 제거" }] };
+  const plan = {
+    id: changeId,
+    type_id: materials.id,
+    source_schema_version: 1,
+    source_template_fingerprint: "fixture",
+    version: 1,
+    status: "draft",
+    change_kind: "migration_required",
+    edits: [],
+    migration: { rules: [], overrides: [] },
+    executable: false,
+    reservations: {},
+    target,
+    fingerprint: "fixture",
+    analysis: null,
+    created_at: materials.created_at,
+    updated_at: materials.updated_at,
+    diff: [{
+      path: "properties.prop_3",
+      before: { "x-order": 40, type: "integer", title: "이전 수량" },
+      after: null,
+      before_present: true,
+      after_present: false,
+      kind: "migration_required",
+      reason: "속성 제거",
+      next_action: "명시 제거",
+    }],
+  };
   let writes = 0;
-  await page.route(`**/api/entity-types/${materials.id}/schema-changes`, (route) => route.fulfill({ json: { items: [], next_before: null } }));
+  await page.route(
+    `**/api/entity-types/${materials.id}/schema-changes`,
+    (route) => route.fulfill({ json: { items: [], next_before: null } }),
+  );
   await page.route(`**/api/entity-types/${materials.id}/schema-changes/${changeId}`, (route) => {
     if (route.request().method() !== "GET") writes++;
     return route.fulfill({ json: plan });
@@ -574,7 +656,9 @@ test("conversion literals preserve unsafe drafts and removed properties permit e
   const conversions = page.getByRole("region", { name: "변환 규칙과 영향 미리보기" });
   await conversions.getByLabel("이전 수량 변환 방식", { exact: true }).selectOption("remove");
   await expect(conversions.getByLabel("이전 수량 변환 방식", { exact: true })).toHaveValue("remove");
-  const field = conversions.locator(".schema-field").filter({ has: page.getByLabel("수량 변환 방식", { exact: true }) });
+  const field = conversions.locator(".schema-field").filter({
+    has: page.getByLabel("수량 변환 방식", { exact: true }),
+  });
   await field.getByLabel("누락값 채우기", { exact: true }).check();
   const input = field.getByLabel("보완값", { exact: true });
   await input.fill("1.0000000000000001");
@@ -586,39 +670,61 @@ test("conversion literals preserve unsafe drafts and removed properties permit e
 
 test("entity edit preserves draft and tags while identity settings are delayed before preparation", async ({ page }) => {
   let release!: () => void, arrived!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  const reading = new Promise<void>(resolve => { arrived = resolve; });
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const reading = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
   const entity = {
     id: `app:${materials.id}:ready`,
-    source:"app",
+    source: "app",
     external_id: "ready",
-    entity_type_id:materials.id,
+    entity_type_id: materials.id,
     schema_version: 1,
-    properties:{prop_1:"元の名前"},
-    title:"元の名前",
-    type:materials,
-    source_label:"앱",
-    current_schema_version:1,
-    display_properties:{prop_1:"元の名前"},
-    tasks:{items:[],count:0},
-    records:{items:[],count:0},
-    version:1,
+    properties: { prop_1: "元の名前" },
+    title: "元の名前",
+    type: materials,
+    source_label: "앱",
+    current_schema_version: 1,
+    display_properties: { prop_1: "元の名前" },
+    tasks: { items: [], count: 0 },
+    records: { items: [], count: 0 },
+    version: 1,
     tag_ids: ["00000000-0000-4000-8000-000000000010"],
-    deleted_at:null,
+    deleted_at: null,
     created_at: materials.created_at,
-    updated_at:materials.updated_at,
+    updated_at: materials.updated_at,
   };
   entityDetail.parse(entity);
   const preparations: Record<string, any>[] = [], writes: Record<string, any>[] = [];
   await page.route(
     `**/api/entities/${encodeURIComponent(`app:${materials.id}:ready`)}`,
-    async route => {
-    if (route.request().method() === "PATCH") { const input=route.request().postDataJSON(); writes.push(input); return route.fulfill({ json: { ...entity, properties: input.properties, title: input.properties.prop_1, version: 2 } }); }
-    return route.fulfill({ json: entity });
-  },
+    async (route) => {
+      if (route.request().method() === "PATCH") {
+        const input = route.request().postDataJSON();
+        writes.push(input);
+        return route.fulfill({
+          json: { ...entity, properties: input.properties, title: input.properties.prop_1, version: 2 },
+        });
+      }
+      return route.fulfill({ json: entity });
+    },
   );
-  await page.route("**/api/records/prepare", async route => { preparations.push(route.request().postDataJSON()); await fulfillPreparation(route); });
-  await page.route("**/api/tags?**", route => route.fulfill({ json: { items: [{ id: "00000000-0000-4000-8000-000000000010", name: "保留タグ", scope: "entity", version: 1 }], next_cursor: null } }));
+  await page.route("**/api/records/prepare", async (route) => {
+    preparations.push(route.request().postDataJSON());
+    await fulfillPreparation(route);
+  });
+  await page.route(
+    "**/api/tags?**",
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [{ id: "00000000-0000-4000-8000-000000000010", name: "保留タグ", scope: "entity", version: 1 }],
+          next_cursor: null,
+        },
+      }),
+  );
   await page.route(
     `**/api/entity-types/${materials.id}/identity`,
     async (route) => {
@@ -630,81 +736,106 @@ test("entity edit preserves draft and tags while identity settings are delayed b
   try {
     await page.goto(`/entities/${encodeURIComponent(entity.id)}`);
     await page.getByRole("button", { name: "편집", exact: true }).click();
-    const form=page.getByRole("dialog", { name: "재료 편집", exact: true });
+    const form = page.getByRole("dialog", { name: "재료 편집", exact: true });
     await reading;
     await form.getByLabel("이름", { exact: false }).fill("保持する下書き");
     await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await expect(form.getByRole("status").filter({ hasText: "자료 종류·식별자 설정을 읽는 중…" })).toBeVisible();
     await form.getByLabel("이름", { exact: false }).press("Enter");
-    expect(preparations).toEqual([]); expect(writes).toEqual([]);
+    expect(preparations).toEqual([]);
+    expect(writes).toEqual([]);
     release();
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
     await expect(form.getByLabel("이름", { exact: false })).toHaveValue("保持する下書き");
     await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
     await form.getByRole("button", { name: "저장", exact: true }).click();
-    const confirmation=page.locator("dialog.modal-action[open]");
+    const confirmation = page.locator("dialog.modal-action[open]");
     await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeEnabled();
     expect(preparations).toHaveLength(1);
-    expect(preparations[0]).toMatchObject({ model: "entity", action: "update", target_id: entity.id, expected_version: 1, input: { schema_version: 1, properties: { prop_1: "保持する下書き" }, tag_ids: ["00000000-0000-4000-8000-000000000010"] } });
+    expect(preparations[0]).toMatchObject({
+      model: "entity",
+      action: "update",
+      target_id: entity.id,
+      expected_version: 1,
+      input: {
+        schema_version: 1,
+        properties: { prop_1: "保持する下書き" },
+        tag_ids: ["00000000-0000-4000-8000-000000000010"],
+      },
+    });
     await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
     await expect(form).not.toBeVisible();
     expect(writes).toHaveLength(1);
-    expect(writes[0]).toMatchObject({ expected_version: 1, schema_version: 1, properties: { prop_1: "保持する下書き" }, tag_ids: ["00000000-0000-4000-8000-000000000010"] });
-  } finally { release(); }
+    expect(writes[0]).toMatchObject({
+      expected_version: 1,
+      schema_version: 1,
+      properties: { prop_1: "保持する下書き" },
+      tag_ids: ["00000000-0000-4000-8000-000000000010"],
+    });
+  } finally {
+    release();
+  }
 });
 
 test("immutable entity edit exposes identity catalog read failure and preserves the draft", async ({ page }) => {
   const entity = {
     id: `app:${materials.id}:failed-read`,
-    source:"app",
-    external_id:"failed-read",
-    entity_type_id:materials.id,
+    source: "app",
+    external_id: "failed-read",
+    entity_type_id: materials.id,
     schema_version: 1,
-    properties:{prop_1:"元の名前"},
-    title:"元の名前",
-    type:materials,
-    version:1,
-    tag_ids:[],
-    deleted_at:null,
-    source_label:"앱",
-    current_schema_version:1,
-    display_properties:{prop_1:"元の名前"},
-    tasks:{items:[],count:0},
-    records:{items:[],count:0},
+    properties: { prop_1: "元の名前" },
+    title: "元の名前",
+    type: materials,
+    version: 1,
+    tag_ids: [],
+    deleted_at: null,
+    source_label: "앱",
+    current_schema_version: 1,
+    display_properties: { prop_1: "元の名前" },
+    tasks: { items: [], count: 0 },
+    records: { items: [], count: 0 },
     created_at: materials.created_at,
-    updated_at:materials.updated_at,
+    updated_at: materials.updated_at,
   };
   entityDetail.parse(entity);
-  let editing=false, preparations=0;
+  let editing = false, preparations = 0;
   await page.route(
     `**/api/entity-types/${materials.id}/identity`,
     (route) => route.fulfill({ json: fixtureIdentity(materials.id) }),
   );
   await page.route(
     `**/api/entities/${encodeURIComponent(`app:${materials.id}:failed-read`)}`,
-    route=>route.fulfill({json:entity}),
+    (route) => route.fulfill({ json: entity }),
   );
-  await page.route("**/api/records/prepare", async route=>{preparations++;await fulfillPreparation(route);});
-  await page.route("**/api/entity-types{,?**}", route=>editing
-    ?route.fulfill({status:500,json:{code:"internal",message:"catalog unavailable",retryable:true}})
-    :route.fallback());
+  await page.route("**/api/records/prepare", async (route) => {
+    preparations++;
+    await fulfillPreparation(route);
+  });
+  await page.route(
+    "**/api/entity-types{,?**}",
+    (route) =>
+      editing
+        ? route.fulfill({ status: 500, json: { code: "internal", message: "catalog unavailable", retryable: true } })
+        : route.fallback(),
+  );
   await page.goto(`/entities/${encodeURIComponent(entity.id)}`);
-  editing=true;
-  await page.getByRole("button",{name:"편집",exact:true}).click();
-  const form=page.getByRole("dialog",{name:"재료 편집",exact:true});
-  await form.getByLabel("이름",{exact:false}).fill("保留する名前");
-  await expect(form.getByRole("alert").filter({hasText:"자료 종류를 읽지 못했습니다."})).toBeVisible();
-  await expect(form.getByRole("button",{name:"저장",exact:true})).toBeDisabled();
-  await expect(form.getByRole("status").filter({hasText:"자료 종류·식별자 설정을 읽는 중…"})).toHaveCount(0);
-  await expect(form.getByLabel("이름",{exact:false})).toHaveValue("保留する名前");
-  await expect(form.getByRole("button",{name:"취소",exact:true})).toBeEnabled();
+  editing = true;
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "재료 편집", exact: true });
+  await form.getByLabel("이름", { exact: false }).fill("保留する名前");
+  await expect(form.getByRole("alert").filter({ hasText: "자료 종류를 읽지 못했습니다." })).toBeVisible();
+  await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+  await expect(form.getByRole("status").filter({ hasText: "자료 종류·식별자 설정을 읽는 중…" })).toHaveCount(0);
+  await expect(form.getByLabel("이름", { exact: false })).toHaveValue("保留する名前");
+  await expect(form.getByRole("button", { name: "취소", exact: true })).toBeEnabled();
   expect(preparations).toBe(0);
-  editing=false;
-  await form.getByRole("button",{name:"자료 종류 다시 조회",exact:true}).click();
-  await expect(form.getByRole("alert").filter({hasText:"자료 종류를 읽지 못했습니다."})).toHaveCount(0);
-  await expect(form.getByRole("button",{name:"저장",exact:true})).toBeEnabled();
-  await expect(form.getByLabel("이름",{exact:false})).toHaveValue("保留する名前");
+  editing = false;
+  await form.getByRole("button", { name: "자료 종류 다시 조회", exact: true }).click();
+  await expect(form.getByRole("alert").filter({ hasText: "자료 종류를 읽지 못했습니다." })).toHaveCount(0);
+  await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+  await expect(form.getByLabel("이름", { exact: false })).toHaveValue("保留する名前");
 });
 
 test("materials workspace keeps basic drafts while history opens and guards type selection", async ({ page }) => {
@@ -729,7 +860,10 @@ test("materials workspace keeps basic drafts while history opens and guards type
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("편집 중 재료");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("form", {name:"기본 정보",exact:true}).getByRole("button", { name: "변경 취소", exact: true }).click();
+  await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", {
+    name: "변경 취소",
+    exact: true,
+  }).click();
   await page.getByLabel("자료 종류 선택", { exact: true }).selectOption(products.id);
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(products.id);
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();
@@ -759,75 +893,79 @@ test("history selection preserves basic drafts and survives reload", async ({ pa
   await expect(first.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
 });
 
-test("first type creation selects its workspace and independent basics save archives and restores", async ({ page }, info) => {
-  let saved = type(4, "첫 자료");
-  let exists = false;
-  const writes: any[] = [];
-  await page.route("**/api/entity-types{,?**}", (route) => {
-    if (route.request().method() === "POST") {
-      exists = true;
-      writes.push(route.request().postDataJSON());
-      return route.fulfill({ json: saved });
-    }
-    return route.fulfill({ json: { items: exists ? [saved] : [], next_cursor: null } });
-  });
-  await page.route(`**/api/entity-types/${saved.id}**`, (route) => {
-    if (new URL(route.request().url()).pathname.endsWith("/identity")) {
-      return route.fulfill({
-        json: fixtureIdentity(
-          decodeURIComponent(
-            new URL(route.request().url()).pathname.split("/").at(-2)!,
+test(
+  "first type creation selects its workspace and independent basics save archives and restores",
+  async ({ page }, info) => {
+    let saved = type(4, "첫 자료");
+    let exists = false;
+    const writes: any[] = [];
+    await page.route("**/api/entity-types{,?**}", (route) => {
+      if (route.request().method() === "POST") {
+        exists = true;
+        writes.push(route.request().postDataJSON());
+        return route.fulfill({ json: saved });
+      }
+      return route.fulfill({ json: { items: exists ? [saved] : [], next_cursor: null } });
+    });
+    await page.route(`**/api/entity-types/${saved.id}**`, (route) => {
+      if (new URL(route.request().url()).pathname.endsWith("/identity")) {
+        return route.fulfill({
+          json: fixtureIdentity(
+            decodeURIComponent(
+              new URL(route.request().url()).pathname.split("/").at(-2)!,
+            ),
           ),
-        ),
-      });
-    }
-    const url = new URL(route.request().url());
-    if (route.request().method() === "PATCH") {
-      const input = route.request().postDataJSON();
-      writes.push(input);
-      saved = { ...saved, ...input, version: saved.version + 1 };
+        });
+      }
+      const url = new URL(route.request().url());
+      if (route.request().method() === "PATCH") {
+        const input = route.request().postDataJSON();
+        writes.push(input);
+        saved = { ...saved, ...input, schema_version: saved.schema_version + 1 };
+        return route.fulfill({ json: saved });
+      }
+      if (url.pathname.endsWith("/schema")) {
+        return route.fulfill({ json: { type_id: saved.id, schema_version: 1, ...initialEntityDefinition("제목") } });
+      }
+      if (url.pathname.endsWith("/schemas") || url.pathname.endsWith("/schema-changes")) {
+        return route.fulfill({ json: { items: [], next_before: null } });
+      }
       return route.fulfill({ json: saved });
-    }
-    if (url.pathname.endsWith("/schema")) {
-      return route.fulfill({ json: { type_id: saved.id, schema_version: 1, ...initialEntityDefinition("제목") } });
-    }
-    if (url.pathname.endsWith("/schemas") || url.pathname.endsWith("/schema-changes")) {
-      return route.fulfill({ json: { items: [], next_before: null } });
-    }
-    return route.fulfill({ json: saved });
-  });
-  await page.goto("/settings/materials");
-  await expect(page.getByRole("form", { name: "자료 종류 만들기", exact: true })).toBeVisible();
-  await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
-  await page.screenshot({ path: info.outputPath("first-type.png"), fullPage: true });
-  await page.getByLabel("자료 종류 이름", { exact: true }).fill("첫 자료");
-  await page.getByLabel("대표 속성 이름", { exact: true }).fill("제목");
-  await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
-  await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(saved.id);
-  await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
-  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
-  await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)").check();
-  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-  await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option:checked")).toHaveText(
-    "첫 자료 (보관)",
-  );
-  await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)").uncheck();
-  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-  await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option:checked")).toHaveText("첫 자료");
-  expect(writes).toMatchObject([{ label: "첫 자료", representative_label: "제목" }, {
-    archived: true,
-    expected_type_version: 1,
-  }, { archived: false, expected_type_version: 2 }]);
-});
+    });
+    await page.goto("/settings/materials");
+    await expect(page.getByRole("form", { name: "자료 종류 만들기", exact: true })).toBeVisible();
+    await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("first-type.png"), fullPage: true });
+    await page.getByLabel("자료 종류 이름", { exact: true }).fill("첫 자료");
+    await page.getByLabel("대표 속성 이름", { exact: true }).fill("제목");
+    await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
+    await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(saved.id);
+    await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();
+    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+    await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
+    await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)").check();
+    await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
+    await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option:checked")).toHaveText(
+      "첫 자료 (보관)",
+    );
+    await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)").uncheck();
+    await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
+    await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option:checked")).toHaveText("첫 자료");
+    expect(writes).toMatchObject([{ label: "첫 자료", representative_label: "제목" }, {
+      archived: true,
+    }, { archived: false }]);
+  },
+);
 
 for (const existing of [materials, retired]) {
   test(
     `type creation returns to ${existing.archived ? "archived" : "active"} kinds without duplicating add actions`,
     async ({ page }, info) => {
-      await page.route("**/api/entity-types{,?**}", (route) =>
-        route.fulfill({ json: { items: [existing], next_cursor: null } }));
+      await page.route(
+        "**/api/entity-types{,?**}",
+        (route) => route.fulfill({ json: { items: [existing], next_cursor: null } }),
+      );
       await page.goto(`/settings/entity-types/${existing.id}`);
       const selector = page.getByLabel("자료 종류 선택", { exact: true });
       await expect(selector.locator("option")).toHaveText([`${existing.label}${existing.archived ? " (보관)" : ""}`]);
@@ -864,10 +1002,13 @@ test("basic conflict and uncertain responses retain input and retry the exact re
     if (route.request().method() !== "PATCH") return route.fallback();
     attempts.push({ key: route.request().headers()["idempotency-key"], body: route.request().postDataJSON() });
     if (attempts.length === 1) {
-      return route.fulfill({ status: 409, json: { code: "schema_changed", message: "다른 변경이 저장되었습니다.", current: { type_version: 2, schema_version: 1 } } });
+      return route.fulfill({
+        status: 409,
+        json: { code: "schema_changed", message: "다른 변경이 저장되었습니다.", current: { schema_version: 1 } },
+      });
     }
     if (attempts.length === 2) return route.abort();
-    return route.fulfill({ json: { ...materials, label: "남길 입력", version: 2 } });
+    return route.fulfill({ json: { ...materials, label: "남길 입력", schema_version: 2 } });
   });
   await page.goto(`/settings/entity-types/${materials.id}`);
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
@@ -894,7 +1035,7 @@ test("basic save preserves property edits and unfiltered archived selection at e
     `**/api/entity-types/${materials.id}`,
     (route) =>
       route.request().method() === "PATCH"
-        ? route.fulfill({ json: { ...materials, label: "新しい基本情報", version: 2 } })
+        ? route.fulfill({ json: { ...materials, label: "新しい基本情報", schema_version: 2 } })
         : route.fallback(),
   );
   await page.goto(`/settings/entity-types/${materials.id}`);
@@ -986,18 +1127,21 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
         },
       }),
   );
-  await page.route(`**/api/entity-types/${materials.id}/schema`, route => {
+  await page.route(`**/api/entity-types/${materials.id}/schema`, (route) => {
     return route.fulfill({ json: { type_id: materials.id, schema_version: 1, ...initialEntityDefinition("이름") } });
   });
-  await page.route(`**/api/entity-types/${materials.id}`, route => {
+  await page.route(`**/api/entity-types/${materials.id}`, (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: latest });
     const body = route.request().postDataJSON();
     writes.push({ key: route.request().headers()["idempotency-key"], body });
     if (writes.length === 1) {
-      latest = { ...materials, label: "다른 화면 저장값", icon_id: "book", archived: true, version: 2 };
-      return route.fulfill({ status: 409, json: { code: "schema_changed", message: "다른 변경이 저장되었습니다.", current: { type_version: 2, schema_version: 1 } } });
+      latest = { ...materials, label: "다른 화면 저장값", icon_id: "book", archived: true, schema_version: 2 };
+      return route.fulfill({
+        status: 409,
+        json: { code: "schema_changed", message: "다른 변경이 저장되었습니다.", current: { schema_version: 1 } },
+      });
     }
-    latest = { ...latest, ...body, version: 3 };
+    latest = { ...latest, ...body, schema_version: 3 };
     return route.fulfill({ json: latest });
   });
   await page.goto(`/settings/entity-types/${materials.id}`);
@@ -1006,7 +1150,7 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await page.getByLabel("항목 이름", { exact: true }).fill("남길 속성 초안");
   await page.getByRole("button", { name: /^식별자/ }).click();
   const record = page.getByRole("form", { name: "식별자 설정", exact: true });
-  await record.getByLabel("이름", {exact:false}).fill("남길 식별자 초안");
+  await record.getByLabel("이름", { exact: false }).fill("남길 식별자 초안");
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   const name = page.getByLabel("자료 종류 이름", { exact: true });
   await name.fill("내 기본 정보 초안");
@@ -1018,34 +1162,57 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await expect(page.getByRole("radio", { name: "책", exact: true })).toBeChecked();
   await expect(page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)")).toBeChecked();
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
-  await expect(record.getByLabel("이름", {exact:false})).toHaveValue(
+  await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
     "남길 식별자 초안",
   );
-  await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
+  await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", {
+    name: "변경 취소",
+    exact: true,
+  }).click();
   await expect(name).toHaveValue("다른 화면 저장값");
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
-  await expect(record.getByLabel("이름", {exact:false})).toHaveValue(
+  await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
     "남길 식별자 초안",
   );
   await name.fill("내 기본 정보 초안");
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
-  expect(writes[1].body).toMatchObject({ expected_type_version: 2, label: "내 기본 정보 초안", icon_id: "book", archived: true });
+  expect(writes[1].body).toMatchObject({ label: "내 기본 정보 초안", icon_id: "book", archived: true });
   expect(writes[1].key).not.toBe(writes[0].key);
   await name.fill("취소할 입력");
-  await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
+  await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", {
+    name: "변경 취소",
+    exact: true,
+  }).click();
   await expect(name).toHaveValue("내 기본 정보 초안");
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
-  await expect(record.getByLabel("이름", {exact:false})).toHaveValue(
+  await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
     "남길 식별자 초안",
   );
 });
 
 for (const width of [320, 390]) {
   test(`mobile-header ${width}px: page titles use the available width across application routes`, async ({ page }) => {
-    await page.route("**/api/status", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "헤더 검사용 응답" } } }));
+    await page.route(
+      "**/api/status",
+      (route) => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "헤더 검사용 응답" } } }),
+    );
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ["/entities", "/tasks", "/records", "/settings", "/settings/entity-types", "/settings/tags", "/settings/records", "/settings/issuers", "/status", "/search", "/guide"]) {
+    for (
+      const path of [
+        "/entities",
+        "/tasks",
+        "/records",
+        "/settings",
+        "/settings/entity-types",
+        "/settings/tags",
+        "/settings/records",
+        "/settings/issuers",
+        "/status",
+        "/search",
+        "/guide",
+      ]
+    ) {
       await page.goto(path);
       const title = page.locator(".page-title").first();
       await expect(title, path).toBeVisible();
@@ -1054,7 +1221,9 @@ for (const width of [320, 390]) {
       await expect(description, path).toBeVisible();
       await expect(description, path).toHaveCSS("font-size", "13px");
       expect((await description.innerText()).trim().length, path).toBeGreaterThan(10);
-      expect((await description.boundingBox())!.y, path).toBeGreaterThanOrEqual((await title.boundingBox())!.y + (await title.boundingBox())!.height);
+      expect((await description.boundingBox())!.y, path).toBeGreaterThanOrEqual(
+        (await title.boundingBox())!.y + (await title.boundingBox())!.height,
+      );
       expect((await title.boundingBox())!.height, path).toBeLessThanOrEqual(44);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
     }
@@ -1065,27 +1234,70 @@ for (const width of [320, 1440]) {
   test(`status design ${width}px: errors, disclosure and pagination use shared controls`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     let failStatus = true, failIssues = true;
-    const data = { timezone: "Asia/Seoul", queried_at: "2026-10-15T00:00:00Z", period: {from:"2026-10-15", to:"2026-10-15", days:1}, entities: {total:0,active:0,deleted:0}, tasks:{total:0,open:0,done:0,active:0,stopped:0}, records:{total:1,user:1,result:0,change:0}, indexing:{total:1,indexed:0,preparing:0,attention:1,excluded:0,waiting:{long_waiting:0,oldest_waiting_since:null,threshold_minutes:5}},daily:[] };
-    await page.route("**/api/status", route => route.fulfill(failStatus ? {status:503,json:{error:{code:"unavailable",message:"조회 실패"}}} : {json:data}));
-    await page.route("**/api/status/indexing/issues**", route => route.fulfill(failIssues ? {status:503,json:{error:{code:"unavailable",message:"조회 실패"}}} : {json:{items:[{id:"issue",created_at:"2026-10-15T00:00:00Z",title:"긴 제목 ".repeat(15),reason:"provider_unknown",attempts:1,chunks:{total:1,succeeded:0,preparing:0,unknown:1,failed:0}}],next_cursor:null}}));
+    const data = {
+      timezone: "Asia/Seoul",
+      queried_at: "2026-10-15T00:00:00Z",
+      period: { from: "2026-10-15", to: "2026-10-15", days: 1 },
+      entities: { total: 0, active: 0, deleted: 0 },
+      tasks: { total: 0, open: 0, done: 0, active: 0, stopped: 0 },
+      records: { total: 1, user: 1, result: 0, change: 0 },
+      indexing: {
+        total: 1,
+        indexed: 0,
+        preparing: 0,
+        attention: 1,
+        excluded: 0,
+        waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 5 },
+      },
+      daily: [],
+    };
+    await page.route(
+      "**/api/status",
+      (route) =>
+        route.fulfill(
+          failStatus ? { status: 503, json: { error: { code: "unavailable", message: "조회 실패" } } } : { json: data },
+        ),
+    );
+    await page.route(
+      "**/api/status/indexing/issues**",
+      (route) =>
+        route.fulfill(
+          failIssues ? { status: 503, json: { error: { code: "unavailable", message: "조회 실패" } } } : {
+            json: {
+              items: [{
+                id: "issue",
+                created_at: "2026-10-15T00:00:00Z",
+                title: "긴 제목 ".repeat(15),
+                reason: "provider_unknown",
+                attempts: 1,
+                chunks: { total: 1, succeeded: 0, preparing: 0, unknown: 1, failed: 0 },
+              }],
+              next_cursor: null,
+            },
+          },
+        ),
+    );
     await page.goto("/status");
     await expect(page.getByRole("alert")).toHaveClass(/notice-error/);
     failStatus = false;
-    await page.getByRole("button", {name:"새로고침",exact:true}).click();
-    await page.getByRole("button", {name:/^색인 문제/}).click();
+    await page.getByRole("button", { name: "새로고침", exact: true }).click();
+    await page.getByRole("button", { name: /^색인 문제/ }).click();
     await expect(page.getByRole("alert")).toHaveClass(/notice-error/);
     failIssues = false;
-    await page.getByRole("button", {name:"다시 시도",exact:true}).click();
+    await page.getByRole("button", { name: "다시 시도", exact: true }).click();
     const summary = page.locator(".status-issue-list summary");
     await expect(summary).toBeVisible();
     await summary.press("Enter");
-    await expect(page.getByText("현재 구간 전송 시도 1회",{exact:false})).toBeVisible();
-    const marker = await summary.evaluate(el=>({column:getComputedStyle(el,"::after").gridColumnStart,list:getComputedStyle(el).listStyleType}));
-    expect(marker).toEqual({column:"2",list:"none"});
-    const next=page.getByRole("button",{name:"다음",exact:true});
+    await expect(page.getByText("현재 구간 전송 시도 1회", { exact: false })).toBeVisible();
+    const marker = await summary.evaluate((el) => ({
+      column: getComputedStyle(el, "::after").gridColumnStart,
+      list: getComputedStyle(el).listStyleType,
+    }));
+    expect(marker).toEqual({ column: "2", list: "none" });
+    const next = page.getByRole("button", { name: "다음", exact: true });
     await expect(next).toBeDisabled();
     expect((await next.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    await expect(next.locator(".body-action-face")).toHaveCSS("font-size","13px");
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await expect(next.locator(".body-action-face")).toHaveCSS("font-size", "13px");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }

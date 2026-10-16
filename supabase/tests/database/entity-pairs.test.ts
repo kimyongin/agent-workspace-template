@@ -280,7 +280,6 @@ dbTest(
       const latestZ = await getEntity(entities, a.actor, z.id),
         latestDeleted = await getEntity(entities, a.actor, renamed.id);
       const archived = await updateEntityType(types, requestActor(a.actor), t1.id, {
-        expected_type_version: t1.version,
         expected_schema_version: 1,
         archived: true,
       });

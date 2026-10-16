@@ -15,11 +15,12 @@ export function previewKind(path: string): PreviewKind | undefined {
   return kind === "entities" || kind === "tasks" || kind === "records" ? kind : undefined;
 }
 /** Domain read adapters own content; disclosure and request lifetimes do not know its fields. */
-export function PreviewContents({ kind, item, main, onTagsReady }: {
+export function PreviewContents({ kind, item, main, onTagsReady, onPropertiesReady }: {
   kind: PreviewKind;
   item: Preview;
   main: boolean;
   onTagsReady: (ready: boolean) => void;
+  onPropertiesReady: (ready: boolean) => void;
 }) {
   if (kind === "entities") {
     const entity = item as EntityDetail;
@@ -27,7 +28,7 @@ export function PreviewContents({ kind, item, main, onTagsReady }: {
       <>
         <p className="secondary">{entityIdentityLabel(entity)}{entity.deleted_at ? " · 삭제됨" : ""}</p>
         <p>{entity.type.label}</p>
-        <EntityProperties entity={entity} />
+        <EntityProperties entity={entity} onReadyChange={onPropertiesReady} />
         <TagNames compact scope="entity" ids={entity.tag_ids} onReadyChange={onTagsReady} />
       </>
     );

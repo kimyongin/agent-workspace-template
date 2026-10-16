@@ -1,4 +1,7 @@
-import { APP_IDENTIFIER_RULE_ID, type EntityTypeIdentity } from "../../supabase/functions/_shared/contracts/entity-issuer.ts";
+import {
+  APP_IDENTIFIER_RULE_ID,
+  type EntityTypeIdentity,
+} from "../../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { initialEntityDefinition } from "../../supabase/functions/_shared/contracts/entity-type.ts";
 import type { EntityDetail } from "../../supabase/functions/_shared/contracts/entity.ts";
 import type { TaskDetail, TaskListItem } from "../../supabase/functions/_shared/contracts/task.ts";
@@ -21,27 +24,48 @@ export const fixtureType = {
   label: "검사 자료",
   icon_id: "box",
   archived: false,
-  version: 1,
   schema_version: 1,
   next_property_number: 5,
   created_at: stamp,
   updated_at: stamp,
 };
 export function fixtureIdentity(typeId = fixtureType.id): EntityTypeIdentity {
-  return { type_id: typeId, label: "번호", default_source: "app", version: 1,
-    sources: [{ code: "app", rule_id: APP_IDENTIFIER_RULE_ID, active: true, referenced: false,
-      source_label: "앱", rule_label: "자동 발급", generation: "automatic" }] };
+  return {
+    type_id: typeId,
+    label: "번호",
+    default_source: "app",
+    version: 1,
+    sources: [{
+      code: "app",
+      rule_id: APP_IDENTIFIER_RULE_ID,
+      active: true,
+      referenced: false,
+      source_label: "앱",
+      rule_label: "자동 발급",
+      generation: "automatic",
+    }],
+  };
 }
 export const fixtureSchema = (() => {
-  const definition = initialEntityDefinition("제목");
-  Object.assign(definition.schema.properties, {
-    prop_2: { type: ["integer", "null"], title: "수량", default: 0 },
-    prop_3: { type: ["string", "null"], title: "날짜", format: "date", default: null },
-    prop_4: { type: "string", title: "분류", enum: ["a", "b", "c"], default: "a" },
+  const definition = initialEntityDefinition("제목", {
+    id: fixtureType.id,
+    title: fixtureType.label,
+    icon: fixtureType.icon_id,
   });
-  definition.display.order.push("prop_2", "prop_3", "prop_4");
-  definition.display.list_columns.push("prop_2");
-  return { ...definition, type_id: fixtureType.id, type: fixtureType, type_version: 1, schema_version: 1 };
+  Object.assign(definition.schema.properties, {
+    prop_2: { "x-order": 20, type: ["integer", "null"], title: "수량", default: 0 },
+    prop_3: { "x-order": 30, type: ["string", "null"], title: "날짜", format: "date", default: null },
+    prop_4: {
+      "x-order": 40,
+      type: "string",
+      title: "분류",
+      oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }],
+      default: "a",
+    },
+  });
+
+  definition.schema.properties["prop_2"]["x-show-in-list"] = true;
+  return { ...definition, type_id: fixtureType.id, type: fixtureType, schema_version: 1 };
 })();
 export const entity = (n = 1, properties: Partial<EntityDetail["properties"]> = {}): EntityDetail => ({
   ...identity(n),

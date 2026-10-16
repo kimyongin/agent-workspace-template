@@ -1,15 +1,28 @@
-import { useEffect, useState } from "react";
+import { schemaPresentation } from "../../lib/schema-document.ts";
+import { useEffect, useLayoutEffect, useState } from "react";
 import type { EntityValues } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { api } from "../../lib/api.ts";
 import { displayedProperty } from "./property-fields.tsx";
 import { Notice } from "../../components/Field.tsx";
 export function EntityProperties(
-  { entity, omitRepresentative = false }: { entity: EntityValues; omitRepresentative?: boolean },
+  { entity, omitRepresentative = false, onReadyChange }: {
+    entity: EntityValues;
+    omitRepresentative?: boolean;
+    onReadyChange?: (ready: boolean) => void;
+  },
 ) {
   const [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);
+  const key = `${entity.entity_type_id}:${entity.current_schema_version}:${retry}`;
+  const [readKey, setReadKey] = useState(key);
+  if (readKey !== key) {
+    setReadKey(key);
+    setDefinition(null);
+    setFailed(false);
+  }
+  useLayoutEffect(() => onReadyChange?.(!!definition || failed), [definition, failed, onReadyChange]);
   useEffect(() => {
     const c = new AbortController();
     setDefinition(null);
@@ -37,19 +50,21 @@ export function EntityProperties(
   if (!definition) return <p role="status">속성 정의를 불러오는 중…</p>;
   return (
     <dl className="props">
-      {definition.display.order.filter((key) => !omitRepresentative || key !== definition.display.representative).map((
+      {schemaPresentation(definition).order.filter((key) =>
+        !omitRepresentative || key !== schemaPresentation(definition).representative
+      ).map((
         key,
       ) => (
         <div key={key}>
           <dt>
             {definition.schema.properties[key].title ?? key}
-            {definition.display.archived.includes(key) ? " · 보관" : ""}
+            {schemaPresentation(definition).archived.includes(key) ? " · 보관" : ""}
           </dt>
           <dd>
             {displayedProperty(
               definition.schema.properties[key],
               entity.properties[key],
-              definition.display.option_labels[key],
+              schemaPresentation(definition).option_labels[key],
             )}
           </dd>
         </div>

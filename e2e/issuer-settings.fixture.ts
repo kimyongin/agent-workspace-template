@@ -270,7 +270,6 @@ async function fixture(page: Page, baseURL: string) {
           type: material,
           type_id: typeId,
           schema_version: 1,
-          type_version: 1,
           ...initialEntityDefinition("이름"),
           identity,
         },

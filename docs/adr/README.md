@@ -24,12 +24,14 @@
 
 | [0019](0019-pk-based-data-id-generation.md) | 테이블 PK 기반 서버 ID 생성 | 채택 |
 
-| [0020](0020-typed-entity-schema.md) | 자료 종류별 JSON Schema와 불변 게시 버전 | 설계 채택, 구현은 #343 |
+| [0020](0020-typed-entity-schema.md) | 자료 종류별 JSON Schema와 불변 게시 버전 | 채택; 정의·버전 분리는 ADR-0023로 대체 |
 
 | [0021](0021-type-scoped-immutable-identity.md) | 종류 범위의 불변 자료 식별자와 재사용 발급처 | 채택 |
+
+| [0022](0022-remove-user-principles.md) | 판단 기준은 자료로 관리하고 사용자 원칙 기능 제거 | 채택 |
+
+| [0023](0023-single-schema-document.md) | 자료 종류·속성·표시의 단일 JSON Schema 정본 | 채택, 구현은 #468 |
 
 ## 문서의 책임
 
 ADR에는 결정·이유·대가를 담는다. 제품의 의미와 범위는 [PRD](../product/concept.md), 설계·개발 방법은 [Matt 스킬](../development/matt-skills.md)이 담당한다. 번호는 재사용하지 않는다. 합의한 변경과 과거 근거는 Git/GitHub에서 추적한다.
-
-- [ADR-0022: 판단 기준은 자료로 관리하고 사용자 원칙 기능 제거](0022-remove-user-principles.md)

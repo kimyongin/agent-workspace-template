@@ -58,28 +58,30 @@ test.beforeEach(async ({ page }) => {
     expected_version: 1,
     sources: [{ code: fixtureSource, rule_id: rule.id, active: true }],
   });
-  const definition = initialEntityDefinition("이름");
+  const definition = initialEntityDefinition("이름", { id: fixtureType!.id, title: fixtureType!.label });
   Object.assign(definition.schema.properties, {
-    prop_2: { type: ["integer", "null"], title: "개수", default: 0 },
-    prop_3: { type: ["string", "null"], format: "date", title: "날짜" },
+    prop_2: { "x-order": 20, type: ["integer", "null"], title: "개수", default: 0 },
+    prop_3: { "x-order": 30, type: ["string", "null"], format: "date", title: "날짜" },
     prop_4: {
+      "x-order": 40,
       type: "string",
-      enum: ["a", "b", "c"],
+      oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }],
       title: "구분",
       default: "a",
     },
   });
-  definition.display.order = ["prop_1", "prop_2", "prop_3", "prop_4"];
+  ["prop_1", "prop_2", "prop_3", "prop_4"].forEach((key, index) => {
+    definition.schema.properties[key]["x-order"] = (index + 1) * 10;
+  });
+  definition.schema["x-version"] = 2;
   const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
   try {
     await admin.begin(async (tx) => {
       const [owner] = await tx`select owner_id from app.entity_types where id=${fixtureType!.id}`;
-      await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.owner_id},${
-        fixtureType!.id
-      },2,${tx.json(definition.schema)},${tx.json(definition.display)})`;
-      await tx`update app.entity_types set schema_version=2,next_property_number=5,version=version+1 where id=${
-        fixtureType!.id
-      }`;
+      await tx`insert into app.entity_schema_versions(owner_id,schema) values(${owner.owner_id},${
+        tx.json(definition.schema)
+      })`;
+      await tx`update app.entity_types set schema_version=2,next_property_number=5 where id=${fixtureType!.id}`;
     });
   } finally {
     await admin.end();

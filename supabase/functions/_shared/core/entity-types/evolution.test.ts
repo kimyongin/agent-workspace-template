@@ -1,3 +1,4 @@
+import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import { assertEquals, assertThrows } from "@std/assert";
 import { initialEntityDefinition } from "../../contracts/entity-type.ts";
 import { resolveSchemaEdits } from "./evolution.ts";
@@ -22,17 +23,16 @@ Deno.test("schema edit policy preserves key meaning and labels but classifies na
   assertThrows(() =>
     resolveSchemaEdits(
       source,
-      [{ op: "update_property", key: "prop_99", field: { type: "string" }, required: false }],
+      [{ op: "update_property", key: "prop_99", field: { "x-order": 20, type: "string" }, required: false }],
       {},
     )
   );
 });
 Deno.test("archive retains definitions and requires explicit requiredness edit while representative stays active", () => {
   const source = initialEntityDefinition("이름");
-  source.schema.properties.prop_2 = { type: "string", title: "설명" };
+  source.schema.properties.prop_2 = { "x-order": 20, type: "string", title: "설명" };
   source.schema.required.push("prop_2");
-  source.display.order.push("prop_2");
-  source.display.list_columns.push("prop_2");
+  source.schema.properties.prop_2["x-show-in-list"] = true;
   assertThrows(() => resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_2" }], {}));
   const result = resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_2" }, {
     op: "update_property",
@@ -42,27 +42,27 @@ Deno.test("archive retains definitions and requires explicit requiredness edit w
   }], {});
   assertEquals(result.kind, "compatible");
   assertEquals(result.target.schema.properties.prop_2.title, "설명");
-  assertEquals(result.target.display.archived, ["prop_2"]);
-  assertEquals(result.target.display.list_columns, ["prop_1"]);
+  assertEquals(entitySchemaPresentation(result.target.schema).archived, ["prop_2"]);
+  assertEquals(entitySchemaPresentation(result.target.schema).list_columns, ["prop_1"]);
   assertThrows(() => resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_1" }], {}));
 });
 Deno.test("integer widening accounts for effective product number limits", () => {
   const source = initialEntityDefinition("이름");
-  source.schema.properties.prop_2 = { type: "integer" };
-  source.display.order.push("prop_2");
+  source.schema.properties.prop_2 = { "x-order": 20, type: "integer" };
+
   assertEquals(
     resolveSchemaEdits(
       source,
-      [{ op: "update_property", key: "prop_2", field: { type: "number" }, required: false }],
+      [{ op: "update_property", key: "prop_2", field: { "x-order": 20, type: "number" }, required: false }],
       {},
     ).kind,
     "migration_required",
   );
-  source.schema.properties.prop_2 = { type: "integer", minimum: -1e9, maximum: 1e9 };
+  source.schema.properties.prop_2 = { "x-order": 20, type: "integer", minimum: -1e9, maximum: 1e9 };
   assertEquals(
     resolveSchemaEdits(
       source,
-      [{ op: "update_property", key: "prop_2", field: { type: "number" }, required: false }],
+      [{ op: "update_property", key: "prop_2", field: { "x-order": 20, type: "number" }, required: false }],
       {},
     ).kind,
     "compatible",
@@ -76,4 +76,16 @@ Deno.test("integer widening accounts for effective product number limits", () =>
     }], {}).kind,
     "compatible",
   );
+});
+
+Deno.test("decimal multipleOf expansion follows exact decimal divisibility", () => {
+  const source = initialEntityDefinition("이름");
+  source.schema.properties.prop_2 = { type: "number", "x-order": 20, multipleOf: 0.3 };
+  const expanded = resolveSchemaEdits(source, [{
+    op: "update_property",
+    key: "prop_2",
+    field: { type: "number", "x-order": 20, multipleOf: 0.1 },
+    required: false,
+  }], {});
+  assertEquals(expanded.kind, "compatible");
 });

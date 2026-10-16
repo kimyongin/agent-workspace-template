@@ -19,7 +19,7 @@ function env(name: string) {
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 
 httpTest(
-  "large typed pages actual HTTP/OAuth SDK preserve near-64KiB schema/properties default20/max100 and long cursors",
+  "large typed pages actual HTTP/OAuth SDK preserve schema and near-64KiB properties default20/max100 and long cursors",
   async () => {
     const run = crypto.randomUUID(),
       token = await signIn("A"),
@@ -42,8 +42,8 @@ httpTest(
       client = await connectMcp(grant.access_token);
       const catalog = await client.listTools(),
         names = catalog.tools.map((t) => t.name);
-      assertEquals(names.length, 64);
-      assertEquals(new Set(names).size, 64);
+      assertEquals(names.length, 66);
+      assertEquals(new Set(names).size, 66);
       for (
         const name of [
           "get_entity_schema",
@@ -78,7 +78,7 @@ httpTest(
         };
       };
       const created = await call<
-        { id: string; version: number; schema_version: number }
+        { id: string; schema_version: number }
       >(token, "POST", "/entity-types", {
         label: `large351 ${run}`,
         representative_label: "이름",
@@ -86,9 +86,7 @@ httpTest(
       }, key());
       assertEquals(created.status, 201);
       typeId = created.body.id;
-      const order = Array.from({ length: 23 }, (_, n) => `prop_${n + 1}`);
       const input = {
-        expected_type_version: created.body.version,
         expected_schema_version: created.body.schema_version,
         edits: [
           ...Array.from(
@@ -98,21 +96,13 @@ httpTest(
               client_ref: `field${n + 2}`,
               field: {
                 type: "string",
+                "x-order": (n + 2) * 10,
+                "x-show-in-list": n < 6,
                 description: "뜻".repeat(n === 21 ? 100 : 1000),
               },
               required: false,
             }),
           ),
-          {
-            op: "set_display",
-            display: {
-              representative: "prop_1",
-              order,
-              list_columns: order.slice(0, 7),
-              archived: [],
-              option_labels: {},
-            },
-          },
         ],
       };
       const plan = await call<EntitySchemaChange>(
@@ -125,7 +115,7 @@ httpTest(
       assertEquals(plan.status, 201);
       validateEntityDefinition(plan.body.target);
       const definitionBytes = new TextEncoder().encode(jsonbText(plan.body.target)).byteLength;
-      assert(definitionBytes > 65000 && definitionBytes <= 65536);
+      assert(definitionBytes > 65000 && definitionBytes <= 262144);
       evidence.definition_bytes = definitionBytes;
       const accepted = await sdk<{ analysis_id: string; status: string }>(
         "analyze_entity_schema_change",
@@ -161,8 +151,10 @@ httpTest(
         `/entity-types/${typeId}/schema`,
       );
       assertEquals(schema.status, 200);
-      assertEquals(schema.body.schema, plan.body.target.schema);
-      assertEquals(schema.body.display, plan.body.target.display);
+      assertEquals(schema.body.schema, {
+        ...plan.body.target.schema,
+        "x-version": schema.body.schema_version,
+      });
       assertEquals(
         (await sdk<EntitySchemaResult>("get_entity_schema", {
           type_id: typeId,
@@ -185,7 +177,6 @@ httpTest(
       };
       validateEntityProperties({
         schema: schema.body.schema,
-        display: schema.body.display,
       }, properties);
       evidence.properties_bytes = new TextEncoder().encode(jsonbText(properties)).byteLength;
       assertEquals(evidence.properties_bytes, 65444);
@@ -346,9 +337,9 @@ httpTest(
       });
       await clean(() =>
         admin.begin(async (tx) => {
-          // Exact run label also finds a creation whose HTTP response was lost.
+          // Exact run schema title also finds a creation whose HTTP response was lost.
           const kinds =
-            await tx`select id,label from app.entity_types where owner_id=${owner} and label=${`large351 ${run}`}`;
+            await tx`select t.id from app.entity_types t join app.entity_schema_versions s on s.owner_id=t.owner_id and s.type_id=t.id and s.schema_version=t.schema_version where t.owner_id=${owner} and s.schema->>'title'=${`large351 ${run}`}`;
           assert(kinds.length <= 1);
           const cleanupType = kinds[0]?.id as string | undefined;
           if (typeId && cleanupType) assertEquals(cleanupType, typeId);
@@ -371,7 +362,7 @@ httpTest(
             await tx`delete from app.entity_types where owner_id=${owner} and id=${cleanupType}`;
           }
           const [remaining] =
-            await tx`select (select count(*) from app.entities where owner_id=${owner} and id=any(${ownedIds}::text[]))::int as entities,(select count(*) from app.entity_types where owner_id=${owner} and label=${`large351 ${run}`})::int as types,(select count(*) from app.records where owner_id=${owner} and id=any(${recordIds}::text[]))::int as records,(select count(*) from private.request_results where owner_id=${owner} and request_key=any(${keys}::uuid[]))::int as requests,(select count(*) from app.search_index_state where owner_id=${owner} and id=any(${recordIds}::text[]))::int as indexes,(select count(*) from private.passage_effects where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as effects,(select count(*) from app.search_chunks where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as chunks,(select count(*) from pgmq.q_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as queue,(select count(*) from pgmq.a_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as archive`;
+            await tx`select (select count(*) from app.entities where owner_id=${owner} and id=any(${ownedIds}::text[]))::int as entities,(select count(*) from app.entity_types t join app.entity_schema_versions s on s.owner_id=t.owner_id and s.type_id=t.id and s.schema_version=t.schema_version where t.owner_id=${owner} and s.schema->>'title'=${`large351 ${run}`})::int as types,(select count(*) from app.records where owner_id=${owner} and id=any(${recordIds}::text[]))::int as records,(select count(*) from private.request_results where owner_id=${owner} and request_key=any(${keys}::uuid[]))::int as requests,(select count(*) from app.search_index_state where owner_id=${owner} and id=any(${recordIds}::text[]))::int as indexes,(select count(*) from private.passage_effects where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as effects,(select count(*) from app.search_chunks where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as chunks,(select count(*) from pgmq.q_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as queue,(select count(*) from pgmq.a_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as archive`;
           assertEquals(remaining, {
             entities: 0,
             types: 0,

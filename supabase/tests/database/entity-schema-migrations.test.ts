@@ -58,17 +58,12 @@ function workerConnection() {
 }
 async function analyze(d: EntityTypeDeps, a: Actor, typeId: string, worker: postgres.Sql) {
   const change = await createEntitySchemaChange(d, requestActor(a), typeId, {
-    expected_type_version: 1,
     expected_schema_version: 1,
-    edits: [{ op: "add_property", client_ref: "count", field: { type: "integer", title: "수량" }, required: true }, {
-      op: "set_display",
-      display: {
-        representative: "prop_1",
-        order: ["prop_1", "prop_2"],
-        list_columns: ["prop_1", "prop_2"],
-        archived: [],
-        option_labels: {},
-      },
+    edits: [{
+      op: "add_property",
+      client_ref: "count",
+      field: { "x-order": 20, "x-show-in-list": true, type: "integer", title: "수량" },
+      required: true,
     }],
     migration: { rules: [{ op: "fill", key: "prop_2", value: 7 }], overrides: [] },
   });
@@ -88,7 +83,6 @@ async function analyze(d: EntityTypeDeps, a: Actor, typeId: string, worker: post
   return {
     change: ready,
     input: {
-      expected_type_version: 1,
       expected_schema_version: 1,
       expected_change_version: ready.version,
       analysis_id: ready.analysis!.id,
@@ -226,7 +220,7 @@ dbTest(
         "schema_migration_in_progress",
       );
       await code(
-        () => updateEntityType(d, requestActor(a.actor), type.id, { expected_type_version: 1, archived: true }),
+        () => updateEntityType(d, requestActor(a.actor), type.id, { expected_schema_version: 1, archived: true }),
         "schema_migration_in_progress",
       );
       for (const [left, right] of [[x.id, y.id], [y.id, x.id]]) {

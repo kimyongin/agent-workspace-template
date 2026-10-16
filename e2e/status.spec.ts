@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, devLogin, env, mcpClient, mcpTokenViaConsent } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test } from "./support.ts";
 
 test("검색 대기 안내는 상태 점검과 관리자 문의로 연결하고 대기가 해제되면 숨긴다", async ({ page }) => {
   await devLogin(page);
@@ -8,7 +8,13 @@ test("검색 대기 안내는 상태 점검과 관리자 문의로 연결하고 
     `${env.VITE_API_URL}/search`,
     (route) =>
       route.fulfill({
-        json: { items: [], next_cursor: null, anchor_page: null, search_state: "ok", semantic_coverage: { pending, excluded: 0 } },
+        json: {
+          items: [],
+          next_cursor: null,
+          anchor_page: null,
+          search_state: "ok",
+          semantic_coverage: { pending, excluded: 0 },
+        },
       }),
   );
   await page.goto("/search?q=대기점검");
@@ -126,18 +132,20 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
         const pageBox = document.querySelector(".app-main > .panel")!.getBoundingClientRect();
         const heading = document.querySelector(".page-title")!;
         const headerBox = (heading.closest(".panel-head") ?? heading).getBoundingClientRect();
+        const pageHeadingBox = heading.closest(".page-heading")!.getBoundingClientRect();
         const text = document.createRange();
         text.selectNodeContents(heading);
         const textBox = text.getBoundingClientRect();
         const firstSectionBox = document.querySelector(section)!.getBoundingClientRect();
-        const headingBox = heading.closest(".page-heading")!.getBoundingClientRect();
         return {
           layout: {
             headerHeight: headerBox.height,
             headerOffset: headerBox.top - pageBox.top,
             textHeight: textBox.height,
             textOffset: textBox.top - pageBox.top,
-            headingToSectionGap: firstSectionBox.top - headingBox.bottom,
+            // Description wrapping is content height, not spacing between sections.
+            firstSectionOffset: firstSectionBox.top - pageBox.top - (pageHeadingBox.height - headerBox.height),
+            headerToSectionGap: firstSectionBox.top - pageHeadingBox.bottom,
           },
           page: pick(".app-main > .panel", ["width", "gap", "padding"]),
           heading: pick(".page-title", ["font-size", "line-height", "font-weight", "color"]),

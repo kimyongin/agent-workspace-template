@@ -92,7 +92,7 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
       }
       if (!old && expected_version !== undefined) throw conflict("복원할 엔터티가 없습니다");
       const content = registrationContent(props, { source, external_id }, old ? entityChangeFacts(old) : null);
-      content.properties = checkedProperties(definition, content.properties, props.properties, !old);
+      content.properties = checkedProperties(definition, content.properties, props.properties, !old, old?.properties);
       const result = old
         ? await s.restore(id, { ...props, ...content })
         : await s.insert({ ...props, ...content, id }, generated);
@@ -139,6 +139,7 @@ export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdat
       { ...old.properties, ...input.properties },
       input.properties ?? {},
       false,
+      old.properties,
     );
     const patch = { ...input, ...(input.properties === undefined ? {} : { properties: finalProperties }) };
     if (!changed(entityChangeFacts(old), patch)) return old;

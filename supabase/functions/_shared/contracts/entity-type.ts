@@ -17,7 +17,7 @@ export const entityTypeIcon = z.enum(["box", "leaf", "package", "book", "tool", 
 export const entitySchemaLimits = {
   types: 64,
   fields: 64,
-  definition_bytes: 65536,
+  definition_bytes: 262144,
   properties_bytes: 65536,
   string_length: 4096,
   enum_values: 128,
@@ -60,8 +60,7 @@ export const entityTypeCreate = z.strictObject({
     .default("이름"),
 });
 export const entityTypeUpdate = z.strictObject({
-  expected_type_version: version,
-  expected_schema_version: version.optional(),
+  expected_schema_version: version,
   label: entityTypeCreate.shape.label.optional(),
   icon_id: entityTypeIcon.optional(),
   archived: z.boolean().optional(),
@@ -89,22 +88,30 @@ export type EntityField = {
   maxLength?: number;
   minimum?: number;
   maximum?: number;
-  enum?: Array<string | null>;
+  oneOf?: Array<{ const: string | null; title?: string }>;
+  deprecated?: boolean;
+  readOnly?: boolean;
+  examples?: Array<string | number | boolean | null>;
+  multipleOf?: number;
+  "x-order": number;
+  "x-list-order"?: number;
+  "x-representative"?: boolean;
+  "x-show-in-list"?: boolean;
   default?: string | number | boolean | null;
 };
 export type EntitySchema = {
   $schema: typeof ENTITY_SCHEMA_DIALECT;
+  "x-type-id": string;
+  "x-version": number;
+  /** Absent only on retained historical documents that never captured this metadata. */
+  title?: string;
+  description?: string;
+  "x-icon"?: string;
+  deprecated?: boolean;
   type: "object";
   additionalProperties: false;
   properties: Record<string, EntityField>;
   required: string[];
-};
-export type EntityDisplay = {
-  representative: string;
-  order: string[];
-  list_columns: string[];
-  archived: string[];
-  option_labels: Record<string, Record<string, string>>;
 };
 export type EntityType = {
   identity?: EntityTypeIdentity;
@@ -112,7 +119,6 @@ export type EntityType = {
   label: string;
   icon_id: string;
   archived: boolean;
-  version: number;
   schema_version: number;
   next_property_number: number;
   created_at: string;
@@ -123,11 +129,11 @@ export type EntitySchemaVersion = {
   type_id: string;
   schema_version: number;
   schema: EntitySchema;
-  display: EntityDisplay;
+  metadata_missing?: boolean;
   created_at: string;
 };
 export type EntityTypeRef = Pick<EntityType, "id" | "label" | "icon_id" | "archived">;
-export type EntitySchemaRefs = { type_id: string; type_version: number; schema_version: number };
+export type EntitySchemaRefs = { type_id: string; schema_version: number };
 export type EntitySchemaChangeBinding = EntitySchemaRefs & {
   change_id: string;
   change_version: number;
@@ -141,16 +147,33 @@ export type EntityMigrationBinding = EntitySchemaChangeBinding & {
   preparation_bytes: number;
   expires_at: string;
 };
-export function initialEntityDefinition(label: string): Pick<EntitySchemaVersion, "schema" | "display"> {
+export function initialEntityDefinition(
+  label: string,
+  metadata: { id?: string; title?: string; icon?: string } = {},
+): Pick<EntitySchemaVersion, "schema"> {
   return {
     schema: {
       $schema: ENTITY_SCHEMA_DIALECT,
+      "x-type-id": metadata.id ?? "00000000-0000-4000-8000-000000000001",
+      "x-version": 1,
+      title: metadata.title ?? label,
+      "x-icon": metadata.icon ?? "box",
+      deprecated: false,
       type: "object",
       additionalProperties: false,
-      properties: { prop_1: { type: "string", title: label, minLength: 1, maxLength: 4096 } },
+      properties: {
+        prop_1: {
+          type: "string",
+          title: label,
+          minLength: 1,
+          maxLength: 4096,
+          "x-order": 10,
+          "x-representative": true,
+          "x-show-in-list": true,
+        },
+      },
       required: ["prop_1"],
     },
-    display: { representative: "prop_1", order: ["prop_1"], list_columns: ["prop_1"], archived: [], option_labels: {} },
   };
 }
 
@@ -187,7 +210,6 @@ export const entitySchemaPolicy = {
 export type EntitySchemaVersionSummary = Pick<EntitySchemaVersion, "type_id" | "schema_version" | "created_at">;
 export type EntitySchemaResult = EntitySchemaVersion & {
   type: EntityTypeRef;
-  type_version: number;
   constraints: typeof entitySchemaLimits;
   policy: typeof entitySchemaPolicy;
 };
@@ -198,3 +220,32 @@ export type EntityLinkWrite = {
   expected_other_version: number;
 };
 export type EntityLinkResult = { changed: boolean; pair: [string, string]; versions: [number, number] };
+
+/** A view derived from annotations; never a second stored or public definition. */
+export function entitySchemaPresentation(schema: EntitySchema) {
+  const keys = Object.keys(schema.properties);
+  const order = [...keys].sort((a, b) => schema.properties[a]["x-order"] - schema.properties[b]["x-order"]);
+  return {
+    representative: keys.find((k) => schema.properties[k]["x-representative"]) ?? "",
+    order,
+    list_columns: keys.filter((k) => schema.properties[k]["x-show-in-list"] && !schema.properties[k].deprecated)
+      .sort((a, b) =>
+        (schema.properties[a]["x-list-order"] ?? schema.properties[a]["x-order"]) -
+        (schema.properties[b]["x-list-order"] ?? schema.properties[b]["x-order"])
+      ),
+    archived: keys.filter((k) => schema.properties[k].deprecated),
+    option_labels: Object.fromEntries(
+      keys.filter((k) => schema.properties[k].oneOf).map(
+        (k) => [
+          k,
+          Object.fromEntries(
+            schema.properties[k].oneOf!.filter((o) => o.const !== null).map((o) => [o.const!, o.title ?? o.const!]),
+          ),
+        ],
+      ),
+    ),
+  };
+}
+export function entityFieldChoices(field: EntityField): Array<string | null> | undefined {
+  return field.oneOf?.map((option) => option.const);
+}

@@ -29,12 +29,11 @@ httpTest(
       })).body;
       entityId = entity.id;
       const plan = (await call(token, "POST", `/entity-types/${typeId}/schema-changes`, {
-        expected_type_version: 1,
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
           client_ref: "flag",
-          field: { type: "boolean", title: "確認" },
+          field: { type: "boolean", title: "確認", "x-order": 20 },
           required: true,
         }],
         migration: { rules: [{ op: "fill", key: "prop_2", value: false }], overrides: [] },
@@ -55,7 +54,6 @@ httpTest(
       const ready = (await call(token, "GET", `/entity-types/${typeId}/schema-changes/${plan.id}`)).body;
       assert(ready.executable);
       const input = {
-          expected_type_version: 1,
           expected_schema_version: 1,
           expected_change_version: 1,
           analysis_id: ready.analysis.id,
@@ -167,7 +165,7 @@ httpTest(
       const recoveryPath = `/entity-schema-migrations/${secondId}/recovery-changes`;
       const refs = {
         expected_job_version: done.version,
-        expected_type_version: done.recovery.current_type_version,
+
         expected_schema_version: done.recovery.current_schema_version,
       };
       assertEquals(done.recovery.status, "available");
@@ -220,7 +218,7 @@ httpTest(
         type_id: typeId,
         change_id: draft.body.id,
         expected_change_version: 1,
-        expected_type_version: refs.expected_type_version,
+
         expected_schema_version: refs.expected_schema_version,
         analysis_id: recoveredPlan.analysis.id,
         fingerprint: recoveredPlan.fingerprint,
@@ -252,7 +250,7 @@ httpTest(
       });
       const staleRefs = {
         expected_job_version: newer.version,
-        expected_type_version: newer.recovery.current_type_version,
+
         expected_schema_version: newer.recovery.current_schema_version,
       };
       const staleHttp = await call(

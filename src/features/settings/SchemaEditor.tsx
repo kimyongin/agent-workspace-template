@@ -1,3 +1,6 @@
+import { SchemaExport } from "./SchemaExport.tsx";
+import { fieldChoices } from "../../lib/schema-document.ts";
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
@@ -44,6 +47,7 @@ const numericConditionNames: Record<string, string> = {
   maxLength: "최대 길이",
   minimum: "최소값",
   maximum: "최대값",
+  multipleOf: "배수",
   default: "기본값",
 };
 export function SchemaEditor(
@@ -200,8 +204,10 @@ export function SchemaEditor(
   const refreshedJobs = useRef(new Set<string>());
   useEffect(() => {
     if (!plan) return;
-    const terminal = jobs.items.find((job) => job.change_id === plan.id && !migrationActive(job) &&
-      !refreshedJobs.current.has(`${job.id}:${job.version}`));
+    const terminal = jobs.items.find((job) =>
+      job.change_id === plan.id && !migrationActive(job) &&
+      !refreshedJobs.current.has(`${job.id}:${job.version}`)
+    );
     if (!terminal) return;
     refreshedJobs.current.add(`${terminal.id}:${terminal.version}`);
     void editor.refreshPlan();
@@ -217,7 +223,8 @@ export function SchemaEditor(
   );
   const activeJob = jobs.items.find(migrationActive);
   const reviewSaved = propertiesOpen && plan?.status === "invalid" && plan.analysis?.status === "succeeded";
-  const emptyPublication = !!plan && !plan.recovery && plan.analysis?.status === "succeeded" && plan.analysis.total === 0;
+  const emptyPublication = !!plan && !plan.recovery && plan.analysis?.status === "succeeded" &&
+    plan.analysis.total === 0;
   const analysisNeeded = plan && !dirty && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status) &&
     (!plan.analysis || plan.analysis.status === "failed");
   const openEditing = () => {
@@ -290,7 +297,7 @@ export function SchemaEditor(
                     ? "결과 확인 필요"
                     : dirty
                     ? "수정 중"
-                    : `${draft.display.order.length}개 항목`}
+                    : `${schemaPresentation(draft).order.length}개 항목`}
                 </span>
               </button>
             </h2>
@@ -304,7 +311,7 @@ export function SchemaEditor(
                 startState.uncertain}
             >
               <CollectionList view="list" label="입력 항목 목록">
-                {draft.display.order.map((key, index) => {
+                {schemaPresentation(draft).order.map((key, index) => {
                   const f = draft.schema.properties[key],
                     scalar = fieldType(f) ?? "string";
                   const toggleField = () =>
@@ -316,8 +323,12 @@ export function SchemaEditor(
                     <span className="secondary">
                       {!expanded && <span>{fieldTypeLabel(f)}</span>}
                       {draft.schema.required.includes(key) && <span className="schema-badge">필수</span>}
-                      {key === draft.display.representative && <span className="schema-badge">자료 이름</span>}
-                      {draft.display.archived.includes(key) && <span className="schema-badge">사용 중지</span>}
+                      {key === schemaPresentation(draft).representative && (
+                        <span className="schema-badge">자료 이름</span>
+                      )}
+                      {schemaPresentation(draft).archived.includes(key) && (
+                        <span className="schema-badge">사용 중지</span>
+                      )}
                       {changedFields.includes(key) && <span className="schema-badge">변경됨</span>}
                       {fieldError === key && (
                         <span className="schema-badge error-text">
@@ -401,7 +412,7 @@ export function SchemaEditor(
                               type="button"
                               className="item-icon"
                               aria-label={`${f.title || "새 항목"} 아래로`}
-                              disabled={index === draft.display.order.length - 1 || Boolean(plan?.recovery)}
+                              disabled={index === schemaPresentation(draft).order.length - 1 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, 1)}
                             >
                               <svg
@@ -438,21 +449,28 @@ export function SchemaEditor(
                                 {...p}
                                 className="input"
                                 data-schema-setting="type"
-                                value={f.enum ? "select" : f.format === "date" ? "date" : scalar}
+                                value={fieldChoices(f) ? "select" : f.format === "date" ? "date" : scalar}
                                 onChange={(e) => {
                                   const value = e.target.value;
                                   editField(
                                     key,
                                     fieldInputPolicy({
                                       type: value === "date" || value === "select" ? "string" : value as "string",
+                                      "x-order": f["x-order"],
+                                      "x-list-order": f["x-list-order"],
+                                      "x-representative": f["x-representative"],
+                                      "x-show-in-list": f["x-show-in-list"],
+                                      deprecated: f.deprecated,
+                                      readOnly: f.readOnly,
+                                      examples: f.examples,
                                       title: f.title,
                                       description: f.description,
                                       ...(value === "date"
                                         ? { format: "date" as const }
                                         : value === "select"
-                                        ? { enum: ["option_1"] }
+                                        ? { oneOf: [{ const: "option_1", title: "선택 항목 1" }] }
                                         : {}),
-                                      ...(key === draft.display.representative ? { minLength: 1 } : {}),
+                                      ...(key === schemaPresentation(draft).representative ? { minLength: 1 } : {}),
                                     }, draft.schema.required.includes(key)),
                                   );
                                 }}
@@ -466,10 +484,10 @@ export function SchemaEditor(
                               </select>
                             )}
                           </Field>
-                          {f.enum && (
+                          {fieldChoices(f) && (
                             <div className="schema-options">
                               <h4 className="section-title">선택 항목</h4>
-                              {f.enum.filter((value) => value !== null).map((
+                              {fieldChoices(f)!.filter((value) => value !== null).map((
                                 code,
                                 i,
                               ) => (
@@ -481,7 +499,7 @@ export function SchemaEditor(
                                         className="input"
                                         maxLength={80}
                                         value={optionLabel(
-                                          draft.display.option_labels[key],
+                                          schemaPresentation(draft).option_labels[key],
                                           code!,
                                         )}
                                         onChange={(event) =>
@@ -497,11 +515,11 @@ export function SchemaEditor(
                                     type="button"
                                     className="btn btn-input"
                                     aria-label={`선택 항목 ${i + 1} 제거`}
-                                    disabled={f.enum!.filter((value) => value !== null).length <= 1}
+                                    disabled={fieldChoices(f)!.filter((value) => value !== null).length <= 1}
                                     onClick={() =>
                                       editField(key, {
                                         ...f,
-                                        enum: f.enum!.filter((value) => value !== code),
+                                        oneOf: f.oneOf!.filter((option) => option.const !== code),
                                       })}
                                   >
                                     제거
@@ -511,15 +529,20 @@ export function SchemaEditor(
                               <BodyAction
                                 icon="create"
                                 type="button"
-                                disabled={f.enum.filter((value) => value !== null).length >= 128}
+                                disabled={fieldChoices(f)!.filter((value) => value !== null).length >= 128}
                                 onClick={() => {
                                   let number = 1;
-                                  while (f.enum!.includes(`option_${number}`)) {
+                                  while (fieldChoices(f)!.includes(`option_${number}`)) {
                                     number++;
                                   }
                                   editField(key, {
                                     ...f,
-                                    enum: [...f.enum!, `option_${number}`],
+                                    oneOf: [...f.oneOf!, {
+                                      const: `option_${number}`,
+                                      title: `선택 항목 ${
+                                        f.oneOf!.filter((option) => option.const !== null).length + 1
+                                      }`,
+                                    }],
                                   });
                                 }}
                               >
@@ -562,8 +585,8 @@ export function SchemaEditor(
                                 <input
                                   type="checkbox"
                                   aria-label={`${f.title || "새 항목"} 목록에 표시`}
-                                  checked={draft.display.list_columns.includes(key)}
-                                  disabled={draft.display.archived.includes(key)}
+                                  checked={schemaPresentation(draft).list_columns.includes(key)}
+                                  disabled={schemaPresentation(draft).archived.includes(key)}
                                   onChange={(event) =>
                                     editFlag(
                                       key,
@@ -574,6 +597,15 @@ export function SchemaEditor(
                                 목록에 표시
                               </label>
 
+                              <label className="choice-control">
+                                <input
+                                  type="checkbox"
+                                  checked={!!f.readOnly}
+                                  aria-label={`${f.title || "새 항목"} 읽기 전용`}
+                                  onChange={(event) => editField(key, { ...f, readOnly: event.target.checked })}
+                                />{" "}
+                                읽기 전용
+                              </label>
                               <Field label="설명">
                                 {(p) => (
                                   <textarea
@@ -646,8 +678,8 @@ export function SchemaEditor(
                               )}
                               {["integer", "number"].includes(scalar) && (
                                 <div className="schema-constraints">
-                                  {(["minimum", "maximum"] as const).map((name) => (
-                                    <Field key={name} label={name === "minimum" ? "최소값" : "최대값"}>
+                                  {(["minimum", "maximum", "multipleOf"] as const).map((name) => (
+                                    <Field key={name} label={numericConditionNames[name]}>
                                       {(p) => (
                                         <input
                                           {...p}
@@ -684,7 +716,7 @@ export function SchemaEditor(
                                           ? false
                                           : ["integer", "number"].includes(scalar)
                                           ? 0
-                                          : f.enum?.find((v) => v !== null) ?? "",
+                                          : fieldChoices(f)?.find((v) => v !== null) ?? "",
                                       })}
                                   >
                                     <option value="unset">설정 안 함</option>
@@ -711,7 +743,7 @@ export function SchemaEditor(
                                           <option value="true">참</option>
                                         </select>
                                       )
-                                      : f.enum
+                                      : fieldChoices(f)
                                       ? (
                                         <select
                                           {...p}
@@ -723,12 +755,12 @@ export function SchemaEditor(
                                               default: e.target.value,
                                             })}
                                         >
-                                          {f.enum!.filter((v) => v !== null).map((
+                                          {fieldChoices(f)!.filter((v) => v !== null).map((
                                             code,
                                           ) => (
                                             <option key={code} value={code!}>
                                               {optionLabel(
-                                                draft.display.option_labels[key],
+                                                schemaPresentation(draft).option_labels[key],
                                                 code!,
                                               )}
                                             </option>
@@ -768,19 +800,19 @@ export function SchemaEditor(
                               <div className="schema-actions">
                                 <BodyAction
                                   type="button"
-                                  disabled={key === draft.display.representative}
+                                  disabled={key === schemaPresentation(draft).representative}
                                   onClick={() =>
                                     editor.setFieldInactive(
                                       key,
-                                      !draft.display.archived.includes(key),
+                                      !schemaPresentation(draft).archived.includes(key),
                                     )}
                                 >
-                                  {draft.display.archived.includes(key) ? "다시 사용" : "사용 중지"}
+                                  {schemaPresentation(draft).archived.includes(key) ? "다시 사용" : "사용 중지"}
                                 </BodyAction>
                                 <BodyAction
                                   danger
                                   type="button"
-                                  disabled={key === draft.display.representative}
+                                  disabled={key === schemaPresentation(draft).representative}
                                   onClick={() => setDeleteKey(key)}
                                 >
                                   <svg
@@ -796,7 +828,7 @@ export function SchemaEditor(
                                   </svg>항목 삭제
                                 </BodyAction>
                               </div>
-                              {key === draft.display.representative && (
+                              {key === schemaPresentation(draft).representative && (
                                 <p className="secondary">
                                   다른 항목을 자료 이름으로 선택한 뒤 사용 중지하거나 삭제하세요.
                                 </p>
@@ -880,6 +912,7 @@ export function SchemaEditor(
         open={historyOpen}
         onOpenChange={setHistoryOpen}
       >
+        <SchemaExport definition={definition} current />
         <div className="schema-history-list">
           <CollectionList view="list" label="스키마 변경 이력">
             {historyRows.map((row) => {
@@ -1043,7 +1076,9 @@ export function SchemaEditor(
                           data-change-version={plan.version}
                         >
                           <h3 className="section-title" ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
-                          {restartedFrom && <p role="status">최신 기준으로 만든 새 변경안입니다. 기존 변경안은 이력에 유지됩니다.</p>}
+                          {restartedFrom && (
+                            <p role="status">최신 기준으로 만든 새 변경안입니다. 기존 변경안은 이력에 유지됩니다.</p>
+                          )}
                           <p>버전 {plan.source_schema_version} → {plan.source_schema_version + 1}</p>
                           {!["applied", "cancelled"].includes(plan.status) && (
                             <p>
@@ -1096,7 +1131,11 @@ export function SchemaEditor(
                               </p>
                             </section>
                           )}
-                          {planSyncNeeded && <p role="status">{readBusy ? "최신 변경안 상태를 확인하는 중…" : "최신 변경안 상태를 다시 확인하세요."}</p>}
+                          {planSyncNeeded && (
+                            <p role="status">
+                              {readBusy ? "최신 변경안 상태를 확인하는 중…" : "최신 변경안 상태를 다시 확인하세요."}
+                            </p>
+                          )}
                           <SchemaChangeDiff
                             change={plan}
                             definition={definition}
@@ -1227,7 +1266,11 @@ export function SchemaEditor(
                                     폐기
                                   </button>
                                   {planSyncNeeded
-                                    ? <button className="btn btn-primary" disabled>{readBusy ? "상태 확인 중…" : "상태 확인 필요"}</button>
+                                    ? (
+                                      <button className="btn btn-primary" disabled>
+                                        {readBusy ? "상태 확인 중…" : "상태 확인 필요"}
+                                      </button>
+                                    )
                                     : uncertain
                                     ? (
                                       <button
@@ -1240,8 +1283,13 @@ export function SchemaEditor(
                                     )
                                     : (staleInput || plan.status === "stale") && !plan.recovery
                                     ? (
-                                      <button className="btn btn-primary" disabled={busy || uncertain || readBusy || disabled || planSyncNeeded}
-                                        onClick={() => void editor.restartReview()}>최신 기준으로 다시 검토</button>
+                                      <button
+                                        className="btn btn-primary"
+                                        disabled={busy || uncertain || readBusy || disabled || planSyncNeeded}
+                                        onClick={() => void editor.restartReview()}
+                                      >
+                                        최신 기준으로 다시 검토
+                                      </button>
                                     )
                                     : dirty
                                     ? (
@@ -1275,7 +1323,8 @@ export function SchemaEditor(
                                       </button>
                                     )
                                     : plan.change_kind ===
-                                          "migration_required" && !emptyPublication &&
+                                          "migration_required" &&
+                                        !emptyPublication &&
                                         plan.executable && !row.version
                                     ? (
                                       <MigrationStart
