@@ -2,6 +2,33 @@ import { expect, it } from "vitest";
 import { WriteAttempt } from "./write-attempt.ts";
 import { ApiError } from "./api-error.ts";
 
+it("delivers the original confirmed result after response loss, then returns the next intent's result", async () => {
+  const attempt = new WriteAttempt<{ id: string; version: number }>();
+  let lost = true;
+  let replacementCalls = 0;
+  const keys: string[] = [];
+  await expect(attempt.run(async () => {
+    keys.push(attempt.requestKey());
+    if (lost) {
+      lost = false;
+      throw new ApiError(0, "network", "응답 유실");
+    }
+    return { id: "original", version: 3 };
+  })).rejects.toThrow("응답 유실");
+
+  const confirmed = await attempt.run(async () => {
+    replacementCalls++;
+    return { id: "replacement", version: 4 };
+  });
+  expect(confirmed).toEqual({ id: "original", version: 3 });
+  expect(replacementCalls).toBe(0);
+  expect(keys).toHaveLength(2);
+  expect(keys[1]).toBe(keys[0]);
+
+  const next = await attempt.run(async () => ({ id: "next", version: 1 }));
+  expect(next).toEqual({ id: "next", version: 1 });
+});
+
 it("retries the original payload and request key after an uncertain response", async () => {
   const attempt = new WriteAttempt();
   const writes: { key: string; title: string; version: number }[] = [];
@@ -17,6 +44,25 @@ it("retries the original payload and request key after an uncertain response", a
   expect(writes[0].key).toMatch(/^[0-9a-f-]{36}$/);
   await attempt.run(async()=>{writes.push({key:attempt.requestKey(),title:"다음 의도",version:5});});
   expect(writes[2].key).not.toBe(writes[0].key);
+});
+
+it("skips overlapping execution without a confirmed result while the original save completes", async () => {
+  const attempt = new WriteAttempt<{ id: string }>();
+  let complete!: (value: { id: string }) => void;
+  let overlappingCalls = 0;
+  const pending = attempt.run(() => new Promise((resolve) => { complete = resolve; }));
+
+  const skipped = await attempt.run(async () => {
+    overlappingCalls++;
+    return { id: "overlap" };
+  });
+  expect(skipped).toBeUndefined();
+  expect(overlappingCalls).toBe(0);
+  expect(attempt.snapshot().busy).toBe(true);
+
+  complete({ id: "confirmed" });
+  expect(await pending).toEqual({ id: "confirmed" });
+  expect(attempt.snapshot()).toEqual({ busy: false, uncertain: false });
 });
 
 it("keeps an in-progress attempt and ends it only after a definite failure", async () => {

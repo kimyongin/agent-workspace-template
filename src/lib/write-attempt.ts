@@ -14,9 +14,9 @@ export function freezeWrite(key:string, request:FrozenWrite):FrozenWrite {
   return attempt.freeze(request);
 }
 /** One logical attempt retains the exact operation until its outcome is definite. */
-export class WriteAttempt {
+export class WriteAttempt<Result = unknown> {
   private state = { busy: false, uncertain: false };
-  private retained: (() => Promise<void>) | null = null;
+  private retained: (() => Promise<Result>) | null = null;
   private key: string | null = null;
   private frozen: FrozenWrite | null = null;
   freeze(request:FrozenWrite) {
@@ -81,16 +81,17 @@ export class WriteAttempt {
     this.state = { busy, uncertain };
     for (const listener of this.listeners) listener();
   }
-  async run(operation: () => Promise<void>): Promise<void> {
+  async run(operation: () => Promise<Result>): Promise<Result | undefined> {
     if (this.state.busy) return;
     const execute = this.retained ?? operation;
     this.key ??= crypto.randomUUID();
     attempts.set(this.key, this);
     this.publish(true, this.state.uncertain);
     try {
-      await execute();
+      const result = await execute();
       this.finish();
       this.publish(false, false);
+      return result;
     } catch (error) {
       const uncertain = isUncertain(error);
       if (uncertain) { this.retained = execute; this.persist("unknown"); }
@@ -100,8 +101,8 @@ export class WriteAttempt {
     }
   }
 }
-export function useWriteAttempt() {
-  const [attempt] = useState(() => new WriteAttempt());
+export function useWriteAttempt<Result = unknown>() {
+  const [attempt] = useState(() => new WriteAttempt<Result>());
   useEffect(()=>()=>attempt.abandon(),[attempt]);
   return { attempt, ...useSyncExternalStore(attempt.subscribe, attempt.snapshot, attempt.snapshot) };
 }

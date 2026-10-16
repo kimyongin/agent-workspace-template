@@ -22,8 +22,7 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     latestReady: false,
     uncertain: false,
   };
-  const attempt=new WriteAttempt();
-  let retainedSaved:Saved | undefined;
+  const attempt=new WriteAttempt<Saved>();
   let request: AbortController | null = null;
   const listeners = new Set<() => void>();
   const emit = (patch: Partial<typeof state>) => {
@@ -47,13 +46,12 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     request = current;
     emit({ busy: true, operation, error: null, latestReady: false });
     try {
-      let saved:Saved;
+      let saved:Saved | undefined;
       if(operation === "read") saved=await adapter.read(current.signal);
       else {
-        await attempt.run(async()=>{retainedSaved=await adapter.save(frozenDraft,frozenSaved!,current.signal,attempt.requestKey());});
-        saved=retainedSaved!;
+        saved=await attempt.run(()=>adapter.save(frozenDraft,frozenSaved!,current.signal,attempt.requestKey()));
       }
-      if (current.signal.aborted || request !== current) return null;
+      if (saved === undefined || current.signal.aborted || request !== current) return null;
       const latest = adapter.toDraft(saved);
       const draft = operation === "read" && (state.conflict || state.dirty) ? state.draft : latest;
       const concurrent = operation === "read" && state.dirty && state.saved !== null && adapter.version !== undefined &&
