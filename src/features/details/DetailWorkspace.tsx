@@ -208,7 +208,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   return <WorkspaceContext.Provider value={{ revision, navigationKey: location.key, saved, open, registerGuard }}>
     <ResizablePanelGroup orientation="horizontal" className={cn("min-h-0 min-w-0", desktop && shown && "h-[calc(100dvh-3.5rem)]")} resizeTargetMinimumSize={{ coarse: 44, fine: 44 }}>
       <ResizablePanel id="list" minSize={desktop && shown ? "28rem" : 0} className="min-w-0">
-        <div className={cn("flex min-w-0 flex-col gap-5 p-4 lg:p-6", desktop && shown && "h-full overflow-y-auto overscroll-contain")} ref={listRef}>
+        <div className={cn("flex min-w-0 flex-col gap-5 p-4 lg:p-6", desktop && shown && "h-full overflow-y-auto overscroll-contain")} ref={listRef} role="region" aria-label="기본 작업 영역">
           {render(base)}
           {desktop && !visible && tabs.length > 0 && <Button variant="outline" className="self-end" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</Button>}
         </div>
