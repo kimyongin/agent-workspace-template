@@ -16,6 +16,8 @@ for (const exit of ["close", "back"] as const) {
       await link.click();
       await expect(page).toHaveURL(/\/records\//);
       await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+      // A retained detail is already visible; allow this navigation to paint before returning through history.
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       state.rows.records.push({ ...record(500 + n), body: `외부 추가 ${n}` });
       const search = page.getByRole("textbox", { name: /^검색어/ });
       await search.fill("아직 제출하지 않은 검색어");
