@@ -541,13 +541,10 @@ test("seven settings workspaces retain real API selections and stay within the v
     const destinations = [
       ["기본", "/settings"],
       ["자료", "/settings/materials"],
-      ["자료 모델 가져오기·내보내기", "/settings/data-model"],
-      ["자료 관계", "/settings/relations"],
       ["태그", "/settings/tags"],
       ["기록", "/settings/records"],
-      ["번호 출처", "/settings/issuers"],
     ] as const;
-    await expect(menu.getByRole("menuitem")).toHaveCount(7);
+    await expect(menu.getByRole("menuitem")).toHaveCount(4);
     await expect(menu.getByRole("menuitem")).toHaveText(destinations.map(([label]) => label));
     for (const [label, href] of destinations) {
       await expect(menu.getByRole("menuitem", { name: label, exact: true })).toHaveAttribute("href", href);
@@ -582,5 +579,20 @@ test("seven settings workspaces retain real API selections and stay within the v
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
       .toBe(true);
     await page.screenshot({ path: info.outputPath(`${path.slice(1).replaceAll("/", "-")}.png`), fullPage: true });
+  }
+  // Material workspaces share the official tabs rather than separate global menu items.
+  for (const [label, path] of [
+    ["자료 종류", "/settings/materials"],
+    ["연결 설정", "/settings/relations"],
+    ["번호 설정", "/settings/issuers"],
+    ["일괄 설정", "/settings/data-model"],
+  ] as const) {
+    const tabs = page.getByRole("tablist", { name: "자료 설정 항목", exact: true });
+    await expect(tabs.getByRole("tab")).toHaveCount(4);
+    await expect(tabs.getByRole("tab")).toHaveText(["자료 종류", "연결 설정", "번호 설정", "일괄 설정"]);
+    await tabs.getByRole("tab", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page.getByRole("heading", { name: "자료 설정", level: 1, exact: true })).toBeVisible();
+    await expect(tabs.getByRole("tab", { name: label, exact: true })).toHaveAttribute("aria-selected", "true");
   }
 });

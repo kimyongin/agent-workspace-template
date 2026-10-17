@@ -99,7 +99,7 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
     await expect(stale.getByLabel("이름", { exact: false })).toHaveValue("실패해도 보존할 초안");
     expect((await mcp.call("get_entity", { id: entityId })).properties.prop_1).toBe(updatedTitle);
-    await stale.getByRole("button", { name: "입력 항목 정의 다시 조회", exact: true }).click();
+    await stale.getByRole("button", { name: "속성 정의 다시 조회", exact: true }).click();
     await expect(stale.getByRole("region", { name: "현재 속성 정의 검토" })).toContainText("현재 정의 버전 3");
     await expect(stale.getByLabel("이름", { exact: false })).toHaveValue("실패해도 보존할 초안");
     await stale.getByRole("button", { name: "확인한 정의로 편집", exact: true }).click();
