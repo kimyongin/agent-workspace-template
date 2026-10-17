@@ -263,6 +263,11 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
   font-weight: 600;
 }
 
+/* Keep the dialog's initial focus without outlining its noninteractive heading. */
+.modal-head > .dialog-title[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
 .section-title {
   margin: 0;
   font-size: var(--text-label);
