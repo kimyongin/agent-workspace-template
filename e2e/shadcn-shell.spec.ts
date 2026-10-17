@@ -37,8 +37,8 @@ for (const scale of ["100", "110", "125", "150"]) {
 
 test("shell desktop: closing a detail returns long-list scrolling and append ownership to main", async ({ page }) => {
   const state = await fixture(page);
-  state.rows.entities = Array.from({ length: 59 }, (_, index) => entity(1000 + index, { prop_1: `스크롤 자료 ${index}` }));
-  state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20, 40), state.rows.entities.slice(40)]);
+  state.rows.entities = Array.from({ length: 61 }, (_, index) => entity(1000 + index, { prop_1: `스크롤 자료 ${index}` }));
+  state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20, 40), state.rows.entities.slice(40, 60), state.rows.entities.slice(60)]);
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/entities");
   const main = page.getByRole("main");
@@ -46,7 +46,7 @@ test("shell desktop: closing a detail returns long-list scrolling and append own
   await openListDetail(page, "스크롤 자료 19");
   // An external insertion pushes the return anchor to page two, requiring lookahead before append.
   state.rows.entities.unshift(entity(9999, { prop_1: "외부 추가 자료" }));
-  state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20, 40), state.rows.entities.slice(40)]);
+  state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20, 40), state.rows.entities.slice(40, 60), state.rows.entities.slice(60)]);
   await closeDetail(page, "스크롤 자료 19");
   const anchor = main.getByRole("button", { name: "스크롤 자료 19", exact: true });
   await expect(anchor).toBeFocused();
