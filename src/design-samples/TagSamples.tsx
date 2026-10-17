@@ -1,3 +1,5 @@
+import { FieldSet } from "../components/ui/field.tsx";
+import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
 import { useState } from "react";
 import { Field, Notice } from "../components/Field.tsx";
 import { TagSelection } from "../features/tags/TagSelection.tsx";
@@ -14,12 +16,12 @@ export function TagSamples() {
   const [mode, setMode] = useState("normal");
   const [selected, setSelected] = useState<string[]>([]);
   return (
-    <div className="samples-stack">
+    <div className="grid min-w-0 gap-4">
       <Field pair label="태그 예시 상태">
         {(props) => (
-          <select
+          <NativeSelect
             {...props}
-            className="input"
+
             value={mode}
             onChange={(event) => {
               const next = event.target.value;
@@ -35,20 +37,21 @@ export function TagSamples() {
               );
             }}
           >
-            <option value="normal">일반 선택</option>
-            <option value="single">단일 태그 필터</option>
-            <option value="excluded">제외한 기존 선택</option>
-            <option value="many">선택 한도</option>
-            <option value="empty">태그 없음</option>
-            <option value="loading">불러오는 중</option>
-            <option value="failure">조회 실패</option>
-            <option value="unknown">이름 확인 필요</option>
-            <option value="busy">저장 중</option>
-          </select>
+            <NativeSelectOption value="normal">일반 선택</NativeSelectOption>
+            <NativeSelectOption value="single">단일 태그 필터</NativeSelectOption>
+            <NativeSelectOption value="excluded">제외한 기존 선택</NativeSelectOption>
+            <NativeSelectOption value="many">선택 한도</NativeSelectOption>
+            <NativeSelectOption value="empty">태그 없음</NativeSelectOption>
+            <NativeSelectOption value="loading">불러오는 중</NativeSelectOption>
+            <NativeSelectOption value="failure">조회 실패</NativeSelectOption>
+            <NativeSelectOption value="unknown">이름 확인 필요</NativeSelectOption>
+            <NativeSelectOption value="busy">저장 중</NativeSelectOption>
+          </NativeSelect>
         )}
       </Field>
-      <fieldset disabled={mode === "busy"} className="plain-fieldset">
+      <FieldSet disabled={mode === "busy"} className="min-w-0 border-0 p-0">
         <TagSelection
+          disabled={mode === "busy"}
           label="기본 기록 태그"
           tags={mode === "loading" || mode === "failure"
             ? null
@@ -62,12 +65,12 @@ export function TagSamples() {
           value={selected}
           onChange={setSelected}
           status={mode === "loading"
-            ? <p className="secondary" role="status">태그를 불러오는 중…</p>
+            ? <p className="text-sm text-muted-foreground" role="status">태그를 불러오는 중…</p>
             : mode === "failure"
             ? <Notice kind="error">태그를 불러오지 못했습니다. 기존 선택은 유지합니다.</Notice>
             : undefined}
         />
-      </fieldset>
+      </FieldSet>
     </div>
   );
 }

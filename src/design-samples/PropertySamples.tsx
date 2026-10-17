@@ -1,6 +1,17 @@
+import { FieldLabel } from "../components/ui/field.tsx";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "../components/ui/collapsible.tsx";
+import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group.tsx";
+import { ArrowUpIcon, ArrowDownIcon, ChevronUpIcon, ChevronDownIcon } from "lucide-react";
+import { Item } from "../components/ui/item.tsx";
+import { FieldSet, FieldLegend } from "../components/ui/field.tsx";
+import { PlusIcon, RotateCcwIcon } from "lucide-react";
+import { Checkbox } from "../components/ui/checkbox.tsx";
+import { Input } from "../components/ui/input.tsx";
+import { Button } from "../components/ui/button.tsx";
+import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
 import { TemplateMemoEditor, type TemplateMemoHandle } from "../features/settings/TemplateMemoEditor.tsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BodyAction } from "../components/BodyAction.tsx";
+
 import { CollectionItem, CollectionList  } from "../components/Collection.tsx";
 import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
 import { Field } from "../components/Field.tsx";
@@ -32,21 +43,8 @@ type Plan = {
 const equal = (left: Property[], right: Property[]) => JSON.stringify(left) === JSON.stringify(right);
 
 function OrderIcon({ direction }: { direction: "up" | "down" }) {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d={direction === "up" ? "M12 19V5m-5 5 5-5 5 5" : "M12 5v14m-5-5 5 5 5-5"} />
-    </svg>
-  );
+  const Icon = direction === "up" ? ArrowUpIcon : ArrowDownIcon;
+  return <Icon data-icon="inline-start" />;
 }
 
 function PropertyList(
@@ -56,6 +54,7 @@ function PropertyList(
     errors: Record<string, string>;
   },
 ) {
+  const [advanced, setAdvanced] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<string[]>(["prop_2"]);
   const root = useRef<HTMLDivElement>(null);
   const movement = useRef<{ id: string; direction: number } | null>(null);
@@ -64,28 +63,26 @@ function PropertyList(
     if (!moved) return;
     movement.current = null;
     const row = root.current?.querySelector(`[data-property-id="${moved.id}"]`);
-    const buttons = row?.querySelectorAll<HTMLButtonElement>(".schema-order-actions button");
+    const buttons = row?.querySelectorAll<HTMLButtonElement>("[data-property-order]");
     const preferred = buttons?.[moved.direction < 0 ? 0 : 1];
     const other = buttons?.[moved.direction < 0 ? 1 : 0];
     const target = preferred && !preferred.disabled
       ? preferred
       : other && !other.disabled
       ? other
-      : row?.querySelector<HTMLButtonElement>(".schema-field-disclosure");
+      : row?.querySelector<HTMLButtonElement>("[data-property-disclosure]");
     target?.focus();
   }, [fields]);
   useEffect(() => {
     const ids = Object.keys(errors).map((key) => key.split(".")[0]);
-    if (ids.length) setExpanded((prior) => [...new Set([...prior, ...ids])]);
+    if (ids.length) { setExpanded(prior => [...new Set([...prior, ...ids])]); setAdvanced(prior => [...new Set([...prior, ...ids])]); }
   }, [errors]);
   useEffect(() => {
     if (Object.keys(errors).length) {
       const invalid = root.current?.querySelector<HTMLElement>("[aria-invalid='true']");
-      const advanced = invalid?.closest("details");
-      if (advanced) advanced.open = true;
       invalid?.focus();
     }
-  }, [errors, expanded]);
+  }, [errors, expanded, advanced]);
   const edit = (id: string, patch: Partial<Property>) =>
     onChange(fields.map((field) => field.id === id ? { ...field, ...patch } : field));
   const toggle = (id: string) =>
@@ -97,14 +94,14 @@ function PropertyList(
     onChange(next);
   };
   return (
-    <div ref={root}>
+    <RadioGroup ref={root} name="sample-representative" aria-label="자료 이름 항목" value={fields.find(field => field.representative)?.id ?? ""} onValueChange={id => onChange(fields.map(field => ({ ...field, representative: field.id === id })))}>
       <CollectionList label="입력 항목 예시">
         {fields.map((field, index) => {
           const open = expanded.includes(field.id);
           const bodyId = `sample-${field.id}-body`;
           const labelError = errors[`${field.id}.label`];
           const summary = (
-            <span className="secondary">
+            <span className="text-sm text-muted-foreground">
               {[
                 !open ? (field.type === "text" ? "텍스트" : "숫자") : null,
                 field.required ? "필수" : null,
@@ -114,118 +111,111 @@ function PropertyList(
           );
           return (
             <CollectionItem key={field.id}>
-              <div className="related-item schema-field" data-property-id={field.id} data-expanded={open || undefined}>
-                <div className="schema-field-heading">
-                  <div className="item-title" role="heading" aria-level={3}>
+              <Item variant="outline" className="min-w-0 flex-col items-stretch gap-4" data-property-id={field.id} data-expanded={open || undefined}>
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                  <div className="font-medium wrap-anywhere" role="heading" aria-level={3}>
                     {open
                       ? (
-                        <div className="schema-field-title">
-                          <Field pair fullWidth label="항목 이름" required error={labelError}>{props => <input {...props} className="input" required value={field.label} onChange={event => edit(field.id, { label: event.target.value })} />}</Field>
+                        <div className="min-w-0 flex-1">
+                          <Field pair fullWidth label="항목 이름" required error={labelError}>{props => <Input {...props}  required value={field.label} onChange={event => edit(field.id, { label: event.target.value })} />}</Field>
                           {summary}
                         </div>
                       )
                       : (
-                        <button
+                        <Button variant="outline"
                           type="button"
-                          className="schema-field-title related-toggle item-title"
+                          className="flex-1 h-auto min-h-11 min-w-0 justify-start whitespace-normal text-left font-medium wrap-anywhere"
                           aria-expanded={open}
                           aria-controls={bodyId}
                           onClick={() => {
                             toggle(field.id);
                             requestAnimationFrame(() => {
                               root.current?.querySelector<HTMLInputElement>(
-                                `[data-property-id="${field.id}"] .schema-field-title input`,
+                                `[data-property-id="${field.id}"] [data-field-control]`,
                               )?.focus({ preventScroll: true });
                             });
                           }}
                         >
                           <span>{field.label || "새 항목"}</span>
                           {summary}
-                        </button>
+                        </Button>
                       )}
                   </div>
-                  <div className="schema-order-actions">
-                    <BodyAction
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost"
                       type="button"
-                      className="item-icon"
+                      size="icon" data-property-order=""
                       aria-label={`${field.label || "새 항목"} 위로 이동`}
                       disabled={index === 0}
                       onClick={() => move(index, -1)}
                     >
                       <OrderIcon direction="up" />
-                    </BodyAction>
-                    <BodyAction
+                    </Button>
+                    <Button variant="ghost"
                       type="button"
-                      className="item-icon"
+                      size="icon" data-property-order=""
                       aria-label={`${field.label || "새 항목"} 아래로 이동`}
                       disabled={index === fields.length - 1}
                       onClick={() => move(index, 1)}
                     >
                       <OrderIcon direction="down" />
-                    </BodyAction>
+                    </Button>
                   </div>
-                  <button
+                  <Button variant="outline"
                     type="button"
-                    className="material-section-toggle schema-field-disclosure"
+                    className="justify-start min-w-0" data-property-disclosure=""
                     aria-label={`${field.label || "새 항목"} ${open ? "접기" : "펼치기"}`}
                     aria-expanded={open}
                     aria-controls={bodyId}
                     onClick={() => toggle(field.id)}
                   >
-                  </button>
+                    {open ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                  </Button>
                 </div>
-                <fieldset id={bodyId} hidden={!open} className="plain-fieldset key-value-grid">
-                  <legend className="visually-hidden">{field.label || "새 항목"} 편집</legend>
+                <FieldSet id={bodyId} hidden={!open} className="border-0 p-0 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+                  <FieldLegend className="sr-only">{field.label || "새 항목"} 편집</FieldLegend>
                   <Field pair label="데이터 타입">
                     {(props) => (
-                      <select
+                      <NativeSelect
                         {...props}
-                        className="input"
+
                         value={field.type}
                         onChange={(event) => edit(field.id, { type: event.target.value as Property["type"] })}
                       >
-                        <option value="text">텍스트</option>
-                        <option value="number">숫자</option>
-                      </select>
+                        <NativeSelectOption value="text">텍스트</NativeSelectOption>
+                        <NativeSelectOption value="number">숫자</NativeSelectOption>
+                      </NativeSelect>
                     )}
                   </Field>
-                  <div className="schema-representative-setting">
-                    <label className="schema-representative-choice settings-choice-pair">
-                      <input
-                        type="radio"
-                        name="sample-representative"
-                        aria-label={`${field.label || "새 항목"} 자료 이름으로 사용`}
-                        checked={field.representative}
-                        disabled={field.type !== "text" || !field.required}
-                        onChange={() =>
-                          onChange(fields.map((value) => ({ ...value, representative: value.id === field.id })))}
-                      />
+                  <div className="flex min-w-0 flex-col gap-3">
+                    <FieldLabel className="min-h-11 w-full flex-wrap items-center gap-3">
+                      <RadioGroupItem value={field.id} aria-label={`${field.label || "새 항목"} 자료 이름으로 사용`} disabled={field.type !== "text" || !field.required} />
                       <span>자료 이름으로 사용</span>
-                    </label>
+                    </FieldLabel>
                   </div>
-                  <details className="schema-advanced">
-                    <summary className="secondary">추가 설정</summary>
-                    <div className="key-value-grid">
-                      <label className="choice-control settings-choice-pair">
-                        <input
-                          type="checkbox"
+                  <Collapsible open={advanced.includes(field.id)} onOpenChange={next => setAdvanced(prior => next ? [...prior, field.id] : prior.filter(id => id !== field.id))} className="flex min-w-0 flex-col gap-4">
+                    <CollapsibleTrigger asChild><Button type="button" variant="ghost">추가 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount hidden={!advanced.includes(field.id)}>
+                    <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+                      <FieldLabel className="min-h-11 w-full flex-wrap items-center gap-3">
+                        <Checkbox
+
                           checked={field.required}
-                          onChange={(event) => edit(field.id, { required: event.target.checked })}
+                          onCheckedChange={(checked) => edit(field.id, { required: (checked === true) })}
                         />필수 입력
-                      </label>
-                      <label className="choice-control settings-choice-pair">
-                        <input
-                          type="checkbox"
+                      </FieldLabel>
+                      <FieldLabel className="min-h-11 w-full flex-wrap items-center gap-3">
+                        <Checkbox
+
                           checked={field.listed}
-                          onChange={(event) => edit(field.id, { listed: event.target.checked })}
+                          onCheckedChange={(checked) => edit(field.id, { listed: (checked === true) })}
                         />목록에 표시
-                      </label>
+                      </FieldLabel>
                       {field.type === "text" && (
                         <Field pair label="최대 길이" error={errors[`${field.id}.maxLength`]}>
                           {(props) => (
-                            <input
+                            <Input
                               {...props}
-                              className="input"
+
                               type="number"
                               min="1"
                               value={field.maxLength}
@@ -234,24 +224,24 @@ function PropertyList(
                           )}
                         </Field>
                       )}
-                      <div className="actions schema-actions">
-                        <button
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="destructive"
                           type="button"
-                          className="btn btn-danger"
+
                           onClick={() => onChange(fields.filter((value) => value.id !== field.id))}
                         >
                           항목 삭제
-                        </button>
+                        </Button>
                       </div>
                     </div>
-                  </details>
-                </fieldset>
-              </div>
+                  </CollapsibleContent></Collapsible>
+                </FieldSet>
+              </Item>
             </CollectionItem>
           );
         })}
       </CollectionList>
-    </div>
+    </RadioGroup>
   );
 }
 
@@ -330,6 +320,7 @@ export function MaterialWorkspaceSample() {
   const nextField = useRef(3), nextPlan = useRef(2);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [advanced, setAdvanced] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<number[]>([]);
   const [action, setAction] = useState<{ kind: "apply" | "discard"; plan: Plan } | null>(null);
   const [message, setMessage] = useState("예: ‘수량’을 ‘재고 수량’으로 바꾼 초안입니다. 변경 검토를 눌러보세요.");
@@ -392,36 +383,36 @@ export function MaterialWorkspaceSample() {
     setAction(null);
   };
   return (
-    <div className="settings samples-stack">
+    <div className="flex-col grid min-w-0 gap-4">
       <MaterialSettingsSection
         title="기본 정보"
         state={{ dirty: typeName !== savedTypeName, busy: false }}
       >
         <Field pair label="종류 이름">
           {(props) => (
-            <input
+            <Input
               {...props}
-              className="input"
+
               value={typeName}
               onChange={(event) => setTypeName(event.target.value)}
             />
           )}
         </Field>
-        <div className="settings-section-footer">
-          <div className="actions schema-actions">
-            <button type="button" className="btn" aria-label="변경 취소" onClick={() => setTypeName(savedTypeName)}>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" type="button"  aria-label="변경 취소" onClick={() => setTypeName(savedTypeName)}>
               취소
-            </button>
-            <button
+            </Button>
+            <Button variant="default"
               type="button"
-              className="btn btn-primary"
+
               onClick={() => {
                 setSavedTypeName(typeName);
                 setMessage("예시 기본 정보를 저장했습니다.");
               }}
             >
               저장
-            </button>
+            </Button>
           </div>
         </div>
       </MaterialSettingsSection>
@@ -440,8 +431,8 @@ export function MaterialWorkspaceSample() {
           }}
         />
         <div>
-          <BodyAction
-            icon="create"
+          <Button variant="ghost" type="button"
+
             onClick={() =>
               setDraft([...draft, {
                 id: `prop_${nextField.current++}`,
@@ -452,14 +443,14 @@ export function MaterialWorkspaceSample() {
                 representative: false,
                 maxLength: "",
               }])}
-          >
+          ><PlusIcon data-icon="inline-start" />
             항목 추가
-          </BodyAction>
+          </Button>
         </div>
-        <div className="settings-section-footer">
-          <div className="actions schema-actions">
-            <button type="button" className="btn" onClick={() => setDraft(structuredClone(current))}>변경 취소</button>
-            <button type="button" className="btn btn-primary" onClick={review}>변경 검토</button>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" type="button"  onClick={() => setDraft(structuredClone(current))}>변경 취소</Button>
+            <Button variant="default" type="button"  onClick={review}>변경 검토</Button>
           </div>
         </div>
       </MaterialSettingsSection>
@@ -468,28 +459,28 @@ export function MaterialWorkspaceSample() {
         summary="종류별 문구"
         state={{ dirty: template !== savedTemplate, busy: false }}
       >
-        <div className="key-value-grid">
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
           <Field pair label="액션">
             {(props) => (
-              <select {...props} className="input">
-                <option>수정</option>
-              </select>
+              <NativeSelect {...props} >
+                <NativeSelectOption>수정</NativeSelectOption>
+              </NativeSelect>
             )}
           </Field>
           <Field pair label="변수 삽입">
             {(props) => (
-              <select
+              <NativeSelect
                 {...props}
-                className="input"
+
                 value=""
                 onChange={(event) => {
                   templateInput.current?.insert(event.target.value);
                 }}
               >
-                <option value="" disabled>변수를 선택하세요</option>
-                <option value="대상">대상</option>
-                <option value="액션">액션</option>
-              </select>
+                <NativeSelectOption value="" disabled>변수를 선택하세요</NativeSelectOption>
+                <NativeSelectOption value="대상">대상</NativeSelectOption>
+                <NativeSelectOption value="액션">액션</NativeSelectOption>
+              </NativeSelect>
             )}
           </Field>
           <Field pair fullWidth label="메모 템플릿" help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요.">
@@ -504,23 +495,23 @@ export function MaterialWorkspaceSample() {
             )}
           </Field>
           {template !== "$대상$ $액션$" && (
-            <div className="record-template-defaults">
-              <BodyAction icon="reset" onClick={() => setTemplate("$대상$ $액션$")}>기본 문구로 되돌리기</BodyAction>
+            <div className="flex min-w-0 flex-col gap-5">
+              <Button variant="ghost" type="button"  onClick={() => setTemplate("$대상$ $액션$")}><RotateCcwIcon data-icon="inline-start" />기본 문구로 되돌리기</Button>
             </div>
           )}
         </div>
-        <div className="settings-section-footer">
-          <div className="actions schema-actions">
-            <button
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="default"
               type="button"
-              className="btn btn-primary"
+
               onClick={() => {
                 setSavedTemplate(template);
                 setMessage("예시 기록 문구를 저장했습니다.");
               }}
             >
               저장
-            </button>
+            </Button>
           </div>
         </div>
       </MaterialSettingsSection>
@@ -536,33 +527,33 @@ export function MaterialWorkspaceSample() {
             const id = `sample-plan-${plan.id}`;
             return (
               <CollectionItem key={plan.id}>
-                <div className="related-item schema-history-row" data-expanded={open || undefined}>
-                  <h3 className="related-item-title">
-                    <button
+                <Item variant="outline" className="min-w-0 flex-col items-stretch gap-4" data-expanded={open || undefined}>
+                  <h3 className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                    <Button variant="outline"
                       type="button"
-                      className="material-section-toggle schema-history-toggle item-title"
+                      className="h-auto min-h-11 min-w-0 justify-start whitespace-normal text-left font-medium wrap-anywhere"
                       aria-expanded={open}
                       aria-controls={id}
                       onClick={() =>
                         setExpanded((prior) => open ? prior.filter((value) => value !== plan.id) : [...prior, plan.id])}
                     >
-                      <span className="schema-history-heading">
+                      <span className="flex min-w-0 flex-wrap items-center gap-3">
                         <span>입력 항목 변경</span>
-                        <time className="secondary" dateTime="2026-10-14T03:51:12Z">시각 2026. 10. 14. 오후 12:51:12</time>
+                        <time className="text-sm text-muted-foreground" dateTime="2026-10-14T03:51:12Z">시각 2026. 10. 14. 오후 12:51:12</time>
                       </span>
-                      <span className="secondary schema-history-status">
+                      <span className="text-sm text-muted-foreground">
                         상태 버전 {plan.version} ·{" "}
                         {plan.status === "applied" ? "적용됨" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}
                       </span>
-                    </button>
+                    </Button>
                   </h3>
-                  <div id={id} hidden={!open} className="related-preview">
+                  <div id={id} hidden={!open} className="min-w-0 border-t pt-4">
                     <PropertyDefinition fields={plan.after} />
-                    <div className="schema-history-result">
-                      <h4 className="section-title">변경 결과</h4>
-                      <dl className="key-value-grid key-value-static"><div><dt>버전</dt><dd>{plan.version - 1} → {plan.version} · {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</dd></div></dl>
-                      <dl className="key-value-grid key-value-static">{changes(plan).map((change, index) => <div className="key-value-full" key={index}><dt>변경</dt><dd>{change}</dd></div>)}</dl>
-                      <p className="secondary">
+                    <div className="min-w-0">
+                      <h4 className="text-base font-semibold">변경 결과</h4>
+                      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>버전</dt><dd>{plan.version - 1} → {plan.version} · {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</dd></div></dl>
+                      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">{changes(plan).map((change, index) => <div className="col-span-full" key={index}><dt>변경</dt><dd>{change}</dd></div>)}</dl>
+                      <p className="text-sm text-muted-foreground">
                         {plan.status === "applied"
                           ? "예시 입력 항목에 적용했습니다."
                           : plan.status === "discarded"
@@ -571,39 +562,39 @@ export function MaterialWorkspaceSample() {
                       </p>
                     </div>
                     {plan.status === "reviewed" && (
-                      <div className="settings-section-footer">
-                        <div className="actions schema-actions">
-                          <button
+                      <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button variant="destructive"
                             type="button"
-                            className="btn btn-danger"
+
                             onClick={() => setAction({ kind: "discard", plan })}
                           >
                             폐기
-                          </button>
-                          <button
+                          </Button>
+                          <Button variant="default"
                             type="button"
-                            className="btn btn-primary"
+
                             onClick={() => setAction({ kind: "apply", plan })}
                           >
                             변경 적용
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     )}
                   </div>
-                </div>
+                </Item>
               </CollectionItem>
             );
           })}
         </CollectionList>
       </MaterialSettingsSection>
-      <p className="secondary samples-status" role="status">{message}</p>
+      <p className="text-sm text-muted-foreground m-0" role="status">{message}</p>
       <ConfirmDialog
         open={!!action}
         title={action?.kind === "discard" ? "변경안을 폐기할까요?" : "변경안을 적용할까요?"}
         message={action?.kind === "discard"
           ? "이 변경안을 더 이상 적용하지 않습니다. 입력 초안과 현재 버전은 유지됩니다."
-          : <><dl className="key-value-grid key-value-static"><div><dt>버전</dt><dd>{action?.plan.version}</dd></div></dl><p>예시 입력 항목을 적용합니다.</p></>}
+          : <><dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>버전</dt><dd>{action?.plan.version}</dd></div></dl><p>예시 입력 항목을 적용합니다.</p></>}
         danger={action?.kind === "discard"}
         confirmLabel={action?.kind === "discard" ? "변경안 폐기" : "변경 적용"}
         onCancel={() => setAction(null)}

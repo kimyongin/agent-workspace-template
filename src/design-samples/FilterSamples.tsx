@@ -70,8 +70,8 @@ export function FilterSamples() {
   );
   if (applied.sort === "title") rows.sort((a, b) => a.prop_1.localeCompare(b.prop_1, "ko"));
   return (
-    <div className="samples-stack">
-      <div className="query-bar">
+    <div className="grid min-w-0 gap-4">
+      <div className="flex min-w-0 flex-wrap items-end gap-3">
         <div className="tab-filters">
           <FilterPanel
             dirty={dirty}
@@ -88,7 +88,7 @@ export function FilterSamples() {
               }
             }}
           >
-            <div className="filter-grid" role="group" aria-label="자료 필터">
+            <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4" role="group" aria-label="자료 필터">
               <TypedEntityFilters
                 schema={schema}
                 raw={draft.raw || null}
@@ -108,15 +108,15 @@ export function FilterSamples() {
         </div>
       </div>
       <section aria-label="적용된 조건의 자료 목록">
-        <h3 className="section-title">자료 · {rows.length}개</h3>
-        <ul className="list">
+        <h3 className="text-base font-semibold">자료 · {rows.length}개</h3>
+        <ul className="flex min-w-0 flex-col gap-3">
           {rows.map((row) => (
-            <li className="list-item" key={row.id}>
-              <dl className="key-value-grid key-value-static"><div><dt>이름</dt><dd>{row.prop_1}</dd></div></dl>
+            <li className="min-w-0" key={row.id}>
+              <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>이름</dt><dd>{row.prop_1}</dd></div></dl>
             </li>
           ))}
         </ul>
-        {!rows.length && <p className="secondary">조건에 맞는 자료가 없습니다.</p>}
+        {!rows.length && <p className="text-sm text-muted-foreground">조건에 맞는 자료가 없습니다.</p>}
       </section>
     </div>
   );
