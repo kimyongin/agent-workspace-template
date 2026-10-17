@@ -411,7 +411,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
     .click();
   await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
-  await page.getByRole("region", { name: "자료 번호", exact: true }).locator("button").click();
+  await page.getByRole("region", { name: "자료 번호", exact: true }).getByRole("heading", { level: 2 }).first().getByRole("button").click();
   const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
   await record.getByLabel("이름", { exact: false }).fill("남길 자료 번호 입력");
   complete = true;
@@ -952,7 +952,7 @@ test(
     });
     await expect(page.getByRole("region", { name: "화면 표시", exact: true }))
       .toHaveCount(0);
-    await expect(properties.getByLabel("자료 이름으로 사용할 항목")).toHaveCount(0);
+    await expect(properties.getByRole("radiogroup", { name: "자료 이름으로 사용할 항목", exact: true })).toBeVisible();
     await page.getByRole("button", { name: /^재료명 항목 (?:펼치기|접기)$/, exact: true }).click();
     await expect(properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true })).toBeChecked();
     await expect(properties.getByRole("radio", { name: "수량 자료 이름으로 사용", exact: true })).toBeDisabled();
@@ -1008,7 +1008,7 @@ test(
     const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
     await expect(deletion).toHaveAttribute("data-variant", "destructive");
     await quantity.getByText("추가 설정", { exact: true }).click();
-    await page.getByRole("region", { name: "자료 번호", exact: true }).locator("button").click();
+    await page.getByRole("region", { name: "자료 번호", exact: true }).getByRole("heading", { level: 2 }).first().getByRole("button").click();
     const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
     await expect(record).toBeVisible();
     await expect(page.getByRole("heading", { name: /^자료 번호/ })).toHaveCount(1);
@@ -1016,7 +1016,7 @@ test(
       path: info.outputPath("identity-settings-flat.png"),
       fullPage: true,
     });
-    await page.getByRole("region", { name: "자료 번호", exact: true }).locator("button").click();
+    await page.getByRole("region", { name: "자료 번호", exact: true }).getByRole("heading", { level: 2 }).first().getByRole("button").click();
     await page.screenshot({
       path: info.outputPath("property-display-settings.png"),
       fullPage: true,
