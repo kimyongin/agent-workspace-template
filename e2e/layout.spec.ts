@@ -88,12 +88,12 @@ test.describe("화면 폭별 배치", () => {
         const detail=detailDialog(page);
         if(/\/(tasks|records)\/[^/?]+/.test(new URL(path,"http://fixture.invalid").pathname))await expect(detail.locator("[data-slot=\"dialog-title\"]")).toBeVisible();
         else await expect(page.getByRole("heading",{level:1})).toBeVisible();
-        expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);
+        await expect.poll(() => layoutProblems(page), { message: `${width}px ${path}` }).toEqual([]);
       }
       await page.goto("/tasks");
       await beginTabAction(page,"할 일 추가");
       await expect(page.getByRole("dialog", { name: "할 일 추가" })).toBeVisible();
-      expect(await layoutProblems(page), `${width}px 작성 대화상자`).toEqual([]);
+      await expect.poll(() => layoutProblems(page), { message: `${width}px 작성 대화상자` }).toEqual([]);
       const box = await page.getByRole("dialog", { name: "할 일 추가" }).boundingBox();
       expect(box!.x).toBeGreaterThanOrEqual(-1);
       expect(box!.y).toBeGreaterThanOrEqual(-1);
