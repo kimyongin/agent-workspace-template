@@ -165,10 +165,11 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
 test("보조 글자와 상태 표시의 대비가 검수 목표 이상이다", async ({ page }, info) => {
   await devLogin(page);
   const results: { label: string; ratio: number; foreground: string; background: number[]; target: number }[] = [];
-  const check = async (node: import("@playwright/test").Locator, label: string, boundary = false) => {
+  const check = async (node: import("@playwright/test").Locator, label: string, kind: "text" | "boundary" | "focus" = "text", unfocusedShadow = "none") => {
     await expect(node).toBeVisible();
     await expect(node).toBeEnabled();
-    const measured = await node.evaluate((element, boundary) => {
+    const measured = await node.evaluate((element, { kind, unfocusedShadow }) => {
+      const boundary = kind === "boundary";
       const canvas = document.createElement("canvas");
       canvas.width = canvas.height = 1;
       const context = canvas.getContext("2d", { willReadFrequently: true })!;
@@ -202,9 +203,36 @@ test("보조 글자와 상태 표시의 대비가 검수 목표 이상이다", a
         const [light, dark] = [luminance(a), luminance(b)].sort((a, b) => b - a);
         return (light + 0.05) / (dark + 0.05);
       };
+      if (kind === "focus") {
+        // Separate shadow layers/tokens only at top level: commas/spaces inside CSS colors are paint syntax.
+        const split = (value: string, comma: boolean) => {
+          const parts: string[] = [];
+          let depth = 0, token = "";
+          for (const character of value) {
+            if (character === "(") depth++;
+            if (character === ")") depth--;
+            if (depth === 0 && (comma ? character === "," : /\s/.test(character))) {
+              if (token.trim()) parts.push(token.trim());
+              token = "";
+            } else token += character;
+          }
+          if (token.trim()) parts.push(token.trim());
+          return parts;
+        };
+        const previous = new Set(split(unfocusedShadow, true));
+        const rings = split(style.boxShadow, true).filter(layer => !previous.has(layer)).flatMap(layer => {
+          const tokens = split(layer, false), paint = tokens.find(token => CSS.supports("color", token));
+          const lengths = tokens.filter(token => token !== paint && token !== "inset").map(Number.parseFloat);
+          // Official ring utilities paint a solid, centered, zero-blur outset spread; do not treat a blurred decorative shadow as its full color.
+          return paint && !tokens.includes("inset") && lengths[0] === 0 && lengths[1] === 0 && lengths[2] === 0 && lengths[3] > 0 && rgba(paint)[3] > 0 ? [paint] : [];
+        });
+        if (!rings.length) throw new Error(`Focused input has no added solid outer ring: ${style.boxShadow}`);
+        const ring = rings.reverse().reduce((paint, layer) => blend(rgba(layer), paint), outside);
+        return { ratio: ratio(ring, outside), foreground: style.boxShadow, background: outside };
+      }
       return { ratio: boundary ? Math.min(ratio(painted, inside), ratio(painted, outside)) : ratio(painted, inside), foreground, background: inside };
-    }, boundary);
-    const target = boundary ? 3 : 4.5;
+    }, { kind, unfocusedShadow });
+    const target = kind === "text" ? 4.5 : 3;
     results.push({ label, ...measured, target });
     expect.soft(measured.ratio, `${label}: ${measured.ratio.toFixed(2)}:1 (target ${target}:1)`).toBeGreaterThanOrEqual(target);
   };
@@ -220,10 +248,16 @@ test("보조 글자와 상태 표시의 대비가 검수 목표 이상이다", a
   await check(forms.getByRole("textbox", { name: "읽기 전용", exact: true }), "Readonly input text");
   // Disabled controls and decorative section dividers are excluded by the guide; enabled input identity is not.
   const input = forms.getByRole("textbox", { name: "상품명 (필수)", exact: true });
-  await check(input, "Enabled input boundary", true);
+  await check(input, "Enabled input boundary", "boundary");
+  const unfocusedShadow = await input.evaluate(element => getComputedStyle(element).boxShadow);
+  await input.focus();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  await expect(input).toBeFocused();
+  await check(input, "Keyboard focus ring", "focus", unfocusedShadow);
   await forms.getByRole("button", { name: "입력 확인", exact: true }).click();
   await check(forms.getByText("상품명을 입력하세요.", { exact: true }), "Validation error text");
-  await check(input, "Invalid input boundary", true);
+  await check(input, "Invalid input boundary", "boundary");
   await input.fill("대비 검수 상품");
   await forms.getByRole("button", { name: "입력 확인", exact: true }).click();
   await check(forms.getByRole("status").getByText("입력 조건을 충족합니다.", { exact: true }), "Success status text");
