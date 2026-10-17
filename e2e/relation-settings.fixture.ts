@@ -107,7 +107,7 @@ test(
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: info.outputPath(`relation-pairs-${width}.png`), fullPage: true });
     }
-    await page.locator(".material-relation-settings").evaluate((panel) => {
+    await page.getByRole("region", { name: "연결 설정", exact: true }).evaluate((panel) => {
       (panel as HTMLElement).style.maxWidth = "360px";
     });
     await page.screenshot({ path: info.outputPath("relation-pairs-narrow-parent.png"), fullPage: true });

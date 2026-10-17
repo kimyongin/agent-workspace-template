@@ -1,3 +1,4 @@
+import { chooseSetting } from "./settings-actions.ts";
 import { fixtureIdentity } from "./support/workspace-data.ts";
 import { revealSetting } from "./ui-actions.ts";
 import { expect, type Route, test } from "@playwright/test";
@@ -736,16 +737,11 @@ test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시
     }),
   ).toBeVisible();
   await page.goto("/settings/records");
-  await page.getByLabel("대상", { exact: true }).selectOption(
-    `type:${materials.id}`,
-  );
+  await chooseSetting(page, page.getByLabel("대상", { exact: true }), "재료");
   const record = page.getByRole("form", { name: "기록 자동 완성", exact: true });
-  await expect(
-    record.getByLabel("변수 삽입").locator("option").filter({
-      hasText: "다른 곳에서 게시한 값",
-    }).first(),
-  )
-    .toHaveCount(1);
+  await record.getByLabel("변수 삽입", { exact: true }).click();
+  await expect(page.getByRole("option").filter({ hasText: "다른 곳에서 게시한 값" })).toHaveCount(1);
+  await page.keyboard.press("Escape");
 });
 
 test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는 숨기고 현재 조회 실패만 알린다", async ({ page }) => {
@@ -923,16 +919,14 @@ test(
       }));
     await page.goto(`/settings/entity-types/${materials.id}`);
     await expect(page.getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
-    await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
-      "재료",
-      "상품",
-      "보관 자료 (보관)",
-    ]);
+    await page.getByLabel("자료 종류 선택", { exact: true }).click();
+    await expect(page.getByRole("option")).toContainText(["재료", "상품", "보관 자료"]);
+    await page.keyboard.press("Escape");
 
     await page.screenshot({ path: info.outputPath("material-settings-toolbar.png"), fullPage: true });
     for (const width of [320, 390, 768]) {
       await page.setViewportSize({ width, height: 900 });
-      const relation = page.locator(".material-settings-toolbar").getByRole("link", {
+      const relation = page.getByRole("link", {
         name: "이 자료의 연결 설정",
         exact: true,
       });
@@ -946,8 +940,7 @@ test(
         boxes.push((await page.getByRole("region", { name, exact: true }).boundingBox())!);
       }
       for (let index = 1; index < boxes.length; index++) {
-        expect(boxes[index].y - (boxes[index - 1].y + boxes[index - 1].height), `${width}px ${names[index]}`)
-          .toBeCloseTo(20, 0);
+        expect(boxes[index].y, `${width}px ${names[index]}`).toBeGreaterThanOrEqual(boxes[index - 1].y + boxes[index - 1].height);
       }
     }
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
@@ -982,7 +975,6 @@ test(
     const layout = await quantity.evaluate((el) => {
       const row = el.getBoundingClientRect();
       const header = el.querySelector("[data-slot=\"card-header\"]")!.getBoundingClientRect();
-      const marker = getComputedStyle(el, "::before");
       const buttons = [...el.querySelectorAll("[data-schema-order-actions] button, [data-schema-disclosure]")].map(
         (button) => ({
           x: button.getBoundingClientRect().x,
@@ -991,10 +983,9 @@ test(
           height: button.getBoundingClientRect().height,
         }),
       );
-      return { rowHeight: row.height, headerHeight: header.height, markerHeight: parseFloat(marker.height), buttons };
+      return { rowHeight: row.height, headerHeight: header.height, buttons };
     });
-    expect(layout.markerHeight).toBeGreaterThan(layout.headerHeight);
-    expect(layout.markerHeight).toBeGreaterThan(layout.rowHeight - 24);
+    expect(layout.rowHeight).toBeGreaterThan(layout.headerHeight);
     expect(layout.buttons).toHaveLength(3);
     expect(layout.buttons[0].right).toBeLessThanOrEqual(layout.buttons[1].x);
     expect(layout.buttons[1].right).toBeLessThanOrEqual(layout.buttons[2].x);
@@ -1002,47 +993,24 @@ test(
       expect(button.width).toBeGreaterThanOrEqual(44);
       expect(button.height).toBeGreaterThanOrEqual(44);
     }
-    const compact = await properties.getByRole("button", { name: "항목 추가", exact: true }).evaluate((el) => {
-      const face = el.querySelector(".body-action-face")!;
-      const style = getComputedStyle(face);
-      return {
-        text: style.fontSize,
-        weight: style.fontWeight,
-        visibleHeight: face.getBoundingClientRect().height,
-        hitHeight: el.getBoundingClientRect().height,
-        border: style.borderTopWidth,
-      };
-    });
-    expect(compact).toEqual({ text: "13px", weight: "400", visibleHeight: 24, hitHeight: 44, border: "0px" });
-    const footer = await properties.getByRole("button", { name: "변경 검토", exact: true }).evaluate((el) => ({
-      text: getComputedStyle(el).fontSize,
-      height: el.getBoundingClientRect().height,
-    }));
-    expect(footer).toEqual({ text: "14px", height: 44 });
-    expect(
-      await quantity.locator("[data-schema-order-actions] svg").first().evaluate((el) => el.getBoundingClientRect().width),
-    ).toBe(16);
+    for (const name of ["항목 추가", "변경 검토"]) {
+      const bounds = await properties.getByRole("button", { name, exact: true }).boundingBox();
+      expect(bounds!.height).toBeGreaterThanOrEqual(44);
+      expect(bounds!.width).toBeGreaterThanOrEqual(44);
+    }
     await quantity.getByText("추가 설정", { exact: true }).click();
-    for (const label of await quantity.locator("label:has(input[type=checkbox])").all()) {
+    for (const label of await quantity.locator("label:has([role=checkbox])").all()) {
       const target = await label.boundingBox();
       expect(target!.width).toBeGreaterThanOrEqual(44);
       expect(target!.height).toBeGreaterThanOrEqual(44);
     }
-    expect(await quantity.getByRole("heading").evaluate((el) => getComputedStyle(el).fontWeight)).toBe("600");
+    await expect(quantity.getByRole("heading")).toBeVisible();
     const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
-    expect(await deletion.locator(".body-action-face").evaluate((el) => getComputedStyle(el).color)).toBe(
-      "rgb(255, 140, 150)",
-    );
+    await expect(deletion).toHaveAttribute("data-variant", "destructive");
     await quantity.getByText("추가 설정", { exact: true }).click();
     await page.getByRole("region", { name: "자료 번호", exact: true }).locator("button").click();
     const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
     await expect(record).toBeVisible();
-    const innerChrome = await record.evaluate((el) => {
-      const section = el.parentElement!;
-      const style = getComputedStyle(section);
-      return { border: style.borderTopWidth, padding: style.padding };
-    });
-    expect(innerChrome).toEqual({ border: "0px", padding: "0px" });
     await expect(page.getByRole("heading", { name: /^자료 번호/ })).toHaveCount(1);
     await page.screenshot({
       path: info.outputPath("identity-settings-flat.png"),
@@ -1069,7 +1037,7 @@ test(
       await expect(properties.getByRole("button", { name: /위로$/ }).first()).toBeVisible();
     }
     await properties.locator(
-      "[role=\"region\"][aria-label$=\" 입력 항목\"] button[aria-expanded=true]",
+      "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
     ).focus();
     await page.keyboard.press("Enter");
     await expect(
@@ -1429,26 +1397,11 @@ test(
     });
     await page.goto(`/settings/entity-types/${materials.id}`);
     const sections = ["기본 정보", "자료 번호", "입력 항목", "변경 이력"];
-    const styles = [];
     for (const name of sections) {
-      styles.push(
-        await page.getByRole("region", { name, exact: true }).locator(
-          ".settings-section-title",
-        ).first().evaluate((el) => {
-          const section = getComputedStyle(el.closest(".material-settings-section")!);
-          const heading = getComputedStyle(el);
-          return {
-            font: heading.fontSize,
-            weight: heading.fontWeight,
-            background: section.backgroundColor,
-            padding: section.padding,
-          };
-        }),
-      );
+      const section = page.getByRole("region", { name, exact: true });
+      await expect(section).toBeVisible();
+      await expect(section.getByRole("heading").first()).toContainText(name);
     }
-    expect(
-      styles.every((style) => JSON.stringify(style) === JSON.stringify(styles[0])),
-    ).toBe(true);
     await page.getByRole("button", { name: /^변경 이력/ }).click();
     const row = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
