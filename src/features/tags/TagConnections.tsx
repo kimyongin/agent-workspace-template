@@ -1,6 +1,9 @@
+import { PlusIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FieldSet } from "@/components/ui/field";
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { entityPath } from "@contracts/entity-identity.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { Notice } from "../../components/Field.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { useRecordConfirmation } from "../../components/RecordConfirmation.tsx";
@@ -11,13 +14,13 @@ export function ReadonlyTags(
   { ids, scope, onRemove }: { ids: string[]; scope: TagScope; onRemove?: (id: string) => void },
 ) {
   return (
-    <dl className="key-value-static tag-connection-data">
+    <dl className="grid min-w-0 gap-2 [&_dt]:text-sm [&_dt]:text-muted-foreground">
       <div>
         <dt>태그</dt>
         <dd>
           {ids.length
             ? <TagNames compact scope={scope} ids={ids} onRemove={onRemove} />
-            : <span className="secondary">연결된 태그 없음</span>}
+            : <span className="text-sm text-muted-foreground">연결된 태그 없음</span>}
         </dd>
       </div>
     </dl>
@@ -43,7 +46,7 @@ export function TagConnections({ scope, target, readonly = false, onSaved, onDra
     wasEditing.current = !!editing;
   }, [editing]);
   return (
-    <section ref={trigger} className="tag-connections" aria-label="태그 연결">
+    <section ref={trigger} className="flex min-w-0 flex-col gap-3" aria-label="태그 연결">
       {editing
         ? (
           <TagConnectionDraft
@@ -71,16 +74,18 @@ export function TagConnections({ scope, target, readonly = false, onSaved, onDra
               }}
             />
             {!readonly && (
-              <BodyAction
-                icon="create"
+              <Button
+                variant="ghost"
+                type="button"
                 aria-label="태그 연결"
                 onClick={() => {
                   setMessage(null);
                   setEditing({ ...target, tag_ids: [...target.tag_ids] });
                 }}
               >
+                <PlusIcon data-icon="inline-start" />
                 연결
-              </BodyAction>
+              </Button>
             )}
           </>
         )}
@@ -132,14 +137,20 @@ function TagConnectionDraft({ scope, target, onCancel, onSaved }: {
   }, [protect, frozen]);
   return (
     <>
-      <fieldset disabled={frozen || confirmation.active} className="plain-fieldset">
-        <TagPicker scope={scope} label="태그" value={draft} onChange={setDraft} error={confirmation.errors.tag_ids} />
-      </fieldset>
-      <div className="actions">
-        <button type="button" className="btn" disabled={frozen} onClick={onCancel}>연결 취소</button>
-        <button
+      <FieldSet disabled={frozen || confirmation.active}>
+        <TagPicker
+          disabled={frozen || confirmation.active}
+          scope={scope}
+          label="태그"
+          value={draft}
+          onChange={setDraft}
+          error={confirmation.errors.tag_ids}
+        />
+      </FieldSet>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" type="button" disabled={frozen} onClick={onCancel}>연결 취소</Button>
+        <Button
           type="button"
-          className="btn btn-primary"
           disabled={confirmation.busy || confirmation.active}
           onClick={() =>
             scope === "record" || confirmation.uncertain
@@ -147,7 +158,7 @@ function TagConnectionDraft({ scope, target, onCancel, onSaved }: {
               : void confirmation.begin("save")}
         >
           {confirmation.busy ? "처리 중…" : confirmation.uncertain ? "같은 내용 다시 시도" : "연결 적용"}
-        </button>
+        </Button>
       </div>
       {!confirmation.active && confirmation.failure && <Notice kind="error">{confirmation.failure}</Notice>}
     </>
