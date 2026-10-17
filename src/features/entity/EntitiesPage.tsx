@@ -42,6 +42,7 @@ import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
 
 export function EntitiesPage() {
+  const searchInput = useRef<HTMLInputElement>(null);
   const create = useCreateMode();
   const [view, changeView] = useMainCollectionView();
   const dictionary = useTagDictionary(true, true, "entity");
@@ -271,7 +272,7 @@ export function EntitiesPage() {
             disabled={types === null}
             onChange={(value) => set("entity_type_id", value)}
           />
-          <TabSearch entity />
+          <TabSearch entity inputRef={searchInput} />
           {!types && !typeError && <p role="status">자료 종류를 확인하는 중…</p>}
           {typeError && (
             <>
@@ -399,7 +400,7 @@ export function EntitiesPage() {
                     const next = resetTabFilters(params);
                     next.delete("keyword");
                     navigate(`/entities?${next}`, { replace: true });
-                    document.querySelector<HTMLInputElement>(".workspace-search input")?.focus();
+                    searchInput.current?.focus();
                   }}
                 >
                   검색 조건 해제

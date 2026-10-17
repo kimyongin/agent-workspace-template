@@ -172,6 +172,7 @@ function ActivitySection(
 }
 
 export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
+  const searchInput = useRef<HTMLInputElement>(null);
   const { timezone } = useDisplayTime();
   const [params, setParams] = useSearchParams(),
     location = useLocation(),
@@ -250,7 +251,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
             </Notice>
           )}
           <div className="query-bar">
-            <TabSearch />
+            <TabSearch inputRef={searchInput} />
             <TabFilters
               dirty={editing.dirty}
               onReset={() => {
@@ -396,7 +397,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
           next.delete("q");
           next.delete("keyword");
           void navigate({ pathname, search: next.toString(), hash: "" }, { replace: true });
-          document.querySelector<HTMLInputElement>(".workspace-search input")?.focus();
+          searchInput.current?.focus();
         }}
       />
       {create.open && (kind === "tasks"

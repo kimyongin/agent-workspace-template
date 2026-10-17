@@ -3,6 +3,7 @@ import { changeEntityListQuery } from "../lib/entity-list-url.ts";
 import {
   type Dispatch,
   type ReactNode,
+  type RefObject,
   type SetStateAction,
   useCallback,
   useEffect,
@@ -26,7 +27,7 @@ export function clearListPosition(params: URLSearchParams) {
   return params;
 }
 /** Debounce only text; concurrent filter changes survive through the latest URL. */
-export function TabSearch({ entity = false }: { entity?: boolean }) {
+export function TabSearch({ entity = false, inputRef }: { entity?: boolean; inputRef?: RefObject<HTMLInputElement | null> }) {
   const [params, originalSetParams] = useSearchParams(), location = useLocation(), navigate = useNavigate();
   const latestLocation = useRef(location);
   latestLocation.current = location;
@@ -56,7 +57,7 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
   return <Field label={entity ? "자료 제목 검색" : "검색어"}>
     {(props) => <InputGroup>
       <InputGroupAddon><SearchIcon aria-hidden="true" /></InputGroupAddon>
-      <InputGroupInput {...props} ref={input} value={draft} maxLength={entity ? 100 : 200}
+      <InputGroupInput {...props} ref={node => { input.current = node; if (inputRef) inputRef.current = node; }} value={draft} maxLength={entity ? 100 : 200}
         placeholder={entity ? "자료 이름 검색" : "검색어 입력"}
         onChange={event => setDraft(event.target.value)}
         onCompositionStart={() => setComposing(true)}

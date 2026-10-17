@@ -13,7 +13,7 @@ interface FieldProps {
   required?: boolean;
   help?: string;
   error?: string;
-  children: (props: { id: string; "aria-describedby"?: string; "aria-invalid"?: boolean; "data-field-control": true }) => ReactNode;
+  children: (props: { id: string; "aria-describedby"?: string; "aria-invalid"?: boolean; "data-field-control": "" }) => ReactNode;
 }
 
 export function Field({ label, hideLabel = false, required, help, error, children, fullWidth = false, className }: FieldProps) {
@@ -25,7 +25,7 @@ export function Field({ label, hideLabel = false, required, help, error, childre
       {label}{required && <><span aria-hidden="true">*</span><span className="sr-only">(필수)</span></>}
     </FieldLabel>
     <FieldContent className="min-w-0">
-      {children({ id, "aria-describedby": describedBy, "aria-invalid": error ? true : undefined, "data-field-control": true })}
+      {children({ id, "aria-describedby": describedBy, "aria-invalid": error ? true : undefined, "data-field-control": "" })}
       {help && <FieldDescription id={helpId}>{help}</FieldDescription>}
       {error && <FieldError id={errorId}>{error}</FieldError>}
     </FieldContent>

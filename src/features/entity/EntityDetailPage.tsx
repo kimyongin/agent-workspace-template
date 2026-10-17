@@ -72,6 +72,7 @@ export function EntityDetailPage() {
   const reload = detail.reload;
   const editor = useDetailEditor(detail.editClosed);
   const [busy, setBusy] = useState(false);
+  const readRoot = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!detail.confirmed && entity) relationSaved.current = false;
   }, [entity, detail.confirmed]);
@@ -84,14 +85,14 @@ export function EntityDetailPage() {
     const frame = requestAnimationFrame(() => {
       if (returnCreateFocus.current === "relation") {
         const button = Array.from(
-          document.querySelectorAll<HTMLButtonElement>('dialog[open] [aria-label$="작성해서 연결"]'),
+          readRoot.current?.querySelectorAll<HTMLButtonElement>('[aria-label$="작성해서 연결"]') ?? [],
         ).find((el) => el.dataset.relationCreate === relationCreateTarget.current);
         button?.focus();
         returnCreateFocus.current = null;
         return;
       }
       const label = returnCreateFocus.current === "task" ? "할 일 작성" : "기록 작성";
-      const button = Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button"))
+      const button = Array.from(readRoot.current?.querySelectorAll<HTMLButtonElement>("button[aria-label]") ?? [])
         .find((el) => el.getAttribute("aria-label") === label);
       if (button) {
         button.focus();
@@ -177,7 +178,7 @@ export function EntityDetailPage() {
     </div>
   );
   return (
-    <DetailSurface
+    <DetailSurface ready={!detail.loading}
       title={entity?.type.label ?? "자료"}
       description="속성과 연결된 자료·할 일·기록을 확인하고 수정합니다."
       tabTitle={entity?.title ?? "자료"}
@@ -198,7 +199,7 @@ export function EntityDetailPage() {
       )}
       {!entity && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {entity && (
-        <div className="detail-stack">
+        <div ref={readRoot} className="detail-stack">
           <section className="detail-section entity-detail-properties">
             <EntityProperties
               entity={entity}

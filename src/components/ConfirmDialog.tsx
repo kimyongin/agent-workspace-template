@@ -1,4 +1,5 @@
-import { type ReactNode, type RefObject, useEffect, useId, useRef } from "react";
+import { registerSurface } from "../lib/surface-dom.ts";
+import { type ReactNode, type RefObject, useEffect, useId, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 
 interface ConfirmProps {
@@ -53,6 +54,10 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const body = useRef<HTMLDivElement>(null), heading = useRef<HTMLHeadingElement>(null), footerElement = useRef<HTMLDivElement>(null);
+  const elements = useRef({ title, body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true });
+  useLayoutEffect(() => { elements.current = { title, body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true }; });
+  useLayoutEffect(() => ref.current ? registerSurface(ref.current, () => elements.current) : undefined, [open]);
   useSurfaceViewport(ref);
   useEffect(() => {
     const dialog = ref.current;
@@ -60,7 +65,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
     const returnFocus = document.activeElement as HTMLElement | null;
     dialog.showModal();
     (dialog.querySelector<HTMLElement>("textarea:not(:disabled), input:not(:disabled)") ??
-      dialog.querySelector<HTMLElement>(".modal-foot button:not(:disabled)"))?.focus();
+      footerElement.current?.querySelector<HTMLElement>("button:not(:disabled)"))?.focus();
     return () => {
       dialog.close();
       if (returnFocus?.isConnected) returnFocus.focus();
@@ -89,7 +94,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
     >
       <div className="modal-inner">
         <div className="modal-head">
-          <h2 id={titleId} className="dialog-title">{title}</h2>
+          <h2 ref={heading} id={titleId} className="dialog-title">{title}</h2>
           {closeButton && (
             <button
               type="button"
@@ -103,15 +108,15 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
             </button>
           )}
         </div>
-        <div className="modal-body form">{children}</div>
-        <div className="modal-foot">{footer}</div>
+        <div ref={body} className="modal-body form">{children}</div>
+        <div ref={footerElement} className="modal-foot">{footer}</div>
       </div>
     </dialog>,
     document.body,
   );
 }
 
-export function useSurfaceViewport(ref: RefObject<HTMLDialogElement | null>) {
+export function useSurfaceViewport(ref: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const viewport = window.visualViewport;
     const resize = () => {
