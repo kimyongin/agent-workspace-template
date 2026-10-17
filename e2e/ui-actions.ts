@@ -47,11 +47,18 @@ export async function openProfileMenu(page: Page) {
   const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
   if (!compact) await expect(trigger).toHaveCount(0);
   const popup = page.getByRole("menu", { includeHidden: true }).filter({ has: page.getByRole("menuitem", { name: "로그아웃", exact: true, includeHidden: true }) });
-  const sheet = page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true });
-  if (await popup.isVisible() && await popup.getAttribute("data-state") === "open") {
-    const sheetOpen = await sheet.count() > 0 && await sheet.getAttribute("data-state") === "open";
-    if (compact ? sheetOpen : await sheet.count() === 0) return;
-  }
+  const alreadyOpen = await popup.evaluateAll(elements => {
+    const visible = (element: Element) => {
+      const box = element.getBoundingClientRect(), style = getComputedStyle(element);
+      return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.visibility !== "collapse";
+    };
+    const compact = matchMedia("(max-width: 1023px), (max-height: 319px)").matches;
+    const sheets = [...document.querySelectorAll('[role="dialog"][data-sidebar="sidebar"][data-mobile="true"]')];
+    const popupOpen = elements.some(element => element.getAttribute("data-state") === "open" && visible(element));
+    const sheetOpen = sheets.some(element => element.getAttribute("data-state") === "open" && visible(element));
+    return popupOpen && (compact ? sheetOpen : sheets.length === 0);
+  });
+  if (alreadyOpen) return;
   // A responsive navigation owner may unmount its old popup; closing Presence is not an open menu.
   await expect(popup).toHaveCount(0);
   await openMainNavigation(page);
