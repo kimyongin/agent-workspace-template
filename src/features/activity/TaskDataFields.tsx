@@ -126,7 +126,13 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
                       onValueChange={(values) => set!({ weekdays: values.map(Number) })}
                     >
                       {WEEKDAYS.map((name, i) => (
-                        <ToggleGroupItem key={name} value={String(i + 1)}>{name}</ToggleGroupItem>
+                        <ToggleGroupItem
+                          key={name}
+                          value={String(i + 1)}
+                          aria-invalid={p["aria-invalid"]}
+                          aria-describedby={p["aria-describedby"]}
+                          data-field-control={p["data-field-control"]}
+                        >{name}</ToggleGroupItem>
                       ))}
                     </ToggleGroup>
                   )}

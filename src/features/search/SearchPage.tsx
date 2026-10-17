@@ -283,9 +283,11 @@ export function SearchPage() {
                   <ItemContent className="min-w-0">
                     <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
                       <div className="col-span-full"><dt>{r.kind === "record" ? "본문 대표 문구" : "제목"}</dt><dd>
-                        <Link data-list-anchor="" id={`search-${r.kind}-${r.id}`} className="font-medium wrap-anywhere" to={r.path}>
-                          <span className="wrap-anywhere">{r.title}</span>
-                        </Link>
+                        <Button asChild variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere">
+                          <Link data-list-anchor="" id={`search-${r.kind}-${r.id}`} to={r.path}>
+                            <span className="wrap-anywhere">{r.title}</span>
+                          </Link>
+                        </Button>
                       </dd></div>
                       {r.snippet !== r.title && <div className="col-span-full"><dt>일치 구간</dt><dd className="whitespace-pre-wrap wrap-anywhere">{r.snippet}</dd></div>}
                       <div><dt>종류</dt><dd>{kinds[r.kind]}</dd></div>
