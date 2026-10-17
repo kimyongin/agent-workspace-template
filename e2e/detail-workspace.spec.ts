@@ -353,17 +353,21 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
   await left.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "기본", exact: true })).toHaveAttribute("aria-current", "page");
   await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true, includeHidden: true })).toHaveCount(0);
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
   for (const fontSize of [16, 32]) {
     await page.evaluate(value => document.documentElement.style.fontSize = `${value}px`, fontSize);
     const icons = left.getByRole("radiogroup", { name: "프로필 아이콘", exact: true });
     await assertProfileChoiceGeometry(icons);
     await icons.getByRole("radio", { name: "기본", exact: true }).focus();
-    await icons.getByRole("radio", { name: "기본", exact: true }).press("ArrowRight");
-    await expect(icons.getByRole("radio", { name: "선글라스", exact: true })).toBeChecked();
+    await page.keyboard.down("ArrowRight");
+    try {
+      await expect(icons.getByRole("radio", { name: "선글라스", exact: true })).toBeFocused();
+      await expect(icons.getByRole("radio", { name: "선글라스", exact: true })).toBeChecked();
+    } finally { await page.keyboard.up("ArrowRight"); }
+    await page.screenshot({ path: info.outputPath(fontSize === 16 ? "settings-and-retained-detail.png" : "settings-and-retained-detail-font200.png") });
   }
   await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
-  await page.screenshot({ path: info.outputPath("settings-and-retained-detail.png") });
   await openProfileMenu(page);
   await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
   const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
@@ -1445,9 +1449,12 @@ for (const width of [320, 390]) test(`profile icon choices ${width}px: labels fi
     await assertProfileChoiceGeometry(group);
     const radios = group.getByRole("radio");
     await radios.nth(0).focus();
-    await radios.nth(0).press("ArrowRight");
-    await expect(radios.nth(1)).toBeChecked();
-    await expect(radios.nth(1)).toBeFocused();
+    await page.keyboard.down("ArrowRight");
+    try {
+      await expect(radios.nth(1)).toBeFocused();
+      await expect(radios.nth(1)).toBeChecked();
+    } finally { await page.keyboard.up("ArrowRight"); }
+    await group.scrollIntoViewIfNeeded();
     await page.screenshot({ path: info.outputPath(`profile-icons-${width}-font${fontSize}.png`) });
   }
   expect(state.writes).toEqual([]);
