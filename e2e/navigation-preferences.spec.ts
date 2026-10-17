@@ -1,3 +1,5 @@
+import { chooseSetting } from "./settings-actions.ts";
+import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { test, devLogin, env } from "./support.ts";
 // Serial real Auth metadata round trip, run by the integration owner.
@@ -31,7 +33,7 @@ test("personal navigation partial save survives reload and login without changin
       await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
     }
     for (const label of ["기록", "할 일"]) {
-      await page.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption({ label });
+      await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), label);
       await page.getByRole("button", { name: `${label} 추가`, exact: true }).click();
     }
     await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
@@ -45,13 +47,15 @@ test("personal navigation partial save survives reload and login without changin
     const { workspace_navigation: _next, ...newOther } = after;
     expect(newOther).toEqual(oldOther);
     await page.reload();
-    await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).locator(".bottom-nav-inner > a"))
+    await openMainNavigation(page);
+    await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link"))
       .toHaveText(["기록", "할 일"]);
-    await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-    await page.locator("#nav-profile-options").getByRole("link", { name: "로그아웃", exact: true }).click();
+    await openProfileMenu(page);
+    await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
     await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
     await devLogin(page);
-    await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).locator(".bottom-nav-inner > a"))
+    await openMainNavigation(page);
+    await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link"))
       .toHaveText(["기록", "할 일"]);
   } catch (cause) {
     bodyFailed = true;

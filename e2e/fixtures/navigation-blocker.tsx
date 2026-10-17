@@ -2,6 +2,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createMemoryRouter, Outlet, RouterProvider, useBlocker } from "react-router";
+import { SidebarProvider } from "../../src/components/ui/sidebar.tsx";
+import { Button } from "../../src/components/ui/button.tsx";
 import { Navigation } from "../../src/app/Navigation.tsx";
 import { ConfirmDialog } from "../../src/components/Modal.tsx";
 import "../../src/styles/app.css";
@@ -10,7 +12,7 @@ function DirtyPage() {
   const blocker = useBlocker(true);
   return <>
     <h1>저장하지 않은 태그 초안</h1>
-    <button className="btn">본문 조작</button>
+    <Button>본문 조작</Button>
     <ConfirmDialog open={blocker.state === "blocked"} title="변경을 버릴까요?"
       message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기"
       onConfirm={() => blocker.state === "blocked" && blocker.proceed()}
@@ -18,7 +20,7 @@ function DirtyPage() {
   </>;
 }
 
-const router = createMemoryRouter([{ element: <><Outlet /><Navigation /></>, children: [
+const router = createMemoryRouter([{ element: <SidebarProvider><Outlet /><Navigation brand="Workspace" /></SidebarProvider>, children: [
   { path: "/tags", element: <DirtyPage /> },
   { path: "/logout", element: <h1>로그아웃 경로 진입</h1> },
 ] }], { initialEntries: ["/tags"] });

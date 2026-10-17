@@ -1,3 +1,5 @@
+import { chooseSetting } from "./settings-actions.ts";
+import { openProfileMenu } from "./ui-actions.ts";
 import postgres from "postgres";
 import { expect } from "@playwright/test";
 import { devLogin, env, test, unique } from "./support.ts";
@@ -17,7 +19,7 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   try {
     await page.goto("/settings");
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", {
+    await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", {
       name: "자료",
       exact: true,
     }).click();
@@ -76,19 +78,15 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await closeDetail(page, updatedTitle);
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${typeId}`));
     expect(new URL(page.url()).searchParams.get("keyword")).toBe(title);
-    await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-    await page.getByRole("link", { name: "설정", exact: true }).click();
+    await openProfileMenu(page);
+    await page.getByRole("menuitem", { name: "설정", exact: true }).click();
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", {
+    await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", {
       name: "자료",
       exact: true,
     }).click();
-    await page.getByLabel("자료 종류 선택", { exact: true }).selectOption(typeId!);
+    await chooseSetting(page, page.getByLabel("자료 종류 선택", { exact: true }), label);
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
-    await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute(
-      "data-current",
-      "true",
-    );
     await page.reload();
     await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);

@@ -11,6 +11,17 @@ export const baseWorkspace = (page: Page) => page.getByRole("region", { name: "�
 export const shortDialog = (page: Page) => page.getByRole("alertdialog").or(page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: /하시겠습니까\?$| 선택$/ }) }));
 export const listHeader = (page: Page) => page.getByRole("region").filter({ has: page.getByRole("textbox", { name: /^(자료 제목 검색|검색어)$/ }) }).last();
 
+/** Open the responsive official Sidebar before using its links or profile menu. */
+export async function openMainNavigation(page: Page) {
+  const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
+  if (await trigger.isVisible() && !await page.getByRole("navigation", { name: "주 메뉴", exact: true }).isVisible()) await trigger.click();
+}
+export async function openProfileMenu(page: Page) {
+  await openMainNavigation(page);
+  const trigger = page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true });
+  if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
+}
+
 /** Searchable type selection is exercised through the displayed domain label. */
 export async function chooseEntityType(page: Page, label?: string, scope: Page | Locator = page) {
   const picker = scope.getByRole("combobox", { name: "자료 종류", exact: true });

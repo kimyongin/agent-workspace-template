@@ -111,3 +111,26 @@ test("shell desktop: tabs retain drafts and both official dividers resize by key
   expect(state.writes).toEqual([]);
   expect(state.errors).toEqual([]);
 });
+
+test("shell reflow: 200% text and zoom preserve a usable workspace at 1024 and 1440px", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/tasks/${id(2)}`);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const body = page.getByRole("textbox", { name: /^본문/ });
+  await body.fill("텍스트 확대와 브라우저 확대에도 유지할 초안");
+  for (const width of [1440, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const enlargement of ["text", "zoom"] as const) {
+      await page.evaluate(kind => {
+        document.documentElement.style.fontSize = kind === "text" ? "200%" : "";
+        document.documentElement.style.zoom = kind === "zoom" ? "2" : "";
+      }, enlargement);
+      await expect(body).toHaveValue("텍스트 확대와 브라우저 확대에도 유지할 초안");
+      await expect.poll(() => page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth })), `${width}px ${enlargement}: root content fits the available viewport`).toMatchObject({ scroll: width, client: width });
+      await expect(body).toBeInViewport();
+    }
+    await page.evaluate(() => { document.documentElement.style.fontSize = ""; document.documentElement.style.zoom = ""; });
+  }
+  expect(state.writes).toEqual([]);
+});

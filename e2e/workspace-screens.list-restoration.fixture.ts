@@ -544,7 +544,7 @@ test("#211 기록 필터·날짜 그룹·표시·편집은 계정 시간대로 �
   await go(page, "/tasks");
   await expect(page.locator("[data-list-anchor]").first()).toBeVisible();
   await page.getByRole("button", { name: "할 일 등록", exact: true }).click();
-  await form(page).getByRole("button", { name: "반복", exact: true }).click();
+  await form(page).getByRole("radio", { name: "반복", exact: true }).click();
   await expect(form(page).getByLabel("시간대", { exact: false })).toHaveValue("America/New_York");
   expect(state.errors).toEqual([]);
 });

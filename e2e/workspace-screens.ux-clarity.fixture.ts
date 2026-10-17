@@ -95,11 +95,11 @@ for (const width of [320, 1440]) {
       await go(page, "/tasks?create=1");
       const editor = form(page);
       await editor.getByLabel("제목", { exact: false }).fill("월말 정산");
-      await editor.getByRole("button", { name: "반복", exact: true }).click();
-      await editor.getByRole("button", { name: "매일", exact: true }).press("ArrowRight");
-      await expect(editor.getByRole("button", { name: "매주", exact: true })).toHaveAttribute("aria-pressed", "true");
-      await expect(editor.getByRole("button", { name: "매일", exact: true })).toHaveAttribute("aria-pressed", "false");
-      await editor.getByRole("button", { name: "매월", exact: true }).click();
+      await editor.getByRole("radio", { name: "반복", exact: true }).click();
+      await editor.getByRole("radio", { name: "매일", exact: true }).press("ArrowRight");
+      await expect(editor.getByRole("radio", { name: "매주", exact: true })).toHaveAttribute("aria-checked", "true");
+      await expect(editor.getByRole("radio", { name: "매일", exact: true })).toHaveAttribute("aria-checked", "false");
+      await editor.getByRole("radio", { name: "매월", exact: true }).click();
       const dates = editor.getByLabel("날짜", { exact: true });
       await expect(dates).toHaveAttribute("inputmode", "text");
       await dates.fill("");
@@ -113,9 +113,9 @@ for (const width of [320, 1440]) {
       await dates.fill("1, 31");
       await editor.getByLabel("시작일", { exact: false }).fill("2028-01-31");
       await editor.getByRole("combobox", { name: "시간대", exact: false }).selectOption("America/New_York");
-      await editor.getByRole("button", { name: "일회성", exact: true }).click();
+      await editor.getByRole("radio", { name: "일회성", exact: true }).click();
       await expect(editor.getByLabel("기한", { exact: true })).toBeVisible();
-      await editor.getByRole("button", { name: "반복", exact: true }).click();
+      await editor.getByRole("radio", { name: "반복", exact: true }).click();
       await expect(dates).toHaveValue("1, 31");
       await expect(editor.getByLabel("시간대", { exact: false })).toHaveValue("America/New_York");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
