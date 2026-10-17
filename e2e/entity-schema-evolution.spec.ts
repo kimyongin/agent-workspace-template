@@ -213,7 +213,11 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     ]);
     expect((await mcp.call("get_entity_schema", { type_id: type.id })).schema_version).toBe(1);
     await page.reload();
-    await expect(page.getByText("폐기됨", { exact: true }).first()).toBeVisible();
+    const discarded = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({
+      has: page.locator(`a[href*="change_id=${change.id}"]`),
+    });
+    await expect(discarded).toHaveCount(1);
+    await expect(discarded.getByRole("button", { name: /상태 폐기됨$/ })).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await expect(page.getByRole("list", { name: "입력 항목 목록", exact: true }).getByRole("listitem"))
