@@ -740,7 +740,8 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     await reading;
     const name = form.getByRole("textbox", { name: "이름 (필수)", exact: true });
     await name.fill("保持する下書き");
-    await expect(form.locator("dt", { hasText: /^태그$/ }).locator("../dd")).toHaveText("保留タグ");
+    await expect(form.locator("dt:visible", { hasText: /^태그$/ }).locator("../dd")).toBeVisible();
+    await expect(form.locator("dt:visible", { hasText: /^태그$/ }).locator("../dd")).toHaveText("保留タグ");
     await expect(form.getByRole("button", { name: /태그 선택|保留タグ 선택 해제/ })).toHaveCount(0);
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await expect(form.getByRole("status").filter({ hasText: "자료 종류·자료 번호 설정을 읽는 중…" })).toBeVisible();
@@ -750,7 +751,8 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     release();
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
     await expect(name).toHaveValue("保持する下書き");
-    await expect(form.locator("dt", { hasText: /^태그$/ }).locator("../dd")).toHaveText("保留タグ");
+    await expect(form.locator("dt:visible", { hasText: /^태그$/ }).locator("../dd")).toBeVisible();
+    await expect(form.locator("dt:visible", { hasText: /^태그$/ }).locator("../dd")).toHaveText("保留タグ");
     await expect(form.getByRole("button", { name: /태그 선택|保留タグ 선택 해제/ })).toHaveCount(0);
     await form.getByRole("button", { name: "저장", exact: true }).click();
     const confirmation = page.locator("dialog.modal-action[open]");
