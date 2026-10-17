@@ -114,7 +114,7 @@ for (const width of [320, 1440]) {
     await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
     await expect(openDialogs(page)).toHaveCount(1);
     await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
-    await expect(form(page).locator(".detail-title")).toHaveText("할 일");
+    await expect(form(page).getByRole("heading", { name: "할 일", exact: true })).toHaveText("할 일");
     await form(page).evaluate((el) => el.dataset.sameDialog = "yes");
     await openDetailEditor(page);
     await expect(form(page)).toHaveAttribute("data-same-dialog", "yes");

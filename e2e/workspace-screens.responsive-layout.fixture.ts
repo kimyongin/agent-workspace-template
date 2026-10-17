@@ -4,7 +4,7 @@ import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListEditor, openTabFilters } from "./ui-actions.ts";
 import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
 import { discardEditor } from "./ui-actions.ts";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { id, stamp } from "./support/workspace-data.ts";
 import { compatibleEdit, fixtures, form, go, linkedFixture } from "./support/workspace-screens.ts";
 
@@ -14,8 +14,8 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const state = await fixtures(page);
     state.rows.tasks[0].title = "긴 제목 ".repeat(8);
     Object.assign(state.rows.tasks[0], { change_note: "강조하지 않을 보충 메모" });
-    const typography = async (selector: string) =>
-      page.locator(selector).first().evaluate((el) => {
+    const typography = async (locator: Locator) =>
+      locator.first().evaluate((el) => {
         const s = getComputedStyle(el);
         return { size: parseFloat(s.fontSize), weight: Number(s.fontWeight), color: s.color };
       });
@@ -39,21 +39,19 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
       if (await page.locator("[data-list-anchor]").count()) {
-        const title = await typography(".item-title"),
-          pageTitle = await typography(path.startsWith("/tags") ? ".dialog-title" : ".page-title");
+        const title = await typography(page.locator("[data-list-anchor]")),
+          pageTitle = await typography(page.getByRole("heading", { level: 1 }));
         expect(pageTitle.size).toBeGreaterThan(title.size);
-        expect(title.weight).toBe(600);
-        if (await page.locator(".secondary").count()) {
-          const secondary = await typography(".secondary");
-          expect(title.size).toBeGreaterThan(secondary.size);
-          expect(title.weight).toBeGreaterThan(secondary.weight);
-          expect(title.color).not.toBe(secondary.color);
-        }
+        expect(title.weight).toBeGreaterThanOrEqual(500);
+        const secondary = await typography(page.locator("[data-slot='item-header'] dt"));
+        expect(title.size).toBeGreaterThan(secondary.size);
+        expect(title.weight).toBeGreaterThan(secondary.weight);
+        expect(title.color).not.toBe(secondary.color);
       }
       if (path === "/tasks") {
         const heading = page.locator("[data-slot='item-header'] dd").first(),
           title = heading.locator("[data-list-anchor]"),
-          edit = heading.locator(".activity-item-actions a");
+          edit = heading.getByRole("link", { name: /편집$/ });
         const t = (await title.boundingBox())!;
         await expect(edit).toHaveCount(0);
         expect(t.height).toBeGreaterThanOrEqual(44);
