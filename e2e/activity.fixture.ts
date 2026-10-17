@@ -275,7 +275,24 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     release();
     await row.click();
     await expect(page.locator('[aria-label="태그"]').last()).toHaveText(name);
-    if(name.length===30)expect((await page.locator('[aria-label="태그"]').last().boundingBox())!.height).toBeGreaterThan(30);
+    if (name.length === 30) {
+      const tag = page.locator('[aria-label="태그"]').last();
+      const bounds = (await tag.boundingBox())!;
+      const lines = await tag.getByText(name, { exact: true }).evaluate(element => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        return [...range.getClientRects()].map(rect => ({ x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height }));
+      });
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) {
+        expect(line.width).toBeGreaterThan(0);
+        expect(line.height).toBeGreaterThan(0);
+        expect(line.x).toBeGreaterThanOrEqual(bounds.x - 1);
+        expect(line.right).toBeLessThanOrEqual(Math.min(bounds.x + bounds.width, 360) + 1);
+        expect(line.y).toBeGreaterThanOrEqual(bounds.y - 1);
+        expect(line.bottom).toBeLessThanOrEqual(bounds.y + bounds.height + 1);
+      }
+    }
     await row.scrollIntoViewIfNeeded();
     await row.focus();
     await page.getByRole("link",{name:"기록 20 상세",exact:true}).scrollIntoViewIfNeeded();
@@ -303,13 +320,13 @@ for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","
     const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
     await title.fill("이탈 확인 초안");
     // The fixture probe exercises real router navigation while the modal owns focus.
-    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
+    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동",includeHidden:true}).evaluate((el:HTMLAnchorElement)=>el.click());
     const confirm=page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true});
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button",{name:"취소",exact:true}).click();
     await expect(title).toHaveValue("이탈 확인 초안");
     await expect(page).not.toHaveURL(/fixture=next/);
-    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
+    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동",includeHidden:true}).evaluate((el:HTMLAnchorElement)=>el.click());
     await page.getByRole("button",{name:"변경 버리기",exact:true}).click();
     await expect(page).toHaveURL(/fixture=next/);
     await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -324,12 +341,12 @@ for (const kind of ["records","tasks"]) {
     await page.goto(`/e2e/fixtures/activity.html?route=`+encodeURIComponent(`/${kind}/${id(1)}?edit=1`));
     const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
     await title.fill("상세 이동 초안");
-    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
+    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동",includeHidden:true}).evaluate((el:HTMLAnchorElement)=>el.click());
     const confirm=page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true});
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button",{name:"취소",exact:true}).click();
     await expect(title).toHaveValue("상세 이동 초안");
-    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
+    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동",includeHidden:true}).evaluate((el:HTMLAnchorElement)=>el.click());
     await expect(confirm).toBeVisible();
     await page.getByRole("button",{name:"변경 버리기",exact:true}).click();
     await expect(page).toHaveURL(new RegExp(`/${kind}/${id(1)}\\?fixture=next$`));
