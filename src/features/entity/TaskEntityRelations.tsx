@@ -1,6 +1,8 @@
+import { Button } from "../../components/ui/button.tsx";
+import { UnlinkIcon, PlusIcon } from "lucide-react";
 import { createPagedList } from "../collections/paged-list.ts";
 import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { type ReactNode, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { useLocation } from "react-router";
@@ -71,14 +73,14 @@ function RelationControls({
   };
   const kind = task ? "entity" : "task";
   const unlink = (item: Candidate) => (
-    <BodyAction
-      icon="unlink"
+    <Button variant="ghost" type="button"
+
       aria-label={`${item.title} 해제`}
       aria-disabled={preparing}
       onClick={() => void prepare(item, true)}
-    >
+    ><UnlinkIcon data-icon="inline-start" />
       해제
-    </BodyAction>
+    </Button>
   );
   return (
     <>
@@ -96,7 +98,7 @@ function RelationControls({
         search: (
           <>
             {error && <Notice kind="error">{error}</Notice>}
-            {preparing && <p className="secondary" role="status">연결 확인 중…</p>}
+            {preparing && <p className="text-sm text-muted-foreground" role="status">연결 확인 중…</p>}
             <div id={searchId} hidden={!searching}>
               {searching && (
                 <RelationSearch
@@ -239,9 +241,9 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
       </CollectionList>
       {read.failed && <Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
       {read.canReadMore && (
-        <BodyAction disabled={read.loading} onClick={read.more}>
+        <Button variant="ghost" type="button" disabled={read.loading} onClick={read.more}>
           {read.loading ? "불러오는 중…" : read.failed ? "할 일 다시 시도" : "할 일 더 보기"}
-        </BodyAction>
+        </Button>
       )}
     </RelatedSection>
   );
@@ -257,8 +259,8 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
       {({ search, button, unlink }) =>
         contents(
           search,
-          <div className="actions">
-            <BodyAction icon="create" aria-label="할 일 작성" onClick={onCreate}>작성</BodyAction>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" type="button"  aria-label="할 일 작성" onClick={onCreate}><PlusIcon data-icon="inline-start" />작성</Button>
             {button}
           </div>,
           unlink,

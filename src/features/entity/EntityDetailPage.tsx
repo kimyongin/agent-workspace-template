@@ -1,3 +1,5 @@
+import { PlusIcon } from "lucide-react";
+import { Button } from "../../components/ui/button.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { CreateRelatedEntityForm } from "./CreateRelatedEntityForm.tsx";
 import { EntityTypedRelations } from "./EntityTypedRelations.tsx";
@@ -6,7 +8,7 @@ import { entityPath } from "@contracts/entity-identity.ts";
 import { useDetailResource } from "../details/useDetailResource.ts";
 import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import type { EntityContext } from "@contracts/entity-links.ts";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
@@ -24,7 +26,6 @@ import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
-import "./entity.css";
 import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
   const { timezone } = useDisplayTime();
@@ -105,15 +106,15 @@ export function EntityDetailPage() {
     ? [{ id: entity.id, title: entity.title, source: "selection", captured_at: new Date().toISOString() }]
     : [];
   const management = entity && !entity.deleted_at && (
-    <div className="detail-management">
+    <div className="flex min-w-0 flex-col gap-6">
       {error && (
         <>
           <Notice kind="error">
             {relationSaved.current ? "연결은 저장했습니다. 최신 내용을 불러오지 못했습니다." : error}
           </Notice>
-          <button type="button" className="btn" onClick={() => void reload()}>
+          <Button variant="outline" type="button"  onClick={() => void reload()}>
             다시 시도
-          </button>
+          </Button>
         </>
       )}
       <EntityTaskRelations
@@ -151,17 +152,17 @@ export function EntityDetailPage() {
           title={label}
           count={entity[kind].count}
           action={
-            <BodyAction
-              icon="create"
+            <Button variant="ghost" type="button"
+
               aria-label="기록 작성"
               onClick={() => {
                 const p = new URLSearchParams(params);
                 p.set("create", "record");
                 navigate(detailModeLink(location.pathname, p, location.hash));
               }}
-            >
+            ><PlusIcon data-icon="inline-start" />
               작성
-            </BodyAction>
+            </Button>
           }
         >
           {entity[kind].count > 0 && (
@@ -186,21 +187,21 @@ export function EntityDetailPage() {
       onError={detail.failed}
       busy={busy}
       footer={entity && (
-        <button type="button" className="btn btn-primary" onClick={editor.start}>
+        <Button variant="default" type="button"  onClick={editor.start}>
           {entity.deleted_at ? "복원" : "편집"}
-        </button>
+        </Button>
       )}
     >
       {error && !entity && (
         <>
           <Notice kind="error">{error}</Notice>
-          <button className="btn" onClick={() => void reload()}>다시 시도</button>
+          <Button variant="outline"  onClick={() => void reload()}>다시 시도</Button>
         </>
       )}
-      {!entity && !error && <p className="secondary" role="status">불러오는 중…</p>}
+      {!entity && !error && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
       {entity && (
-        <div ref={readRoot} className="detail-stack">
-          <section className="detail-section entity-detail-properties">
+        <div ref={readRoot} className="flex min-w-0 flex-col gap-6">
+          <section className="flex flex-col gap-4 min-w-0">
             <EntityProperties
               entity={entity}
               identity={
@@ -211,7 +212,7 @@ export function EntityDetailPage() {
                   </div>
                   <div>
                     <dt>자료 번호</dt>
-                    <dd className="entity-identity-value">{entity.external_id}</dd>
+                    <dd className="wrap-anywhere tabular-nums">{entity.external_id}</dd>
                   </div>
                 </>
               }
@@ -224,7 +225,7 @@ export function EntityDetailPage() {
               onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
             />
           </section>
-          <div className="detail-relations">
+          <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
             <EntityTypedRelations
               entity={entity}
               onCreate={(definition, side) => {
@@ -262,7 +263,7 @@ export function EntityDetailPage() {
                 </RelatedSection>
               </>
             )}
-            {entity.deleted_at && <p className="secondary">삭제됨</p>}
+            {entity.deleted_at && <p className="text-sm text-muted-foreground">삭제됨</p>}
             {management}
           </div>
           {creating === "relation" && !entity.deleted_at && (
@@ -322,7 +323,7 @@ export function EntityDetailPage() {
             <EntityForm
               initial={entity}
               relations={
-                <div className="detail-relations">
+                <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
                   <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />
                   <EntityTaskRelations entity={entity} read={taskRead} readOnly />
                   <RelatedSection title="기록" count={entity.records.count} views={false}>
