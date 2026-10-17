@@ -316,22 +316,25 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
       } else await route.continue();
     });
     await more.scrollIntoViewIfNeeded();
-    const y = await page.evaluate(() => window.scrollY);
+    const main = page.getByRole("main", { includeHidden: true });
+    const y = await main.evaluate(element => element.scrollTop);
+    expect(y).toBeGreaterThan(0);
     await more.click();
     await expect(page.locator("[data-list-anchor]")).toHaveCount(60);
     await expect(more).toBeFocused();
     expect(cursors).toHaveLength(1);
     expect(new URL(page.url()).searchParams.get("pages")).toBe("3");
-    expect(await page.evaluate(() => window.scrollY)).toBe(y);
+    expect(await main.evaluate(element => element.scrollTop)).toBe(y);
     await more.scrollIntoViewIfNeeded();
-    const retryY = await page.evaluate(() => window.scrollY);
+    const retryY = await main.evaluate(element => element.scrollTop);
+    expect(retryY).toBeGreaterThan(0);
     const retryBox = (await more.boundingBox())!;
     fail = true;
     await more.click();
     const retry = page.getByRole("button", { name: "다시 시도", exact: true });
     await expect(retry).toBeFocused();
     await expect(page.locator("[data-list-anchor]")).toHaveCount(60);
-    // The notice changes document height; browser scroll anchoring should keep the button in place.
+    // The notice changes main content height; browser scroll anchoring should keep the button in place.
     await expect(retry).toBeInViewport();
     expect(Math.abs((await retry.boundingBox())!.y - retryBox.y)).toBeLessThan(2);
     await retry.click();
@@ -342,7 +345,7 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     expect(cursors).toHaveLength(3);
     expect(cursors[2]).toBe(cursors[1]);
     expect(cursors[1]).not.toBe(cursors[0]);
-    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(retryY - 100);
+    expect(await main.evaluate(element => element.scrollTop)).toBeGreaterThanOrEqual(retryY - 100);
     await expect(anchor).not.toBeFocused();
   } finally {
     // Cleanup is tied to this exact fixture scope, including failed scenarios.

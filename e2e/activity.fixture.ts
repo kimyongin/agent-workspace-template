@@ -297,7 +297,9 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     await row.focus();
     await page.getByRole("link",{name:"기록 20 상세",exact:true}).scrollIntoViewIfNeeded();
     const before=(await row.boundingBox())!.y;
-    const scroll=await page.evaluate(()=>scrollY);
+    // This isolated feature fixture has no App shell: the document owns scrolling.
+    const scroll=await page.evaluate(()=>document.scrollingElement!.scrollTop);
+    expect(scroll).toBeGreaterThan(0);
     await openListDetail(page,"기록 20");
     await expect(page.getByRole("heading",{name:"기록",exact:true})).toBeVisible();
     await expect(detailDialog(page).locator('[aria-label="태그"]')).toHaveCount(1);
@@ -308,7 +310,7 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     release();
     await expect(row).toBeFocused();
     expect((await row.boundingBox())!.y).toBeCloseTo(before,1);
-    expect(await page.evaluate(()=>scrollY)).toBe(scroll);
+    expect(await page.evaluate(()=>document.scrollingElement!.scrollTop)).toBe(scroll);
     await expect(page.locator('[aria-label="태그"]').last()).toHaveText(name);
   });
 }
