@@ -157,7 +157,7 @@ begin
   if not (v_type_id=any(p_skip)) then
    if exists(select 1 from app.entity_types t where t.owner_id=p_owner and t.id=v_type_id
     and t.schema_write_locked) then raise exception 'schema_migration_in_progress' using errcode='P0001'; end if;
-   if old is null or (old->'schema'-'x-version') is distinct from (x->'schema'-'x-version') then
+   if old is null or ((old->'schema') - 'x-version') is distinct from ((x->'schema') - 'x-version') then
     insert into app.entity_schema_versions(owner_id,schema) values(p_owner,x->'schema');
     update app.entity_types t set schema_version=(x->'schema'->>'x-version')::integer,
      next_property_number=greatest(t.next_property_number,next_property),updated_at=now()
