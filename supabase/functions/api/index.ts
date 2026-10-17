@@ -8,6 +8,7 @@ import {
   entityIssuerDeps,
   entityPairDeps,
   entityRelationDefinitionDeps,
+  entityRelationLinkDeps,
   entityTypeDeps,
   env,
   searchDeps,
@@ -32,6 +33,7 @@ const app = createHttpApp(
   entityPairDeps(),
   entityIssuerDeps(),
   entityRelationDefinitionDeps(),
+  entityRelationLinkDeps(),
   dataModelDeps(),
 );
 

@@ -108,6 +108,13 @@ export function entityRelationDefinitionDeps(): EntityRelationDefinitionDeps {
   return relationDefinitions ??= { uow: new SqlEntityRelationDefinitionUnitOfWork(database()) };
 }
 
+import { SqlEntityRelationLinkUnitOfWork } from "./adapters/supabase/entity-relation-link-store.ts";
+import type { EntityRelationLinkDeps } from "./core/entity-relations/links.ts";
+let relationLinks: EntityRelationLinkDeps | undefined;
+export function entityRelationLinkDeps(): EntityRelationLinkDeps {
+  return relationLinks ??= { uow: new SqlEntityRelationLinkUnitOfWork(database()) };
+}
+
 import { SqlDataModelUnitOfWork } from "./adapters/supabase/data-model-store.ts";
 import type { DataModelDeps } from "./core/data-model/application.ts";
 let model: DataModelDeps | undefined;

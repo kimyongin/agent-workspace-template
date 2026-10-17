@@ -139,6 +139,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 | schema-editor-read | 속성 변경안 공개 화면의 지연 조회·조회 실패·초안·저장 결과·복구안 desktop/mobile |
 | material-schema | 통합 자료 설정의 속성 행·검토·변환·작업·복구와 기존 직접 주소 desktop/mobile |
 | material-templates | 자료 종류별 고정 기본 문구·독립 저장·충돌·재시도·일반 설정 태그 진입/복귀 desktop/mobile |
+| typed-relations | 자료 상세의 단일 값·삭제 상대 교체·동일 요청 재확인·해제와 복수 101개 더 보기 desktop/mobile |
 | relation-settings | 별도 자료 관계 설정의 행 안 생성·편집·버전 충돌 초안 보존·보관 desktop/mobile |
 | data-model | 전체 모델 파일·원문 검토·복사/갱신·영구 제거 확인·이력 더 보기·저장 후 독립 상세 조회·전체 적용/응답 불명 desktop/mobile |
 | issuer-settings | 발급처 목록·첫 번호 종류 추가·종류별 연결과 기본 선택·등록·중첩 확인·초안 충돌·설정 메뉴 desktop/mobile |
