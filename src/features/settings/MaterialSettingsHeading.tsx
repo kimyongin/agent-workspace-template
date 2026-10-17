@@ -22,21 +22,22 @@ const sections = [
     label: "번호 설정",
     description: "어느 곳의 어떤 번호를 사용할지 정합니다.",
   },
+  {
+    key: "exchange",
+    to: "/settings/data-model",
+    label: "일괄 설정",
+    description: "자료 종류·연결·번호 설정을 한 번에 가져오거나 내보냅니다. 등록한 자료 내용은 포함하지 않습니다.",
+  },
 ] as const;
 
 export function MaterialSettingsHeading({ section, id }: {
-  section: typeof sections[number]["key"] | "exchange";
+  section: typeof sections[number]["key"];
   id?: string;
 }) {
   return (
     <>
       <PageHeading title="자료 설정" description="자료 종류·연결 방법·번호 설정을 함께 관리합니다." id={id}>
-        <div className="material-settings-heading-actions">
-          <Link className="btn" to="/settings/data-model" aria-current={section === "exchange" ? "page" : undefined}>
-            가져오기·내보내기
-          </Link>
-          <SettingsMenu />
-        </div>
+        <SettingsMenu />
       </PageHeading>
       <nav className="material-settings-tabs" aria-label="자료 설정 항목">
         {sections.map(({ key, to, label }) => (
@@ -44,8 +45,7 @@ export function MaterialSettingsHeading({ section, id }: {
         ))}
       </nav>
       <p className="material-settings-description secondary">
-        {sections.find(({ key }) => key === section)?.description ??
-          "자료 종류·연결 방법·번호 설정을 파일로 옮깁니다. 등록한 자료 내용은 포함하지 않습니다."}
+        {sections.find(({ key }) => key === section)?.description}
       </p>
     </>
   );
