@@ -191,8 +191,7 @@ export class SqlDataModelStore implements DataModelStore {
     }
     for (const t of target.entity_types) {
       const id = t.schema["x-type-id"],
-        old = source.entity_types.find((o) => o.schema["x-type-id"] === id),
-        item = plan.review.items.find((i) => i.ref === t.ref)!;
+        old = source.entity_types.find((o) => o.schema["x-type-id"] === id);
       if (!old) {
         await tx`insert into app.entity_types(owner_id,id,next_property_number) values(${this.actor.userId},${id}::uuid,${
           Math.max(1, ...Object.keys(t.schema.properties).map((k) => Number(k.slice(5)))) + 1

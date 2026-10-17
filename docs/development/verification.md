@@ -150,7 +150,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 
 페이지 읽기의 상한·취소·실패 규칙은 `paged-list.test.ts`에서 검증한다. `pagination-fixture.spec.ts`는 실제 앱에서 URL 복원·누적 행·재시도 cursor·초점·읽던 위치·필터 초기화를 확인한다. 대량 모의 목록 때문에 실제 로그인 검사를 반복하지 않는다. 실제 API의 로그인·저장·웹/MCP 왕복 검사는 기본 설정에 남긴다.
 
-전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 열여덟 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
+전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 열아홉 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
 
 자료 조회 영역의 배치는 `npm run test:e2e -- --config=e2e/query-layout.build.config.ts`로 정적 빌드에서도 확인한다. 개발 서버와 운영 빌드는 CSS chunk의 순서가 달라질 수 있으므로, 관련 조작끼리 같은 행에 있는지·서로 겹치지 않는지도 검사한다. 선택창 위/검색창 아래 같은 개별 위치와 전체 가로 넘침 검사만으로 완료하지 않는다. 검사는 `test-results/query-layout-dist`에 모의 공개 설정으로 빌드하며 운영 서비스에 접속하지 않는다.
 
