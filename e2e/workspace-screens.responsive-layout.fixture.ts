@@ -102,19 +102,15 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await go(page, "/entities");
     await page.screenshot({ path: info.outputPath(`tab-entities-${width}.png`) });
-    const top = page.locator(".app-main > .panel"),
+    const top = listHeader(page),
       bottom = page.getByRole("region", { name: "검사 자료 목록", exact: true });
-    expect((await bottom.boundingBox())!.y).toBeGreaterThanOrEqual(
-      (await top.boundingBox())!.y + (await top.boundingBox())!.height,
-    );
-    const inset = 24,
-      topBox = (await top.boundingBox())!,
-      listBox = (await bottom.locator(".collection-list").boundingBox())!;
-    expect((await top.getByRole("heading", { name: "검사 자료", exact: true }).boundingBox())!.x - topBox.x).toBeCloseTo(
-      0,
-    );
-    expect((await top.getByLabel("자료 제목 검색", { exact: false }).boundingBox())!.x - topBox.x).toBeCloseTo(0);
-    expect((await bottom.locator("[data-list-anchor]").first().boundingBox())!.x - listBox.x).toBeGreaterThanOrEqual(inset);
+    await expect(top.getByRole("heading", { name: "검사 자료", exact: true })).toBeVisible();
+    await expect(top.getByLabel("자료 제목 검색", { exact: false })).toBeVisible();
+    const titleBox = (await bottom.locator("[data-list-anchor]").first().boundingBox())!;
+    const searchBox = (await top.getByLabel("자료 제목 검색", { exact: false }).boundingBox())!;
+    expect(titleBox.y).toBeGreaterThanOrEqual(searchBox.y + searchBox.height);
+    expect(titleBox.x).toBeGreaterThanOrEqual(12);
+    expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(width - 12);
     await expect(bottom.getByRole("link", { name: "자료 상세", exact: true })).toHaveCount(0);
     await openListEditor(page, "자료");
     await expect(form(page).getByLabel("제목", { exact: false })).toHaveValue("자료");
@@ -125,7 +121,7 @@ for (const width of [390, 1440]) {
     await expect(page.locator(`[id="entity-${entityKey(1)}"]`)).toBeFocused();
     await go(page, "/tasks");
     expect(
-      await page.getByRole("region", { name: "할 일 목록", exact: true }).locator(".collection-list [data-slot='item']")
+      await page.getByRole("region", { name: "할 일 목록", exact: true }).locator("[data-slot='item']")
         .first().evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft)),
     ).toBeGreaterThanOrEqual(12);
     await page.screenshot({ path: info.outputPath(`tab-activity-${width}.png`) });

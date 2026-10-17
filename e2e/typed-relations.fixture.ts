@@ -136,7 +136,7 @@ test(
     await page.screenshot({ path: `/private/tmp/typed-relations-single-${info.project.name}.png`, fullPage: true });
     for (let n = 0; n < 5; n++) await multi.getByRole("button", { name: "더 보기", exact: true }).click();
     await expect(multi.getByRole("button", { name: "재료 101", exact: true })).toBeVisible();
-    await expect(multi.locator(".related-items > li")).toHaveCount(101);
+    await expect(multi.locator("[data-slot=item-group] > li")).toHaveCount(101);
     await page.screenshot({ path: `/private/tmp/typed-relations-${info.project.name}.png`, fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await single.getByRole("button", { name: "해제", exact: true }).click();
