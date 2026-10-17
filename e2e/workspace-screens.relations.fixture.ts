@@ -116,6 +116,8 @@ for (const kind of ["tasks", "records"] as const) {
       await page.setViewportSize({ width, height: 900 });
       await go(page, `/${kind}/${row.id}`);
       const link = form(page).getByRole("region", { name: /^연결된 자료/ }).getByRole("button", { name: "함", exact: true });
+      await expect.poll(() => form(page).evaluate(element => element.getAnimations({ subtree: true })
+        .filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
       const box = (await link.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
