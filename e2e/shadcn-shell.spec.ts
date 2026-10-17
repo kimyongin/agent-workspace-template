@@ -37,16 +37,20 @@ for (const scale of ["100", "110", "125", "150"]) {
 
 test("shell desktop: closing a detail returns long-list scrolling and append ownership to main", async ({ page }) => {
   const state = await fixture(page);
-  state.rows.entities = Array.from({ length: 40 }, (_, index) => entity(1000 + index, { prop_1: `스크롤 자료 ${index}` }));
-  state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20)]);
+  state.rows.entities = Array.from({ length: 59 }, (_, index) => entity(1000 + index, { prop_1: `스크롤 자료 ${index}` }));
+  state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20, 40), state.rows.entities.slice(40)]);
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/entities");
   const main = page.getByRole("main");
   await expect(main.locator("[data-list-anchor]")).toHaveCount(20);
   await openListDetail(page, "스크롤 자료 19");
+  // An external insertion pushes the return anchor to page two, requiring lookahead before append.
+  state.rows.entities.unshift(entity(9999, { prop_1: "외부 추가 자료" }));
+  state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20, 40), state.rows.entities.slice(40)]);
   await closeDetail(page, "스크롤 자료 19");
   const anchor = main.getByRole("button", { name: "스크롤 자료 19", exact: true });
   await expect(anchor).toBeFocused();
+  await expect(main.locator("[data-list-anchor]")).toHaveCount(40);
   const more = main.getByRole("button", { name: "더 보기", exact: true });
   await expect(more).toHaveAttribute("aria-disabled", "false");
   await more.scrollIntoViewIfNeeded();
@@ -59,7 +63,7 @@ test("shell desktop: closing a detail returns long-list scrolling and append own
     return true;
   })).toBe(true);
   await more.click();
-  await expect(main.locator("[data-list-anchor]")).toHaveCount(40);
+  await expect(main.locator("[data-list-anchor]")).toHaveCount(60);
   await expect(more).toBeFocused();
   expect(await main.evaluate(element => element.scrollTop)).toBe(top);
   await expect(anchor).toHaveCount(1);
