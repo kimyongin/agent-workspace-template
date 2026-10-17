@@ -1,3 +1,5 @@
+import { createAndLinkTools } from "./create-and-link-tools.ts";
+import type { CreateAndLinkDeps } from "../../core/entity-relations/create-and-link.ts";
 import { entityRelationLinkTools } from "./entity-relation-link-tools.ts";
 import type { EntityRelationLinkDeps } from "../../core/entity-relations/links.ts";
 import type { EntityRelationDefinitionDeps } from "../../core/entity-relations/application.ts";
@@ -57,8 +59,10 @@ export function createMcpApp(
   issuers?: EntityIssuerDeps,
   relationDefinitions?: EntityRelationDefinitionDeps,
   relationLinks?: EntityRelationLinkDeps,
+  createAndLink?: CreateAndLinkDeps,
 ) {
   const tools = [
+    ...(createAndLink ? createAndLinkTools(createAndLink) : []),
     ...(relationLinks ? entityRelationLinkTools(relationLinks) : []),
     ...(relationDefinitions ? entityRelationDefinitionTools(relationDefinitions) : []),
     ...(issuers ? entityIssuerTools(issuers) : []),

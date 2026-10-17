@@ -56,63 +56,65 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
     i.expected_version === undefined ? "entity.create" : "entity.restore",
     null,
     i,
-    async (s) => {
-      const definition = await requireDefinition(s, i.entity_type_id, i.schema_version, true);
-      const settings = await s.getTypeIdentity(i.entity_type_id, true);
-      if (!settings) throw notFound();
-      if (i.identity_version !== undefined && i.identity_version !== settings.version) {
-        throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 설정을 다시 조회하세요");
-      }
-      const { source } = registrationIdentity(settings, i);
-      if (i.expected_version !== undefined && i.external_id === undefined) {
-        throw invalidInput(
-          "복원할 외부 식별자가 필요합니다",
-        );
-      }
-      let external_id = i.external_id;
-      if (external_id === undefined) {
-        if (!s.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
-        external_id = await s.issueDataId();
-      }
-      const id = entityId(source, i.entity_type_id, external_id);
-      const { change_note, change_tag_ids, expected_version, identity_version: _settings, ...props } = i;
-      const generated = i.external_id === undefined;
-      const snapshot = generated ? null : await s.get(id);
-      if (snapshot && snapshot.entity_type_id !== i.entity_type_id) {
-        throw new AppError("entity_type_immutable", "같은 식별자의 자료 종류는 변경할 수 없습니다", [{
-          path: "entity_type_id",
-          message: "원래 자료 종류로 복원하세요",
-        }]);
-      }
-      const old = snapshot ? await s.get(id, true) : null;
-      const registration = registrationState(old);
-      if (registration === "duplicate") throw conflict("같은 발급처·식별자의 활성 엔터티가 있습니다");
-      if (old && old.version !== expected_version) {
-        throw conflict("삭제된 기존 엔터티를 조회하고 현재 버전으로 복원을 확인하세요");
-      }
-      if (!old && expected_version !== undefined) throw conflict("복원할 엔터티가 없습니다");
-      const content = registrationContent(props, { source, external_id }, old ? entityChangeFacts(old) : null);
-      content.properties = checkedProperties(definition, content.properties, props.properties, !old, old?.properties);
-      const result = old
-        ? await s.restore(id, { ...props, ...content })
-        : await s.insert({ ...props, ...content, id }, generated);
-      await s.appendChange({
-        target_kind: "entity",
-        target: entityChangeTarget(result),
-        action: old ? "restore" : "create",
-        before: old ? entityChangeFacts(old) : null,
-        after: {
-          ...entityChangeFacts(result),
-          property_labels: Object.fromEntries(
-            Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
-          ),
-        },
-        change_note,
-        change_tag_ids,
-      });
-      return result;
-    },
+    (s) => createEntityInTransaction(s, i),
   );
+}
+/** Store-level creation/restoration command; caller owns the transaction and single request receipt. */
+export async function createEntityInTransaction(s: EntityStore, i: EntityCreate): Promise<EntityValues> {
+  const definition = await requireDefinition(s, i.entity_type_id, i.schema_version, true);
+  const settings = await s.getTypeIdentity(i.entity_type_id, true);
+  if (!settings) throw notFound();
+  if (i.identity_version !== undefined && i.identity_version !== settings.version) {
+    throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 설정을 다시 조회하세요");
+  }
+  const { source } = registrationIdentity(settings, i);
+  if (i.expected_version !== undefined && i.external_id === undefined) {
+    throw invalidInput(
+      "복원할 외부 식별자가 필요합니다",
+    );
+  }
+  let external_id = i.external_id;
+  if (external_id === undefined) {
+    if (!s.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
+    external_id = await s.issueDataId();
+  }
+  const id = entityId(source, i.entity_type_id, external_id);
+  const { change_note, change_tag_ids, expected_version, identity_version: _settings, ...props } = i;
+  const generated = i.external_id === undefined;
+  const snapshot = generated ? null : await s.get(id);
+  if (snapshot && snapshot.entity_type_id !== i.entity_type_id) {
+    throw new AppError("entity_type_immutable", "같은 식별자의 자료 종류는 변경할 수 없습니다", [{
+      path: "entity_type_id",
+      message: "원래 자료 종류로 복원하세요",
+    }]);
+  }
+  const old = snapshot ? await s.get(id, true) : null;
+  const registration = registrationState(old);
+  if (registration === "duplicate") throw conflict("같은 발급처·식별자의 활성 엔터티가 있습니다");
+  if (old && old.version !== expected_version) {
+    throw conflict("삭제된 기존 엔터티를 조회하고 현재 버전으로 복원을 확인하세요");
+  }
+  if (!old && expected_version !== undefined) throw conflict("복원할 엔터티가 없습니다");
+  const content = registrationContent(props, { source, external_id }, old ? entityChangeFacts(old) : null);
+  content.properties = checkedProperties(definition, content.properties, props.properties, !old, old?.properties);
+  const result = old
+    ? await s.restore(id, { ...props, ...content })
+    : await s.insert({ ...props, ...content, id }, generated);
+  await s.appendChange({
+    target_kind: "entity",
+    target: entityChangeTarget(result),
+    action: old ? "restore" : "create",
+    before: old ? entityChangeFacts(old) : null,
+    after: {
+      ...entityChangeFacts(result),
+      property_labels: Object.fromEntries(
+        Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
+      ),
+    },
+    change_note,
+    change_tag_ids,
+  });
+  return result;
 }
 export function getEntity(d: EntityDeps, a: Actor, id: string) {
   return d.uow.run(a, async (s) => {

@@ -114,3 +114,10 @@ let relationLinks: EntityRelationLinkDeps | undefined;
 export function entityRelationLinkDeps(): EntityRelationLinkDeps {
   return relationLinks ??= { uow: new SqlEntityRelationLinkUnitOfWork(database()) };
 }
+
+import { SqlCreateAndLinkUnitOfWork } from "./adapters/supabase/create-and-link-store.ts";
+import type { CreateAndLinkDeps } from "./core/entity-relations/create-and-link.ts";
+let createAndLink: CreateAndLinkDeps | undefined;
+export function createAndLinkDeps(): CreateAndLinkDeps {
+  return createAndLink ??= { uow: new SqlCreateAndLinkUnitOfWork(database()) };
+}

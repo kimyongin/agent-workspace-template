@@ -1,3 +1,4 @@
+import { CreateRelatedEntityForm } from "./CreateRelatedEntityForm.tsx";
 import { EntityTypedRelations } from "./EntityTypedRelations.tsx";
 import { detailModeLink } from "../../lib/entity-list-url.ts";
 import { EntityPairRelations } from "./EntityPairRelations.tsx";
@@ -33,18 +34,21 @@ export function EntityDetailPage() {
   const afterClose = useDeferredNavigation();
   const relationSaved = useRef(false);
   const location = useLocation();
-  const [creating, setCreating] = useState<"task" | "record" | null>(null);
-  const returnCreateFocus = useRef<"task" | "record" | null>(null),
-    previousCreate = useRef<"task" | "record" | null>(null);
+  const [creating, setCreating] = useState<"task" | "record" | "relation" | null>(null);
+  const returnCreateFocus = useRef<"task" | "record" | "relation" | null>(null),
+    previousCreate = useRef<"task" | "record" | "relation" | null>(null);
   const closeCreate = () => {
     returnCreateFocus.current = creating;
     setCreating(null);
     const p = new URLSearchParams(params);
     p.delete("create");
+    p.delete("relation_id");
+    p.delete("relation_side");
     afterClose(detailModeLink(location.pathname, p, location.hash), true);
   };
   useEffect(() => {
-    const value = params.get("create"), next = value === "task" || value === "record" ? value : null;
+    const value = params.get("create"),
+      next = value === "task" || value === "record" || value === "relation" ? value : null;
     if (!next && previousCreate.current) returnCreateFocus.current = previousCreate.current;
     previousCreate.current = next;
     setCreating(next);
@@ -70,12 +74,18 @@ export function EntityDetailPage() {
     if (!detail.confirmed && entity) relationSaved.current = false;
   }, [entity, detail.confirmed]);
   const returnParams = new URLSearchParams(params);
-  ["edit", "edit_from", "create"].forEach((key) => returnParams.delete(key));
+  ["edit", "edit_from", "create", "relation_id", "relation_side"].forEach((key) => returnParams.delete(key));
   const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#${encodeURIComponent(`entity-${id}`)}` : ""}`);
   const deleteBack = useDetailDeleteReturn(back);
   useEffect(() => {
     if (creating || !editReady || !returnCreateFocus.current) return;
     const frame = requestAnimationFrame(() => {
+      if (returnCreateFocus.current === "relation") {
+        const button = document.querySelector<HTMLButtonElement>('dialog[open] [aria-label$="작성해서 연결"]');
+        button?.focus();
+        returnCreateFocus.current = null;
+        return;
+      }
       const label = returnCreateFocus.current === "task" ? "할 일 작성" : "기록 작성";
       const button = Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button"))
         .find((el) => el.getAttribute("aria-label") === label);
@@ -200,7 +210,20 @@ export function EntityDetailPage() {
             <TagNames scope="entity" compact ids={entity.tag_ids} />
           </section>
           <div className="detail-relations">
-            <EntityTypedRelations entity={entity} onSaved={(version)=>{detail.confirm(current=>current?{...current,version}:current);if(!editor.active)void reload();}} />
+            <EntityTypedRelations
+              entity={entity}
+              onCreate={(definition, side) => {
+                const p = new URLSearchParams(params);
+                p.set("create", "relation");
+                p.set("relation_id", definition.id);
+                p.set("relation_side", String(side));
+                navigate(detailModeLink(location.pathname, p, location.hash));
+              }}
+              onSaved={(version) => {
+                detail.confirm((current) => current ? { ...current, version } : current);
+                if (!editor.active) void reload();
+              }}
+            />
             <EntityPairRelations
               entity={entity}
               onSaved={(version) => {
@@ -233,6 +256,28 @@ export function EntityDetailPage() {
             {entity.deleted_at && <p className="secondary">삭제됨</p>}
             {management}
           </div>
+          {creating === "relation" && !entity.deleted_at && (
+            <CreateRelatedEntityForm
+              key={location.key}
+              originId={entity.id}
+              definitionId={params.get("relation_id") ?? ""}
+              side={params.get("relation_side") === "1" ? 1 : 0}
+              onClose={closeCreate}
+              onRouteDiscard={() => setCreating(null)}
+              onSaved={(result) => {
+                detail.confirm((current) =>
+                  current
+                    ? {
+                      ...current,
+                      version: result.relation.endpoint_versions.find((e) => e.id === entity.id)!.version,
+                    }
+                    : current
+                );
+                closeCreate();
+                void reload();
+              }}
+            />
+          )}
           {creating === "task" && !entity.deleted_at && (
             <TaskFormModal
               key={location.key}

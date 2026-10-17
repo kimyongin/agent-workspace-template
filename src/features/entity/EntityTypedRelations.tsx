@@ -23,7 +23,11 @@ interface LinkPage {
   next_cursor: string | null;
 }
 export function EntityTypedRelations(
-  { entity, onSaved }: { entity: EntityDetail; onSaved: (version: number) => void },
+  { entity, onSaved, onCreate }: {
+    entity: EntityDetail;
+    onSaved: (version: number) => void;
+    onCreate?: (definition: EntityRelationDefinition, side: 0 | 1) => void;
+  },
 ) {
   const [definitions, setDefinitions] = useState<EntityRelationDefinition[]>([]),
     [error, setError] = useState(""),
@@ -69,6 +73,7 @@ export function EntityTypedRelations(
                 definition={def}
                 side={side as 0 | 1}
                 onSaved={onSaved}
+                onCreate={onCreate}
               />
             )
             : null
@@ -78,11 +83,12 @@ export function EntityTypedRelations(
   );
 }
 export function EntityRelationSection(
-  { entity, definition, side, onSaved }: {
+  { entity, definition, side, onSaved, onCreate }: {
     entity: EntityDetail;
     definition: EntityRelationDefinition;
     side: 0 | 1;
     onSaved: (version: number) => void;
+    onCreate?: (definition: EntityRelationDefinition, side: 0 | 1) => void;
   },
 ) {
   const surface = useContext(SurfaceContext),
@@ -159,6 +165,16 @@ export function EntityRelationSection(
           hasMore={!single && !!state.page?.next_cursor}
           action={
             <div className="actions">
+              {active && onCreate && (
+                <BodyAction
+                  icon="create"
+                  disabled={preparing}
+                  aria-label={`${def.ends[side].label} 작성해서 연결`}
+                  onClick={() => onCreate(def, side)}
+                >
+                  작성
+                </BodyAction>
+              )}
               {active && (
                 <BodyAction
                   icon={view.searching ? "close" : "link"}

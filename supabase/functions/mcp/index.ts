@@ -3,6 +3,7 @@ import { createMcpApp } from "../_shared/adapters/mcp/app.ts";
 import {
   activityDeps,
   businessSettingsDeps,
+  createAndLinkDeps,
   entityDeps,
   entityIssuerDeps,
   entityPairDeps,
@@ -30,5 +31,6 @@ Deno.serve(
     entityIssuerDeps(),
     entityRelationDefinitionDeps(),
     entityRelationLinkDeps(),
+    createAndLinkDeps(),
   ),
 );

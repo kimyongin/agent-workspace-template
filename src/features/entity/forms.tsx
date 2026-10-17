@@ -28,6 +28,9 @@ export function EntityForm({
   initial,
   initialTypeId,
   initialTypeLabel,
+  fixedType = false,
+  context,
+  submitLabel = "저장",
   details,
   deletion,
   onClose,
@@ -37,6 +40,9 @@ export function EntityForm({
   initial?: EntityDetail;
   initialTypeId?: string;
   initialTypeLabel?: string;
+  fixedType?: boolean;
+  context?: ReactNode;
+  submitLabel?: string;
   details?: ReactNode;
   deletion?: DeletionOptions;
   onClose: () => void;
@@ -242,12 +248,15 @@ export function EntityForm({
         domain={label}
         description="발급처와 번호를 확인하고, 자료의 속성과 태그를 입력합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
-        submitLabel="저장"
+        submitLabel={submitLabel}
         submitDisabled={!!typeId &&
           (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
-          target: definition ? String(effectiveProperties[schemaPresentation(definition).representative] ?? label) : label,
+          target: definition
+            ? String(effectiveProperties[schemaPresentation(definition).representative] ?? label)
+            : label,
           action: archived ? "복원" : initial ? "수정" : "등록",
+          message: context,
         }}
         dirty={dirty}
         deletion={deletion}
@@ -373,6 +382,7 @@ export function EntityForm({
       >
         {(errors) => (
           <>
+            {context}
             <section className="detail-section form">
               {catalogError && (
                 <p className="error-text" role="alert">
@@ -380,7 +390,7 @@ export function EntityForm({
                   <button type="button" className="btn" onClick={retryCatalog}>자료 종류 다시 조회</button>
                 </p>
               )}
-              {!initial && !archived && (
+              {!initial && !archived && !fixedType && (
                 <>
                   <EntityTypePicker
                     types={types?.filter((type) => !type.archived) ?? []}
@@ -585,9 +595,13 @@ export function EntityForm({
                     onChange={(values) => {
                       lookup.current?.abort();
                       setReviewKeys((keys) => keys.filter((key) => values[key] === properties[key]));
-                      setProperties(!initial && !archived
-                        ? Object.fromEntries(Object.entries(values).filter(([key]) => !definition.schema.properties[key]?.readOnly))
-                        : values);
+                      setProperties(
+                        !initial && !archived
+                          ? Object.fromEntries(
+                            Object.entries(values).filter(([key]) => !definition.schema.properties[key]?.readOnly),
+                          )
+                          : values,
+                      );
                     }}
                   />
                 )
