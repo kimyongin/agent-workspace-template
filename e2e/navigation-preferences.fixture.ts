@@ -423,6 +423,8 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
   await expect(picker.locator("svg")).toHaveCount(6);
   await picker.getByRole("radio", { name: "잎", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
+  await expect(picker.getByRole("radio", { name: "포장", exact: true })).toBeFocused();
+  await page.keyboard.press("Space");
   await expect(picker.getByRole("radio", { name: "포장", exact: true })).toBeChecked();
   expect(await picker.getByRole("radio").evaluateAll((controls) => controls.every((control) => {
     const rect = control.getBoundingClientRect();
