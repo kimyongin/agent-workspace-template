@@ -720,6 +720,7 @@ export function DataModelSettings() {
                 open={selected === change.id}
                 onToggle={() => {
                   if (!locked) {
+                    if (selected !== change.id) void loadDetail(change.id);
                     setSelected(
                       selected === change.id ? null : change.id,
                     );
