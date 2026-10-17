@@ -1185,7 +1185,7 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
   await applied.click();
   const conversion = page.getByRole("region", { name: "값 변환 상세", exact: true });
   for (const [label, value] of [["새 입력 항목 버전", "2"], ["적용", "10개 적용"], ["값 변경", "6개 값 변경"]]) {
-    await expect(conversion.getByRole("term", { name: label, exact: true }).locator("..").getByRole("definition")).toHaveText(value);
+    await expect(conversion.getByRole("term").filter({ hasText: new RegExp(`^${label}$`) }).locator("..").getByRole("definition")).toHaveText(value);
   }
   await expect(page.getByRole("button", { name: "폐기", exact: true }))
     .toHaveCount(0);
