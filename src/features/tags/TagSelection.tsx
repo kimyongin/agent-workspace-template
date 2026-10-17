@@ -77,7 +77,7 @@ export function TagSelection(
           {value.map((selected, index) => {
             const name = knownNames.current.get(selected);
             return (
-              <Badge key={selected} variant="secondary" className="max-w-full gap-1 whitespace-normal">
+              <Badge key={selected} variant="secondary" className="h-auto max-w-full gap-1 whitespace-normal">
                 <span className="min-w-0 wrap-anywhere">{name ?? "태그 확인 필요"}</span>
                 <Button
                   type="button"
@@ -196,18 +196,21 @@ function TagPickerDialog(
           />
           {status && <FieldSet disabled={disabled}>{status}</FieldSet>}
           <CommandList aria-label="태그 목록" aria-multiselectable={maxSelected !== 1}>
-            <CommandEmpty>
-              {search.trim()
-                ? "일치하는 태그가 없습니다."
-                : tags?.length === 0
-                ? "태그 관리에서 태그를 먼저 추가하세요."
-                : "선택할 수 있는 태그가 없습니다."}
-            </CommandEmpty>
+            {tags !== null && (
+              <CommandEmpty>
+                {search.trim()
+                  ? "일치하는 태그가 없습니다."
+                  : tags?.length === 0
+                  ? "태그 관리에서 태그를 먼저 추가하세요."
+                  : "선택할 수 있는 태그가 없습니다."}
+              </CommandEmpty>
+            )}
             <CommandGroup>
               {choices.map((tag) => {
                 const selected = value.includes(tag.id);
                 return (
                   <CommandItem
+                    className="min-h-[max(44px,2.75rem)]"
                     key={tag.id}
                     value={tag.id}
                     keywords={[tag.name]}

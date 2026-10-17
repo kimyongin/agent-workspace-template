@@ -1,4 +1,6 @@
-import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import type { RecordResult } from "@contracts/record.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
@@ -69,7 +71,7 @@ export function RecordRelations(
                           <RelatedItem
                             title={capture?.title ?? "연결된 자료"}
                             metadata={
-                              <dl className="key-value-grid">
+                              <dl className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
                                 {capture?.type && (
                                   <>
                                     <div>
@@ -84,7 +86,7 @@ export function RecordRelations(
                                     </div>
                                   </>
                                 )}
-                                <div className="key-value-full">
+                                <div className="col-span-full min-w-0">
                                   <dt>자료 식별</dt>
                                   <dd>{id}</dd>
                                 </div>
@@ -148,7 +150,7 @@ function ChangedRelation(
   const deleted = missing && change.action === "delete";
   const fallback = missing
     ? (
-      <p className="secondary">
+      <p className="text-sm text-muted-foreground">
         {deleted
           ? "삭제된 항목입니다. 기록에 저장된 당시 제목을 표시합니다."
           : "현재 항목을 조회할 수 없습니다. 기록에 저장된 당시 제목을 표시합니다."}
@@ -157,24 +159,24 @@ function ChangedRelation(
     : state === "failed"
     ? (
       <>
-        <p className="secondary">현재 항목을 불러오지 못했습니다.</p>
+        <p className="text-sm text-muted-foreground">현재 항목을 불러오지 못했습니다.</p>
         {!readOnly && (
-          <button
+          <Button
+            variant="outline"
             type="button"
-            className="btn"
             onClick={() => void read.resource.read("probe")}
           >
             다시 시도
-          </button>
+          </Button>
         )}
       </>
     )
     : state === "loading"
-    ? <p className="secondary" role="status">불러오는 중…</p>
+    ? <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>
     : undefined;
   const occurrenceData = occurrence
     ? (
-      <dl className="key-value-static">
+      <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
         <div>
           <dt>회차</dt>
           <dd>{occurrence}</dd>
@@ -191,7 +193,7 @@ function ChangedRelation(
           <>
             {occurrenceData}
             {missing && (
-              <dl className="key-value-static">
+              <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
                 <div>
                   <dt>조회 상태</dt>
                   <dd>{deleted ? "삭제됨" : "조회 불가"}</dd>
@@ -211,7 +213,7 @@ function ChangedRelation(
       to={path}
       restoreKey="change-target"
       title={change.target_title}
-      titleBadge={missing ? <span className="badge">{deleted ? "삭제됨" : "조회 불가"}</span> : undefined}
+      titleBadge={missing ? <Badge variant="secondary">{deleted ? "삭제됨" : "조회 불가"}</Badge> : undefined}
       metadata={occurrenceData}
       fallback={fallback}
     />
@@ -228,7 +230,7 @@ function ReadonlyTask(
       <RelatedItem
         title={task.title}
         metadata={
-          <dl className="key-value-static">
+          <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
             <div>
               <dt>상태</dt>
               <dd>
@@ -247,7 +249,7 @@ function ReadonlyTask(
     );
   }
   return (
-    <p className="secondary" role={cause ? undefined : "status"}>
+    <p className="text-sm text-muted-foreground" role={cause ? undefined : "status"}>
       {cause
         ? cause instanceof ApiError && cause.status === 404
           ? "삭제된 할 일 또는 접근할 수 없는 할 일입니다."
