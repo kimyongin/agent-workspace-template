@@ -53,6 +53,13 @@ async function settings(page: Page) {
   const link=page.getByRole("menuitem",{name:"설정",exact:true,includeHidden:inert});
   if(inert)await link.evaluate((el:HTMLAnchorElement)=>el.click());else await link.click();
 }
+async function closeMainNavigation(page: Page) {
+  const menu = page.getByRole("dialog", { name: "주 메뉴", exact: true });
+  if (await menu.isVisible()) {
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  }
+}
 async function settingsCategory(page: Page, name: string) {
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name, exact: true }).click();
@@ -128,12 +135,13 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   await revealNavigation(page);
   await page.getByRole("navigation", { name: "주 메뉴",includeHidden:true }).getByRole("link", { name: "할 일", exact: true,includeHidden:true }).evaluate((el:HTMLAnchorElement)=>el.click());
   const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?" }); await discard.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings\/tags$/); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("앱 초안");
+  await expect(page).toHaveURL(/\/settings\/tags$/); await closeMainNavigation(page); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("앱 초안");
   await page.goBack(); await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/settings\/tags$/);
   // 로그아웃 진입은 설정을 먼저 거친다. 그 이동도 태그 초안을 버리지 않는다.
   await page.getByRole("textbox",{name:/태그 이름/}).focus();await settings(page);
   await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/settings\/tags$/);
   await expect(page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true})).toBeFocused();
+  await closeMainNavigation(page);
   expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(true); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("앱 초안");
   await page.goBack(); await discard.getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/settings$/);
   await page.goBack(); await expect(page).toHaveURL(/\/tasks$/);
@@ -236,12 +244,14 @@ test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그
   await settings(page);
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible(); expect(signOuts).toBe(0);
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
+  await closeMainNavigation(page);
   await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("로그아웃 초안"); expect(signOuts).toBe(0);
   await settings(page); await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
   await expect(page).toHaveURL(/\/settings$/); expect(signOuts).toBe(0);
   // 새 위치의 로그아웃도 미저장 선택의 취소/승인을 지켜야 한다.
   await page.getByRole("radio", { name: "별", exact: true }).click(); await revealNavigation(page); await openProfileMenu(page); await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
+  await closeMainNavigation(page);
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked(); expect(signOuts).toBe(0);
   await revealNavigation(page); await openProfileMenu(page); await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/login$/); expect(signOuts).toBe(1);
