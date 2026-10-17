@@ -1021,11 +1021,10 @@ test(
       path: info.outputPath("property-display-settings.png"),
       fullPage: true,
     });
+    const longPropertyName = "공백없이아주긴속성이름을입력해도화면너비를넘지않아야하는상황";
     await properties.getByLabel("항목 이름", { exact: true }).filter({
       visible: true,
-    }).fill(
-      "공백없이아주긴속성이름을입력해도화면너비를넘지않아야하는상황",
-    );
+    }).fill(longPropertyName);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
     ).toBe(true);
@@ -1059,7 +1058,12 @@ test(
         expect(layout.contained, `${width}px collapsed title/badges`).toBe(true);
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-      if (width === 320) await page.screenshot({ path: info.outputPath("collapsed-properties-320-150.png"), fullPage: true });
+      if (width === 320) {
+        const longSummary = properties.getByRole("button", { name: `${longPropertyName} 입력 항목 편집`, exact: true });
+        await longSummary.scrollIntoViewIfNeeded();
+        await expect(longSummary).toBeInViewport({ ratio: 1 });
+        await page.screenshot({ path: info.outputPath("collapsed-properties-320-150.png"), fullPage: true });
+      }
     }
     await page.screenshot({ path: info.outputPath("collapsed-properties-150.png"), fullPage: true });
     await page.evaluate(() => document.documentElement.style.removeProperty("--display-scale"));
