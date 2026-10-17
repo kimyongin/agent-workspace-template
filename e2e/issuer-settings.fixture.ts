@@ -475,6 +475,8 @@ test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 
   const state = await fixture(page, baseURL!);
   await page.goto("/settings/issuers");
   const navigation = page.getByRole("navigation", { name: "자료 설정 항목", exact: true });
+  await expect(navigation.getByRole("link")).toHaveText(["자료 종류", "연결 설정", "번호 설정", "일괄 설정"]);
+  await expect(page.locator(".page-heading").getByRole("link")).toHaveCount(0);
   await expect(navigation.getByRole("link", { name: "번호 설정", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("어느 곳의 번호인지 구분합니다. 예: 쿠팡·옥션·이 앱", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
@@ -485,7 +487,7 @@ test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await expect(navigation).toBeVisible();
-    await expect(page.getByRole("link", { name: "가져오기·내보내기", exact: true })).toBeVisible();
+    await expect(navigation.getByRole("link", { name: "일괄 설정", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
   await page.setViewportSize({ width: info.project.name === "mobile" ? 320 : 1440, height: 1000 });
@@ -499,9 +501,9 @@ test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 
   await navigation.getByRole("link", { name: "연결 설정", exact: true }).click();
   await expect(navigation.getByRole("link", { name: "연결 설정", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("어떤 자료끼리 연결할 수 있는지와 연결할 개수를 정합니다.", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "가져오기·내보내기", exact: true }).click();
+  await navigation.getByRole("link", { name: "일괄 설정", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/data-model$/);
-  await expect(page.getByRole("link", { name: "가져오기·내보내기", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.getByRole("link", { name: "일괄 설정", exact: true })).toHaveAttribute("aria-current", "page");
   expect(state.writes).toEqual([]);
 });
 
