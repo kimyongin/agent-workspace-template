@@ -7,7 +7,9 @@ import { useRecordConfirmation } from "../../components/RecordConfirmation.tsx";
 import { api } from "../../lib/api.ts";
 import { TagNames, TagPicker, type TagScope } from "./TagPicker.tsx";
 
-export function ReadonlyTags({ ids, scope, onRemove }: { ids: string[]; scope: TagScope; onRemove?: (id: string) => void }) {
+export function ReadonlyTags(
+  { ids, scope, onRemove }: { ids: string[]; scope: TagScope; onRemove?: (id: string) => void },
+) {
   return (
     <dl className="key-value-static tag-connection-data">
       <div>
@@ -56,7 +58,14 @@ export function TagConnections({ scope, target, readonly = false, onSaved }: {
         )
         : (
           <>
-            <ReadonlyTags scope={scope} ids={target.tag_ids} onRemove={readonly ? undefined : id => { setMessage(null); setEditing({ ...target, tag_ids: target.tag_ids.filter(tag => tag !== id) }); }} />
+            <ReadonlyTags
+              scope={scope}
+              ids={target.tag_ids}
+              onRemove={readonly ? undefined : (id) => {
+                setMessage(null);
+                setEditing({ ...target, tag_ids: target.tag_ids.filter((tag) => tag !== id) });
+              }}
+            />
             {!readonly && (
               <BodyAction
                 icon="create"

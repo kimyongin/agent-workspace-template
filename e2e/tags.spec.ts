@@ -85,7 +85,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       if(kind==="entity")await form.getByLabel("제목").fill(title);else{await form.getByLabel("본문").fill(title);}
       await chooseTag(page, form, name);await saveOnce(page,form);
       await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/(?:entities\/[^/?]+%3A|records\/)[0-9]{8}-[0-9A-Z]{8}(?:\?|$)/);
-      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:"기록",level:1})).toBeVisible();const id=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
+      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open] dd.detail-title").getByText(title,{exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:"기록",level:1})).toBeVisible();const id=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([tag.id]);
       const tagRegion=page.getByRole("region",{name:"태그 연결"});
       await tagRegion.getByRole("button",{name:`${name} 연결 해제`,exact:true}).click();
@@ -95,7 +95,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
       await openDetailEditor(page);const edit=page.getByRole("dialog",{name:kind==="entity"?/^검사 자료.* 편집$/:"기록 편집"});
       await expect(edit.getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
-      await expect(edit.getByText("연결된 태그 없음",{exact:true})).toBeVisible();
+      await expect(edit.locator(".tag-connection-data:visible").getByText("연결된 태그 없음",{exact:true})).toBeVisible();
       await edit.getByRole("button",{name:"취소",exact:true}).click();
       const beforeRestore=await mcp.call(`get_${kind}`,{id});
       await mcp.call(`update_${kind}`,{id,expected_version:beforeRestore.version,tag_ids:[tag.id],...(kind==="entity"?{schema_version:beforeRestore.current_schema_version,change_note:"분류 복구"}:{})});
@@ -106,7 +106,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       await page.getByRole("button",{name:"닫기",exact:true}).click();await openTabFilters(page);await expect(page.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
-      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
+      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open] dd.detail-title").getByText(title,{exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
     }
   }finally{await mcp.close();}
 });
