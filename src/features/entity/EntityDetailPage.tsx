@@ -1,3 +1,4 @@
+import { recordDisplayText } from "@contracts/record-display.ts";
 import { CreateRelatedEntityForm } from "./CreateRelatedEntityForm.tsx";
 import { EntityTypedRelations } from "./EntityTypedRelations.tsx";
 import { detailModeLink } from "../../lib/entity-list-url.ts";
@@ -7,7 +8,7 @@ import { CollectionList } from "../../components/Collection.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
-import { RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
 import { RelatedTaskItem } from "../activity/RelatedTask.tsx";
 import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
@@ -19,7 +20,7 @@ import type { EntityDetail } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
-import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
+import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
@@ -197,18 +198,21 @@ export function EntityDetailPage() {
       {entity && (
         <div className="detail-stack">
           <section className="detail-section entity-detail-properties">
-            <DetailTitle>{entity.title}</DetailTitle>
-            <dl className="props">
-              <div>
-                <dt>번호 출처</dt>
-                <dd>{entity.source_label}</dd>
-              </div>
-              <div>
-                <dt>자료 번호</dt>
-                <dd className="entity-identity-value">{entity.external_id}</dd>
-              </div>
-            </dl>
-            <EntityProperties entity={entity} omitRepresentative />
+            <EntityProperties
+              entity={entity}
+              identity={
+                <>
+                  <div>
+                    <dt>번호 출처</dt>
+                    <dd>{entity.source_label}</dd>
+                  </div>
+                  <div>
+                    <dt>자료 번호</dt>
+                    <dd className="entity-identity-value">{entity.external_id}</dd>
+                  </div>
+                </>
+              }
+            />
             <TagNames scope="entity" compact ids={entity.tag_ids} />
           </section>
           <div className="detail-relations">
@@ -308,6 +312,26 @@ export function EntityDetailPage() {
           {editor.active && !creating && editReady && (
             <EntityForm
               initial={entity}
+              relations={
+                <div className="detail-relations">
+                  <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />
+                  {([["tasks", "할 일"], ["records", "기록"]] as const).map(([kind, label]) => (
+                    <RelatedSection key={kind} title={label} count={entity[kind].count} views={false}>
+                      <CollectionList>
+                        {entity[kind].items.map((item) => (
+                          <li key={item.id}>
+                            <RelatedItem
+                              title={kind === "tasks"
+                                ? (item as EntityDetail["tasks"]["items"][number]).title
+                                : recordDisplayText((item as EntityDetail["records"]["items"][number]).body)}
+                            />
+                          </li>
+                        ))}
+                      </CollectionList>
+                    </RelatedSection>
+                  ))}
+                </div>
+              }
               deletion={entity.deleted_at ? undefined : {
                 preparation: () => ({
                   model: "entity",

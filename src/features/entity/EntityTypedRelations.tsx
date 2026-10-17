@@ -7,7 +7,7 @@ import { entityPath } from "@contracts/entity-identity.ts";
 import { api, query } from "../../lib/api.ts";
 import { DetailLink, useDetailViewState } from "../../lib/detail-exploration.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
-import { RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { Notice } from "../../components/Field.tsx";
@@ -23,7 +23,8 @@ interface LinkPage {
   next_cursor: string | null;
 }
 export function EntityTypedRelations(
-  { entity, onSaved, onCreate }: {
+  { entity, onSaved, onCreate, readOnly = false }: {
+    readOnly?: boolean;
     entity: EntityDetail;
     onSaved: (version: number) => void;
     onCreate?: (definition: EntityRelationDefinition, side: 0 | 1) => void;
@@ -74,6 +75,7 @@ export function EntityTypedRelations(
                 side={side as 0 | 1}
                 onSaved={onSaved}
                 onCreate={onCreate}
+                readOnly={readOnly}
               />
             )
             : null
@@ -83,7 +85,8 @@ export function EntityTypedRelations(
   );
 }
 export function EntityRelationSection(
-  { entity, definition, side, onSaved, onCreate }: {
+  { entity, definition, side, onSaved, onCreate, readOnly = false }: {
+    readOnly?: boolean;
     entity: EntityDetail;
     definition: EntityRelationDefinition;
     side: 0 | 1;
@@ -131,7 +134,7 @@ export function EntityRelationSection(
   const def = state.page?.definition ?? definition,
     single = def.ends[side].cardinality === "one",
     current = state.page?.items[0],
-    active = !entity.deleted_at && !entity.type.archived && !def.archived;
+    active = !readOnly && !entity.deleted_at && !entity.type.archived && !def.archived;
   const prepare = async (item: Candidate, remove: boolean) => {
     if (preparing || surface?.editor.current) return;
     const started = locationKey.current, c = new AbortController();
@@ -160,7 +163,7 @@ export function EntityRelationSection(
       <div ref={section} tabIndex={-1} aria-label={`${def.ends[side].label} 관계`}>
         <RelatedSection
           title={def.ends[side].label + (def.archived ? " · 보관" : "")}
-          views={!single}
+          views={!single && !readOnly}
           count={single ? undefined : state.page?.items.length}
           hasMore={!single && !!state.page?.next_cursor}
           action={
@@ -187,7 +190,7 @@ export function EntityRelationSection(
                   {view.searching ? "닫기" : single && current ? "변경" : "연결"}
                 </BodyAction>
               )}
-              {single && current && (
+              {!readOnly && single && current && (
                 <BodyAction
                   icon="unlink"
                   disabled={preparing}
@@ -212,7 +215,9 @@ export function EntityRelationSection(
                 {current
                   ? (
                     <>
-                      <DetailLink to={entityPath(current.id)}>{current.title}</DetailLink>
+                      {readOnly
+                        ? <span>{current.title}</span>
+                        : <DetailLink to={entityPath(current.id)}>{current.title}</DetailLink>}
                       <span className="secondary">
                         {current.deleted_at ? " · 삭제됨" : ""}
                         {current.type.archived ? " · 보관됨" : ""}
@@ -229,27 +234,42 @@ export function EntityRelationSection(
                 <CollectionList>
                   {state.page?.items.map((item) => (
                     <li key={item.id}>
-                      <RelatedPreviewItem
-                        title={item.title}
-                        to={entityPath(item.id)}
-                        metadata={
-                          <>
-                            {item.type.label}
-                            {item.deleted_at ? " · 삭제됨" : ""}
-                            {item.type.archived ? " · 보관됨" : ""}
-                          </>
-                        }
-                        action={
-                          <BodyAction
-                            icon="unlink"
-                            aria-label={`${item.title} 연결 해제`}
-                            disabled={preparing}
-                            onClick={() => void prepare(item, true)}
-                          >
-                            해제
-                          </BodyAction>
-                        }
-                      />
+                      {readOnly
+                        ? (
+                          <RelatedItem
+                            title={item.title}
+                            metadata={
+                              <>
+                                {item.type.label}
+                                {item.deleted_at ? " · 삭제됨" : ""}
+                                {item.type.archived ? " · 보관됨" : ""}
+                              </>
+                            }
+                          />
+                        )
+                        : (
+                          <RelatedPreviewItem
+                            title={item.title}
+                            to={entityPath(item.id)}
+                            metadata={
+                              <>
+                                {item.type.label}
+                                {item.deleted_at ? " · 삭제됨" : ""}
+                                {item.type.archived ? " · 보관됨" : ""}
+                              </>
+                            }
+                            action={
+                              <BodyAction
+                                icon="unlink"
+                                aria-label={`${item.title} 연결 해제`}
+                                disabled={preparing}
+                                onClick={() => void prepare(item, true)}
+                              >
+                                해제
+                              </BodyAction>
+                            }
+                          />
+                        )}
                     </li>
                   ))}
                 </CollectionList>
