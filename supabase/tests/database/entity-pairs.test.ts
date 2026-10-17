@@ -29,6 +29,16 @@ dbTest(
           (tx) => tx`insert into app.entity_pairs(owner_id,entity_id,other_id) values(${owner.actor.userId},'a','b')`,
         )
       );
+      // Retiring the table must not leave an executable privileged helper or view.
+      assertEquals(
+        await admin`select n.nspname,p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','private') and p.prokind in ('f','p') and p.prosrc ~ '(entity_pairs|retired_entity_pairs)'`,
+        [],
+      );
+      assertEquals(
+        await admin`select schemaname,viewname from pg_views where schemaname in ('app','private','public') and definition ~ '(entity_pairs|retired_entity_pairs)'`,
+        [],
+      );
+      assertEquals((await admin`select to_regprocedure('app.rekey_entity(text,text,text)') as name`)[0].name, null);
       const value = await asUser(
         sql,
         owner.actor.userId,
