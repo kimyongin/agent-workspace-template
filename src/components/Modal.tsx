@@ -1,3 +1,4 @@
+import { PopupContainerContext } from "./ui/portal-container.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.tsx";
 import { Button } from "./ui/button.tsx";
 import { ArrowLeftIcon, XIcon } from "lucide-react";
@@ -60,7 +61,7 @@ export interface SurfaceAction {
 /** Short actions open above this retained viewing/editing surface. */
 export const SurfaceActionContext = createContext<((action: SurfaceAction | null) => void) | null>(null);
 
-/** URL detail and its editor share one native dialog, focus trap and scroll surface. */
+/** URL detail and its editor share one retained dialog and scroll surface. */
 export function DetailSurface({title, description, tabTitle = title, onClose, children, busy = false, footer, onError, ready = true}: {title: string; description?: string; tabTitle?: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode; onError?: (error: unknown) => void; ready?: boolean}) {
   const previous = useDetailExploration();
   const tab = useContext(DetailTabContext);
@@ -215,7 +216,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
     <DialogHeader className="shrink-0 p-4">
       <div className="flex min-w-0 items-start gap-2">
         {previous && <Button type="button" variant="ghost" size="icon" aria-label={previous.label} disabled={busy} onClick={() => tab ? previous.back() : requestLeave(previous.back)}><ArrowLeftIcon /></Button>}
-        <DialogTitle asChild>{headingLevel === 1 ? <h1 ref={headingRef} id={titleId} className="min-w-0 flex-1 break-words" tabIndex={-1}>{domain ?? title}</h1> : <h2 ref={headingRef} id={titleId} className="min-w-0 flex-1 break-words" tabIndex={-1}>{domain ?? title}</h2>}</DialogTitle>
+        <DialogTitle asChild>{headingLevel === 1 ? <h1 ref={headingRef} id={titleId} className="min-w-0 flex-1 break-words outline-none" tabIndex={-1}>{domain ?? title}</h1> : <h2 ref={headingRef} id={titleId} className="min-w-0 flex-1 break-words outline-none" tabIndex={-1}>{domain ?? title}</h2>}</DialogTitle>
         {!dialogDocked && <Button type="button" variant="ghost" size="icon" aria-label="닫기" onClick={requestClose} disabled={busy || action?.busy}><XIcon /></Button>}
       </div>
       {description && <DialogDescription id={`${titleId}-description`}>{description}</DialogDescription>}
@@ -235,7 +236,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
       onEscapeKeyDown={event => { event.preventDefault(); event.stopPropagation(); requestClose(); }}>
       <div className="flex h-full min-h-0 flex-col" ref={node => { mobileSlot.current = node; if (!dialogDocked) attach(node); }} />
     </DialogContent>
-    {createPortal(contents, host)}
+    {createPortal(<PopupContainerContext.Provider value={host}>{contents}</PopupContainerContext.Provider>, host)}
     {action && <ConfirmationSurface open title={action.title} busy={action.busy} onCancel={action.onCancel} closeButton footer={action.footer}>{action.body}</ConfirmationSurface>}
     <ConfirmDialog open={confirmDiscard} busy={busy || action?.busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { setConfirmDiscard(false); discardDestination.current(); }} onCancel={() => setConfirmDiscard(false)} />
     {!workspace && <LocalModalRouteProtection shouldBlock={shouldBlock} busy={busy || !!action?.busy} discard={onRouteDiscard} />}

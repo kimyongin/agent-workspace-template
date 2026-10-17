@@ -223,10 +223,11 @@ test("typed creation requires selection and protects drafts before changing kind
 test("settings profile route keeps drafts and treats settings as account location", async ({ page }) => {
   await page.goto("/settings");
   await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByRole("heading", { name: "설정", exact: true, level: 1 })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { current: "page" }))
+  await expect(page.getByRole("heading", { name: "기본 설정", exact: true, level: 1 })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "주 메뉴" }).locator('a[aria-current="page"]'))
     .toHaveCount(0);
   await page.getByLabel("닉네임", { exact: true }).fill("자료 번호 초안");
+  await openMainNavigation(page);
   await page.getByRole("link", { name: "할 일", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
     .click();

@@ -1,3 +1,4 @@
+import { PopupContainerContext } from "./ui/portal-container.tsx";
 import { useNavigationOrigin } from "../lib/navigation-protection.tsx";
 import { type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { durableFocusTarget, firstField, registerSurface } from "../lib/surface-dom.ts";
@@ -50,7 +51,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
   useLayoutEffect(() => { elements.current = { title, body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true }; });
   useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
   const cancel = () => { if (!busy) onCancel(); };
-  return <Dialog open={open} onOpenChange={next => { if (!next) cancel(); }}>
+  return <PopupContainerContext.Provider value={root}><Dialog open={open} onOpenChange={next => { if (!next) cancel(); }}>
     <DialogContent ref={setRoot} aria-modal={true} showCloseButton={false} aria-describedby={undefined}
       className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)" }}
@@ -68,7 +69,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
       <div ref={body} className="min-h-0 overflow-y-auto overscroll-contain p-4 px-4 pb-4">{children}</div>
       <DialogFooter ref={footerElement} className="m-0 shrink-0">{footer}</DialogFooter>
     </DialogContent>
-  </Dialog>;
+  </Dialog></PopupContainerContext.Provider>;
 }
 
 export function useSurfaceViewport(ref: RefObject<HTMLElement | null>, element?: HTMLElement | null) {

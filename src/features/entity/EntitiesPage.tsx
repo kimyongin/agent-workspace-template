@@ -76,11 +76,11 @@ export function EntitiesPage() {
   if (urlFilters.raw) applied.set("property_filters", urlFilters.raw);
   const editing = useFilterDraft(applied, filter.entity_type_id ?? "");
   const [filterError, setFilterError] = useState("");
-  const filterArea = useRef<HTMLDivElement>(null);
+  const filterApply = useRef<HTMLButtonElement>(null);
   const [focusRecoveryApply, setFocusRecoveryApply] = useState(false);
   useEffect(() => {
     if (!focusRecoveryApply || params.get("filters") !== "1") return;
-    filterArea.current?.querySelector<HTMLButtonElement>(".filter-apply-footer button")?.focus();
+    filterApply.current?.focus();
     setFocusRecoveryApply(false);
   }, [focusRecoveryApply, params]);
   const resetFilters = () => {
@@ -269,7 +269,7 @@ export function EntitiesPage() {
           tabIndex={-1}
           description="자료를 등록하고, 속성과 연결된 할 일·기록을 관리합니다."
         />
-        <div ref={filterArea} className="@container flex min-w-0 flex-col gap-3">
+        <div className="@container flex min-w-0 flex-col gap-3">
           <EntityTypePicker
             types={types ?? []}
             value={filter.entity_type_id ?? ""}
@@ -303,6 +303,7 @@ export function EntitiesPage() {
           <div className="grid min-w-0 grid-cols-1 items-end gap-3 @min-[14rem]:grid-cols-[minmax(0,1fr)_auto]">
             <TabSearch entity inputRef={searchInput} />
             <TabFilters
+              applyRef={filterApply}
               active={!!(filter.tag_id || filter.sort !== "updated_at" || filter.filters)}
               attention={dictionary.failed}
               summary={filterSummary}

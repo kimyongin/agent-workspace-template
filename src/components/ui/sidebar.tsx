@@ -196,7 +196,7 @@ function Sidebar({
             <SheetTitle>주 메뉴</SheetTitle>
             <SheetDescription>업무 화면과 개인 설정으로 이동합니다.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div className="flex h-full w-full flex-col" role={props.role} aria-label={props["aria-label"]} id={props.id}>{children}</div>
         </SheetContent>
       </Sheet>
     )

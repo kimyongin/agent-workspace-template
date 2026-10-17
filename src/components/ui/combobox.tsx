@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Combobox as ComboboxPrimitive } from "@base-ui/react"
 import { cn } from "cn"
+import { PopupContainerContext } from "./portal-container"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -50,7 +51,7 @@ function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.Props) {
 function ComboboxInput({
   className,
   children,
-  disabled = false,
+  disabled,
   showTrigger = true,
   showClear = false,
   ...props
@@ -61,7 +62,8 @@ function ComboboxInput({
   return (
     <InputGroup className={cn("w-auto", className)}>
       <ComboboxPrimitive.Input
-        render={<InputGroupInput disabled={disabled} />}
+        render={<InputGroupInput />}
+        disabled={disabled}
         {...props}
       />
       <InputGroupAddon align="inline-end">
@@ -72,9 +74,8 @@ function ComboboxInput({
             asChild
             data-slot="input-group-button"
             className="group-has-data-[slot=combobox-clear]/input-group:hidden data-pressed:bg-transparent"
-            disabled={disabled}
           >
-            <ComboboxTrigger />
+            <ComboboxTrigger disabled={disabled} />
           </InputGroupButton>
         )}
         {showClear && <ComboboxClear disabled={disabled} />}
@@ -97,8 +98,9 @@ function ComboboxContent({
     ComboboxPrimitive.Positioner.Props,
     "side" | "align" | "sideOffset" | "alignOffset" | "anchor"
   >) {
+  const container = React.useContext(PopupContainerContext)
   return (
-    <ComboboxPrimitive.Portal>
+    <ComboboxPrimitive.Portal container={container ?? undefined}>
       <ComboboxPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

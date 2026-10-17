@@ -108,14 +108,14 @@ export function SearchPage() {
       return next;
     });
   return (
-    <section data-page-ready={!busy && (!!result || !!error || !q) ? "" : undefined} className="flex min-w-0 flex-col gap-6" aria-labelledby="search-title">
+    <section data-page-ready={!busy && (!!result || !!error || !q) ? "" : undefined} className="@container flex min-w-0 flex-col gap-6" aria-labelledby="search-title">
       <PageHeading
         title="검색"
         id="search-title"
         tabIndex={-1}
         description="할 일·기록을 키워드나 의미로 찾아봅니다."
       />
-      <div className="flex min-w-0 flex-wrap items-end gap-3">
+      <div className="grid min-w-0 grid-cols-1 items-end gap-3 @min-[14rem]:grid-cols-[minmax(0,1fr)_auto]">
         <form
           className="flex min-w-0 flex-col gap-4"
           onSubmit={(e) => {
