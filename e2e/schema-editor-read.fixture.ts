@@ -406,7 +406,7 @@ test("속성 요약에서 열린 행의 입력을 검토하고 행 완료와 적
   await page.getByRole("button", { name: "입력 항목", exact: true })
     .click();
   await page.locator(
-    "[role=\"region\"][aria-label$=\" 입력 항목\"] button[aria-expanded=true]",
+    "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
   await expect(page.getByLabel("항목 이름", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: /^검토할 이름 항목 (?:펼치기|접기)$/, exact: true }).click();
@@ -423,7 +423,7 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("1.5");
   await page.locator(
-    "[role=\"region\"][aria-label$=\" 입력 항목\"] button[aria-expanded=true]",
+    "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
   await expect(page.getByRole("button", { name: "이름 항목 펼치기", exact: true })).toBeFocused();
   await expect(page.getByLabel("최대 길이", { exact: true })).toBeHidden();
@@ -436,7 +436,7 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("20");
   await page.locator(
-    "[role=\"region\"][aria-label$=\" 입력 항목\"] button[aria-expanded=true]",
+    "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
   await expect(page.getByRole("region", { name: "이름 입력 항목", exact: true }).locator("[data-slot=\"card-header\"]"))
     .toContainText("변경됨");
@@ -465,7 +465,7 @@ test("서버가 거부한 속성은 검토 실패 뒤 해당 행을 열고 초�
   await revealSetting(page.getByLabel("최소 길이", { exact: true }));
   await page.getByLabel("최소 길이", { exact: true }).fill("2");
   await page.locator(
-    "[role=\"region\"][aria-label$=\" 입력 항목\"] button[aria-expanded=true]",
+    "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("대표 입력 항목 조건");
@@ -753,7 +753,7 @@ for (const failed of [false, true]) {
     await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     const review = page.getByRole("region", { name: "입력 항목 변경 요약", exact: true });
-    await expect(review.locator(".schema-actions > button")).toHaveText(
+    await expect(review.getByRole("group", { name: "변경안 동작", exact: true }).getByRole("button")).toHaveText(
       ["폐기", failed ? "검토 재시도" : "변경 적용"],
     );
     await expect(page.getByRole("button", { name: "다시 검토", exact: true })).toHaveCount(0);
@@ -784,7 +784,7 @@ test("취소한 변경안에서는 항목 편집으로 현재 설정을 열고 �
   await page.route(`**${base}/b`, (route) => route.fulfill({ json: { ...plan("b"), status: "cancelled" } }));
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
   const review = page.getByRole("region", { name: "입력 항목 변경 요약", exact: true });
-  await expect(review.locator(".schema-actions > button")).toHaveCount(0);
+  await expect(review.getByRole("group", { name: "변경안 동작", exact: true }).getByRole("button")).toHaveCount(0);
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("change_id")).toBe(false);
   await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
@@ -1237,7 +1237,7 @@ test("an exact empty analysis offers direct definition apply without conversion 
   expect(applied).toBe(true);
 });
 
-test("입력 항목 이름과 조건은 가용 폭에서 키와 값의 정렬을 유지한다", async ({ page }, info) => {
+test("입력 항목 이름과 조건은 좁은 폼에서도 라벨과 값을 읽고 편집한다", async ({ page }, info) => {
   await page.goto("/e2e/fixtures/schema-editor-read.html?display-example");
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: "재료명 입력 항목 편집", exact: true }).click();
@@ -1248,10 +1248,9 @@ test("입력 항목 이름과 조건은 가용 폭에서 키와 값의 정렬을
     const axes = await name.evaluate((input) => {
       const label = document.querySelector(`label[for="${input.id}"]`)!.getBoundingClientRect();
       const value = input.getBoundingClientRect();
-      return { left: value.left, keyRight: label.right, deltaY: Math.abs(value.top - label.top) };
+      return { left: value.left, keyBottom: label.bottom, valueTop: value.top };
     });
-    expect(axes.keyRight).toBeLessThanOrEqual(axes.left);
-    expect(axes.deltaY).toBeLessThanOrEqual(1);
+    expect(axes.keyBottom).toBeLessThanOrEqual(axes.valueTop + 1);
     if (width === 320) {
       const typeLeft =
         (await page.getByLabel("데이터 타입", { exact: true }).filter({ visible: true }).first().boundingBox())!.x;
@@ -1261,7 +1260,7 @@ test("입력 항목 이름과 조건은 가용 폭에서 키와 값의 정렬을
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`schema-pairs-${width}.png`), fullPage: true });
   }
-  await page.locator(".schema-settings").evaluate((panel) => {
+  await page.getByRole("region", { name: "입력 항목", exact: true }).evaluate((panel) => {
     (panel as HTMLElement).style.maxWidth = "360px";
   });
   await page.screenshot({ path: info.outputPath("schema-pairs-narrow-parent.png"), fullPage: true });
