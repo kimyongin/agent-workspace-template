@@ -1,3 +1,5 @@
+import { Button } from "../../components/ui/button.tsx";
+import { EyeIcon } from "lucide-react";
 import { shiftScroll } from "../../lib/surface-dom.ts";
 import {
   type ComponentProps,
@@ -11,7 +13,7 @@ import {
 } from "react";
 import { Link, type LinkProps } from "react-router";
 import { RelatedItem, useRelatedExpansion } from "../../components/RelatedItems.tsx";
-import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
+
 import { useExpansionRegistration } from "../../components/item-expansion.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
@@ -109,14 +111,14 @@ export function RelatedPreviewItem(
           {props.action}
           {viewable && (list
             ? (
-              <Link {...list.link()} {...viewProps}>
-                <BodyActionFace icon="view">상세</BodyActionFace>
-              </Link>
+              <Button asChild variant="ghost"><Link {...list.link()} {...viewProps}>
+                <><EyeIcon data-icon="inline-start" />상세</>
+              </Link></Button>
             )
             : (
-              <DetailLink {...viewProps} to={path} restoreKey={`view-related-${path}`}>
-                <BodyActionFace icon="view">상세</BodyActionFace>
-              </DetailLink>
+              <Button asChild variant="ghost"><DetailLink {...viewProps} to={path} restoreKey={`view-related-${path}`}>
+                <><EyeIcon data-icon="inline-start" />상세</>
+              </DetailLink></Button>
             ))}
         </>
       }
@@ -126,14 +128,14 @@ export function RelatedPreviewItem(
         content: (
           <>
             {fallback}
-            {!fallback && !item && !error && <p className="secondary" role="status">불러오는 중…</p>}
+            {!fallback && !item && !error && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
             {!fallback && error === "missing" && (
-              <p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다.</p>
+              <p className="text-sm text-muted-foreground">삭제된 대상 또는 접근할 수 없는 대상입니다.</p>
             )}
             {!fallback && error === "failed" && (
               <>
                 <Notice kind="error">내용을 불러오지 못했습니다.</Notice>
-                <BodyAction onClick={() => void read.resource.read("preview")}>다시 시도</BodyAction>
+                <Button variant="ghost" type="button" onClick={() => void read.resource.read("preview")}>다시 시도</Button>
               </>
             )}
             {!fallback && item && (

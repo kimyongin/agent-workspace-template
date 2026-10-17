@@ -1,3 +1,5 @@
+import { cn } from "../../lib/utils.ts";
+import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { Fragment, type ReactNode, useEffect, useLayoutEffect, useState } from "react";
 import type { EntityValues } from "@contracts/entity.ts";
@@ -54,14 +56,14 @@ export function EntityProperties(
     return (
       <>
         <Notice kind="error">속성 정의를 불러오지 못했습니다.</Notice>
-        <button className="btn" onClick={() => setRetry((n) => n + 1)}>속성 정의 다시 조회</button>
-        {identity && <dl className="props key-value-grid">{identity}</dl>}
+        <Button variant="outline"  onClick={() => setRetry((n) => n + 1)}>속성 정의 다시 조회</Button>
+        {identity && <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">{identity}</dl>}
       </>
     );
   }
   if (!definition) return <p role="status">속성 정의를 불러오는 중…</p>;
   return (
-    <dl className="props key-value-grid">
+    <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
       {(selection === "list"
         ? [
           schemaPresentation(definition).representative,
@@ -80,9 +82,9 @@ export function EntityProperties(
         ) => (
           <Fragment key={key}>
             <div
-              className={key === schemaPresentation(definition).representative
-                ? "key-value-full key-value-primary"
-                : undefined}
+              className={cn(key === schemaPresentation(definition).representative
+                ? "col-span-full col-span-full"
+                : undefined)}
             >
               <dt>
                 {definition.schema.properties[key].title ?? key}
