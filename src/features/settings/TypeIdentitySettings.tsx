@@ -181,7 +181,7 @@ export function TypeIdentitySettings(
                 </Button>
               </AlertDescription></Alert>
             )}
-            <RadioGroup value={draft.default_source} onValueChange={code => update(v => ({...v, default_source:code}))} disabled={busy || uncertain || disabled} aria-label="기본 번호 출처" className="flex min-w-0 flex-col gap-3">
+            <RadioGroup value={active.some(source => source.code === draft.default_source) ? draft.default_source : ""} onValueChange={code => update(v => ({...v, default_source:code}))} disabled={busy || uncertain || disabled} aria-label="기본 번호 출처" className="flex min-w-0 flex-col gap-3">
               {draft.sources.map((source) => {
                 const metadata = saved.sources.find((s) => s.code === source.code),
                   issuer = issuers.find((i) => i.code === source.code),

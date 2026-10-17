@@ -16,9 +16,14 @@ export function SettingsMenu() {
     location.pathname === path || path !== "/settings" && location.pathname.startsWith(`${path}/`) ||
     path === "/settings/materials" && ["/settings/entity-types", "/settings/relations", "/settings/issuers", "/settings/data-model"]
       .some((prefix) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`));
-  return <DropdownMenu open={open} onOpenChange={setOpen}>
+  return <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
     <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="icon" ref={trigger} aria-label="설정 메뉴"><MenuIcon /></Button></DropdownMenuTrigger>
-    <DropdownMenuContent loop aria-label="설정 메뉴" align="end" onInteractOutside={event => { if (hasActiveConfirmation()) event.preventDefault(); }}>
+    <DropdownMenuContent loop aria-label="설정 메뉴" align="end" onCloseAutoFocus={event => {
+      const focused = document.activeElement;
+      if (focused === document.body || event.target instanceof HTMLElement && event.target.contains(focused)) {
+        event.preventDefault(); trigger.current?.focus();
+      }
+    }} onInteractOutside={event => { if (hasActiveConfirmation()) event.preventDefault(); }}>
       <DropdownMenuGroup>
         {settingsCategories.map(({ to, label }) => <DropdownMenuItem key={to} asChild onSelect={event => event.preventDefault()}>
           <Link to={to} aria-current={current(to) ? "page" : undefined} onClick={event => {

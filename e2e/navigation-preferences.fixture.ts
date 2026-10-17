@@ -98,10 +98,14 @@ const nav = (page: Page) => page.getByRole("navigation", { name: "주 메뉴", e
 async function openNavigation(page: Page) {
   const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
   if (await trigger.isVisible() && !await nav(page).isVisible()) await trigger.click();
+  await expect(nav(page)).toBeVisible();
 }
 async function closeNavigation(page: Page) {
   const close = page.getByRole("button", { name: "메뉴 닫기", exact: true });
-  if (await close.isVisible()) await close.click();
+  if (await close.isVisible()) {
+    await close.click();
+    await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true })).toHaveCount(0);
+  }
 }
 const shortcuts = (page: Page) => nav(page).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link");
 async function expectShortcuts(page: Page, expected: string[] | number) {
@@ -125,6 +129,7 @@ test("shortcut editing has its own section with compact rows, bounded selection 
   await expect(section.getByRole("heading", { name: "메뉴 바로가기" })).toBeVisible();
   const select = section.getByRole("combobox", { name: "추가할 메뉴", exact: true });
   await expect(select).toBeDisabled();
+  await expect(select.locator("..").getByRole("button")).toBeDisabled();
   await page.getByLabel("닉네임", { exact: true }).fill("보존할 초안");
   await section.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(section.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
@@ -194,6 +199,9 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
   await page.getByRole("menu", { name: "설정 메뉴" }).getByRole("menuitem", { name: "자료", exact: true }).click();
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toHaveAttribute("aria-expanded", "false");
   await expectShortcuts(page, ["기록", "할 일"]);
   await page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
   await expectShortcuts(page, ["할 일", "기록"]);
@@ -312,6 +320,7 @@ test("pending save prevents duplicate submission and departure until authoritati
   });
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("button", { name: "메뉴 바로가기 저장" })).toBeDisabled();
+  await expect(page.getByRole("combobox", { name: "추가할 메뉴", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await page.getByRole("menu", { name: "설정 메뉴" }).getByRole("menuitem", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/\/settings#settings-navigation$/);

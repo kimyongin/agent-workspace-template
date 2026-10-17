@@ -61,11 +61,26 @@ export function firstField(root: ParentNode | null): HTMLElement | null {
     ?? root?.querySelector<HTMLElement>("[data-field-control]:not(:disabled):not([aria-disabled='true'])") ?? null;
 }
 
-/** Resolve ephemeral menu items through their official ARIA relationship to a durable trigger. */
-export function durableFocusTarget(node: Element | null): HTMLElement | null {
+export interface FocusOrigin {
+  primary: HTMLElement | null;
+  fallback: HTMLElement | null;
+}
+
+/** Keep the initiating control and its menu trigger before an item may unmount. */
+export function captureFocusOrigin(node: Element | null): FocusOrigin {
   const menu = node?.closest('[role="menu"]');
   const trigger = menu?.getAttribute("aria-labelledby")?.split(/\s+/)
     .map(id => menu.ownerDocument.getElementById(id))
     .find(element => element instanceof HTMLElement && element.getAttribute("aria-haspopup") === "menu");
-  return trigger instanceof HTMLElement ? trigger : node instanceof HTMLElement ? node : null;
+  return {
+    primary: node instanceof HTMLElement ? node : null,
+    fallback: trigger instanceof HTMLElement ? trigger : null,
+  };
+}
+
+export function restoreFocusOrigin(origin: FocusOrigin | null) {
+  const primary = origin?.primary;
+  const menu = primary?.closest('[role="menu"]');
+  const target = primary?.isConnected && menu?.getAttribute("data-state") !== "closed" ? primary : origin?.fallback;
+  if (target?.isConnected) target.focus();
 }

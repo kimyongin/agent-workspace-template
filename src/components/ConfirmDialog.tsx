@@ -1,7 +1,7 @@
 import { PopupContainerContext } from "./ui/portal-container.tsx";
 import { useNavigationOrigin } from "../lib/navigation-protection.tsx";
 import { type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { durableFocusTarget, firstField, registerSurface } from "../lib/surface-dom.ts";
+import { captureFocusOrigin, firstField, registerSurface, restoreFocusOrigin, type FocusOrigin } from "../lib/surface-dom.ts";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog.tsx";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.tsx";
 import { Button } from "./ui/button.tsx";
@@ -16,7 +16,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = root;
   useSurfaceViewport(viewportRef, root);
-  const origin = useRef<HTMLElement | null>(null);
+  const origin = useRef<FocusOrigin | null>(null);
   const navigationOrigin = useNavigationOrigin();
   const heading = useRef<HTMLHeadingElement>(null), footer = useRef<HTMLDivElement>(null);
   const elements = useRef({ title, body: root, heading: heading.current, footer: footer.current, active: open, modal: true, confirmation: true, ready: true });
@@ -26,8 +26,8 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
     <AlertDialogContent ref={setRoot} aria-modal={true}
       className="flex w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
-      onOpenAutoFocus={() => { origin.current = navigationOrigin ?? durableFocusTarget(document.activeElement); }}
-      onCloseAutoFocus={event => { event.preventDefault(); if (origin.current?.isConnected) origin.current.focus(); }}
+      onOpenAutoFocus={() => { origin.current = navigationOrigin ?? captureFocusOrigin(document.activeElement); }}
+      onCloseAutoFocus={event => { event.preventDefault(); restoreFocusOrigin(origin.current); }}
       onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
       <AlertDialogHeader className="min-h-0 overflow-y-auto overscroll-contain p-4"><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
       <AlertDialogFooter ref={footer} className="m-0 shrink-0">

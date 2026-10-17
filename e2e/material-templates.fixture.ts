@@ -193,6 +193,7 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
   await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/settings\/records$/);
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await page.keyboard.press("Escape");
 
   await form.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
@@ -299,7 +300,7 @@ test("통합 태그는 접힌 섹션에도 조회 오류와 저장 미확정 상
   await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/settings\/tags$/);
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+  await page.keyboard.press("Escape");
   await section.click();
   await expect(section).toHaveAttribute("aria-expanded", "false");
   await expect(section).toContainText("결과 확인 필요");
@@ -372,6 +373,7 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   await page.getByRole("menuitem", { name: "기본", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
     .click();
+  await page.keyboard.press("Escape");
   await expect(form.getByLabel("메모 템플릿")).toHaveText("할 일 초안");
   await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");

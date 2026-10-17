@@ -341,7 +341,7 @@ export function SchemaEditor(
                     );
                   const expanded = openFields.includes(key);
                   const fieldSummary = (
-                    <span className="text-sm text-muted-foreground">
+                    <span className="flex max-w-full flex-wrap items-center gap-1 text-sm text-muted-foreground">
                       {!expanded && <span>{fieldTypeLabel(f)}</span>}
                       {draft.schema.required.includes(key) && <Badge variant="secondary">필수</Badge>}
                       {key === schemaPresentation(draft).representative && (
@@ -391,7 +391,7 @@ export function SchemaEditor(
                               )
                               : (
                                 <Button variant="outline"
-                                  className="flex min-w-0 flex-1 flex-col items-start gap-2 text-left [overflow-wrap:anywhere]"
+                                  className="flex h-auto min-h-11 max-w-full min-w-0 flex-1 flex-col items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left [overflow-wrap:anywhere]"
                                   type="button"
                                   aria-label={`${f.title || "새 항목"} 입력 항목 편집`}
                                   aria-expanded={expanded}
@@ -408,7 +408,7 @@ export function SchemaEditor(
                                     });
                                   }}
                                 >
-                                  <span>{f.title || "새 항목"}</span>
+                                  <span className="max-w-full">{f.title || "새 항목"}</span>
                                   {fieldSummary}
                                 </Button>
                               )}
@@ -948,7 +948,7 @@ export function SchemaEditor(
                   >
                     <CardHeader><Button variant="outline"
                       type="button"
-                      className="h-auto min-h-11 w-full justify-between whitespace-normal text-left min-w-0 [overflow-wrap:anywhere]"
+                      className="h-auto min-h-11 w-full flex-wrap justify-between gap-3 whitespace-normal py-3 text-left min-w-0 [overflow-wrap:anywhere]"
                       aria-expanded={isOpen}
                       aria-controls={`schema-history-${row.id}`}
                       disabled={!isOpen && plan?.id !== row.changeId &&
@@ -991,13 +991,13 @@ export function SchemaEditor(
                         }
                       }}
                     >
-                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="flex min-w-0 flex-1 basis-40 flex-col gap-1">
                         <span>{title}</span>
                         <time className="text-sm text-muted-foreground" dateTime={row.createdAt}>
                           시각 {new Date(row.createdAt).toLocaleString()}
                         </time>
                       </span>
-                      <span className="text-sm text-muted-foreground shrink-0">상태 {status}</span>
+                      <span className="max-w-full shrink-0 text-sm text-muted-foreground">상태 {status}</span>
                     </Button></CardHeader><CardContent hidden={!isOpen}>
                     <div
                       id={`schema-history-${row.id}`}

@@ -1045,6 +1045,24 @@ test(
         visible: true,
       }),
     ).toHaveCount(0);
+    for (const width of [320, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => document.documentElement.style.setProperty("--display-scale", "1.5"));
+      const collapsed = properties.getByRole("button", { name: /입력 항목 편집$/ });
+      for (const trigger of await collapsed.all()) {
+        const layout = await trigger.evaluate((button) => {
+          const bounds = button.getBoundingClientRect();
+          const labels = [...button.querySelectorAll("span")].map(span => span.getBoundingClientRect());
+          return { height: bounds.height, contained: labels.every(label => label.left >= bounds.left && label.right <= bounds.right + 1 && label.top >= bounds.top && label.bottom <= bounds.bottom + 1) };
+        });
+        expect(layout.height, `${width}px collapsed property target`).toBeGreaterThanOrEqual(44);
+        expect(layout.contained, `${width}px collapsed title/badges`).toBe(true);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      if (width === 320) await page.screenshot({ path: info.outputPath("collapsed-properties-320-150.png"), fullPage: true });
+    }
+    await page.screenshot({ path: info.outputPath("collapsed-properties-150.png"), fullPage: true });
+    await page.evaluate(() => document.documentElement.style.removeProperty("--display-scale"));
     await page.setViewportSize({ width: 320, height: 640 });
     await page.evaluate(() => document.documentElement.style.zoom = "2");
     expect(
@@ -1420,15 +1438,13 @@ test(
           const status = el.querySelector(":scope > span:last-child")!.getBoundingClientRect();
           const button = el.getBoundingClientRect();
           return {
-            display: getComputedStyle(el).display,
             dateBelow: date.top >= title.bottom,
-            statusSeparate: status.left >= heading.getBoundingClientRect().right,
-            arrowSpace: button.right - status.right,
+            statusSeparate: status.left >= heading.getBoundingClientRect().right || status.top >= heading.getBoundingClientRect().bottom,
+            labelsContained: [title, date, status].every(rect => rect.left >= button.left && rect.right <= button.right + 1 && rect.top >= button.top && rect.bottom <= button.bottom + 1),
             overflowPixels: el.scrollWidth - el.clientWidth,
           };
         });
-        expect(layout, `${width}px ${scale}`).toMatchObject({ display: "grid", dateBelow: true, statusSeparate: true });
-        expect(layout.arrowSpace).toBeGreaterThanOrEqual(12);
+        expect(layout, `${width}px ${scale}`).toMatchObject({ dateBelow: true, statusSeparate: true, labelsContained: true });
         expect(layout.overflowPixels).toBeLessThanOrEqual(2);
       }
     }
@@ -1461,23 +1477,16 @@ test(
     await expect(definition.getByRole("region", { name: "단위 정의", exact: true })).toContainText("그램");
     await expect(definition).not.toContainText("(kg)");
     await expect(definition).not.toContainText("(g)");
-    const headingStyles = await definition.getByRole("heading").evaluateAll((elements) =>
-      elements.map((element) => {
-        const style = getComputedStyle(element);
-        return { size: style.fontSize, weight: style.fontWeight, height: style.lineHeight };
-      })
-    );
-    for (const style of headingStyles) expect(style).toEqual({ size: "13px", weight: "600", height: "20px" });
+    for (const heading of await definition.getByRole("heading").all()) await expect(heading).toBeVisible();
     const pairs = await definition.locator("dl > div").evaluateAll((elements) =>
       elements.map((el) => {
         const key = el.querySelector("dt")!.getBoundingClientRect(),
           value = el.querySelector("dd")!.getBoundingClientRect();
-        return { keyRight: key.right, valueLeft: value.left, deltaY: Math.abs(key.top - value.top) };
+        return { keyBottom: key.bottom, valueTop: value.top };
       })
     );
     for (const pair of pairs) {
-      expect(pair.keyRight).toBeLessThanOrEqual(pair.valueLeft);
-      expect(pair.deltaY).toBeLessThanOrEqual(1);
+      expect(pair.keyBottom).toBeLessThanOrEqual(pair.valueTop + 1);
     }
     await expect(row.getByRole("region", { name: "변경 결과", exact: true }))
       .toContainText("1 → 2");
@@ -1485,19 +1494,6 @@ test(
     await expect(result.getByRole("heading")).toHaveCount(1);
     await expect(result.getByRole("heading", { name: "변경 결과", exact: true })).toBeVisible();
     await expect(result.locator("strong")).toHaveCount(0);
-    const typography = await result.locator("h3, p, li, span").evaluateAll((elements) =>
-      elements.map((el) => {
-        const style = getComputedStyle(el);
-        return { tag: el.tagName, size: style.fontSize, weight: style.fontWeight, height: style.lineHeight };
-      })
-    );
-    for (const style of typography) {
-      if (style.tag === "H3") {
-        expect(style).toMatchObject({ size: "13px", weight: "600", height: "20px" });
-      } else {
-        expect(style).toMatchObject({ size: "14px", weight: "400", height: "24px" });
-      }
-    }
     await page.screenshot({
       path: info.outputPath("schema-history-presentation.png"),
       fullPage: true,

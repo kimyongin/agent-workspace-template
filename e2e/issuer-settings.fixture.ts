@@ -618,7 +618,7 @@ test("closing settings menu on a noninteractive background restores its trigger 
   await fixture(page, baseURL!);
   await page.goto("/settings/issuers");
   const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
-  await trigger.click();
+  await trigger.focus();
   await trigger.press("ArrowDown");
   await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem").first())
     .toBeFocused();
