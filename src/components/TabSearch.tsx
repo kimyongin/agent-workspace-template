@@ -7,19 +7,17 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
-  useId,
   useRef,
   useState,
 } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { Field } from "./Field.tsx";
 import { Button } from "./ui/button.tsx";
-import { InputGroup, InputGroupInput, InputGroupAddon, InputGroupButton } from "./ui/input-group.tsx";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "./ui/input-group.tsx";
 import { FieldGroup } from "./ui/field.tsx";
-import { Card, CardHeader, CardTitle, CardAction, CardContent, CardFooter } from "./ui/card.tsx";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "./ui/collapsible.tsx";
-import { SearchIcon, XIcon, SlidersHorizontalIcon, RotateCcwIcon } from "lucide-react";
-
+import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "./ui/card.tsx";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible.tsx";
+import { RotateCcwIcon, SearchIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
 
 export function clearListPosition(params: URLSearchParams) {
   params.delete("open");
@@ -27,7 +25,9 @@ export function clearListPosition(params: URLSearchParams) {
   return params;
 }
 /** Debounce only text; concurrent filter changes survive through the latest URL. */
-export function TabSearch({ entity = false, inputRef }: { entity?: boolean; inputRef?: RefObject<HTMLInputElement | null> }) {
+export function TabSearch(
+  { entity = false, inputRef }: { entity?: boolean; inputRef?: RefObject<HTMLInputElement | null> },
+) {
   const [params, originalSetParams] = useSearchParams(), location = useLocation(), navigate = useNavigate();
   const latestLocation = useRef(location);
   latestLocation.current = location;
@@ -54,22 +54,51 @@ export function TabSearch({ entity = false, inputRef }: { entity?: boolean; inpu
     }, 300);
     return () => clearTimeout(timer);
   }, [draft, composing, applied, name, setParams]);
-  return <Field label={entity ? "자료 제목 검색" : "검색어"}>
-    {(props) => <InputGroup>
-      <InputGroupAddon><SearchIcon aria-hidden="true" /></InputGroupAddon>
-      <InputGroupInput {...props} ref={node => { input.current = node; if (inputRef) inputRef.current = node; }} value={draft} maxLength={entity ? 100 : 200}
-        placeholder={entity ? "자료 이름 검색" : "검색어 입력"}
-        onChange={event => setDraft(event.target.value)}
-        onCompositionStart={() => setComposing(true)}
-        onCompositionEnd={event => { setDraft(event.currentTarget.value); setComposing(false); }} />
-      {!!draft && <InputGroupAddon align="inline-end"><InputGroupButton size="icon-sm" aria-label="검색어 지우기"
-        onClick={() => {
-          setDraft(""); setComposing(false);
-          const next = clearListPosition(new URLSearchParams(latest.current)); next.delete(name);
-          setParams(next, { replace: true }); input.current?.focus();
-        }}><XIcon /></InputGroupButton></InputGroupAddon>}
-    </InputGroup>}
-  </Field>;
+  return (
+    <Field label={entity ? "자료 제목 검색" : "검색어"}>
+      {(props) => (
+        <InputGroup>
+          <InputGroupAddon>
+            <SearchIcon aria-hidden="true" />
+          </InputGroupAddon>
+          <InputGroupInput
+            {...props}
+            ref={(node) => {
+              input.current = node;
+              if (inputRef) inputRef.current = node;
+            }}
+            value={draft}
+            maxLength={entity ? 100 : 200}
+            placeholder={entity ? "자료 이름 검색" : "검색어 입력"}
+            onChange={(event) => setDraft(event.target.value)}
+            onCompositionStart={() => setComposing(true)}
+            onCompositionEnd={(event) => {
+              setDraft(event.currentTarget.value);
+              setComposing(false);
+            }}
+          />
+          {!!draft && (
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                size="icon-sm"
+                aria-label="검색어 지우기"
+                onClick={() => {
+                  setDraft("");
+                  setComposing(false);
+                  const next = clearListPosition(new URLSearchParams(latest.current));
+                  next.delete(name);
+                  setParams(next, { replace: true });
+                  input.current?.focus();
+                }}
+              >
+                <XIcon />
+              </InputGroupButton>
+            </InputGroupAddon>
+          )}
+        </InputGroup>
+      )}
+    </Field>
+  );
 }
 
 export function resetTabFilters(params: URLSearchParams) {
@@ -90,43 +119,70 @@ export function TabFilters(
   },
 ) {
   const [params] = useSearchParams(), location = useLocation(), navigate = useNavigate();
-  const open = params.get("filters") === "1", controls = useId();
+  const open = params.get("filters") === "1";
   const label = `필터 ${open ? "닫기" : "열기"}${attention ? " · 확인 필요" : active ? " · 적용 중" : ""}`;
   const changeOpen = (value: boolean) => {
     const next = new URLSearchParams(params);
     value ? next.set("filters", "1") : next.delete("filters");
     void navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, {
-      replace: true, preventScrollReset: true,
+      replace: true,
+      preventScrollReset: true,
     });
   };
-  return <Collapsible open={open} onOpenChange={changeOpen} className="flex flex-col gap-3">
-    <div className="flex flex-wrap items-center justify-end gap-3">
-      {!open && (summary.length > 0 || attention) && <p className="mr-auto text-sm text-muted-foreground" aria-label="적용된 필터">
-        {summary.join(" · ")}{attention && `${summary.length ? " · " : ""}조건 확인 필요`}
-      </p>}
-      <CollapsibleTrigger asChild><Button variant="outline" aria-label={label} title={label}>
-        <SlidersHorizontalIcon data-icon="inline-start" />필터
-      </Button></CollapsibleTrigger>
-    </div>
-    <CollapsibleContent id={controls} forceMount hidden={!open}>
-      <FilterPanel dirty={dirty} onReset={onReset} onApply={onApply}>{children}</FilterPanel>
-    </CollapsibleContent>
-  </Collapsible>;
+  return (
+    <Collapsible open={open} onOpenChange={changeOpen} className="contents">
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="outline"
+          className="col-start-1 justify-self-end self-end @min-[14rem]:col-start-2"
+          aria-label={label}
+          title={label}
+        >
+          <SlidersHorizontalIcon data-icon="inline-start" />필터
+        </Button>
+      </CollapsibleTrigger>
+      {!open && (summary.length > 0 || attention) && (
+        <p className="col-span-full text-sm text-muted-foreground" aria-label="적용된 필터">
+          {summary.join(" · ")}
+          {attention && `${summary.length ? " · " : ""}조건 확인 필요`}
+        </p>
+      )}
+      <CollapsibleContent className="col-span-full" forceMount hidden={!open}>
+        <FilterPanel dirty={dirty} onReset={onReset} onApply={onApply}>{children}</FilterPanel>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 export function FilterPanel({ children, dirty = false, onReset, onApply, id, hidden }: {
-  children: ReactNode; dirty?: boolean; onReset: () => void; onApply: () => void; id?: string; hidden?: boolean;
+  children: ReactNode;
+  dirty?: boolean;
+  onReset: () => void;
+  onApply: () => void;
+  id?: string;
+  hidden?: boolean;
 }) {
-  return <Card id={id} hidden={hidden}>
-    <CardHeader><CardTitle>필터</CardTitle><CardAction>
-      <Button type="button" variant="ghost" onClick={onReset}><RotateCcwIcon data-icon="inline-start" />조건 초기화</Button>
-    </CardAction></CardHeader>
-    <CardContent><FieldGroup>{children}</FieldGroup></CardContent>
-    <CardFooter className="flex-wrap justify-end gap-3">
-      {dirty && <span className="mr-auto text-sm text-muted-foreground" role="status">변경사항 적용 대기</span>}
-      <Button type="button" onClick={onApply}>필터 적용</Button>
-    </CardFooter>
-  </Card>;
+  return (
+    <Card id={id} hidden={hidden}>
+      <CardHeader>
+        <CardTitle>
+          <h2>필터</h2>
+        </CardTitle>
+        <CardAction>
+          <Button type="button" variant="ghost" onClick={onReset}>
+            <RotateCcwIcon data-icon="inline-start" />조건 초기화
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <FieldGroup>{children}</FieldGroup>
+      </CardContent>
+      <CardFooter className="flex-wrap justify-end gap-3">
+        {dirty && <span className="mr-auto text-sm text-muted-foreground" role="status">변경사항 적용 대기</span>}
+        <Button type="button" onClick={onApply}>필터 적용</Button>
+      </CardFooter>
+    </Card>
+  );
 }
 
 /** Applied optional conditions synchronize independently of text/disclosure/list position. */

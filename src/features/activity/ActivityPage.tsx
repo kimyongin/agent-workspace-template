@@ -272,7 +272,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                 : "할 일과 진행 상태는 할 일 탭에서 확인하세요."}
             </Notice>
           )}
-          <div className="flex min-w-0 flex-col gap-4">
+          <div className="grid min-w-0 grid-cols-1 items-end gap-3 @min-[14rem]:grid-cols-[minmax(0,1fr)_auto]">
             <TabSearch inputRef={searchInput} />
             <TabFilters
               dirty={editing.dirty}

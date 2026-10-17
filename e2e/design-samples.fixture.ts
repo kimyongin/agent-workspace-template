@@ -1,8 +1,11 @@
 import { openDialogs } from "./ui-actions.ts";
-import { expect, test, type Page, type Locator } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 const detailDialog = (page: Page) => page.getByRole("dialog", { name: "상품 편집", exact: true, includeHidden: true });
-const shortDialog = (page: Page) => page.getByRole("alertdialog").or(page.getByRole("dialog").filter({ hasNot: page.getByRole("heading", { name: "상품 편집", exact: true }) }));
+const shortDialog = (page: Page) =>
+  page.getByRole("alertdialog").or(
+    page.getByRole("dialog").filter({ hasNot: page.getByRole("heading", { name: "상품 편집", exact: true }) }),
+  );
 
 async function checkTag(option: Locator, checked = true) {
   if (await option.getAttribute("aria-checked") !== String(checked)) await option.click();
@@ -42,7 +45,8 @@ test("number sample edits a kind in place and preserves the draft after cancelle
   const editor = page.getByRole("form", { name: "번호 종류 편집" });
   await editor.getByLabel("번호 종류 이름").fill("마켓 상품 번호");
   await editor.getByRole("button", { name: "취소", exact: true }).click();
-  await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
+    .click();
   await expect(editor.getByLabel("번호 종류 이름")).toHaveValue("마켓 상품 번호");
   await page.screenshot({ path: info.outputPath("number-sample-inline.png"), fullPage: true });
   await editor.getByRole("button", { name: "저장", exact: true }).click();
@@ -61,19 +65,34 @@ test("account settings sample keeps independent drafts and clear row actions", a
   const display = section("화면 표시");
   const navigation = section("메뉴 바로가기");
   await profile.getByRole("textbox", { name: "닉네임", exact: true }).fill("남겨 둘 초안");
-  await display.getByRole("radiogroup", { name: "모바일 화면 배율", exact: true }).getByRole("radio", { name: "125%", exact: true }).click();
+  await display.getByRole("radiogroup", { name: "모바일 화면 배율", exact: true }).getByRole("radio", {
+    name: "125%",
+    exact: true,
+  }).click();
   await display.getByRole("button", { name: "저장", exact: true }).click();
   await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
   await navigation.getByRole("button", { name: "기록 위로 이동", exact: true }).click();
-  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText(["상품", "기록", "할 일"]);
+  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText([
+    "상품",
+    "기록",
+    "할 일",
+  ]);
   await navigation.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText(["상품", "할 일", "기록"]);
+  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText([
+    "상품",
+    "할 일",
+    "기록",
+  ]);
   await navigation.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(navigation.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
   await navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption("products");
   await navigation.getByRole("button", { name: "추가", exact: true }).click();
   await navigation.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText(["할 일", "기록", "상품"]);
+  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText([
+    "할 일",
+    "기록",
+    "상품",
+  ]);
   await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
   for (const width of [320, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -197,14 +216,18 @@ for (const outcome of ["success", "failure", "uncertain"]) {
       await dialog.getByRole("button", { name: outcome === "uncertain" ? "결과 확인" : "저장", exact: true }).click();
     }
     await expect(openDialogs(page)).toHaveCount(0);
-    await expect(samples.getByLabel("예시 상품 전체 정보").locator("dt").filter({hasText:/^상품명$/}).locator("+ dd")).toHaveText("머그컵");
+    await expect(
+      samples.getByLabel("예시 상품 전체 정보").locator("dt").filter({ hasText: /^상품명$/ }).locator("+ dd"),
+    ).toHaveText("머그컵");
     await expect(opener).toBeFocused();
     await samples.getByRole("button", { name: "예시 자료 삭제" }).click();
     dialog = shortDialog(page);
     expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(512);
     await dialog.getByRole("button", { name: "취소", exact: true }).press("Escape");
     await expect(openDialogs(page)).toHaveCount(0);
-    await expect(samples.getByLabel("예시 상품 전체 정보").locator("dt").filter({hasText:/^상품명$/}).locator("+ dd")).toHaveText("머그컵");
+    await expect(
+      samples.getByLabel("예시 상품 전체 정보").locator("dt").filter({ hasText: /^상품명$/ }).locator("+ dd"),
+    ).toHaveText("머그컵");
   });
 }
 
@@ -219,10 +242,14 @@ test("preview width changes keep the same live draft and dialog", async ({ page 
   await content.getByRole("button", { name: "편집 모달 열기" }).click();
   await content.getByRole("dialog").getByLabel("상품명").fill("같은 모달");
   await page.getByRole("radio", { name: "데스크톱", exact: true }).click();
-  await expect(content.getByRole("dialog", { name: "상품 편집", exact: true }).getByLabel("상품명")).toHaveValue("같은 모달");
+  await expect(content.getByRole("dialog", { name: "상품 편집", exact: true }).getByLabel("상품명")).toHaveValue(
+    "같은 모달",
+  );
   await page.getByRole("radio", { name: "모바일", exact: true }).click();
   await content.getByRole("dialog").getByRole("button", { name: "닫기" }).click();
-  await content.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", { name: "변경 버리기" }).click();
+  await content.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", {
+    name: "변경 버리기",
+  }).click();
   await page.getByRole("radio", { name: "현재 화면", exact: true }).click();
 });
 
@@ -251,9 +278,7 @@ test("invalid closed fields expand and focus; move controls retain the expanded 
   await workspace.getByRole("button", { name: "상품명 위로 이동", exact: true }).click();
   await expect(workspace.getByRole("button", { name: "상품명 아래로 이동", exact: true })).toBeFocused();
   expect(
-    await workspace.locator("[data-property-order] svg").first().evaluate((node) =>
-      getComputedStyle(node).width
-    ),
+    await workspace.locator("[data-property-order] svg").first().evaluate((node) => getComputedStyle(node).width),
   ).toBe("16px");
 });
 
@@ -290,7 +315,6 @@ test("confirmation fits its content at the center with a dimmed backdrop", async
   const confirmation = shortDialog(page);
   expect((await confirmation.boundingBox())!.height).toBeLessThanOrEqual(792);
   await expect(confirmation.getByRole("button", { name: "저장", exact: true })).toBeInViewport({ ratio: 1 });
-
 });
 
 test("history expansion preserves the same section surface as other settings", async ({ page }) => {
@@ -315,7 +339,10 @@ test("history expansion preserves the same section surface as other settings", a
     });
     for (const open of [true, false]) {
       await history.getByRole("button", { name: /변경 이력 현재 버전/ }).click();
-      await expect(history.getByRole("button", { name: /변경 이력 현재 버전/ })).toHaveAttribute("aria-expanded", String(open));
+      await expect(history.getByRole("button", { name: /변경 이력 현재 버전/ })).toHaveAttribute(
+        "aria-expanded",
+        String(open),
+      );
       expect(
         await history.evaluate((node) => {
           const css = getComputedStyle(node.querySelector('[data-slot="card"]') ?? node);
@@ -331,7 +358,8 @@ test("tag modal searches and retains draft selections on Escape with focus resto
   await page.goto(direct);
   const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
   const opener = tags.getByRole("button", { name: "태그 선택", exact: true });
-  await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" })).toHaveCount(0);
+  await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" }))
+    .toHaveCount(0);
   await opener.click();
   const modal = page.getByRole("dialog", { name: "기본 기록 태그 선택", exact: true });
   await expect(modal.getByRole("combobox", { name: "태그 이름 검색" })).toBeFocused();
@@ -350,7 +378,8 @@ test("tag modal searches and retains draft selections on Escape with focus resto
   await expect(opener).toBeFocused();
   await tags.getByRole("button", { name: "모든 태그 선택 해제" }).click();
   await expect(opener).toBeFocused();
-  await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" })).toHaveCount(0);
+  await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" }))
+    .toHaveCount(0);
 });
 
 test("tag modal preserves unknown and excluded selections and supports single replacement and limits", async ({ page }) => {
@@ -361,9 +390,11 @@ test("tag modal preserves unknown and excluded selections and supports single re
   const modal = page.getByRole("dialog", { name: "기본 기록 태그 선택", exact: true });
   for (const state of ["loading", "failure", "unknown", "excluded"]) {
     await mode.selectOption(state);
-    await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" })).toHaveCount(1);
+    await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" }))
+      .toHaveCount(1);
     await tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" }).click();
-    await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" })).toHaveCount(0);
+    await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" }))
+      .toHaveCount(0);
     await expect(opener).toBeFocused();
   }
   await mode.selectOption("excluded");
@@ -391,7 +422,20 @@ test("tag modal preserves unknown and excluded selections and supports single re
     await page.setViewportSize({ width, height: 800 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const box = (await modal.boundingBox())!;
-    expect(box.x, JSON.stringify({ width, box, styles: await modal.evaluate(el => ({ maxWidth: getComputedStyle(el).maxWidth, width: getComputedStyle(el).width, left: getComputedStyle(el).left, translate: getComputedStyle(el).translate, classes: el.className })) })).toBeGreaterThan(0);
+    expect(
+      box.x,
+      JSON.stringify({
+        width,
+        box,
+        styles: await modal.evaluate((el) => ({
+          maxWidth: getComputedStyle(el).maxWidth,
+          width: getComputedStyle(el).width,
+          left: getComputedStyle(el).left,
+          translate: getComputedStyle(el).translate,
+          classes: el.className,
+        })),
+      }),
+    ).toBeGreaterThan(0);
     expect(box.y).toBeGreaterThan(0);
     expect(Math.abs(box.x + box.width / 2 - width / 2)).toBeLessThan(2);
     expect((await modal.getByRole("button", { name: "선택 완료" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -403,6 +447,11 @@ test("tag modal preserves unknown and excluded selections and supports single re
   await checkTag(choices.first(), false);
   await expect(choices.nth(10)).toBeEnabled();
   await page.evaluate(() => document.documentElement.style.zoom = "");
+  await page.setViewportSize({ width: 320, height: 260 });
+  await expect(modal.getByRole("combobox", { name: "태그 이름 검색" })).toBeInViewport({ ratio: 1 });
+  await choices.first().scrollIntoViewIfNeeded();
+  await expect(choices.first()).toBeInViewport({ ratio: 1 });
+  await expect(modal.getByRole("button", { name: "선택 완료", exact: true })).toBeInViewport({ ratio: 1 });
   await modal.getByRole("button", { name: "선택 완료", exact: true }).click();
 });
 
@@ -512,7 +561,8 @@ test("successful tag refresh invalidates a formerly known selection and empty di
   await expect(tags.getByText("태그 확인 필요", { exact: true })).toBeVisible();
   await expect(tags.getByRole("button", { name: "중요 선택 해제", exact: true })).toHaveCount(0);
   await tags.getByRole("button", { name: "이름 확인이 필요한 태그 1 선택 해제", exact: true }).click();
-  await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" })).toHaveCount(0);
+  await expect(tags.getByRole("button", { name: /^(?!모든 태그).+ 선택 해제$/ }).filter({ hasNotText: "모두 해제" }))
+    .toHaveCount(0);
   await mode.selectOption("empty");
   await opener.click();
   await expect(modal.getByText("태그 관리에서 태그를 먼저 추가하세요.", { exact: true })).toBeVisible();
@@ -520,45 +570,62 @@ test("successful tag refresh invalidates a formerly known selection and empty di
   await expect(modal.getByText("일치하는 태그가 없습니다.", { exact: true })).toBeVisible();
 });
 
-test("filter tag headings remain readable at320px with enlarged text before and after selection", async ({ page }, info) => {
-  await page.setViewportSize({ width: 320, height: 900 });
-  await page.goto("/design-samples/index.html?screen=filters");
-  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  const tags = page.getByRole("group", { name: "자료 태그", exact: true });
-  const opener = tags.getByRole("button", { name: "태그 선택", exact: true });
-  const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
-  for (const selected of [false, true]) {
-    if (selected) {
-      await opener.click();
-      const chooser = page.getByRole("dialog", { name: "자료 태그 선택", exact: true });
-      await checkTag(chooser.getByRole("option", { name: "보고서", exact: true }));
-      await chooser.getByRole("button", { name: "선택 완료", exact: true }).click();
-      await expect(tags.getByRole("button", { name: "보고서 선택 해제", exact: true })).toBeVisible();
+test(
+  "filter tag headings remain readable at320px with enlarged text before and after selection",
+  async ({ page }, info) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto("/design-samples/index.html?screen=filters");
+    await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+    const tags = page.getByRole("group", { name: "자료 태그", exact: true });
+    const opener = tags.getByRole("button", { name: "태그 선택", exact: true });
+    const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
+    for (const selected of [false, true]) {
+      if (selected) {
+        await opener.click();
+        const chooser = page.getByRole("dialog", { name: "자료 태그 선택", exact: true });
+        await checkTag(chooser.getByRole("option", { name: "보고서", exact: true }));
+        await chooser.getByRole("button", { name: "선택 완료", exact: true }).click();
+        await expect(tags.getByRole("button", { name: "보고서 선택 해제", exact: true })).toBeVisible();
+      }
+      const label = tags.getByText("자료 태그", { exact: true });
+      const labelSize = await label.evaluate((el) => ({
+        height: el.getBoundingClientRect().height,
+        lineHeight: parseFloat(getComputedStyle(el).lineHeight),
+      }));
+      expect(labelSize.height).toBeLessThanOrEqual(labelSize.lineHeight + 1);
+      await expect(clear).toHaveCount(selected ? 1 : 0);
+      const bounds = (await tags.boundingBox())!;
+      for (const control of selected ? [opener, clear] : [opener]) {
+        const box = (await control.boundingBox())!;
+        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+        expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+      }
+      expect(await tags.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await tags.screenshot({
+        path: info.outputPath(`filter-tags-320-text200-${selected ? "selected" : "empty"}.png`),
+      });
     }
-    const label = tags.getByText("자료 태그", { exact: true });
-    const labelSize = await label.evaluate(el => ({ height: el.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(el).lineHeight) }));
-    expect(labelSize.height).toBeLessThanOrEqual(labelSize.lineHeight + 1);
-    await expect(clear).toHaveCount(selected ? 1 : 0);
-    const bounds = (await tags.boundingBox())!;
-    for (const control of selected ? [opener, clear] : [opener]) {
-      const box = (await control.boundingBox())!;
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.height).toBeGreaterThanOrEqual(44);
-      expect(box.x).toBeGreaterThanOrEqual(bounds.x);
-      expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
-    }
-    expect(await tags.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await tags.screenshot({ path: info.outputPath(`filter-tags-320-text200-${selected ? "selected" : "empty"}.png`) });
-  }
-});
+  },
+);
 
 test("보기와 편집은 전체 정보를 유지하고 태그 연결은 상품 편집 취소와 독립적이다", async ({ page }, info) => {
   const writes: string[] = [];
-  page.on("request", request => { if (request.method() !== "GET") writes.push(request.url()); });
+  page.on("request", (request) => {
+    if (request.method() !== "GET") writes.push(request.url());
+  });
   await page.goto(direct);
   const view = page.locator("#dialogs");
-  await expect(view.locator("dl[aria-label='예시 상품 전체 정보'] dt")).toHaveText(["상품명", "자료 번호", "수량", "판매 중", "메모", "태그"]);
+  await expect(view.locator("dl[aria-label='예시 상품 전체 정보'] dt")).toHaveText([
+    "상품명",
+    "자료 번호",
+    "수량",
+    "판매 중",
+    "메모",
+    "태그",
+  ]);
   await view.getByRole("button", { name: "태그 연결", exact: true }).click();
   await view.getByRole("button", { name: "태그 선택", exact: true }).click();
   const chooser = page.getByRole("dialog", { name: "자료 태그 선택", exact: true });
@@ -566,36 +633,38 @@ test("보기와 편집은 전체 정보를 유지하고 태그 연결은 상품 
   await chooser.getByRole("button", { name: "선택 완료", exact: true }).click();
   await view.getByRole("button", { name: "연결 적용", exact: true }).click();
   for (const width of [320, 1440]) {
-    await page.setViewportSize({width,height:900});
+    await page.setViewportSize({ width, height: 900 });
     await view.scrollIntoViewIfNeeded();
-    await view.screenshot({path:info.outputPath(`sample-view-pairs-${width}.png`)});
-    await view.getByRole("button", {name:"편집 모달 열기",exact:true}).click();
-    const editor = page.getByRole("dialog", {name:"상품 편집",exact:true});
-    await expect(editor.getByLabel("상품명",{exact:false})).toHaveValue("유리컵");
-    await expect(editor.getByLabel("수량",{exact:true})).toHaveValue("0");
-    await expect(editor.getByLabel("판매 중",{exact:true})).toHaveValue("false");
-    await expect(editor.getByLabel("메모",{exact:true})).toContainText("같은 전체 정보");
-    await expect(editor.getByText("SAMPLE-001",{exact:true})).toBeVisible();
-    await expect(editor.getByText("중요",{exact:true})).toBeVisible();
-    await expect(editor.getByRole("button", {name:/태그/})).toHaveCount(0);
-    await page.screenshot({path:info.outputPath(`sample-edit-pairs-${width}.png`)});
-    await editor.getByLabel("상품명",{exact:false}).fill("저장하지 않을 변경");
-    await editor.getByRole("button",{name:"취소",exact:true}).click();
-    await page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true}).getByRole("button",{name:"변경 버리기",exact:true}).click();
-    await expect(view.getByText("중요",{exact:true})).toBeVisible();
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await view.screenshot({ path: info.outputPath(`sample-view-pairs-${width}.png`) });
+    await view.getByRole("button", { name: "편집 모달 열기", exact: true }).click();
+    const editor = page.getByRole("dialog", { name: "상품 편집", exact: true });
+    await expect(editor.getByLabel("상품명", { exact: false })).toHaveValue("유리컵");
+    await expect(editor.getByLabel("수량", { exact: true })).toHaveValue("0");
+    await expect(editor.getByLabel("판매 중", { exact: true })).toHaveValue("false");
+    await expect(editor.getByLabel("메모", { exact: true })).toContainText("같은 전체 정보");
+    await expect(editor.getByText("SAMPLE-001", { exact: true })).toBeVisible();
+    await expect(editor.getByText("중요", { exact: true })).toBeVisible();
+    await expect(editor.getByRole("button", { name: /태그/ })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath(`sample-edit-pairs-${width}.png`) });
+    await editor.getByLabel("상품명", { exact: false }).fill("저장하지 않을 변경");
+    await editor.getByRole("button", { name: "취소", exact: true }).click();
+    await page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", {
+      name: "변경 버리기",
+      exact: true,
+    }).click();
+    await expect(view.getByText("중요", { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   await page.goto("/design-samples/index.html");
-  await page.getByRole("radio",{name:"모바일",exact:true}).click();
+  await page.getByRole("radio", { name: "모바일", exact: true }).click();
   const frame = page.frameLocator("iframe");
-  await frame.locator("#dialogs").getByRole("button",{name:"편집 모달 열기",exact:true}).click();
-  await expect(frame.getByRole("dialog",{name:"상품 편집",exact:true})).toBeVisible();
-  await page.screenshot({path:info.outputPath("sample-narrow-preview.png")});
-  await frame.locator("html").evaluate(el => (el as HTMLElement).style.fontSize = "200%");
-  await page.screenshot({path:info.outputPath("sample-narrow-preview-text200.png")});
+  await frame.locator("#dialogs").getByRole("button", { name: "편집 모달 열기", exact: true }).click();
+  await expect(frame.getByRole("dialog", { name: "상품 편집", exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("sample-narrow-preview.png") });
+  await frame.locator("html").evaluate((el) => (el as HTMLElement).style.fontSize = "200%");
+  await page.screenshot({ path: info.outputPath("sample-narrow-preview-text200.png") });
   expect(writes).toEqual([]);
 });
-
 
 test("confirmation stays usable with reduced motion and enlarged text", async ({ page }, info) => {
   await page.emulateMedia({ reducedMotion: "reduce" });

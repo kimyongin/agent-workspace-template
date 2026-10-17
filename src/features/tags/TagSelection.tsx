@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { useSurfaceViewport } from "../../components/ConfirmDialog.tsx";
 import { registerSurface } from "../../lib/surface-dom.ts";
 
 /** Selection belongs to the parent's draft; closing the chooser never saves it. */
@@ -131,6 +132,9 @@ function TagPickerDialog(
   },
 ) {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLElement | null>(null);
+  viewportRef.current = element;
+  useSurfaceViewport(viewportRef, element);
   const heading = useRef<HTMLHeadingElement>(null),
     footer = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
@@ -166,6 +170,11 @@ function TagPickerDialog(
     >
       <DialogContent
         ref={setElement}
+        aria-modal={true}
+        style={{
+          maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)",
+          top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)",
+        }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           onClosed();
@@ -175,13 +184,19 @@ function TagPickerDialog(
           if (disabled) event.preventDefault();
         }}
         onInteractOutside={(event) => event.preventDefault()}
-        className="max-h-[calc(100dvh-2rem)] min-w-0 overflow-y-auto sm:max-w-lg"
+        className="flex min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
       >
-        <DialogHeader>
+        <DialogHeader className="min-h-0 overflow-y-auto overscroll-contain p-4">
           <DialogTitle ref={heading}>{label} 선택</DialogTitle>
           <DialogDescription>태그를 선택한 뒤 완료하세요. 실제 저장은 원래 화면에서 진행합니다.</DialogDescription>
+          {maxSelected > 1 && value.length >= maxSelected && (
+            <p role="status" className="text-sm text-muted-foreground">
+              태그는 최대 {maxSelected}개까지 선택할 수 있습니다.
+            </p>
+          )}
         </DialogHeader>
         <Command
+          className="mx-4 mb-4 min-h-24 w-auto flex-1"
           shouldFilter={false}
           onKeyDown={(event) => {
             if (event.key === "Enter") event.stopPropagation();
@@ -195,7 +210,7 @@ function TagPickerDialog(
             disabled={disabled}
           />
           {status && <FieldSet disabled={disabled}>{status}</FieldSet>}
-          <CommandList aria-label="태그 목록" aria-multiselectable={maxSelected !== 1}>
+          <CommandList className="min-h-12" aria-label="태그 목록" aria-multiselectable={maxSelected !== 1}>
             {tags !== null && (
               <CommandEmpty>
                 {search.trim()
@@ -234,12 +249,7 @@ function TagPickerDialog(
             </CommandGroup>
           </CommandList>
         </Command>
-        {maxSelected > 1 && value.length >= maxSelected && (
-          <p role="status" className="text-sm text-muted-foreground">
-            태그는 최대 {maxSelected}개까지 선택할 수 있습니다.
-          </p>
-        )}
-        <DialogFooter ref={footer}>
+        <DialogFooter ref={footer} className="m-0 shrink-0 flex-row flex-wrap items-center">
           <span role="status" className="mr-auto text-sm text-muted-foreground">{value.length}개 선택</span>
           <DialogClose asChild>
             <Button type="button" variant="outline" disabled={disabled} aria-label="닫기">닫기</Button>
