@@ -1,3 +1,5 @@
+import { type EntitySchemaChange, migrationPlan, type SchemaDefinition } from "./entity-schema-change.ts";
+import type { EntitySchemaMigration } from "./entity-schema-migration.ts";
 import { z } from "zod";
 import type { EntitySchema } from "./entity-type.ts";
 import type { SchemaDiff } from "./entity-schema-change.ts";
@@ -87,7 +89,27 @@ export type ModelReview = {
 export type ModelChange = {
   id: string;
   version: number;
-  status: "ready" | "needs_conversion" | "applied" | "cancelled";
+  status:
+    | "ready"
+    | "needs_conversion"
+    | "applied"
+    | "cancelled"
+    | "analyzing"
+    | "queued"
+    | "preparing"
+    | "ready_to_commit"
+    | "committing"
+    | "failed";
+  group?: {
+    children: Array<
+      { type_ref: string; change: EntitySchemaChange; source: SchemaDefinition; job?: EntitySchemaMigration | null }
+    >;
+    total: number;
+    processed: number;
+    failed: number;
+    retryable: boolean;
+    failure_reason: string | null;
+  };
   review: ModelReview;
   created_at: string;
   result: null | {
@@ -102,3 +124,8 @@ export type ModelChange = {
     };
   };
 };
+
+export const modelGroupAnalyze = dataModelAction.extend({
+  conversions: z.array(z.strictObject({ type_ref: z.string().min(1), migration: migrationPlan })).default([]),
+});
+export type ModelGroupAnalyze = z.infer<typeof modelGroupAnalyze>;
