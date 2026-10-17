@@ -53,6 +53,19 @@ test("defined-only upgrade preserves exact historical links, business context, a
     const original =
       await sql`select * from app.entity_pairs where owner_id in (${owner},${other}) and entity_id='a' and other_id='b' order by owner_id`;
     const before = await snapshot();
+    // A late failure must roll back the table move, privilege changes and new baseline.
+    const failingMigration = migration.replace(
+      /commit;\s*$/i,
+      "select app.defined_relation_upgrade_failure_probe();\ncommit;",
+    );
+    await assert.rejects(sql.unsafe(failingMigration), (error) => error.code === "42883");
+    await sql.unsafe("rollback");
+    assert.deepEqual(await snapshot(), before);
+    assert.deepEqual(
+      await sql`select * from app.entity_pairs where owner_id in (${owner},${other}) and entity_id='a' and other_id='b' order by owner_id`,
+      original,
+    );
+    assert.equal((await sql`select to_regclass('private.retired_entity_pairs') as name`)[0].name, null);
     // Match CLI migration execution: the migration owns its transaction boundary.
     await sql.unsafe(migration);
     assert.deepEqual(await snapshot(), before);
