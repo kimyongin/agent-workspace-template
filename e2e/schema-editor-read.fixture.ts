@@ -1254,9 +1254,7 @@ test("입력 항목 이름과 조건은 가용 폭에서 키와 값의 정렬을
     expect(axes.deltaY).toBeLessThanOrEqual(1);
     if (width === 320) {
       const typeLeft =
-        (await page.getByRole("region", { name: "재료명 입력 항목", exact: true }).getByLabel("데이터 타입", {
-          exact: true,
-        }).boundingBox())!.x;
+        (await page.getByLabel("데이터 타입", { exact: true }).filter({ visible: true }).first().boundingBox())!.x;
       expect(axes.left).toBeCloseTo(typeLeft, 0);
     }
     await expect(name).toHaveValue("긴 입력 항목 이름과 초안 보존 확인");
