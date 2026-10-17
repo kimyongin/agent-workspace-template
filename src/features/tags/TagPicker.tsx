@@ -201,7 +201,7 @@ export function TagNames(
   if (compact && failed && shared) {
     return (
       <div className="flex min-w-0 flex-wrap gap-2" role="status">
-        <Badge variant="secondary" className="max-w-full gap-2 whitespace-normal">태그 이름 조회 실패</Badge>
+        <Badge variant="secondary" className="h-auto max-w-full gap-2 whitespace-normal">태그 이름 조회 실패</Badge>
       </div>
     );
   }
@@ -220,7 +220,7 @@ export function TagNames(
           ? (
             <div className="flex min-w-0 flex-wrap gap-2" role="status">
               {ids.map((id) => (
-                <Badge variant="secondary" className="max-w-full gap-2 whitespace-normal" key={id}>
+                <Badge variant="secondary" className="h-auto max-w-full gap-2 whitespace-normal" key={id}>
                   태그를 불러오는 중…
                 </Badge>
               ))}
@@ -230,8 +230,10 @@ export function TagNames(
         : (
           <div className="flex min-w-0 flex-wrap gap-2" aria-label="태그">
             {ids.map((id) => (
-              <Badge variant="secondary" className="max-w-full gap-2 whitespace-normal" key={id}>
-                <span>{tags.find((t) => t.id === id)?.name ?? (pending ? "태그 확인 중…" : "태그 확인 필요")}</span>
+              <Badge variant="secondary" className="h-auto max-w-full gap-2 whitespace-normal" key={id}>
+                <span className="min-w-0 wrap-anywhere">
+                  {tags.find((t) => t.id === id)?.name ?? (pending ? "태그 확인 중…" : "태그 확인 필요")}
+                </span>
                 {onRemove && (
                   <Button
                     type="button"
