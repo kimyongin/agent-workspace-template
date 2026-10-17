@@ -142,6 +142,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   const attach = useCallback((slot: HTMLDivElement | null) => {
     if (!slot) return;
     const focused = host.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
+    if (host.parentElement === slot) return;
     slot.appendChild(host);
     if (focused?.isConnected) focused.focus({ preventScroll: true });
   }, [host]);
@@ -224,7 +225,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   </>;
   return <SurfaceActionContext.Provider value={registerAction}><Dialog open={open && active && !dialogDocked} onOpenChange={next => { if (!next) requestClose(); }}>
     <div ref={desktopSlot} hidden={!dialogDocked || !active} role={dialogDocked ? "dialog" : undefined} aria-label={domain ? title : undefined} aria-labelledby={domain ? undefined : titleId} aria-describedby={description ? `${titleId}-description` : undefined} className="flex h-full min-h-0 flex-col" />
-    <DialogContent ref={setMobileContent} showCloseButton={false} aria-label={domain ? title : undefined} aria-labelledby={domain ? undefined : titleId} aria-describedby={description ? `${titleId}-description` : undefined}
+    <DialogContent ref={setMobileContent} aria-modal={true} showCloseButton={false} aria-label={domain ? title : undefined} aria-labelledby={domain ? undefined : titleId} aria-describedby={description ? `${titleId}-description` : undefined}
       className="flex h-[min(48rem,calc(100dvh-2rem))] max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
       onOpenAutoFocus={event => { event.preventDefault(); initialFocus(); }}

@@ -72,7 +72,12 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   const detailPanel = useRef<PanelImperativeHandle | null>(null);
   const detailRatio = useRef(46);
   const rememberResize = useRef(false);
-  useLayoutEffect(() => { rememberResize.current = false; detailPanel.current?.resize(desktop && shown ? `${detailRatio.current}%` : 0); }, [desktop, shown]);
+  useLayoutEffect(() => {
+    rememberResize.current = false;
+    // Panel constraints register after this render; restore the user's proportion once they are live.
+    const frame = requestAnimationFrame(() => detailPanel.current?.resize(desktop && shown ? `${detailRatio.current}%` : 0));
+    return () => cancelAnimationFrame(frame);
+  }, [desktop, shown]);
   const listRef = useWorkspaceScroll(started && eligible, desktop && shown, base);
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => {
@@ -216,7 +221,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       {desktop && shown && <ResizableHandle aria-label="상세 패널 너비 조절" className="w-2 shrink-0" onPointerDownCapture={() => { rememberResize.current = true; }} onKeyDownCapture={() => { rememberResize.current = true; }} onDoubleClick={() => { detailRatio.current = 46; detailPanel.current?.resize("46%"); }} />}
       <ResizablePanel id="detail" panelRef={detailPanel} minSize={desktop && shown ? "27rem" : 0} maxSize={desktop && shown ? "70%" : 0} defaultSize={desktop && shown ? "46%" : 0} onResize={size => { if (rememberResize.current && desktop && shown && size.asPercentage > 0) detailRatio.current = size.asPercentage; }} className="min-w-0">
         <aside className="flex h-full min-h-0 min-w-0 flex-col border-l bg-card" id="workspace-details" hidden={!shown} aria-label="상세 작업 영역">
-          <Tabs value={active ?? ""} onValueChange={id => { const tab = current.current.tabs.find(tab => tab.id === id); if (tab) select(tab); }} className="h-full min-h-0 gap-0">
+          {/* The visit model activates clicks and keys; pointer-down activation would change the URL before a drag. */}
+          <Tabs value={active ?? ""} activationMode="manual" className="h-full min-h-0 gap-0">
             <div className="flex min-w-0 shrink-0 items-center border-b" hidden={!desktop}>
               <DetailTabs tabs={tabs} active={active} enabled={desktop && shown} isBusy={anyBusy} select={id => { const tab = current.current.tabs.find(tab => tab.id === id); if (tab) select(tab); }} close={requestClose} reorder={reorder} />
               <Button variant="ghost" size="icon" aria-label="상세 패널 숨기기" onClick={() => { if (!anyBusy()) setVisible(false); }}><XIcon /></Button>

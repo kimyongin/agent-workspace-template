@@ -18,7 +18,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
   useLayoutEffect(() => { elements.current = { title, body: root, heading: heading.current, footer: footer.current, active: open, modal: true, confirmation: true, ready: true }; });
   useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
   return <AlertDialog open={open} onOpenChange={next => { if (!next && !busy) onCancel(); }}>
-    <AlertDialogContent ref={setRoot}
+    <AlertDialogContent ref={setRoot} aria-modal={true}
       onOpenAutoFocus={() => { origin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }}
       onCloseAutoFocus={event => { event.preventDefault(); if (origin.current?.isConnected) origin.current.focus(); }}
       onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
@@ -45,7 +45,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
   useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
   const cancel = () => { if (!busy) onCancel(); };
   return <Dialog open={open} onOpenChange={next => { if (!next) cancel(); }}>
-    <DialogContent ref={setRoot} showCloseButton={false} aria-describedby={undefined}
+    <DialogContent ref={setRoot} aria-modal={true} showCloseButton={false} aria-describedby={undefined}
       className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)" }}
       onOpenAutoFocus={event => {
