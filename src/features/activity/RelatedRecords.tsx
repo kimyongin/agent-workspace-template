@@ -68,6 +68,7 @@ function TaskRecords(
   }, [page, busy, error, params, requested, navigate, surface]);
   return (
     <RelatedSection
+      busy={busy || !page && !error}
       views={!readOnly}
       title="기록"
       count={page?.items.length}

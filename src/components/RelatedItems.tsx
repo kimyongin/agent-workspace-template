@@ -12,13 +12,14 @@ import { useContext } from "react";
 
 /** A related section owns presentation; its feature supplies data, loading and actions. */
 export function RelatedSection(
-  { title, count, hasMore = false, action, children, views = true }: {
+  { title, count, hasMore = false, action, children, views = true, busy = false }: {
     title: string;
     count?: number;
     hasMore?: boolean;
     action?: ReactNode;
     children: ReactNode;
     views?: boolean;
+    busy?: boolean;
   },
 ) {
   const heading = useId();
@@ -26,7 +27,7 @@ export function RelatedSection(
   return (
     <RelatedCollectionView.Provider value={view}>
       <ExpansionGroupProvider>
-        <section className="flex min-w-0 flex-col gap-4" aria-labelledby={heading}>
+        <section className="flex min-w-0 flex-col gap-4" aria-labelledby={heading} aria-busy={busy || undefined}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               {views
