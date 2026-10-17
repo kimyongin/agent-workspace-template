@@ -31,7 +31,6 @@ export function TypedRelationsSample() {
             </Button>
             {selected && (
               <Button variant="ghost" type="button"
-
                 onClick={() => setSelected(false)}
               ><UnlinkIcon data-icon="inline-start" />
                 해제
@@ -57,7 +56,6 @@ export function TypedRelationsSample() {
             {(p) => (
               <Input
                 {...p}
-
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
@@ -68,7 +66,6 @@ export function TypedRelationsSample() {
               취소
             </Button>
             <Button variant="default"
-
               disabled={!title.trim()}
               onClick={() => {
                 setWriting(false);

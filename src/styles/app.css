@@ -153,3 +153,11 @@
   .markdown th { @apply bg-muted font-medium; }
   .markdown hr { @apply my-4 border-border; }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -27,7 +27,6 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
         <p className="text-sm text-muted-foreground">두 자료 종류 사이의 관계 이름과 연결 개수를 관리합니다.</p>
       </header>
       <Button variant="ghost" type="button"
-
         disabled={open}
         onClick={() => {
           setCreating(true);
@@ -71,13 +70,12 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
                 const change = (patch: Partial<typeof end>) =>
                   setEnds((value) => value.map((e, n) => n === index ? { ...e, ...patch } : e) as typeof value);
                 return (
-                  <div className="flex-col grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere" key={index}>
+                  <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere" key={index}>
                     <h3>{prefix} 방향</h3>
                     <Field pair label={`${prefix} 자료 종류`} required>
                       {(props) => (
                         <NativeSelect
                           {...props}
-
                           value={end.type_id}
                           onChange={(e) => change({ type_id: e.target.value })}
                         >
@@ -89,7 +87,6 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
                       {(props) => (
                         <Input
                           {...props}
-
                           required
                           value={end.label}
                           onChange={(e) => change({ label: e.target.value })}
@@ -100,7 +97,6 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
                       {(props) => (
                         <NativeSelect
                           {...props}
-
                           value={end.cardinality}
                           onChange={(e) => change({ cardinality: e.target.value as "one" | "many" })}
                         >
@@ -115,7 +111,6 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
             </FieldSet>
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline"
-
                 type="button"
                 onClick={() => {
                   setOpen(false);

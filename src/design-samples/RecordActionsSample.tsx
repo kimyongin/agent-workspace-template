@@ -46,7 +46,6 @@ export function RecordActionsSample() {
           {(props) => (
             <NativeSelect
               {...props}
-
               value={action}
               onChange={(event) => setAction(event.target.value as TemplateAction)}
             >
@@ -88,7 +87,6 @@ export function RecordActionsSample() {
           )}
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline"
-
               type="button"
               disabled={!changes.length}
               onClick={() => {

@@ -21,7 +21,6 @@ export function TagSamples() {
         {(props) => (
           <NativeSelect
             {...props}
-
             value={mode}
             onChange={(event) => {
               const next = event.target.value;

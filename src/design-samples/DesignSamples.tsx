@@ -94,7 +94,6 @@ function SamplesPreview() {
           <Button variant="ghost"
             key={id}
             type="button"
-
             onClick={() => frame.current?.contentDocument?.getElementById(id)?.scrollIntoView()}
           >
             {label}
@@ -188,7 +187,6 @@ function ButtonSamples() {
           {(props) => (
             <NativeSelect
               {...props}
-
               value={type}
               onChange={(event) => setType(event.target.value)}
             >
@@ -198,8 +196,7 @@ function ButtonSamples() {
         </Field>
         <Button variant="outline"
           type="button"
-          className=""
-          onClick={() => {
+                    onClick={() => {
             const next = `새 종류 ${types.length - 1}`;
             setTypes([...types, next]);
             setType(next);
@@ -218,7 +215,6 @@ function ButtonSamples() {
                   {(props) => (
                     <Input
                       {...props}
-
                       value={value}
                       onChange={(event) =>
                         setOptions(options.map((prior, i) => i === index ? event.target.value : prior))}
@@ -227,8 +223,7 @@ function ButtonSamples() {
                 </Field>
                 <Button variant="outline"
                   type="button"
-                  className=""
-                  aria-label={`선택 항목 ${index + 1} 제거`}
+                                    aria-label={`선택 항목 ${index + 1} 제거`}
                   onClick={() => setOptions(options.filter((_, i) => i !== index))}
                 >
                   제거
@@ -245,7 +240,6 @@ function ButtonSamples() {
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline"
                 type="button"
-
                 onClick={() => {
                   setOptions(["판매 중"]);
                   setMessage("예시 입력을 되돌렸습니다.");
@@ -262,7 +256,6 @@ function ButtonSamples() {
       </div>
       <div>
         <Button variant="ghost" type="button"
-
           onClick={() => {
             setTypes(["상품", "재료"]);
             setType("상품");
@@ -273,7 +266,6 @@ function ButtonSamples() {
           예시 초기화
         </Button>
         <Button variant="destructive" type="button"
-
 
           onClick={() => setMessage("위험 행동은 명확한 이름과 위험 색으로 표시합니다.")}
         ><UnlinkIcon data-icon="inline-start" />
@@ -309,7 +301,6 @@ function FormSamples() {
         {(props) => (
           <Input
             {...props}
-
             required
             value={name}
             onChange={(event) => {

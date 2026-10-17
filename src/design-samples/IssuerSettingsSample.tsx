@@ -52,7 +52,6 @@ export function IssuerSettingsSample(
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold">번호 출처</h2>
         <Button variant="ghost" type="button"
-
           disabled={!!numberEdit}
           onClick={() => setEditing({})}
         ><PlusIcon data-icon="inline-start" />
@@ -146,7 +145,6 @@ export function IssuerSettingsSample(
             {!source.system && (
               <div>
                 <Button variant="ghost" type="button"
-
                   disabled={!!numberEdit}
                   onClick={() => setEditing({ source: index })}
                 ><PlusIcon data-icon="inline-start" />
@@ -237,7 +235,6 @@ function SampleCreation({ source, created, initialLabel, onClose, onSave }: {
                 {(props) => (
                   <Input
                     {...props}
-
                     required
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
@@ -288,7 +285,6 @@ function SampleNumberEditor(
             <Input
               {...props}
               ref={input}
-
               required
               value={draft.label}
               onChange={(event) => setDraft({ ...draft, label: event.target.value })}
@@ -312,14 +308,12 @@ function SampleNumberEditor(
         </Button>
         <div>
           <Button variant="outline"
-
             type="button"
             onClick={() => dirty ? setConfirm("discard") : onClose()}
           >
             취소
           </Button>
           <Button variant="default"
-
             disabled={!dirty || !draft.label.trim()}
           >
             저장
