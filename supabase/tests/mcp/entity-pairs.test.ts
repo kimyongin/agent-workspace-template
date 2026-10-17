@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { call, httpTest, signIn } from "../http/_client.ts";
 import { connectMcp, mcpToken } from "./_mcp.ts";
 httpTest("unconfigured relation tools, HTTP routes and candidate inputs are removed", async () => {
@@ -7,8 +7,11 @@ httpTest("unconfigured relation tools, HTTP routes and candidate inputs are remo
     const names = (await client.listTools()).tools.map((v) => v.name);
     for (const name of ["list_entity_links", "link_entities", "unlink_entities"]) {
       assertEquals(names.includes(name), false);
-      const result = await client.callTool({ name, arguments: { request_key: crypto.randomUUID() } });
-      assertEquals(result.isError, true);
+      await assertRejects(
+        () => client.callTool({ name, arguments: { request_key: crypto.randomUUID() } }),
+        Error,
+        `Tool ${name} not found`,
+      );
     }
     const id = encodeURIComponent("app:10000000-0000-4000-8000-000000000001:legacy");
     assertEquals((await call(token, "GET", `/entities/${id}/links`)).status, 404);
