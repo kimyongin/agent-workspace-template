@@ -50,7 +50,7 @@ interface FormModalProps {
   onRouteDiscard?: () => void;
   onSubmit: (requestKey: () => string, memo: RecordMemo) => Promise<void>;
   validate: () => Record<string, string> | null;
-  children: (errors: Record<string, string>) => ReactNode;
+  children: (errors: Record<string, string>, disabled: boolean) => ReactNode;
   deletion?: DeletionOptions;
   preparation?: () => PrepareRecordMemo | Promise<PrepareRecordMemo>;
   onPrepared?: (result:PreparedRecordMemo) => void;
@@ -125,7 +125,7 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
   }, [register,present,open,title,description,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
   const form = <form id={formId} className="flex min-w-0 flex-col gap-5" onSubmit={submit} noValidate>
     {failure && !active && <Notice kind="error">{failure}</Notice>}
-    <FieldSet disabled={busy || uncertain || active}><FieldGroup>{children(errors)}</FieldGroup></FieldSet>
+    <FieldSet disabled={busy || uncertain || active}><FieldGroup>{children(errors, busy || uncertain || active)}</FieldGroup></FieldSet>
   </form>;
   useLayoutEffect(() => {
     if (!active && Object.keys(errors).length) document.getElementById(formId)?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
