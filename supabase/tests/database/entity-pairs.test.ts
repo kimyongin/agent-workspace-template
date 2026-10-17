@@ -31,12 +31,14 @@ dbTest(
       );
       // Retiring the table must not leave an executable privileged helper or view.
       assertEquals(
-        await admin`select n.nspname,p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','private') and p.prokind in ('f','p') and p.prosrc ~ '(entity_pairs|retired_entity_pairs)'`,
-        [],
+        (await admin`select n.nspname,p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','private') and p.prokind in ('f','p') and p.prosrc ~ '(entity_pairs|retired_entity_pairs)'`)
+          .length,
+        0,
       );
       assertEquals(
-        await admin`select schemaname,viewname from pg_views where schemaname in ('app','private','public') and definition ~ '(entity_pairs|retired_entity_pairs)'`,
-        [],
+        (await admin`select schemaname,viewname from pg_views where schemaname in ('app','private','public') and definition ~ '(entity_pairs|retired_entity_pairs)'`)
+          .length,
+        0,
       );
       assertEquals((await admin`select to_regprocedure('app.rekey_entity(text,text,text)') as name`)[0].name, null);
       const value = await asUser(
