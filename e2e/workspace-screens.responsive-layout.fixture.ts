@@ -351,7 +351,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await form(page).getByRole("link", { name: t.title + " 상세", exact: true }).click();
     expect(new URL(page.url()).pathname).toBe(`/tasks/${t.id}`);
     expect(new URL(page.url()).searchParams.has("edit")).toBe(false);
-    await form(page).getByRole("button", { name: "이전: 기록", exact: true }).click();
+    await form(page).getByRole("button", { name: `이전: ${recordDisplayText(r.body)}`, exact: true }).click();
     await expect(form(page).getByRole("link", { name: t.title + " 상세", exact: true })).toBeFocused();
     expect(state.writes).toHaveLength(0);
     expect(state.errors).toEqual([]);
