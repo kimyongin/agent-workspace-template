@@ -298,6 +298,7 @@ export function EntityRelationSection(
               key(),
             );
             setMutation(null);
+            if (mode === "replace") setView((v) => ({ ...v, searching: false }));
             setRetry((n) => n + 1);
             onSaved(result.endpoint_versions.find((e) => e.id === entity.id)!.version);
             requestAnimationFrame(() => section.current?.focus());
