@@ -78,7 +78,7 @@ for (const width of [320, 1440]) {
     await link.press("Enter");
     await expect(page).toHaveURL(/\/records\//);
     await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
-    await closeDetail(page, "기록");
+    await closeDetail(page, "짧음");
     await expect(page).toHaveURL(/\/search\?/);
     expect(new URL(page.url()).searchParams.get("q")).toBe("짧음");
     await expect(link).toBeFocused();
