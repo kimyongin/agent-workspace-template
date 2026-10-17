@@ -70,6 +70,9 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   const [discard, setDiscard] = useState<(() => void) | null>(null);
   const shown = visible && !!active;
   const detailPanel = useRef<PanelImperativeHandle | null>(null);
+  const groupElement = useRef<HTMLDivElement>(null);
+  const handleElement = useRef<HTMLDivElement>(null);
+  const minimums = useFeasiblePanelMinimums(groupElement, handleElement, started && eligible && desktop && shown);
   const detailRatio = useRef(46);
   const rememberResize = useRef(false);
   useLayoutEffect(() => {
@@ -211,15 +214,15 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   // Base editors use the same retained parent on the first authenticated render and after startup commits.
   if ((!started && !retainedBase) || !eligible) return <div className="min-w-0 p-4 lg:p-6">{children}</div>;
   return <WorkspaceContext.Provider value={{ revision, navigationKey: location.key, saved, open, registerGuard }}>
-    <ResizablePanelGroup orientation="horizontal" className={cn("min-h-0 min-w-0", desktop && shown && "h-[calc(100dvh-3.5rem)]")} resizeTargetMinimumSize={{ coarse: 44, fine: 44 }}>
-      <ResizablePanel id="list" minSize={desktop && shown ? "28rem" : 0} className="min-w-0">
+    <ResizablePanelGroup elementRef={groupElement} orientation="horizontal" className={cn("min-h-0 min-w-0", desktop && shown && "h-[calc(100dvh-3.5rem)]")} resizeTargetMinimumSize={{ coarse: 44, fine: 44 }}>
+      <ResizablePanel id="list" minSize={desktop && shown ? minimums.list : 0} className="min-w-0">
         <div className={cn("flex min-w-0 flex-col gap-5 p-4 lg:p-6", desktop && shown && "h-full overflow-y-auto overscroll-contain")} ref={listRef} role="region" aria-label="기본 작업 영역">
           {render(base)}
           {desktop && !visible && tabs.length > 0 && <Button variant="outline" className="self-end" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</Button>}
         </div>
       </ResizablePanel>
-      {desktop && shown && <ResizableHandle aria-label="상세 패널 너비 조절" className="w-2 shrink-0" onPointerDownCapture={() => { rememberResize.current = true; }} onKeyDownCapture={() => { rememberResize.current = true; }} onDoubleClick={() => { detailRatio.current = 46; detailPanel.current?.resize("46%"); }} />}
-      <ResizablePanel id="detail" panelRef={detailPanel} minSize={desktop && shown ? "27rem" : 0} maxSize={desktop && shown ? "70%" : 0} defaultSize={desktop && shown ? "46%" : 0} onResize={size => { if (rememberResize.current && desktop && shown && size.asPercentage > 0) detailRatio.current = size.asPercentage; }} className="min-w-0">
+      {desktop && shown && <ResizableHandle elementRef={handleElement} aria-label="상세 패널 너비 조절" className="w-2 shrink-0" onPointerDownCapture={() => { rememberResize.current = true; }} onKeyDownCapture={() => { rememberResize.current = true; }} onDoubleClick={() => { detailRatio.current = 46; detailPanel.current?.resize("46%"); }} />}
+      <ResizablePanel id="detail" panelRef={detailPanel} minSize={desktop && shown ? minimums.detail : 0} maxSize={desktop && shown ? "70%" : 0} defaultSize={desktop && shown ? "46%" : 0} onResize={size => { if (rememberResize.current && desktop && shown && size.asPercentage > 0) detailRatio.current = size.asPercentage; }} className="min-w-0">
         <aside className="flex h-full min-h-0 min-w-0 flex-col border-l bg-card" id="workspace-details" hidden={!shown} aria-label="상세 작업 영역">
           {/* The visit model activates clicks and keys; pointer-down activation would change the URL before a drag. */}
           <Tabs value={active ?? ""} activationMode="manual" className="h-full min-h-0 gap-0">
@@ -246,6 +249,29 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
 }
 
 /** Transfer the list position when its scroll owner changes between the page and split pane. */
+/** Nominal rem minima shrink equally toward half the available split when text grows. */
+function useFeasiblePanelMinimums(group: RefObject<HTMLDivElement | null>, handle: RefObject<HTMLDivElement | null>, enabled: boolean) {
+  const [minimums, setMinimums] = useState({ list: "28rem", detail: "27rem" });
+  useLayoutEffect(() => {
+    const element = group.current;
+    if (!enabled || !element) return;
+    const measure = () => {
+      const available = element.getBoundingClientRect().width - (handle.current?.getBoundingClientRect().width ?? 0);
+      if (available <= 0) return;
+      const rem = parseFloat(getComputedStyle(element.ownerDocument.documentElement).fontSize);
+      const cap = 55 * rem > available ? available / 2 : Infinity;
+      const next = { list: `${Math.min(28 * rem, cap)}px`, detail: `${Math.min(27 * rem, cap)}px` };
+      setMinimums(previous => previous.list === next.list && previous.detail === next.detail ? previous : next);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    if (handle.current) observer.observe(handle.current);
+    return () => observer.disconnect();
+  }, [group, handle, enabled]);
+  return minimums;
+}
+
 function useWorkspaceScroll(enabled: boolean, split: boolean, base: Location) {
   const element = useRef<HTMLDivElement>(null);
   const ownsScroll = useRef(split); ownsScroll.current = split;
