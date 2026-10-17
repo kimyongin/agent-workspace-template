@@ -139,7 +139,7 @@ function AccountSettings() {
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="outline"
           type="button"
-          
+
           disabled={!isDirty(section) || saving !== null}
           aria-label="변경 취소"
           onClick={() => {
@@ -154,7 +154,7 @@ function AccountSettings() {
         </Button>
         <Button variant="default"
           type="submit"
-          
+
           aria-label={`${preferenceSections[section].title} 저장`}
           disabled={!isDirty(section) || saving !== null}
         >
@@ -169,7 +169,7 @@ function AccountSettings() {
         {(props) => (
           <Input
             {...props}
-            
+
             type="text"
             maxLength={40}
             autoComplete="nickname"
@@ -245,7 +245,7 @@ function AccountSettings() {
               void saveSection(section);
             }}
           >
-            <FieldSet disabled={saving !== null} className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+            <FieldSet disabled={saving !== null} className="min-w-0">
               <FieldGroup>{{ profile, date, display }[section]}</FieldGroup>
             </FieldSet>
             {controls(section)}

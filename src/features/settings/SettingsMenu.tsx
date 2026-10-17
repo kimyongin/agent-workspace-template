@@ -18,7 +18,7 @@ export function SettingsMenu() {
       .some((prefix) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`));
   return <DropdownMenu open={open} onOpenChange={setOpen}>
     <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="icon" ref={trigger} aria-label="설정 메뉴"><MenuIcon /></Button></DropdownMenuTrigger>
-    <DropdownMenuContent align="end" onInteractOutside={event => { if (hasActiveConfirmation()) event.preventDefault(); }}>
+    <DropdownMenuContent aria-label="설정 메뉴" align="end" onInteractOutside={event => { if (hasActiveConfirmation()) event.preventDefault(); }}>
       <DropdownMenuGroup>
         {settingsCategories.map(({ to, label }) => <DropdownMenuItem key={to} asChild onSelect={event => event.preventDefault()}>
           <Link to={to} aria-current={current(to) ? "page" : undefined} onClick={event => {

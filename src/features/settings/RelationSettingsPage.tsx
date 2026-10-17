@@ -10,7 +10,7 @@ import type { EntityRelationDefinition, EntityRelationDefinitionPage } from "@co
 import { api, query } from "../../lib/api.ts";
 import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
@@ -97,7 +97,7 @@ export function RelationSettingsPage() {
         <Field label="자료 종류 필터">
           {(props) => (
             <NativeSelect
-              
+
               {...props}
               value={typeId}
               onChange={(e) => setParams(e.target.value ? { type_id: e.target.value } : {})}
@@ -110,7 +110,7 @@ export function RelationSettingsPage() {
         <Field label="연결 이름 또는 자료 종류 검색">
           {(props) => (
             <Input
-              
+
               {...props}
               type="search"
               value={q}
@@ -121,7 +121,7 @@ export function RelationSettingsPage() {
         <Field label="연결 설정 상태">
           {(props) => (
             <NativeSelect
-              
+
               {...props}
               value={archived}
               onChange={(e) => setArchived(e.target.value)}
@@ -135,7 +135,7 @@ export function RelationSettingsPage() {
       </FieldSet>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="outline"
-         
+
           type="button"
           ref={add}
           disabled={edit !== null || !catalog.types}
@@ -146,14 +146,14 @@ export function RelationSettingsPage() {
       </div>
       {catalog.error && (
         <Alert variant="destructive" role="alert"><AlertDescription>
-          자료 종류를 읽지 못했습니다. <BodyAction onClick={catalog.retry}>다시 조회</BodyAction>
+          자료 종류를 읽지 못했습니다. <Button variant="ghost" type="button" onClick={catalog.retry}>다시 조회</Button>
         </AlertDescription></Alert>
       )}
       {loading && <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert>}
       {error && (
         <Alert variant="destructive" role="alert"><AlertDescription>
           {error}
-          <BodyAction onClick={() => setRevision((n) => n + 1)}>다시 조회</BodyAction>
+          <Button variant="ghost" type="button" onClick={() => setRevision((n) => n + 1)}>다시 조회</Button>
         </AlertDescription></Alert>
       )}
       {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
@@ -179,7 +179,7 @@ export function RelationSettingsPage() {
         <p className="text-sm text-muted-foreground">조건에 맞는 연결 설정이 없습니다.</p>
       )}
       {page.next_cursor && (
-        <BodyAction
+        <Button variant="ghost" type="button"
           disabled={loading || edit !== null}
           onClick={async () => {
             setLoading(true);
@@ -205,7 +205,7 @@ export function RelationSettingsPage() {
           }}
         >
           더 보기
-        </BodyAction>
+        </Button>
       )}
       <ConfirmDialog
         open={!formState.busy && blocked.state === "blocked"}

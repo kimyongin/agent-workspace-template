@@ -22,7 +22,7 @@ export function NavigationRowActions({ label, index, count, disabled = false, on
         <Button variant="ghost" size="icon"
           key={action.name}
           type="button"
-         
+
           aria-label={`${label} ${action.name}`}
           title={action.move === null ? "바로가기에서 제거" : action.name}
           disabled={disabled || action.unavailable}

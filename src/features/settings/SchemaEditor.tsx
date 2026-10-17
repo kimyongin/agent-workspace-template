@@ -1,5 +1,6 @@
+import { PlusIcon, RotateCcwIcon } from "lucide-react";
 import { ChevronDownIcon } from "lucide-react";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -12,7 +13,7 @@ import { Textarea } from "../../components/ui/textarea.tsx";
 import { SchemaExport } from "./SchemaExport.tsx";
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
@@ -368,7 +369,7 @@ export function SchemaEditor(
                         }}
                       >
                         <CardHeader><div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <div className="min-w-0 [overflow-wrap:anywhere]" role="heading" aria-level={3}>
+                          <CardTitle className="min-w-0 [overflow-wrap:anywhere]" role="heading" aria-level={3}>
                             {expanded
                               ? (
                                 <div className="flex min-w-0 flex-1 flex-col items-start gap-2 text-left">
@@ -376,7 +377,7 @@ export function SchemaEditor(
                                     {(nameProps) => (
                                       <Input
                                         {...nameProps}
-                                        
+
                                         maxLength={80}
                                         data-schema-setting="title"
                                         value={f.title ?? ""}
@@ -411,11 +412,11 @@ export function SchemaEditor(
                                   {fieldSummary}
                                 </Button>
                               )}
-                          </div>
+                          </CardTitle>
                           <div data-schema-order-actions className="ml-auto flex shrink-0 gap-1">
-                            <BodyAction
+                            <Button variant="ghost"
                               type="button"
-                             
+
                               aria-label={`${f.title || "새 항목"} 위로`}
                               disabled={index === 0 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, -1)}
@@ -431,10 +432,10 @@ export function SchemaEditor(
                               >
                                 <path d="m6 12 6-6 6 6M12 6v14" />
                               </svg>
-                            </BodyAction>
-                            <BodyAction
+                            </Button>
+                            <Button variant="ghost"
                               type="button"
-                             
+
                               aria-label={`${f.title || "새 항목"} 아래로`}
                               disabled={index === schemaPresentation(draft).order.length - 1 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, 1)}
@@ -450,17 +451,17 @@ export function SchemaEditor(
                               >
                                 <path d="m6 12 6 6 6-6M12 4v14" />
                               </svg>
-                            </BodyAction>
+                            </Button>
                           </div>
                           <Button size="icon" data-schema-disclosure variant="outline"
                             type="button"
-                            
+
                             aria-label={`${f.title || "새 항목"} 항목 ${openFields.includes(key) ? "접기" : "펼치기"}`}
                             aria-expanded={openFields.includes(key)}
                             aria-controls={`schema-field-${key}`}
                             onClick={toggleField}
                           ><ChevronDownIcon /></Button>
-                        </div></CardHeader><CardContent>
+                        </div></CardHeader><CardContent hidden={!expanded}>
                         <FieldSet
                           className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
                           id={`schema-field-${key}`}
@@ -471,7 +472,7 @@ export function SchemaEditor(
                             {(p) => (
                               <NativeSelect
                                 {...p}
-                                
+
                                 data-schema-setting="type"
                                 value={fieldChoices(f) ? "select" : f.format === "date" ? "date" : scalar}
                                 onChange={(e) => {
@@ -520,7 +521,7 @@ export function SchemaEditor(
                                     {(props) => (
                                       <Input
                                         {...props}
-                                        
+
                                         maxLength={80}
                                         value={optionLabel(
                                           schemaPresentation(draft).option_labels[key],
@@ -537,7 +538,7 @@ export function SchemaEditor(
                                   </Field>
                                   <Button variant="outline"
                                     type="button"
-                                   
+
                                     aria-label={`선택 항목 ${i + 1} 제거`}
                                     disabled={fieldChoices(f)!.filter((value) => value !== null).length <= 1}
                                     onClick={() =>
@@ -550,8 +551,8 @@ export function SchemaEditor(
                                   </Button>
                                 </div>
                               ))}
-                              <BodyAction
-                                icon="create"
+                              <Button variant="ghost"
+
                                 type="button"
                                 disabled={fieldChoices(f)!.filter((value) => value !== null).length >= 128}
                                 onClick={() => {
@@ -569,9 +570,9 @@ export function SchemaEditor(
                                     }],
                                   });
                                 }}
-                              >
+                              ><PlusIcon data-icon="inline-start" />
                                 선택 항목 추가
-                              </BodyAction>
+                              </Button>
                               <p className="text-sm text-muted-foreground">
                                 선택 항목을 제거하면 기존 자료의 해당 값을 검토해야 합니다.
                               </p>
@@ -598,7 +599,7 @@ export function SchemaEditor(
                             <FieldGroup className="flex min-w-0 flex-col gap-5 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
                               <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                                 <Checkbox
-                                  
+
                                   checked={draft.schema.required.includes(key)}
                                   onCheckedChange={(checked) => editFlag(key, "required", checked === true)}
                                 />{" "}
@@ -606,7 +607,7 @@ export function SchemaEditor(
                               </FieldLabel>
                               <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                                 <Checkbox
-                                  
+
                                   aria-label={`${f.title || "새 항목"} 목록에 표시`}
                                   checked={schemaPresentation(draft).list_columns.includes(key)}
                                   disabled={schemaPresentation(draft).archived.includes(key)}
@@ -622,7 +623,7 @@ export function SchemaEditor(
 
                               <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                                 <Checkbox
-                                  
+
                                   checked={!!f.readOnly}
                                   aria-label={`${f.title || "새 항목"} 읽기 전용`}
                                   onCheckedChange={(checked) => editField(key, { ...f, readOnly: checked === true })}
@@ -633,7 +634,7 @@ export function SchemaEditor(
                                 {(p) => (
                                   <Textarea
                                     {...p}
-                                    
+
                                     maxLength={1000}
                                     value={f.description ?? ""}
                                     onChange={(e) =>
@@ -656,19 +657,19 @@ export function SchemaEditor(
                                         {(props) => (
                                           <Input
                                             {...props}
-                                            
+
                                             value={raw}
                                             readOnly
                                           />
                                         )}
                                       </Field>
-                                      <BodyAction
+                                      <Button variant="ghost"
                                         type="button"
                                         aria-label={`${f.title ?? "입력 항목"} 이전 ${label} 입력 제거`}
                                         onClick={() => editor.removeNumericInput(address)}
                                       >
                                         이전 조건 입력 제거
-                                      </BodyAction>
+                                      </Button>
                                     </div>
                                   );
                                 },
@@ -686,7 +687,7 @@ export function SchemaEditor(
                                       {(p) => (
                                         <Input
                                           {...p}
-                                          
+
                                           type="text"
                                           inputMode="decimal"
                                           min={0}
@@ -707,7 +708,7 @@ export function SchemaEditor(
                                       {(p) => (
                                         <Input
                                           {...p}
-                                          
+
                                           type="text"
                                           inputMode="decimal"
                                           step="any"
@@ -724,7 +725,7 @@ export function SchemaEditor(
                                 {(p) => (
                                   <NativeSelect
                                     {...p}
-                                    
+
                                     value={f.default === undefined ||
                                         f.default === null
                                       ? "unset"
@@ -755,7 +756,7 @@ export function SchemaEditor(
                                       ? (
                                         <NativeSelect
                                           {...p}
-                                          
+
                                           value={String(f.default)}
                                           onChange={(e) =>
                                             editField(key, {
@@ -771,7 +772,7 @@ export function SchemaEditor(
                                       ? (
                                         <NativeSelect
                                           {...p}
-                                          
+
                                           value={String(f.default)}
                                           onChange={(e) =>
                                             editField(key, {
@@ -794,7 +795,7 @@ export function SchemaEditor(
                                       : (
                                         <Input
                                           {...p}
-                                          
+
                                           type={f.format === "date" ? "date" : "text"}
                                           inputMode={["integer", "number"].includes(
                                               scalar,
@@ -822,7 +823,7 @@ export function SchemaEditor(
                                 사용 중지는 기존 값을 유지합니다. 삭제는 검토·적용 후 반영됩니다.
                               </p>
                               <div className="flex flex-wrap items-center justify-end gap-2">
-                                <BodyAction
+                                <Button variant="ghost"
                                   type="button"
                                   disabled={key === schemaPresentation(draft).representative}
                                   onClick={() =>
@@ -832,9 +833,9 @@ export function SchemaEditor(
                                     )}
                                 >
                                   {schemaPresentation(draft).archived.includes(key) ? "다시 사용" : "사용 중지"}
-                                </BodyAction>
-                                <BodyAction
-                                  danger
+                                </Button>
+                                <Button variant="destructive"
+
                                   type="button"
                                   disabled={key === schemaPresentation(draft).representative}
                                   onClick={() => setDeleteKey(key)}
@@ -850,7 +851,7 @@ export function SchemaEditor(
                                   >
                                     <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
                                   </svg>항목 삭제
-                                </BodyAction>
+                                </Button>
                               </div>
                               {key === schemaPresentation(draft).representative && (
                                 <p className="text-sm text-muted-foreground">
@@ -867,8 +868,8 @@ export function SchemaEditor(
               </CollectionList>
             </FieldSet>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <BodyAction
-                icon="create"
+              <Button variant="ghost"
+
                 type="button"
                 disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain ||
                   Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
@@ -877,9 +878,9 @@ export function SchemaEditor(
                   const key = editor.addField();
                   if (key) setOpenFields((keys) => [...keys, key]);
                 }}
-              >
+              ><PlusIcon data-icon="inline-start" />
                 항목 추가
-              </BodyAction>
+              </Button>
             </div>
             <p className="text-sm text-muted-foreground">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
             {actions.review.visible && (
@@ -893,14 +894,14 @@ export function SchemaEditor(
                 )}
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <Button variant="outline"
-                    
+
                     disabled={busy || uncertain || !dirty}
                     onClick={editor.cancelEditing}
                   >
                     변경 취소
                   </Button>
                   <Button variant="default"
-                    
+
                     disabled={actions.review.disabled}
                     onClick={() => void actions.review.run()}
                   >
@@ -1027,7 +1028,7 @@ export function SchemaEditor(
                         </time>
                       </span>
                       <span className="text-sm text-muted-foreground shrink-0">상태 {status}</span>
-                    </Button></CardHeader><CardContent>
+                    </Button></CardHeader><CardContent hidden={!isOpen}>
                     <div
                       id={`schema-history-${row.id}`}
                       className="flex min-w-0 flex-col gap-4 pt-4"
@@ -1166,7 +1167,7 @@ export function SchemaEditor(
                           />
                           {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
                             <Alert
-                             
+
                               role="status"
                             ><AlertDescription>
                               <strong>
@@ -1266,7 +1267,7 @@ export function SchemaEditor(
                                       plan.source_schema_version &&
                                     (
                                       <Button variant="outline"
-                                        
+
                                         disabled={busy || uncertain || readBusy}
                                         onClick={() => void editor.refreshDefinition()}
                                       >
@@ -1278,7 +1279,7 @@ export function SchemaEditor(
                               : (
                                 <>
                                   <Button variant="destructive"
-                                    
+
                                     disabled={actions.discard.disabled}
                                     onClick={() => setDiscardConfirm(true)}
                                   >
@@ -1294,7 +1295,7 @@ export function SchemaEditor(
                                     )
                                     : primaryAction && (
                                       <Button variant="default"
-                                        
+
                                         disabled={primaryAction.disabled}
                                         onClick={() => void primaryAction.run?.()}
                                       >
@@ -1314,41 +1315,41 @@ export function SchemaEditor(
           </CollectionList>
           {historyRows.length === 0 && <p className="text-sm text-muted-foreground">변경 이력이 없습니다.</p>}
           {editor.view.changesBefore && (
-            <BodyAction
+            <Button variant="ghost" type="button"
               disabled={readBusy || busy || uncertain}
               onClick={() => void editor.moreChanges()}
             >
               이전 변경안 더 보기
-            </BodyAction>
+            </Button>
           )}
-          <BodyAction
-            icon="reset"
+          <Button variant="ghost" type="button"
+
             disabled={busy || readBusy || uncertain}
             onClick={() => {
               jobs.refresh();
               void editor.refreshChanges();
             }}
-          >
+          ><RotateCcwIcon data-icon="inline-start" />
             변경 이력 다시 조회
-          </BodyAction>
+          </Button>
           {jobs.error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{jobs.error}</AlertDescription></Alert>}
           {jobs.before && (
-            <BodyAction disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
+            <Button variant="ghost" type="button" disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
               {jobs.moreBusy ? "이전 변환 이력 읽는 중…" : "이전 변환 이력 더 보기"}
-            </BodyAction>
+            </Button>
           )}
           {jobs.error && (
-            <BodyAction icon="reset" onClick={jobs.refresh}>
+            <Button variant="ghost" type="button"  onClick={jobs.refresh}><RotateCcwIcon data-icon="inline-start" />
               변환 이력 다시 조회
-            </BodyAction>
+            </Button>
           )}
           {historyBefore !== null && (
-            <BodyAction
+            <Button variant="ghost" type="button"
               disabled={historyBusy}
               onClick={() => void onMoreVersions?.()}
             >
               {historyBusy ? "이전 버전 읽는 중…" : "이전 적용 버전 더 보기"}
-            </BodyAction>
+            </Button>
           )}
         </div>
       </MaterialSettingsSection>

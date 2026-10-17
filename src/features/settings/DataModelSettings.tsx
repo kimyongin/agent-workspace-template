@@ -254,7 +254,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
           {onConfirmRemoval && (
             <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
               <Checkbox
-                
+
                 checked={confirmed}
                 disabled={disabled}
                 onCheckedChange={(checked) => onConfirmRemoval(item.ref, checked === true)}
@@ -601,7 +601,7 @@ export function DataModelSettings() {
         <FieldGroup className="min-w-0">
           <div>
             <Button variant="outline"
-              
+
               disabled={locked}
               onClick={() => void exportModel()}
             >
@@ -620,7 +620,7 @@ export function DataModelSettings() {
               {(props) => (
                 <NativeSelect
                   {...props}
-                  
+
                   value={mode}
                   onChange={(e) => {
                     edit(document);
@@ -648,7 +648,7 @@ export function DataModelSettings() {
                     }}
                   />
                   <Button variant="outline"
-                    
+
                     type="button"
                     onClick={() => file.current?.click()}
                   >
@@ -678,7 +678,7 @@ export function DataModelSettings() {
           </FieldSet>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline"
-              
+
               disabled={locked || !document}
               onClick={() => {
                 edit("");
@@ -689,7 +689,7 @@ export function DataModelSettings() {
               입력 비우기
             </Button>
             <Button variant="default"
-              
+
               disabled={locked || !document.trim()}
               onClick={() => void preview()}
             >
@@ -713,7 +713,7 @@ export function DataModelSettings() {
               />
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button variant="default"
-                  
+
                   disabled={busy || reading || groupBusy || groupUncertain || groupDirty ||
                     uncertain && pendingAction !== "prepare" ||
                     review.items.some((i) => i.kind === "conflict") || !uncertain && missingRemovalConfirmation}
@@ -734,7 +734,7 @@ export function DataModelSettings() {
         <FieldGroup className="min-w-0">
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline"
-              
+
               disabled={locked || loading}
               onClick={() => void history()}
             >
@@ -746,7 +746,7 @@ export function DataModelSettings() {
             <Alert variant="destructive" role="alert"><AlertDescription>
               <p className="text-sm text-destructive">{historyError}</p>
               <Button variant="outline"
-                
+
                 disabled={locked}
                 onClick={() => void history(undefined, failedCursor.current)}
               >
@@ -807,7 +807,7 @@ export function DataModelSettings() {
                 {change.status === "ready" && !isModelGroup(change) && change.review.can_apply && (
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     <Button variant="default"
-                      
+
                       disabled={busy || reading || groupBusy || groupUncertain || detailState[change.id]?.loading ||
                         !!detailState[change.id]?.error ||
                         uncertain && pendingAction !== change.id}

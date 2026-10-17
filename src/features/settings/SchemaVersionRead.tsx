@@ -1,7 +1,9 @@
+import { Button } from "../../components/ui/button.tsx";
+import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { SchemaExport } from "./SchemaExport.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { useEffect, useRef, useState } from "react";
 import type { EntitySchemaVersion } from "@contracts/entity-type.ts";
 import { api } from "../../lib/api.ts";
@@ -63,9 +65,9 @@ export function SchemaVersionRead(
     <div className="flex min-w-0 flex-col gap-4">
       {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {error && (
-        <BodyAction icon="reset" onClick={() => setRetry((n) => n + 1)}>
+        <Button variant="ghost" type="button"  onClick={() => setRetry((n) => n + 1)}><RotateCcwIcon data-icon="inline-start" />
           입력 항목 다시 조회
-        </BodyAction>
+        </Button>
       )}
       {!value && !error && <Alert role="status"><AlertDescription>입력 항목 읽는 중…</AlertDescription></Alert>}
       {value && (

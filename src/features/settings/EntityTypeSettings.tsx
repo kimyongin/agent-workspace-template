@@ -1,3 +1,4 @@
+import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { FieldSet, FieldLegend, FieldLabel } from "@/components/ui/field";
@@ -7,7 +8,7 @@ import { Input } from "../../components/ui/input.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { TypeIdentitySettings } from "./TypeIdentitySettings.tsx";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { createMaterialDefinition } from "./material-definition.ts";
 import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { MaterialSettingsProtection } from "./MaterialSettingsProtection.tsx";
@@ -263,7 +264,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             {(props) => (
               <NativeSelect
                 {...props}
-                
+
                 ref={selector}
                 value={type_id ?? ""}
                 disabled={anyBusy}
@@ -290,7 +291,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           </Field>
           {type_id && (
             <Link
-             
+
               to="/settings/entity-types"
               state={{ materialTypeFocus: true }}
             >
@@ -309,16 +310,16 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       {catalog.error && (
         <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>
           자료 종류를 읽지 못했습니다.{" "}
-          <BodyAction icon="reset" onClick={catalog.retry}>
+          <Button variant="ghost" type="button"  onClick={catalog.retry}><RotateCcwIcon data-icon="inline-start" />
             자료 종류 다시 조회
-          </BodyAction>
+          </Button>
         </AlertDescription></Alert>
       )}
       {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {error && !loading && (!type_id || !type) && (
-        <BodyAction icon="reset" onClick={() => void retryRead()}>
+        <Button variant="ghost" type="button"  onClick={() => void retryRead()}><RotateCcwIcon data-icon="inline-start" />
           조회 다시 시도
-        </BodyAction>
+        </Button>
       )}
       {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
       {!loading && (!type_id || type) && (
@@ -356,7 +357,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   <Input
                     {...props}
                     ref={type_id ? undefined : creationName}
-                    
+
                     required
                     maxLength={80}
                     value={label}
@@ -375,7 +376,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   {(props) => (
                     <Input
                       {...props}
-                      
+
                       required
                       maxLength={80}
                       value={representative}
@@ -387,7 +388,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               {type_id && (
                 <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                   <Checkbox
-                    
+
                     checked={archived}
                     onCheckedChange={(checked) => definitions.editBasic("archived", checked === true)}
                   />{" "}
@@ -405,7 +406,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button variant="outline"
                   type="button"
-                  
+
                   disabled={busy || uncertain || latestBusy || basicConflict || !dirty}
                   onClick={cancel}
                   aria-label="변경 취소"
@@ -415,7 +416,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 {basicConflict && (
                   <Button variant="outline"
                     type="button"
-                    
+
                     disabled={busy || uncertain || latestBusy}
                     onClick={() => void readLatestBasics()}
                   >
@@ -423,7 +424,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   </Button>
                 )}
                 <Button variant="default"
-                  
+
                   aria-label={busy
                     ? "저장 중…"
                     : uncertain

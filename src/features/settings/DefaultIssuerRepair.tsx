@@ -1,9 +1,10 @@
+import { Button } from "../../components/ui/button.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { useEffect, useRef, useState } from "react";
 import { APP_IDENTIFIER_RULE_ID, type EntityTypeIdentity, type IdentityDefaultType } from "@contracts/entity-issuer.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { Field } from "../../components/Field.tsx";
 import { typeIdentityPort } from "./issuer-registry-api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -95,7 +96,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
             <NativeSelect
               {...props}
               ref={choice}
-              
+
               value={source}
               disabled={busy || uncertain}
               onChange={(e) => {
@@ -113,11 +114,11 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
         <Alert role="status"><AlertDescription>다른 활성 번호 출처가 없습니다. 자료 설정에서 번호 출처를 연결한 뒤 다시 시도하세요.</AlertDescription></Alert>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <BodyAction disabled={!source || busy} onClick={() => void save()}>
+        <Button variant="ghost" type="button" disabled={!source || busy} onClick={() => void save()}>
           {uncertain ? "같은 요청 다시 확인" : busy ? "저장 중…" : "기본 번호 출처 변경"}
-        </BodyAction>
+        </Button>
         {error && !uncertain && (
-          <BodyAction
+          <Button variant="ghost" type="button"
             disabled={busy}
             onClick={() => {
               setIdentity(null);
@@ -126,7 +127,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
             }}
           >
             다시 조회
-          </BodyAction>
+          </Button>
         )}
       </div>
     </FieldGroup>

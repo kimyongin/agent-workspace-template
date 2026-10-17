@@ -180,7 +180,7 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
       {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="default"
-          
+
           disabled={busy || disabled || (!uncertain && job.recovery?.status !== "available")}
           onClick={() => void create()}
         >

@@ -1,3 +1,4 @@
+import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,7 @@ import { PageHeading } from "../../components/PageHeading.tsx";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { NavigationRowActions } from "./NavigationRowActions.tsx";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
 import { defaultNavigationRefs, type NavigationRef, resolveNavigationRefs } from "../../app/type-navigation.ts";
@@ -121,9 +122,11 @@ export function NavigationSettings(
       id="settings-navigation"
       aria-label="메뉴 바로가기"
     >
+      <Card>
+      <CardHeader>
       {inline && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">메뉴 바로가기</h2>
+          <CardTitle><h2>메뉴 바로가기</h2></CardTitle>
           <span className="text-sm text-muted-foreground" aria-label={`${refs.length}개 선택, 최대 4개`}>{refs.length}/4</span>
         </div>
       )}
@@ -136,6 +139,8 @@ export function NavigationSettings(
           <PageHeading title="메뉴 바로가기" id="navigation-settings-title" description="자주 쓰는 화면을 골라 메뉴에 표시하고 순서를 정합니다." />
         </>
       )}
+      </CardHeader>
+      <CardContent>
       <form
         className="flex min-w-0 flex-col gap-5"
         aria-label="메뉴 바로가기 설정"
@@ -187,7 +192,7 @@ export function NavigationSettings(
             </Combobox>
             <Button variant="outline"
               type="button"
-              
+
               disabled={refs.length >= 4 || !selected}
               aria-label={selected ? `${selected.label} 추가` : "메뉴 추가"}
               onClick={() => {
@@ -214,7 +219,7 @@ export function NavigationSettings(
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button variant="outline"
                 type="button"
-                
+
                 disabled={busy}
                 onClick={() => {
                   setBaseline(saved);
@@ -226,7 +231,7 @@ export function NavigationSettings(
               </Button>
               <Button variant="outline"
                 type="button"
-                
+
                 disabled={busy}
                 onClick={() => {
                   setBaseline(saved);
@@ -244,20 +249,20 @@ export function NavigationSettings(
           </AlertDescription></Alert>
         )}
         <div className="flex flex-col gap-3 pt-4">
-          <BodyAction
-            icon="reset"
+          <Button variant="ghost" type="button"
+
             disabled={draft === null || busy}
             onClick={() => {
               setDraft(null);
               setMessage(null);
             }}
-          >
+          ><RotateCcwIcon data-icon="inline-start" />
             기본 구성 사용
-          </BodyAction>
+          </Button>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline"
               type="button"
-              
+
               aria-label="변경 취소"
               disabled={!dirty && !conflict || busy}
               onClick={() => {
@@ -271,7 +276,7 @@ export function NavigationSettings(
             </Button>
             <Button variant="default"
               type="submit"
-              
+
               disabled={!dirty || busy || conflict}
               aria-label="메뉴 바로가기 저장"
             >
@@ -281,6 +286,8 @@ export function NavigationSettings(
         </div>
       </form>
       {!inline && <NavigationSettingsProtection dirty={dirty} busy={busy} />}
+      </CardContent>
+      </Card>
     </section>
   );
 }

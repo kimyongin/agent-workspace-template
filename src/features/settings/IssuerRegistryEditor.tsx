@@ -10,7 +10,7 @@ import {
   type IdentityDefaultType,
   identityDefaultTypeField,
 } from "@contracts/entity-issuer.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { DefaultIssuerRepair } from "./DefaultIssuerRepair.tsx";
 import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
@@ -191,20 +191,20 @@ export function IssuerRegistryEditor(
   };
   const deleteAction = baseline && onDeleted && (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <BodyAction
-        danger
+      <Button variant="destructive" type="button"
+
         disabled={busy || reading || conflict || saving.uncertain ||
           repairState.uncertain}
         onClick={() => deleting.uncertain ? void remove() : setConfirmDelete(true)}
       >
         {deleting.uncertain ? "삭제 결과 다시 확인" : target.kind === "issuer" ? "번호 출처 삭제" : "번호 종류 삭제"}
-      </BodyAction>
+      </Button>
     </div>
   );
   const footer = (requestClose: () => void) => (
     <>
       <Button variant="outline"
-        
+
         type="button"
         disabled={busy || reading || uncertain}
         onClick={requestClose}
@@ -212,7 +212,7 @@ export function IssuerRegistryEditor(
         {target.kind === "rule" && target.createdIssuer ? "나중에 추가" : "취소"}
       </Button>
       <Button variant="default"
-        
+
         type="submit"
         form={formId}
         disabled={busy || reading || conflict || deleting.uncertain ||
@@ -249,13 +249,13 @@ export function IssuerRegistryEditor(
           <FieldGroup className="min-w-0">
             {blockedTypes.filter((type) => type.type_id !== repairing?.type_id)
               .map((type) => (
-                <BodyAction
+                <Button variant="ghost" type="button"
                   key={type.type_id}
                   disabled={busy || uncertain}
                   onClick={() => setRepairing(type)}
                 >
                   {type.label} 기본 번호 출처 변경
-                </BodyAction>
+                </Button>
               ))}
             {repairing && (
               <DefaultIssuerRepair
@@ -282,7 +282,7 @@ export function IssuerRegistryEditor(
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Button variant="outline"
               type="button"
-              
+
               disabled={busy || uncertain || reading}
               onClick={() => void readLatest()}
             >
@@ -294,7 +294,7 @@ export function IssuerRegistryEditor(
                   최신 저장값: {latest.label} · {latest.active ? "사용 중" : "중지"}
                 </p>
                 <Button variant="outline"
-                  
+
                   type="button"
                   onClick={() => {
                     setBaseline(latest);
@@ -323,7 +323,7 @@ export function IssuerRegistryEditor(
             {(props) => (
               <Input
                 {...props}
-                
+
                 required
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
@@ -343,7 +343,7 @@ export function IssuerRegistryEditor(
           {baseline && (
             <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
               <Checkbox
-                
+
                 checked={active}
                 onCheckedChange={(checked) => setActive(checked === true)}
               />{" "}

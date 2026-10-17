@@ -1,3 +1,5 @@
+import { Button } from "../../components/ui/button.tsx";
+import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldSet, FieldGroup, FieldLabel, FieldLegend } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -6,7 +8,7 @@ import { Input } from "../../components/ui/input.tsx";
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { FilterPanel } from "../../components/TabSearch.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { schemaDiffLabel, schemaEntityLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -69,7 +71,7 @@ function Literal(
         {(props) => (
           <NativeSelect
             {...props}
-            
+
             aria-label="보완값 상태"
             value={value === null ? "null" : "value"}
             onChange={(e) =>
@@ -94,7 +96,7 @@ function Literal(
             ? (
               <NativeSelect
                 {...props}
-                
+
                 aria-label="보완값"
                 value={String(value)}
                 onChange={(e) => onChange(e.target.value === "true")}
@@ -107,7 +109,7 @@ function Literal(
             ? (
               <NativeSelect
                 {...props}
-                
+
                 aria-label="보완값"
                 value={String(value)}
                 onChange={(e) => onChange(e.target.value)}
@@ -121,7 +123,7 @@ function Literal(
             : (
               <Input
                 {...props}
-                
+
                 aria-label="보완값"
                 value={String(value ?? "")}
                 type={field.format === "date" ? "date" : "text"}
@@ -236,7 +238,7 @@ export function ConversionEditor(
                       {(p) => (
                         <NativeSelect
                           {...p}
-                          
+
                           aria-label={`${f?.title ?? sourceField?.title ?? "삭제한 항목"} 변환 방식`}
                           value={r?.op ?? "none"}
                           onChange={(e) => {
@@ -294,7 +296,7 @@ export function ConversionEditor(
                         <section key={op}>
                           <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                             <Checkbox
-                              
+
                               checked={!!rule}
                               onCheckedChange={(checked) =>
                                 setRule(
@@ -328,7 +330,7 @@ export function ConversionEditor(
                           {rule?.op === "fill" && (
                             <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                               <Checkbox
-                                
+
                                 checked={rule.include_null}
                                 onCheckedChange={(checked) => setRule(key, { ...rule, include_null: checked === true })}
                               />{" "}
@@ -342,7 +344,7 @@ export function ConversionEditor(
                       <>
                         <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                           <Checkbox
-                            
+
                             checked={r.identity}
                             onCheckedChange={(checked) => setRule(key, { ...r, identity: checked === true })}
                           />{" "}
@@ -352,7 +354,7 @@ export function ConversionEditor(
                           {(p) => (
                             <Input
                               {...p}
-                              
+
                               onBlur={(e) => {
                                 if (e.target.value && !Object.hasOwn(r.mapping, e.target.value)) {
                                   setRule(key, { ...r, mapping: { ...r.mapping, [e.target.value]: "" } });
@@ -367,7 +369,7 @@ export function ConversionEditor(
                             {(p) => (
                               <NativeSelect
                                 {...p}
-                                
+
                                 aria-label={`${code} 매핑`}
                                 value={to}
                                 onChange={(e) =>
@@ -460,7 +462,7 @@ export function ConversionEditor(
                   return (
                     <FieldSet disabled={disabled} key={key}>
                       <FieldLegend>{plan.target.schema.properties[key]?.title ?? "입력 항목"} 직접 보완</FieldLegend>
-                      <BodyAction
+                      <Button variant="ghost" type="button"
                         onClick={() =>
                           setOverride(
                             row,
@@ -474,7 +476,7 @@ export function ConversionEditor(
                           )}
                       >
                         보완값 지정
-                      </BodyAction>
+                      </Button>
                       {o && (
                         <>
                           <Literal
@@ -483,7 +485,7 @@ export function ConversionEditor(
                             value={o.value}
                             onChange={(v) => setOverride(row, key, v)}
                           />
-                          <BodyAction
+                          <Button variant="ghost" type="button"
                             onClick={() =>
                               onChange({
                                 ...migration,
@@ -491,7 +493,7 @@ export function ConversionEditor(
                               })}
                           >
                             보완 취소
-                          </BodyAction>
+                          </Button>
                         </>
                       )}
                     </FieldSet>
@@ -499,8 +501,8 @@ export function ConversionEditor(
                 })}
             </article>
           ))}
-          {page?.next_after && <BodyAction onClick={() => void load(page.next_after!)}>다음 결과</BodyAction>}
-          <BodyAction icon="reset" onClick={() => void load()}>첫 결과 다시 조회</BodyAction>
+          {page?.next_after && <Button variant="ghost" type="button" onClick={() => void load(page.next_after!)}>다음 결과</Button>}
+          <Button variant="ghost" type="button"  onClick={() => void load()}><RotateCcwIcon data-icon="inline-start" />첫 결과 다시 조회</Button>
         </>
       )}
       {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}

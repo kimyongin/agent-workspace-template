@@ -256,7 +256,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
               )}
               {change.status === "ready" && (
                 <Button variant="default"
-                  
+
                   disabled={locked || dirty || !!change.group?.failed}
                   onClick={() => void perform("apply")}
                 >
@@ -265,7 +265,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
               )}
               {change.status === "failed" && change.group?.retryable && (
                 <Button variant="default"
-                  
+
                   disabled={locked || dirty}
                   onClick={() => void perform("retry")}
                 >
@@ -274,7 +274,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
               )}
               {!["applied", "cancelled", "committing"].includes(change.status) && (
                 <Button variant="outline"
-                  
+
                   disabled={locked}
                   onClick={() => void perform("cancel")}
                 >

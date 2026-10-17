@@ -1,3 +1,4 @@
+import { PlusIcon, RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { Button } from "../../components/ui/button.tsx";
@@ -6,7 +7,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
-import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
+
 import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
@@ -161,12 +162,12 @@ export function IssuerSettingsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button variant="outline"
             type="button"
-           
+
             ref={addButton}
             disabled={loading || locked}
             onClick={() => edit({ kind: "issuer" })}
           >
-            <BodyActionFace icon="create">번호 출처 추가</BodyActionFace>
+            <><PlusIcon data-icon="inline-start" />번호 출처 추가</>
           </Button>
         </div>
       </div>
@@ -174,9 +175,9 @@ export function IssuerSettingsPage() {
       {error && (
         <Alert variant="destructive" role="alert"><AlertDescription>
           {error}
-          <BodyAction icon="reset" onClick={() => setRevision((v) => v + 1)}>
+          <Button variant="ghost" type="button"  onClick={() => setRevision((v) => v + 1)}><RotateCcwIcon data-icon="inline-start" />
             다시 조회
-          </BodyAction>
+          </Button>
         </AlertDescription></Alert>
       )}
       {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
@@ -190,13 +191,13 @@ export function IssuerSettingsPage() {
             summary={!issuer.active ? "사용 중지" : issuer.system ? "자동 생성" : undefined}
             disabled={locked}
             action={issuer.system ? undefined : selected !== issuer.code ? <span /> : (
-              <BodyAction
+              <Button variant="ghost" type="button"
                 disabled={locked}
                 aria-label={`${issuer.label} 편집`}
                 onClick={() => edit({ kind: "issuer", issuer })}
               >
                 출처 편집
-              </BodyAction>
+              </Button>
             )}
             onToggle={() => {
               const origin = document.activeElement as HTMLElement;
@@ -214,12 +215,12 @@ export function IssuerSettingsPage() {
                 {ruleError && (
                   <Alert variant="destructive" role="alert"><AlertDescription>
                     {ruleError}
-                    <BodyAction
-                      icon="reset"
+                    <Button variant="ghost" type="button"
+
                       onClick={() => setRuleRevision((v) => v + 1)}
-                    >
+                    ><RotateCcwIcon data-icon="inline-start" />
                       다시 조회
-                    </BodyAction>
+                    </Button>
                   </AlertDescription></Alert>
                 )}
                 {rules?.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
@@ -249,8 +250,8 @@ export function IssuerSettingsPage() {
                             </dl>
                           )}
                           {!issuer.system && (
-                            <BodyAction
-                             
+                            <Button variant="ghost" type="button"
+
                               aria-label={`${rule.label} 편집`}
                               aria-expanded={expanded}
                               aria-controls={`${ruleListId}-${rule.id}`}
@@ -264,7 +265,7 @@ export function IssuerSettingsPage() {
                                 })}
                             >
                               {expanded ? "접기" : "편집"}
-                            </BodyAction>
+                            </Button>
                           )}
                         </div>
                         <div id={`${ruleListId}-${rule.id}`}>
@@ -276,8 +277,8 @@ export function IssuerSettingsPage() {
                 </div>
                 {!issuer.system && (
                   <div>
-                    <BodyAction
-                      icon="create"
+                    <Button variant="ghost" type="button"
+
                       disabled={rules === null || !issuer.active || locked}
                       onClick={() =>
                         edit({
@@ -285,9 +286,9 @@ export function IssuerSettingsPage() {
                           source: issuer.code,
                           sourceLabel: issuer.label,
                         })}
-                    >
+                    ><PlusIcon data-icon="inline-start" />
                       번호 종류 추가
-                    </BodyAction>
+                    </Button>
                   </div>
                 )}
               </>

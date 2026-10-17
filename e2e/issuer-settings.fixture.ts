@@ -467,12 +467,12 @@ test("selecting the current settings category closes its menu without leaving th
   await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
   const url = page.url(), trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
   await trigger.click();
-  const current = page.getByRole("navigation", { name: "설정 메뉴", exact: true })
+  const current = page.getByRole("menu", { name: "설정 메뉴", exact: true })
     .getByRole("link", { name: "자료", exact: true });
   await expect(current).toHaveAttribute("aria-current", "page");
   await current.click();
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
-  await expect(page.getByRole("navigation", { name: "설정 메뉴", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true })).toHaveCount(0);
   await expect(trigger).toBeFocused();
   await expect(page).toHaveURL(url);
   expect(state.writes).toEqual([]);
@@ -481,47 +481,47 @@ test("selecting the current settings category closes its menu without leaving th
 test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 찾고 폭에 맞게 표시한다", async ({ page, baseURL }, info) => {
   const state = await fixture(page, baseURL!);
   await page.goto("/settings/issuers");
-  const navigation = page.getByRole("navigation", { name: "자료 설정 항목", exact: true });
+  const navigation = page.getByRole("tablist", { name: "자료 설정 항목", exact: true });
   await expect(navigation.getByRole("link")).toHaveText(["자료 종류", "연결 설정", "번호 설정", "일괄 설정"]);
   await expect(page.locator(".page-heading").getByRole("link")).toHaveCount(0);
-  await expect(navigation.getByRole("link", { name: "번호 설정", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.getByRole("tab", { name: "번호 설정", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("번호 출처는 쿠팡·옥션처럼 구분하고, 번호 종류는 상품 번호·주문 번호처럼 용도를 나눕니다.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  const menu = page.getByRole("navigation", { name: "설정 메뉴", exact: true });
+  const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
   await expect(menu.getByRole("link")).toHaveText(["기본", "자료", "태그", "기록"]);
   await menu.getByRole("link", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/issuers$/);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await expect(navigation).toBeVisible();
-    await expect(navigation.getByRole("link", { name: "일괄 설정", exact: true })).toBeVisible();
+    await expect(navigation.getByRole("tab", { name: "일괄 설정", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
   await page.setViewportSize({ width: info.project.name === "mobile" ? 320 : 1440, height: 1000 });
   await page.screenshot({ path: info.outputPath("number-settings.png"), fullPage: true });
-  await navigation.getByRole("link", { name: "자료 종류", exact: true }).click();
-  await expect(navigation.getByRole("link", { name: "자료 종류", exact: true })).toHaveAttribute("aria-current", "page");
+  await navigation.getByRole("tab", { name: "자료 종류", exact: true }).click();
+  await expect(navigation.getByRole("tab", { name: "자료 종류", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("상품·주문·재료·레시피처럼 관리할 자료를 구분합니다.", { exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "자료 종류 선택", exact: true }).selectOption(typeId);
   await expect(page.getByRole("region", { name: "자료 번호", exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("material-types.png"), fullPage: true });
-  await navigation.getByRole("link", { name: "연결 설정", exact: true }).click();
-  await expect(navigation.getByRole("link", { name: "연결 설정", exact: true })).toHaveAttribute("aria-current", "page");
+  await navigation.getByRole("tab", { name: "연결 설정", exact: true }).click();
+  await expect(navigation.getByRole("tab", { name: "연결 설정", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("어떤 자료끼리 연결할 수 있는지와 연결할 개수를 정합니다.", { exact: true })).toBeVisible();
-  await navigation.getByRole("link", { name: "일괄 설정", exact: true }).click();
+  await navigation.getByRole("tab", { name: "일괄 설정", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/data-model$/);
-  await expect(navigation.getByRole("link", { name: "일괄 설정", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.getByRole("tab", { name: "일괄 설정", exact: true })).toHaveAttribute("aria-current", "page");
   expect(state.writes).toEqual([]);
 });
 
 test("자료 설정 탭 이동도 미저장 번호 초안을 보호한다", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!), form = await identityEditor(page);
   await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("보존할 상품 번호");
-  await page.getByRole("link", { name: "번호 설정", exact: true }).click();
+  await page.getByRole("tab", { name: "번호 설정", exact: true }).click();
   const confirmation = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue("보존할 상품 번호");
-  await page.getByRole("link", { name: "번호 설정", exact: true }).click();
+  await page.getByRole("tab", { name: "번호 설정", exact: true }).click();
   await confirmation.getByRole("button", { name: "변경 버리기", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/issuers$/);
   expect(state.writes).toEqual([]);
@@ -533,8 +533,8 @@ test("settings menu supports directional keys and visibly identifies the current
   const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
   await trigger.focus();
   await trigger.press("ArrowDown");
-  const menu = page.getByRole("navigation", { name: "설정 메뉴", exact: true });
-  const first = menu.getByRole("link", { name: "기본", exact: true });
+  const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
+  const first = menu.getByRole("menuitem", { name: "기본", exact: true });
   const current = menu.getByRole("link", { name: "자료", exact: true });
   await expect(first).toBeFocused();
   await first.press("ArrowDown");
@@ -543,7 +543,7 @@ test("settings menu supports directional keys and visibly identifies the current
   expect(await current.evaluate((node) => getComputedStyle(node).backgroundColor))
     .not.toBe(await first.evaluate((node) => getComputedStyle(node).backgroundColor));
   await current.press("End");
-  const last = menu.getByRole("link", { name: "기록", exact: true });
+  const last = menu.getByRole("menuitem", { name: "기록", exact: true });
   await expect(last).toBeFocused();
   await page.keyboard.press("Home");
   await expect(first).toBeFocused();
@@ -562,13 +562,13 @@ test("settings menu destination remains mounted during discard confirmation and 
   const form = await identityEditor(page);
   await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("보존할 번호");
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  const menu = page.getByRole("navigation", { name: "설정 메뉴", exact: true }),
-    entry = menu.getByRole("link", { name: "기록", exact: true });
+  const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true }),
+    entry = menu.getByRole("menuitem", { name: "기록", exact: true });
   await entry.click();
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
   await expect(confirm).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "설정 메뉴", exact: true, includeHidden: true })
+    page.getByRole("menu", { name: "설정 메뉴", exact: true, includeHidden: true })
       .getByRole("link", { name: "기록", exact: true, includeHidden: true }),
   ).toBeAttached();
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
@@ -612,7 +612,7 @@ test("closing settings menu on a noninteractive background restores its trigger 
   const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
   await trigger.click();
   await trigger.press("ArrowDown");
-  await expect(page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link").first())
+  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("link").first())
     .toBeFocused();
   await page.getByRole("heading", { name: "자료 설정", exact: true }).click();
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
@@ -906,7 +906,7 @@ test(
       source.getByRole("button", { name: "판매자 번호 편집", exact: true }),
       page.getByRole("button", { name: "네이버", exact: true }),
       source.getByRole("button", { name: "쿠팡 편집", exact: true }),
-      page.getByRole("link", { name: "자료 종류", exact: true }),
+      page.getByRole("tab", { name: "자료 종류", exact: true }),
     ];
     for (const action of actions) {
       await action.click();
@@ -986,7 +986,7 @@ test("inline number conflict preserves draft and an unknown save blocks navigati
     .toBeDisabled();
   await expect(page.getByRole("button", { name: "네이버", exact: true }))
     .toBeDisabled();
-  await page.getByRole("link", { name: "자료 종류", exact: true }).click();
+  await page.getByRole("tab", { name: "자료 종류", exact: true }).click();
   await expect(page).toHaveURL(/settings\/issuers$/);
   await expect(editor).toBeVisible();
   await editor.getByRole("button", { name: "같은 요청 다시 확인" }).click();
@@ -1023,7 +1023,7 @@ test("inline number stop retains its draft through default repair and a pending 
     await confirm.getByRole("button", { name: "중지하고 저장" }).click();
     await expect(editor.getByRole("button", { name: "저장 중…" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "네이버", exact: true })).toBeDisabled();
-    await page.getByRole("link", { name: "자료 종류", exact: true }).click();
+    await page.getByRole("tab", { name: "자료 종류", exact: true }).click();
     await expect(page).toHaveURL(/settings\/issuers$/);
     expect(await page.evaluate(() => !window.dispatchEvent(new Event("beforeunload", { cancelable: true })))).toBe(true);
   } finally { release(); }
@@ -1046,7 +1046,7 @@ test("inline discard switches to the requested number and allows confirmed tab n
   await expect(editor.getByLabel("번호 종류 이름")).toHaveValue("판매자 번호");
   await expect(editor.getByLabel("번호 종류 이름")).toBeFocused();
   await editor.getByLabel("번호 종류 이름").fill("이것도 버릴 변경");
-  await page.getByRole("link", { name: "자료 종류", exact: true }).click();
+  await page.getByRole("tab", { name: "자료 종류", exact: true }).click();
   await discard.getByRole("button", { name: "변경 버리기" }).click();
   await expect(page).toHaveURL(/settings\/materials$/);
   expect(state.writes).toHaveLength(0);

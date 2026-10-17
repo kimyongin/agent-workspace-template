@@ -1,3 +1,4 @@
+import { LinkIcon, PlusIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { FieldSet, FieldLabel } from "@/components/ui/field";
@@ -9,7 +10,7 @@ import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryE
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { typeIdentityUpdate } from "@contracts/entity-issuer.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { Field } from "../../components/Field.tsx";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
 import { issuerRegistry, typeIdentityPort } from "./issuer-registry-api.ts";
@@ -109,7 +110,7 @@ export function TypeIdentitySettings(
           {busy ? <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert> : (
             <Button variant="outline"
               type="button"
-              
+
               onClick={() => void editor.resource.read()}
             >
               자료 번호 설정 다시 조회
@@ -129,7 +130,7 @@ export function TypeIdentitySettings(
           {conflict && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Button variant="outline"
-                
+
                 type="button"
                 disabled={busy || uncertain}
                 onClick={() => void editor.resource.read()}
@@ -144,7 +145,7 @@ export function TypeIdentitySettings(
                   </p>
                   <Button variant="outline"
                     type="button"
-                    
+
                     onClick={() => {
                       editor.resource.acceptLatest();
                       setInputError("");
@@ -161,7 +162,7 @@ export function TypeIdentitySettings(
               {(props) => (
                 <Input
                   {...props}
-                  
+
                   required
                   value={draft.label}
                   onChange={(e) => update((v) => ({ ...v, label: e.target.value }))}
@@ -170,7 +171,7 @@ export function TypeIdentitySettings(
             </Field>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-sm font-medium">사용할 번호 출처</h3>
-              <BodyAction icon="link" disabled={!!catalogError} onClick={() => setConnecting(true)}>연결</BodyAction>
+              <Button variant="ghost" type="button"  disabled={!!catalogError} onClick={() => setConnecting(true)}><LinkIcon data-icon="inline-start" />연결</Button>
             </div>
             {catalogError && (
               <Alert variant="destructive" className="text-sm text-destructive" role="alert"><AlertDescription>
@@ -192,7 +193,7 @@ export function TypeIdentitySettings(
                   <div key={source.code} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-border py-3">
                     <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                       <Checkbox
-                        
+
                         checked={source.active}
                         disabled={!available && !source.active}
                         onCheckedChange={(checked) =>
@@ -229,7 +230,7 @@ export function TypeIdentitySettings(
                             {(props) => (
                               <NativeSelect
                                 {...props}
-                                
+
                                 aria-label={`${sourceName(source.code)} 번호 종류`}
                                 value={source.rule_id}
                                 onChange={(e) =>
@@ -250,15 +251,15 @@ export function TypeIdentitySettings(
                       {!available && <span className="text-sm text-muted-foreground">· 사용 중지</span>}
                       {issuer && !issuer.system && (
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <BodyAction
+                          <Button variant="ghost" type="button"
                             aria-label={`${sourceName(source.code)} 편집`}
                             onClick={() => setRegistryEdit({ kind: "issuer", issuer })}
                           >
                             편집
-                          </BodyAction>
+                          </Button>
                           {!metadata?.referenced && (
-                            <BodyAction
-                              icon="create"
+                            <Button variant="ghost" type="button"
+
                               aria-label={`${sourceName(source.code)} 번호 종류 추가`}
                               disabled={!rules[source.code]}
                               onClick={() =>
@@ -267,9 +268,9 @@ export function TypeIdentitySettings(
                                   source: source.code,
                                   sourceLabel: sourceName(source.code),
                                 })}
-                            >
+                            ><PlusIcon data-icon="inline-start" />
                               번호 종류 추가
-                            </BodyAction>
+                            </Button>
                           )}
                         </div>
                       )}
@@ -288,7 +289,7 @@ export function TypeIdentitySettings(
           <div className="flex flex-col gap-3 pt-4">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button variant="outline"
-                
+
                 type="button"
                 aria-label="변경 취소"
                 disabled={busy || uncertain || disabled || (!dirty && !conflict) || conflict && !latestReady}
@@ -301,7 +302,7 @@ export function TypeIdentitySettings(
                 취소
               </Button>
               <Button variant="default"
-                
+
                 aria-label={busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "자료 번호 저장"}
                 disabled={busy || disabled || conflict || (!dirty && !uncertain)}
               >

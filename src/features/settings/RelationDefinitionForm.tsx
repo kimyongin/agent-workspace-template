@@ -12,7 +12,7 @@ import { api, ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 export function RelationDefinitionForm(
   { original, types, onClose, onSaved, onState }: {
     original?: EntityRelationDefinition;
@@ -117,7 +117,7 @@ export function RelationDefinitionForm(
               <Field pair label="자료 종류" required>
                 {(props) => (
                   <NativeSelect
-                    
+
                     {...props}
                     aria-label={`${prefix} 자료 종류`}
                     value={end.type_id}
@@ -133,7 +133,7 @@ export function RelationDefinitionForm(
               <Field pair label="연결 이름" required help="이 자료에서 상대를 부르는 이름입니다.">
                 {(props) => (
                   <Input
-                    
+
                     {...props}
                     aria-label={`${prefix} 연결 이름`}
                     value={end.label}
@@ -145,7 +145,7 @@ export function RelationDefinitionForm(
               <Field pair label="연결 개수" help="몇 개까지 연결할 수 있는지 정합니다.">
                 {(props) => (
                   <NativeSelect
-                    
+
                     {...props}
                     aria-label={`${prefix} 연결 개수`}
                     value={end.cardinality}
@@ -165,7 +165,7 @@ export function RelationDefinitionForm(
           {(props) => (
             <Checkbox
               {...props}
-              
+
               checked={archived}
               disabled={writing.busy || writing.uncertain || reading}
               onCheckedChange={(checked) => setArchived(checked === true)}
@@ -177,7 +177,7 @@ export function RelationDefinitionForm(
         <Alert variant="destructive" role="alert"><AlertDescription>
           {error}
           {conflict && baseline && (
-            <BodyAction
+            <Button variant="ghost" type="button"
               disabled={reading}
               onClick={async () => {
                 setReading(true);
@@ -191,7 +191,7 @@ export function RelationDefinitionForm(
               }}
             >
               최신 버전 확인
-            </BodyAction>
+            </Button>
           )}
         </AlertDescription></Alert>
       )}
@@ -201,7 +201,7 @@ export function RelationDefinitionForm(
             최신 버전 {latest.version}: {latest.ends.map((e) => e.label).join(" ↔ ")}
             {latest.archived ? " · 보관" : ""}. 내 입력은 유지됩니다.
           </p>
-          <BodyAction
+          <Button variant="ghost" type="button"
             onClick={() => {
               setBaseline(latest);
               setLatest(null);
@@ -210,8 +210,8 @@ export function RelationDefinitionForm(
             }}
           >
             내 입력으로 다시 검토
-          </BodyAction>
-          <BodyAction
+          </Button>
+          <Button variant="ghost" type="button"
             onClick={() => {
               setBaseline(latest);
               setEnds(latest.ends);
@@ -222,13 +222,13 @@ export function RelationDefinitionForm(
             }}
           >
             최신 값 사용
-          </BodyAction>
+          </Button>
         </div>
       )}
       <div className="flex flex-wrap items-center justify-end gap-2">
         {baseline && (
           <Button variant="destructive"
-            
+
             type="button"
             disabled={writing.busy || reading || conflict || writing.uncertain && operation !== "delete"}
             onClick={() => writing.uncertain ? void remove() : setConfirm("delete")}
@@ -237,7 +237,7 @@ export function RelationDefinitionForm(
           </Button>
         )}
         <Button variant="outline"
-          
+
           type="button"
           disabled={writing.busy || writing.uncertain || reading}
           onClick={() => dirty ? setConfirm("cancel") : onClose()}
@@ -245,7 +245,7 @@ export function RelationDefinitionForm(
           취소
         </Button>
         <Button variant="default"
-          
+
           type="submit"
           disabled={writing.busy || reading || conflict || writing.uncertain && operation !== "save" ||
             !!baseline && !dirty && !writing.uncertain}

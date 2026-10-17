@@ -1,8 +1,9 @@
+import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 
 import { Button } from "../../components/ui/button.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { materialSettingsPath } from "./material-settings-path.ts";
 import { type MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -70,7 +71,7 @@ export function MigrationStart(
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       <Button variant="default"
-        
+
         disabled={busy || (!uncertain && (disabled || !plan.executable))}
         onClick={() => void start()}
       >
@@ -350,11 +351,11 @@ export function SchemaMigrationJob(
         접수한 작업은 화면을 닫거나 다른 페이지로 이동해도 계속됩니다. 다시 열면 서버의 확정 상태를 조회합니다.
       </p>
       {(error || publicationError) && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error || publicationError}</AlertDescription></Alert>}
-      <BodyAction icon="reset" onClick={() => setRefresh((n) => n + 1)}>상태 다시 조회</BodyAction>
+      <Button variant="ghost" type="button"  onClick={() => setRefresh((n) => n + 1)}><RotateCcwIcon data-icon="inline-start" />상태 다시 조회</Button>
       {publicationError && (
-        <BodyAction icon="reset" onClick={() => setRefresh((n) => n + 1)}>
+        <Button variant="ghost" type="button"  onClick={() => setRefresh((n) => n + 1)}><RotateCcwIcon data-icon="inline-start" />
           최신 입력 항목 다시 조회
-        </BodyAction>
+        </Button>
       )}
       {job && (
         <>
@@ -422,7 +423,7 @@ export function SchemaMigrationJob(
           <div className="flex flex-wrap items-center justify-end gap-2">
             {["queued", "preparing", "ready_to_commit"].includes(job.status) && (
               <Button variant="outline"
-                
+
                 disabled={busy || uncertain || disabled}
                 onClick={() => void write("cancel")}
               >
@@ -431,7 +432,7 @@ export function SchemaMigrationJob(
             )}
             {job.status === "failed" && job.retryable && (
               <Button variant="default"
-                
+
                 disabled={busy || uncertain || disabled}
                 onClick={() => void write("retry")}
               >
@@ -440,7 +441,7 @@ export function SchemaMigrationJob(
             )}
             {uncertain && pendingAction && (
               <Button variant="outline"
-                
+
                 disabled={busy}
                 onClick={() => void write(pendingAction)}
               >

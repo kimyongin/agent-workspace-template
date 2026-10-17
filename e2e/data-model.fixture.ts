@@ -229,8 +229,8 @@ test("자료 설정으로 이동해도 미저장 전체 모델을 보호하고 �
   await page.getByRole("textbox", { name: "설정 파일 내용" }).fill(
     "미저장 원문",
   );
-  await page.getByRole("navigation", { name: "자료 설정 항목", exact: true })
-    .getByRole("link", { name: "자료 종류", exact: true }).click();
+  await page.getByRole("tablist", { name: "자료 설정 항목", exact: true })
+    .getByRole("tab", { name: "자료 종류", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" }))
     .toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();

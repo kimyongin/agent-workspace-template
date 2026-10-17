@@ -1,10 +1,11 @@
+import { PlusIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup } from "@/components/ui/field";
 import { Button } from "../../components/ui/button.tsx";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
-import { BodyActionFace } from "../../components/BodyAction.tsx";
+
 import { Field } from "../../components/Field.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
@@ -113,7 +114,7 @@ export function IdentitySourceModal({
         <>
           <Button variant="outline"  type="button" onClick={requestClose}>취소</Button>
           <Button variant="default"
-            
+
             type="button"
             disabled={!issuer?.active || !rule?.active || !!editing}
             onClick={() => {
@@ -132,7 +133,7 @@ export function IdentitySourceModal({
               <NativeSelect
                 {...props}
                 ref={sourceSelect}
-                
+
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
               >
@@ -145,7 +146,7 @@ export function IdentitySourceModal({
           </Field>
           <Button variant="outline"
             type="button"
-           
+
             ref={issuerAdd}
             onClick={() => {
               returnTo.current = "issuer";
@@ -167,7 +168,7 @@ export function IdentitySourceModal({
                     {(props) => (
                       <NativeSelect
                         {...props}
-                        
+
                         value={ruleId}
                         onChange={(e) => setRuleId(e.target.value)}
                       >
@@ -197,7 +198,7 @@ export function IdentitySourceModal({
                   setEditing({ kind: "rule", source, sourceLabel: issuer.label });
                 }}
               >
-                {eligible.length > 1 ? "번호 종류 추가" : <BodyActionFace icon="create">번호 종류 추가</BodyActionFace>}
+                {eligible.length > 1 ? "번호 종류 추가" : <><PlusIcon data-icon="inline-start" />번호 종류 추가</>}
               </Button>
             )}
           </div>

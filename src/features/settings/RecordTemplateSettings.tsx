@@ -1,3 +1,4 @@
+import { RotateCcwIcon, EyeIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select";
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
@@ -7,7 +8,7 @@ import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { TemplateMemoEditor, type TemplateMemoHandle } from "./TemplateMemoEditor.tsx";
 import { changedTemplateActions, templateFieldTarget } from "./record-template-actions.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -269,9 +270,9 @@ function RecordTemplateForm({
             {message || "설정을 읽는 중…"}
           </AlertDescription></Alert>
           {message && (
-            <BodyAction icon="reset" type="button" disabled={busy} onClick={() => void read()}>
+            <Button variant="ghost"  type="button" disabled={busy} onClick={() => void read()}><RotateCcwIcon data-icon="inline-start" />
               다시 시도
-            </BodyAction>
+            </Button>
           )}
         </>
       )}
@@ -306,7 +307,7 @@ function RecordTemplateForm({
             <Notice kind="error">
               삭제된 기본 기록 태그 {missing.length}개를 정리해야 합니다. {materialResource &&
                 "정리는 현재 설정 범위에만 적용합니다. 다른 종류나 모델의 오류는 해당 설정에서 정리하세요."}{" "}
-              <BodyAction
+              <Button variant="ghost"
                 type="button"
                 disabled={busy}
                 onClick={() => {
@@ -316,7 +317,7 @@ function RecordTemplateForm({
                 }}
               >
                 삭제된 태그 정리
-              </BodyAction>
+              </Button>
             </Notice>
           )}
           <FieldSet
@@ -361,9 +362,9 @@ function RecordTemplateForm({
                 {typeError && !materialResource && (
                   <Notice kind="error">
                     자료 종류를 읽지 못했습니다.{" "}
-                    <BodyAction icon="reset" type="button" onClick={retryTypes}>
+                    <Button variant="ghost"  type="button" onClick={retryTypes}><RotateCcwIcon data-icon="inline-start" />
                       다시 시도
-                    </BodyAction>
+                    </Button>
                   </Notice>
                 )}
               </>
@@ -371,7 +372,7 @@ function RecordTemplateForm({
             <Field pair label="변수 삽입">
               {(props) => (
                 <Combobox<(typeof variables)[number]> items={variables} value={null} inputValue={variableQuery} onInputValueChange={setVariableQuery} itemToStringLabel={variable => variable.label} onValueChange={variable => { if(variable) text.current?.insert(variable.value); setVariableQuery(""); }} disabled={schemaUnavailable || busy || uncertain}>
-                  <ComboboxInput {...props} placeholder="변수를 선택하세요" /><ComboboxContent><ComboboxEmpty>일치하는 변수가 없습니다.</ComboboxEmpty><ComboboxList>{variable => <ComboboxItem key={variable.value} value={variable}>{variable.label}</ComboboxItem>}</ComboboxList></ComboboxContent>
+                  <ComboboxInput {...props} placeholder="변수를 선택하세요" /><ComboboxContent finalFocus={false}><ComboboxEmpty>일치하는 변수가 없습니다.</ComboboxEmpty><ComboboxList>{variable => <ComboboxItem key={variable.value} value={variable}>{variable.label}</ComboboxItem>}</ComboboxList></ComboboxContent>
                 </Combobox>
               )}
             </Field>
@@ -390,13 +391,13 @@ function RecordTemplateForm({
                     ? (
                       <Notice kind="error">
                         입력 항목 정의를 읽지 못했습니다.{" "}
-                        <BodyAction
-                          icon="reset"
+                        <Button variant="ghost" type="button"
+
                           aria-label="입력 항목 정의 다시 조회"
                           onClick={() => setSchemaAttempt((value) => value + 1)}
-                        >
+                        ><RotateCcwIcon data-icon="inline-start" />
                           다시 시도
-                        </BodyAction>
+                        </Button>
                       </Notice>
                     )
                     : <Alert role="status"><AlertDescription>입력 항목 정의를 읽는 중…</AlertDescription></Alert>
@@ -416,9 +417,9 @@ function RecordTemplateForm({
             </Field>
             {model === "entity" && !usingDefault && !schemaUnavailable && (
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                <BodyAction icon="reset" onClick={() => setValue({ memo: null })}>
+                <Button variant="ghost" type="button"  onClick={() => setValue({ memo: null })}><RotateCcwIcon data-icon="inline-start" />
                   기본 문구로 되돌리기
-                </BodyAction>
+                </Button>
               </div>
             )}
 
@@ -438,17 +439,17 @@ function RecordTemplateForm({
                 <Alert variant="destructive" className="text-sm text-destructive" key={key} role="alert"><AlertDescription>
                   {target ? `${templateActionNames[target.action]}: ` : "설정: "}
                   {error} {canOpen && target.action !== action && (
-                    <BodyAction
-                      icon="view"
+                    <Button variant="ghost"
+
                       type="button"
                       onClick={() => {
                         setModel(target.model);
                         setAction(target.action);
                         requestAnimationFrame(() => text.current?.focus());
                       }}
-                    >
+                    ><EyeIcon data-icon="inline-start" />
                       오류 항목 보기
-                    </BodyAction>
+                    </Button>
                   )}
                 </AlertDescription></Alert>
               );
@@ -456,9 +457,9 @@ function RecordTemplateForm({
           </FieldSet>
           <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>
           {conflict && (
-            <BodyAction icon="reset" type="button" onClick={() => void read()}>
+            <Button variant="ghost"  type="button" onClick={() => void read()}><RotateCcwIcon data-icon="inline-start" />
               최신값 확인
-            </BodyAction>
+            </Button>
           )}
           <div className="flex flex-col gap-3 pt-4">
             {changes.length > 0 && (
@@ -469,7 +470,7 @@ function RecordTemplateForm({
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button variant="outline"
                 type="button"
-                
+
                 disabled={busy || uncertain || (conflict ? !latestReady : !dirty)}
                 aria-label={conflict ? "최신값으로 다시 편집" : "변경 취소"}
                 onClick={() => {
@@ -482,7 +483,7 @@ function RecordTemplateForm({
               </Button>
               <Button variant="default"
                 type="submit"
-                
+
                 disabled={busy || !dirty || conflict || schemaUnavailable}
                 aria-label={busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 자동 완성 저장"}
               >
