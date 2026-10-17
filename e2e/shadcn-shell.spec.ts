@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { entity, task, record, id } from "./support/workspace-data.ts";
+import { closeDetail, openListDetail } from "./ui-actions.ts";
 
 async function fixture(page: Page, scale = "100") {
   const state = await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [entity()], tasks: [task()], records: [record()], tags: [] });
@@ -33,6 +34,38 @@ for (const scale of ["100", "110", "125", "150"]) {
     expect(state.errors).toEqual([]);
   });
 }
+
+test("shell desktop: closing a detail returns long-list scrolling and append ownership to main", async ({ page }) => {
+  const state = await fixture(page);
+  state.rows.entities = Array.from({ length: 40 }, (_, index) => entity(1000 + index, { prop_1: `스크롤 자료 ${index}` }));
+  state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20)]);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/entities");
+  const main = page.getByRole("main");
+  await expect(main.locator("[data-list-anchor]")).toHaveCount(20);
+  await openListDetail(page, "스크롤 자료 19");
+  await closeDetail(page, "스크롤 자료 19");
+  const anchor = main.getByRole("button", { name: "스크롤 자료 19", exact: true });
+  await expect(anchor).toBeFocused();
+  const more = main.getByRole("button", { name: "더 보기", exact: true });
+  await expect(more).toHaveAttribute("aria-disabled", "false");
+  await more.scrollIntoViewIfNeeded();
+  const top = await main.evaluate(element => element.scrollTop);
+  expect(top).toBeGreaterThan(0);
+  expect(await more.evaluate(button => {
+    for (let element = button.parentElement; element && element.tagName !== "MAIN"; element = element.parentElement) {
+      if (element.scrollTop !== 0) return false;
+    }
+    return true;
+  })).toBe(true);
+  await more.click();
+  await expect(main.locator("[data-list-anchor]")).toHaveCount(40);
+  await expect(more).toBeFocused();
+  expect(await main.evaluate(element => element.scrollTop)).toBe(top);
+  await expect(anchor).toHaveCount(1);
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+});
 
 test("shell mobile: nested confirmation, Escape and discard preserve the correct draft", async ({ page }, info) => {
   const state = await fixture(page);
