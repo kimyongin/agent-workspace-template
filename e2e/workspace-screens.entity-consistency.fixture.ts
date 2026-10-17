@@ -36,7 +36,7 @@ test("automatic number creation has no empty lookup or normal schema recovery ac
   await go(page, "/entities?create=1");
   await expect(form(page).getByText("등록 시 자동 발급", { exact: true })).toBeVisible();
   await expect(form(page).getByRole("button", { name: "기존 대상 확인", exact: true })).toHaveCount(0);
-  await expect(form(page).getByRole("button", { name: "입력 항목 정의 다시 조회", exact: true })).toHaveCount(0);
+  await expect(form(page).getByRole("button", { name: "속성 정의 다시 조회", exact: true })).toHaveCount(0);
   expect(state.writes).toHaveLength(0);
 });
 

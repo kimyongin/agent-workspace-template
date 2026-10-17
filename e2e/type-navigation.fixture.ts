@@ -562,12 +562,12 @@ test("definition history reads beyond the first hundred versions and opens the i
   await oldest.getByRole("button", { name: /^최초 생성/ }).click();
   await expect(page).toHaveURL(/schema_version=1/);
   const definition = oldest.getByRole("region", { name: "입력 항목 정의", exact: true });
-  await expect(definition.getByRole("heading", { name: "최초 이름", exact: true })).toBeVisible();
+  await expect(definition.locator("dt", { hasText: /^종류 이름$/ }).locator("../dd")).toHaveText("최초 이름");
   const field = definition.getByRole("region", { name: "최초 이름 정의", exact: true });
-  await expect(field.locator("dl > div").filter({ has: page.getByText("자료 이름", { exact: true }) }).locator("dd"))
+  await expect(field.locator("dt", { hasText: /^자료 이름으로 사용$/ }).locator("../dd"))
     .toHaveText("사용");
   await expect(definition.locator("input,select,textarea")).toHaveCount(0);
-  await expect(oldest.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
+  await expect(oldest.getByRole("region", { name: "변경 결과", exact: true }).locator("dt", { hasText: /^버전$/ }).locator("../dd")).toHaveText("1 · 최초 생성");
   expect(readVersions).toContain(101);
   expect(readVersions).toContain(1);
   expect(readVersions).not.toContain(0);
@@ -740,7 +740,8 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     await reading;
     const name = form.getByRole("textbox", { name: "이름 (필수)", exact: true });
     await name.fill("保持する下書き");
-    await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
+    await expect(form.locator("dt", { hasText: /^태그$/ }).locator("../dd")).toHaveText("保留タグ");
+    await expect(form.getByRole("button", { name: /태그 선택|保留タグ 선택 해제/ })).toHaveCount(0);
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await expect(form.getByRole("status").filter({ hasText: "자료 종류·자료 번호 설정을 읽는 중…" })).toBeVisible();
     await name.press("Enter");
@@ -749,7 +750,8 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     release();
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
     await expect(name).toHaveValue("保持する下書き");
-    await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
+    await expect(form.locator("dt", { hasText: /^태그$/ }).locator("../dd")).toHaveText("保留タグ");
+    await expect(form.getByRole("button", { name: /태그 선택|保留タグ 선택 해제/ })).toHaveCount(0);
     await form.getByRole("button", { name: "저장", exact: true }).click();
     const confirmation = page.locator("dialog.modal-action[open]");
     await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeEnabled();
@@ -762,17 +764,18 @@ test("entity edit preserves draft and tags while identity settings are delayed b
       input: {
         schema_version: 1,
         properties: { prop_1: "保持する下書き" },
-        tag_ids: ["00000000-0000-4000-8000-000000000010"],
       },
     });
+    expect(preparations[0].input).not.toHaveProperty("tag_ids");
     await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
     await expect(form).not.toBeVisible();
     expect(writes).toHaveLength(1);
+    await expect(page.getByRole("region", { name: "태그 연결", exact: true }).locator("dt", { hasText: /^태그$/ }).locator("../dd")).toHaveText("保留タグ");
+    expect(writes[0]).not.toHaveProperty("tag_ids");
     expect(writes[0]).toMatchObject({
       expected_version: 1,
       schema_version: 1,
       properties: { prop_1: "保持する下書き" },
-      tag_ids: ["00000000-0000-4000-8000-000000000010"],
     });
   } finally {
     release();
@@ -891,7 +894,7 @@ test("history selection preserves basic drafts and survives reload", async ({ pa
   await page.reload();
   const first = page.locator(".schema-history-row").filter({ has: page.getByRole("button", { name: /^최초 생성/ }) });
   await expect(first.getByRole("region", { name: "입력 항목 정의", exact: true })).toBeVisible();
-  await expect(first.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
+  await expect(first.getByRole("region", { name: "변경 결과", exact: true }).locator("dt", { hasText: /^버전$/ }).locator("../dd")).toHaveText("1 · 최초 생성");
 });
 
 test(
@@ -1289,7 +1292,9 @@ for (const width of [320, 1440]) {
     const summary = page.locator(".status-issue-list summary");
     await expect(summary).toBeVisible();
     await summary.press("Enter");
-    await expect(page.getByText("현재 구간 전송 시도 1회", { exact: false })).toBeVisible();
+    for (const [label, value] of [["현재 구간 전송 시도", "1회"], ["본문 구간", "0/1 완료"], ["준비 중", "0"], ["응답 확인 불가", "1"], ["확인된 실패", "0"]]) {
+      await expect(page.locator(".status-issue-list dt").filter({ hasText: new RegExp(`^${label}$`) }).locator("../dd")).toHaveText(value);
+    }
     const marker = await summary.evaluate((el) => ({
       column: getComputedStyle(el, "::after").gridColumnStart,
       list: getComputedStyle(el).listStyleType,

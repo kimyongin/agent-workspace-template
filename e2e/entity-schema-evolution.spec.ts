@@ -124,15 +124,18 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     });
     entityIds.push(created.id);
     expect(created.properties.prop_2).toBe(0);
+    const detail = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
     await page.goto(`/entities/${encodeURIComponent(existing.id)}`);
-    await expect(page.locator(".detail-title")).toHaveText(existing.title);
-    await expect(page.getByText("자료 이름", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("수량", { exact: true })).toBeVisible();
-    await expect(page.getByText("미입력", { exact: true })).toBeVisible();
+    await expect(detail.getByRole("heading", { name: existing.title, exact: true })).toHaveCount(1);
+    await expect(detail.locator("dt:visible", { hasText: /^자료 이름$/ })).toHaveCount(1);
+    await expect(detail.locator("dt:visible", { hasText: /^자료 이름$/ }).locator("../dd")).toHaveText(existing.title);
+    await expect(detail.getByText("수량", { exact: true })).toBeVisible();
+    await expect(detail.getByText("미입력", { exact: true })).toBeVisible();
     await page.goto(`/entities/${encodeURIComponent(created.id)}`);
-    await expect(page.locator(".detail-title")).toHaveText(created.title);
-    await expect(page.getByText("자료 이름", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("0", { exact: true })).toBeVisible();
+    await expect(detail.getByRole("heading", { name: created.title, exact: true })).toHaveCount(1);
+    await expect(detail.locator("dt:visible", { hasText: /^자료 이름$/ })).toHaveCount(1);
+    await expect(detail.locator("dt:visible", { hasText: /^자료 이름$/ }).locator("../dd")).toHaveText(created.title);
+    await expect(detail.getByText("0", { exact: true })).toBeVisible();
     await page.goto(`/settings/entity-types/${typeId}/versions`);
     const initialVersion = page.locator(".schema-history-row").filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),

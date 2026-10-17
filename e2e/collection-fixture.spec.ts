@@ -10,7 +10,8 @@ const entity={...makeEntity(1, {prop_1:"김민수",prop_3:"2026-10-08"}),tasks:{
 const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_timezone: "Asia/Seoul" } };
 
 async function fixture(page: Page, records = [record]) {
-  const state=await installWorkspaceApi(page,"http://127.0.0.1:55587",{entities:[entity],tasks:[task],records,tags:[]},{pageSize:20});
+  const rows = structuredClone({ entities: [entity], tasks: [task], records, tags: [] });
+  const state=await installWorkspaceApi(page,"http://127.0.0.1:55587",rows,{pageSize:20});
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   await page.route("**/*",async route=>{
     const url=new URL(route.request().url());

@@ -107,7 +107,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
           ["데이터 타입", "텍스트"],
           ["필수 입력", "예"],
           ["목록에 표시", "예"],
-          ["자료 이름", "사용"],
+          ["자료 이름으로 사용", "사용"],
           ["최소 길이", "1자"],
           ["최대 길이", "4096자"],
         ]
@@ -116,7 +116,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
           .toHaveText(value);
       }
       await expect(definition.locator("input,select,textarea")).toHaveCount(0);
-      await expect(row.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
+      await expect(row.getByRole("region", { name: "변경 결과", exact: true }).locator("dt", { hasText: /^버전$/ }).locator("../dd")).toHaveText("1 · 최초 생성");
       const published = await mcp.call("get_entity_schema", { type_id: typeId, schema_version: 1 });
       expect({
         type_id: published.type_id,

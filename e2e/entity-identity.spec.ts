@@ -503,7 +503,9 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
   await expect(
     confirmation.getByRole("button", { name: "등록하고 저장", exact: true }),
   ).toBeEnabled();
-  await expect(confirmation.getByRole("heading")).toContainText(title);
+  await expect(confirmation.getByRole("heading", { name: "등록하시겠습니까?", exact: true })).toBeVisible();
+  await expect(confirmation.locator("dt", { hasText: /^대상$/ }).locator("../dd")).toHaveText(title);
+  await expect(confirmation.locator("dt", { hasText: /^작업$/ }).locator("../dd")).toHaveText("등록");
   await expect(confirmation.getByLabel("기록 메모", { exact: true }))
     .toHaveValue(defaults.change_note);
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
@@ -513,15 +515,15 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
 test("seven settings workspaces retain real API selections and stay within the viewport", async ({ page }, info) => {
   await devLogin(page);
   for (
-    const [path, title] of [
-      ["/settings", "기본 설정"],
-      [`/settings/entity-types/${fixtureType!.id}`, "자료 설정"],
-      ["/settings/tags", "태그 설정"],
-      ["/settings/records", "기록 설정"],
-      ["/settings/issuers", "자료 설정"],
-      ["/settings/relations", "연결 설정"],
-      ["/settings/data-model", "자료 모델"],
-    ]
+    const [path, title, category, materialSection] of [
+      ["/settings", "기본 설정", "기본", null],
+      [`/settings/entity-types/${fixtureType!.id}`, "자료 설정", "자료", "자료 종류"],
+      ["/settings/tags", "태그 설정", "태그", null],
+      ["/settings/records", "기록 설정", "기록", null],
+      ["/settings/issuers", "자료 설정", "자료", "번호 설정"],
+      ["/settings/relations", "자료 설정", "자료", "연결 설정"],
+      ["/settings/data-model", "자료 설정", "자료", "일괄 설정"],
+    ] as const
   ) {
     await page.goto(path);
     await expect(page.getByRole("heading", { name: title, exact: true, level: 1 })).toBeVisible();
@@ -530,19 +532,32 @@ test("seven settings workspaces retain real API selections and stay within the v
     const destinations = [
       ["기본", "/settings"],
       ["자료", "/settings/materials"],
-      ["자료 모델 가져오기·내보내기", "/settings/data-model"],
-      ["자료 관계", "/settings/relations"],
       ["태그", "/settings/tags"],
       ["기록", "/settings/records"],
-      ["번호 출처", "/settings/issuers"],
     ] as const;
-    await expect(menu.getByRole("link")).toHaveCount(7);
+    await expect(menu.getByRole("link")).toHaveCount(4);
     await expect(menu.getByRole("link")).toHaveText(destinations.map(([label]) => label));
     for (const [label, href] of destinations) {
       await expect(menu.getByRole("link", { name: label, exact: true })).toHaveAttribute("href", href);
     }
+    await expect(menu.getByRole("link", { name: category, exact: true })).toHaveAttribute("aria-current", "page");
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).press("Escape");
-    if (title === "자료 설정") {
+    if (materialSection) {
+      const sections = page.getByRole("navigation", { name: "자료 설정 항목", exact: true });
+      const links = [["자료 종류", "/settings/materials"], ["연결 설정", "/settings/relations"], [
+        "번호 설정",
+        "/settings/issuers",
+      ], ["일괄 설정", "/settings/data-model"]] as const;
+      await expect(sections.getByRole("link")).toHaveText(links.map(([label]) => label));
+      for (const [label, href] of links) {
+        await expect(sections.getByRole("link", { name: label, exact: true })).toHaveAttribute("href", href);
+      }
+      await expect(sections.getByRole("link", { name: materialSection, exact: true })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+    }
+    if (path.startsWith("/settings/entity-types/")) {
       const identity = page.getByRole("region", { name: "자료 번호", exact: true });
       await identity.getByRole("button", { name: /^자료 번호/ }).click();
       await expect(identity.getByLabel("이름", { exact: false })).toHaveValue("자료 번호");

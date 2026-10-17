@@ -31,7 +31,15 @@ test("general record selects two entities in web; MCP, both related views and de
     await mcp.call("delete_entity", { id: first.id, expected_version: first.version }); firstDeleted = true;
     await page.goto(`/records/${recordId}`); await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "기록 편집", exact: true });
-    await expect(edit.getByRole("region", { name: /^연결된 자료/ })).toHaveCount(0);
+    const links = edit.getByRole("region", { name: "연결된 자료 (2개)", exact: true });
+    await expect(links).toBeVisible();
+    for (const target of [first, second]) {
+      const item = links.getByRole("listitem").filter({ has: links.getByText(target.title, { exact: true }) });
+      await expect(item).toBeVisible();
+      await expect(item.locator("dt", { hasText: /^자료 식별$/ }).locator("../dd")).toHaveText(target.id);
+    }
+    await expect(links.getByRole("button")).toHaveCount(0);
+    await expect(links.getByRole("link")).toHaveCount(0);
     await expect(edit.getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
     await edit.getByRole("textbox", { name: /^본문/ }).fill("대상 삭제 후에도 자료를 보존");
     await edit.getByRole("button", { name: "저장", exact: true }).click();

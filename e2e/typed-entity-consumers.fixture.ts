@@ -241,7 +241,9 @@ test(
     await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
     await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
     const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
-    await expect(form.getByText("제목 · 읽기 전용: Auto", { exact: true })).toBeVisible();
+    await expect(form.locator("dt", { hasText: /^제목 · 읽기 전용$/ }).locator("../dd")).toHaveText("Auto");
+    await expect(form.getByRole("heading", { name: "Auto", exact: true })).toBeVisible();
+    await expect(form.getByRole("textbox", { name: /^제목/ })).toHaveCount(0);
     await form.screenshot({ path: testInfo.outputPath("readonly-representative-default.png") });
     await form.getByRole("button", { name: "저장", exact: true }).click();
     await expect.poll(() => preparedInputs.length).toBe(1);
