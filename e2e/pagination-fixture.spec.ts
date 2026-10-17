@@ -33,14 +33,14 @@ for (const [kind, path, label, restored] of [
       const deadline = Date.now() + 60_000;
       const remaining = () => Math.max(1, deadline - Date.now());
       for (let target = Math.min(25, restored); target <= restored; target += Math.min(25, restored)) {
-        await expect.poll(() => page.locator(`.${path} .list .item-title`).count(), {
+        await expect.poll(() => page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]").count(), {
           message: `${label}: restore must reach ${target}/${restored} rows without stalling`,
           timeout: Math.min(10_000, remaining()),
           intervals: [100, 250, 500],
         }).toBeGreaterThanOrEqual(target);
         expect(reads.slice(0, target)).toEqual(Array.from({ length: target }, (_, index) => index));
       }
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored, { timeout: remaining() });
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored, { timeout: remaining() });
       expect(reads).toEqual(Array.from({ length: restored }, (_, index) => index));
     };
     let failNext = true;
@@ -78,30 +78,30 @@ for (const [kind, path, label, restored] of [
     const first = page.getByRole("button", { name: `${label} 경계 0`, exact: true });
     await page.locator(`#activity-${path}-page-control`).click();
     await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
-    await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored);
+    await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored);
     const retry = page.getByRole("button", { name: "다시 시도", exact: true });
     await retry.scrollIntoViewIfNeeded();
-    const readingRow = page.locator(`#${await page.locator(`.${path} .list .item-title`).last().getAttribute("id")}`);
+    const readingRow = page.locator(`#${await page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]").last().getAttribute("id")}`);
     await expect(readingRow).toBeInViewport();
     const readingY = (await readingRow.boundingBox())!.y;
-    const readingScroll = await page.evaluate(() => window.scrollY);
+    const readingScroll = await page.getByRole("main").evaluate(el => el.scrollTop);
     await retry.click();
-    await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored + 1);
+    await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored + 1);
     await expect(first).toHaveCount(1);
     await expect(page.locator(`#activity-${path}-page-control`)).toBeFocused();
-    expect(await page.evaluate(() => window.scrollY)).toBe(readingScroll);
+    expect(await page.getByRole("main").evaluate(el => el.scrollTop)).toBe(readingScroll);
     await expect(readingRow).toBeInViewport();
     expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
     expect(new URL(page.url()).searchParams.get("pages")).toBe(String(restored + 1));
     expect(reads).toEqual([...Array.from({ length: restored }, (_, index) => index), restored, restored]);
     await page.locator(`#activity-${path}-page-control`).click();
-    await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored + 2);
+    await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored + 2);
     expect(reads.at(-1)).toBe(restored + 1);
     reads.length = 0;
     await page.reload();
     if (restored === 250) await expectRestoredPages();
     else {
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored + 2);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored + 2);
       expect(reads).toEqual(Array.from({ length: restored + 2 }, (_, index) => index));
     }
   });

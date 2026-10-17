@@ -159,7 +159,7 @@ function useRestoreFrame(frames: Map<string, Frame>) {
       const body = surface?.body ?? null;
       const scope = body ?? document;
       const target = [...scope.querySelectorAll<HTMLElement>("[data-detail-focus]")].find(link => link.dataset.detailFocus === frame.focusKey);
-      const loading = surface?.ready === false;
+      const loading = surface?.ready === false || !!body?.querySelector('[aria-busy="true"]');
       if (done || loading || !target && !surface?.ready && !scope.querySelector("[data-list-anchor], [data-page-action], [data-page-ready], [role=alert]")) return;
       done = true;
       (target ?? (!body ? document.querySelector<HTMLElement>("[data-page-action]") : null) ?? surface?.heading ?? document.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: true });

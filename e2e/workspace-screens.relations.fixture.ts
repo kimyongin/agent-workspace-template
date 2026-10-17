@@ -27,11 +27,11 @@ for (const width of [320, 390, 1024]) {
     const section = form(page).locator(".related-section").filter({
         has: page.getByRole("heading", { name: "기록 (2개)", exact: true }),
       }),
-      rows = section.locator(".related-item");
+      rows = section.locator("[data-slot='item']");
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("상담 판단 정리");
     await expect(rows.last().getByRole("button", { name: title, exact: true })).toHaveCount(1);
-    await expect(rows.locator(".related-item-meta, time, .badge")).toHaveCount(0);
+    await expect(rows.locator("[data-slot='item']-meta, time, .badge")).toHaveCount(0);
     await expect(form(page).getByRole("link", { name: "전체 할 일 보기", exact: true })).toHaveCount(0);
     await expect(section.getByRole("link", { name: "전체 기록 보기", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toBeVisible();
@@ -311,7 +311,7 @@ for (const kind of ["tasks", "records"] as const) {
     const result = form(page).getByRole("group", { name: "자료 검색 결과" });
     await result.getByRole("button", { name: "검색 대상 연결", exact: true }).click();
     const selected = form(page).getByRole("list", { name: "선택한 자료", exact: true });
-    await expect(selected.locator(".related-item")).toHaveCount(1);
+    await expect(selected.locator("[data-slot='item']")).toHaveCount(1);
     expect((await selected.boundingBox())!.y).toBeGreaterThan((await search.boundingBox())!.y);
     await expect(executionDialog(page)).toHaveCount(0);
     expect(state.writes).toHaveLength(0);

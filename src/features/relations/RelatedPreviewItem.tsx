@@ -126,7 +126,7 @@ export function RelatedPreviewItem(
         expanded,
         toggle,
         content: (
-          <>
+          <div className="flex min-w-0 flex-col gap-4" aria-busy={expanded && !item && !error || undefined}>
             {fallback}
             {!fallback && !item && !error && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
             {!fallback && error === "missing" && (
@@ -152,7 +152,7 @@ export function RelatedPreviewItem(
                 />
               </>
             )}
-          </>
+          </div>
         ),
       }}
     />

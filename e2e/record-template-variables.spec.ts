@@ -1,3 +1,4 @@
+import { chooseSetting } from "./settings-actions.ts";
 import { expect } from "@playwright/test";
 import { createFixtureEntity, scalarFixtureType } from "./entity-schema-support.ts";
 import { devLogin, mcpClient, mcpTokenViaConsent, test } from "./support.ts";
@@ -9,14 +10,14 @@ test("속성 이름으로 작성한 문구는 안정 키로 저장되고 MCP의 
     const type = await scalarFixtureType(mcp);
     const entity = await createFixtureEntity(mcp, { prop_1: "문구 검사", prop_2: 0 });
     await page.goto("/settings/records");
-    await page.getByLabel("대상", { exact: true }).selectOption(`type:${type.id}`);
+    await chooseSetting(page, page.getByLabel("대상", { exact: true }), type.label);
     let form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
-    await form.getByLabel("액션", { exact: true }).selectOption("update");
+    await chooseSetting(page, form.getByLabel("액션", { exact: true }), "수정");
     let memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
     await memo.fill("수량 ");
-    await form.getByLabel("변수 삽입", { exact: true }).selectOption("엔터티.이전.prop_2");
+    await chooseSetting(page, form.getByLabel("변수 삽입", { exact: true }), "수량 · 이전");
     await page.keyboard.insertText(" → ");
-    await form.getByLabel("변수 삽입", { exact: true }).selectOption("엔터티.이후.prop_2");
+    await chooseSetting(page, form.getByLabel("변수 삽입", { exact: true }), "수량 · 이후");
     await expect(memo).toHaveText("수량 수량 · 이전 → 수량 · 이후");
     await expect(memo).not.toContainText("prop_");
     await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
@@ -26,9 +27,9 @@ test("속성 이름으로 작성한 문구는 안정 키로 저장되고 MCP의 
       .toBe("수량 $엔터티.이전.prop_2$ → $엔터티.이후.prop_2$");
 
     await page.reload();
-    await page.getByLabel("대상", { exact: true }).selectOption(`type:${type.id}`);
+    await chooseSetting(page, page.getByLabel("대상", { exact: true }), type.label);
     form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
-    await form.getByLabel("액션", { exact: true }).selectOption("update");
+    await chooseSetting(page, form.getByLabel("액션", { exact: true }), "수정");
     memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
     await expect(memo).toHaveText("수량 수량 · 이전 → 수량 · 이후");
     const input = {

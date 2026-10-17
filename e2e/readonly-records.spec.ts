@@ -1,3 +1,4 @@
+import { openMainNavigation } from "./ui-actions.ts";
 import { openListDetail, closeDetail } from "./ui-actions.ts";
 import { createHash } from "node:crypto";
 import { expect } from "@playwright/test";
@@ -50,8 +51,8 @@ test("읽기·검색·세 탭 이동·상세 닫기는 계정 기록 원문과 �
     await expect(page.getByRole("heading", { name: "할 일", level: 1 })).toBeVisible();
     const navigation = page.getByRole("navigation", { name: "주 메뉴" });
     const navigateBuiltin = async (path: string) => {
-      await navigation.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-      await page.locator(`#nav-profile-options a[href="${path}"]`).click();
+      await openMainNavigation(page);
+      await navigation.locator(`a[href="${path}"]`).click();
     };
     for (const [name, path] of [["전체 자료", "/entities"], ["할 일", "/tasks"], ["기록", "/records"]]) {
       const response = page.waitForResponse(response => response.request().method() === "GET" && new URL(response.url()).pathname.endsWith(path));

@@ -134,3 +134,39 @@ test("shell reflow: 200% text and zoom preserve a usable workspace at 1024 and 1
   }
   expect(state.writes).toEqual([]);
 });
+
+for (const [width, scale] of [[1440, "100"], [1280, "125"], [390, "100"]] as const) test(`shell previous ${width}px/${scale}%: returning from a related editor restores its originating detail link`, async ({ page }) => {
+  const state = await fixture(page, scale);
+  state.rows.tasks[0].entity_ids = [entity().id];
+  state.rows.tasks[0].entity_context = [{ id: entity().id, title: "자료", source: "selection", captured_at: entity().created_at }];
+  await page.setViewportSize({ width, height: 900 });
+  await page.goto(`/tasks/${id(2)}`);
+  const detail = page.getByRole("dialog").filter({ visible: true });
+  const related = detail.getByRole("region", { name: "연결된 자료 (1개)", exact: true });
+  await related.getByRole("button", { name: "자료", exact: true }).click();
+  const origin = related.getByRole("link", { name: "자료 상세", exact: true });
+  await origin.click();
+  await detail.getByRole("button", { name: "편집", exact: true }).click();
+  await detail.getByRole("button", { name: "취소", exact: true }).click();
+  await detail.getByRole("button", { name: "이전: 할 일", exact: true }).click();
+  await expect(origin).toBeFocused();
+  expect(state.writes).toEqual([]);
+});
+
+test("shell blocked profile: discard cancellation restores the durable menu trigger", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/settings/tags");
+  const name = page.getByRole("textbox", { name: /태그 이름/ });
+  await name.fill("탐색 취소 뒤 유지할 태그 초안");
+  const profile = page.getByRole("button", { name: "내 프로필", exact: true });
+  await profile.click();
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
+  await expect(discard).toBeVisible();
+  await discard.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(profile).toBeFocused();
+  await expect(name).toHaveValue("탐색 취소 뒤 유지할 태그 초안");
+  await expect(page).toHaveURL(/\/settings\/tags$/);
+  expect(state.writes).toEqual([]);
+});

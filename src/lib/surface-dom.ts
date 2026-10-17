@@ -60,3 +60,12 @@ export function firstField(root: ParentNode | null): HTMLElement | null {
   return root?.querySelector<HTMLElement>("[aria-invalid='true']:not(:disabled):not([aria-disabled='true'])")
     ?? root?.querySelector<HTMLElement>("[data-field-control]:not(:disabled):not([aria-disabled='true'])") ?? null;
 }
+
+/** Resolve ephemeral menu items through their official ARIA relationship to a durable trigger. */
+export function durableFocusTarget(node: Element | null): HTMLElement | null {
+  const menu = node?.closest('[role="menu"]');
+  const trigger = menu?.getAttribute("aria-labelledby")?.split(/\s+/)
+    .map(id => menu.ownerDocument.getElementById(id))
+    .find(element => element instanceof HTMLElement && element.getAttribute("aria-haspopup") === "menu");
+  return trigger instanceof HTMLElement ? trigger : node instanceof HTMLElement ? node : null;
+}

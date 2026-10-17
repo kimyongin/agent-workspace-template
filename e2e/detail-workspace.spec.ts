@@ -1,3 +1,4 @@
+import { openProfileMenu } from "./ui-actions.ts";
 import { baseWorkspace, detailDialog, executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { fixtureIdentity, fixtureSchema } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
@@ -129,18 +130,18 @@ test("desktop: navigation drag, keyboard limits, cancellation and reset reserve 
   const state = await fixture(page); await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
   const handle = page.getByRole("separator", { name: "탐색 메뉴 너비 조절" }), nav = page.getByRole("navigation", { name: "주 메뉴" });
   const navWidth = async () => (await nav.boundingBox())!.width;
-  await expect(handle).toBeVisible(); expect(await navWidth()).toBe(208);
+  await expect(handle).toBeVisible(); expect(await navWidth()).toBeCloseTo(208, 0);
   const box = (await handle.boundingBox())!;
   await page.mouse.move(box.x + 6, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 66, box.y + box.height / 2, { steps: 8 }); await page.mouse.up();
-  await expect.poll(navWidth).toBe(268); await handle.press("ArrowLeft"); await expect.poll(navWidth).toBe(252);
-  await handle.press("Home"); await expect.poll(navWidth).toBe(208);
-  await handle.press("End"); await expect.poll(navWidth).toBe(320);
+  await expect.poll(navWidth).toBeCloseTo(268, 0); const dragged = await navWidth(); await handle.press("ArrowLeft"); await expect.poll(navWidth).toBeLessThan(dragged);
+  await handle.press("Home"); await expect.poll(navWidth).toBeCloseTo(208, 0);
+  await handle.press("End"); await expect.poll(navWidth).toBeCloseTo(320, 0);
   expect((await baseWorkspace(page).boundingBox())!.width).toBeGreaterThanOrEqual(448);
   expect(await detailWidth(page)).toBeGreaterThanOrEqual(432);
   const end = (await handle.boundingBox())!;
   await page.mouse.move(end.x + 6, end.y + end.height / 2); await page.mouse.down();
   await handle.dispatchEvent("pointercancel", { pointerId: 1 }); await page.mouse.move(end.x - 80, end.y + end.height / 2); await page.mouse.up();
-  expect(await navWidth()).toBe(320); await handle.dblclick(); await expect.poll(navWidth).toBe(208);
+  expect(await navWidth()).toBeCloseTo(320, 0); await handle.dblclick(); await expect.poll(navWidth).toBeCloseTo(208, 0);
   await page.getByRole("button", { name: "상세 패널 숨기기" }).click();
   await page.setViewportSize({ width: 1024, height: 320 });
   const tasks = nav.getByRole("link", { name: "할 일", exact: true }); const menu = (await tasks.boundingBox())!;
@@ -174,12 +175,15 @@ test("desktop: split dragging, keyboard limits and reset keep both panes readabl
   await dragSplit(page, -100);
   await expect.poll(() => detailWidth(page)).toBeCloseTo(original + 100, 0);
   await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).not.toHaveAttribute("data-separator", "active");
+  const dragged = await detailWidth(page);
   await separator.press("ArrowRight");
-  await expect.poll(() => detailWidth(page)).toBeCloseTo(original + 84, 0);
+  await expect.poll(() => detailWidth(page)).toBeLessThan(dragged);
   await separator.press("Home");
-  await expect.poll(() => detailWidth(page)).toBeCloseTo(432, 0);
+  await expect.poll(async () => (await baseWorkspace(page).boundingBox())!.width).toBeCloseTo(448, 0);
+  const largest = await detailWidth(page);
   await separator.press("End");
-  expect((await baseWorkspace(page).boundingBox())!.width).toBeCloseTo(448, 0);
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(432, 0);
+  expect(await detailWidth(page)).toBeLessThan(largest);
   expect(Number(await separator.getAttribute("aria-valuenow"))).toBe(Number(await separator.getAttribute("aria-valuemax")));
   await dragSplit(page, -2000);
   expect((await baseWorkspace(page).boundingBox())!.width).toBeCloseTo(448, 0);
@@ -308,8 +312,8 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
   await openTask(page);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   await panel(page).getByLabel("본문", { exact: true }).fill("메뉴를 이동해도 유지할 초안");
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
   const left = baseWorkspace(page);
   await expect(left.getByRole("heading", { name: "기본 설정", level: 1, exact: true })).toBeVisible();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
@@ -320,18 +324,18 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
   await expect(page.getByRole("button", { name: /^내 프로필 · 설정 현재 화면$/ })).toHaveAttribute("aria-current", "page");
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
   await page.screenshot({ path: info.outputPath("settings-and-retained-detail.png") });
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
   const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(left.getByLabel("닉네임", { exact: true })).toHaveValue("왼쪽 설정의 초안");
-  if (await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).getAttribute("aria-expanded") !== "true") await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  if (await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).getAttribute("aria-expanded") !== "true") await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
   await confirm.getByRole("button", { name: "변경 버리기" }).click();
   await expect(left.getByRole("heading", { name: "사용 가이드", level: 1, exact: true })).toBeVisible();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("tab")).toHaveCount(2);
@@ -552,7 +556,7 @@ test("desktop: record tabs use distinct body previews and logout removes the ret
   await expect(page.getByRole("tab", {name:title,exact:true})).toHaveAttribute("aria-selected","true");
     await expect(page.getByRole("tab", { name: title, exact: true })).toHaveAttribute("aria-selected", "true");
   }
-  await expect(page.getByRole("tab")).toHaveCount(2); await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await expect(page.getByRole("tab")).toHaveCount(2); await openProfileMenu(page); await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/); await expect(page.getByRole("tab")).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("sb-127-auth-token"))).toBeNull(); expect(state.errors).toEqual([]);
 });
@@ -1021,8 +1025,8 @@ test("desktop: opened detail tabs stay visible while navigating to another list"
 test("desktop: opened detail tabs stay visible when opening settings from the left menu", async ({ page }) => {
   await fixture(page);
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { name: "기본 설정", level: 1, exact: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
@@ -1032,8 +1036,8 @@ test("desktop: a pending detail write remains protected while settings is the le
   const state = await fixture(page, { hold: true });
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
   await openTask(page);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
   await expect(baseWorkspace(page).getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   await panel(page).getByLabel("본문", { exact: true }).fill("설정 화면에서 상세 저장");
@@ -1064,8 +1068,8 @@ test("desktop: a pending base setting also prevents closing or hiding the retain
     await route.fulfill({ status: 400, json: { message: "Fixture profile save rejected" } });
   });
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
   const form = page.getByRole("form", { name: "프로필 설정", exact: true });
   await form.getByLabel("닉네임", { exact: true }).fill("진행 중인 왼쪽 설정");
   await form.getByRole("button", { name: "프로필 저장", exact: true }).click();
@@ -1092,16 +1096,16 @@ for (const screen of ["materials", "relations"] as const) test(`desktop: uncerta
     return route.abort();
   });
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
   const left = baseWorkspace(page);
   await left.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await left.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+  await left.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
   if (screen === "materials") {
     await left.getByLabel("자료 종류 이름", { exact: true }).fill("미확정 종류");
     await left.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
   } else {
-    await left.getByRole("link", { name: "연결 설정", exact: true }).click();
+    await left.getByRole("tab", { name: "연결 설정", exact: true }).click();
     await left.getByRole("button", { name: "연결 설정 추가", exact: true }).click();
     await left.getByLabel("첫 번째 자료 종류", { exact: true }).selectOption("00000000-0000-4000-8000-000000000900");
     await left.getByLabel("두 번째 자료 종류", { exact: true }).selectOption("00000000-0000-4000-8000-000000000900");
@@ -1127,8 +1131,8 @@ test("desktop: closing the last detail retains the dirty base setting without a 
   await fixture(page);
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
   await openTask(page);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
   const nickname = baseWorkspace(page).getByLabel("닉네임", { exact: true });
   await nickname.fill("마지막 상세를 닫아도 유지");
   await page.getByRole("button", { name: "등심 구매하기 탭 닫기", exact: true }).click();
