@@ -395,7 +395,7 @@ export function TagManagement(
   );
   const body = (
     <>
-      <div ref={root} className="flex min-w-0 flex-col gap-4">
+      <div ref={root} className="@container flex min-w-0 flex-col gap-4">
         {!draft?.initial && editor(null)}
         {notice && <Notice>{notice}</Notice>}
         {error && (
@@ -419,7 +419,7 @@ export function TagManagement(
             ? [draft.initial, ...(page?.items ?? [])]
             : page?.items ?? []).map((tag) => (
               <Item role="listitem" key={tag.id} variant="outline" className="min-w-0 flex-wrap">
-                <ItemContent>
+                <ItemContent className="min-w-0 basis-full @min-[28rem]:basis-0">
                   {draft?.initial?.id === tag.id ? editor(tag) : (
                     <dl className="min-w-0">
                       <dt className="text-sm text-muted-foreground">태그 이름</dt>
@@ -428,7 +428,7 @@ export function TagManagement(
                   )}
                 </ItemContent>
                 {draft?.initial?.id !== tag.id && (
-                  <ItemActions className="flex-wrap">
+                  <ItemActions className="w-full flex-wrap justify-end @min-[28rem]:w-auto">
                     <Button
                       variant="ghost"
                       type="button"

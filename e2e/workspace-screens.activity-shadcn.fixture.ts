@@ -84,7 +84,10 @@ test("할 일·달력·태그 설정은 좁은 화면과 개인 배율에서 사
         } else if (name === "calendar") {
           await expect(page.getByRole("heading", { name: "기록 (1개)", exact: true })).toBeVisible();
           await expect(page.getByRole("region", { name: "기록 달력", exact: true })).toBeVisible();
-          await expect(page.getByRole("button", { name: "다음 달", exact: true })).toBeVisible();
+          const next = page.getByRole("button", { name: "다음 달", exact: true });
+          await next.scrollIntoViewIfNeeded();
+          await expect(next).toBeInViewport({ ratio: 1 });
+          await expect(page.getByRole("button", { name: "이전 달", exact: true })).toBeInViewport({ ratio: 1 });
         } else {
           await expect(page.getByRole("radiogroup", { name: "관리 대상", exact: true }).getByRole("radio", { name: "기록", exact: true })).toBeChecked();
           await expect(page.getByRole("heading", { name: "태그 설정", exact: true })).toBeVisible();

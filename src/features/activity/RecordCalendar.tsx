@@ -1,6 +1,6 @@
 import { type ComponentProps, createContext, type ReactNode, useContext } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
-import { TZDate, type RootProps } from "react-day-picker";
+import { TZDate, MonthGrid, type MonthGridProps, type RootProps } from "react-day-picker";
 import { addDays, addMonths, addYears, startOfWeek, endOfWeek } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
@@ -18,6 +18,12 @@ import { calendarDay, calendarMonth } from "./calendar.ts";
 
 function RecordCalendarRoot({ rootRef, ...props }: RootProps) {
   return <div data-slot="calendar" ref={rootRef} {...props} />;
+}
+function RecordMonthGrid(props: MonthGridProps) {
+  return <ScrollArea type="always" className="min-w-0 max-w-full">
+    <MonthGrid {...props} />
+    <ScrollBar orientation="horizontal" />
+  </ScrollArea>;
 }
 const DayCounts = createContext(new Map<string, number>());
 function civilDay(date: Date) {
@@ -94,52 +100,56 @@ export function RecordCalendar<T extends { id: string }>(
               <AlertDescription>불러온 기록만 표시합니다. 더 보기로 나머지 기록을 불러올 수 있습니다.</AlertDescription>
             </Alert>
           )}
-          <ScrollArea className="w-full whitespace-nowrap">
-            <DayCounts.Provider value={new Map(groups.map((group) => [group.date, group.records.length]))}>
-              <Calendar
-                mode="single"
-                required
-                locale={ko}
-                timeZone={timezone}
-                noonSafe
-                showOutsideDays={false}
-                weekStartsOn={0}
-                className="w-full [--cell-size:2.75rem]"
-                month={zonedDay(`${month}-01`, timezone)}
-                selected={zonedDay(selected, timezone)}
-                today={zonedDay(today, timezone)}
-                startMonth={zonedDay("0001-01-01", timezone)}
-                endMonth={zonedDay("9999-12-01", timezone)}
-                onMonthChange={(date) => {
+          <DayCounts.Provider value={new Map(groups.map((group) => [group.date, group.records.length]))}>
+            <Calendar
+              mode="single"
+              required
+              locale={ko}
+              timeZone={timezone}
+              noonSafe
+              showOutsideDays={false}
+              weekStartsOn={0}
+              navLayout="after"
+              classNames={{
+                month: "flex min-w-0 w-full flex-col gap-4",
+                nav: "static flex w-full items-center justify-between gap-2",
+                month_caption: "flex min-h-(--cell-size) w-full items-center justify-center",
+                caption_label: "text-center text-sm font-medium whitespace-normal wrap-anywhere",
+              }}
+              className="w-full [--cell-size:2.75rem]"
+              month={zonedDay(`${month}-01`, timezone)}
+              selected={zonedDay(selected, timezone)}
+              today={zonedDay(today, timezone)}
+              startMonth={zonedDay("0001-01-01", timezone)}
+              endMonth={zonedDay("9999-12-01", timezone)}
+              onMonthChange={(date) => {
+                const day = civilDay(date);
+                choose(day.slice(0, 7), `${day.slice(0, 7)}-01`);
+              }}
+              onSelect={(date) => {
+                if (date) {
                   const day = civilDay(date);
-                  choose(day.slice(0, 7), `${day.slice(0, 7)}-01`);
-                }}
-                onSelect={(date) => {
-                  if (date) {
-                    const day = civilDay(date);
-                    choose(day.slice(0, 7), day);
-                  }
-                }}
-                onDayKeyDown={(date, _modifiers, event) => {
-                  const next = event.key === "ArrowLeft" ? (event.shiftKey ? addMonths(date, -1) : addDays(date, -1))
-                    : event.key === "ArrowRight" ? (event.shiftKey ? addMonths(date, 1) : addDays(date, 1))
-                    : event.key === "ArrowUp" ? (event.shiftKey ? addYears(date, -1) : addDays(date, -7))
-                    : event.key === "ArrowDown" ? (event.shiftKey ? addYears(date, 1) : addDays(date, 7))
-                    : event.key === "PageUp" ? (event.shiftKey ? addYears(date, -1) : addMonths(date, -1))
-                    : event.key === "PageDown" ? (event.shiftKey ? addYears(date, 1) : addMonths(date, 1))
-                    : event.key === "Home" ? startOfWeek(date)
-                    : event.key === "End" ? endOfWeek(date) : null;
-                  if (next && next.getFullYear() >= 1 && next.getFullYear() <= 9999) {
-                    const day = civilDay(next);
-                    choose(day.slice(0, 7), day);
-                  }
-                }}
-                labels={{ labelPrevious: () => "이전 달", labelNext: () => "다음 달" }}
-                components={{ Root: RecordCalendarRoot, DayButton: RecordDayButton }}
-              />
-            </DayCounts.Provider>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+                  choose(day.slice(0, 7), day);
+                }
+              }}
+              onDayKeyDown={(date, _modifiers, event) => {
+                const next = event.key === "ArrowLeft" ? (event.shiftKey ? addMonths(date, -1) : addDays(date, -1))
+                  : event.key === "ArrowRight" ? (event.shiftKey ? addMonths(date, 1) : addDays(date, 1))
+                  : event.key === "ArrowUp" ? (event.shiftKey ? addYears(date, -1) : addDays(date, -7))
+                  : event.key === "ArrowDown" ? (event.shiftKey ? addYears(date, 1) : addDays(date, 7))
+                  : event.key === "PageUp" ? (event.shiftKey ? addYears(date, -1) : addMonths(date, -1))
+                  : event.key === "PageDown" ? (event.shiftKey ? addYears(date, 1) : addMonths(date, 1))
+                  : event.key === "Home" ? startOfWeek(date)
+                  : event.key === "End" ? endOfWeek(date) : null;
+                if (next && next.getFullYear() >= 1 && next.getFullYear() <= 9999) {
+                  const day = civilDay(next);
+                  choose(day.slice(0, 7), day);
+                }
+              }}
+              labels={{ labelPrevious: () => "이전 달", labelNext: () => "다음 달" }}
+              components={{ Root: RecordCalendarRoot, MonthGrid: RecordMonthGrid, DayButton: RecordDayButton }}
+            />
+          </DayCounts.Provider>
         </CardContent>
       </Card>
       <section aria-label={`${selected} 기록`} className="flex min-w-0 flex-col gap-4">
