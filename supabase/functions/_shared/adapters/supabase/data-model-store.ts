@@ -6,7 +6,6 @@ import type { DataModelDocument, ModelChange } from "../../contracts/data-model.
 import { APP_IDENTIFIER_RULE_ID } from "../../contracts/entity-issuer.ts";
 import { canonical, schemaDefinitionDiff } from "../../core/entity-types/evolution.ts";
 import { AppError, invalidInput } from "../../core/shared/errors.ts";
-import { assertTypeIdentityUpdate } from "../../core/entity-issuers/domain.ts";
 import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
 import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
 import { SqlEntityRelationDefinitionStore } from "./entity-relation-definition-store.ts";
@@ -47,6 +46,8 @@ export class SqlDataModelStore implements DataModelStore {
     const entity_types: DataModelDocument["entity_types"] = [];
     for (const row of rows) {
       const i = (await issuers.getTypeIdentity(row.id))!;
+      const rawSources =
+        await tx`select code,rule_id,active from app.entity_type_identity_sources where type_id=${row.id}::uuid order by code`;
       entity_types.push({
         ref: ref(row.id),
         schema: row.schema,
@@ -54,7 +55,11 @@ export class SqlDataModelStore implements DataModelStore {
           version: i.version,
           label: i.label,
           default_source: i.default_source,
-          sources: i.sources.map((s) => ({ code: s.code, rule_id: s.rule_id, active: s.active })),
+          sources: rawSources.map((s) => ({
+            code: String(s.code),
+            rule_id: String(s.rule_id),
+            active: Boolean(s.active),
+          })),
         },
       });
       types[row.id] = {
@@ -95,7 +100,9 @@ export class SqlDataModelStore implements DataModelStore {
         })),
       },
     };
-    return { document, types };
+    const used =
+      await tx`select r.id,exists(select 1 from app.entity_type_identity_sources s where s.rule_id=r.id and s.referenced) as referenced from app.entity_identifier_rules r`;
+    return { document, types, rule_usage: Object.fromEntries(used.map((r) => [String(r.id), Boolean(r.referenced)])) };
   }
   async save(plan: ModelPlan) {
     const [r] = await this.tx`insert into app.data_model_changes(owner_id,status,plan) values(${this.actor.userId},${
@@ -225,7 +232,15 @@ export class SqlDataModelStore implements DataModelStore {
         )
       ) {
         const current = (await registry.getTypeIdentity(id, true))!;
-        assertTypeIdentityUpdate(current, input, await registry.identitySourceAvailability(input.sources));
+        for (const source of current.sources) {
+          if (source.referenced && !input.sources.some((s) => s.code === source.code && s.rule_id === source.rule_id)) {
+            throw invalidInput("참조된 발급처 규칙은 제거하거나 교체할 수 없습니다");
+          }
+        }
+        const available = await registry.identitySourceAvailability(input.sources);
+        if (input.sources.some((s) => !available.some((v) => v.code === s.code && v.rule_id === s.rule_id))) {
+          throw invalidInput("발급처와 번호 정의를 확인하세요");
+        }
         await registry.updateTypeIdentity(id, input);
       }
     }
@@ -250,7 +265,20 @@ export class SqlDataModelStore implements DataModelStore {
         tx.json(ends)
       },${relation.archived})`;
     }
+    const summarize = (items: ModelPlan["review"]["items"]) => ({
+      added: items.filter((i) => i.kind === "new").length,
+      updated: items.filter((i) => i.kind === "compatible").length,
+      unchanged: items.filter((i) => i.kind === "unchanged").length,
+    });
+    const counts = {
+      types: summarize(plan.review.items.slice(0, target.entity_types.length)),
+      relations: summarize(plan.review.items.filter((i) => i.ref.startsWith("relation:"))),
+      issuers: summarize(plan.review.items.filter((i) => i.ref.startsWith("issuer:"))),
+      rules: summarize(plan.review.items.filter((i) => i.ref.startsWith("rule:"))),
+    };
     return {
+      changed: Object.values(counts).some((c) => c.added + c.updated > 0),
+      counts,
       type_ids: target.entity_types.map((t) => t.schema["x-type-id"]),
       relation_ids: target.relations.map((t) => t.id),
     };

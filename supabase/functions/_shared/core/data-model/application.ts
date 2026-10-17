@@ -18,6 +18,7 @@ import { APP_IDENTIFIER_RULE_ID, typeIdentityUpdate } from "../../contracts/enti
 export type ModelSnapshot = {
   document: DataModelDocument;
   types: Record<string, { next_property_number: number; count: number; locked: boolean }>;
+  rule_usage?: Record<string, boolean>;
 };
 export type ModelPlan = { target: DataModelDocument; review: ModelReview; baseline: string; source: DataModelDocument };
 export interface DataModelStore extends RequestStore {
@@ -131,6 +132,7 @@ async function mappedId(seed: string, key: string) {
 const withoutVersion = (value: unknown) => {
   const c = structuredClone(value) as Record<string, unknown>;
   delete c.version;
+  if (Array.isArray(c.sources)) c.sources.sort((a, b) => String(a.code).localeCompare(String(b.code)));
   return c;
 };
 export async function resolveModel(
@@ -275,10 +277,16 @@ export async function resolveModel(
         return out;
       };
       const equal = old && canonical(comparable(old as typeof value, source)) === canonical(comparable(value, target));
+      const immutableRuleConflict = category === "rule" && old && "meaning" in old && "meaning" in value &&
+        (old.source !== value.source || old.generation !== value.generation ||
+          (old.meaning !== value.meaning && snapshot.rule_usage?.[old.id]));
       items.push({
         ref: `${category}:${key}`,
         label: "label" in value ? value.label : value.ends.map((e) => e.label).join(" ↔ "),
-        kind: equal ? "unchanged" : old ? "compatible" : "new",
+        kind: immutableRuleConflict ? "conflict" : equal ? "unchanged" : old ? "compatible" : "new",
+        message: immutableRuleConflict
+          ? "참조된 번호 의미 또는 불변 발급처·방식은 바꿀 수 없습니다. 새 번호 정의를 사용하세요"
+          : undefined,
         diff: equal ? [] : [{
           path: category === "relation" ? "자료 관계" : category === "rule" ? "번호 정의" : "발급처",
           before: old ? JSON.stringify(comparable(old as typeof value, source)) : null,

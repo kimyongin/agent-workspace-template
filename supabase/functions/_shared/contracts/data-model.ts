@@ -90,5 +90,15 @@ export type ModelChange = {
   status: "ready" | "needs_conversion" | "applied" | "cancelled";
   review: ModelReview;
   created_at: string;
-  result: null | { type_ids: string[]; relation_ids: string[] };
+  result: null | {
+    type_ids: string[];
+    relation_ids: string[];
+    changed?: boolean;
+    counts?: {
+      types: { added: number; updated: number; unchanged: number };
+      relations: { added: number; updated: number; unchanged: number };
+      issuers: { added: number; updated: number; unchanged: number };
+      rules: { added: number; updated: number; unchanged: number };
+    };
+  };
 };

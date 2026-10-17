@@ -135,7 +135,7 @@ test(
     await expect(page.getByRole("button", { name: "전체 적용", exact: true }))
       .toBeVisible();
     await page.getByRole("button", { name: "전체 적용", exact: true }).click();
-    await expect(page.getByText("자료 종류 1개 · 관계 1개 적용")).toBeVisible();
+    await expect(page.getByText("적용 완료", { exact: true })).toBeVisible();
     expect(applied).toBe(true);
     await expect(
       page.getByRole("link", { name: "자료 관계 설정", exact: true }),
@@ -218,7 +218,7 @@ test("적용 응답이 유실돼도 입력을 잠그고 같은 키와 버전으�
     .toBeDisabled();
   await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })
     .click();
-  await expect(page.getByText("자료 종류 1개 · 관계 0개 적용")).toBeVisible();
+  await expect(page.getByText("적용 완료", { exact: true })).toBeVisible();
   expect(writes).toHaveLength(2);
   expect(writes[1]).toEqual(writes[0]);
 });
@@ -377,3 +377,45 @@ test("낡은 원본과 세 버전을 구분하고 누락 속성의 명시 확인
   await expect(page.getByText("전체 변경안을 저장했습니다.", { exact: false })).toBeVisible();
   expect(writes).toBe(1);
 });
+
+for (const noOp of [true, false]) {
+  test(`${noOp ? "변경 없음" : "부분 수정"} 결과는 탐색 대상 수와 실제 적용 수를 구분한다`, async ({ page }) => {
+    const result: NonNullable<ModelChange["result"]> = {
+      changed: !noOp,
+      type_ids: ["type-1", "type-2", "type-3"],
+      relation_ids: ["relation-1", "relation-2"],
+      counts: {
+        types: { added: 0, updated: noOp ? 0 : 1, unchanged: noOp ? 3 : 2 },
+        relations: { added: noOp ? 0 : 1, updated: 0, unchanged: noOp ? 2 : 1 },
+        issuers: { added: 0, updated: 0, unchanged: 1 },
+        rules: { added: 0, updated: noOp ? 0 : 1, unchanged: noOp ? 2 : 1 },
+      },
+    };
+    let change = created;
+    await page.route("**/api/data-model/**", (route) => {
+      const req = route.request(), path = new URL(req.url()).pathname;
+      if (path.endsWith("/preview")) return route.fulfill({ json: review });
+      if (req.method() === "POST") {
+        if (noOp || path.endsWith("/apply")) change = { ...created, status: "applied", result };
+        return route.fulfill({ json: change });
+      }
+      if (path.endsWith("/change-id")) return route.fulfill({ json: change });
+      return route.fulfill({ json: { items: [], next_cursor: null } });
+    });
+    await page.goto("/settings/data-model");
+    await page.getByRole("textbox", { name: "전체 모델 JSON" }).fill("검토할 모델");
+    await page.getByRole("button", { name: "가져올 내용 검토" }).click();
+    await page.getByRole("button", { name: "검토한 전체 변경안 저장" }).click();
+    if (noOp) {
+      await expect(page.getByRole("button", { name: "오픈마켓 모델 변경 없음", exact: true })).toBeVisible();
+      await expect(page.getByRole("status").filter({ hasText: "검토 이력만 보존" }).first()).toBeVisible();
+    } else {
+      await page.getByRole("button", { name: "전체 적용", exact: true }).click();
+      await expect(page.getByText("자료 종류: 추가 0개 · 수정 1개 · 변경 없음 2개", { exact: true })).toBeVisible();
+      await expect(page.getByText("자료 관계: 추가 1개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
+      await expect(page.getByText("발급처: 추가 0개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
+      await expect(page.getByText("번호 정의: 추가 0개 · 수정 1개 · 변경 없음 1개", { exact: true })).toBeVisible();
+    }
+    await expect(page.getByText("자료 종류 3개 · 관계 2개 적용", { exact: true })).toHaveCount(0);
+  });
+}

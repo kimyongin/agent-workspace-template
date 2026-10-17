@@ -51,8 +51,18 @@ dbTest(
         false,
       );
       assertEquals((await exportDataModel(deps, a.actor)).entity_types.length, 6);
-      const now = await exportDataModel(deps, a.actor), noop = await install(a.actor, now, "update");
+      const now = await exportDataModel(deps, a.actor);
+      const effects = () =>
+        asUser(sql, a.actor.userId, async (tx) => {
+          const [row] =
+            await tx`select (select count(*)::int from app.entity_schema_versions) as versions,(select count(*)::int from app.records) as records,(select count(*)::int from app.entity_schema_migrations) as jobs`;
+          return row;
+        });
+      const beforeNoop = await effects(), noop = await install(a.actor, now, "update");
+      assertEquals(await effects(), beforeNoop);
       assertEquals(noop.review.items.every((i) => i.kind === "unchanged"), true);
+      assertEquals(noop.applied.result?.changed, false);
+      assertEquals(noop.applied.result?.counts?.types, { added: 0, updated: 0, unchanged: 6 });
       assertEquals(await exportDataModel(deps, a.actor), now);
       assertEquals((await exportDataModel(deps, b.actor)).entity_types, []);
       await assertRejects(() => getDataModelChange(deps, b.actor, first.change.id));
@@ -272,3 +282,61 @@ dbTest("whole model keeps the existing exact 256 KiB kind definition boundary an
     await a.cleanup();
   }
 });
+import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
+import { updateEntityIssuer, updateIdentifierRule } from "../../functions/_shared/core/entity-issuers/application.ts";
+dbTest(
+  "whole model preserves raw non-default source activation across global suspension and previews referenced rule conflicts",
+  async () => {
+    const a = await fixtureOwner(admin);
+    try {
+      const sample = JSON.parse(
+        await Deno.readTextFile("docs/examples/data-model/openmarket.json"),
+      ) as DataModelDocument;
+      for (const t of sample.entity_types) t.identity.default_source = "app";
+      sample.identity_definitions.issuers.find((i) => i.code === "seller")!.active = false;
+      await install(a.actor, sample);
+      const exported = await exportDataModel(deps, a.actor),
+        sku = exported.entity_types.find((t) => t.schema.title === "판매 SKU")!;
+      assertEquals(sku.identity.sources.find((s) => s.code === "seller")?.active, true);
+      const copied = await install(a.actor, exported);
+      const copiedSku = copied.review.mapping.types[sku.ref];
+      const identities = { uow: new SqlEntityIssuerUnitOfWork(sql) };
+      const seller = exported.identity_definitions.issuers.find((i) => i.code === "seller")!;
+      await updateEntityIssuer(identities, requestActor(a.actor), "seller", {
+        active: true,
+        expected_version: seller.version,
+      });
+      const all = await exportDataModel(deps, a.actor),
+        copyType = all.entity_types.find((t) => t.schema["x-type-id"] === copiedSku)!;
+      await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.actor), {
+        entity_type_id: copiedSku,
+        schema_version: 1,
+        source: "seller",
+        external_id: "reactivated-sku",
+        properties: { prop_1: "다시 활성화된 SKU" },
+      });
+      const rule = all.identity_definitions.rules.find((r) =>
+        r.id === copyType.identity.sources.find((s) => s.code === "seller")!.rule_id
+      )!;
+      await updateIdentifierRule(identities, requestActor(a.actor), rule.id, {
+        active: false,
+        expected_version: rule.version,
+      });
+      const suspended = await exportDataModel(deps, a.actor);
+      assertEquals(
+        suspended.entity_types.find((t) => t.schema["x-type-id"] === copiedSku)!.identity.sources.find((s) =>
+          s.code === "seller"
+        )?.active,
+        true,
+      );
+      const noop = await install(a.actor, suspended, "update");
+      assertEquals(noop.applied.result?.changed, false);
+      suspended.identity_definitions.rules.find((r) => r.id === rule.id)!.meaning = "참조 후 의미 변경은 불가";
+      const conflict = await previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(suspended) });
+      assertEquals(conflict.can_apply, false);
+      assertEquals(conflict.items.find((i) => i.ref === `rule:${rule.id}`)?.kind, "conflict");
+    } finally {
+      await a.cleanup();
+    }
+  },
+);

@@ -27,6 +27,38 @@ const states = {
   cancelled: "취소됨",
 };
 
+function changeSummary(change: ModelChange) {
+  return change.status === "applied" && change.result?.changed === false ? "변경 없음" : states[change.status];
+}
+function savedNotice(change: ModelChange) {
+  if (change.result?.changed === false) return "변경 없음. 검토 이력만 보존했습니다.";
+  return change.status === "applied"
+    ? "전체 자료 모델을 적용했습니다."
+    : "전체 변경안을 저장했습니다. 아래 변경 이력에서 검토하고 적용하세요.";
+}
+export function DataModelResult({ result }: { result: NonNullable<ModelChange["result"]> }) {
+  const groups = [["types", "자료 종류"], ["relations", "자료 관계"], ["issuers", "발급처"], [
+    "rules",
+    "번호 정의",
+  ]] as const;
+  return (
+    <div>
+      <p role="status">{result.changed === false ? "변경 없음. 검토 이력만 보존했습니다." : "적용 완료"}</p>
+      {result.counts && (
+        <ul>
+          {groups.map(([key, label]) => {
+            const count = result.counts![key];
+            return (
+              <li key={key}>{label}: 추가 {count.added}개 · 수정 {count.updated}개 · 변경 없음 {count.unchanged}개</li>
+            );
+          })}
+        </ul>
+      )}
+      <Link to="/settings/materials">자료 설정</Link> · <Link to="/settings/relations">자료 관계 설정</Link>
+    </div>
+  );
+}
+
 export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, disabled = false }: {
   review: ModelReview;
   removeKeys?: Record<string, string[]>;
@@ -345,9 +377,7 @@ export function DataModelSettings() {
         if (alive.current) {
           publish(value);
           void loadDetail(value.id);
-          setNotice(
-            "전체 변경안을 저장했습니다. 아래 변경 이력에서 검토하고 적용하세요.",
-          );
+          setNotice(savedNotice(value));
         }
       });
     } catch (e) {
@@ -371,9 +401,7 @@ export function DataModelSettings() {
         if (alive.current) {
           publish(value);
           void loadDetail(value.id);
-          setNotice(
-            value.status === "applied" ? "전체 자료 모델을 적용했습니다." : "현재 변경안 상태를 확인하세요.",
-          );
+          setNotice(savedNotice(value));
           if (session) invalidateEntityTypeCatalog(session.user.id);
         }
       });
@@ -582,7 +610,7 @@ export function DataModelSettings() {
               <IssuerRow
                 key={change.id}
                 label={change.review.title}
-                summary={states[change.status]}
+                summary={changeSummary(change)}
                 open={selected === change.id}
                 onToggle={() => {
                   if (!locked) {
@@ -624,15 +652,7 @@ export function DataModelSettings() {
                     </button>
                   </div>
                 )}
-                {change.result && (
-                  <div>
-                    <p role="status">
-                      자료 종류 {change.result.type_ids.length}개 · 관계 {change.result.relation_ids.length}개 적용
-                    </p>
-                    <Link to="/settings/materials">자료 설정</Link> ·{" "}
-                    <Link to="/settings/relations">자료 관계 설정</Link>
-                  </div>
-                )}
+                {change.result && <DataModelResult result={change.result} />}
               </IssuerRow>
             ))}
           </div>
