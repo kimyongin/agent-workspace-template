@@ -285,11 +285,17 @@ test("desktop: separator target leaves tab icons clickable and adapts to large t
   await expect.poll(() => detailWidth(page)).toBeCloseTo(before + 20, 0);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.addStyleTag({ content: ":root { font-size: 21px; }" });
-  const available = (await workspaceGroup(page).boundingBox())!.width - (await page.getByRole("separator", { name: "상세 패널 너비 조절" }).boundingBox())!.width;
-  await expect.poll(() => detailWidth(page)).toBeCloseTo(available / 2, 0);
-  expect((await baseWorkspace(page).boundingBox())!.width).toBeCloseTo(available / 2, 0);
+  const currentHalfDifference = () => workspaceGroup(page).evaluate(group => {
+    const separator = group.querySelector('[role="separator"][aria-label="상세 패널 너비 조절"]');
+    const list = group.querySelector('[role="region"][aria-label="기본 작업 영역"]');
+    const detail = group.querySelector('[aria-label="상세 작업 영역"]');
+    if (!separator || !list || !detail) return Infinity;
+    const half = (group.getBoundingClientRect().width - separator.getBoundingClientRect().width) / 2;
+    return Math.max(Math.abs(list.getBoundingClientRect().width - half), Math.abs(detail.getBoundingClientRect().width - half));
+  });
+  await expect.poll(currentHalfDifference).toBeLessThan(0.5);
   await separator.press("End");
-  expect(await detailWidth(page)).toBeCloseTo(available / 2, 0);
+  await expect.poll(currentHalfDifference).toBeLessThan(0.5);
 });
 test("desktop: list stays usable, related details become unique tabs and close restores list", async ({ page }, info) => {
   const state = await fixture(page); await page.goto("/entities?view=table");
