@@ -1,4 +1,4 @@
-import { openMainNavigation } from "./ui-actions.ts";
+import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { entitySchemaPresentation } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
@@ -19,6 +19,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(creation).toBeVisible();
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue("");
     await creation.getByRole("radio", { name: "별", exact: true }).check();
+    const beforeNavigation = page.url();
     await openMainNavigation(page);
     const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
     await expect(tasksLink).toHaveAttribute("href", "/tasks");
@@ -26,6 +27,8 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     const initialConfirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await expect(initialConfirm).toBeVisible();
     await initialConfirm.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(page).toHaveURL(beforeNavigation);
+    await closeMainNavigation(page);
     await creation.getByRole("button", { name: "변경 취소", exact: true }).click();
     await expect(creation.getByRole("radio", { name: "상자", exact: true })).toBeChecked();
     await creation.getByLabel("대표 입력 항목 이름", { exact: true }).fill("초안 이름");

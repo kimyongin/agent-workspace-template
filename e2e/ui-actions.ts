@@ -29,6 +29,16 @@ export async function openMainNavigation(page: Page) {
   }
   await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toBeVisible();
 }
+/** Return to the protected page after a cancelled mobile navigation attempt. */
+export async function closeMainNavigation(page: Page) {
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true, includeHidden: true })).toHaveCount(0);
+  const sheet = page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true });
+  if (await sheet.count()) {
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: "메뉴 닫기", exact: true }).click();
+  }
+  await expect(sheet).toHaveCount(0);
+}
 export async function openProfileMenu(page: Page) {
   const compact = await compactNavigation(page);
   const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
