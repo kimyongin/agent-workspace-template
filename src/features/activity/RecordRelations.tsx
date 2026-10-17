@@ -190,6 +190,7 @@ function ChangedRelation(
   if (readOnly) {
     return (
       <RelatedItem
+        titleLabel="당시 제목"
         title={change.target_title}
         metadata={
           <>
@@ -210,6 +211,7 @@ function ChangedRelation(
   }
   return (
     <RelatedPreviewItem
+      titleLabel="당시 제목"
       resource={read.resource}
       to={path}
       restoreKey="change-target"
