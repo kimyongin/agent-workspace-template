@@ -681,6 +681,13 @@ test("confirmation stays usable with reduced motion and enlarged text", async ({
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(800);
   await expect(dialog.getByRole("button", { name: "취소", exact: true })).toBeInViewport({ ratio: 1 });
   await expect(dialog.getByRole("button", { name: "예시 자료 삭제", exact: true })).toBeInViewport({ ratio: 1 });
-  await dialog.screenshot({ path: info.outputPath("confirmation-320-text200-reduced-motion.png") });
+  for (const label of ["취소", "예시 자료 삭제"]) {
+    const button = (await dialog.getByRole("button", { name: label, exact: true }).boundingBox())!;
+    expect(button.x).toBeGreaterThanOrEqual(bounds.x);
+    expect(button.x + button.width).toBeLessThanOrEqual(bounds.x + bounds.width + 0.5);
+    expect(button.y).toBeGreaterThanOrEqual(bounds.y);
+    expect(button.y + button.height).toBeLessThanOrEqual(bounds.y + bounds.height + 0.5);
+  }
+  await page.screenshot({ path: info.outputPath("confirmation-320-text200-reduced-motion.png") });
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
 });
