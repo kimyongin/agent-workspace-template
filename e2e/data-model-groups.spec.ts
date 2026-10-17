@@ -63,7 +63,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     await page.getByRole("button", { name: new RegExp(target.title) }).click();
     const group = page.getByRole("region", { name: "전체 모델 값 변환" });
     await expect(group).toBeVisible();
-    for (const [index, t] of target.entity_types.entries()) {
+    for (const t of target.entity_types) {
       if (index > 0) await group.getByRole("button", { name: new RegExp(`${t.schema.title} 변환`) }).click();
       await group.getByLabel("수량 변환 방식").selectOption("convert");
     }
