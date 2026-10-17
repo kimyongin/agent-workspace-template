@@ -24,6 +24,30 @@ async function settleSurface(surface: Locator) {
   await expect.poll(() => surface.evaluate(element => element.getAnimations({ subtree: true })
     .filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
 }
+/** Profile choices must fit their own labels and grid, including retained narrow panes. */
+async function assertProfileChoiceGeometry(group: Locator) {
+  await expect(group.getByRole("radio")).toHaveCount(20);
+  await expect.poll(() => group.evaluate(element => {
+    const group = element as HTMLElement, bounds = group.getBoundingClientRect();
+    const labels = [...group.querySelectorAll("label")];
+    const problems: string[] = [];
+    if (group.scrollWidth > group.clientWidth + 1) problems.push("grid horizontal overflow");
+    const boxes = labels.map(label => label.getBoundingClientRect());
+    boxes.forEach((box, index) => {
+      if (box.width < 43.5 || box.height < 43.5) problems.push(`choice ${index} target smaller than44`);
+      if (box.left < bounds.left - 1 || box.right > bounds.left + group.clientWidth + 1) problems.push(`choice ${index} outside grid`);
+      for (const child of labels[index].children) {
+        const childBox = child.getBoundingClientRect();
+        if (childBox.width && (childBox.left < box.left - 1 || childBox.right > box.right + 1)) problems.push(`choice ${index} content outside label`);
+      }
+      for (let other = index + 1; other < boxes.length; other++) {
+        const next = boxes[other];
+        if (Math.min(box.bottom, next.bottom) - Math.max(box.top, next.top) > 1 && Math.min(box.right, next.right) - Math.max(box.left, next.left) > 1) problems.push(`choices ${index}/${other} overlap`);
+      }
+    });
+    return problems;
+  })).toEqual([]);
+}
 async function detailWidth(page: Page) {
   return (await page.locator("[aria-label=\"상세 작업 영역\"]").boundingBox())!.width;
 }
@@ -330,6 +354,15 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
   await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "기본", exact: true })).toHaveAttribute("aria-current", "page");
   await page.keyboard.press("Escape");
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
+  for (const fontSize of [16, 32]) {
+    await page.evaluate(value => document.documentElement.style.fontSize = `${value}px`, fontSize);
+    const icons = left.getByRole("radiogroup", { name: "프로필 아이콘", exact: true });
+    await assertProfileChoiceGeometry(icons);
+    await icons.getByRole("radio", { name: "기본", exact: true }).focus();
+    await icons.getByRole("radio", { name: "기본", exact: true }).press("ArrowRight");
+    await expect(icons.getByRole("radio", { name: "선글라스", exact: true })).toBeChecked();
+  }
+  await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
   await page.screenshot({ path: info.outputPath("settings-and-retained-detail.png") });
   await openProfileMenu(page);
   await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
@@ -1400,4 +1433,23 @@ test("review: captured entity labels retain their historical meaning in record e
   await linked.locator("dt:visible", { hasText: /^자료 식별$/ }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: info.outputPath("record-captured-entity-edit.png") });
   expect(state.writes).toEqual([]);
+});
+
+for (const width of [320, 390]) test(`profile icon choices ${width}px: labels fit at normal and200percent font`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  const state = await fixture(page);
+  await page.goto("/settings");
+  const group = page.getByRole("radiogroup", { name: "프로필 아이콘", exact: true });
+  for (const fontSize of [16, 32]) {
+    await page.evaluate(value => document.documentElement.style.fontSize = `${value}px`, fontSize);
+    await assertProfileChoiceGeometry(group);
+    const radios = group.getByRole("radio");
+    await radios.nth(0).focus();
+    await radios.nth(0).press("ArrowRight");
+    await expect(radios.nth(1)).toBeChecked();
+    await expect(radios.nth(1)).toBeFocused();
+    await page.screenshot({ path: info.outputPath(`profile-icons-${width}-font${fontSize}.png`) });
+  }
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
 });
