@@ -1,3 +1,4 @@
+import { openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
@@ -88,7 +89,10 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     await expect(page).toHaveURL(new RegExp(`job_id=${accepted.job_id}(?:&|$)`));
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     expect((await mcp.call("get_entity", { id: x.id })).properties).toEqual({ prop_1: "원본" });
-    await page.getByRole("link", { name: "할 일", exact: true }).click();
+    await openMainNavigation(page);
+    const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
+    await expect(tasksLink).toHaveAttribute("href", "/tasks");
+    await tasksLink.click();
     await page.goto(`/entities?entity_type_id=${other.id}`);
     // Explicit test infrastructure owns execution. No GET/page poll calls the worker.
     const origin = new URL(requiredEnv("VITE_SUPABASE_URL"));

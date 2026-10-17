@@ -1,3 +1,4 @@
+import { openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
@@ -88,7 +89,10 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     expect(accepted.status).toBe("queued");
     expect((await mcp.call("get_data_model_change", { id: change.id })).group.children).toHaveLength(2);
     for (const entity of entities) expect((await mcp.call("get_entity", { id: entity.id })).schema_version).toBe(1);
-    await page.getByRole("link", { name: "할 일", exact: true }).click();
+    await openMainNavigation(page);
+    const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
+    await expect(tasksLink).toHaveAttribute("href", "/tasks");
+    await tasksLink.click();
     await expect(page).toHaveURL(/\/tasks(?:[?#]|$)/);
     const origin = new URL(requiredEnv("VITE_SUPABASE_URL"));
     expect(["127.0.0.1", "localhost"]).toContain(origin.hostname);
