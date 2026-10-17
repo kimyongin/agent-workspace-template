@@ -3,7 +3,7 @@ import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, C
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
@@ -12,9 +12,10 @@ import { createMaterialTemplateDraft, createTaskTemplateDraft } from "./material
 import { MaterialSettingsSection, type MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { SettingsHeading } from "./SettingsHeading.tsx";
 type Target = { id: string; label: string; model: "entity" | "task"; typeId?: string };
+const taskTarget: Target = { id: "task", label: "할 일", model: "task" };
 export function RecordSettingsPage() {
   const catalog = useEntityTypes();
-  const targets: Target[] = [...(catalog.types ?? []).map(type => ({ id: `type:${type.id}`, label: type.label, model: "entity" as const, typeId: type.id })), { id: "task", label: "할 일", model: "task" }];
+  const targets = useMemo<Target[]>(() => [...(catalog.types ?? []).map(type => ({ id: `type:${type.id}`, label: type.label, model: "entity" as const, typeId: type.id })), taskTarget], [catalog.types]);
   const [selected, setSelected] = useState("task");
   const [visited, setVisited] = useState(["task"]);
   const [states, setStates] = useState<Record<string, MaterialSectionState>>({});
