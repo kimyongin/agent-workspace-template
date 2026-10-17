@@ -208,7 +208,11 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
   await page.getByRole("button", { name: "검토한 설정 적용", exact: true }).click();
   await expect(page.getByText("요청한 작업을 진행하고 있습니다.", { exact: false })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();
-  await expect(page.getByText("자료 종류: 추가 0개 · 수정 1개 · 변경 없음 0개", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^자료 종류$/ }) }).filter({
+      has: page.locator("dd").filter({ hasText: /^추가 0개 · 수정 1개 · 변경 없음 0개$/ }),
+    }),
+  ).toBeVisible();
   await page.screenshot({ path: info.outputPath("group-applied.png"), fullPage: true });
   expect(writes).toEqual([
     "/api/data-model/changes/model-group/analyze",

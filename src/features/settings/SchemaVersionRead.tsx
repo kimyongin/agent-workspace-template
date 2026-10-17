@@ -72,17 +72,31 @@ export function SchemaVersionRead(
           <SchemaDefinitionRead definition={value.target} />
           <section aria-label="변경 결과" className="schema-history-result">
             <h3 className="section-title">변경 결과</h3>
-            {version === 1 ? <p>버전 1 · 최초 생성</p> : (
-              <>
-                <p>버전 {version - 1} → {version} · 적용 완료</p>
-                {value.source && (
-                  <SchemaVersionDiff
-                    before={value.source}
-                    after={value.target}
-                  />
-                )}
-              </>
-            )}
+            {version === 1
+              ? (
+                <dl className="key-value-grid key-value-static">
+                  <div>
+                    <dt>버전</dt>
+                    <dd>1 · 최초 생성</dd>
+                  </div>
+                </dl>
+              )
+              : (
+                <>
+                  <dl className="key-value-grid key-value-static">
+                    <div>
+                      <dt>버전</dt>
+                      <dd>{version - 1} → {version} · 적용 완료</dd>
+                    </div>
+                  </dl>
+                  {value.source && (
+                    <SchemaVersionDiff
+                      before={value.source}
+                      after={value.target}
+                    />
+                  )}
+                </>
+              )}
           </section>
         </>
       )}

@@ -1290,7 +1290,7 @@ test("적용 변경과 최초 생성은 한 목록에서 각 버전 정의와 �
     has: page.getByRole("button", { name: /^최초 생성/ }),
   });
   await expect(first.getByRole("region", { name: "변경 결과", exact: true }))
-    .toContainText("버전 1 · 최초 생성");
+    .toContainText("1 · 최초 생성");
   await expect(first.locator("input, select, textarea")).toHaveCount(0);
   await first.getByRole("button", { name: /^최초 생성/ }).click();
   await expect(first.getByRole("region", { name: "변경 결과", exact: true }))
@@ -1514,12 +1514,19 @@ test(
       })
     );
     for (const style of headingStyles) expect(style).toEqual({ size: "13px", weight: "600", height: "20px" });
-    const positions = await definition.locator("dt").evaluateAll((elements) =>
-      elements.map((el) => el.getBoundingClientRect().x)
+    const pairs = await definition.locator("dl > div").evaluateAll((elements) =>
+      elements.map((el) => {
+        const key = el.querySelector("dt")!.getBoundingClientRect(),
+          value = el.querySelector("dd")!.getBoundingClientRect();
+        return { keyRight: key.right, valueLeft: value.left, deltaY: Math.abs(key.top - value.top) };
+      })
     );
-    expect(Math.max(...positions) - Math.min(...positions)).toBeLessThan(1);
+    for (const pair of pairs) {
+      expect(pair.keyRight).toBeLessThanOrEqual(pair.valueLeft);
+      expect(pair.deltaY).toBeLessThanOrEqual(1);
+    }
     await expect(row.getByRole("region", { name: "변경 결과", exact: true }))
-      .toContainText("버전 1 → 2");
+      .toContainText("1 → 2");
     const result = row.getByRole("region", { name: "변경 결과", exact: true });
     await expect(result.getByRole("heading")).toHaveCount(1);
     await expect(result.getByRole("heading", { name: "변경 결과", exact: true })).toBeVisible();
@@ -1590,7 +1597,7 @@ test("다른 완료 변경을 열면 버전과 해당 변환 작업을 함께 �
     has: page.getByRole("button", { name: /버전 3 · 적용됨$/ }),
   });
   await expect(row.getByRole("region", { name: "값 변환 상세", exact: true })).toBeVisible();
-  await expect(row.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 2 → 3");
+  await expect(row.getByRole("region", { name: "변경 결과", exact: true })).toContainText("2 → 3");
 });
 
 test(

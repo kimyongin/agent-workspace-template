@@ -90,7 +90,11 @@ export function TypeIdentitySettings(
     ? writeErrorMessage(editor.error)
     : inputError;
   return (
-    <MaterialSettingsSection title="자료 번호" description="상품 번호처럼 자료를 구분할 번호를 설정합니다." state={state}>
+    <MaterialSettingsSection
+      title="자료 번호"
+      description="상품 번호처럼 자료를 구분할 번호를 설정합니다."
+      state={state}
+    >
       {error && <p role="alert" className="error-text">{error}</p>}
       {message && <p role="status">{message}</p>}
       {!saved && (
@@ -145,8 +149,8 @@ export function TypeIdentitySettings(
               )}
             </div>
           )}
-          <fieldset className="settings-fields" disabled={busy || uncertain || disabled}>
-            <Field label="이름" required help="자료에 표시할 번호 이름입니다. 예: 상품 번호·주문 번호">
+          <fieldset className="settings-fields key-value-grid" disabled={busy || uncertain || disabled}>
+            <Field pair label="이름" required help="자료에 표시할 번호 이름입니다. 예: 상품 번호·주문 번호">
               {(props) => (
                 <input
                   {...props}
@@ -197,32 +201,44 @@ export function TypeIdentitySettings(
                     <div className="issuer-binding-number">
                       {locked || options.length <= 1
                         ? (
-                          <span>
-                            {source.code === "app" ? "자동 발급" : rule?.label ?? metadata?.rule_label ?? "번호 종류"}
-                            {metadata?.referenced && (
-                              <span className="secondary" aria-label="사용 중인 번호 종류 · 변경 불가">
-                                · 변경 불가
-                              </span>
-                            )}
-                          </span>
+                          <dl className="key-value-static">
+                            <div>
+                              <dt>번호 종류</dt>
+                              <dd>
+                                {source.code === "app"
+                                  ? "자동 발급"
+                                  : rule?.label ?? metadata?.rule_label ?? "번호 종류"}
+                                {metadata?.referenced && (
+                                  <span className="secondary" aria-label="사용 중인 번호 종류 · 변경 불가">
+                                    · 변경 불가
+                                  </span>
+                                )}
+                              </dd>
+                            </div>
+                          </dl>
                         )
                         : (
-                          <select
-                            className="input"
-                            aria-label={`${sourceName(source.code)} 번호 종류`}
-                            value={source.rule_id}
-                            onChange={(e) =>
-                              update((v) => ({
-                                ...v,
-                                sources: v.sources.map((s) =>
-                                  s.code === source.code ? { ...s, rule_id: e.target.value } : s
-                                ),
-                              }))}
-                          >
-                            {options.map((r) => (
-                              <option key={r.id} value={r.id}>{r.label}{r.active ? "" : " (중지)"}</option>
-                            ))}
-                          </select>
+                          <Field pair label="번호 종류">
+                            {(props) => (
+                              <select
+                                {...props}
+                                className="input"
+                                aria-label={`${sourceName(source.code)} 번호 종류`}
+                                value={source.rule_id}
+                                onChange={(e) =>
+                                  update((v) => ({
+                                    ...v,
+                                    sources: v.sources.map((s) =>
+                                      s.code === source.code ? { ...s, rule_id: e.target.value } : s
+                                    ),
+                                  }))}
+                              >
+                                {options.map((r) => (
+                                  <option key={r.id} value={r.id}>{r.label}{r.active ? "" : " (중지)"}</option>
+                                ))}
+                              </select>
+                            )}
+                          </Field>
                         )}
                       {!available && <span className="secondary">· 사용 중지</span>}
                       {issuer && !issuer.system && (

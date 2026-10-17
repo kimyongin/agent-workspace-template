@@ -183,14 +183,26 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
         </div>
       )}
       {change.group && (
-        <p role="status">
-          전체 {change.group.total}개 · 처리 {change.group.processed}개 · 실패 {change.group.failed}개
-        </p>
+        <dl className="key-value-grid key-value-static" role="status">
+          <div>
+            <dt>전체</dt>
+            <dd>{change.group.total}개</dd>
+          </div>
+          <div>
+            <dt>처리</dt>
+            <dd>{change.group.processed}개</dd>
+          </div>
+          <div>
+            <dt>실패</dt>
+            <dd>{change.group.failed}개</dd>
+          </div>
+        </dl>
       )}
       {change.group?.failure_reason && <p role="alert" className="error-text">{change.group.failure_reason}</p>}
       {active && (
         <p className="help">
-          요청한 작업을 진행하고 있습니다. 처리 중에는 값 변환 방법을 수정할 수 없습니다. 화면을 다시 열어도 진행 상태를 확인할 수 있습니다.
+          요청한 작업을 진행하고 있습니다. 처리 중에는 값 변환 방법을 수정할 수 없습니다. 화면을 다시 열어도 진행 상태를
+          확인할 수 있습니다.
         </p>
       )}
       <div className="issuer-registry-list">
@@ -216,7 +228,11 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
           </IssuerRow>
         ))}
       </div>
-      {dirty && <p role="status">수정한 값 변환 방법을 아직 저장하지 않았습니다. 변경 영향 확인을 눌러 저장하고 다시 확인하세요.</p>}
+      {dirty && (
+        <p role="status">
+          수정한 값 변환 방법을 아직 저장하지 않았습니다. 변경 영향 확인을 눌러 저장하고 다시 확인하세요.
+        </p>
+      )}
       <div className="actions schema-actions">
         {uncertain
           ? (

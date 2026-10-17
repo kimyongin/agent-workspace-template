@@ -224,19 +224,28 @@ export function IssuerSettingsPage() {
                 <div className="issuer-rule-list">
                   {rules?.map((rule) => {
                     const generation = rule.generation === "automatic" ? "자동 생성" : "직접 입력";
-                    const summary = [
-                      rule.label === generation ? "" : generation,
-                      rule.active ? "" : "사용 중지",
-                    ]
-                      .filter(Boolean).join(" · ");
                     const expanded = inline && editing.rule?.id === rule.id;
                     return (
                       <div key={rule.id} className="issuer-number-entry">
                         <div className="issuer-rule-row issuer-rule-summary">
-                          <div>
-                            <span className="item-title">{rule.label}</span>
-                            {summary && <span className="secondary">{summary}</span>}
-                          </div>
+                          {!expanded && (
+                            <dl className="key-value-grid key-value-static issuer-number-values">
+                              <div>
+                                <dt>번호 종류 이름</dt>
+                                <dd>{rule.label}</dd>
+                              </div>
+                              {rule.label !== generation && (
+                                <div>
+                                  <dt>입력 방식</dt>
+                                  <dd>{generation}</dd>
+                                </div>
+                              )}
+                              <div>
+                                <dt>사용</dt>
+                                <dd>{rule.active ? "사용 중" : "사용 중지"}</dd>
+                              </div>
+                            </dl>
+                          )}
                           {!issuer.system && (
                             <BodyAction
                               className="issuer-rule-toggle"

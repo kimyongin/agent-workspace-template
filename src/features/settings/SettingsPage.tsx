@@ -162,7 +162,7 @@ function AccountSettings() {
   );
   const profile = (
     <>
-      <Field label="닉네임">
+      <Field pair label="닉네임">
         {(props) => (
           <input
             {...props}
@@ -179,7 +179,7 @@ function AccountSettings() {
           />
         )}
       </Field>
-      <fieldset className="profile-icon-field">
+      <fieldset className="profile-icon-field settings-icon-pair key-value-full">
         <legend className="label">프로필 아이콘</legend>
         <div className="profile-choices">
           {profileIcons.map((icon) => (
@@ -203,7 +203,7 @@ function AccountSettings() {
     </>
   );
   const date = (
-    <Field label="표시 시간대">
+    <Field pair label="표시 시간대">
       {(props) => (
         <TimezoneSelect
           {...props}
@@ -218,12 +218,12 @@ function AccountSettings() {
     </Field>
   );
   const display = (
-    <div className="field-row">
+    <div className="key-value-grid">
       {([{ key: "mobileDisplayScale", label: "모바일 화면 배율" }, {
         key: "desktopDisplayScale",
         label: "데스크톱 화면 배율",
       }] as const).map(({ key, label }) => (
-        <Field key={key} label={label}>
+        <Field pair key={key} label={label}>
           {(props) => (
             <select
               {...props}
@@ -245,7 +245,11 @@ function AccountSettings() {
   );
   return (
     <section className="panel settings account-settings" aria-labelledby="settings-title">
-      <SettingsHeading title="기본 설정" description="프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다." id="settings-title" />
+      <SettingsHeading
+        title="기본 설정"
+        description="프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다."
+        id="settings-title"
+      />
 
       {(["profile", "date", "display"] as const).map((section) => (
         <section className="settings-section" aria-labelledby={`settings-${section}`} key={section}>
@@ -259,7 +263,7 @@ function AccountSettings() {
               void saveSection(section);
             }}
           >
-            <fieldset disabled={saving !== null} className="settings-fields">
+            <fieldset disabled={saving !== null} className="settings-fields key-value-grid">
               {{ profile, date, display }[section]}
             </fieldset>
             {controls(section)}
