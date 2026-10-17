@@ -134,3 +134,21 @@ test("shell reflow: 200% text and zoom preserve a usable workspace at 1024 and 1
   }
   expect(state.writes).toEqual([]);
 });
+
+test("shell previous: returning from a related editor restores its originating detail link", async ({ page }) => {
+  const state = await fixture(page);
+  state.rows.tasks[0].entity_ids = [entity().id];
+  state.rows.tasks[0].entity_context = [{ id: entity().id, title: "자료", source: "selection", captured_at: entity().created_at }];
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/tasks/${id(2)}`);
+  const detail = page.getByRole("dialog").filter({ visible: true });
+  const related = detail.getByRole("region", { name: "연결된 자료 (1개)", exact: true });
+  await related.getByRole("button", { name: "자료", exact: true }).click();
+  const origin = related.getByRole("link", { name: "자료 상세", exact: true });
+  await origin.click();
+  await detail.getByRole("button", { name: "편집", exact: true }).click();
+  await detail.getByRole("button", { name: "취소", exact: true }).click();
+  await detail.getByRole("button", { name: "이전: 할 일", exact: true }).click();
+  await expect(origin).toBeFocused();
+  expect(state.writes).toEqual([]);
+});

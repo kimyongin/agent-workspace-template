@@ -174,11 +174,11 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       void Promise.resolve(navigate(href(origin), { replace: true, state: location.state, preventScrollReset: true })).then(visit);
     } else void visit();
   }, [navigate, location, anyBusy]);
-  const select = (tab: Tab) => {
+  const select = (tab: Tab, focusTab = true) => {
     if (anyBusy()) return;
-    tabFocus.current = tab.id;
+    tabFocus.current = focusTab ? tab.id : null;
     open(href(tab.location), base);
-    document.getElementById(`tab-${tab.id}`)?.focus();
+    if (focusTab) document.getElementById(`tab-${tab.id}`)?.focus();
   };
   const reorder = (id: string, target: string, before: boolean) => {
     if (anyBusy() || id === target) return null;
@@ -230,7 +230,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       {tabs.map(tab => <TabContent key={tab.id} tab={tab} active={shown && active === tab.id} docked={desktop}
         previous={tab.returnTo && tabs.some(value => value.id === tab.returnTo) ? {
           label: `이전: ${tabs.find(value => value.id === tab.returnTo)!.title}`,
-          back: () => { const root = current.current.tabs.find(value => value.id === tab.returnTo); if (root) select(root); },
+          back: () => { const root = current.current.tabs.find(value => value.id === tab.returnTo); if (root) select(root, false); },
         } : null}
         navigate={(to, options) => navigateTab(tab.id, to, options)} close={() => requestClose(tab.id)} registerGuard={registerGuard}
         title={title => setTabs(previous => previous.map(value => value.id === tab.id && value.title !== title ? { ...value, title } : value))}>
