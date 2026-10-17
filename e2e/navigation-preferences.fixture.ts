@@ -485,8 +485,15 @@ test(
       for (const name of ["닉네임", "표시 시간대", "모바일 화면 배율", "데스크톱 화면 배율"]) {
         const input = page.getByLabel(name, { exact: true });
         const geometry = await input.evaluate((control) => {
-          const label = document.querySelector(`label[for="${control.id}"]`)!;
-          const field = control.closest('[data-slot="field"]')!;
+          const labelledBy = control.getAttribute("aria-labelledby")?.split(/\s+/).filter(Boolean) ?? [];
+          const label = labelledBy.length
+            ? document.getElementById(labelledBy[0])
+            : control instanceof HTMLInputElement || control instanceof HTMLSelectElement
+              ? control.labels?.[0]
+              : null;
+          const field = control.closest('[data-slot="field"]');
+          if (!label || !field) throw new Error("The setting must have an associated visible label inside its Field");
+          if (!field.contains(label)) throw new Error("The setting label must belong to the same Field as its control");
           const key = label.getBoundingClientRect(), value = control.getBoundingClientRect(), bounds = field.getBoundingClientRect();
           return { keyBottom: key.bottom, valueTop: value.top, keyLeft: key.left, keyRight: key.right, valueLeft: value.left, valueRight: value.right, fieldLeft: bounds.left, fieldRight: bounds.right };
         });
