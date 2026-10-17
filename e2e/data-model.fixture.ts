@@ -463,3 +463,39 @@ test("신규 종류의 실제 정의와 번호 및 원본 대응을 검토한다
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("model-definition-mapping.png"), fullPage: true });
 });
+
+test("요약 이력을 다시 열면 독립 상세를 읽어 저장한 전체 변환 입력을 복원한다", async ({ page }) => {
+  const schema = initialEntityDefinition("주문").schema;
+  const summary: ModelChange = {
+    ...created,
+    status: "needs_conversion",
+    review: {
+      ...review,
+      can_apply: false,
+      items: [{ ref: "order", label: "주문", kind: "migration_required", diff: [] }],
+    },
+  };
+  let reads = 0;
+  await page.route("**/api/data-model/changes**", (route) => {
+    expect(route.request().method()).toBe("GET");
+    if (new URL(route.request().url()).pathname.endsWith("/change-id")) {
+      reads++;
+      return route.fulfill({
+        json: {
+          ...summary,
+          review: { ...summary.review, items: [{ ...summary.review.items[0], schema, current_schema: schema }] },
+        },
+      });
+    }
+    return route.fulfill({ json: { items: [summary], next_cursor: null } });
+  });
+  await page.goto("/settings/data-model");
+  await page.getByRole("button", { name: "오픈마켓 모델 값 변환 필요", exact: true }).click();
+  const group = page.getByRole("region", { name: "전체 모델 값 변환" });
+  await expect(group.getByRole("button", { name: "주문 변환 분석 전", exact: true })).toBeVisible();
+  const selector = group.getByLabel(`${schema.properties.prop_1.title} 변환 방식`);
+  if (!await selector.isVisible()) await group.getByRole("button", { name: "주문 변환 분석 전", exact: true }).click();
+  await expect(selector).toBeVisible();
+  await expect(group.getByRole("button", { name: "전체 영향 분석", exact: true })).toBeEnabled();
+  expect(reads).toBe(1);
+});
