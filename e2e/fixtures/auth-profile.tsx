@@ -1,3 +1,4 @@
+import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 // 실제 provider·설정·SDK의 경쟁을 관찰한다. 인증 동작을 대체하지 않는다.
 import { useDisplayTime } from "../../src/lib/useDisplayTime.ts";
 import { useState } from "react";
@@ -40,7 +41,7 @@ function Probe() {
     </div>
   );
 }
-const router = createMemoryRouter([{ path: "*", element: <Probe /> }], { initialEntries: ["/settings"] });
+const router = createMemoryRouter([{ path: "*", element: <NavigationProtection><Probe /></NavigationProtection> }], { initialEntries: ["/settings"] });
 createRoot(document.getElementById("root")!).render(
   <AuthProvider>
     <RouterProvider router={router} />

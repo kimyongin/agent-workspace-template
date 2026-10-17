@@ -1121,3 +1121,20 @@ for (const screen of ["materials", "relations"] as const) test(`desktop: uncerta
   await expect.poll(() => writes.length).toBe(2);
   expect(writes[0]).toEqual(writes[1]);
 });
+
+test("desktop: closing the last detail retains the dirty base setting without a discard prompt", async ({ page }) => {
+  await fixture(page);
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await openTask(page);
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
+  await page.getByRole("link", { name: "설정", exact: true }).click();
+  const nickname = page.locator(".workspace-list").getByLabel("닉네임", { exact: true });
+  await nickname.fill("마지막 상세를 닫아도 유지");
+  await page.getByRole("button", { name: "등심 구매하기 탭 닫기", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "등심", exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await expect(nickname).toHaveValue("마지막 상세를 닫아도 유지");
+  await expect(page.getByRole("tab")).toHaveCount(0);
+});

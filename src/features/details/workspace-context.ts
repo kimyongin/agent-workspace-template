@@ -1,6 +1,6 @@
 import { useNavigationBlocker } from "../../lib/navigation-protection.tsx";
 import { createContext, useContext } from "react";
-import type { Location, NavigateOptions, To } from "react-router";
+import { type Location, type NavigateOptions, type To, useLocation } from "react-router";
 
 export const detailIdentity = (path: string) =>
   path.split(/[?#]/)[0].match(/^\/(entities|tasks|records)\/[^/]+$/)?.[0] ?? null;
@@ -41,8 +41,10 @@ export const DetailTabContext = createContext<
 /** Detail tab navigation retains the base screen only while its workspace is mounted. */
 export function usePageNavigationBlocker(dirty: boolean, busy: boolean) {
   const workspace = useContext(WorkspaceContext);
-  return useNavigationBlocker(
-    ({ nextLocation }) => busy || dirty && !(workspace && detailIdentity(nextLocation.pathname)),
-    busy,
-  );
+  const base = useLocation();
+  return useNavigationBlocker(({ nextLocation }) => {
+    const retainsBase = workspace && (detailIdentity(nextLocation.pathname) ||
+      nextLocation.pathname === base.pathname && nextLocation.search === base.search && nextLocation.hash === base.hash);
+    return busy || dirty && !retainsBase;
+  }, busy);
 }
