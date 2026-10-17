@@ -113,7 +113,7 @@ export function RelatedItem(
   const Icon = disclosure?.expanded ? ChevronUpIcon : ChevronDownIcon;
   const toggle = disclosure && <Button type="button" variant="ghost" size="icon" aria-label={`${title} ${disclosure.expanded ? "접기" : "열기"}`}
     title={disclosure.expanded ? "접기" : "열기"} aria-expanded={disclosure.expanded} aria-controls={panel} onClick={table ? disclosure.toggle : undefined}><Icon /></Button>;
-  const actions = (action || disclosure) && <ItemActions className="shrink-0 flex-wrap">
+  const actions = (action || disclosure) && <ItemActions className="max-w-full shrink-0 flex-wrap">
     {(!disclosure || disclosure.expanded) && action}
     {table ? toggle : toggle && <CollapsibleTrigger asChild>{toggle}</CollapsibleTrigger>}
   </ItemActions>;
