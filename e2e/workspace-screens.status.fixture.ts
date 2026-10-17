@@ -66,8 +66,9 @@ test("차트 선택은 새로고침·화면 크기·개인 배율 변경에도 �
   await page.getByRole("button", { name: "새로고침", exact: true }).click();
   await expect(values.getByRole("cell")).toHaveText(["1건"]);
   for (const scale of [100, 110, 125, 150]) {
-    await page.evaluate((scale) => document.documentElement.style.fontSize = `${scale}%`, scale);
-    for (const width of [320, 1440]) {
+    await page.evaluate((scale) => document.documentElement.style.setProperty("--display-scale", String(scale / 100)), scale);
+    expect(await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))).toBeCloseTo(16 * scale / 100, 1);
+    for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(values.getByRole("cell")).toHaveText(["1건"]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -101,19 +102,30 @@ test("빈 날짜 응답과 새로고침 실패는 수치를 만들거나 기존 
 test.describe("차트 직접 선택", () => {
   test.use({ hasTouch: true });
   test("그래프를 클릭하거나 터치하면 선택 날짜의 정확한 값이 바뀐다", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 900 });
+    test.setTimeout(120_000);
     await fixture(page);
-    const graph = page.getByRole("group", {
-      name: "일별 등록 그래프: 막대를 누르거나 방향키로 날짜 선택",
-      exact: true,
-    });
-    const values = page.getByRole("table", { name: "일별 등록 날짜별 수치", exact: true });
-    await graph.evaluate((node) => node.scrollIntoView({ block: "center" }));
-    let box = (await graph.boundingBox())!;
-    await graph.click({ position: { x: box.width * .2, y: box.height * .4 } });
-    await expect(values.getByRole("cell")).toHaveText(["0건"]);
-    box = (await graph.boundingBox())!;
-    await page.touchscreen.tap(box.x + box.width * .85, box.y + box.height * .4);
-    await expect(values.getByRole("cell")).toHaveText(["1,234,567건"]);
+    for (const scale of [100, 110, 125, 150]) {
+      await page.evaluate((scale) => document.documentElement.style.setProperty("--display-scale", String(scale / 100)), scale);
+      expect(await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))).toBeCloseTo(16 * scale / 100, 1);
+      for (const width of [320, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const [title, last, first] of charts) {
+          const graph = page.getByRole("group", { name: `${title} 그래프: 막대를 누르거나 방향키로 날짜 선택`, exact: true });
+          const values = page.getByRole("table", { name: `${title} 날짜별 수치`, exact: true });
+          await graph.evaluate((node) => node.scrollIntoView({ block: "center" }));
+          let box = (await graph.boundingBox())!;
+          await graph.click({ position: { x: box.width * .2, y: box.height * .4 } });
+          await expect(values.getByRole("cell")).toHaveText([...first]);
+          box = (await graph.boundingBox())!;
+          await page.touchscreen.tap(box.x + box.width * .85, box.y + box.height * .4);
+          await expect(values.getByRole("cell")).toHaveText([...last]);
+          expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+          await graph.press("Home");
+          await expect(values.getByRole("cell")).toHaveText([...first]);
+          await graph.press("End");
+          await expect(values.getByRole("cell")).toHaveText([...last]);
+        }
+      }
+    }
   });
 });

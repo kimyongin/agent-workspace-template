@@ -62,3 +62,44 @@ test("할 일 반복 입력은 주기·요일 선택과 취소 후 초안을 유
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("task-recurring-mobile.png"), fullPage: true });
 });
+
+test("할 일·달력·태그 설정은 좁은 화면과 개인 배율에서 사용할 수 있다", async ({ page }, info) => {
+  test.setTimeout(180_000);
+  const state = await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const scale of [100, 110, 125, 150]) {
+      for (const [name, route] of [["task", "/tasks?create=1"], ["calendar", "/records?view=calendar"], ["tags", "/settings/tags?scope=record"]] as const) {
+        await go(page, route);
+        await expect(page.getByRole("main", { includeHidden: true })).toBeVisible();
+        await page.evaluate((scale) => document.documentElement.style.setProperty("--display-scale", String(scale / 100)), scale);
+        expect(await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))).toBeCloseTo(16 * scale / 100, 1);
+        if (name === "task") {
+          const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });
+          await form.getByRole("radio", { name: "반복", exact: true }).click();
+          await form.getByRole("radio", { name: "매주", exact: true }).click();
+          await expect(form.getByRole("button", { name: "월", exact: true })).toBeVisible();
+          await expect(form.getByRole("button", { name: "추가", exact: true })).toBeVisible();
+        } else if (name === "calendar") {
+          await expect(page.getByRole("heading", { name: "기록 (1개)", exact: true })).toBeVisible();
+          await expect(page.getByRole("region", { name: "기록 달력", exact: true })).toBeVisible();
+          await expect(page.getByRole("button", { name: "다음 달", exact: true })).toBeVisible();
+        } else {
+          await expect(page.getByRole("radiogroup", { name: "관리 대상", exact: true }).getByRole("radio", { name: "기록", exact: true })).toBeChecked();
+          await expect(page.getByRole("heading", { name: "태그 설정", exact: true })).toBeVisible();
+          await expect(page.getByRole("button", { name: "같은 이름 이름 변경", exact: true })).toBeVisible();
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await page.screenshot({ path: info.outputPath(`${name}-${width}-${scale}.png`), fullPage: true });
+        if (name === "task") {
+          await page.getByRole("dialog", { name: "할 일 추가", exact: true }).getByRole("button", { name: "취소", exact: true }).click();
+          await page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", { name: "변경 버리기", exact: true }).click();
+          await expect(page.getByRole("dialog", { name: "할 일 추가", exact: true })).toHaveCount(0);
+        }
+      }
+    }
+  }
+  expect(state.writes).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
