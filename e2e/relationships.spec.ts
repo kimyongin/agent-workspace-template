@@ -1,3 +1,4 @@
+import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { expect } from "@playwright/test";
 import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -7,13 +8,13 @@ test("상세 보기의 양방향 연결·해제와 일반 메모가 웹/MCP에�
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   const label=unique("관계"),entity=await createFixtureEntity(mcp, {prop_1:label+" 고객"}),task=await mcp.call("create_task",{kind:"once",title:label+" 상담"});
   let recordId="";
-  const dialog=()=>page.locator("dialog.modal:not(.modal-confirm)[open]");
+  const dialog=()=>detailDialog(page);
   const confirmRelation = async (actionLabel: "연결" | "해제") => {
-    const action = page.locator("dialog.modal-action[open]");
+    const action = executionDialog(page);
     await expect(dialog()).toHaveCount(1);
     await expect(dialog()).toBeVisible();
     await expect(action).toBeVisible();
-    await expect(page.locator("dialog[open]")).toHaveCount(2);
+    await expect(openDialogs(page)).toHaveCount(2);
     await action.getByRole("button", { name: `${actionLabel}하고 저장`, exact: true }).click();
     await expect(action).toHaveCount(0);
     await expect(dialog()).toBeVisible();
@@ -40,7 +41,7 @@ test("일반 기록 작성에서 할 일과 엔터티를 검색·연결하면 �
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   const marker=unique("기록 관계"),entity=await createFixtureEntity(mcp, {prop_1:marker+" 대상"}),task=await mcp.call("create_task",{kind:"once",title:marker+" 업무"});let recordId="";
   try {
-    await page.goto("/records");await beginTabAction(page,"기록 작성");const draft=page.locator("dialog.modal[open]");
+    await page.goto("/records");await beginTabAction(page,"기록 작성");const draft=openDialogs(page);
     await draft.getByLabel("본문",{exact:false}).fill(marker+" 메모");await draft.getByRole("button",{name:"할 일 연결",exact:true}).click();await draft.getByRole("searchbox",{name:"할 일 제목 검색"}).fill(marker);
     await draft.getByRole("group",{name:"할 일 검색 결과"}).getByRole("button",{name:task.title+" 연결",exact:true}).click();
     await draft.getByRole("button",{name:"자료 연결",exact:true}).click();await draft.getByRole("searchbox",{name:"자료 제목 검색"}).fill(marker);await draft.getByRole("group",{name:"자료 검색 결과"}).getByRole("button",{name:entity.title+" 연결",exact:true}).click();

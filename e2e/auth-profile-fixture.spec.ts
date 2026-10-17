@@ -108,7 +108,7 @@ test("다른 탭의 같은 계정 프로필 갱신은 미저장 선택·이동 �
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   await expect(page.getByRole("button", { name:"프로필 저장", exact: true })).toBeEnabled();
   await page.getByRole("link", { name: "전체 자료", exact: true }).click();
-  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   await page.getByRole("form",{name:"프로필 설정"}).getByRole("button",{name:"변경 취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();

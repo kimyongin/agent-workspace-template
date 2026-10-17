@@ -1,3 +1,4 @@
+import { executionDialog } from "./ui-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
 import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
@@ -13,7 +14,7 @@ test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 �
   const originalList = page.url();
   await page.getByRole("link", { name: "기록 태그 fixture", exact: true }).click();
   await page.getByRole("button", { name: "같은 이름 삭제", exact: true }).click();
-  const confirm = page.locator("dialog.modal-action[open]");
+  const confirm = executionDialog(page);
   await saveOnce(page, confirm, "삭제 확인", false);
   await state.pending;
   await expect(confirm.getByRole("button", { name: "삭제 중…" })).toBeDisabled();
@@ -25,7 +26,7 @@ test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 �
     el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
   );
   await expect(page).toHaveURL(/tags\/record$/);
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
   expect(
     await page.evaluate(() => {
       const event = new Event("beforeunload", { cancelable: true });
@@ -73,7 +74,7 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
     const tagRegion=form(page).getByRole("region",{name:"태그 연결",exact:true});
     await tagRegion.getByRole("button",{name:"같은 이름 연결 해제",exact:true}).click();
     await tagRegion.getByRole("button",{name:"연결 적용",exact:true}).click();
-    if(kind!=="records") await page.locator("dialog.modal-action[open]").getByRole("button",{name:"연결하고 저장",exact:true}).click();
+    if(kind!=="records") await executionDialog(page).getByRole("button",{name:"연결하고 저장",exact:true}).click();
     await expect(tagRegion.getByRole("button",{name:"태그 연결",exact:true})).toBeVisible();
     const tagWrite=state.writes.find(w=>w.method==="PATCH")!;
     expect(tagWrite.body.tag_ids).toEqual([]);
@@ -102,7 +103,7 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
     const created=state.rows[kind as "entities" | "tasks" | "records"].find(row=>row.id===decodeURIComponent(createdPath.split("/").at(-1)!));
     expect(created?.tag_ids).toEqual([]);
     await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-    const confirm = page.locator("dialog.modal-action[open]");
+    const confirm = executionDialog(page);
     await confirm.getByLabel("기록 메모").fill("중복 자료 정리");
     await saveOnce(page, confirm, "삭제 확인");
     await expect(page).toHaveURL(
@@ -133,7 +134,7 @@ test("태그 인라인 편집: 취소는 목록으로 복귀·삭제 실패는 �
   await page.getByRole("button", { name: "같은 이름 이름 변경", exact: true }).click();
   await form(page).getByRole("textbox", { name: /태그 이름/ }).fill("보존할 이름");
   await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-  const deletion = page.locator("dialog.modal-action[open]");
+  const deletion = executionDialog(page);
   await deletion.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByRole("textbox", { name: /태그 이름/ })).toHaveValue("보존할 이름");
   const attempts: string[] = [];
@@ -169,13 +170,13 @@ test("태그: 두 사전 같은 이름·인라인 CRUD·dirty scoped 이동", as
   await expect(page.getByRole("button", { name: "엔터티 분류 이름 변경" })).toHaveCount(0);
   await form(page).getByRole("textbox", { name: /태그 이름/ }).fill("활동 추가");
   await page.goBack();
-  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByRole("textbox", { name: /태그 이름/ })).toHaveValue("활동 추가");
   await saveOnce(page, form(page), "추가");
   await expect.poll(() => state.writes.at(-1)?.body.scope).toBe("record");
   await page.getByRole("button", { name: "활동 추가 삭제", exact: true }).click();
-  await page.locator("dialog.modal-action[open]").getByRole("button", { name: "삭제하고 기록", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "삭제하고 기록", exact: true }).click();
   await expect(page.getByRole("button", { name: "활동 추가 삭제", exact: true })).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });

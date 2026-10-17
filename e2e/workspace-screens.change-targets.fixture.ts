@@ -222,7 +222,7 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
   });
   await go(page, "/records");
   await expect(page.locator(".records .list")).not.toContainText("첫 대상");
-  await page.locator(".records .list .item-title").first().click();
+  await page.locator("[data-list-anchor]").first().click();
   await expect(page.locator(".records .list")).toContainText("첫 대상");
   expect(reads).toBe(0);
   await expect(page.locator(".records .list")).not.toContainText("삭제된 대상");

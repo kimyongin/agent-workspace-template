@@ -1,3 +1,4 @@
+import { openDialogs } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { openDetailEditor, openListDetail, openListEditor } from "./ui-actions.ts";
 import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
@@ -56,7 +57,7 @@ for (const [kind, title] of [["entities", "자료"], ["tasks", "할 일"], ["rec
         await form(page).getByRole("button", { name: "닫기", exact: true }).click();
       }
       await expect(page).toHaveURL(new RegExp(`/${kind}\\?`));
-      await expect(page.locator("dialog[open]")).toHaveCount(0);
+      await expect(openDialogs(page)).toHaveCount(0);
       await expect(row.getByRole("button", { name: title, exact: true })).toHaveAttribute("aria-expanded", "true");
       expect(new URL(page.url()).searchParams.get("pages")).toBe("1");
       expect(state.writes).toHaveLength(0);
@@ -81,7 +82,7 @@ for (const kind of ["entities", "tasks", "records"] as const) {
     await openDetailEditor(page);
     await input.fill("버릴 초안");
     await form(page).getByRole("button", { name: "취소", exact: true }).click();
-    const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+    const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await discard.getByRole("button", { name: "취소", exact: true }).click();
     await expect(input).toHaveValue("버릴 초안");
     await form(page).getByRole("button", { name: "취소", exact: true }).click();
@@ -111,7 +112,7 @@ for (const width of [320, 1440]) {
     expect(viewBox.x + viewBox.width).toBeLessThanOrEqual(chevronBox.x);
     await view.click();
     await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
-    await expect(page.locator("dialog[open]")).toHaveCount(1);
+    await expect(openDialogs(page)).toHaveCount(1);
     await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
     await expect(form(page).locator(".detail-title")).toHaveText("할 일");
     await form(page).evaluate((el) => el.dataset.sameDialog = "yes");
@@ -202,7 +203,7 @@ for (const exit of ["close", "escape", "back", "cancel"] as const) {
       else await page.goBack();
     };
     await attempt();
-    const discard = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
+    const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
     await discard.getByRole("button", { name: "취소", exact: true }).click();
     await expect(form(page).getByLabel("본문")).toHaveValue("유지할 초안");
     await attempt();
@@ -390,7 +391,7 @@ test("상세 탐색 검색: 동시 추가 뒤 깊은 anchor와 reload 초점 복
   await form(page).getByRole("button", { name: /^이전: 검색/ }).click();
   await expect(target).toBeFocused();
   await expect(target).toBeInViewport();
-  await expect(page.locator(".list .item-title")).toHaveCount(60);
+  await expect(page.locator("[data-list-anchor]")).toHaveCount(60);
   await page.reload();
   await expect(target).toBeFocused();
   await expect(target).toBeInViewport();
@@ -425,9 +426,9 @@ for (const [kind, title] of [["entities", "자료"], ["tasks", "할 일"], ["rec
     expect(state.writes).toHaveLength(0);
     await page.screenshot({ path: info.outputPath(`${kind}-read.png`) });
     await form(page).getByRole("button", { name: "편집", exact: true }).click();
-    const footer = form(page).locator(".modal-foot");
+    const footer = form(page).locator("[data-slot=\"dialog-footer\"], [data-slot=\"alert-dialog-footer\"]");
     await expect(footer.getByRole("button", { name: "삭제", exact: true })).toBeVisible();
-    await expect(form(page).locator(".modal-body").getByRole("button", { name: "삭제", exact: true })).toHaveCount(0);
+    await expect(form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").getByRole("button", { name: "삭제", exact: true })).toHaveCount(0);
     if (kind === "entities") {
       await form(page).getByLabel("제목", { exact: false }).fill("수정한 제목");
     } else await form(page).getByRole("textbox", { name: kind === "records" ? /^본문/ : /^제목/ }).fill("수정한 제목");
@@ -466,7 +467,7 @@ for (
       await form(page).evaluate((el) => el.setAttribute("data-same-dialog", "yes"));
       await openDetailEditor(page);
       await expect(form(page)).toHaveAttribute("data-same-dialog", "yes");
-      await expect(page.locator("dialog[open]")).toHaveCount(1);
+      await expect(openDialogs(page)).toHaveCount(1);
       await form(page).getByRole("button", { name: "취소", exact: true }).click();
       await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
       await expect(form(page)).toHaveAttribute("data-same-dialog", "yes");
@@ -475,7 +476,7 @@ for (
         name: kind === "entities" ? /^제목/ : kind === "records" ? /^본문/ : /^제목/,
       }).fill("버릴 초안");
       await form(page).getByRole("button", { name: "닫기", exact: true }).click();
-      const discard = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
+      const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
       await expect(discard).toBeVisible();
       const b = (await discard.boundingBox())!;
       expect(b.height).toBeLessThan(450);
@@ -489,7 +490,7 @@ for (
       ).toHaveValue("버릴 초안");
       await form(page).getByRole("button", { name: "닫기", exact: true }).click();
       await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
-      await expect(page.locator("dialog[open]")).toHaveCount(0);
+      await expect(openDialogs(page)).toHaveCount(0);
       await expect(page).toHaveURL(new RegExp(`/${kind}[?#]`));
       expect(state.writes).toHaveLength(0);
       expect(state.errors).toEqual([]);
@@ -506,14 +507,14 @@ for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const
     });
     await input.fill("취소할 편집");
     await form(page).getByRole("button", { name: "취소", exact: true }).click();
-    const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+    const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
     await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
     await expect(page).not.toHaveURL(/[?&]edit=/);
     expect(new URL(page.url()).pathname).toBe(
       `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}`,
     );
-    await expect(page.locator("dialog[open]")).toHaveCount(1);
+    await expect(openDialogs(page)).toHaveCount(1);
     await expect(form(page).getByRole("textbox")).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
     expect(state.errors).toEqual([]);

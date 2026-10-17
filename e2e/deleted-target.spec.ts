@@ -1,3 +1,4 @@
+import { detailDialog } from "./ui-actions.ts";
 import { createFixtureEntity } from "./entity-schema-support.ts";
 import { openDetailEditor } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
@@ -17,7 +18,7 @@ for(const kind of ["entity","task"] as const)test(`삭제된 ${kind}: 이전 변
     const metadata=structuredClone(historical.change);
     await mcp.call(`delete_${kind}`,{id:target!.id,expected_version:target!.version,change_note:"삭제 문맥 검증"});deleted=true;
     await page.goto(`/records/${historical.id}`);
-    const detail=page.locator("dialog.modal:not(.modal-confirm)[open]");
+    const detail=detailDialog(page);
     await expect(detail).toContainText("조회 불가");
     await detail.getByRole("button",{name:title,exact:true}).click();
     await expect(detail).toContainText("현재 항목을 조회할 수 없습니다.");

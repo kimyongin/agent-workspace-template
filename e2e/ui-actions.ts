@@ -1,8 +1,32 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+/** Visible overlay boundaries include the visually retained editor behind a modal confirmation. */
+export const executionDialog = (page: Page) => page.getByRole("dialog").filter({ has: page.getByRole("button", {
+  name: /^(등록|수정|중단|재개|복원|식별 정보 변경|연결|해제)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/,
+}) });
+export const detailDialog = (page: Page) => page.getByRole("dialog", { includeHidden: true }).filter({ visible: true }).filter({ hasNot: page.getByRole("heading", { name: /하시겠습니까\?$|^변경을 버릴까요\?$| 선택$/ }) });
+export const openDialogs = (page: Page) => page.getByRole("dialog", { includeHidden: true }).or(page.getByRole("alertdialog", { includeHidden: true })).filter({ visible: true });
+export const baseWorkspace = (page: Page) => page.getByRole("region", { name: "기본 작업 영역", exact: true });
+
+export const shortDialog = (page: Page) => page.getByRole("alertdialog").or(page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: /하시겠습니까\?$| 선택$/ }) }));
+export const listHeader = (page: Page) => page.getByRole("region").filter({ has: page.getByRole("textbox", { name: /^(자료 제목 검색|검색어)$/ }) }).last();
+
+/** Searchable type selection is exercised through the displayed domain label. */
+export async function chooseEntityType(page: Page, label?: string, scope: Page | Locator = page) {
+  const picker = scope.getByRole("combobox", { name: "자료 종류", exact: true });
+  await expect(picker).toBeEnabled();
+  await picker.click();
+  await picker.press("ArrowDown");
+  const option = label ? page.getByRole("option", { name: label, exact: true })
+    : page.getByRole("option").filter({ hasNotText: /^(자료 종류 선택|전체 자료)$/ }).first();
+  await expect(option).toBeVisible();
+  await option.click();
+}
+
+
 /** Close the visible visit through its available desktop tab or mobile dismissal. */
 export async function closeDetail(page: Page, title: string) {
-  const dialog = page.getByRole("dialog").filter({ visible: true }).filter({ has: page.getByRole("button", { name: /^(편집|저장)$/, exact: true }) });
+  const dialog = detailDialog(page);
   await expect(dialog).toBeVisible();
   const tabClose = page.getByRole("button", { name: `${title} 탭 닫기`, exact: true });
   if (await tabClose.isVisible()) await tabClose.click();
@@ -20,19 +44,19 @@ export async function saveOnce(page: Page, scope: Page | Locator = page, label =
     await requested.click();
     if ((label === "저장" || label === "추가" || label === "변경") && await final.isVisible()) await final.click();
   } else await final.click();
-  if (waitForWrite) await expect(page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/ }) }).getByRole("button", { disabled: true })).toHaveCount(0);
+  if (waitForWrite) await expect(executionDialog(page).getByRole("button", { disabled: true })).toHaveCount(0);
 }
 
 export async function discardEditor(page: Page) {
-  if (await page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/ }) }).isVisible()) {
+  if (await executionDialog(page).isVisible()) {
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/ }) })).toHaveCount(0);
+    await expect(executionDialog(page)).toHaveCount(0);
   }
   await page.keyboard.press("Escape");
 }
 
 export async function fillChangeMemo(page: Page, scope: Page | Locator, value: string) {
-  const memo = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/ }) }).getByLabel("기록 메모", { exact: true });
+  const memo = executionDialog(page).getByLabel("기록 메모", { exact: true });
   if (!await memo.isVisible()) await scope.getByRole("button", { name: /^저장$|^추가$/ }).click();
   await memo.fill(value);
 }
@@ -45,13 +69,8 @@ export async function beginTabAction(page: Page, label: string) {
     "검사 자료 추가": ["검사 자료", "검사 자료 추가"],
   };
   if (label === "검사 자료 추가") {
-    const header = page.locator(".main-tab-header");
-    const picker = header.getByLabel("자료 종류", { exact: true });
-    if (await picker.count() && !(await picker.inputValue())) {
-      await expect(picker).toBeEnabled();
-      const option = picker.locator('option[value]:not([value=""])').first();
-      await picker.selectOption(await option.getAttribute("value") ?? "");
-    }
+    const picker = page.getByRole("combobox", { name: "자료 종류", exact: true });
+    if (await picker.count() && /^(?:|전체 자료|자료 종류 선택)$/.test(await picker.inputValue())) await chooseEntityType(page);
     await page.getByRole("button", { name: /^(검사 자료.*|자료) 추가$/, exact: true }).click();
     return;
   }
@@ -67,12 +86,12 @@ export async function beginTabAction(page: Page, label: string) {
 
 /** Enter editing through the viewer, keeping the dialog and navigation context. */
 export async function openDetailEditor(page: Page) {
-  await page.getByRole("dialog").filter({ visible: true }).filter({ has: page.getByRole("button", { name: /^(편집|저장)$/, exact: true }) }).getByRole("button", {
+  await detailDialog(page).getByRole("button", {
     name: "편집",
     exact: true,
   }).click();
   await expect(
-    page.getByRole("dialog").filter({ visible: true }).filter({ has: page.getByRole("button", { name: /^(편집|저장)$/, exact: true }) }).getByRole("button", { name: "저장", exact: true }),
+    detailDialog(page).getByRole("button", { name: "저장", exact: true }),
   ).toBeVisible();
 }
 
@@ -83,9 +102,7 @@ export async function openListEditor(page: Page, title: string) {
 
 /** Main lists disclose first; full relation/workflow actions belong to the existing detail. */
 export async function openListDetail(page: Page, title: string) {
-  const list = page.locator(".workspace-list, .app-main > .activity-section").filter({
-    has: page.getByRole("button", { name: title, exact: true }),
-  });
+  const list = page.getByRole("region", { name: / 목록$/ }).filter({ has: page.getByRole("button", { name: title, exact: true }) }).first();
   const toggle = list.getByRole("button", { name: title, exact: true });
   if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
   await list.getByRole("link", { name: title + " 상세", exact: true }).click();
@@ -101,12 +118,9 @@ export async function openTabFilters(page: Page) {
 
 /** Enter a live scalar condition using the current type definition. */
 export async function setEntityCategory(page: Page, value: string) {
-  const header = page.locator(".main-tab-header");
-  const picker = header.getByLabel("자료 종류", { exact: true });
-  if (!(await picker.inputValue())) {
-    const option = picker.locator('option[value]:not([value=""])').first();
-    await picker.selectOption(await option.getAttribute("value") ?? "");
-  }
+  const header = page.getByRole("region").filter({ has: page.getByRole("combobox", { name: "자료 종류", exact: true }) }).last();
+  const picker = header.getByRole("combobox", { name: "자료 종류", exact: true });
+  if (/^(?:|전체 자료|자료 종류 선택)$/.test(await picker.inputValue())) await chooseEntityType(page, undefined, header);
   await openTabFilters(page);
   if (value) {
     if (!await header.getByLabel("조건 1 속성", { exact: true }).count()) {
@@ -120,8 +134,13 @@ export async function setEntityCategory(page: Page, value: string) {
 
 /** Reveal optional settings through their visible disclosure controls. */
 export async function revealSetting(control: import("@playwright/test").Locator) {
-  for (const details of await control.locator("xpath=ancestor::details").all()) {
-    if (await details.getAttribute("open") === null) await details.locator(":scope > summary").click();
+  const groups = await control.locator("xpath=ancestor::*[@data-slot='collapsible' or self::details]").all();
+  for (const group of groups) {
+    if (await group.getAttribute("data-slot") === "collapsible") {
+      if (await group.getAttribute("data-state") === "closed") {
+        await group.locator(":scope > [data-slot='collapsible-trigger']").click();
+      }
+    } else if (await group.getAttribute("open") === null) await group.locator(":scope > summary").click();
   }
 }
 
@@ -129,7 +148,9 @@ export async function revealSetting(control: import("@playwright/test").Locator)
 export async function chooseTag(page: Page, scope: Page | Locator, name: string, checked = true) {
   await scope.getByRole("button", { name: "태그 선택", exact: true }).click();
   const picker = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "선택 완료", exact: true }) });
-  await picker.getByRole("checkbox", { name, exact: true }).setChecked(checked);
+  const option = picker.getByRole("option", { name, exact: true });
+  await expect(option).toBeVisible();
+  if (await option.getAttribute("aria-checked") !== String(checked)) await option.click();
   await picker.getByRole("button", { name: "선택 완료", exact: true }).click();
   await expect(picker).toHaveCount(0);
 }

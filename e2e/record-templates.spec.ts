@@ -1,3 +1,4 @@
+import { executionDialog } from "./ui-actions.ts";
 import { scalarFixtureType } from "./entity-schema-support.ts";
 import { test, mcpClient, mcpTokenViaConsent } from "./support.ts";
 import { expect } from "@playwright/test";
@@ -55,7 +56,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     const title=unique("재시도 템플릿");
     await dialog.getByRole("textbox",{name:/^제목/}).fill(title);
     await dialog.getByRole("button",{name:"추가",exact:true}).click();
-    const confirmation=page.locator("dialog.modal-action[open]");
+    const confirmation=executionDialog(page);
     await expect(confirmation.getByLabel("기록 메모",{exact:true})).toHaveValue(`${title} 준비 등록`);
     await expect(confirmation.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);
     await confirmation.getByLabel("기록 메모",{exact:true}).fill("  내 메모\n");

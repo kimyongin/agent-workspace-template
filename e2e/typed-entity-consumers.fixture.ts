@@ -1,3 +1,5 @@
+import { chooseEntityType } from "./ui-actions.ts";
+import { executionDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entity, fixtureIdentity, fixtureSchema, fixtureType, id, stamp } from "./support/workspace-data.ts";
 import { openTabFilters } from "./ui-actions.ts";
@@ -94,7 +96,7 @@ test("typed list exposes current columns and AND filters, type switch clears onl
   }]);
   await page.getByLabel("정렬", { exact: true }).selectOption(JSON.stringify({ key: "prop_2", direction: "desc" }));
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
-  await page.getByLabel("자료 종류", { exact: true }).selectOption(second.id);
+  await chooseEntityType(page, second.label);
   const url = new URL(page.url());
   expect(url.searchParams.has("property_filters")).toBe(false);
   expect(url.searchParams.has("sort")).toBe(false);
@@ -151,7 +153,7 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
   await form.getByLabel("제목", { exact: false }).fill("임시 입력");
   await form.getByLabel("번호", { exact: true }).fill(archived.external_id);
   await form.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.locator("dialog.modal-action[open]")).toBeVisible();
+  await expect(executionDialog(page)).toBeVisible();
   await expect.poll(() => inputs.length).toBe(1);
   expect(inputs[0].properties).toEqual({ prop_1: "보존 이름", prop_2: 0, prop_3: null });
   expect(inputs[0].expected_version).toBe(1);
@@ -246,7 +248,7 @@ test(
     await form.getByRole("button", { name: "저장", exact: true }).click();
     await expect.poll(() => preparedInputs.length).toBe(1);
     expect(preparedInputs[0].properties).not.toHaveProperty("prop_1");
-    const confirmation = page.locator("dialog.modal-action[open]");
+    const confirmation = executionDialog(page);
     await expect(confirmation).toContainText("Auto");
     await confirmation.getByRole("button", { name: "등록하고 저장", exact: true }).click();
     await expect.poll(() => savedInputs.length).toBe(1);
@@ -304,7 +306,7 @@ for (const serverDefault of [true, false]) {
     await form.getByRole("button", { name: "저장", exact: true }).click();
     await expect.poll(() => preparedInputs.length).toBe(1);
     expect((preparedInputs[0].properties as Record<string, unknown>).prop_2).toBeNull();
-    await page.locator("dialog.modal-action[open]").getByRole("button", { name: "등록하고 저장", exact: true }).click();
+    await executionDialog(page).getByRole("button", { name: "등록하고 저장", exact: true }).click();
     await expect.poll(() => savedInputs.length).toBe(1);
     expect((savedInputs[0].properties as Record<string, unknown>).prop_2).toBeNull();
     await expect(form).not.toBeVisible();

@@ -1,3 +1,4 @@
+import { detailDialog } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail } from "./ui-actions.ts";
 // T02-2 완료 조건: 웹 작성 → MCP 조회·완료 → 웹 결과 확인, 그리고 반대 방향.
 import { expect } from "@playwright/test";
@@ -13,7 +14,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);
   await dialog.getByLabel("본문").fill("다음 주 회의용 초안 3쪽");
   await saveOnce(page,dialog,"추가");
-  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading", { name: title, exact:true })).toBeVisible();
+  await expect(detailDialog(page).getByRole("heading", { name: title, exact:true })).toBeVisible();
   const taskUrl = page.url();
 
   // 2. 에이전트 연결: 브라우저 동의 화면에서 승인
@@ -35,7 +36,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
 
   // 4. 웹에서 결과 확인
   await page.goto(taskUrl);
-  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByText("완료", { exact: true })).toBeVisible();
+  await expect(detailDialog(page).getByText("완료", { exact: true })).toBeVisible();
   const result=page.getByRole("button", { name: "초안 공유 완료", exact:true });await result.click();
   await expect(result).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(taskUrl);
   await expect(page.locator(".related-preview .markdown")).toContainText("초안 공유 완료");
@@ -94,7 +95,7 @@ test("다른 사용자는 URL을 알아도 남의 할 일을 볼 수 없다", as
   await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);
   await dialog.getByLabel("본문").fill("B에게 보이면 안 됨");
   await saveOnce(page,dialog,"추가");
-  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading", { name: title, exact:true })).toBeVisible();
+  await expect(detailDialog(page).getByRole("heading", { name: title, exact:true })).toBeVisible();
   const path = new URL(page.url()).pathname;
 
   const other = await browser.newContext();

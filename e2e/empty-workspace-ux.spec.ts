@@ -32,7 +32,7 @@ test("빈 계정에서 자료 준비와 모든 설정의 다음 행동을 찾고
   ) {
     await page.goto(path);
     await expect(page.getByRole("heading", { name: heading, exact: true, level: 1 })).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), heading).toBe(true);
     if (path.endsWith("records")) {
       const target = page.getByLabel("대상", { exact: true });

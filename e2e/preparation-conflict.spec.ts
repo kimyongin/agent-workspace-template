@@ -1,3 +1,4 @@
+import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { createFixtureEntity, fixtureEntityList, scalarFixtureType } from "./entity-schema-support.ts";
 import { expect } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
@@ -34,8 +35,8 @@ for (const model of ["entity", "task"] as const) {
         const inputLabel = model === "entity" ? "제목" : "제목";
         await page.goto(`/${list}/${encodeURIComponent(target!.id)}`);
         await openDetailEditor(page);
-        const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
-        const confirmation = page.locator("dialog.modal-action[open]");
+        const editor = detailDialog(page);
+        const confirmation = executionDialog(page);
         await editor.getByLabel(inputLabel, { exact: false }).fill(draft);
         if (stage === "write") {
           await editor.getByRole("button", { name: "저장", exact: true }).click();
@@ -71,7 +72,7 @@ for (const model of ["entity", "task"] as const) {
         await expect(confirmation).toHaveCount(0);
         await expect(editor.getByLabel(inputLabel, { exact: false })).toHaveValue(draft);
         await editor.getByRole("button", { name: "취소", exact: true }).click();
-        await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" })
+        await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" })
           .click();
         await expect(editor.locator(".detail-title")).toHaveText(latest);
         if (model === "task") {

@@ -1,3 +1,4 @@
+import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
@@ -103,7 +104,7 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
   expect(state.searches.at(-1)).not.toHaveProperty("entity_id");
   expect(new URL(page.url()).searchParams.get("q")).toBe("할");
   await go(page, `/records?entity_id=${encodeURIComponent(entityKey(1))}&from=2026-10-01&q=기록`);
-  await expect(page.locator(".records .list .item-title")).toBeVisible();
+  await expect(page.locator("[data-list-anchor]")).toBeVisible();
   expect(state.searches.at(-1)?.kinds).toEqual(["record"]);
   expect(state.searches.at(-1)?.from).toBeTruthy();
   expect(state.searches.at(-1)?.entity_id).toBe(entityKey(1));
@@ -302,7 +303,7 @@ for (const kind of ["tasks", "records"] as const) {
     await search.dispatchEvent("compositionstart");
     await search.fill("검");
     await search.press("Enter");
-    await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+    await expect(executionDialog(page)).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
     await search.fill("검색");
     await search.dispatchEvent("compositionend");
@@ -312,7 +313,7 @@ for (const kind of ["tasks", "records"] as const) {
     const selected = form(page).getByRole("list", { name: "선택한 자료", exact: true });
     await expect(selected.locator(".related-item")).toHaveCount(1);
     expect((await selected.boundingBox())!.y).toBeGreaterThan((await search.boundingBox())!.y);
-    await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+    await expect(executionDialog(page)).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
     if (kind === "tasks") {
       await expect(form(page).getByRole("heading", { name: "일정", exact: true })).toHaveCount(0);
@@ -369,15 +370,15 @@ for (const side of ["tasks", "entities"] as const) {
       await search.fill(side === "tasks" ? "자료" : "할 일");
       await search.press("Enter");
       expect(state.writes).toHaveLength(0);
-      await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+      await expect(executionDialog(page)).toHaveCount(0);
       const connect = form(page).getByRole("button", {
         name: side === "tasks" ? "자료 연결" : "할 일 연결",
         exact: true,
       }).last();
       await connect.click();
       await expect(form(page).getByLabel("기록 메모", { exact: true })).toHaveValue("할 일 수정");
-      await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveAttribute("data-original", "yes");
-      await expect(page.locator("dialog[open]")).toHaveCount(2);
+      await expect(detailDialog(page)).toHaveAttribute("data-original", "yes");
+      await expect(openDialogs(page)).toHaveCount(2);
       await form(page).getByRole("button", { name: "취소", exact: true }).click();
       expect(state.writes).toHaveLength(0);
       await connect.click();
@@ -407,7 +408,7 @@ for (const side of ["tasks", "entities"] as const) {
       ).toBe(true);
       await unlink.click();
       await form(page).getByRole("button", { name: "해제하고 저장", exact: true }).click();
-      await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+      await expect(executionDialog(page)).toHaveCount(0);
       await expect(unlink).toHaveCount(0);
       expect(state.writes.at(-1)?.body.entity_ids).toEqual([]);
       expect(state.rows.tasks).toHaveLength(1);
@@ -485,7 +486,7 @@ test("#187 연결 검색 IME·늦은 추가 페이지 격리와 다른 편집 �
   releaseTask();
   await form(page).getByRole("textbox", { name: "제목 (필수)" }).fill("보존할 편집");
   await page.waitForTimeout(100);
-  await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+  await expect(executionDialog(page)).toHaveCount(0);
   await expect(form(page).getByRole("textbox", { name: "제목 (필수)" })).toHaveValue("보존할 편집");
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
@@ -521,7 +522,7 @@ for (const side of ["tasks", "entities"] as const) {
     await expect(page).toHaveURL(
       new RegExp(`/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(82)) : id(82)}$`),
     );
-    await expect(page.locator("dialog[open]")).toHaveCount(1);
+    await expect(openDialogs(page)).toHaveCount(1);
     await form(page).getByRole("button", { name: /^이전:/ }).click();
     await expect(form(page).getByRole("searchbox", { name: `${label} 제목 검색` })).toHaveValue("후보");
     await expect(candidate).toBeFocused();

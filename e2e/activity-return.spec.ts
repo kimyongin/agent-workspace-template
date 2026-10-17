@@ -1,3 +1,4 @@
+import { detailDialog, executionDialog } from "./ui-actions.ts";
 import postgres from "postgres";
 import { generateDataId } from "../supabase/functions/_shared/contracts/data-id.ts";
 import { createFixtureEntity } from "./entity-schema-support.ts";
@@ -38,7 +39,7 @@ for (
       return item;
     };
     const editLoadedDetail = async (detailPath: string, heading: string) => {
-      const viewer = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+      const viewer = detailDialog(page);
       // Route and target rendering must agree before invoking an action from
       // the retained previous viewer during a related-detail transition.
       await expect.poll(() => new URL(page.url()).pathname).toBe(detailPath);
@@ -162,7 +163,7 @@ for (
       await expect(link).toHaveAttribute("aria-expanded","true");
       await openListDetail(page,title);
       await expect(page.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
-      const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
+      const view=detailDialog(page);
       const initialDetail=page.url(),entityToggle=view.getByRole("region",{name:/^연결된 자료/}).getByRole("button",{name:entity.title,exact:true});
       await entityToggle.click();await expect(entityToggle).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(initialDetail);
       const entityEdit=view.getByRole("link",{name:entity.title+" 상세",exact:true});await entityEdit.click();await editLoadedDetail(`/entities/${encodeURIComponent(entity.id)}`,entity.title);
@@ -198,7 +199,7 @@ for (
       await openListDetail(page,await link.innerText());
       await editLoadedDetail(`/${path}/${target.id}`,kind === "record" ? "기록" : title);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
-      await saveOnce(page,page.locator("dialog.modal-action[open]"),"삭제 확인");
+      await saveOnce(page,executionDialog(page),"삭제 확인");
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();

@@ -1,3 +1,4 @@
+import { executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListDetail } from "./ui-actions.ts";
@@ -68,7 +69,7 @@ for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"
     await expect(form(page).getByLabel("기록 메모")).toHaveValue("변경 초안 수정");
     await expect(form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^대상$/ }) }).locator("dd")).toHaveText("변경 초안");
     await expect(form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^작업$/ }) }).locator("dd")).toHaveText("수정");
-    await expect(page.locator("dialog[open]")).toHaveCount(2);
+    await expect(openDialogs(page)).toHaveCount(2);
     expect(state.writes).toHaveLength(0);
     const box = (await form(page).boundingBox())!;
     expect(box.height).toBeLessThan(844 - 32);
@@ -115,7 +116,7 @@ test("#181 일반 기록은 바로 저장하고 삭제만 작은 메모·태그 
   await form(page).getByRole("button", { name: "편집", exact: true }).click();
   await form(page).getByRole("button", { name: "삭제", exact: true }).click();
   await expect(form(page).getByLabel("기록 메모")).toBeVisible();
-  await expect(page.locator("dialog[open]")).toHaveCount(2);
+  await expect(openDialogs(page)).toHaveCount(2);
   await form(page).getByLabel("기록 메모").fill("중복 자료 삭제");
   await form(page).getByRole("button", { name: "삭제하고 기록", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(2);
@@ -190,7 +191,7 @@ test("할 일 보기에서 완료, 편집 초안은 닫기 확인으로 보호",
   await form(page).getByLabel("본문").fill("보존할 초안");
   await expect(form(page).getByRole("button", { name: "완료하고 기록", exact: true })).toHaveCount(0);
   await form(page).getByRole("button", { name: "닫기", exact: true }).click();
-  const discard = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
   await discard.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByLabel("본문")).toHaveValue("보존할 초안");
   await form(page).getByRole("button", { name: "닫기", exact: true }).click();
@@ -207,9 +208,9 @@ for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const
     await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1`);
     const before = state.writes.length;
     await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-    const confirm = page.locator("dialog.modal-action[open]");
+    const confirm = executionDialog(page);
     await expect(confirm.getByRole("button", { name: "삭제하고 기록", exact: true })).toBeVisible();
-    await expect(page.locator("dialog[open]")).toHaveCount(2);
+    await expect(openDialogs(page)).toHaveCount(2);
     expect(state.writes).toHaveLength(before);
     await expect(form(page).getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
     await confirm.getByRole("button", { name: "취소", exact: true }).click();
@@ -237,7 +238,7 @@ test("#229 할 일의 업무 단계가 직접 편집보다 우선하고 취소 �
   const url = new URL(page.url());
   expect(url.searchParams.get("tag_id")).toBe(id(9));
   expect(url.searchParams.has("edit")).toBe(false);
-  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(openDialogs(page)).toHaveCount(1);
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });

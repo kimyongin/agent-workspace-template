@@ -1,3 +1,4 @@
+import { listHeader } from "./ui-actions.ts";
 import {
   fixtureIdentity,
   fixtureSchema,
@@ -68,8 +69,8 @@ test("업무 메뉴와 프로필은 320~1440px와 200%에서 조작 가능하다
     const nav = page.getByRole("navigation", { name: "주 메뉴" });
     await expect(nav.getByRole("link")).toHaveCount(3);
     await expect(nav.getByRole("button", { name:"메뉴", exact:true })).toHaveCount(0);
-    await expect(page.locator(".workspace-header")).toHaveCount(1);
-    await expect(page.locator(".workspace-header")).toBeHidden();
+    await expect(page.locator("header")).toHaveCount(1);
+    await expect(page.locator("header")).toBeHidden();
     if(width>=1024)await expect(page.locator(".navigation-brand")).toBeVisible();
     else expect(await page.locator("#settings-title").evaluate(el => getComputedStyle(el,"::before").backgroundImage)).not.toBe("none");
     for (const size of await nav.locator(".bottom-nav-inner > a, .nav-profile-trigger").evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return [r.width, r.height]; }))) {
@@ -169,7 +170,7 @@ test("알 수 없는 아이콘은 기본값이며 계정 전환과 세션 만료
 test("미저장 설정의 탭·프로필·뒤로가기·로그아웃은 같은 폐기 확인을 거친다", async ({ page }) => {
   let logoutCalls = 0; await page.route("**/auth/v1/logout*", async route => { logoutCalls++; await route.fulfill({ status: 204 }); });
   await page.goto("/guide"); await settings(page); await page.getByRole("radio", { name: "별", exact: true }).check();
-  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   let step = 0;
   for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click(), async () => { await openProfile(page); await page.locator("#nav-profile-options").getByRole("link", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
     await requestLogout(page);
@@ -243,7 +244,7 @@ test("#215 메인 목록 탭의 상단 구획·브랜드·필터 조작은 좁�
       const border = await header.evaluate(el => getComputedStyle(el).borderBottomWidth);
       expect(border).toBe("1px");
       expect(await header.evaluate(el => getComputedStyle(el).paddingBottom)).toBe("20px");
-      await expect(page.locator(".workspace-header")).toBeHidden();
+      await expect(page.locator("header")).toBeHidden();
       if(width>=1024)await expect(page.locator(".navigation-brand")).toBeVisible();
       else {
         await expect(page.locator(".navigation-brand")).toBeHidden();
@@ -273,13 +274,13 @@ test("#215 메인 목록 탭의 상단 구획·브랜드·필터 조작은 좁�
   }
   await page.setViewportSize({ width: 320, height: 844 }); await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&filters=1&property_filters=%5B%7B%22key%22%3A%22prop_4%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22a%22%7D%5D");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  const toggle = page.getByRole("button", { name: /필터 닫기/ }), reset = page.locator(".main-tab-header").getByRole("button", { name: "조건 초기화" });
+  const toggle = page.getByRole("button", { name: /필터 닫기/ }), reset = listHeader(page).getByRole("button", { name: "조건 초기화" });
   const t = (await toggle.boundingBox())!, r = (await reset.boundingBox())!;
   expect(r.y >= t.y + t.height || r.x >= t.x + t.width).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.evaluate(() => document.documentElement.style.fontSize = "");
   await page.setViewportSize({ width: 1440, height: 280 });
-  await expect(page.locator(".workspace-header")).toBeHidden();
+  await expect(page.locator("header")).toBeHidden();
   await expect(page.locator(".navigation-brand")).toBeHidden();
 });
 

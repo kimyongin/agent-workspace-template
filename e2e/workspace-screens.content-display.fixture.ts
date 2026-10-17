@@ -48,7 +48,7 @@ for (const width of [390, 1440]) {
       "긴 본문 문단\n\n".repeat(200);
     await page.setViewportSize({ width, height: 800 });
     await go(page, `/tasks/${id(2)}`);
-    const body = form(page).locator(":scope > .modal-inner > .modal-body"), code = form(page).locator("pre");
+    const body = form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]"), code = form(page).locator("pre");
     await expect(code).toBeVisible();
     expect(
       await body.evaluate((el) => getComputedStyle(el).scrollbarWidth),

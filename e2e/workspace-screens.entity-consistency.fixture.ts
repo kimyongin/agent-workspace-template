@@ -1,3 +1,4 @@
+import { executionDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { fixtures, form, go, linkedFixture } from "./support/workspace-screens.ts";
 import { entityKey, fixtureIdentity, fixtureSchema, stamp } from "./support/workspace-data.ts";
@@ -89,7 +90,7 @@ test("schema retry preserves property input after a conflict", async ({ page }) 
       }),
   );
   await form(page).getByRole("button", { name: "저장", exact: true }).click();
-  const confirmation = page.locator("dialog.modal-action[open]");
+  const confirmation = executionDialog(page);
   await expect(confirmation).toContainText("속성 정의가 변경되었습니다");
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: fixtureSchema }));
@@ -214,7 +215,7 @@ test("entity pairs reflow at 200 percent and preserve keyboard editing and cance
   expect(await detail.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("zoom-200-edit.png") });
   await detail.getByRole("button", { name: "취소", exact: true }).click();
-  const discard = page.locator("dialog.modal-action[open]");
+  const discard = executionDialog(page);
   if (await discard.isVisible()) await discard.getByRole("button", { name: /버리|나가/ }).click();
   await expect(detail.getByRole("button", { name: "편집", exact: true })).toBeVisible();
   await expect(detail.locator("dd:visible", { hasText: /^0$/ })).toBeVisible();

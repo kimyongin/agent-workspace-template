@@ -1,3 +1,4 @@
+import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 // 디자인 가이드의 화면 검수 중 자동으로 확인할 수 있는 항목(docs/design/guide.md "화면 완료 체크리스트").
 // 화면 폭별 가로 넘침, 조작 영역 44px, 200% 확대(폭 절반), 키보드만으로 작성·닫기, 대화상자 초점.
@@ -65,7 +66,7 @@ test.describe("화면 폭별 배치", () => {
     await dialog.getByLabel("본문").fill("https://example.com/" + "a".repeat(120));
     await saveOnce(page, dialog, "추가");
     // 목록의 h1이 아니라 만든 할 일의 상세 화면이 뜰 때까지 기다린다(모달 뒤 목록 h1도 보이는 것으로 판정됨).
-    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading", { name: longTitle, exact: true })).toBeVisible();
+    await expect(detailDialog(page).getByRole("heading", { name: longTitle, exact: true })).toBeVisible();
     const taskDetail = page.url();
 
     // 기록 상세도 함께 본다.
@@ -83,8 +84,8 @@ test.describe("화면 폭별 배치", () => {
       await page.setViewportSize({ width, height: 900 });
       for (const path of ["/tasks", taskDetail, "/records", recordDetail,"/tags",`/search?q=${encodeURIComponent(longTitle)}&mode=keyword`]) {
         await page.goto(path);
-        const detail=page.locator("dialog.modal:not(.modal-confirm)[open]");
-        if(/\/(tasks|records)\/[^/?]+/.test(new URL(path,"http://fixture.invalid").pathname))await expect(detail.locator(".dialog-title")).toBeVisible();
+        const detail=detailDialog(page);
+        if(/\/(tasks|records)\/[^/?]+/.test(new URL(path,"http://fixture.invalid").pathname))await expect(detail.locator("[data-slot=\"dialog-title\"]")).toBeVisible();
         else await expect(page.getByRole("heading",{level:1})).toBeVisible();
         expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);
       }
@@ -144,7 +145,7 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).focus();
   await page.keyboard.type("키보드 할 일");
   await page.keyboard.press("Escape");
-  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await expect(confirm).toBeVisible();
   await expect(confirm.getByRole("button", { name: "취소" })).toBeFocused();
   await page.keyboard.press("Enter");
@@ -155,8 +156,8 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);
   await dialog.getByLabel("본문").fill("키보드로 만든 할 일");
   await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).focus();await page.keyboard.press("Enter");
-  await page.locator("dialog.modal-action[open]").getByRole("button",{name:"등록하고 저장",exact:true}).click();
-  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading", { name: title, exact: true })).toBeVisible();
+  await executionDialog(page).getByRole("button",{name:"등록하고 저장",exact:true}).click();
+  await expect(detailDialog(page).getByRole("heading", { name: title, exact: true })).toBeVisible();
 
 });
 

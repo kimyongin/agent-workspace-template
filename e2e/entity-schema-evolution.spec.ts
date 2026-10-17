@@ -37,7 +37,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
       "자료 이름",
     );
     await page.getByRole("button", { name: /^변경 이력/ }).click();
-    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "자료 이름 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true }),
     ).toHaveValue("자료 이름");

@@ -1,3 +1,4 @@
+import { executionDialog } from "./ui-actions.ts";
 import postgres from "postgres";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
@@ -221,7 +222,7 @@ test("manual tuple registration restores stored properties and links while ident
     await expect(page.getByText(name + " 수정", { exact: true }).first()).toBeVisible();
     await page.getByRole("button", { name: "편집", exact: true }).click();
     await page.getByRole("button", { name: "삭제", exact: true }).click();
-    const deletion = page.locator("dialog.modal-action[open]");
+    const deletion = executionDialog(page);
     await expect(deletion.getByLabel("기록 메모", { exact: true })).toHaveValue(
       "삭제 템플릿",
     );
@@ -399,7 +400,7 @@ test("late archived lookup preserves newer identity and same-identity property e
     "보관된 값 4",
   );
   await restore.getByRole("button", { name: "취소", exact: true }).click();
-  const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   if (await discard.isVisible()) {
     await discard.getByRole("button", { name: "변경 버리기", exact: true })
       .click();
@@ -492,7 +493,7 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
   );
   await form.getByRole("button", { name: "저장", exact: true }).click();
   const defaults = await (await prepared).json();
-  const confirmation = page.locator("dialog.modal-action[open]");
+  const confirmation = executionDialog(page);
   await expect(confirmation.getByLabel("기록 메모", { exact: true }))
     .toHaveValue(defaults.change_note);
   release();

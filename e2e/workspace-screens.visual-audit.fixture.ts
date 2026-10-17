@@ -1,3 +1,4 @@
+import { openDialogs } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entityKey, fixtureType, id, stamp } from "./support/workspace-data.ts";
 import { fixtures, go } from "./support/workspace-screens.ts";
@@ -158,17 +159,17 @@ for (const width of [390, 1440]) {
     const closeEditor = () =>
       width >= 1280
         ? page.getByRole("button", { name: "할 일 탭 닫기", exact: true }).click({ timeout: 5000 })
-        : page.locator("dialog[open]:visible").last().getByRole("button", { name: "닫기", exact: true }).click({
+        : openDialogs(page).last().getByRole("button", { name: "닫기", exact: true }).click({
           timeout: 5000,
         });
     await closeEditor();
-    const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
+    const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
     await expect(confirm).toBeVisible();
     await page.screenshot({ path: info.outputPath(`confirmation-${width}.png`) });
     await confirm.getByRole("button", { name: "취소", exact: true }).click();
     await expect(page.getByRole("textbox", { name: /^제목/ })).toHaveValue("보호할 변경 내용");
     await closeEditor();
-    await page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", {
+    await page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", {
       name: "변경 버리기",
       exact: true,
     }).click();

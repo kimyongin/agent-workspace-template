@@ -1,3 +1,4 @@
+import { executionDialog } from "./ui-actions.ts";
 import {
   fixtureEntityList,
   scalarFixtureType,
@@ -81,7 +82,7 @@ async function loseCommittedReply(page: Page, method: string, path: string, stat
   return {
     requests,
     async retry() {
-      const confirmation = page.locator("dialog.modal-action[open]");
+      const confirmation = executionDialog(page);
       await expect(confirmation).toContainText("저장 여부를 알 수 없습니다.");
       // Only minimal metadata survives outside the in-memory attempt.
       const persisted = await page.evaluate(() => {
@@ -152,7 +153,7 @@ test("committed task create, edit and delete survive a lost reply with one event
 
     await openDetailEditor(page);
     await page.getByRole("dialog", { name: "할 일 편집", exact: true }).getByRole("button", { name: "삭제", exact: true }).click();
-    const remove = page.locator("dialog.modal-action[open]");
+    const remove = executionDialog(page);
     await remove.getByLabel("기록 메모", { exact: true }).fill(unique("삭제 메모"));
     const lostDelete = await loseCommittedReply(page, "POST", `/tasks/${id}/delete`, 204);
     await saveOnce(page, remove, "삭제 확인");

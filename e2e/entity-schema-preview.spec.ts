@@ -48,7 +48,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await row.getByRole("button", { name: "보완값 지정", exact: true }).click();
     await row.getByRole("textbox", { name: "보완값", exact: true }).fill("01");
     await page.getByRole("link", { name: "할 일", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+    const dialog = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");

@@ -1,3 +1,4 @@
+import { listHeader } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListEditor, openTabFilters } from "./ui-actions.ts";
@@ -34,10 +35,10 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         page.locator(path.startsWith("/tags") ? "dialog[open]:not(.modal-confirm) .dialog-title" : ".page-title"),
       ).toBeVisible();
       if (!["/search", "/guide"].includes(path)) {
-        await expect(page.locator(".item-title").first()).toBeVisible();
+        await expect(page.locator("[data-list-anchor]").first()).toBeVisible();
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
-      if (await page.locator(".item-title").count()) {
+      if (await page.locator("[data-list-anchor]").count()) {
         const title = await typography(".item-title"),
           pageTitle = await typography(path.startsWith("/tags") ? ".dialog-title" : ".page-title");
         expect(pageTitle.size).toBeGreaterThan(title.size);
@@ -51,7 +52,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       }
       if (path === "/tasks") {
         const heading = page.locator(".related-item-title").first(),
-          title = heading.locator(".item-title"),
+          title = heading.locator("[data-list-anchor]"),
           edit = heading.locator(".activity-item-actions a");
         const t = (await title.boundingBox())!;
         await expect(edit).toHaveCount(0);
@@ -72,9 +73,9 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await form(page).getByRole("button", { name: "편집", exact: true }).click();
     await expect(form(page).getByRole("textbox", { name: /^본문/ })).toHaveValue("");
     await expect(form(page).getByRole("heading", { name: "메모", exact: true })).toHaveCount(0);
-    const head = await form(page).locator(".modal-head").boundingBox(),
-      body = await form(page).locator(":scope > .modal-inner > .modal-body").boundingBox(),
-      foot = await form(page).locator(".modal-foot").boundingBox();
+    const head = await form(page).locator("[data-slot=\"dialog-header\"]").boundingBox(),
+      body = await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").boundingBox(),
+      foot = await form(page).locator("[data-slot=\"dialog-footer\"], [data-slot=\"alert-dialog-footer\"]").boundingBox();
     expect(head!.y + head!.height).toBeLessThanOrEqual(body!.y);
     expect(body!.y + body!.height).toBeLessThanOrEqual(foot!.y + 1);
     await go(page, `/records/${id(3)}`);
@@ -88,7 +89,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const memo = form(page).locator(".record-content .markdown");
     await expect(memo).toBeVisible();
     expect(await memo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(
-      await form(page).locator(".dialog-title").evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+      await form(page).locator("[data-slot=\"dialog-title\"]").evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
     );
     await expect(form(page).getByRole("button", { name: "연결된 엔터티", exact: true })).toBeVisible();
     await expect(form(page).getByText("연결 당시 정보", { exact: true })).toHaveCount(0);
@@ -115,7 +116,7 @@ for (const width of [390, 1440]) {
       0,
     );
     expect((await top.getByLabel("자료 제목 검색", { exact: false }).boundingBox())!.x - topBox.x).toBeCloseTo(0);
-    expect((await bottom.locator(".item-title").first().boundingBox())!.x - listBox.x).toBeGreaterThanOrEqual(inset);
+    expect((await bottom.locator("[data-list-anchor]").first().boundingBox())!.x - listBox.x).toBeGreaterThanOrEqual(inset);
     await expect(bottom.getByRole("link", { name: "자료 상세", exact: true })).toHaveCount(0);
     await openListEditor(page, "자료");
     await expect(form(page).getByLabel("제목", { exact: false })).toHaveValue("자료");
@@ -133,7 +134,7 @@ for (const width of [390, 1440]) {
     await openListEditor(page, "할 일");
     await expect(form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ })).toHaveValue("할 일");
     await page.screenshot({ path: info.outputPath(`edit-task-${width}.png`) });
-    const head = form(page).locator(".modal-head"), body = form(page).locator(":scope > .modal-inner > .modal-body");
+    const head = form(page).locator("[data-slot=\"dialog-header\"]"), body = form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]");
     expect(
       await head.evaluate((el) => getComputedStyle(el).paddingLeft),
     ).toBe(width < 640 ? "16px" : "24px");
@@ -229,7 +230,7 @@ test("#203 320px·200% 펼친 연결 조작과 메인 목록이 넘치지 않음
   await page.evaluate(() => document.documentElement.style.zoom = "2");
   await form(page).getByRole("button", { name: "할 일", exact: true }).click();
   await expect(form(page).getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
-  expect(await form(page).locator(".modal-body").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  expect(await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   for (const button of await form(page).locator(".related-item-actions :is(button,a)").all()) {
     const rect = (await button.boundingBox())!;
     expect(rect.x).toBeGreaterThanOrEqual(0);
@@ -260,12 +261,12 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     if (width < 640) {
       expect(dimensions.width).toBe(width);
     }
-    await form(page).locator(":scope > .modal-inner > .modal-body").evaluate((el) => {
+    await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => {
       el.scrollTop = el.scrollHeight;
     });
     await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
     await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
-    await form(page).locator(":scope > .modal-inner > .modal-body").evaluate((el) => {
+    await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => {
       el.scrollTop = 0;
     });
     await compatibleEdit(page);
@@ -274,7 +275,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.keyboard.press("Tab");
     await page.screenshot({ path: info.outputPath(`surface-${width}.png`) });
     await discardEditor(page);
-    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible();
+    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
     expect(state.errors).toEqual([]);
   });
 }
@@ -412,7 +413,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         expect(field.right).toBeLessThanOrEqual(width);
       }
       if (kind !== "entities") expect(inputs[0].y).toBeCloseTo(inputs[1].y);
-      else await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
+      else await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
       const filterBottom = (await grid.boundingBox())!;
       expect((await page.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true }).boundingBox())!.y).toBeGreaterThanOrEqual(
         filterBottom.y + filterBottom.height,
@@ -448,7 +449,7 @@ for (const width of [320, 1440]) {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, "/tags/entity");
-    const body = form(page).locator(".modal-body"),
+    const body = form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]"),
       editor = form(page).getByRole("form", { name: "태그 추가", exact: true }),
       input = editor.getByRole("textbox"),
       box = (await input.boundingBox())!,
@@ -479,7 +480,7 @@ for (const width of [320, 390, 639, 640]) {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, "/entities");
-    const header = page.locator(".main-tab-header");
+    const header = listHeader(page);
     const picker = header.getByLabel("자료 종류", { exact: true });
     const search = header.getByLabel("자료 제목 검색", { exact: true });
     expect((await picker.boundingBox())!.y + (await picker.boundingBox())!.height).toBeLessThan((await search.boundingBox())!.y);

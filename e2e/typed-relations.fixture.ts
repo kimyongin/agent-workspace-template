@@ -1,3 +1,4 @@
+import { executionDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
@@ -123,9 +124,9 @@ test(
     await single.getByRole("button", { name: "새 주문 연결", exact: true }).click();
     await page.getByRole("button", { name: "수정하고 저장", exact: true }).click();
     await expect(
-      page.locator("dialog.modal-action[open]").getByRole("button", { name: "같은 내용 다시 시도", exact: true }),
+      executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true }),
     ).toBeVisible();
-    await page.locator("dialog.modal-action[open]").getByRole("button", { name: "같은 내용 다시 시도", exact: true })
+    await executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true })
       .click();
     await expect(single.getByRole("link", { name: "새 주문", exact: true })).toBeVisible();
     expect(writes.length).toBe(2);

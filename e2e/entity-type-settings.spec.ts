@@ -19,7 +19,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue("");
     await creation.getByRole("radio", { name: "별", exact: true }).check();
     await page.getByRole("link", { name: "할 일", exact: true }).click();
-    const initialConfirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+    const initialConfirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await expect(initialConfirm).toBeVisible();
     await initialConfirm.getByRole("button", { name: "취소", exact: true }).click();
     await creation.getByRole("button", { name: "변경 취소", exact: true }).click();
@@ -58,7 +58,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     const changedLabel = unique("이름 변경");
     await page.getByLabel("자료 종류 이름", { exact: true }).fill(changedLabel);
     await page.getByRole("link", { name: "종류 추가", exact: true }).click();
-    const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+    const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button", { name: "취소", exact: true }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(changedLabel);

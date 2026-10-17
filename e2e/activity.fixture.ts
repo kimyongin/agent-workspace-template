@@ -1,3 +1,4 @@
+import { detailDialog } from "./ui-actions.ts";
 import { entity as makeEntity, fixtureType, fixtureSchema, entityKey } from "./support/workspace-data.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import { openListEditor, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
@@ -175,7 +176,7 @@ test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하�
   expect(patches).toBe(0);
   await saveOnce(page,page);
   await expect(page.getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toBeVisible();
-  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveCount(1);
+  await expect(detailDialog(page)).toHaveCount(1);
   fail=false;
   await page.getByRole("button",{name:"조회 다시 시도",exact:true}).click();
   await expect(page.getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toHaveCount(0);
@@ -326,15 +327,15 @@ for (const kind of ["records","tasks"]) {
     await expect(confirm).toBeVisible();
     await page.getByRole("button",{name:"변경 버리기",exact:true}).click();
     await expect(page).toHaveURL(new RegExp(`/${kind}/${id(1)}\\?fixture=next$`));
-    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveCount(1);
-    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("button",{name:"편집",exact:true})).toBeVisible();
+    await expect(detailDialog(page)).toHaveCount(1);
+    await expect(detailDialog(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();
     await expect(page.getByLabel("fixture 현재 경로",{exact:true})).toHaveText(`/${kind}/${id(1)}?fixture=next`);
     item.body="새 서버 원문";
     await page.goBack();
     await expect(page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/})).toHaveValue("새 서버 원문");
     await page.goForward();
     await expect(page).toHaveURL(/fixture=next/);
-    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveCount(1);
+    await expect(detailDialog(page)).toHaveCount(1);
   });
 }
 for(const kind of ["records","tasks"]){

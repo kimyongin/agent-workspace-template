@@ -1,3 +1,4 @@
+import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
@@ -62,7 +63,7 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
       deletes++;arrived();await hold;const response=await route.fetch();await route.fulfill({response});finished();
     });
     await page.getByRole("button",{name:`${tag.name} 삭제`,exact:true}).click();
-    const confirm=page.locator("dialog.modal-action[open]");
+    const confirm=executionDialog(page);
     await confirm.getByRole("button",{name:"삭제하고 기록",exact:true}).click();await waiting;
     await page.goBack();await expect(page).toHaveURL(/settings\/tags\?scope=record$/);await expect(confirm).toBeVisible();
     await expect(confirm.getByRole("button",{name:"삭제 중…"})).toBeDisabled();
@@ -85,12 +86,12 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       if(kind==="entity")await form.getByLabel("제목").fill(title);else{await form.getByLabel("본문").fill(title);}
       await chooseTag(page, form, name);await saveOnce(page,form);
       await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/(?:entities\/[^/?]+%3A|records\/)[0-9]{8}-[0-9A-Z]{8}(?:\?|$)/);
-      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:"기록",level:1})).toBeVisible();const id=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
+      if(kind==="entity")await expect(detailDialog(page).getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:"기록",level:1})).toBeVisible();const id=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([tag.id]);
       const tagRegion=page.getByRole("region",{name:"태그 연결"});
       await tagRegion.getByRole("button",{name:`${name} 연결 해제`,exact:true}).click();
       await tagRegion.getByRole("button",{name:"연결 적용",exact:true}).click();
-      if(kind==="entity")await page.locator("dialog.modal-action[open]").getByRole("button",{name:"연결하고 저장",exact:true}).click();
+      if(kind==="entity")await executionDialog(page).getByRole("button",{name:"연결하고 저장",exact:true}).click();
       await expect(tagRegion.getByText("태그 연결을 저장했습니다.",{exact:true})).toBeVisible();
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
       await openDetailEditor(page);const edit=page.getByRole("dialog",{name:kind==="entity"?/^검사 자료.* 편집$/:"기록 편집"});
@@ -106,7 +107,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       await page.getByRole("button",{name:"닫기",exact:true}).click();await openTabFilters(page);await expect(page.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
-      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
+      if(kind==="entity")await expect(detailDialog(page).getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
     }
   }finally{await mcp.close();}
 });
@@ -120,7 +121,7 @@ test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=
     const list=await mcp.call("list_tags",{limit:100});const tag=list.items.find((t:{name:string})=>t.name===title);
     const renamed=unique("정정").slice(0,30);await mcp.call("rename_tag",{id:tag.id,expected_version:1,name:renamed});
     await page.reload();await page.getByRole("button",{name:`${renamed} 삭제`,exact:true}).click();
-    await page.locator("dialog.modal-action[open]").getByRole("button",{name:"삭제하고 기록",exact:true}).click();
+    await executionDialog(page).getByRole("button",{name:"삭제하고 기록",exact:true}).click();
     await expect(page.getByRole("button",{name:`${renamed} 삭제`,exact:true})).toHaveCount(0);
     const focusTargets = page.getByRole("heading", { name: "기록 태그 관리", exact: true })
       .or(page.getByRole("button", { name: / 이름 변경$/ }));
@@ -139,7 +140,7 @@ test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 
     const tagRegion=page.getByRole("region",{name:"태그 연결"});
     await tagRegion.getByRole("button",{name:`${tag.name} 연결 해제`,exact:true}).click();
     await tagRegion.getByRole("button",{name:"연결 적용",exact:true}).click();
-    await page.locator("dialog.modal-action[open]").getByRole("button",{name:"연결하고 저장",exact:true}).click();
+    await executionDialog(page).getByRole("button",{name:"연결하고 저장",exact:true}).click();
     await expect(tagRegion.getByText("태그 연결을 저장했습니다.",{exact:true})).toBeVisible();
     expect((await mcp.call("get_task",{id})).tag_ids).toEqual([]);
     const beforeRestore=await mcp.call("get_task",{id});
@@ -216,13 +217,13 @@ test("#370 MCP 태그 생성·정정 뒤 유지한 웹 목록과 상세가 최�
     await expect(list.locator('[aria-label="태그"]').getByText(name, { exact: true })).toBeVisible();
     await expect(list.getByText("삭제된 태그", { exact: true })).toHaveCount(0);
     await openListDetail(page, title);
-    await expect(page.locator("dialog.modal[open]").getByText(name, { exact: true })).toBeVisible();
+    await expect(openDialogs(page).getByText(name, { exact: true })).toBeVisible();
     await closeDetail(page, title);
     const renamed = unique("외부 정정").slice(0, 30);
     await mcp.call("rename_tag", { id: tag.id, expected_version: 1, name: renamed });
     // Revisit the already-expanded item without changing filters or toggling its preview.
     await openListDetail(page, title);
-    await expect(page.locator("dialog.modal[open]").getByText(renamed, { exact: true })).toBeVisible();
+    await expect(openDialogs(page).getByText(renamed, { exact: true })).toBeVisible();
     if (!isMobile) await expect(list.locator('[aria-label="태그"]').getByText(renamed, { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath("tag-refresh-fixed.png"), fullPage: true });
     await closeDetail(page, title);

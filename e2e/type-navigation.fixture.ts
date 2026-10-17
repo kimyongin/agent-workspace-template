@@ -1,3 +1,5 @@
+import { chooseEntityType } from "./ui-actions.ts";
+import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { fixtureIdentity } from "./support/workspace-data.ts";
 import { expect, test } from "@playwright/test";
 import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
@@ -153,7 +155,7 @@ test("모든 페이지의 자료 종류가 목록과 생성 폼 및 종류 설�
     "보관 자료",
   ]);
   await page.goto(`/entities?entity_type_id=${products.id}&create=1`);
-  const form = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+  const form = detailDialog(page);
   await expect(form.getByLabel("자료 종류", { exact: true }).locator("option")).toContainText(["재료", "상품"]);
   await page.goto("/settings/entity-types");
   await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
@@ -171,14 +173,14 @@ test("typed shortcut and profile access preserve canonical list filters and Back
     "aria-current",
     "page",
   );
-  await page.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
+  await chooseEntityType(page, products.label);
   await expect(page).toHaveURL(new RegExp(`entity_type_id=${products.id}`));
   expect(new URL(page.url()).searchParams.get("keyword")).toBe("한글");
   expect(new URL(page.url()).searchParams.get("tag_id")).toBe("tag");
   expect(new URL(page.url()).searchParams.has("sort")).toBe(false);
   expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
   await page.goBack();
-  await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.id);
+  await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.label);
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await expect(page.locator("#nav-profile-options").getByRole("link", { name: "원칙", exact: true })).toHaveCount(0);
   await page.locator("#nav-profile-options").getByRole("link", { name: "전체 자료", exact: true }).click();
@@ -204,14 +206,14 @@ test("typed creation requires selection and protects drafts before changing kind
   await form.getByRole("button", { name: "저장", exact: true }).click();
   await expect(form.getByText("자료 종류와 속성 정의를 확인하세요", { exact: true })).toBeVisible();
   await expect(form.getByLabel("자료 종류", { exact: true })).toBeFocused();
-  await form.getByLabel("자료 종류", { exact: true }).selectOption(materials.id);
+  await chooseEntityType(page, materials.label, form);
   form = page.getByRole("dialog", { name: "재료 추가", exact: true });
   await form.getByLabel("이름", { exact: false }).fill("보존할 초안");
-  await form.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
-  const confirmation = page.getByRole("dialog", { name: "자료 종류를 바꿀까요?", exact: true });
+  await chooseEntityType(page, products.label, form);
+  const confirmation = page.getByRole("alertdialog", { name: "자료 종류를 바꿀까요?", exact: true });
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form.getByLabel("이름", { exact: false })).toHaveValue("보존할 초안");
-  await form.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
+  await chooseEntityType(page, products.label, form);
   await confirmation.getByRole("button", { name: "종류 변경", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "상품 추가", exact: true }).getByLabel("이름", { exact: false }))
     .toHaveValue("");
@@ -225,7 +227,7 @@ test("settings profile route keeps drafts and treats settings as account locatio
   );
   await page.getByLabel("닉네임", { exact: true }).fill("자료 번호 초안");
   await page.getByRole("link", { name: "할 일", exact: true }).click();
-  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
+  await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
     .click();
   await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue(
     "자료 번호 초안",
@@ -258,7 +260,7 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   await page.reload();
   await expect(shortcuts).toHaveCount(4);
   await expect(page.locator(".entity-type-picker").getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
-  await page.getByLabel("자료 종류", { exact: true }).selectOption(items[9].id);
+  await chooseEntityType(page, items[9].label);
   await expect(page.getByRole("heading", { name: "추가 종류 7", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   const menu = page.locator("#nav-profile-options");
@@ -329,7 +331,7 @@ test("a late old type list cannot replace current rows", async ({ page }) => {
   });
   await page.goto(`/entities?entity_type_id=${materials.id}`);
   await arrived;
-  await page.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
+  await chooseEntityType(page, products.label);
   await expect(page.getByRole("button", { name: "상품 결과", exact: true })).toBeVisible();
   release();
   await expect(page.getByRole("button", { name: "재료 결과", exact: true })).toHaveCount(0);
@@ -342,7 +344,7 @@ test("IME search preserves the selected type and current keyword after switching
   await input.dispatchEvent("compositionstart");
   await input.fill("새 검색");
   expect(new URL(page.url()).searchParams.get("keyword")).toBe("기존");
-  await page.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
+  await chooseEntityType(page, products.label);
   await input.dispatchEvent("compositionend");
   await expect.poll(() => new URL(page.url()).searchParams.get("keyword")).toBe("새 검색");
   expect(new URL(page.url()).searchParams.get("entity_type_id")).toBe(products.id);
@@ -413,7 +415,7 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
   const form = page.getByRole("dialog", { name: "재료 추가", exact: true });
   await form.getByLabel("이름", { exact: false }).fill("새 재료");
   await form.getByRole("button", { name: "저장", exact: true }).click();
-  const action = page.locator("dialog.modal-action[open]");
+  const action = executionDialog(page);
   await action.getByRole("button", { name: "등록하고 저장", exact: true }).click();
   await arrived;
   await page.goBack();
@@ -456,7 +458,7 @@ test("clean settings navigation proceeds while initial record templates are stil
       exact: true,
     }).click();
     await expect(page).toHaveURL(/\/settings\/materials$/, { timeout: 1500 });
-    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true })).toHaveCount(0);
   } finally {
     release();
   }
@@ -511,7 +513,7 @@ test("type selection remains scoped while a returned list catalog is loading", a
     await closeDetail(page, entity.title);
     await arrived;
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${materials.id}`));
-    await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.id);
+    await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.label);
     await expect(page.getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
   } finally {
     release();
@@ -751,7 +753,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     await expect(name).toHaveValue("保持する下書き");
     await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
     await form.getByRole("button", { name: "저장", exact: true }).click();
-    const confirmation = page.locator("dialog.modal-action[open]");
+    const confirmation = executionDialog(page);
     await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeEnabled();
     expect(preparations).toHaveLength(1);
     expect(preparations[0]).toMatchObject({
@@ -852,9 +854,9 @@ test("materials workspace keeps basic drafts while history opens and guards type
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await expect(page.getByRole("button", { name: /^기본 정보(?! 저장)/ })).toContainText("미저장");
   await page.getByRole("button", { name: /^변경 이력/ }).click();
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
   await page.getByLabel("자료 종류 선택", { exact: true }).selectOption(products.id);
-  const confirmation = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const confirmation = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await expect(confirmation).toBeVisible();
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(materials.id);
@@ -943,7 +945,7 @@ test(
     await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(saved.id);
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();
-    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
     await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)").check();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
@@ -982,7 +984,7 @@ for (const existing of [materials, retired]) {
       await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
       await name.fill("저장하지 않은 새 종류");
       await selector.selectOption(existing.id);
-      const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
+      const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
       await confirm.getByRole("button", { name: "취소", exact: true }).click();
       await expect(name).toHaveValue("저장하지 않은 새 종류");
       await expect(selector).toHaveValue("");

@@ -1,3 +1,4 @@
+import { listHeader } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 import { openDetailEditor, openListDetail, openListEditor, openTabFilters } from "./ui-actions.ts";
@@ -58,7 +59,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true })).toBeHidden();
       await expect(filters.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true })).toBeHidden();
       await expect(filters.getByRole("combobox")).toHaveCount(0);
-      if (kind === "entities") await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
+      if (kind === "entities") await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
       await expect(page.locator(".list .related-item").first()).toBeVisible();
       const beforeReads = reads;
       await summary.focus();
@@ -213,7 +214,7 @@ test("기록 기간 변경과 잘못된 범위는 할 일을 재조회하지 않
     return route.fulfill({ json: { items: [task(2)], next_cursor: null } });
   });
   await go(page, "/records");
-  await expect(page.locator(".records .list .item-title")).toBeVisible();
+  await expect(page.locator("[data-list-anchor]")).toBeVisible();
   expect(tasks).toBe(0);
   await openTabFilters(page);
   await page.getByLabel("기록 종료일", { exact: true }).fill("2026-10-05");
@@ -223,7 +224,7 @@ test("기록 기간 변경과 잘못된 범위는 할 일을 재조회하지 않
   await page.getByLabel("기록 시작일", { exact: true }).fill("2026-10-06");
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("이전 유효 기간");
-  await expect(page.locator(".records .list .item-title")).toHaveText("기록");
+  await expect(page.locator("[data-list-anchor]")).toHaveText("기록");
   await expect(page.locator(".tasks")).toHaveCount(0);
   expect(reads).toHaveLength(2);
   expect(tasks).toBe(0);
@@ -269,7 +270,7 @@ test("늦은 다른 탭 페이지는 기록 날짜·페이지·검색 초안과 
   await expect(date).toHaveValue("2026-10-01");
   await expect(date).toBeFocused();
   await expect(input).toHaveValue("아직 조합 중인 초안");
-  await expect(page.locator(".records .list .item-title")).toHaveCount(2);
+  await expect(page.locator("[data-list-anchor]")).toHaveCount(2);
   await expect(page.locator(".tasks")).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });
@@ -541,9 +542,9 @@ test("#211 기록 필터·날짜 그룹·표시·편집은 계정 시간대로 �
   await saveOnce(page, form(page));
   await expect.poll(() => state.writes[0]?.body.occurred_at).toBe("2026-10-07T23:15:22.123Z");
   await go(page, "/tasks");
-  await expect(page.locator(".list .item-title").first()).toBeVisible();
+  await expect(page.locator("[data-list-anchor]").first()).toBeVisible();
   await page.getByRole("button", { name: "할 일 등록", exact: true }).click();
-  await form(page).getByRole("radio", { name: "반복", exact: true }).check();
+  await form(page).getByRole("button", { name: "반복", exact: true }).click();
   await expect(form(page).getByLabel("시간대", { exact: false })).toHaveValue("America/New_York");
   expect(state.errors).toEqual([]);
 });

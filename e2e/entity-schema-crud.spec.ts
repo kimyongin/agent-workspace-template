@@ -1,3 +1,4 @@
+import { executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
 import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
@@ -94,8 +95,8 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     });
     await analyzeAndApply(mcp, typeId!, next.id, next.version);
     await stale.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.locator("dialog.modal-action[open]").getByRole("alert")).toBeVisible();
-    await page.locator("dialog.modal-action[open]").getByRole("button", { name: "취소", exact: true }).click();
+    await expect(executionDialog(page).getByRole("alert")).toBeVisible();
+    await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
     await expect(stale.getByLabel("이름", { exact: false })).toHaveValue("실패해도 보존할 초안");
     expect((await mcp.call("get_entity", { id: entityId })).properties.prop_1).toBe(updatedTitle);
     await stale.getByRole("button", { name: "입력 항목 정의 다시 조회", exact: true }).click();

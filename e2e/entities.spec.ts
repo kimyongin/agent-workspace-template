@@ -1,3 +1,4 @@
+import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 import { entity as makeEntity, fixtureSchema, fixtureType } from "./support/workspace-data.ts";
 import {
@@ -33,7 +34,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
   await form.getByLabel("날짜").fill("2024-02-29");
   await form.getByLabel("분류").selectOption("b");
   await form.getByRole("button", { name: "닫기", exact: true }).click();
-  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole(
+  await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole(
     "button",
     { name: "취소", exact: true },
   ).click();
@@ -59,7 +60,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await openTabFilters(page);
     await page.getByLabel("자료", { exact: true }).selectOption(id);
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
-    await expect(page.locator(".list .item-title")).toHaveCount(1);
+    await expect(page.locator("[data-list-anchor]")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
     const detailRead = page.waitForRequest((request) =>
       request.method() === "GET" &&
@@ -72,7 +73,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await closeDetail(page, task.title);
     await expect(page.getByRole("link", { name: task.title, exact: true })).toBeFocused();
     await page.reload();
-    await expect(page.locator(".list .item-title")).toHaveCount(1);
+    await expect(page.locator("[data-list-anchor]")).toHaveCount(1);
     expect(
       (await mcp.call("search", { query: task.title, entity_id: id, mode: "keyword", kinds: ["task"] })).items.map((
         x: { id: string },
@@ -106,11 +107,11 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.goto(`/entities/${encodeURIComponent(id)}`);
     await openDetailEditor(page);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
-    const remove = page.locator("dialog.modal-action[open]");
+    const remove = executionDialog(page);
     await remove.getByRole("button", { name: "취소", exact: true }).click();
-    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("제목")).toHaveValue(name);
+    await expect(detailDialog(page).getByLabel("제목")).toHaveValue(name);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
-    await saveOnce(page, page.locator("dialog.modal-action[open]"), "삭제 확인");
+    await saveOnce(page, executionDialog(page), "삭제 확인");
     await expect(
       page.getByRole("heading", { name: "전체 자료", level: 1, exact: true }),
     )
@@ -140,7 +141,7 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       if (dirty) await editor.getByLabel("본문").fill("취소할 설명");
       await editor.getByRole("button", { name: "취소", exact: true }).click();
       if (dirty) {
-        await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" })
+        await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" })
           .click();
       }
       await expect(page).not.toHaveURL(/create=/);
@@ -297,7 +298,7 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     ids.push((await createFixtureEntity(mcp, { prop_1: `${marker} 동시 추가`, prop_2: 0 })).id);
     await closeDetail(page, `${marker} 19`);
     await expect(anchor).toBeFocused();
-    await expect(page.locator(".list .item-title")).toHaveCount(40);
+    await expect(page.locator("[data-list-anchor]")).toHaveCount(40);
     const more = page.getByRole("button", { name: "더 보기", exact: true });
     // A refresh retains old rows; measure append requests after it finishes.
     await expect(more).toHaveAttribute("aria-disabled", "false");
@@ -317,7 +318,7 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     await more.scrollIntoViewIfNeeded();
     const y = await page.evaluate(() => window.scrollY);
     await more.click();
-    await expect(page.locator(".list .item-title")).toHaveCount(60);
+    await expect(page.locator("[data-list-anchor]")).toHaveCount(60);
     await expect(more).toBeFocused();
     expect(cursors).toHaveLength(1);
     expect(new URL(page.url()).searchParams.get("pages")).toBe("3");
@@ -329,13 +330,13 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     await more.click();
     const retry = page.getByRole("button", { name: "다시 시도", exact: true });
     await expect(retry).toBeFocused();
-    await expect(page.locator(".list .item-title")).toHaveCount(60);
+    await expect(page.locator("[data-list-anchor]")).toHaveCount(60);
     // The notice changes document height; browser scroll anchoring should keep the button in place.
     await expect(retry).toBeInViewport();
     expect(Math.abs((await retry.boundingBox())!.y - retryBox.y)).toBeLessThan(2);
     await retry.click();
     const done = page.getByRole("button", { name: "모두 불러왔습니다", exact: true });
-    await expect(page.locator(".list .item-title")).toHaveCount(62);
+    await expect(page.locator("[data-list-anchor]")).toHaveCount(62);
     await expect(done).toBeFocused();
     await expect(done).toHaveAttribute("aria-disabled", "true");
     expect(cursors).toHaveLength(3);
@@ -374,7 +375,7 @@ test("#396 material creation and editing explain schema bounds before memo confi
       await form.getByRole("button", { name: "저장", exact: true }).click();
       await expect(form).toContainText(message);
       await expect(form.getByLabel("수량", { exact: true })).toBeFocused();
-      await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+      await expect(executionDialog(page)).toHaveCount(0);
     }
     await form.getByLabel("수량", { exact: true }).fill("0");
     await saveOnce(page, form);
