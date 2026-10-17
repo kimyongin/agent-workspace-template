@@ -19,7 +19,7 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { addDays, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge } from "./shared.tsx";
-import {TagNames} from "../tags/TagPicker.tsx";
+import { TagConnections } from "../tags/TagConnections.tsx";
 import {TaskEntityRelations} from "../entity/TaskEntityRelations.tsx";
 
 const WEEKDAY_NAMES = ["", "월", "화", "수", "목", "금", "토", "일"];
@@ -157,7 +157,7 @@ export function TaskDetailPage() {
             </div>
           )}
         </dl>
-        <TagNames scope="task" compact ids={task.tag_ids}/>
+        <TagConnections scope="task" target={task} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
         {task.kind==="once"&&task.status==="done"&&!task.result_record&&<p className="secondary">결과 기록이 삭제되었습니다.</p>}
       </section>
 
