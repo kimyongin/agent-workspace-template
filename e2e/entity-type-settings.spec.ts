@@ -94,7 +94,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     expect(renamed.schema_version).toBe(3);
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await history.getByRole("button", { name: /^변경 이력/ }).click();
-    const row = history.locator('[data-slot="item"]').filter({ hasText: "버전 1 · 적용됨" });
+    const row = history.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({ hasText: "버전 1 · 적용됨" });
     await expect(row).toHaveCount(1);
     await row.getByRole("button", { name: /^최초 생성/ }).click();
     await expect(page).toHaveURL(/schema_version=1/);
