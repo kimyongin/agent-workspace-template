@@ -1,7 +1,7 @@
 import { executionDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { fixtures, form, go, linkedFixture } from "./support/workspace-screens.ts";
-import { entityKey, fixtureIdentity, fixtureSchema, stamp } from "./support/workspace-data.ts";
+import { entityKey, fixtureIdentity, fixtureSchema, id, stamp } from "./support/workspace-data.ts";
 
 for (const width of [390, 1440]) {
   test(`entity title is shown once with readable properties at ${width}`, async ({ page }) => {
@@ -31,6 +31,46 @@ test("deleted entity related task retains standard preview and detail navigation
   await expect(form(page)).toContainText("상세 본문");
   expect(state.writes).toHaveLength(0);
 });
+
+for (const outcome of ["success", "failed"] as const) {
+  test(`related entity properties retain schema loading, ${outcome} and retry states`, async ({ page }) => {
+    const state = await fixtures(page);
+    linkedFixture(state);
+    let release!: () => void, started!: () => void, failed = outcome === "failed";
+    const held = new Promise<void>(resolve => release = resolve);
+    const arrived = new Promise<void>(resolve => started = resolve);
+    await page.route("**/api/entity-types/*/schema?schema_version=1", async route => {
+      started();
+      await held;
+      await route.fulfill(failed
+        ? { status: 503, json: { code: "unavailable", message: "속성 정의 일시 실패" } }
+        : { json: fixtureSchema });
+    });
+    try {
+      await go(page, `/tasks/${id(2)}`);
+      const related = form(page).getByRole("region", { name: "연결된 자료 (1개)", exact: true });
+      const toggle = related.getByRole("button", { name: "자료", exact: true });
+      await toggle.click();
+      await arrived;
+      await expect(related.getByRole("status")).toHaveText("속성 정의를 불러오는 중…");
+      await expect(related.getByRole("term").filter({ hasText: /^수량$/ })).toHaveCount(0);
+      await expect(toggle).toBeFocused();
+      release();
+      if (failed) {
+        await expect(related.getByRole("alert")).toHaveText("속성 정의를 불러오지 못했습니다.");
+        await expect(related.getByRole("term").filter({ hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(state.rows.entities[0].external_id);
+        failed = false;
+        await related.getByRole("button", { name: "속성 정의 다시 조회", exact: true }).click();
+      }
+      await expect(related.getByRole("term").filter({ hasText: /^수량$/ }).locator("../dd")).toHaveText("0");
+      await expect(related.getByText("속성 정의를 불러오는 중…", { exact: true })).toHaveCount(0);
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await expect(related.getByRole("link", { name: "자료 상세", exact: true })).toBeVisible();
+      expect(state.writes).toHaveLength(0);
+      expect(state.errors).toEqual([]);
+    } finally { release(); }
+  });
+}
 
 test("automatic number creation has no empty lookup or normal schema recovery actions", async ({ page }) => {
   const state = await fixtures(page);
