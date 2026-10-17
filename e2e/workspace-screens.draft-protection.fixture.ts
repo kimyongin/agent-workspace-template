@@ -333,6 +333,15 @@ test("미확정 저장 새로고침: 최소 메타데이터만 보관하고 자�
   expect(JSON.stringify(stored)).not.toContain("비공개 초안 본문");
   await page.reload();
   await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toHaveCount(1);
+  await expect(form(page).getByRole("alert").filter({ hasText: "이전 저장 결과" })).toBeVisible();
+  await expect(form(page).getByRole("textbox", { name: "제목 (필수)", exact: true })).toHaveValue("");
+  await expect(form(page).getByRole("textbox", { name: "본문", exact: true })).toHaveValue("");
+  expect(state.writes).toHaveLength(1);
+  await form(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(form(page)).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toHaveCount(1);
+  await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toBeVisible();
   expect(state.writes).toHaveLength(1);
   expect(state.errors).toEqual([]);
 });
