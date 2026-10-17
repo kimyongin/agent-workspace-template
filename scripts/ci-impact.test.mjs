@@ -68,8 +68,8 @@ test("strict custom/input/fragment ancestry propagates through nested DOM text a
 test("CSS position spacing is presentation but auth/state/hiding/external/selector/token changes are full", () => {
   assert.equal(presentationCss('.button { margin-left: 1rem; gap: 4px; }', '.button { margin-left: 2rem; gap: 8px; }'), true);
   const app = readFileSync(new URL("../src/styles/app.css", import.meta.url), "utf8");
-  // The app stylesheet includes an asset URL; the conservative classifier requires full checks.
-  assert.equal(presentationCss(app, app.replace('margin-right: auto;', 'margin-right: 1rem;')), false);
+  // Shared shadcn theme token changes require full checks.
+  assert.equal(presentationCss(app, app.replace('--radius: 0.625rem;', '--radius: 0.75rem;')), false);
   for (const [before, after] of [
     ['.login { margin: 1px; }', '.login { margin: 2px; }'],
     ['.button:hover { color: red; }', '.button:hover { color: blue; }'],
