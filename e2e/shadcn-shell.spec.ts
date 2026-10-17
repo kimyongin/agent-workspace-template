@@ -135,6 +135,37 @@ test("shell reflow: 200% text and zoom preserve a usable workspace at 1024 and 1
   expect(state.writes).toEqual([]);
 });
 
+test("shell enlarged text: navigation constraints remain feasible at desktop widths", async ({ page }) => {
+  const state = await fixture(page, "150");
+  await page.goto("/tasks");
+  const divider = page.getByRole("separator", { name: "탐색 메뉴 너비 조절", exact: true });
+  const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  for (const width of [1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const fontSize of [32, 48]) {
+      await page.evaluate(size => { document.documentElement.style.fontSize = `${size}px`; }, fontSize);
+      await expect.poll(() => divider.evaluate(element => {
+        const minimum = Number(element.getAttribute("aria-valuemin"));
+        const maximum = Number(element.getAttribute("aria-valuemax"));
+        const current = Number(element.getAttribute("aria-valuenow"));
+        return minimum <= maximum && current >= minimum - 1 && current <= maximum + 1;
+      }), `${width}px/root${fontSize}px: official separator exposes a feasible keyboard range`).toBe(true);
+      await divider.press("Home");
+      await expect.poll(() => navigation.evaluate(element => element.getBoundingClientRect().width)).toBeCloseTo(13 * fontSize, 0);
+      await divider.press("End");
+      await expect.poll(() => divider.evaluate(element => {
+        const current = Number(element.getAttribute("aria-valuenow"));
+        return Math.abs(current - Number(element.getAttribute("aria-valuemax"))) <= 1;
+      })).toBe(true);
+      await expect(navigation.getByRole("link", { name: "기록", exact: true })).toBeInViewport();
+      await expect(page.getByRole("main")).toBeInViewport();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    }
+  }
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+});
+
 for (const [width, scale] of [[1440, "100"], [1280, "125"], [390, "100"]] as const) test(`shell previous ${width}px/${scale}%: returning from a related editor restores its originating detail link`, async ({ page }) => {
   const state = await fixture(page, scale);
   state.rows.tasks[0].entity_ids = [entity().id];
