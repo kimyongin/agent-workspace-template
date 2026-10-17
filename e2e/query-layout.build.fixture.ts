@@ -1,6 +1,12 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { fixtures } from "./support/workspace-screens.ts";
 import { fixtureType } from "./support/workspace-data.ts";
+
+test.beforeAll(() => {
+  const built = new URL("../test-results/query-layout-dist/", import.meta.url);
+  expect(readFileSync(new URL("404.html", built), "utf8")).toBe(readFileSync(new URL("index.html", built), "utf8"));
+});
 
 for (const width of [320, 390, 640, 1440]) {
   test(`built query ${width}px: type, search and filters remain usable without overflow`, async ({ page }, info) => {
@@ -12,7 +18,7 @@ for (const width of [320, 390, 640, 1440]) {
     await expect(picker).toBeEnabled();
     const search = page.getByRole("textbox", { name: "자료 제목 검색", exact: true });
     const filter = page.getByRole("button", { name: "필터 열기", exact: true });
-    const p = (await picker.boundingBox())!, s = (await search.boundingBox())!, f = (await filter.boundingBox())!;
+    const p = (await picker.locator('xpath=ancestor::*[@data-slot="input-group"][1]').boundingBox())!, s = (await search.boundingBox())!, f = (await filter.boundingBox())!;
     expect(p.y + p.height).toBeLessThanOrEqual(s.y + 1);
     expect(f.y, "filter belongs beside search, not over the type selector").toBeCloseTo(s.y, 0);
     expect(s.x + s.width).toBeLessThanOrEqual(f.x + 1);
