@@ -12,16 +12,41 @@ export const shortDialog = (page: Page) => page.getByRole("alertdialog").or(page
 export const listHeader = (page: Page) => page.getByRole("region").filter({ has: page.getByRole("textbox", { name: /^(자료 제목 검색|검색어)$/ }) }).last();
 
 /** Open the responsive official Sidebar before using its links or profile menu. */
+async function compactNavigation(page: Page) {
+  return page.evaluate(() => matchMedia("(max-width: 1023px), (max-height: 319px)").matches);
+}
 export async function openMainNavigation(page: Page) {
   const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
-  if (await trigger.isVisible() && !await page.getByRole("navigation", { name: "주 메뉴", exact: true }).isVisible()) await trigger.click();
+  const sheet = page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true });
+  if (await compactNavigation(page)) {
+    await expect(trigger).toBeVisible();
+    if (await sheet.count() && await sheet.getAttribute("data-state") === "closed") await expect(sheet).toHaveCount(0);
+    if (!await sheet.count()) await trigger.click();
+    await expect(sheet).toBeVisible();
+  } else {
+    await expect(trigger).toHaveCount(0);
+    await expect(sheet).toHaveCount(0);
+  }
+  await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toBeVisible();
 }
 export async function openProfileMenu(page: Page) {
-  const menu = page.getByRole("menu").filter({ has: page.getByRole("menuitem", { name: "로그아웃", exact: true }) });
-  if (await menu.isVisible()) return;
+  const compact = await compactNavigation(page);
+  const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
+  if (compact) await expect(trigger).toBeVisible(); else await expect(trigger).toHaveCount(0);
+  const popup = page.getByRole("menu", { includeHidden: true }).filter({ has: page.getByRole("menuitem", { name: "로그아웃", exact: true, includeHidden: true }) });
+  const sheet = page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true });
+  if (await popup.isVisible() && await popup.getAttribute("data-state") === "open") {
+    const sheetOpen = await sheet.count() > 0 && await sheet.getAttribute("data-state") === "open";
+    if (compact ? sheetOpen : await sheet.count() === 0) return;
+  }
+  // A responsive navigation owner may unmount its old popup; closing Presence is not an open menu.
+  await expect(popup).toHaveCount(0);
   await openMainNavigation(page);
-  const trigger = page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true });
-  if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
+  const profile = page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true });
+  await expect(profile).toBeVisible();
+  if (await profile.getAttribute("aria-expanded") !== "true") await profile.click();
+  await expect(popup).toHaveAttribute("data-state", "open");
+  await expect(popup).toBeVisible();
 }
 
 /** Searchable type selection is exercised through the displayed domain label. */

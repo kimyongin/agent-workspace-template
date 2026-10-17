@@ -1,4 +1,4 @@
-import { listHeader } from "./ui-actions.ts";
+import { listHeader, openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import {
   fixtureIdentity,
   fixtureSchema,
@@ -42,16 +42,8 @@ test.beforeEach(async ({ page, baseURL }) => {
 const profileButton = (page: Page) => page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true });
 const profileMenu = (page: Page) => page.getByRole("menu").filter({ has: page.getByRole("menuitem", { name: "로그아웃", exact: true }) });
 const profileIcon = (page: Page) => profileButton(page).locator("[aria-hidden=true]").first();
-async function openNavigation(page: Page) {
-  const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
-  if (await trigger.isVisible() && !await profileButton(page).isVisible()) await trigger.click();
-}
-async function openProfile(page: Page) {
-  if (await profileMenu(page).isVisible()) return;
-  await openNavigation(page);
-  const profile = page.getByRole("button", { name:/^내 프로필(?: · .+)?$/, exact:true });
-  if (await profile.getAttribute("aria-expanded") !== "true") await profile.click();
-}
+const openNavigation = openMainNavigation;
+const openProfile = openProfileMenu;
 async function settings(page: Page) { await openProfile(page); await profileMenu(page).getByRole("menuitem", { name:"설정", exact:true }).click(); }
 async function requestLogout(page: Page) {
   await openProfile(page);
@@ -106,14 +98,18 @@ test("프로필 팝오버는 키보드·외부 클릭·경로 이동에 초점�
   await page.goto("/settings"); const profile = page.getByRole("button", { name:/^내 프로필(?: · .+)?$/, exact:true }), popup = profileMenu(page);
   await expect(page.getByRole("button", { name:"메뉴", exact:true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "설정", exact: true }).getByRole("link", { name:"사용 가이드", exact:true })).toHaveCount(0);
-  await profile.click(); await expect(popup).toContainText(user.user_metadata.full_name); await expect(popup).not.toContainText(user.email);
-  await profile.press("ArrowDown"); await expect(popup.getByRole("menuitem", { name:"상태", exact:true })).toBeFocused();
+  await profile.focus(); await profile.press("ArrowDown");
+  await expect(popup).toContainText(user.user_metadata.full_name); await expect(popup).not.toContainText(user.email);
+  await expect(popup.getByRole("menuitem", { name:"상태", exact:true })).toBeFocused();
   await popup.getByRole("menuitem", { name:"상태", exact:true }).focus();
   await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("menuitem", { name:"설정", exact:true })).toBeFocused();
   await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("menuitem", { name:"사용 가이드", exact:true })).toBeFocused();
   await page.keyboard.press("End"); await expect(popup.getByRole("menuitem", { name:"로그아웃", exact:true })).toBeFocused();
   await page.keyboard.press("Escape"); await expect(profile).toBeFocused();
-  await profile.click(); await page.getByRole("heading", { name:"기본 설정", exact:true }).click(); await expect(profile).toHaveAttribute("aria-expanded", "false");
+  await profile.click();
+  const outside = (await page.getByRole("heading", { name:"기본 설정", exact:true, includeHidden:true }).boundingBox())!;
+  await page.mouse.click(outside.x + outside.width / 2, outside.y + outside.height / 2);
+  await expect(profile).toHaveAttribute("aria-expanded", "false");
   await profile.click(); await popup.getByRole("menuitem", { name:"사용 가이드", exact:true }).click(); await expect(page).toHaveURL(/\/guide$/); await expect(profile).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("heading", { name: "사용 가이드", exact: true })).toBeVisible();
 });
