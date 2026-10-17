@@ -47,6 +47,35 @@ export function entitySchemaWorker(readEnv: (name: string) => string | undefined
         connection: { statement_timeout: 15000, lock_timeout: 5000 },
         onnotice: () => {},
       });
+      const [group] = await sql`select app.claim_data_model_conversion() as batch`;
+      if (group.batch) {
+        const parent = group.batch;
+        if (parent.status === "committing") {
+          const [result] =
+            await sql`select app.commit_data_model_conversion(${parent.id},${parent.fence},${SEARCH_PIPELINE}) as committed`;
+          return Response.json({ model_id: parent.id, committed: result.committed });
+        }
+        const batch = parent.child;
+        let prepared;
+        try {
+          prepared = await prepareMigrationBatch(batch, new Date());
+        } catch (error) {
+          const bounded = error instanceof AppError && error.code === "invalid_input";
+          await sql`select app.fail_data_model_conversion(${parent.id},${parent.fence},${batch.id},${batch.fence},${
+            bounded ? "migration_result_limit" : "migration_worker_failed"
+          },${!bounded})`;
+          return Response.json({ model_id: parent.id, migration_failed: true });
+        }
+        if (prepared.stale) {
+          await sql`select app.fail_data_model_conversion(${parent.id},${parent.fence},${batch.id},${batch.fence},'schema_plan_stale',false)`;
+          return Response.json({ model_id: parent.id, migration_failed: true });
+        }
+        const [result] =
+          await sql`select app.stage_data_model_conversion(${parent.id},${parent.fence},${batch.id},${batch.fence},${
+            sql.json(prepared.results)
+          }) as saved`;
+        return Response.json({ model_id: parent.id, processed: prepared.results.length, accepted: result.saved });
+      }
       const [job] = await sql`select app.claim_entity_schema_migration() as batch`;
       if (job.batch) {
         const batch = job.batch;

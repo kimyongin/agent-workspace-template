@@ -39,6 +39,9 @@ export function changeDataModelGroup(d: DataModelDeps, a: Actor, id: string, raw
   return runWrite(d.uow, a, `data-model.${action}`, id, i, async (s) => {
     const c = await s.get(id, true);
     if (!c) throw notFound();
+    if (action === "cancel" && ["applied", "cancelled", "committing"].includes(c.status) && s.cancelGroup) {
+      return s.cancelGroup(id);
+    }
     if (c.version !== i.expected_version) {
       throw new AppError("schema_plan_stale", "작업 상태가 바뀌었습니다. 최신 상태를 확인하세요");
     }

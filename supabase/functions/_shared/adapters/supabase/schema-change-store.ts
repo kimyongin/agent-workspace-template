@@ -28,7 +28,17 @@ import type {
 import { AppError, conflict, invalidInput, notFound } from "../../core/shared/errors.ts";
 import { jsonbText, publicationDefinition } from "../../core/entity-types/schema-rules.ts";
 export class SqlSchemaChangeStore implements SchemaChangeStore {
-  constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
+  constructor(
+    protected readonly tx: postgres.TransactionSql,
+    protected readonly actor: Actor,
+    protected readonly modelChangeId?: string,
+  ) {}
+  protected async assertChangeAffiliation(id: string) {
+    const [row] = await this.tx`select model_change_id from app.entity_schema_changes where id=${id}::uuid`;
+    if (row?.model_change_id && row.model_change_id !== this.modelChangeId) {
+      throw invalidInput("전체 모델 소속 변경은 자료 모델에서 함께 처리하세요");
+    }
+  }
   protected async lockType(typeId: string) {
     const t = await loadSchemaType(this.tx, typeId, true);
     if (!t) throw notFound();
@@ -226,6 +236,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     };
   }
   async loadSchemaDiscard(typeId: string, id: string) {
+    await this.assertChangeAffiliation(id);
     // Match worker/publication lock order: type → change → analysis.
     const [type] = await this.tx`select id from app.entity_types where id::text=${typeId} for update`;
     if (!type) throw notFound();
@@ -266,6 +277,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     typeId: string,
     id: string,
   ): Promise<NonNullable<SchemaChangeDraftContext["previous"]>> {
+    await this.assertChangeAffiliation(id);
     const row = await this.row(typeId, id, true);
     return {
       id: row.id,
@@ -323,6 +335,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     };
   }
   async analyzeChange(typeId: string, id: string, input: Parameters<SchemaChangeStore["analyzeChange"]>[2]) {
+    await this.assertChangeAffiliation(id);
     const t = await this.lockType(typeId);
     const row = await this.row(typeId, id, true);
     this.editable(row, input.expected_change_version);
@@ -412,6 +425,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     };
   }
   async loadSchemaApplication(typeId: string, id: string, analysisId: string): Promise<SchemaApplicationContext> {
+    await this.assertChangeAffiliation(id);
     // Metadata writes and worker publication use the same owner -> type lock order.
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
     const t = await loadSchemaType(this.tx, typeId, true);

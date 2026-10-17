@@ -1,4 +1,9 @@
-import { dataModelAction, dataModelInput, dataModelPrepare } from "../../functions/_shared/contracts/data-model.ts";
+import {
+  dataModelAction,
+  dataModelInput,
+  dataModelPrepare,
+  modelGroupAnalyze,
+} from "../../functions/_shared/contracts/data-model.ts";
 import { entitySchemaImportPrepare } from "../../functions/_shared/contracts/entity-schema-import.ts";
 import {
   identifierRuleCreate,
@@ -220,6 +225,9 @@ const EXPECTED_TOOLS = [
   "list_data_model_changes",
   "get_data_model_change",
   "apply_data_model",
+  "analyze_data_model",
+  "cancel_data_model",
+  "retry_data_model",
   "prepare_entity_schema_import",
   "list_entity_relation_definitions",
   "get_entity_relation_definition",
@@ -469,6 +477,9 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     }),
     get_data_model_change: z.strictObject({ id: z.string().uuid() }),
     apply_data_model: dataModelAction.extend({ id: z.string().uuid(), request_key: requestKey }),
+    analyze_data_model: modelGroupAnalyze.extend({ id: z.string().uuid(), request_key: requestKey }),
+    cancel_data_model: dataModelAction.extend({ id: z.string().uuid(), request_key: requestKey }),
+    retry_data_model: dataModelAction.extend({ id: z.string().uuid(), request_key: requestKey }),
     prepare_entity_schema_import: entitySchemaImportPrepare.safeExtend({ request_key: requestKey }),
     list_entity_schema_versions: entitySchemaHistory,
     create_entity_schema_change: schemaChangeCreate.extend({ type_id: z.string().uuid(), request_key: requestKey }),

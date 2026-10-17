@@ -91,6 +91,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 하려는 일 | 도구 |
 | --- | --- |
 | 전체 자료 모델 내보내기·가져오기 검토·준비·이력·전체 적용([상세](references/data-model.md)) | `export_data_model`, `preview_data_model`, `prepare_data_model`, `list_data_model_changes`, `get_data_model_change`, `apply_data_model` |
+| 전체 모델의 종류별 변환 분석·전체 취소·일시 실패 재접수([상세](references/data-model.md)) | `analyze_data_model`, `cancel_data_model`, `retry_data_model` |
 | 전환 전 완료 요청의 정확한 재확인만(신규 가져오기는 거절, [상세](references/data-model.md)) | `prepare_entity_schema_import` |
 | 업무 설정 조회·요청받은 설정 변경 | `get_business_settings`, `update_business_settings` |
 | 변경 메모·기록 태그와 실제 저장 입력 준비 | `prepare_record_memo` |
