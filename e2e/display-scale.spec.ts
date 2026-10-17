@@ -110,6 +110,25 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
   for (const option of await choices.all()) {
     const box = (await option.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
   }
+  const scaleChoices = page.getByRole("radiogroup", { name: "데스크톱 화면 배율", exact: true }).getByRole("radio");
+  expect(await scaleChoices.count()).toBeGreaterThan(0);
+  for (const control of await scaleChoices.all()) {
+    const box = (await control.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  await openProfileMenu(page);
+  const destinations = page.getByRole("menu").getByRole("menuitem");
+  await expect(destinations).toHaveCount(4);
+  for (const destination of await destinations.all()) {
+    await expect.poll(async () => (await destination.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(44);
+    await expect.poll(async () => (await destination.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+  await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
+  const installation = page.getByRole("button", { name: "설치·연결 정보", exact: true });
+  await expect(installation).toBeVisible();
+  const installationBox = (await installation.boundingBox())!;
+  expect(installationBox.width).toBeGreaterThanOrEqual(44); expect(installationBox.height).toBeGreaterThanOrEqual(44);
+  await installation.click();
+  await expect(installation).toHaveAttribute("aria-expanded", "true");
   await smallFont.evaluate(node => (node as HTMLStyleElement).remove());
   await page.setViewportSize({ width: 320, height: 844 });
   for (const path of ["/entities", "/tasks", "/records", "/guide"]) {
