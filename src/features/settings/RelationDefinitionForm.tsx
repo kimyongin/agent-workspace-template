@@ -48,7 +48,7 @@ export function RelationDefinitionForm(
   const save = async () => {
     if (writing.busy || reading || conflict) return;
     if (!writing.uncertain && !relationDefinitionCreate.safeParse({ ends }).success) {
-      setError("양쪽 자료 종류와 관계 이름을 입력하세요.");
+      setError("양쪽 자료 종류와 연결 이름을 입력하세요.");
       return;
     }
     setError("");
@@ -100,19 +100,20 @@ export function RelationDefinitionForm(
       }}
     >
       <p className="secondary">
-        각 자료에서 보이는 관계 이름과 연결할 상대 개수를 설정합니다. 연결 없이 자료를 작성할 수 있습니다.
+        자료는 연결 없이도 작성할 수 있습니다.
       </p>
       <fieldset disabled={writing.busy || writing.uncertain || reading} className="relation-definition-ends">
         {ends.map((end, n) => {
           const prefix = n === 0 ? "첫 번째" : "두 번째";
           return (
             <div className="relation-definition-end" key={n}>
-              <h3>{prefix} 방향</h3>
-              <Field label={`${prefix} 자료 종류`} required>
+              <h3>{types.find((type) => type.id === end.type_id)?.label ?? `${prefix} 자료`}에서 보이는 연결</h3>
+              <Field label="자료 종류" required>
                 {(props) => (
                   <select
                     className="input"
                     {...props}
+                    aria-label={`${prefix} 자료 종류`}
                     value={end.type_id}
                     onChange={(e) => change(n, { type_id: e.target.value })}
                   >
@@ -123,27 +124,29 @@ export function RelationDefinitionForm(
                   </select>
                 )}
               </Field>
-              <Field label={`${prefix} 관계 이름`} required help="이 자료에서 상대를 부르는 이름">
+              <Field label="연결 이름" required help="이 자료에서 상대를 부르는 이름입니다.">
                 {(props) => (
                   <input
                     className="input"
                     {...props}
+                    aria-label={`${prefix} 연결 이름`}
                     value={end.label}
                     maxLength={100}
                     onChange={(e) => change(n, { label: e.target.value })}
                   />
                 )}
               </Field>
-              <Field label={`${prefix} 연결 개수`}>
+              <Field label="연결 개수" help="몇 개까지 연결할 수 있는지 정합니다.">
                 {(props) => (
                   <select
                     className="input"
                     {...props}
+                    aria-label={`${prefix} 연결 개수`}
                     value={end.cardinality}
                     onChange={(e) => change(n, { cardinality: e.target.value as "one" | "many" })}
                   >
-                    <option value="one">하나만 (0~1개)</option>
-                    <option value="many">여러 개 (0개 이상)</option>
+                    <option value="one">하나만</option>
+                    <option value="many">여러 개</option>
                   </select>
                 )}
               </Field>
@@ -243,10 +246,10 @@ export function RelationDefinitionForm(
       </div>
       <ConfirmDialog
         open={confirm !== null}
-        title={confirm === "delete" ? "관계를 삭제할까요?" : "변경을 버릴까요?"}
+        title={confirm === "delete" ? "연결 설정을 삭제할까요?" : "변경을 버릴까요?"}
         message={confirm === "delete"
-          ? "연결이 있는 관계는 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요."
-          : "저장하지 않은 관계 설정이 사라집니다."}
+          ? "자료 연결이 있는 설정은 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요."
+          : "저장하지 않은 연결 설정이 사라집니다."}
         confirmLabel={confirm === "delete" ? "삭제" : "버리기"}
         onConfirm={() => confirm === "delete" ? void remove() : onClose()}
         onCancel={() => setConfirm(null)}

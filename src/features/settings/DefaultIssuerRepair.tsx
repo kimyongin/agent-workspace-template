@@ -87,7 +87,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
       {error && <p role="alert" className="error-text">{error}</p>}
       {!identity && !error && <p role="status">불러오는 중…</p>}
       {identity && (
-        <Field label={`${type.label} 기본 발급처`}>
+        <Field label={`${type.label} 기본 번호 출처`}>
           {(props) => (
             <select
               {...props}
@@ -107,11 +107,11 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
         </Field>
       )}
       {identity && choices.length === 0 && (
-        <p role="status">다른 활성 발급처가 없습니다. 자료 설정에서 발급처를 연결한 뒤 다시 시도하세요.</p>
+        <p role="status">다른 활성 번호 출처가 없습니다. 자료 설정에서 번호 출처를 연결한 뒤 다시 시도하세요.</p>
       )}
       <div className="settings-inline-actions">
         <BodyAction disabled={!source || busy} onClick={() => void save()}>
-          {uncertain ? "같은 요청 다시 확인" : busy ? "저장 중…" : "기본 발급처 변경"}
+          {uncertain ? "같은 요청 다시 확인" : busy ? "저장 중…" : "기본 번호 출처 변경"}
         </BodyAction>
         {error && !uncertain && (
           <BodyAction

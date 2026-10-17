@@ -578,7 +578,7 @@ for (const outcome of ["success", "failed"] as const) {
       await expect(toggle).not.toBeFocused();
       release();
       if (outcome === "success") await expect(page.locator(".related-preview .props")).toContainText("1234");
-      else await expect(page.getByRole("button", { name: "속성 정의 다시 조회", exact: true })).toBeVisible();
+      else await expect(page.getByRole("button", { name: "입력 항목 정의 다시 조회", exact: true })).toBeVisible();
       await expect(toggle).toBeFocused();
       await expect(toggle).toBeInViewport();
       expect(state.writes).toHaveLength(0);

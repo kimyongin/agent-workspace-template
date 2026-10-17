@@ -139,7 +139,7 @@ test(
     await expect(page.getByText("적용 완료", { exact: true })).toBeVisible();
     expect(applied).toBe(true);
     await expect(
-      page.getByRole("link", { name: "자료 관계 설정", exact: true }),
+      page.getByRole("link", { name: "연결 설정으로 이동", exact: true }),
     ).toBeVisible();
     await page.screenshot({
       path: info.outputPath("model-applied.png"),
@@ -229,8 +229,8 @@ test("자료 설정으로 이동해도 미저장 전체 모델을 보호하고 �
   await page.getByRole("textbox", { name: "전체 모델 JSON" }).fill(
     "미저장 원문",
   );
-  await page.getByRole("button", { name: "설정 메뉴" }).click();
-  await page.getByRole("link", { name: "자료", exact: true }).click();
+  await page.getByRole("navigation", { name: "자료 설정 항목", exact: true })
+    .getByRole("link", { name: "자료 종류", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" }))
     .toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
@@ -372,7 +372,7 @@ test("낡은 원본과 세 버전을 구분하고 누락 속성의 명시 확인
   await expect(page.getByRole("button", { name: "검토한 전체 변경안 저장" })).toBeDisabled();
   await page.getByRole("button", { name: /주문.*항목 제거 확인/ }).click();
   await expect(page.getByText("파일 원본 버전 1 · 현재 버전 3 · 적용 버전 4")).toBeVisible();
-  await expect(page.getByText("파일 원본 버전이 현재 게시 버전과 다릅니다.", { exact: false })).toBeVisible();
+  await expect(page.getByText("파일 원본 버전이 현재 적용 버전과 다릅니다.", { exact: false })).toBeVisible();
   await page.getByRole("checkbox", { name: "주문의 가격 항목 영구 제거 확인" }).check();
   await page.getByRole("button", { name: "검토한 전체 변경안 저장" }).click();
   await expect(page.getByText("전체 변경안을 저장했습니다.", { exact: false })).toBeVisible();
@@ -413,9 +413,9 @@ for (const noOp of [true, false]) {
     } else {
       await page.getByRole("button", { name: "전체 적용", exact: true }).click();
       await expect(page.getByText("자료 종류: 추가 0개 · 수정 1개 · 변경 없음 2개", { exact: true })).toBeVisible();
-      await expect(page.getByText("자료 관계: 추가 1개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
-      await expect(page.getByText("발급처: 추가 0개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
-      await expect(page.getByText("번호 정의: 추가 0개 · 수정 1개 · 변경 없음 1개", { exact: true })).toBeVisible();
+      await expect(page.getByText("연결 설정: 추가 1개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
+      await expect(page.getByText("번호 출처: 추가 0개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
+      await expect(page.getByText("번호 종류: 추가 0개 · 수정 1개 · 변경 없음 1개", { exact: true })).toBeVisible();
     }
     await expect(page.getByText("자료 종류 3개 · 관계 2개 적용", { exact: true })).toHaveCount(0);
   });

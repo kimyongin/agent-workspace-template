@@ -3,8 +3,9 @@ import { type ReactNode, useEffect, useId, useState } from "react";
 export type MaterialSectionState = { dirty: boolean; busy: boolean; uncertain?: boolean; error?: boolean };
 /** Collapsing a section hides its content without disposing an editor or its draft. */
 export function MaterialSettingsSection(
-  { title, summary, state, initialOpen = false, open: controlledOpen, onOpenChange, children }: {
+  { title, description, summary, state, initialOpen = false, open: controlledOpen, onOpenChange, children }: {
     title: string;
+    description?: string;
     summary?: string;
     state?: MaterialSectionState;
     initialOpen?: boolean;
@@ -46,6 +47,7 @@ export function MaterialSettingsSection(
           </span>
         </button>
       </h2>
+      {description && <p className="material-section-description secondary">{description}</p>}
       <div id={id} hidden={!open}>{children}</div>
     </section>
   );

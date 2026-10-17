@@ -82,21 +82,21 @@ test(
       return route.fulfill({ json: { items: [], next_cursor: null } });
     });
     await page.goto("/settings/relations");
-    await expect(page.getByRole("heading", { name: "자료 관계 설정", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "관계 추가", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "연결 설정 추가", exact: true }).click();
     await page.getByLabel(/첫 번째 자료 종류/).selectOption(types[0].id);
-    await page.getByLabel(/첫 번째 관계 이름/).fill("주문품목");
+    await page.getByLabel(/첫 번째 연결 이름/).fill("주문품목");
     await page.getByLabel(/두 번째 자료 종류/).selectOption(types[1].id);
-    await page.getByLabel(/두 번째 관계 이름/).fill("소속 주문");
+    await page.getByLabel(/두 번째 연결 이름/).fill("소속 주문");
     await page.getByLabel("두 번째 연결 개수", { exact: true }).selectOption("one");
     await page.getByRole("button", { name: "추가", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("저장했습니다");
     await page.getByRole("button", { name: /주문품목.*소속 주문/ }).click();
     conflict = true;
-    await page.getByLabel(/첫 번째 관계 이름/).fill("품목");
+    await page.getByLabel(/첫 번째 연결 이름/).fill("품목");
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("변경되었습니다");
-    await expect(page.getByLabel(/첫 번째 관계 이름/)).toHaveValue("품목");
+    await expect(page.getByLabel(/첫 번째 연결 이름/)).toHaveValue("품목");
     await page.getByRole("button", { name: "최신 버전 확인", exact: true }).click();
     await page.getByRole("button", { name: "내 입력으로 다시 검토", exact: true }).click();
     await page.getByRole("button", { name: "저장", exact: true }).click();
@@ -105,7 +105,7 @@ test(
     await page.screenshot({ path: `/private/tmp/relation-settings-${info.project.name}.png`, fullPage: true });
     await page.getByLabel("보관").check();
     await page.getByRole("button", { name: "저장", exact: true }).click();
-    await page.getByLabel("관계 상태", { exact: true }).selectOption("all");
+    await page.getByLabel("연결 설정 상태", { exact: true }).selectOption("all");
     await expect(page.getByRole("button", { name: /품목.*소속 주문/ })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   },

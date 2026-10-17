@@ -186,7 +186,7 @@ export function useSchemaChangeEditor(
     setSaved(clone(definition));
     setRefs((values) => Object.fromEntries(Object.entries(values).filter(([key]) => key.startsWith("new_"))));
     if (!migrationEdited) setMigration({ rules: [], overrides: [] });
-    setMessage("현재 게시된 속성을 갱신했습니다. 편집 중인 입력은 유지됩니다. 변경된 조건을 확인하고 다시 검토하세요.");
+    setMessage("현재 적용된 입력 항목을 갱신했습니다. 편집 중인 입력은 유지됩니다. 변경된 조건을 확인하고 다시 검토하세요.");
   }, [type.id, definition.schema_version, busy, uncertain, startState.busy, startState.uncertain]);
   const base = `/entity-types/${type.id}/schema-changes`;
   const list = (signal?: AbortSignal) =>
@@ -326,7 +326,7 @@ export function useSchemaChangeEditor(
           )
         ) {
           throw new Error(
-            "현재 타입에서 사용할 수 없는 이전 조건 입력이 있습니다. 해당 속성에서 입력을 확인하고 제거하세요.",
+            "현재 타입에서 사용할 수 없는 이전 조건 입력이 있습니다. 해당 입력 항목에서 입력을 확인하고 제거하세요.",
           );
         }
         const converted = schemaNumericValues(
@@ -339,7 +339,7 @@ export function useSchemaChangeEditor(
         const valid = entityFieldInput.safeParse(field);
         if (!valid.success) {
           condition = String(valid.error.issues[0].path[0]);
-          throw new Error("속성 조건을 확인하세요.");
+          throw new Error("입력 항목 조건을 확인하세요.");
         }
         if (
           (field.minLength ?? 0) > (field.maxLength ?? 4096) ||
@@ -349,7 +349,7 @@ export function useSchemaChangeEditor(
           throw new Error("최소 조건이 최대 조건보다 큽니다.");
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "속성 조건을 확인하세요.");
+        setError(e instanceof Error ? e.message : "입력 항목 조건을 확인하세요.");
         setFieldError(key);
         onInvalidField(key, true, e instanceof SchemaNumericDraftError ? e.condition : condition);
         return false;
@@ -428,7 +428,7 @@ export function useSchemaChangeEditor(
         } else {
           setPlan(value);
           setMigration(value.migration);
-          setMessage("새 속성 버전을 게시했습니다.");
+          setMessage("새 입력 항목 버전을 적용했습니다.");
           const publicationError = await onApplied(value);
           if (mounted.current && publicationError) setError(publicationError);
         }
@@ -499,7 +499,7 @@ export function useSchemaChangeEditor(
   const loadPlan = async (id: string) => {
     if (protectedDraft.current.dirty || protectedDraft.current.busy || protectedDraft.current.uncertain) {
       setReadBusy(false);
-      setMessage("현재 속성 입력은 유지됩니다. 편집을 검토·저장하거나 취소한 뒤 다른 변경안을 여세요.");
+      setMessage("현재 입력 항목은 유지됩니다. 편집을 검토·저장하거나 취소한 뒤 다른 변경안을 여세요.");
       return;
     }
     cancelPlanRead();

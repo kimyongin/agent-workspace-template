@@ -349,7 +349,7 @@ export function SchemaMigrationJob(
       <BodyAction icon="reset" onClick={() => setRefresh((n) => n + 1)}>상태 다시 조회</BodyAction>
       {publicationError && (
         <BodyAction icon="reset" onClick={() => setRefresh((n) => n + 1)}>
-          최신 속성 다시 조회
+          최신 입력 항목 다시 조회
         </BodyAction>
       )}
       {job && (
@@ -360,20 +360,20 @@ export function SchemaMigrationJob(
           )}
           {migrationActive(job) && (
             <p>
-              {job.type.label}의 수정·삭제·설정 게시와 이 종류를 포함한 연결 쓰기는 완료 또는 취소까지 차단됩니다. 현재
+              {job.type.label}의 수정·삭제·설정 적용와 이 종류를 포함한 연결 쓰기는 완료 또는 취소까지 차단됩니다. 현재
               자료 읽기와 다른 종류 업무는 계속할 수 있습니다.
             </p>
           )}
           {job.status === "committing" && <p>최종 적용 중입니다. 취소 대신 확정 결과를 확인하세요.</p>}
           {job.result && (
-            <p>새 속성 버전 {job.result.schema_version} · {job.result.total}개 적용 · {job.result.changed}개 값 변경</p>
+            <p>새 입력 항목 버전 {job.result.schema_version} · {job.result.total}개 적용 · {job.result.changed}개 값 변경</p>
           )}
           {job.status !== "succeeded" && job.source_expires_at && (
             <p>원본 보존 만료: {new Date(job.source_expires_at).toLocaleString()}</p>
           )}
           {job.status === "failed" && (
             <p role="alert" className="error-text">
-              {job.failure_reason} · 기존 자료와 속성 정의가 유지됩니다.{" "}
+              {job.failure_reason} · 기존 자료와 입력 항목 정의가 유지됩니다.{" "}
               {job.retryable ? "같은 작업을 재시도할 수 있습니다." : "변경안과 최신 분석을 다시 준비하세요."}
             </p>
           )}

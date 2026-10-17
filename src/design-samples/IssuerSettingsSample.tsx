@@ -19,13 +19,13 @@ export function IssuerSettingsSample({ standalone = false }: { standalone?: bool
   const [editing, setEditing] = useState<{ source?: number; created?: boolean } | null>(null);
   const [message, setMessage] = useState("");
   return (
-    <section className="settings" aria-label="발급처 설정 샘플">
+    <section className="settings" aria-label="번호 출처 설정 샘플">
       <header className="page-heading">
-        <Heading className="page-title">발급처 설정</Heading>
-        <p className="page-description">자료 번호의 발급처와 번호 종류를 관리합니다.</p>
+        <Heading className="page-title">번호 출처 설정</Heading>
+        <p className="page-description">자료 번호의 번호 출처와 번호 종류를 관리합니다.</p>
       </header>
       <div>
-        <BodyAction icon="create" onClick={() => setEditing({})}>발급처 추가</BodyAction>
+        <BodyAction icon="create" onClick={() => setEditing({})}>번호 출처 추가</BodyAction>
       </div>
       {message && <p role="status">{message}</p>}
       <div className="issuer-registry-list">
@@ -68,7 +68,7 @@ export function IssuerSettingsSample({ standalone = false }: { standalone?: bool
               const index = sources.length;
               setSources([...sources, { label, numbers: [] }]);
               setSelected(index);
-              setMessage("발급처를 저장했습니다.");
+              setMessage("번호 출처를 저장했습니다.");
               setEditing({ source: index, created: true });
             } else {
               setSources(
@@ -120,10 +120,10 @@ function SampleCreation({ source, created, onClose, onSave }: {
       >
         <div className="modal-inner">
           <header className="modal-head">
-            <h2 id="issuer-sample-title" className="dialog-title">{source ? "번호 종류 추가" : "발급처 추가"}</h2>
+            <h2 id="issuer-sample-title" className="dialog-title">{source ? "번호 종류 추가" : "번호 출처 추가"}</h2>
             <button type="button" className="btn btn-text modal-icon" aria-label="닫기" onClick={close}>×</button>
             <p id="issuer-sample-description" className="page-description">
-              {source ? "이 발급처에서 쓰는 번호 종류의 이름을 정합니다." : "자료 번호를 발급하는 곳의 이름을 정합니다."}
+              {source ? "이 번호 출처에서 쓰는 번호 종류의 이름을 정합니다." : "자료 번호를 발급하는 곳의 이름을 정합니다."}
             </p>
           </header>
           <div className="modal-body">
@@ -136,8 +136,8 @@ function SampleCreation({ source, created, onClose, onSave }: {
               }}
             >
               {source && <p className="item-title">{source}</p>}
-              {created && <p className="secondary" role="status">발급처를 저장했습니다.</p>}
-              <Field label={source ? "번호 종류 이름" : "발급처 이름"} required>
+              {created && <p className="secondary" role="status">번호 출처를 저장했습니다.</p>}
+              <Field label={source ? "번호 종류 이름" : "번호 출처 이름"} required>
                 {(props) => (
                   <input
                     {...props}

@@ -169,7 +169,7 @@ test("committed task create, edit and delete survive a lost reply with one event
 
 test("external entity restore retries the committed tuple and type identity lookup allocates nothing", async ({ page }) => {
   await devLogin(page);
-  const proof = await evidence(page), external_id = `000Ab:/한글%${unique("복원 식별자")}`, title = unique("응답 유실 복원");
+  const proof = await evidence(page), external_id = `000Ab:/한글%${unique("복원 자료 번호")}`, title = unique("응답 유실 복원");
   let id: string | undefined;
   try {
     const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page));
@@ -180,7 +180,7 @@ test("external entity restore retries the committed tuple and type identity look
     }`;
     await proof.api("POST", "/entity-issuers", {
       code: source,
-      label: "복원 검사 발급처",
+      label: "복원 검사 번호 출처",
     });
     const rule = await proof.api("POST", `/entity-issuers/${source}/rules`, {
       label: "원본 번호",
@@ -191,7 +191,7 @@ test("external entity restore retries the committed tuple and type identity look
       "PATCH",
       `/entity-types/${type.id}/identity`,
       {
-        label: "식별자",
+        label: "자료 번호",
         default_source: source,
         expected_version: initial.version,
         sources: [
@@ -235,8 +235,8 @@ test("external entity restore retries the committed tuple and type identity look
     await page.goto(fixtureEntityList(type.id));
     await beginTabAction(page, "검사 자료 추가");
     const form = page.getByRole("dialog", { name: /^검사 자료.* 추가$/, exact: true });
-    await expect(form.getByLabel("식별자")).toBeEnabled();
-    await form.getByLabel("식별자").fill(external_id);
+    await expect(form.getByLabel("자료 번호")).toBeEnabled();
+    await form.getByLabel("자료 번호").fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
     const restore = page.getByRole("dialog", { name: `${type.label} 복원`, exact: true });
     await expect(restore.getByLabel("제목")).toHaveValue(title);

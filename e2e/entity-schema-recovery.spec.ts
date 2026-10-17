@@ -146,7 +146,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     }, { timeout: 30_000 }).toBe("succeeded");
     await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
-    await expect(page.getByText(new RegExp(`^새 속성 버전 ${expectedRecoverySchemaVersion} · `))).toBeVisible();
+    await expect(page.getByText(new RegExp(`^새 입력 항목 버전 ${expectedRecoverySchemaVersion} · `))).toBeVisible();
     const restored = await mcp.call("get_entity", { id: entity.id });
     expect(restored.properties).toEqual({ prop_1: "001 원본" });
     expect(restored.entity_type_id).toBe(type.id);

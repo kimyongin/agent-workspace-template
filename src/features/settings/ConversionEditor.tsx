@@ -215,7 +215,7 @@ export function ConversionEditor(
                   scalar = fieldType(f);
                 return (
                   <section className="schema-field" key={key}>
-                    <Field label={f?.title ?? sourceField?.title ?? "삭제한 속성"}>
+                    <Field label={f?.title ?? sourceField?.title ?? "삭제한 입력 항목"}>
                       {(p) => (
                         <select
                           {...p}
@@ -252,7 +252,7 @@ export function ConversionEditor(
                           }}
                         >
                           <option value="none">유지 · 최종 정의로 검증</option>
-                          {!f ? <option value="remove">속성 값을 명시적으로 제거</option> : (
+                          {!f ? <option value="remove">입력 항목 값을 명시적으로 제거</option> : (
                             <>
                               {scalar !== "boolean" && (
                                 <option value="convert">
@@ -406,7 +406,7 @@ export function ConversionEditor(
                   <div key={key}>
                     <dt>
                       {plan.target.schema.properties[key]?.title ?? sourceDefinition?.schema.properties[key]?.title ??
-                        "삭제한 속성"}
+                        "삭제한 입력 항목"}
                     </dt>
                     <dd style={{ overflowWrap: "anywhere" }}>
                       {plan.recovery ? "현재 값" : "원본"} {Object.hasOwn(row.before, key)
@@ -442,7 +442,7 @@ export function ConversionEditor(
                   const o = migration.overrides.find((o) => o.entity_id === row.entity_id && o.key === key);
                   return (
                     <fieldset disabled={disabled} key={key}>
-                      <legend>{plan.target.schema.properties[key]?.title ?? "속성"} 직접 보완</legend>
+                      <legend>{plan.target.schema.properties[key]?.title ?? "입력 항목"} 직접 보완</legend>
                       <BodyAction
                         onClick={() =>
                           setOverride(

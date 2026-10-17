@@ -27,7 +27,7 @@ test("빈 계정에서 자료 준비와 모든 설정의 다음 행동을 찾고
       ["/settings", "기본 설정"],
       ["/settings/tags", "태그 설정"],
       ["/settings/records", "기록 설정"],
-      ["/settings/issuers", "발급처 설정"],
+      ["/settings/issuers", "자료 설정"],
     ]
   ) {
     await page.goto(path);
@@ -41,8 +41,8 @@ test("빈 계정에서 자료 준비와 모든 설정의 다음 행동을 찾고
       await expect(page.getByRole("form", { name: "기록 자동 완성", exact: true })).toBeVisible();
     }
     if (path.endsWith("issuers")) {
-      await expect(page.getByText("발급처가 없습니다.", { exact: true })).toBeVisible();
-      await expect(page.getByRole("button", { name: "발급처 추가", exact: true })).toBeEnabled();
+      await expect(page.getByText("번호 출처가 없습니다.", { exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "번호 출처 추가", exact: true })).toBeEnabled();
     }
     await expect(page.getByRole("status").filter({ hasText: /불러오는 중|읽는 중/ })).toHaveCount(0);
     await expect(page.getByRole("alert")).toHaveCount(0);

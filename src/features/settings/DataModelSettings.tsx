@@ -6,7 +6,7 @@ import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
 import { api, ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { Field } from "../../components/Field.tsx";
-import { SettingsHeading } from "./SettingsHeading.tsx";
+import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
@@ -45,9 +45,9 @@ function savedNotice(change: ModelChange) {
     : "전체 변경안을 저장했습니다. 아래 변경 이력에서 검토하고 적용하세요.";
 }
 export function DataModelResult({ result }: { result: NonNullable<ModelChange["result"]> }) {
-  const groups = [["types", "자료 종류"], ["relations", "자료 관계"], ["issuers", "발급처"], [
+  const groups = [["types", "자료 종류"], ["relations", "연결 설정"], ["issuers", "번호 출처"], [
     "rules",
-    "번호 정의",
+    "번호 종류",
   ]] as const;
   return (
     <div>
@@ -62,7 +62,7 @@ export function DataModelResult({ result }: { result: NonNullable<ModelChange["r
           })}
         </ul>
       )}
-      <Link to="/settings/materials">자료 설정</Link> · <Link to="/settings/relations">자료 관계 설정</Link>
+      <Link to="/settings/materials">자료 설정</Link> · <Link to="/settings/relations">연결 설정으로 이동</Link>
     </div>
   );
 }
@@ -96,13 +96,13 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
           )}
           {Object.entries(review.mapping.rules).map(([source, target]) => (
             <div key={`rule:${source}`}>
-              <dt>번호 정의</dt>
+              <dt>번호 종류</dt>
               <dd>{source} → {target}</dd>
             </div>
           ))}
           {Object.entries(review.mapping.relations).map(([source, target]) => (
             <div key={`relation:${source}`}>
-              <dt>자료 관계</dt>
+              <dt>연결 설정</dt>
               <dd>{source} → {target}</dd>
             </div>
           ))}
@@ -161,7 +161,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
               <dd>{item.identity.label}</dd>
             </div>
             <div>
-              <dt>기본 발급처</dt>
+              <dt>기본 번호 출처</dt>
               <dd>{item.identity.default_source}</dd>
             </div>
             {item.identity.sources.map((source) => (
@@ -180,7 +180,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
                   <dd>{item.current_identity.label}</dd>
                 </div>
                 <div>
-                  <dt>기본 발급처</dt>
+                  <dt>기본 번호 출처</dt>
                   <dd>{item.current_identity.default_source}</dd>
                 </div>
                 {item.current_identity.sources.map((source) => (
@@ -202,7 +202,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
       )}
       {item.source_is_stale && (
         <p className="help">
-          파일 원본 버전이 현재 게시 버전과 다릅니다. 현재 정의와 비교한 아래 변경을 확인하세요. 파일 원본 버전은
+          파일 원본 버전이 현재 적용 버전과 다릅니다. 현재 정의와 비교한 아래 변경을 확인하세요. 파일 원본 버전은
           덮어쓰기 권한이 아닙니다.
         </p>
       )}
@@ -540,11 +540,8 @@ export function DataModelSettings() {
     }
   };
   return (
-    <section className="panel settings">
-      <SettingsHeading
-        title="자료 모델"
-        description="전체 자료 종류·관계·필요한 식별자 설정을 한 파일로 교환합니다."
-      />
+    <section className="panel settings material-settings">
+      <MaterialSettingsHeading section="exchange" />
       {error && (
         <div role="alert" className="error-text">
           <p>{error}</p>
@@ -587,7 +584,7 @@ export function DataModelSettings() {
                   }}
                 >
                   <option value="update">기존 모델에 반영</option>
-                  <option value="copy">새 자료 종류와 관계로 복사</option>
+                  <option value="copy">새 자료 종류와 연결 설정으로 복사</option>
                 </select>
               )}
             </Field>

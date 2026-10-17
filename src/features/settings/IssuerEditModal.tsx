@@ -152,10 +152,10 @@ export function IssuerEditModal(
     <ModalShell
       open
       description={target.kind === "issuer"
-        ? "자료 번호의 발급처 이름과 사용 상태를 관리합니다."
-        : "발급처에서 쓰는 번호 종류의 이름과 사용 상태를 관리합니다."}
+        ? "자료 번호의 번호 출처 이름과 사용 상태를 관리합니다."
+        : "번호 출처에서 쓰는 번호 종류의 이름과 사용 상태를 관리합니다."}
       title={target.kind === "issuer"
-        ? baseline ? "발급처 편집" : "발급처 추가"
+        ? baseline ? "번호 출처 편집" : "번호 출처 추가"
         : baseline
         ? "번호 종류 편집"
         : "번호 종류 추가"}
@@ -196,7 +196,7 @@ export function IssuerEditModal(
       >
         {target.kind === "rule" && <p className="item-title">{target.sourceLabel}</p>}
         {target.kind === "rule" && target.createdIssuer && (
-          <p role="status" className="secondary">발급처를 저장했습니다.</p>
+          <p role="status" className="secondary">번호 출처를 저장했습니다.</p>
         )}
         {error && <p className="error-text" role="alert">{error}</p>}
         {blockedTypes.length > 0 && (
@@ -207,7 +207,7 @@ export function IssuerEditModal(
                 disabled={busy || uncertain}
                 onClick={() => setRepairing(type)}
               >
-                {type.label} 기본 발급처 변경
+                {type.label} 기본 번호 출처 변경
               </BodyAction>
             ))}
             {repairing && (
@@ -260,7 +260,7 @@ export function IssuerEditModal(
           </div>
         )}
         <fieldset className="settings-fields" disabled={busy || reading || uncertain}>
-          <Field label={target.kind === "issuer" ? "발급처 이름" : "번호 종류 이름"} required>
+          <Field label={target.kind === "issuer" ? "번호 출처 이름" : "번호 종류 이름"} required>
             {(props) => (
               <input
                 {...props}
@@ -284,7 +284,7 @@ export function IssuerEditModal(
               disabled={busy || reading || conflict || saving.uncertain || repairState.uncertain}
               onClick={() => deleting.uncertain ? void remove() : setConfirmDelete(true)}
             >
-              {deleting.uncertain ? "삭제 결과 다시 확인" : target.kind === "issuer" ? "발급처 삭제" : "번호 종류 삭제"}
+              {deleting.uncertain ? "삭제 결과 다시 확인" : target.kind === "issuer" ? "번호 출처 삭제" : "번호 종류 삭제"}
             </BodyAction>
           </div>
         )}
@@ -292,7 +292,7 @@ export function IssuerEditModal(
       <ConfirmDialog
         open={confirmDelete}
         danger
-        title={target.kind === "issuer" ? "발급처를 삭제할까요?" : "번호 종류를 삭제할까요?"}
+        title={target.kind === "issuer" ? "번호 출처를 삭제할까요?" : "번호 종류를 삭제할까요?"}
         message={`${baseline?.label ?? "항목"}을 영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.`}
         confirmLabel="삭제"
         busy={busy}
@@ -302,7 +302,7 @@ export function IssuerEditModal(
       <ConfirmDialog
         open={confirmDisable}
         title="사용을 중지할까요?"
-        message="새 자료 등록에 이 발급처·번호 종류를 사용하지 않게 됩니다."
+        message="새 자료 등록에 이 번호 출처·번호 종류를 사용하지 않게 됩니다."
         confirmLabel="중지하고 저장"
         busy={busy}
         onConfirm={() => void save(true)}

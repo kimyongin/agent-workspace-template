@@ -688,7 +688,7 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await page.route("**/api/entity-types/*/identity", async route => {
     await ready;
     const config = fixtureIdentity();
-    await route.fulfill({json:{...config,label:"식별자",default_source:"crm",sources:[{...config.sources[0],code:"crm",source_label:"고객",generation:"direct"}]}});
+    await route.fulfill({json:{...config,label:"자료 번호",default_source:"crm",sources:[{...config.sources[0],code:"crm",source_label:"고객",generation:"direct"}]}});
   });
   await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900");
   await page.getByRole("button", {name:"검사 자료 추가",exact:true}).click();
@@ -696,10 +696,10 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await expect(form.getByLabel("번호")).toBeDisabled();
   if (entered) await form.getByLabel("제목").fill("설정 도착 전 입력");
   releaseSettings();
-  await expect(form.getByLabel("식별자")).toBeEnabled();
-  await expect(form.getByLabel("식별자")).toHaveValue("");
+  await expect(form.getByLabel("자료 번호")).toBeEnabled();
+  await expect(form.getByLabel("자료 번호")).toHaveValue("");
   await expect(form.getByText("고객", {exact:true})).toBeVisible();
-  await expect(form.getByRole("combobox", {name:"발급처",exact:true})).toHaveCount(0);
+  await expect(form.getByRole("combobox", {name:"번호 출처",exact:true})).toHaveCount(0);
   if (entered) await expect(form.getByLabel("제목")).toHaveValue("설정 도착 전 입력");
   await form.getByRole("button", {name:"취소",exact:true}).click();
   const discard = page.getByRole("dialog", {name:"변경을 버릴까요?",exact:true});

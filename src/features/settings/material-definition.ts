@@ -108,8 +108,8 @@ export function createMaterialDefinition(typeId?: string) {
       } catch {
         if (!alive) return "";
         outcome.error = kind === "change"
-          ? "게시가 완료되었습니다. 최신 정의 조회에 실패했습니다. 정의를 다시 조회하세요."
-          : "값 변환은 완료되었습니다. 최신 속성 조회에 실패했습니다. 상태를 다시 조회하세요.";
+          ? "적용이 완료되었습니다. 최신 정의 조회에 실패했습니다. 정의를 다시 조회하세요."
+          : "값 변환은 완료되었습니다. 최신 입력 항목 조회에 실패했습니다. 상태를 다시 조회하세요.";
       } finally {
         outcome.pending = null;
         if (alive && kind === "job" && outcomes.get(id) === outcome) {

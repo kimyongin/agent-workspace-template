@@ -78,10 +78,10 @@ export function recoveryErrorMessage(error: unknown): string {
       return `원본 보존 기간이 만료되어 복구를 진행할 수 없습니다. 현재 자료를 확인하고 새 변경안을 준비하세요. 입력한 내용은 유지됩니다.${detail}`;
     }
     if (error.code === "entity_type_archived") {
-      return `${error.message} 입력은 유지됩니다. 자료 종류를 먼저 복원한 뒤 현재 자료·속성·연결과 복구 가능 여부를 확인하세요.${detail}`;
+      return `${error.message} 입력은 유지됩니다. 자료 종류를 먼저 복원한 뒤 현재 자료·입력 항목·연결과 복구 가능 여부를 확인하세요.${detail}`;
     }
     if (error.code === "conflict" || error.code === "schema_plan_stale" || error.code === "schema_changed") {
-      return `${error.message} 이후 수정된 자료·속성·연결을 확인하세요. 입력은 유지됩니다. 현재 자료를 직접 보완하거나 새 변경안을 분석한 뒤 복구 가능 여부를 다시 확인하세요.${detail}`;
+      return `${error.message} 이후 수정된 자료·입력 항목·연결을 확인하세요. 입력은 유지됩니다. 현재 자료를 직접 보완하거나 새 변경안을 분석한 뒤 복구 가능 여부를 다시 확인하세요.${detail}`;
     }
     return `${writeErrorMessage(error)}${detail}`;
   }
@@ -146,12 +146,12 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
       <RecoveryAvailability job={job} />
       <p>보존된 원본으로 새 변경안을 만듭니다. 생성 후 영향 분석과 자료별 변경 전후 값을 검토하고 직접 실행하세요.</p>
       <p className="secondary">
-        현재 이름·아이콘과 과거 기록은 유지합니다. 이후 자료 수정·생성·삭제·속성·연결 변경이 있으면 확인과 보완이
+        현재 이름·아이콘과 과거 기록은 유지합니다. 이후 자료 수정·생성·삭제·입력 항목·연결 변경이 있으면 확인과 보완이
         필요합니다.
       </p>
       {job.recovery?.status === "conflict" && (
         <p>
-          현재 자료·속성·연결을 확인하고 직접 보완하거나 새 변경안을 분석하세요. 이후 변경을 자동으로 덮어쓰지 않습니다.
+          현재 자료·입력 항목·연결을 확인하고 직접 보완하거나 새 변경안을 분석하세요. 이후 변경을 자동으로 덮어쓰지 않습니다.
         </p>
       )}
       <RecoveryConflictList conflicts={job.recovery?.conflicts} />

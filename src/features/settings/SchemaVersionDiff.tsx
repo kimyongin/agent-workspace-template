@@ -53,11 +53,11 @@ export function SchemaVersionDiff(
         ).map((key) => {
           const prior = before.schema.properties[key],
             next = after.schema.properties[key];
-          const label = next?.title ?? prior?.title ?? "이름 없는 속성";
+          const label = next?.title ?? prior?.title ?? "이름 없는 입력 항목";
           return (
             <li key={key}>
               <span>{label}</span>
-              {!prior ? ` · 새 속성 · ${fieldSummary(next)}` : !next ? " · 영구 삭제 (변경안)" : (
+              {!prior ? ` · 새 입력 항목 · ${fieldSummary(next)}` : !next ? " · 영구 삭제 (변경안)" : (
                 <ul>
                   {Object.entries(names).filter(([name]) =>
                     JSON.stringify(prior[name as keyof EntityField]) !==
