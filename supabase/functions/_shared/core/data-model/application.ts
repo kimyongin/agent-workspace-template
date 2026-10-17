@@ -6,6 +6,7 @@ import {
   dataModelInput,
   dataModelPrepare,
   type ModelChange,
+  type ModelGroupAnalyze,
   type ModelReview,
 } from "../../contracts/data-model.ts";
 import type { Actor } from "../shared/actor.ts";
@@ -20,8 +21,18 @@ export type ModelSnapshot = {
   types: Record<string, { next_property_number: number; count: number; locked: boolean }>;
   rule_usage?: Record<string, boolean>;
 };
-export type ModelPlan = { target: DataModelDocument; review: ModelReview; baseline: string; source: DataModelDocument };
+export type ModelPlan = {
+  target: DataModelDocument;
+  review: ModelReview;
+  baseline: string;
+  source: DataModelDocument;
+  remove_keys?: Record<string, string[]>;
+};
 export interface DataModelStore extends RequestStore {
+  analyzeGroup?(id: string, input: ModelGroupAnalyze): Promise<ModelChange>;
+  startGroup?(id: string): Promise<ModelChange>;
+  cancelGroup?(id: string): Promise<ModelChange>;
+  retryGroup?(id: string): Promise<ModelChange>;
   snapshot(): Promise<ModelSnapshot>;
   save(plan: ModelPlan): Promise<ModelChange>;
   get(id: string, lock?: boolean): Promise<(ModelChange & { plan: ModelPlan }) | null>;
@@ -355,7 +366,7 @@ export function prepareDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
         }]);
       }
     }
-    return s.save(plan);
+    return s.save({ ...plan, remove_keys: i.remove_keys });
   });
 }
 export function listDataModelChanges(d: DataModelDeps, a: Actor, raw: unknown = {}) {
@@ -383,10 +394,17 @@ export function applyDataModel(d: DataModelDeps, a: Actor, id: string, raw: unkn
   return runWrite(d.uow, a, "data-model.apply", id, i, async (s) => {
     const c = await s.get(id, true);
     if (!c) throw notFound();
+    if (c.status === "needs_conversion") {
+      throw new AppError("schema_migration_required", "전체 종류의 영향 분석과 보완을 완료하세요");
+    }
     if (c.version !== i.expected_version || c.status !== "ready") {
       throw new AppError("schema_plan_stale", "적용할 변경안의 최신 검토를 확인하세요");
     }
     if (!c.review.can_apply) throw new AppError("schema_migration_required", "전체 모델의 값 변환 준비가 필요합니다");
+    if (c.group?.children.length) {
+      if (!s.startGroup) throw invalidInput("전체 작업 실행 저장소가 준비되지 않았습니다");
+      return s.startGroup(id);
+    }
     if (await definitionFingerprint(await s.snapshot()) !== c.plan.baseline) {
       throw new AppError("schema_plan_stale", "검토 후 모델이나 자료가 변경되었습니다. 다시 검토하세요");
     }

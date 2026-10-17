@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useBlocker } from "react-router";
 import type { DataModelDocument, ModelChange, ModelReview } from "@contracts/data-model.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -11,6 +11,7 @@ import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
 import { schemaDiffLabel, schemaDiffValueLabel } from "./schema-labels.ts";
+import { isModelGroup, ModelGroupEditor, type ModelGroupState } from "./ModelGroupEditor.tsx";
 import "./settings.css";
 
 const labels = {
@@ -25,6 +26,12 @@ const states = {
   needs_conversion: "값 변환 필요",
   applied: "전체 적용 완료",
   cancelled: "취소됨",
+  analyzing: "전체 분석 중",
+  queued: "변환 준비 대기",
+  preparing: "전체 변환 준비 중",
+  ready_to_commit: "전체 모델 확정 대기",
+  committing: "전체 모델 확정 중",
+  failed: "전체 변환 실패",
 };
 
 function changeSummary(change: ModelChange) {
@@ -59,8 +66,9 @@ export function DataModelResult({ result }: { result: NonNullable<ModelChange["r
   );
 }
 
-export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, disabled = false }: {
+export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, disabled = false, settled = false }: {
   review: ModelReview;
+  settled?: boolean;
   removeKeys?: Record<string, string[]>;
   onConfirmRemoval?: (ref: string, confirmed: boolean) => void;
   disabled?: boolean;
@@ -79,7 +87,7 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
           />
         ))}
       </div>
-      {!review.can_apply && (
+      {!settled && !review.can_apply && (
         <p className="help">
           충돌 또는 값 변환이 필요한 항목을 확인하세요. 일부 항목만 적용하지 않습니다.
         </p>
@@ -194,27 +202,42 @@ export function DataModelSettings() {
     file = useRef<HTMLInputElement>(null),
     sequence = useRef(0);
   const readRequest = useRef<AbortController | null>(null);
-  const locked = busy || uncertain || reading;
+  const [groupStates, setGroupStates] = useState<Record<string, ModelGroupState>>({});
+  const groupBusy = Object.values(groupStates).some((state) => state.busy);
+  const groupUncertain = Object.values(groupStates).some((state) => state.uncertain);
+  const groupDirty = Object.values(groupStates).some((state) => state.dirty);
+  const reportGroupState = useCallback((id: string, state: ModelGroupState) => {
+    setGroupStates((states) => ({ ...states, [id]: state }));
+  }, []);
+  const updateGroup = useCallback((value: ModelChange) => {
+    if (!alive.current) return;
+    setChanges((list) => list.map((item) => item.id === value.id && value.version >= item.version ? value : item));
+    if (value.status === "applied") {
+      setNotice(savedNotice(value));
+      if (session) invalidateEntityTypeCatalog(session.user.id);
+    }
+  }, [session?.user.id]);
+  const locked = busy || uncertain || reading || groupBusy || groupUncertain;
   const dirty = document !== accepted;
   const missingRemovalConfirmation = !!review?.items.some((item) =>
     item.removed_keys?.length &&
     (removeKeys[item.ref]?.length !== item.removed_keys.length ||
       item.removed_keys.some((key) => !removeKeys[item.ref].includes(key)))
   );
-  const blocker = useBlocker(dirty || busy || uncertain || reading);
+  const blocker = useBlocker(dirty || groupDirty || busy || uncertain || groupUncertain || reading || groupBusy);
   useEffect(() => {
-    if ((busy || reading) && blocker.state === "blocked") blocker.reset();
-  }, [busy, reading, blocker]);
+    if ((busy || reading || groupBusy) && blocker.state === "blocked") blocker.reset();
+  }, [busy, reading, groupBusy, blocker]);
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => {
-      if (dirty || busy || uncertain || reading) {
+      if (dirty || groupDirty || busy || uncertain || groupUncertain || reading || groupBusy) {
         event.preventDefault();
         event.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", unload);
     return () => window.removeEventListener("beforeunload", unload);
-  }, [dirty, busy, uncertain, reading]);
+  }, [dirty, groupDirty, busy, uncertain, groupUncertain, reading, groupBusy]);
   useEffect(() => () => {
     alive.current = false;
     readRequest.current?.abort();
@@ -359,7 +382,8 @@ export function DataModelSettings() {
   };
   const prepare = async () => {
     if (
-      busy || reading || !review || !uncertain && missingRemovalConfirmation || uncertain && pendingAction !== "prepare"
+      busy || reading || groupBusy || groupUncertain || groupDirty || !review ||
+      !uncertain && missingRemovalConfirmation || uncertain && pendingAction !== "prepare"
     ) return;
     setPendingAction("prepare");
     const payload = { document, mode, preview_fingerprint: review.fingerprint, remove_keys: removeKeys };
@@ -385,7 +409,7 @@ export function DataModelSettings() {
     }
   };
   const apply = async (change: ModelChange) => {
-    if (busy || reading || uncertain && pendingAction !== change.id) return;
+    if (busy || reading || groupBusy || groupUncertain || uncertain && pendingAction !== change.id) return;
     setPendingAction(change.id);
     setError("");
     setFields([]);
@@ -562,7 +586,7 @@ export function DataModelSettings() {
               <div className="actions schema-actions">
                 <button
                   className="btn btn-primary"
-                  disabled={busy || reading ||
+                  disabled={busy || reading || groupBusy || groupUncertain || groupDirty ||
                     uncertain && pendingAction !== "prepare" ||
                     review.items.some((i) => i.kind === "conflict") || !uncertain && missingRemovalConfirmation}
                   onClick={() => void prepare()}
@@ -634,17 +658,24 @@ export function DataModelSettings() {
                     </button>
                   </div>
                 )}
-                <DataModelReview review={change.review} />
-                {change.status === "needs_conversion" && (
-                  <p className="help">
-                    값 변환 준비가 필요합니다. 현재 모델은 유지됩니다.
-                  </p>
+                <DataModelReview review={change.review} settled={["applied", "cancelled"].includes(change.status)} />
+                {isModelGroup(change) && (
+                  <ModelGroupEditor
+                    change={change}
+                    onChange={updateGroup}
+                    onState={reportGroupState}
+                    disabled={busy || uncertain || reading ||
+                      Object.entries(groupStates).some(([id, state]) =>
+                        id !== change.id && (state.busy || state.uncertain)
+                      )}
+                  />
                 )}
-                {change.status === "ready" && change.review.can_apply && (
+                {change.status === "ready" && !isModelGroup(change) && change.review.can_apply && (
                   <div className="actions">
                     <button
                       className="btn btn-primary"
-                      disabled={busy || reading || detailState[change.id]?.loading || !!detailState[change.id]?.error ||
+                      disabled={busy || reading || groupBusy || groupUncertain || detailState[change.id]?.loading ||
+                        !!detailState[change.id]?.error ||
                         uncertain && pendingAction !== change.id}
                       onClick={() => void apply(change)}
                     >
@@ -666,9 +697,9 @@ export function DataModelSettings() {
         </div>
       </MaterialSettingsSection>
       <ConfirmDialog
-        open={!busy && !reading && blocker.state === "blocked"}
+        open={!busy && !reading && !groupBusy && blocker.state === "blocked"}
         title="변경을 버릴까요?"
-        message={uncertain
+        message={uncertain || groupUncertain
           ? "저장 여부를 먼저 확인하는 것이 좋습니다. 이동해도 처리 중인 요청이 취소되지는 않습니다."
           : "저장하지 않은 전체 모델 입력이 사라집니다."}
         confirmLabel="이동"
