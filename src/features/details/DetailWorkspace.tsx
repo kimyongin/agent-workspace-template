@@ -248,7 +248,6 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   </WorkspaceContext.Provider>;
 }
 
-/** Transfer the list position when its scroll owner changes between the page and split pane. */
 /** Nominal rem minima shrink equally toward half the available split when text grows. */
 function useFeasiblePanelMinimums(group: RefObject<HTMLDivElement | null>, handle: RefObject<HTMLDivElement | null>, enabled: boolean) {
   const [minimums, setMinimums] = useState({ list: "28rem", detail: "27rem" });
@@ -272,6 +271,7 @@ function useFeasiblePanelMinimums(group: RefObject<HTMLDivElement | null>, handl
   return minimums;
 }
 
+/** Transfer the list position when its scroll owner changes between the page and split pane. */
 function useWorkspaceScroll(enabled: boolean, split: boolean, base: Location) {
   const element = useRef<HTMLDivElement>(null);
   const ownsScroll = useRef(split); ownsScroll.current = split;
