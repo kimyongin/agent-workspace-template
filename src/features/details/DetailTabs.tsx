@@ -74,7 +74,7 @@ export function DetailTabs({ tabs, active, enabled, isBusy, select, close, reord
       if (enabled && !isBusy() && target) move(id, target);
     }}>{tabs.map(tab => <div className="relative flex max-w-64 shrink-0 items-center gap-1 data-[dragging=true]:opacity-50 data-[drop=before]:border-l-2 data-[drop=after]:border-r-2" key={tab.id} data-tab-id={tab.id} data-selected={active === tab.id || undefined}
       data-dragging={drag?.id === tab.id || undefined} data-drop={drag?.placement?.id === tab.id && drag.id !== tab.id ? drag.placement.before ? "before" : "after" : undefined}>
-      <TabsTrigger value={tab.id} className="min-h-11 min-w-0 flex-none px-3" id={`tab-${tab.id}`} aria-selected={active === tab.id} aria-controls={`panel-${tab.id}`} aria-describedby={help}
+      <TabsTrigger value={tab.id} className="min-h-[max(2.75rem,44px)] min-w-0 flex-none px-3" id={`tab-${tab.id}`} aria-selected={active === tab.id} aria-controls={`panel-${tab.id}`} aria-describedby={help}
         aria-keyshortcuts="Control+Shift+ArrowLeft Control+Shift+ArrowRight" tabIndex={active === tab.id ? 0 : -1} title={tab.title}
         draggable={enabled} onClick={() => select(tab.id)} onKeyDown={event => {
           if (["Enter", " "].includes(event.key)) { event.preventDefault(); if (enabled && !isBusy()) select(tab.id); }

@@ -31,7 +31,7 @@ export function MaterialSettingsSection(
       <Card>
         <CardHeader>
           <CardTitle><h2>
-            <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-between whitespace-normal text-left" aria-controls={id}>
+            <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-between whitespace-normal text-left" aria-controls={id}>
               <span className="min-w-0 [overflow-wrap:anywhere]">{title}</span>
               {status && <Badge variant={state?.error ? "destructive" : "secondary"}>{status}</Badge>}
               <ChevronDownIcon data-icon="inline-end" />

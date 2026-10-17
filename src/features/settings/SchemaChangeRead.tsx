@@ -53,7 +53,7 @@ export function SchemaChangeRead(
       <SchemaChangeDiff change={change} definition={definition} />
       {change.analysis && (
         <Collapsible>
-          <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">검토 결과</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+          <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">검토 결과</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
           <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
             <div>
               <dt>확인한 자료</dt>

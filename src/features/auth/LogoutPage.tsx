@@ -49,10 +49,10 @@ export function LogoutPage() {
       </CardContent>
       {error && <CardFooter className="flex flex-wrap gap-2">
         {localSignedOut
-          ? <Button asChild size="lg" className="min-h-11"><Link to="/login">로그인으로 이동</Link></Button>
+          ? <Button asChild size="lg"><Link to="/login">로그인으로 이동</Link></Button>
           : <>
-            <Button type="button" variant="outline" size="lg" className="min-h-11" onClick={signOut}>다시 시도</Button>
-            <Button asChild variant="ghost" size="lg" className="min-h-11"><Link to="/tasks">할 일로 돌아가기</Link></Button>
+            <Button type="button" variant="outline" size="lg" onClick={signOut}>다시 시도</Button>
+            <Button asChild variant="ghost" size="lg"><Link to="/tasks">할 일로 돌아가기</Link></Button>
           </>}
       </CardFooter>}
     </Card>

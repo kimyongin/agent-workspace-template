@@ -54,7 +54,7 @@ export function LoginPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-          <Button type="button" size="lg" className="min-h-11 w-full" onClick={google}>Google로 로그인</Button>
+          <Button type="button" size="lg" className="w-full" onClick={google}>Google로 로그인</Button>
           {devLoginEnabled && <>
             <Separator />
             <form onSubmit={devLogin} aria-labelledby="dev-login-title">
@@ -69,7 +69,7 @@ export function LoginPage() {
                   <Input id={passwordId} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </Field>
                 <Field>
-                  <Button type="submit" variant="outline" size="lg" className="min-h-11 w-full" disabled={busy}>
+                  <Button type="submit" variant="outline" size="lg" className="w-full" disabled={busy}>
                     {busy && <Spinner aria-hidden="true" data-icon="inline-start" />}
                     {busy ? "로그인 중…" : "이메일로 로그인"}
                   </Button>

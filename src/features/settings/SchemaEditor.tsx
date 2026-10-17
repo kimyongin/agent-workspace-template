@@ -294,7 +294,7 @@ export function SchemaEditor(
               tabIndex={-1}
             >
               <Button variant="outline"
-                className="h-auto min-h-11 w-full justify-between whitespace-normal text-left"
+                className="h-auto min-h-[max(2.75rem,44px)] w-full justify-between whitespace-normal text-left"
                 type="button"
                 aria-expanded={propertiesOpen}
                 aria-label="입력 항목"
@@ -391,7 +391,7 @@ export function SchemaEditor(
                               )
                               : (
                                 <Button variant="outline"
-                                  className="flex h-auto min-h-11 max-w-full min-w-0 flex-1 flex-col items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left [overflow-wrap:anywhere]"
+                                  className="flex h-auto min-h-[max(2.75rem,44px)] max-w-full min-w-0 flex-1 flex-col items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left [overflow-wrap:anywhere]"
                                   type="button"
                                   aria-label={`${f.title || "새 항목"} 입력 항목 편집`}
                                   aria-expanded={expanded}
@@ -574,7 +574,7 @@ export function SchemaEditor(
                               );
                             }}
                           >
-                            <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">추가 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+                            <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">추가 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
                             <FieldGroup className="flex min-w-0 flex-col gap-5 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
                               <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                                 <Checkbox
@@ -947,7 +947,7 @@ export function SchemaEditor(
                   >
                     <CardHeader><Button variant="outline"
                       type="button"
-                      className="h-auto min-h-11 w-full flex-wrap justify-between gap-3 whitespace-normal py-3 text-left min-w-0 [overflow-wrap:anywhere]"
+                      className="h-auto min-h-[max(2.75rem,44px)] w-full flex-wrap justify-between gap-3 whitespace-normal py-3 text-left min-w-0 [overflow-wrap:anywhere]"
                       aria-expanded={isOpen}
                       aria-controls={`schema-history-${row.id}`}
                       disabled={!isOpen && plan?.id !== row.changeId &&
@@ -1160,7 +1160,7 @@ export function SchemaEditor(
                           )}
                           {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
                             <Collapsible>
-                              <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">자료별 결과</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+                              <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">자료별 결과</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
                               <p>
                                 변경 {plan.analysis.changed}개 · 무변경 {plan.analysis.unchanged}개 · 값 제거{" "}
                                 {plan.analysis.removed}개 · 값 보완 {plan.analysis.replacements}개

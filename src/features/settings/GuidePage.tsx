@@ -31,7 +31,7 @@ export function GuidePage() {
         </div></li>
       <li className="flex flex-col gap-3"><h2 className="min-w-0 [overflow-wrap:anywhere]">제품 플러그인 연결하기</h2>
         <p>Claude와 Codex용 제품 플러그인은 MCP 연결 설정과 제품 스킬을 함께 제공합니다. MCP OAuth 로그인은 데이터 접근을 허용하고, 제품 스킬은 검색·읽기·저장 방법을 안내합니다. 로그인만으로 스킬 설치가 끝나는 것은 아닙니다.</p>
-        <Collapsible><CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">설치·연결 정보</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden"><div className="flex min-w-0 flex-col gap-4">
+        <Collapsible><CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">설치·연결 정보</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden"><div className="flex min-w-0 flex-col gap-4">
         {config.pluginApp && <div>
           <Button asChild variant="ghost"><a href={config.pluginApp}><>제품 플러그인 설치·연결 안내</></a></Button>
           <p>플러그인에 접근할 수 있는 계정으로 안내를 여세요. 사용하는 클라이언트에서 플러그인을 추가하고 제품 스킬을 확인한 뒤, 이 앱의 OAuth 연결을 완료하세요.</p>

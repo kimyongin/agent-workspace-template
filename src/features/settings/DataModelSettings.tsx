@@ -89,7 +89,7 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
     <section aria-label="가져올 설정 검토" className="min-w-0">
       <h3 className="text-base font-semibold">{review.title}</h3>
       <Collapsible>
-        <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">파일과 현재 설정의 연결 정보</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+        <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">파일과 현재 설정의 연결 정보</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
         <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
           {Object.entries(review.mapping.types).map(([source, target]) => (
             <div className="col-span-full" key={`type:${source}`}>
@@ -201,7 +201,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
           </dl>
           {item.current_identity && (
             <Collapsible>
-              <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">현재 번호 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+              <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">현재 번호 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
               <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
                 <div>
                   <dt>번호 이름</dt>

@@ -124,7 +124,7 @@ function PropertyList(
                       : (
                         <Button variant="outline"
                           type="button"
-                          className="flex-1 h-auto min-h-11 min-w-0 justify-start whitespace-normal text-left font-medium wrap-anywhere"
+                          className="flex-1 h-auto min-h-[max(2.75rem,44px)] min-w-0 justify-start whitespace-normal text-left font-medium wrap-anywhere"
                           aria-expanded={open}
                           aria-controls={bodyId}
                           onClick={() => {
@@ -523,7 +523,7 @@ export function MaterialWorkspaceSample() {
                   <h3 className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                     <Button variant="outline"
                       type="button"
-                      className="h-auto min-h-11 min-w-0 justify-start whitespace-normal text-left font-medium wrap-anywhere"
+                      className="h-auto min-h-[max(2.75rem,44px)] min-w-0 justify-start whitespace-normal text-left font-medium wrap-anywhere"
                       aria-expanded={open}
                       aria-controls={id}
                       onClick={() =>

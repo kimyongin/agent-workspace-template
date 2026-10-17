@@ -99,8 +99,8 @@ export function ConsentPage() {
           </>}
         </CardContent>
         {details && <CardFooter className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" size="lg" className="min-h-11 min-w-16" onClick={() => decide(false)} disabled={busy}>거부</Button>
-          <Button type="button" size="lg" className="min-h-11 min-w-16" onClick={() => decide(true)} disabled={busy}>
+          <Button type="button" variant="outline" size="lg" className="min-w-16" onClick={() => decide(false)} disabled={busy}>거부</Button>
+          <Button type="button" size="lg" className="min-w-16" onClick={() => decide(true)} disabled={busy}>
             {busy && <Spinner aria-hidden="true" data-icon="inline-start" />}{busy ? "처리 중…" : "승인"}
           </Button>
         </CardFooter>}

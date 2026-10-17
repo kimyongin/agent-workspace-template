@@ -105,10 +105,10 @@ export function RelatedItem(
   const layout = useItemLayout(), table = layout?.view === "table";
   const label = titleLabel ?? (layout?.columns[0] !== "내용" ? layout?.columns[0] : undefined) ??
     (to?.startsWith("/records/") ? "본문 대표 문구" : to?.startsWith("/tasks/") ? "제목" : "자료 이름");
-  const titleButton = <Button data-list-anchor={id ? "" : undefined} id={heading} type="button" variant="ghost" className="h-auto min-h-11 min-w-0 flex-1 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+  const titleButton = <Button data-list-anchor={id ? "" : undefined} id={heading} type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] min-w-0 flex-1 justify-start px-0 text-left whitespace-normal wrap-anywhere"
     aria-expanded={disclosure?.expanded} aria-controls={disclosure ? panel : undefined} onClick={table ? disclosure?.toggle : undefined}>{title}</Button>;
   const titleContent = disclosure ? (table ? titleButton : <CollapsibleTrigger asChild>{titleButton}</CollapsibleTrigger>)
-    : to ? <Button asChild variant="ghost" className="h-auto min-h-11 min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"><DetailLink data-list-anchor={id ? "" : undefined} id={heading} to={to} aria-label={title} restoreKey={restoreKey}>{title}</DetailLink></Button>
+    : to ? <Button asChild variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"><DetailLink data-list-anchor={id ? "" : undefined} id={heading} to={to} aria-label={title} restoreKey={restoreKey}>{title}</DetailLink></Button>
     : <span id={heading} className="font-medium wrap-anywhere">{title}</span>;
   const Icon = disclosure?.expanded ? ChevronUpIcon : ChevronDownIcon;
   const toggle = disclosure && <Button type="button" variant="ghost" size="icon" aria-label={`${title} ${disclosure.expanded ? "접기" : "열기"}`}

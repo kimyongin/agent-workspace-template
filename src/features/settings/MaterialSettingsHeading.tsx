@@ -43,7 +43,7 @@ export function MaterialSettingsHeading({ section, id }: {
       </PageHeading>
       <Tabs value={section} activationMode="manual" onValueChange={key => { const target = sections.find(item => item.key === key); if(target) void navigate(target.to); }}>
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4" aria-label="자료 설정 항목">
-          {sections.map(({ key, label }) => <TabsTrigger key={key} value={key} aria-current={section === key ? "page" : undefined} className="min-h-11 whitespace-normal">{label}</TabsTrigger>)}
+          {sections.map(({ key, label }) => <TabsTrigger key={key} value={key} aria-current={section === key ? "page" : undefined} className="min-h-[max(2.75rem,44px)] whitespace-normal">{label}</TabsTrigger>)}
         </TabsList>
       </Tabs>
       <CardDescription>{sections.find(({ key }) => key === section)?.description}</CardDescription>
