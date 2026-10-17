@@ -54,7 +54,7 @@ dbTest(
     try {
       const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
       for (const kind of sample.entity_types.slice(0, 2)) {
-        kind.schema.properties.prop_2 = { type: "string", "x-order": 10 };
+        kind.schema.properties.prop_2 = { type: "string", "x-order": 20 };
       }
       const input = { mode: "copy", document: JSON.stringify(sample) },
         preview = await previewDataModel(deps, fixture.actor, input);
@@ -82,7 +82,7 @@ dbTest(
       const before = await exportDataModel(deps, fixture.actor), target = structuredClone(before);
       for (const kind of target.entity_types) {
         if (ids.includes(kind.schema["x-type-id"])) {
-          kind.schema.properties.prop_2 = { type: "integer", "x-order": 10 };
+          kind.schema.properties.prop_2 = { type: "integer", "x-order": 20 };
         } else kind.schema.description = "함께 게시하는 호환 설정";
       }
       target.relations[0].ends[0].label = "함께 바꾼 관계";
@@ -402,9 +402,9 @@ dbTest(
       const settings = {
         entity_types: { [other.schema["x-type-id"]]: { update: { memo: "바뀐 템플릿 $대상$ $액션$", tag_ids: [] } } },
       };
-      await admin`insert into app.user_business_settings(owner_id,id,settings) values(${f.fixture.actor.userId}::uuid,'record_templates',${
+      await admin`insert into app.user_business_settings(owner_id,id,version,settings) values(${f.fixture.actor.userId}::uuid,'record_templates',1,${
         admin.json(settings)
-      }) on conflict(owner_id,id) do update set settings=excluded.settings`;
+      }) on conflict(owner_id,id) do update set settings=excluded.settings,version=app.user_business_settings.version+1`;
       const [result] =
         await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`;
       assertEquals(result.committed, false);
@@ -414,6 +414,24 @@ dbTest(
       assertEquals(await exportDataModel(deps, f.fixture.actor), f.before);
     } finally {
       await f.fixture.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "whole model account deletion cascades durable children without touching another owner's queued group",
+  async () => {
+    const removed = await queuedGroup(), retained = await queuedGroup();
+    try {
+      const before = await getDataModelChange(deps, retained.fixture.actor, retained.id);
+      await removed.fixture.cleanup();
+      const [rows] =
+        await admin`select (select count(*)::int from app.data_model_children where owner_id=${removed.fixture.actor.userId}::uuid) as children,(select count(*)::int from app.entity_schema_migrations where owner_id=${removed.fixture.actor.userId}::uuid) as jobs,(select count(*)::int from app.data_model_changes where owner_id=${removed.fixture.actor.userId}::uuid) as models`;
+      assertEquals(rows, { children: 0, jobs: 0, models: 0 });
+      assertEquals(await getDataModelChange(deps, retained.fixture.actor, retained.id), before);
+    } finally {
+      await removed.fixture.cleanup();
+      await retained.fixture.cleanup();
     }
   },
 );
