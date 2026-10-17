@@ -36,7 +36,7 @@ export function LogoutPage() {
     }
     if (!started.current) { started.current = true; void signOut(); }
   }, [loading, session, navigate]);
-  return <section className="mx-auto w-full min-w-0 max-w-md py-6" aria-labelledby="logout-title">
+  return <section className="mx-auto w-full min-w-0 max-w-md px-4 py-6 sm:px-0" aria-labelledby="logout-title">
     <Card>
       <CardHeader>
         <CardTitle><h1 id="logout-title">로그아웃</h1></CardTitle>

@@ -74,7 +74,7 @@ export function ConsentPage() {
 
   const name = details?.client?.name || details?.client?.id || "알 수 없는 클라이언트";
   return (
-    <section className="mx-auto w-full min-w-0 max-w-lg py-6" aria-labelledby="consent-title">
+    <section className="mx-auto w-full min-w-0 max-w-lg px-4 py-6 sm:px-0" aria-labelledby="consent-title">
       <Card>
         <CardHeader>
           <CardTitle><h1 id="consent-title">에이전트 연결 승인</h1></CardTitle>

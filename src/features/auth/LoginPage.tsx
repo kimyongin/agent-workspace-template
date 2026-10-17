@@ -46,7 +46,7 @@ export function LoginPage() {
   };
 
   return (
-    <section className="mx-auto w-full min-w-0 max-w-md py-6" aria-labelledby="login-title">
+    <section className="mx-auto w-full min-w-0 max-w-md px-4 py-6 sm:px-0" aria-labelledby="login-title">
       <Card>
         <CardHeader>
           <CardTitle><h1 id="login-title">로그인</h1></CardTitle>
