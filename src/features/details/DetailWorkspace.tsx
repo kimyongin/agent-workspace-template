@@ -1,14 +1,18 @@
-import { activeSurface, registerScrollOwner } from "../../lib/surface-dom.ts";
+import { cn } from "cn";
+import { Tabs, TabsContent } from "../../components/ui/tabs.tsx";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../components/ui/resizable.tsx";
+import { Button } from "../../components/ui/button.tsx";
+import { XIcon } from "lucide-react";
+import type { PanelImperativeHandle } from "react-resizable-panels";
+import { activeSurface, registerScrollOwner, scrollOwner, restoreScroll } from "../../lib/surface-dom.ts";
 import { useNavigationBlocker, useNavigationBusy } from "../../lib/navigation-protection.tsx";
 import { entityListAnchor, detailListReturn } from "../../lib/entity-list-url.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { useLocation, useNavigate, type Location, type NavigateOptions, type To } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, workspaceBase, materialSettingsBase, type WorkspaceGuard } from "./workspace-context.ts";
-import { useWorkspaceResize } from "./useWorkspaceResize.ts";
 import { useDisplayScale } from "../settings/display-scale.tsx";
 import { DetailTabs } from "./DetailTabs.tsx";
-import "./workspace.css";
 
 type Tab = { id: string; location: Location; title: string; returnTo?: string };
 const kindLabels: Record<string, string> = { entities: "자료", tasks: "할 일", records: "기록" };
@@ -65,7 +69,10 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   }, [identityDestination,navigate]);
   const [discard, setDiscard] = useState<(() => void) | null>(null);
   const shown = visible && !!active;
-  const split = useWorkspaceResize(desktop && shown && started && eligible);
+  const detailPanel = useRef<PanelImperativeHandle | null>(null);
+  const detailRatio = useRef(46);
+  const rememberResize = useRef(false);
+  useLayoutEffect(() => { rememberResize.current = false; detailPanel.current?.resize(desktop && shown ? `${detailRatio.current}%` : 0); }, [desktop, shown]);
   const listRef = useWorkspaceScroll(started && eligible, desktop && shown, base);
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => {
@@ -197,18 +204,23 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     return () => cancelAnimationFrame(frame);
   }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef, base.hash]);
   // Base editors use the same retained parent on the first authenticated render and after startup commits.
-  if ((!started && !retainedBase) || !eligible) return children;
-  return <WorkspaceContext.Provider value={{ revision, navigationKey: location.key, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
-    <div className="workspace-list" ref={listRef}>{render(base)}
-      {desktop && !visible && tabs.length > 0 && <button className="btn workspace-reopen" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</button>}
-    </div>
-    <div className="pane-resize-handle workspace-resize-handle" {...split.separator}/>
-    <aside className="workspace-details" id="workspace-details" hidden={!shown} aria-label="상세 작업 영역">
-      <div className="workspace-tab-bar" hidden={!desktop}>
-        <DetailTabs tabs={tabs} active={active} enabled={desktop && shown} isBusy={anyBusy}
-          select={id => { const tab = current.current.tabs.find(tab => tab.id === id); if (tab) select(tab); }} close={requestClose} reorder={reorder}/>
-        <button className="workspace-hide" aria-label="상세 패널 숨기기" title="패널 닫기" onClick={() => { if (!anyBusy()) setVisible(false); }}>×</button>
-      </div>
+  if ((!started && !retainedBase) || !eligible) return <div className="min-w-0 p-4 lg:p-6">{children}</div>;
+  return <WorkspaceContext.Provider value={{ revision, navigationKey: location.key, saved, open, registerGuard }}>
+    <ResizablePanelGroup orientation="horizontal" className={cn("min-h-0 min-w-0", desktop && shown && "h-[calc(100dvh-3.5rem)]")} resizeTargetMinimumSize={{ coarse: 44, fine: 44 }}>
+      <ResizablePanel id="list" minSize={desktop && shown ? "28rem" : 0} className="min-w-0">
+        <div className={cn("flex min-w-0 flex-col gap-5 p-4 lg:p-6", desktop && shown && "h-full overflow-y-auto overscroll-contain")} ref={listRef}>
+          {render(base)}
+          {desktop && !visible && tabs.length > 0 && <Button variant="outline" className="self-end" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</Button>}
+        </div>
+      </ResizablePanel>
+      {desktop && shown && <ResizableHandle aria-label="상세 패널 너비 조절" className="w-2 shrink-0" onPointerDownCapture={() => { rememberResize.current = true; }} onKeyDownCapture={() => { rememberResize.current = true; }} onDoubleClick={() => { detailRatio.current = 46; detailPanel.current?.resize("46%"); }} />}
+      <ResizablePanel id="detail" panelRef={detailPanel} minSize={desktop && shown ? "27rem" : 0} maxSize={desktop && shown ? "70%" : 0} defaultSize={desktop && shown ? "46%" : 0} onResize={size => { if (rememberResize.current && desktop && shown && size.asPercentage > 0) detailRatio.current = size.asPercentage; }} className="min-w-0">
+        <aside className="flex h-full min-h-0 min-w-0 flex-col border-l bg-card" id="workspace-details" hidden={!shown} aria-label="상세 작업 영역">
+          <Tabs value={active ?? ""} onValueChange={id => { const tab = current.current.tabs.find(tab => tab.id === id); if (tab) select(tab); }} className="h-full min-h-0 gap-0">
+            <div className="flex min-w-0 shrink-0 items-center border-b" hidden={!desktop}>
+              <DetailTabs tabs={tabs} active={active} enabled={desktop && shown} isBusy={anyBusy} select={id => { const tab = current.current.tabs.find(tab => tab.id === id); if (tab) select(tab); }} close={requestClose} reorder={reorder} />
+              <Button variant="ghost" size="icon" aria-label="상세 패널 숨기기" onClick={() => { if (!anyBusy()) setVisible(false); }}><XIcon /></Button>
+            </div>
       {tabs.map(tab => <TabContent key={tab.id} tab={tab} active={shown && active === tab.id} docked={desktop}
         previous={tab.returnTo && tabs.some(value => value.id === tab.returnTo) ? {
           label: `이전: ${tabs.find(value => value.id === tab.returnTo)!.title}`,
@@ -218,11 +230,13 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
         title={title => setTabs(previous => previous.map(value => value.id === tab.id && value.title !== title ? { ...value, title } : value))}>
         {render(tab.location)}
       </TabContent>)}
-    </aside>
-    <ConfirmDialog open={!!discard} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기"
-      onCancel={() => setDiscard(null)} onConfirm={() => { discard?.(); setDiscard(null); }}/>
-    <WorkspaceRouteProtection guards={guards}/>
-  </div></WorkspaceContext.Provider>;
+          </Tabs>
+        </aside>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+    <ConfirmDialog open={!!discard} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기" onCancel={() => setDiscard(null)} onConfirm={() => { discard?.(); setDiscard(null); }} />
+    <WorkspaceRouteProtection guards={guards} />
+  </WorkspaceContext.Provider>;
 }
 
 /** Transfer the list position when its scroll owner changes between the page and split pane. */
@@ -237,15 +251,16 @@ function useWorkspaceScroll(enabled: boolean, split: boolean, base: Location) {
     if (saved.pathname !== base.pathname) saved.top = Number(new URLSearchParams(base.search).get("scroll")) || 0;
     saved.pathname = base.pathname; saved.split = split;
     if (split) element.current.scrollTop = saved.top;
-    else window.scrollTo({ top: saved.top, behavior: "instant" });
+    else restoreScroll(element.current.parentElement, saved.top);
   }, [enabled, split, base.pathname]);
   useEffect(() => {
     const list = element.current;
     if (!enabled || !list) return;
     const rememberList = () => { if (position.current.split) position.current.top = list.scrollTop; };
-    const rememberPage = () => { if (!position.current.split) position.current.top = window.scrollY; };
-    list.addEventListener("scroll", rememberList); window.addEventListener("scroll", rememberPage);
-    return () => { list.removeEventListener("scroll", rememberList); window.removeEventListener("scroll", rememberPage); };
+    const page = scrollOwner(list.parentElement);
+    const rememberPage = () => { if (!position.current.split) position.current.top = page?.scrollTop ?? window.scrollY; };
+    list.addEventListener("scroll", rememberList); (page ?? window).addEventListener("scroll", rememberPage);
+    return () => { list.removeEventListener("scroll", rememberList); (page ?? window).removeEventListener("scroll", rememberPage); };
   }, [enabled]);
   return element;
 }
@@ -270,6 +285,6 @@ function TabContent({ tab, active, docked, previous, navigate, close, title, reg
   const publish = useRef(title); publish.current = title;
   const updateTitle = useCallback((value: string) => publish.current(value), []);
   return <DetailTabContext.Provider value={{ id: tab.id, active, docked, previous, navigate, close, title: updateTitle, guard: value => { guard.current = value; } }}>
-    <div role="tabpanel" id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`} hidden={!active}>{children}</div>
+    <TabsContent value={tab.id} forceMount id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`} hidden={!active} className="min-h-0 data-[state=inactive]:hidden">{children}</TabsContent>
   </DetailTabContext.Provider>;
 }

@@ -1,4 +1,4 @@
-import { activeSurface, scrollOwner } from "./surface-dom.ts";
+import { activeSurface, scrollOwner, scrollTop, restoreScroll } from "./surface-dom.ts";
 import { detailListReturn } from "./entity-list-url.ts";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { Link, useLocation, useNavigate, type LinkProps, type NavigateOptions, type To } from "react-router";
@@ -116,11 +116,11 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
     if(target.split(/[?#]/)[0]===location.pathname){event.preventDefault();void navigate(props.to,{replace:true,state:location.state});return;}
     const body = activeSurface(false)?.body ?? null;
     const searchOrigin = location.pathname === "/search" && props.id ? new URLSearchParams(location.search) : null;
-    searchOrigin?.set("scroll", String(window.scrollY));
+    searchOrigin?.set("scroll", String(scrollTop(event.currentTarget)));
     const origin = searchOrigin ? `/search?${searchOrigin}#${props.id}` : `${location.pathname}${location.search}${location.hash}`;
     const frame: Frame = { key: location.key, path: origin,
       title: activeSurface(false)?.title ?? document.querySelector("h1")?.textContent ?? "이전 화면",
-      scroll: body?.scrollTop ?? window.scrollY, focusKey: event.currentTarget.dataset.detailFocus ?? target };
+      scroll: body?.scrollTop ?? scrollTop(event.currentTarget), focusKey: event.currentTarget.dataset.detailFocus ?? target };
     context?.frames.set(frame.key, frame);
     const trail=detailTrail(location.state,context?.scope),root=trail.find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
     const next: TrailState = { ...(state && typeof state === "object" ? state : {}), detailScope: context?.scope ?? "",detailVersion:2,
@@ -163,7 +163,7 @@ function useRestoreFrame(frames: Map<string, Frame>) {
       if (done || loading || !target && !surface?.ready && !scope.querySelector("[data-list-anchor], [data-page-action], [data-page-ready], [role=alert]")) return;
       done = true;
       (target ?? (!body ? document.querySelector<HTMLElement>("[data-page-action]") : null) ?? surface?.heading ?? document.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: true });
-      if (body) body.scrollTop = frame.scroll; else window.scrollTo(0, frame.scroll);
+      if (body) body.scrollTop = frame.scroll; else restoreScroll(target ?? document.querySelector("main"), frame.scroll);
     };
     let animation = 0;
     const schedule = () => { cancelAnimationFrame(animation); animation = requestAnimationFrame(restore); };
