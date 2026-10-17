@@ -290,18 +290,17 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             )}
           </Field>
           {type_id && (
-            <Link
-
+            <Button variant="outline" className="h-auto max-w-full whitespace-normal" asChild><Link
               to="/settings/entity-types"
               state={{ materialTypeFocus: true }}
             >
               종류 추가
-            </Link>
+            </Link></Button>
           )}
           {!loading && type_id && (
-            <Link to={`/settings/relations?type_id=${encodeURIComponent(type_id)}`}>
+            <Button variant="outline" className="h-auto max-w-full whitespace-normal" asChild><Link to={`/settings/relations?type_id=${encodeURIComponent(type_id)}`}>
               이 자료의 연결 설정
-            </Link>
+            </Link></Button>
           )}
         </div>
       )}

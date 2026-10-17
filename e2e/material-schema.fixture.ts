@@ -536,8 +536,8 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
   );
   await expect(page.getByRole("button", { name: /^입력 항목 변경/ }))
     .toContainText("적용됨");
-  await expect(page.getByRole("status").filter({ hasText: "완료 · 10/10" }))
-    .toBeVisible();
+  await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status").getByRole("definition"))
+    .toHaveText(["완료", "10/10개 준비"]);
   await page.getByRole("button", { name: "최신 입력 항목 다시 조회", exact: true })
     .click();
   await expect(
@@ -1183,9 +1183,10 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
   await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
   await expect(page.getByRole("button", { name: /^최초 생성/ })).toHaveCount(1);
   await applied.click();
-  await expect(
-    page.getByText("새 입력 항목 버전 2 · 10개 적용 · 6개 값 변경", { exact: true }),
-  ).toBeVisible();
+  const conversion = page.getByRole("region", { name: "값 변환 상세", exact: true });
+  for (const [label, value] of [["새 입력 항목 버전", "2"], ["적용", "10개 적용"], ["값 변경", "6개 값 변경"]]) {
+    await expect(conversion.getByRole("term", { name: label, exact: true }).locator("..").getByRole("definition")).toHaveText(value);
+  }
   await expect(page.getByRole("button", { name: "폐기", exact: true }))
     .toHaveCount(0);
   await expect(page.getByRole("button", { name: "값 변환 시작", exact: true }))
