@@ -387,7 +387,14 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(row).toBeVisible();
       const box = (await row.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(44);
-      expect(box.height).toBeLessThanOrEqual(52);
+      const title = row.locator("[data-list-anchor]");
+      await expect(title).toBeVisible();
+      const titleBox = (await title.boundingBox())!;
+      expect(titleBox.height).toBeGreaterThanOrEqual(44);
+      expect(titleBox.x).toBeGreaterThanOrEqual(box.x);
+      expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(box.x + box.width);
+      await expect(row.getByRole("term")).not.toHaveCount(0);
+      await expect(row.getByRole("definition")).not.toHaveCount(0);
       await expect(
         page.getByRole("button", {
           name: kind === "entities" ? "검사 자료 추가" : kind === "tasks" ? "할 일 등록" : "기록 작성",
@@ -396,7 +403,10 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ).toBeVisible();
       await openTabFilters(page);
       const grid = page.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "필터", exact: true }) });
-      const inputs = await grid.locator("input,select").evaluateAll((nodes) =>
+      for (const name of kind === "entities" ? ["정렬"] : kind === "tasks" ? ["할 일 종류", "할 일 상태"] : ["기록 종류", "기록 시작일", "기록 종료일"]) {
+        await expect(grid.getByLabel(name, { exact: true })).toBeVisible();
+      }
+      const inputs = await grid.getByRole("textbox").or(grid.getByRole("combobox")).or(grid.locator('input[type="date"]')).filter({ visible: true }).evaluateAll((nodes) =>
         nodes.map((el) => {
           const b = el.getBoundingClientRect();
           return { x: b.x, y: b.y, right: b.right, h: b.height };
@@ -407,12 +417,15 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         expect(field.h).toBeGreaterThanOrEqual(44);
         expect(field.right).toBeLessThanOrEqual(width);
       }
-      if (kind !== "entities") expect(inputs[0].y).toBeCloseTo(inputs[1].y);
-      else await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
+      if (kind === "entities") await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
       const filterBottom = (await grid.boundingBox())!;
-      expect((await page.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true }).boundingBox())!.y).toBeGreaterThanOrEqual(
-        filterBottom.y + filterBottom.height,
-      );
+      const tags = page.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true });
+      await expect(tags).toBeVisible();
+      const tagBox = (await tags.boundingBox())!;
+      expect(tagBox.y).toBeGreaterThanOrEqual(filterBottom.y);
+      expect(tagBox.y + tagBox.height).toBeLessThanOrEqual(filterBottom.y + filterBottom.height);
+      expect(tagBox.x).toBeGreaterThanOrEqual(filterBottom.x);
+      expect(tagBox.x + tagBox.width).toBeLessThanOrEqual(filterBottom.x + filterBottom.width);
       if (kind === "entities") await setEntityCategory(page, value);
       else { await page.getByLabel(label, { exact: true }).selectOption(value); await page.getByRole("button", { name: "필터 적용", exact: true }).click(); }
       const search = page.getByLabel(kind === "entities" ? "자료 제목 검색" : "검색어", { exact: true });
@@ -444,14 +457,20 @@ for (const width of [320, 1440]) {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, "/tags/entity");
+    await settleSurface(form(page));
     const body = form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]"),
       editor = form(page).getByRole("form", { name: "태그 추가", exact: true }),
       input = editor.getByRole("textbox"),
       box = (await input.boundingBox())!,
       parent = (await editor.boundingBox())!;
-    if (width >= 640) {
-      expect((await form(page).boundingBox())!.height).toBeLessThan(500);
-    }
+    const manager = (await form(page).boundingBox())!;
+    expect(manager.x).toBeGreaterThanOrEqual(0);
+    expect(manager.x + manager.width).toBeLessThanOrEqual(width);
+    expect(manager.y).toBeGreaterThanOrEqual(0);
+    expect(manager.y + manager.height).toBeLessThanOrEqual(900);
+    expect(await body.evaluate(element => getComputedStyle(element).overflowY)).toMatch(/^(auto|scroll)$/);
+    await expect(editor.getByRole("button", { name: "추가", exact: true })).toBeVisible();
+    await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
     expect(box.x).toBeCloseTo(parent.x);
     expect(box.width).toBeGreaterThan(100);
     expect(box.x + box.width).toBeLessThanOrEqual(parent.x + parent.width + 1);
