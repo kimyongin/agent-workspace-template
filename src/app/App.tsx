@@ -55,6 +55,9 @@ function Layout() {
   const { session } = useAuth();
   const location = useLocation();
   const navigation = useNavigationResize(session?.user.id ?? null);
+  const constraintSize = (pixels: number) => navigation.axisSize
+    ? `${100 * pixels / navigation.axisSize}%`
+    : `${pixels}px`;
   const scrollRegistration = useRef<(() => void) | null>(null);
   const attachMain = useCallback((node: HTMLElement | null) => {
     scrollRegistration.current?.();
@@ -63,11 +66,11 @@ function Layout() {
   return <SidebarProvider key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"} className="h-dvh min-h-0 w-full overflow-hidden" style={{ "--sidebar-width": "100%" } as React.CSSProperties}>
     <span ref={navigation.remProbe} aria-hidden="true" className="pointer-events-none absolute h-0 w-[1rem] overflow-hidden" />
     <ResizablePanelGroup elementRef={navigation.group} orientation="horizontal" className="min-h-0 min-w-0 flex-1" resizeTargetMinimumSize={{ coarse: 44, fine: 44 }}>
-      <ResizablePanel id="navigation" panelRef={navigation.panel} minSize={session && navigation.desktop ? `${13 * navigation.rem}px` : 0} maxSize={session && navigation.desktop ? `${20 * navigation.rem}px` : 0} defaultSize={session && navigation.desktop ? `${13 * navigation.rem}px` : 0} onResize={size => navigation.remember(size.inPixels)}>
+      <ResizablePanel id="navigation" panelRef={navigation.panel} minSize={session && navigation.desktop ? constraintSize(13 * navigation.rem) : 0} maxSize={session && navigation.desktop ? constraintSize(20 * navigation.rem) : 0} defaultSize={session && navigation.desktop ? constraintSize(13 * navigation.rem) : 0} onResize={size => navigation.remember(size.inPixels)}>
         {session && <Navigation brand={APP_NAME} />}
       </ResizablePanel>
       {session && navigation.desktop && <ResizableHandle elementRef={navigation.separator} aria-label="탐색 메뉴 너비 조절" onPointerDownCapture={navigation.beginResize} onKeyDownCapture={navigation.beginResize} onDoubleClick={navigation.reset} className="w-2 shrink-0" />}
-      <ResizablePanel id="application" minSize={session && navigation.desktop ? `${navigation.applicationMinimum}px` : 0} className="min-w-0">
+      <ResizablePanel id="application" minSize={session && navigation.desktop ? constraintSize(navigation.applicationMinimum) : 0} className="min-w-0">
         <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
           <header className="flex min-h-14 shrink-0 items-center gap-2 border-b px-4">
             {session && !navigation.desktop && <SidebarTrigger aria-label="주 메뉴 열기" />}

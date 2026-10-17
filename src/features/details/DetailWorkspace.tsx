@@ -259,7 +259,11 @@ function useFeasiblePanelMinimums(group: RefObject<HTMLDivElement | null>, handl
       if (available <= 0) return;
       const rem = parseFloat(getComputedStyle(element.ownerDocument.documentElement).fontSize);
       const cap = 55 * rem > available ? available / 2 : Infinity;
-      const next = { list: `${Math.min(28 * rem, cap)}px`, detail: `${Math.min(27 * rem, cap)}px` };
+      // Match the official Group axis, including each panel's integer offset-width rounding.
+      const axis = [...element.children].filter(child => child.hasAttribute("data-panel"))
+        .reduce((total, child) => total + (child as HTMLElement).offsetWidth, 0);
+      if (axis <= 0) return;
+      const next = { list: `${100 * Math.min(28 * rem, cap) / axis}%`, detail: `${100 * Math.min(27 * rem, cap) / axis}%` };
       setMinimums(previous => previous.list === next.list && previous.detail === next.detail ? previous : next);
     };
     measure();

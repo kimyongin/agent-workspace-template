@@ -15,6 +15,7 @@ export function useNavigationResize(account: string | null) {
   const [group, setGroup] = useState<HTMLDivElement | null>(null);
   const [separator, setSeparator] = useState<HTMLDivElement | null>(null);
   const [available, setAvailable] = useState<number | null>(null);
+  const [axisSize, setAxisSize] = useState<number | null>(null);
   useLayoutEffect(() => {
     if (!group) return;
     // The separator's hit target is wider than its layout track. Measure CSS pixels,
@@ -22,6 +23,10 @@ export function useNavigationResize(account: string | null) {
     const measure = () => {
       const next = group.clientWidth - (separator?.offsetWidth ?? 0);
       if (next > 0) setAvailable(next);
+      // Official Group conversion uses the sum of panel offset widths, including their integer rounding.
+      const axis = [...group.children].filter(element => element.hasAttribute("data-panel"))
+        .reduce((total, element) => total + (element as HTMLElement).offsetWidth, 0);
+      if (axis > 0) setAxisSize(axis);
     };
     let frame = 0;
     const observer = new ResizeObserver(() => {
@@ -59,5 +64,5 @@ export function useNavigationResize(account: string | null) {
   // Keep the navigation readable at its nominal minimum; the application reflows
   // into the remaining width instead of supplying an impossible pair of minima.
   const applicationMinimum = Math.min(28 * rem, Math.max(0, (available ?? Infinity) - 13 * rem));
-  return { desktop, panel, rem, remProbe: setRemProbe, group: setGroup, separator: setSeparator, applicationMinimum, beginResize: () => { resizing.current = true; }, remember: (pixels: number) => { if (resizing.current && desktop && pixels > 0) width.current = pixels / parseFloat(getComputedStyle(document.documentElement).fontSize); }, reset: () => { width.current = 13; panel.current?.resize(`${13 * rem}px`); } };
+  return { desktop, panel, rem, axisSize, remProbe: setRemProbe, group: setGroup, separator: setSeparator, applicationMinimum, beginResize: () => { resizing.current = true; }, remember: (pixels: number) => { if (resizing.current && desktop && pixels > 0) width.current = pixels / parseFloat(getComputedStyle(document.documentElement).fontSize); }, reset: () => { width.current = 13; panel.current?.resize(`${13 * rem}px`); } };
 }
