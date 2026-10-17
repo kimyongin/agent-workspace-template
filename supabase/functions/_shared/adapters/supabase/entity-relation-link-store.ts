@@ -7,7 +7,7 @@ import { SqlEntityStore } from "./entity-store.ts";
 import { lockEndpoints } from "./entity-pair-locks.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 export class SqlEntityRelationLinkStore extends SqlActorStore implements EntityRelationLinkStore {
-  async definition(id: string, lock: boolean) {
+  definition(id: string, lock: boolean) {
     const definitions = new SqlEntityRelationDefinitionStore(this.tx, this.actor);
     return lock ? definitions.lock(id) : definitions.get(id);
   }
