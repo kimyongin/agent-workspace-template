@@ -16,7 +16,7 @@ import { useEntityTypes } from "./useEntityTypes.ts";
 import { typeListSearch } from "../../app/type-navigation.ts";
 import { Link } from "react-router";
 import { entityPath } from "@contracts/entity-identity.ts";
-import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionHeading, CollectionList, useMainCollectionView  } from "../../components/Collection.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import {
   applyFilterParams,
@@ -435,8 +435,8 @@ export function EntitiesPage() {
                 : ["자료 이름", "자료 종류"]}
             >
               {page?.items.map((e) => (
-                <li className="list-item" key={e.id}>
-                  <div className="list-item-main">
+                <CollectionItem className="list-item" key={e.id}>
+
                     <ListPreviewItem
                       kind="entities"
                       id={e.id}
@@ -458,8 +458,8 @@ export function EntitiesPage() {
                           </span>,
                         ]}
                     />
-                  </div>
-                </li>
+
+                </CollectionItem>
               ))}
             </CollectionList>
           </TagReadProvider>

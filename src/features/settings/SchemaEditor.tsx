@@ -27,7 +27,7 @@ import { useSchemaChangeEditor } from "./schema-change-editor.ts";
 import type { EditState } from "./schema-change-editor.ts";
 import { Field } from "../../components/Field.tsx";
 import { fieldInputPolicy } from "./field-input-policy.ts";
-import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import "../../components/related-items.css";
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { SchemaVersionRead } from "./SchemaVersionRead.tsx";
@@ -347,7 +347,7 @@ export function SchemaEditor(
                     </span>
                   );
                   return (
-                    <li key={key}>
+                    <CollectionItem key={key}>
                       <section
                         className="schema-field related-item"
                         data-expanded={openFields.includes(key) || undefined}
@@ -851,7 +851,7 @@ export function SchemaEditor(
                           </details>
                         </fieldset>
                       </section>
-                    </li>
+                    </CollectionItem>
                   );
                 })}
               </CollectionList>
@@ -958,7 +958,7 @@ export function SchemaEditor(
                 : "";
               const title = row.version?.schema_version === 1 ? "최초 생성" : "입력 항목 변경";
               return (
-                <li key={row.id}>
+                <CollectionItem key={row.id}>
                   <section
                     className="schema-history-row related-item"
                     data-expanded={isOpen || undefined}
@@ -1298,7 +1298,7 @@ export function SchemaEditor(
                       )}
                     </div>
                   </section>
-                </li>
+                </CollectionItem>
               );
             })}
           </CollectionList>

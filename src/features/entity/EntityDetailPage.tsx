@@ -4,7 +4,7 @@ import { EntityTypedRelations } from "./EntityTypedRelations.tsx";
 import { detailModeLink } from "../../lib/entity-list-url.ts";
 import { entityPath } from "@contracts/entity-identity.ts";
 import { useDetailResource } from "../details/useDetailResource.ts";
-import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
@@ -166,9 +166,9 @@ export function EntityDetailPage() {
           {entity[kind].count > 0 && (
             <CollectionList columns={["본문 대표 문구"]}>
               {entity[kind].items.map((item) => (
-                <li key={item.id}>
+                <CollectionItem key={item.id}>
                   <RelatedRecordItem record={item} />
-                </li>
+                </CollectionItem>
               ))}
             </CollectionList>
           )}
@@ -244,18 +244,18 @@ export function EntityDetailPage() {
                 <RelatedSection title="할 일" count={entity.tasks.count}>
                   <CollectionList columns={["제목"]}>
                     {entity.tasks.items.map((item) => (
-                      <li key={item.id}>
+                      <CollectionItem key={item.id}>
                         <RelatedTaskItem id={item.id} occurrence={null} />
-                      </li>
+                      </CollectionItem>
                     ))}
                   </CollectionList>
                 </RelatedSection>
                 <RelatedSection title="기록" count={entity.records.count}>
                   <CollectionList columns={["본문 대표 문구"]}>
                     {entity.records.items.map((item) => (
-                      <li key={item.id}>
+                      <CollectionItem key={item.id}>
                         <RelatedRecordItem record={item} />
-                      </li>
+                      </CollectionItem>
                     ))}
                   </CollectionList>
                 </RelatedSection>
@@ -327,9 +327,9 @@ export function EntityDetailPage() {
                   <RelatedSection title="기록" count={entity.records.count} views={false}>
                     <CollectionList columns={["본문 대표 문구"]}>
                       {entity.records.items.map((item) => (
-                        <li key={item.id}>
+                        <CollectionItem key={item.id}>
                           <RelatedItem title={recordDisplayText(item.body)} />
-                        </li>
+                        </CollectionItem>
                       ))}
                     </CollectionList>
                   </RelatedSection>
