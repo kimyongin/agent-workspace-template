@@ -105,7 +105,9 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
   await page.screenshot({ path: info.outputPath("display-scale-settings150.png") });
   await page.getByRole("form", { name: "화면 표시 설정", exact: true }).filter({ has: page.getByLabel("데스크톱 화면 배율", { exact: true }) }).screenshot({ path: info.outputPath("display-scale-setting-control.png") });
   const smallFont = await page.addStyleTag({ content: ":root { font-size: 12px; }" });
-  for (const option of await page.getByRole("radiogroup", { name: "프로필 아이콘", exact: true }).locator("label").all()) {
+  const choices = page.getByRole("radiogroup", { name: "프로필 아이콘", exact: true }).locator("label");
+  await expect(choices).toHaveCount(20);
+  for (const option of await choices.all()) {
     const box = (await option.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
   }
   await smallFont.evaluate(node => node.remove());

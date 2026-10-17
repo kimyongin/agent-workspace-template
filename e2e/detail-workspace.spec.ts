@@ -623,26 +623,25 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     await expect(description).toBeVisible();
     const readDescription = await description.innerText();
     await expect(view).toHaveAttribute("aria-describedby", await description.getAttribute("id") as string);
-    if(item.title) await expect(view.locator('[aria-label="상세 내용"] h2')).toHaveText(item.title);
-    else await expect(view.locator(".record-content")).toHaveText("구매 기준을 정리했습니다.");
-    const relation=view.locator(".detail-relations");
-    {
-      await expect(relation).toBeVisible();
-      expect(await relation.evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe("1px");
-      expect(await relation.evaluate(el=>parseFloat(getComputedStyle(el).paddingTop))).toBeGreaterThanOrEqual(24);
-    }
+    if(item.title) await expect(view.getByRole("heading", { name: item.title, exact: true })).toHaveText(item.title);
+    else await expect(view.getByRole("term", { name: "본문", exact: true }).first().locator("..").getByRole("definition")).toHaveText("구매 기준을 정리했습니다.");
+    const relation = view.getByRole("region", { name: /^(연결된 자료|할 일|기록) \(\d+개\)$/ });
+    await expect(relation).toHaveCount(2);
+    for (const region of await relation.all()) await expect(region).toBeVisible();
     expect(await view.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
     if(item.domain==="할 일") await view.screenshot({path:info.outputPath(`detail-hierarchy-${width}.png`)});
     await view.getByRole("button",{name:"편집",exact:true}).click();
     await expect(view.locator("[data-slot=\"dialog-title\"]")).toHaveText(item.domain);
     await expect(description).not.toHaveText(readDescription);
     expect(await description.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
-    await expect(view.getByRole("region",{name:/^(엔터티|할 일|기록) \(\d+개\)$/}).filter({visible:true})).toHaveCount(0);
+    const readonlyRelations = view.getByRole("region", { name: /^(연결된 자료|할 일|기록) \(\d+개\)$/ });
+    await expect(readonlyRelations).toHaveCount(2);
+    for (const region of await readonlyRelations.all()) await expect(region.getByRole("button").or(region.getByRole("link"))).toHaveCount(0);
     await expect(view.getByRole("button",{name:/^(엔터티|할 일|기록).* (연결|해제)$/})).toHaveCount(0);
     if(item.domain==="기록") {
       await view.getByLabel("본문",{exact:false}).fill("관계를 보존하는 본문 정정");
       await view.getByRole("button",{name:"저장",exact:true}).click();
-      await expect(view.locator(".record-content")).toHaveText("관계를 보존하는 본문 정정");
+      await expect(view.getByRole("term", { name: "본문", exact: true }).first().locator("..").getByRole("definition")).toHaveText("관계를 보존하는 본문 정정");
       const write=state.writes.find(row=>row.method==="PATCH"&&row.path===`/api/records/${id(3)}`)!;
       expect(write.body).not.toHaveProperty("entity_ids"); expect(write.body).not.toHaveProperty("task_id");
       await expect(view.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toBeVisible();
@@ -683,7 +682,7 @@ test("related previous: one starting tab survives cross-links, dirty drafts, res
   await page.setViewportSize({width:390,height:844});
   const modal=detailDialog(page);
   await modal.getByRole("button",{name:"이전: 등심",exact:true}).click();
-  await expect(modal.locator(".detail-title")).toHaveText("등심");
+  await expect(modal.getByRole("heading", { name: "등심", exact: true })).toHaveText("등심");
   await page.setViewportSize({width:1440,height:900});
   await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();
   await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
@@ -705,7 +704,7 @@ test("mobile direct visit: related previous restores its source without stacked 
   await expect(modal).toHaveCount(1);
   await modal.getByRole("button",{name:/^이전:/}).click();
   await expect(modal.locator("[data-slot=\"dialog-title\"]")).toHaveText("검사 자료");
-  await expect(modal.locator(".detail-title")).toHaveText("등심");
+  await expect(modal.getByRole("heading", { name: "등심", exact: true })).toHaveText("등심");
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 

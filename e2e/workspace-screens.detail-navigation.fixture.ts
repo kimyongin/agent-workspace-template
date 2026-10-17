@@ -35,7 +35,7 @@ for (const [kind, title] of [["entities", "자료"], ["tasks", "할 일"], ["rec
     test(`#203 ${kind} ${exit}: 상세 버튼은 보기·편집은 모드 전환·한 dialog`, async ({ page }) => {
       const state = await fixtures(page);
       await go(page, `/${kind}?pages=1`);
-      const row = page.locator(".list [data-slot='item']").first();
+      const row = page.getByRole("region", { name: / 목록$/ }).locator("[data-slot='item']").first();
       await row.getByRole("button", { name: title, exact: true }).click();
       await expect(row.getByRole("link", { name: title + " 편집", exact: true })).toHaveCount(0);
       await expect(row.getByRole("link", { name: title + " 상세", exact: true })).toHaveText("상세");

@@ -127,14 +127,14 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       }),
     ).toBeVisible();
     const text = form(page).locator(".markdown"),
-      meta = form(page).locator(".record-context dt").first();
+      meta = form(page).getByRole("term", { name: "종류", exact: true });
     const style = async (el: ReturnType<typeof form>) =>
       el.evaluate((n) => ({ size: parseFloat(getComputedStyle(n).fontSize), color: getComputedStyle(n).color }));
     expect((await style(text)).size).toBeGreaterThan((await style(meta)).size);
     expect((await style(text)).color).not.toBe((await style(meta)).color);
     await expect(form(page).getByText("저장 정보", { exact: true })).toHaveCount(0);
     await expect(form(page)).not.toContainText("만든 시각");
-    await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toHaveText("×");
+    await expect(form(page).getByRole("button", { name: "닫기", exact: true }).locator("svg")).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBe(true);

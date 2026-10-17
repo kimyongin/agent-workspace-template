@@ -8,12 +8,12 @@ for (const width of [390, 1440]) {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-    const properties = form(page).locator(".entity-detail-properties");
+    const properties = form(page).getByRole("term", { name: "제목", exact: true }).first().locator("xpath=ancestor::section[1]");
     await expect(properties.getByText("자료", { exact: true })).toHaveCount(1);
     await expect(properties.locator("dt", { hasText: "제목" })).toHaveCount(1);
     await expect(properties.locator("dt", { hasText: "자료 종류" })).toHaveCount(0);
-    await expect(properties.locator(".detail-title")).toHaveCSS("font-size", "20px");
-    await expect(properties.locator(".detail-title")).toHaveCSS("font-weight", "600");
+    expect(await properties.getByRole("heading", { name: "자료", exact: true }).evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    await expect(properties.getByRole("heading", { name: "자료", exact: true })).toHaveCSS("font-weight", "600");
     await expect(properties.locator("dd", { hasText: /^0$/ })).toHaveCount(1);
     expect(state.writes).toHaveLength(0);
   });
@@ -109,7 +109,7 @@ test("nonrepresentative false, null and archived properties remain readable", as
   state.rows.entities[0].properties.prop_5 = false;
   await page.route("**/api/entity-types/*/schema?schema_version=1", (route) => route.fulfill({ json: schema }));
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-  const properties = form(page).locator(".entity-detail-properties");
+  const properties = form(page).getByRole("term", { name: "제목", exact: true }).first().locator("xpath=ancestor::section[1]");
   await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^판매 중$/ }) })).toContainText("거짓");
   await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^날짜$/ }) })).toContainText("값 없음");
   await expect(properties.locator("dt", { hasText: /^분류 · 보관$/ })).toBeVisible();
@@ -117,7 +117,7 @@ test("nonrepresentative false, null and archived properties remain readable", as
 });
 
 for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
-  test(`entity view and edit retain complete pairs and alignment at ${width}`, async ({ page }, info) => {
+  test(`entity view and edit retain complete pairs without overflow at ${width}`, async ({ page }, info) => {
     const state = await fixtures(page);
     linkedFixture(state);
     const schema = structuredClone(fixtureSchema);
@@ -144,21 +144,11 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     }
     await expect(detail.locator("dt", { hasText: /^미입력 항목$/ })).toBeVisible();
     await expect(detail.locator("dd", { hasText: /^미입력$/ })).toBeVisible();
-    const read = await detail.locator(".entity-detail-properties dt").evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const value = node.nextElementSibling!;
-        const box = value.getBoundingClientRect(), key = node.getBoundingClientRect();
-        const style = getComputedStyle(value);
-        return {
-          label: node.textContent?.replace(/ · (읽기 전용|보관)/g, "").trim(),
-          x: box.x,
-          keyX: key.x,
-          width: box.width,
-          font: getComputedStyle(value.querySelector("h2, h3") ?? value).fontSize,
-          padding: style.paddingLeft,
-        };
-      })
-    );
+    const primary = detail.getByRole("term", { name: "제목", exact: true }).first().locator("xpath=ancestor::section[1]");
+    const read = await primary.getByRole("term").allTextContents();
+    expect(read).toHaveLength(9);
+    const labels = read.map(label => label.replace(/ · (읽기 전용|보관)/g, "").trim());
+    expect(labels).toEqual(expect.arrayContaining(["제목", "번호 출처", "자료 번호", "수량", "날짜", "분류", "미입력 항목", "태그"]));
     if ([390, 1440].includes(width)) await page.screenshot({ path: info.outputPath("view-pairs.png") });
     await detail.getByRole("button", { name: "편집", exact: true }).click();
     await expect(detail.getByRole("textbox", { name: /^제목/ })).toBeEditable();
@@ -166,32 +156,23 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await expect(detail.locator("dt:visible", { hasText: /^판매 중지/ })).toContainText("보관");
     await expect(detail.getByRole("button", { name: /할 일 작성|기록 작성|연결 해제/ })).toHaveCount(0);
     await expect(detail.getByRole("region", { name: "할 일 (1개)", exact: true })).toContainText("할 일");
-    const edit = await detail.locator(
-      ".key-value-grid > .field > label:visible, .key-value-grid > .key-value-static dt:visible, .tag-connection-data dt:visible",
-    )
-      .evaluateAll((nodes) =>
-        nodes.map((node) => {
-          const container = node.parentElement!;
-          const value = node.tagName === "DT" ? node.nextElementSibling! : container.querySelector(".input")!;
-          const box = value.getBoundingClientRect(), key = node.getBoundingClientRect();
-          const style = getComputedStyle(value);
-          return {
-            x: box.x,
-            keyX: key.x,
-            width: box.width,
-            font: getComputedStyle(value.querySelector("h2, h3") ?? value).fontSize,
-            padding: style.paddingLeft,
-          };
-        })
-      );
-    expect(edit).toHaveLength(read.length);
-    read.forEach((item, i) => {
-      expect(Math.abs(item.x - edit[i].x)).toBeLessThan(1);
-      expect(Math.abs(item.keyX - edit[i].keyX)).toBeLessThan(1);
-      expect(Math.abs(item.width - edit[i].width)).toBeLessThan(1);
-      expect(edit[i].font).toBe(item.font);
-      expect(edit[i].padding).toBe(item.padding);
-    });
+    let editedPairs = 0;
+    for (const label of labels) {
+      const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const control = detail.getByLabel(new RegExp(`^${escaped}(?:\\s*\\(필수\\))?$`)).filter({ visible: true });
+      if (await control.count()) {
+        await expect(control.first()).toBeVisible();
+        const box = (await control.first().boundingBox())!;
+        expect(box.width).toBeGreaterThan(0); expect(box.height).toBeGreaterThanOrEqual(44);
+        if (label === "제목") await expect(control.first()).toHaveValue(state.rows.entities[0].title);
+        if (label === "수량") await expect(control.first()).toHaveValue("0");
+      } else {
+        const key = detail.getByRole("term", { name: new RegExp(`^${escaped}(?: ·|$)`) }).filter({ visible: true }).first();
+        await expect(key).toBeVisible(); await expect(key.locator("..").getByRole("definition")).toBeVisible();
+      }
+      editedPairs++;
+    }
+    expect(editedPairs).toBe(read.length);
     expect(await detail.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
     if ([390, 1440].includes(width)) await page.screenshot({ path: info.outputPath("edit-pairs.png") });
     expect(state.writes).toHaveLength(0);

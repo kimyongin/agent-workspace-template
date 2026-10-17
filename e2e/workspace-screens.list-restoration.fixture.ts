@@ -60,7 +60,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(filters.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true })).toBeHidden();
       await expect(filters.getByRole("combobox")).toHaveCount(0);
       if (kind === "entities") await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
-      await expect(page.locator(".list [data-slot='item']").first()).toBeVisible();
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-slot='item']").first()).toBeVisible();
       const beforeReads = reads;
       await summary.focus();
       await summary.press("Enter");
@@ -225,7 +225,7 @@ test("기록 기간 변경과 잘못된 범위는 할 일을 재조회하지 않
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("이전 유효 기간");
   await expect(page.locator("[data-list-anchor]")).toHaveText("기록");
-  await expect(page.locator(".tasks")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "할 일", exact: true })).toHaveCount(0);
   expect(reads).toHaveLength(2);
   expect(tasks).toBe(0);
 });
@@ -271,7 +271,7 @@ test("늦은 다른 탭 페이지는 기록 날짜·페이지·검색 초안과 
   await expect(date).toBeFocused();
   await expect(input).toHaveValue("아직 조합 중인 초안");
   await expect(page.locator("[data-list-anchor]")).toHaveCount(2);
-  await expect(page.locator(".tasks")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "할 일", exact: true })).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });
 
@@ -355,7 +355,7 @@ for (const kind of ["tasks"] as const) {
       });
     });
     await go(page, `/${kind}?q=old`);
-    const section = kind === "tasks" ? page.locator(".tasks") : page.locator("main");
+    const section = kind === "tasks" ? page.getByRole("region", { name: "할 일", exact: true }) : page.locator("main");
     await section.getByRole("button", { name: kind === "tasks" ? "할 일 더 보기" : "더 보기", exact: true }).click();
     await pending;
     const canceled = page.waitForEvent(
@@ -403,7 +403,7 @@ test("검색 복원의 마지막 요청 페이지가 cursor를 반복하면 이�
     });
   });
   await go(page, "/tasks?q=검색&pages=2");
-  const section = page.locator(".tasks");
+  const section = page.getByRole("region", { name: "할 일", exact: true });
   await expect(section.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
   await expect(section.getByRole("button", { name: "보존할 결과", exact: true })).toBeVisible();
   await expect(section.getByRole("button", { name: "거절할 결과", exact: true })).toHaveCount(0);
@@ -440,7 +440,7 @@ test("검색의 반복 cursor 실패는 기존 행·coverage를 보존하고 같
     });
   });
   await go(page, "/tasks?q=검색");
-  const section = page.locator(".tasks");
+  const section = page.getByRole("region", { name: "할 일", exact: true });
   await expect(section.getByText(/색인 대기 1개/)).toBeVisible();
   await section.getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await expect(section.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
