@@ -358,10 +358,11 @@ test("desktop: saving updates the retained list; confirmation remains small and 
   await expect(list.getByRole("button", { name: "새 구매 계획", exact: true })).toBeVisible();
   expect(state.writes).toHaveLength(2);
   expect(state.writes[0]).toMatchObject({ method: "PATCH", path: `/api/tasks/${id(2)}`, body: {
-    title: "새 구매 계획", body: "상세 본문", tag_ids: [], due_on: null, expected_version: 1,
+    title: "새 구매 계획", body: "상세 본문", due_on: null, expected_version: 1,
     change_note: "새 구매 계획 수정", change_tag_ids: [],
   } });
   expect(state.writes[0].body).not.toHaveProperty("entity_ids");
+  expect(state.writes[0].body).not.toHaveProperty("tag_ids");
   expect(state.writes[1].body).toEqual(state.writes[0].body);
   expect(state.writes[0].requestKey).toMatch(/^[0-9a-f-]{36}$/);
   expect(state.writes[1].requestKey).toBe(state.writes[0].requestKey);
@@ -400,7 +401,6 @@ test("desktop: recurring task confirmation cancellation prepares and saves the c
   const input = {
     title: "월간 계획",
     body: "상세 본문",
-    tag_ids: [],
     recurrence: { freq: "monthly", month_days: [1, 15], starts_on: "2026-10-04" },
     timezone: "America/New_York",
   };
@@ -1176,4 +1176,73 @@ test("desktop: entity pairs follow resized panel width and keep the same edit ax
   await expect(detail.getByRole("region", { name: "할 일 (1개)" })).toContainText("등심 구매하기");
   await expect(detail.getByRole("button", { name: "할 일 작성" })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("entity-wide-panel-edit.png") });
+});
+
+for (const kind of ["once", "recurring", "done"] as const) {
+  test(`task data parity: ${kind} retains labeled fields and static context during editing`, async ({ page }, info) => {
+    const state = await fixture(page);
+    Object.assign(state.rows.tasks[0], kind === "recurring" ? {
+      kind: "recurring", status: "active", recurrence: { freq: "weekly", weekdays: [1, 5], starts_on: "2026-10-04" }, timezone: "Asia/Seoul",
+    } : { due_on: null, ...(kind === "done" ? { status: "done", completed_at: stamp } : {}) });
+    await page.route(/\/api\/tasks\/[^/]+\/occurrences\?/, route => route.fulfill({ json: { today: "2026-10-11", items: [] } }));
+    await page.goto(`/tasks/${id(2)}`);
+    const surface = panel(page);
+    const expected = ["제목", "본문", "상태", "종류", ...(kind === "recurring" ? ["반복 규칙", "요일", "시작일", "시간대"] : ["기한"]), ...(kind === "done" ? ["완료 시각"] : [])];
+    await expect(surface.locator("dt").filter({ hasText: /^제목$/ })).toHaveCount(1);
+    const labels = async () => surface.locator("dt:visible, .field > label:visible").allTextContents();
+    expect((await labels()).slice(0, expected.length)).toEqual(expected);
+    await surface.getByRole("button", { name: "편집", exact: true }).click();
+    expect((await labels()).slice(0, expected.length).map(s => s.replace(/\*\(필수\)/g, ""))).toEqual(expected);
+    await expect(surface.getByRole("region", { name: "연결된 자료 (1개)", exact: true })).toContainText("등심");
+    await expect(surface.getByRole("region", { name: "기록 (1개)", exact: true })).toContainText("구매 기준을 정리했습니다.");
+    await expect(surface.getByRole("button", { name: /연결|해제|펼치기|기록 작성/ })).toHaveCount(0);
+    await expect(surface.getByText(kind === "done" ? "완료" : kind === "recurring" ? "반복 중" : "진행 중", { exact: true }).filter({visible:true})).toBeVisible();
+    await page.screenshot({ path: info.outputPath(`task-${kind}-edit.png`) });
+    await surface.getByRole("button", { name: "취소", exact: true }).click();
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+  test(`task responsive parity: ${width}px uses the same key and value axes`, async ({ page }, info) => {
+    await page.setViewportSize({width, height: 900});
+    const state = await fixture(page);
+    state.rows.tasks[0].title = "긴할일제목".repeat(12);
+    await page.goto(`/tasks/${id(2)}`);
+    const surface = width < 1100 ? page.locator("dialog.modal[open]").first() : panel(page);
+    const titleKey = surface.locator("dt:visible").filter({hasText:/^제목$/});
+    await expect(titleKey).toBeVisible();
+    const beforeKey = (await titleKey.boundingBox())!;
+    const beforeValue = (await titleKey.locator("../dd").boundingBox())!;
+    await page.screenshot({path:info.outputPath(`task-view-${width}.png`)});
+    await surface.getByRole("button", {name:"편집",exact:true}).click();
+    const input = surface.getByLabel("제목");
+    const afterKey = (await surface.locator("label:visible").filter({hasText:/^제목/}).boundingBox())!;
+    const afterValue = (await input.boundingBox())!;
+    expect(afterKey.x).toBeCloseTo(beforeKey.x,0);
+    expect(afterValue.x).toBeCloseTo(beforeValue.x,0);
+    expect(afterValue.width).toBeCloseTo(beforeValue.width,0);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await input.focus(); await expect(input).toBeFocused();
+    await page.screenshot({path:info.outputPath(`task-edit-${width}.png`)});
+    expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+  });
+}
+
+test("task responsive parity: resized panel and 200% text enlargement preserve the draft", async ({ page }, info) => {
+  const state = await fixture(page);
+  await page.goto(`/tasks/${id(2)}`);
+  await dragSplit(page, -700);
+  await panel(page).getByRole("button", {name:"편집",exact:true}).click();
+  await panel(page).getByLabel("본문",{exact:true}).fill("폭을 바꾸어도 유지할 본문");
+  const before = await detailWidth(page);
+  await dragSplit(page, 400);
+  expect(await detailWidth(page)).toBeLessThan(before);
+  await expect(panel(page).getByLabel("본문",{exact:true})).toHaveValue("폭을 바꾸어도 유지할 본문");
+  await page.evaluate(()=>{document.documentElement.style.fontSize="32px";});
+  await expect(panel(page).getByLabel("제목")).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath("task-panel-200-percent.png")});
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });

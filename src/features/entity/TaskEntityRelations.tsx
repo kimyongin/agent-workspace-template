@@ -9,7 +9,7 @@ import type { EntityDetail } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Notice } from "../../components/Field.tsx";
-import { RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { api, query } from "../../lib/api.ts";
 import { type Candidate, RelationSearch, RelationSearchAction } from "../relations/RelationSearch.tsx";
@@ -156,8 +156,11 @@ function RelationControls({
 }
 
 export function TaskEntityRelations(
-  { task, onSaved }: { task: TaskResult; onSaved: (saved?: TaskResult, before?: TaskResult) => void },
+  { task, onSaved, readOnly = false }: { task: TaskResult; readOnly?: boolean; onSaved: (saved?: TaskResult, before?: TaskResult) => void },
 ) {
+  if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={task.entity_ids.length}>
+    <CollectionList>{task.entity_ids.map(id => <li key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></li>)}</CollectionList>
+  </RelatedSection>;
   return (
     <RelationControls key={task.id} task={task} onSaved={onSaved}>
       {({ search, button, unlink }) => (
