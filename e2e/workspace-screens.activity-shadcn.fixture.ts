@@ -119,7 +119,10 @@ test("좁은 확대 달력은 주 끝과 시작으로 키보드 이동할 때 �
   await expect(sunday).toBeVisible();
   await page.evaluate(() => document.documentElement.style.setProperty("--display-scale", "1.5"));
   await sunday.focus();
-  const viewport = calendar.locator('[data-slot="scroll-area-viewport"]').filter({ has: sunday });
+  const viewport = calendar.locator('[data-slot="scroll-area-viewport"]').filter({
+    // `has` resolves within each viewport; do not repeat the outer calendar region.
+    has: page.getByRole("button", { name: /^2026-10-04, 불러온 기록/ }),
+  });
   await expect.poll(() => viewport.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
   const assertFocusedDayVisible = async (day: typeof sunday, date: string) => {
     await expect(day).toBeFocused();
