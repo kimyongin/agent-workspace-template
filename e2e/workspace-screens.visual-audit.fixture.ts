@@ -217,6 +217,7 @@ for (const width of [390, 1440]) {
 
 test("상태의 실제 수치와 선택 날짜는 키–값으로 읽히며 폭·확대에서 그래프 선택을 유지한다", async ({ page }, info) => {
   await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
   const day = (date: string, amount: number) => ({ date, entities_created: amount, tasks_created: amount, once_completed: 0, records_created: amount, indexing: { indexed: amount, preparing: 0, attention: 0, excluded: 0 } });
   await page.route("**/api/status", route => route.fulfill({ json: {
     timezone: "Asia/Seoul", queried_at: stamp, period: { from: "2026-10-14", to: "2026-10-15", days: 2 },
