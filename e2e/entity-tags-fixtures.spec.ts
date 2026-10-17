@@ -125,6 +125,7 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", level: 1, exact: true })).toBeVisible();
   await tagManagement(page);
   await page.getByRole("textbox", { name: /태그 이름/ }).fill("앱 초안");
+  await revealNavigation(page);
   await page.getByRole("navigation", { name: "주 메뉴",includeHidden:true }).getByRole("link", { name: "할 일", exact: true,includeHidden:true }).evaluate((el:HTMLAnchorElement)=>el.click());
   const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?" }); await discard.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/tags$/); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("앱 초안");
@@ -162,6 +163,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   await tagManagement(page);
   await page.goBack();
   await expect(page).toHaveURL(/\/settings$/);
+  await revealNavigation(page);
   await revealNavigation(page);
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click();
   await beginTabAction(page,"할 일 추가");
@@ -617,7 +619,7 @@ for (const kind of ["entity", "task", "record"] as const) {
     await openDetailEditor(page);
     const form = page.getByRole("dialog", { name: `${kind === "entity" ? fixtureType.label : kind === "task" ? "할 일" : "기록"} 편집`, exact: true });
     await expect(form.getByRole("button", {name:"태그 선택",exact:true})).toHaveCount(0);
-    await expect(form.getByRole("term", {name:"태그",exact:true}).locator("..").getByText("첫 태그",{exact:true})).toBeVisible();
+    await expect(form.getByRole("term").filter({hasText:/^태그$/}).locator("..").getByText("첫 태그",{exact:true})).toBeVisible();
     await (kind === "entity" ? form.getByRole("textbox", {name:/^제목/}) : form.getByRole("textbox", {name:/^본문/})).fill("본문 수정");
     await saveOnce(page, form);
     await expect(page.getByRole("button",{name:"편집",exact:true})).toBeVisible();

@@ -18,7 +18,7 @@ for(const width of [390,1024])test(`변경 기록 metadata ${width}px: 종류·�
   const rows=page.getByRole("region", {name:"기록 목록",exact:true}).getByRole("listitem");await expect(rows).toHaveCount(2);
   for(const [index, row] of (await rows.all()).entries()){
     await row.getByRole("button",{name:/^할 일 (수정|삭제)$/,exact:true}).click();
-    const properties = row.locator("[data-slot=collapsible-content] dl").filter({has:page.getByRole("term", {name:/^(종류|출처|수행 시각|변경 대상|행동)$/,exact:true})});
+    const properties = row.locator("[data-slot=collapsible-content] dl").filter({has:page.getByRole("term").filter({hasText:/^(종류|출처|수행 시각|변경 대상|행동)$/})});
     await expect(properties.locator("dt")).toHaveText(["종류", "출처", "수행 시각", "변경 대상", "행동"]);
     await expect(properties.locator("dd").nth(0)).toHaveText("변경 기록");
     await expect(properties.locator("dd").nth(1)).toHaveText("에이전트");
@@ -151,7 +151,7 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("button",{name:"정정 기록",exact:true})).toBeFocused();
   await openListDetail(page,"정정 기록");
-  const body = detailDialog(page).getByRole("term", { name: "본문", exact: true }).locator("../dd");
+  const body = detailDialog(page).getByRole("term").filter({hasText:/^본문$/}).locator("../dd");
   await expect(body).toHaveCount(1);
   await expect(body).toHaveText("정정 기록");
   await page.getByRole("button",{name:"닫기",exact:true}).click();
