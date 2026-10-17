@@ -52,13 +52,19 @@ export const dataModelDocument = z.strictObject({
 });
 export type DataModelDocument = z.infer<typeof dataModelDocument>;
 export const dataModelInput = z.strictObject({ document: z.string().min(1), mode: z.enum(["update", "copy"]) });
-export const dataModelPrepare = dataModelInput.extend({ preview_fingerprint: z.string().regex(/^[a-f0-9]{64}$/) });
+export const dataModelPrepare = dataModelInput.extend({
+  preview_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  remove_keys: z.record(z.string(), z.array(z.string().regex(/^prop_[1-9][0-9]*$/))).default({}),
+});
 export const dataModelAction = z.strictObject({ expected_version: version });
 export type ModelItem = {
   ref: string;
   label: string;
   kind: "new" | "unchanged" | "compatible" | "migration_required" | "conflict";
   diff: SchemaDiff[];
+  source_schema_version?: number;
+  source_is_stale?: boolean;
+  removed_keys?: string[];
   current_schema_version?: number;
   target_schema_version?: number;
   message?: string;

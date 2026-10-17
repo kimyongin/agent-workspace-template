@@ -99,3 +99,25 @@ Deno.test("copy reviews both roles of a same-kind relationship and remaps IDs wi
   assertEquals(r.mapping.rules[APP_IDENTIFIER_RULE_ID], APP_IDENTIFIER_RULE_ID);
   assertEquals(r.can_apply, true);
 });
+Deno.test("whole model accepts a valid multi-kind bundle larger than the retired single-document 2 MiB limit", async () => {
+  const d = example();
+  d.relations = [];
+  const template = d.entity_types[0];
+  d.entity_types = Array.from({ length: 12 }, (_, n) => {
+    const t = structuredClone(template);
+    t.ref = `kind_${n}`;
+    t.schema["x-type-id"] = `60000000-0000-4000-8000-${String(n + 1).padStart(12, "0")}`;
+    t.schema.title = `종류 ${n}`;
+    t.schema.properties.prop_2 = {
+      type: "string",
+      "x-order": 20,
+      examples: Array.from({ length: 45 }, () => "x".repeat(4096)),
+    };
+    return t;
+  });
+  const document = JSON.stringify(d);
+  assertEquals(new TextEncoder().encode(document).length > 2 * 1024 * 1024, true);
+  const r = await previewDataModel(deps, actor, { mode: "copy", document });
+  assertEquals(r.items.filter((i) => i.kind === "new" && i.ref.startsWith("kind_")).length, 12);
+  assertEquals(r.can_apply, true);
+});

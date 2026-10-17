@@ -131,6 +131,17 @@ export class SqlDataModelStore implements DataModelStore {
           plan.review.items.filter((i) => i.kind === "new" && target.entity_types.some((t) => t.ref === i.ref)).length >
         64
     ) throw invalidInput("자료 종류는 64개까지 만들 수 있습니다");
+    const issuerCodes = new Set(
+      [...source.identity_definitions.issuers, ...target.identity_definitions.issuers].map((i) => i.code),
+    );
+    if (issuerCodes.size > 64) throw invalidInput("발급처는 64개까지 만들 수 있습니다");
+    for (const code of issuerCodes) {
+      const rules = new Set(
+        [...source.identity_definitions.rules, ...target.identity_definitions.rules].filter((r) => r.source === code)
+          .map((r) => r.id),
+      );
+      if (rules.size > 64) throw invalidInput("발급처별 규칙은 64개까지 만들 수 있습니다");
+    }
     for (const t of target.entity_types) {
       const old = source.entity_types.find((o) => o.schema["x-type-id"] === t.schema["x-type-id"]);
       if (old) {
@@ -255,8 +266,9 @@ export class SqlDataModelStore implements DataModelStore {
 }
 export class SqlDataModelUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
-  run<T>(a: Actor, fn: (s: DataModelStore) => Promise<T>) {
+  run<T>(a: Actor, fn: (s: DataModelStore) => Promise<T>, readOnly = false) {
     return runAsActor(this.sql, a, async (tx) => {
+      if (readOnly) return fn(new SqlDataModelStore(tx, a));
       // Before any model/type/entity row lock, share relation-definition writer ordering.
       await tx`select pg_advisory_xact_lock(hashtextextended(${a.userId + ":entity-relations"},0))`;
       await tx`select pg_advisory_xact_lock(hashtextextended(${a.userId + ":entity-types"},0))`;
@@ -266,6 +278,6 @@ export class SqlDataModelUnitOfWork {
         await tx`select pg_advisory_xact_lock(hashtextextended(${a.userId + suffix},0))`;
       }
       return fn(new SqlDataModelStore(tx, a));
-    }, "repeatable read");
+    }, readOnly ? "repeatable read read only" : undefined);
   }
 }

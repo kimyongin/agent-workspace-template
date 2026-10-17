@@ -29,7 +29,7 @@ export interface DataModelStore extends RequestStore {
   complete(id: string, result: NonNullable<ModelChange["result"]>): Promise<ModelChange>;
 }
 export interface DataModelDeps {
-  uow: { run<T>(a: Actor, fn: (s: DataModelStore) => Promise<T>): Promise<T> };
+  uow: { run<T>(a: Actor, fn: (s: DataModelStore) => Promise<T>, readOnly?: boolean): Promise<T> };
 }
 export function parseModel(raw: string): DataModelDocument {
   const document = dataModelDocument.safeParse(parseSchemaDocument(raw, { raw_bytes: Infinity, depth: 32 }));
@@ -159,6 +159,13 @@ export async function resolveModel(
       }
     }
   }
+  // Reuse issuer codes and the fixed system rule; copy never edits shared registry metadata.
+  target.identity_definitions.issuers = target.identity_definitions.issuers.map((i) =>
+    mode === "copy" || i.system ? source.identity_definitions.issuers.find((o) => o.code === i.code) ?? i : i
+  );
+  target.identity_definitions.rules = target.identity_definitions.rules.map((r) =>
+    r.id === APP_IDENTIFIER_RULE_ID ? source.identity_definitions.rules.find((o) => o.id === r.id) ?? r : r
+  );
   const mapping: ModelReview["mapping"] = { types: {}, rules: {}, relations: {}, properties: {} };
   const items: ModelReview["items"] = [];
   for (const t of target.entity_types) {
@@ -189,6 +196,7 @@ export async function resolveModel(
       properties: Object.fromEntries(keys.map((k) => [props[k], t.schema.properties[k]])),
       required: t.schema.required.map((k) => props[k]),
     };
+    validateEntityDefinition({ schema: t.schema });
     const diff = old ? schemaDefinitionDiff({ schema: old.schema }, { schema: t.schema }) : [];
     const identityChanged = !!old && canonical(withoutVersion(old.identity)) !== canonical(withoutVersion(t.identity));
     const kind = !old
@@ -205,6 +213,10 @@ export async function resolveModel(
       kind,
       diff,
       current_schema_version: old?.schema["x-version"],
+      source_schema_version: document.entity_types.find((x) => x.ref === t.ref)!.schema["x-version"],
+      source_is_stale: !!old &&
+        old.schema["x-version"] !== document.entity_types.find((x) => x.ref === t.ref)!.schema["x-version"],
+      removed_keys: old ? Object.keys(old.schema.properties).filter((k) => !Object.hasOwn(t.schema.properties, k)) : [],
       target_schema_version: t.schema["x-version"],
       schema: t.schema,
       current_schema: old?.schema,
@@ -289,11 +301,11 @@ export async function resolveModel(
   return { target, review, baseline, source };
 }
 export function exportDataModel(d: DataModelDeps, a: Actor) {
-  return d.uow.run(a, async (s) => (await s.snapshot()).document);
+  return d.uow.run(a, async (s) => (await s.snapshot()).document, true);
 }
 export function previewDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelInput, raw), document = parseModel(i.document);
-  return d.uow.run(a, async (s) => (await resolveModel(await s.snapshot(), document, i.mode)).review);
+  return d.uow.run(a, async (s) => (await resolveModel(await s.snapshot(), document, i.mode)).review, true);
 }
 export function prepareDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelPrepare, raw), document = parseModel(i.document);
@@ -301,6 +313,15 @@ export function prepareDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
     const plan = await resolveModel(await s.snapshot(), document, i.mode);
     if (plan.review.fingerprint !== i.preview_fingerprint) {
       throw new AppError("schema_plan_stale", "모델이 변경되었습니다. 입력을 유지하고 다시 검토하세요");
+    }
+    for (const item of plan.review.items) {
+      const removed = item.removed_keys ?? [];
+      if (canonical([...(i.remove_keys[item.ref] ?? [])].sort()) !== canonical([...removed].sort())) {
+        throw invalidInput("영구 제거할 자료 항목을 명시적으로 확인하세요", [{
+          path: `remove_keys.${item.ref}`,
+          message: removed.join(", "),
+        }]);
+      }
     }
     return s.save(plan);
   });
@@ -313,7 +334,7 @@ export function listDataModelChanges(d: DataModelDeps, a: Actor, raw: unknown = 
     }),
     raw,
   );
-  return d.uow.run(a, (s) => s.list(q.limit, q.cursor));
+  return d.uow.run(a, (s) => s.list(q.limit, q.cursor), true);
 }
 export function getDataModelChange(d: DataModelDeps, a: Actor, id: string) {
   id = parse(z.string().uuid(), id);
@@ -322,7 +343,7 @@ export function getDataModelChange(d: DataModelDeps, a: Actor, id: string) {
     if (!c) throw notFound();
     const { plan: _p, ...value } = c;
     return value;
-  });
+  }, true);
 }
 export function applyDataModel(d: DataModelDeps, a: Actor, id: string, raw: unknown) {
   id = parse(z.string().uuid(), id);

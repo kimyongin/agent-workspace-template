@@ -1,0 +1,379 @@
+import { expect, test } from "@playwright/test";
+import type { ModelChange, ModelReview } from "../supabase/functions/_shared/contracts/data-model.ts";
+const review: ModelReview = {
+  title: "오픈마켓 모델",
+  fingerprint: "a".repeat(64),
+  mode: "update",
+  can_apply: true,
+  mapping: {
+    types: { order: "order-id" },
+    rules: {},
+    relations: {},
+    properties: {},
+  },
+  items: [{
+    ref: "order",
+    label: "주문",
+    kind: "new",
+    diff: [],
+    message: "새 자료 종류",
+  }, {
+    ref: "relation",
+    label: "주문의 주문품목",
+    kind: "new",
+    diff: [],
+    message: "여러 개 연결",
+  }],
+};
+const created: ModelChange = {
+  id: "change-id",
+  version: 1,
+  status: "ready",
+  review,
+  result: null,
+  created_at: "2026-10-17T00:00:00Z",
+};
+const user = {
+  id: "00000000-0000-0000-0000-000000000001",
+  aud: "authenticated",
+  email: "fixture@example.test",
+  app_metadata: {},
+  user_metadata: { full_name: "Fixture" },
+};
+test.beforeEach(async ({ page, baseURL }) => {
+  await page.route("**/*", (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin === new URL(baseURL!).origin) return route.continue();
+    if (url.pathname.startsWith("/auth/v1/user")) {
+      return route.fulfill({ json: user });
+    }
+    if (url.pathname === "/api/data-model/changes") {
+      return route.fulfill({ json: { items: [], next_cursor: null } });
+    }
+    if (url.pathname.startsWith("/api/")) {
+      return route.fulfill({ json: { items: [], next_cursor: null } });
+    }
+    return route.abort();
+  });
+  await page.addInitScript(
+    (user) =>
+      localStorage.setItem(
+        "sb-127-auth-token",
+        JSON.stringify({
+          access_token: "ui-fixture",
+          refresh_token: "ui-fixture",
+          token_type: "bearer",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          user,
+        }),
+      ),
+    user,
+  );
+});
+
+test(
+  "전체 모델 검토·변경안·전체 적용 및 결과와 파일 내보내기",
+  async ({ page }, info) => {
+    let applied = false;
+    await page.route("**/api/data-model/**", (route) => {
+      const req = route.request(), path = new URL(req.url()).pathname;
+      if (path.endsWith("/preview")) {
+        expect(req.headers()["idempotency-key"]).toBeUndefined();
+        expect(req.postDataJSON().document).toBe(
+          '{"format":"workspace-data-model"}',
+        );
+        return route.fulfill({ json: review });
+      }
+      if (path.endsWith("/apply")) {
+        expect(req.postDataJSON()).toEqual({ expected_version: 1 });
+        expect(req.headers()["idempotency-key"]).toBeTruthy();
+        applied = true;
+        return route.fulfill({
+          json: {
+            ...created,
+            version: 2,
+            status: "applied",
+            result: { type_ids: ["order-id"], relation_ids: ["relation-id"] },
+          },
+        });
+      }
+      if (path.endsWith("/change-id")) {
+        return route.fulfill({
+          json: applied
+            ? {
+              ...created,
+              version: 2,
+              status: "applied",
+              result: { type_ids: ["order-id"], relation_ids: ["relation-id"] },
+            }
+            : created,
+        });
+      }
+      if (path.endsWith("/export")) {
+        return route.fulfill({
+          json: { format: "workspace-data-model", format_version: 1 },
+        });
+      }
+      return route.fulfill({
+        json: req.method() === "POST" ? created : { items: [], next_cursor: null },
+      });
+    });
+    await page.goto("/settings/data-model");
+    await page.getByRole("textbox", { name: "전체 모델 JSON" }).fill(
+      '{"format":"workspace-data-model"}',
+    );
+    await page.getByRole("button", { name: "가져올 내용 검토" }).click();
+    await expect(page.getByRole("button", { name: "검토한 전체 변경안 저장" }))
+      .toBeVisible();
+    await page.getByRole("button", { name: "주문 추가", exact: true }).click();
+    await expect(page.getByText("새 자료 종류", { exact: true })).toBeVisible();
+    await page.screenshot({
+      path: info.outputPath("model-review.png"),
+      fullPage: true,
+    });
+    await page.getByRole("button", { name: "검토한 전체 변경안 저장" }).click();
+    await expect(page.getByRole("button", { name: "전체 적용", exact: true }))
+      .toBeVisible();
+    await page.getByRole("button", { name: "전체 적용", exact: true }).click();
+    await expect(page.getByText("자료 종류 1개 · 관계 1개 적용")).toBeVisible();
+    expect(applied).toBe(true);
+    await expect(
+      page.getByRole("link", { name: "자료 관계 설정", exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: info.outputPath("model-applied.png"),
+      fullPage: true,
+    });
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "전체 모델 내보내기" }).click();
+    expect((await download).suggestedFilename()).toBe(
+      "workspace-data-model.json",
+    );
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  },
+);
+
+test("충돌은 적용을 막고 가져온 원문과 보완 경로를 보존한다", async ({ page }) => {
+  await page.route(
+    "**/api/data-model/preview",
+    (route) =>
+      route.fulfill({
+        json: {
+          ...review,
+          can_apply: false,
+          items: [{
+            ref: "relation",
+            label: "소속 주문",
+            kind: "conflict",
+            diff: [],
+            message: "단일 관계에 연결이 여러 개 있습니다",
+          }],
+        },
+      }),
+  );
+  await page.goto("/settings/data-model");
+  await page.getByRole("textbox", { name: "전체 모델 JSON" }).fill("원문 보존");
+  await page.getByRole("button", { name: "가져올 내용 검토" }).click();
+  await expect(page.getByRole("button", { name: "검토한 전체 변경안 저장" }))
+    .toBeDisabled();
+  await expect(page.getByRole("textbox", { name: "전체 모델 JSON" }))
+    .toHaveValue("원문 보존");
+  await page.getByRole("button", { name: "소속 주문 충돌" }).click();
+  await expect(page.getByText("단일 관계에 연결이 여러 개 있습니다"))
+    .toBeVisible();
+  await expect(page.getByRole("button", { name: "전체 적용", exact: true }))
+    .toHaveCount(0);
+});
+
+test("적용 응답이 유실돼도 입력을 잠그고 같은 키와 버전으로 재확인한다", async ({ page }) => {
+  const writes: { body: unknown; key?: string }[] = [];
+  await page.route("**/api/data-model/**", (route) => {
+    const req = route.request(), path = new URL(req.url()).pathname;
+    if (path.endsWith("/apply")) {
+      writes.push({
+        body: req.postDataJSON(),
+        key: req.headers()["idempotency-key"],
+      });
+      if (writes.length === 1) return route.abort("failed");
+      return route.fulfill({
+        json: {
+          ...created,
+          version: 2,
+          status: "applied",
+          result: { type_ids: ["order-id"], relation_ids: [] },
+        },
+      });
+    }
+    return route.fulfill({ json: { items: [created], next_cursor: null } });
+  });
+  await page.goto("/settings/data-model");
+  await page.getByRole("button", { name: "오픈마켓 모델 적용 준비됨" }).click();
+  await page.getByRole("button", { name: "전체 적용", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "저장 여부를 알 수 없습니다",
+  );
+  await expect(page.getByRole("textbox", { name: "전체 모델 JSON" }))
+    .toBeDisabled();
+  await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })
+    .click();
+  await expect(page.getByText("자료 종류 1개 · 관계 0개 적용")).toBeVisible();
+  expect(writes).toHaveLength(2);
+  expect(writes[1]).toEqual(writes[0]);
+});
+
+test("자료 설정으로 이동해도 미저장 전체 모델을 보호하고 취소하면 원문이 남는다", async ({ page }) => {
+  await page.goto("/settings/data-model");
+  await page.getByRole("textbox", { name: "전체 모델 JSON" }).fill(
+    "미저장 원문",
+  );
+  await page.getByRole("button", { name: "설정 메뉴" }).click();
+  await page.getByRole("link", { name: "자료", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "전체 모델 JSON" }))
+    .toHaveValue("미저장 원문");
+});
+
+test("파일의 중복 키 원문은 서버에 그대로 보내고 검증 실패 후에도 보존한다", async ({ page }) => {
+  const raw = '{"title":"원본","title":"중복"}';
+  await page.route("**/api/data-model/preview", (route) => {
+    expect(route.request().postDataJSON().document).toBe(raw);
+    return route.fulfill({
+      status: 422,
+      json: {
+        code: "invalid_input",
+        message: "중복 JSON 키입니다",
+        fields: [{ path: "document.title", message: "title 키가 두 번 있습니다" }],
+      },
+    });
+  });
+  await page.goto("/settings/data-model");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "domain.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(raw),
+  });
+  await expect(page.getByRole("textbox", { name: "전체 모델 JSON" })).toHaveValue(raw);
+  await expect(page.getByText("domain.json", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "가져올 내용 검토" }).click();
+  await expect(page.getByRole("alert")).toContainText("document.title: title 키가 두 번 있습니다");
+  await expect(page.getByRole("textbox", { name: "전체 모델 JSON" })).toHaveValue(raw);
+});
+
+test("화면 폭 전환은 모델 원문과 검토·펼침 상태를 보존한다", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await page.route("**/api/data-model/preview", (route) => route.fulfill({ json: review }));
+  await page.goto("/settings/data-model");
+  await page.getByRole("textbox", { name: "전체 모델 JSON" }).fill("검토 원문");
+  await page.getByRole("button", { name: "가져올 내용 검토" }).click();
+  await page.getByRole("button", { name: "주문 추가", exact: true }).click();
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(page.getByRole("textbox", { name: "전체 모델 JSON" })).toHaveValue("검토 원문");
+    await expect(page.getByText("새 자료 종류", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "검토한 전체 변경안 저장" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
+test("변경 이력 더 보기는 다음 cursor를 읽고 실패해도 기존 행을 보존한다", async ({ page }) => {
+  let attempts = 0;
+  await page.route("**/api/data-model/changes**", (route) => {
+    const url = new URL(route.request().url());
+    if (!url.searchParams.has("cursor")) return route.fulfill({ json: { items: [created], next_cursor: "next-page" } });
+    expect(url.searchParams.get("cursor")).toBe("next-page");
+    attempts++;
+    if (attempts === 1) {
+      return route.fulfill({ status: 503, json: { code: "internal", message: "다음 페이지 조회 실패" } });
+    }
+    return route.fulfill({
+      json: { items: [{ ...created, id: "older", review: { ...review, title: "요리 모델" } }], next_cursor: null },
+    });
+  });
+  await page.goto("/settings/data-model");
+  await page.getByRole("button", { name: "더 보기", exact: true }).click();
+  await expect(page.getByText("다음 페이지 조회 실패")).toBeVisible();
+  await expect(page.getByRole("button", { name: "오픈마켓 모델 적용 준비됨" })).toBeVisible();
+  await page.getByRole("button", { name: "변경 이력 다시 읽기", exact: true }).click();
+  await expect(page.getByRole("button", { name: "요리 모델 적용 준비됨" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "더 보기", exact: true })).toHaveCount(0);
+});
+
+test("변경안 저장 성공 후 상세 실패는 저장 성공을 유지하고 읽기만 다시 시도한다", async ({ page }) => {
+  let writes = 0, reads = 0;
+  await page.route("**/api/data-model/**", (route) => {
+    const req = route.request(), path = new URL(req.url()).pathname;
+    if (path.endsWith("/preview")) return route.fulfill({ json: review });
+    if (req.method() === "POST") {
+      writes++;
+      return route.fulfill({ json: created });
+    }
+    if (path.endsWith("/change-id")) {
+      reads++;
+      if (reads === 1) return route.fulfill({ status: 503, json: { code: "internal", message: "상세 조회 실패" } });
+      return route.fulfill({
+        json: {
+          ...created,
+          review: { ...review, items: [{ ref: "detailed", label: "복원된 상세 검토", kind: "new", diff: [] }] },
+        },
+      });
+    }
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
+  await page.goto("/settings/data-model");
+  await page.getByRole("textbox", { name: "전체 모델 JSON" }).fill("모델 원문");
+  await page.getByRole("button", { name: "가져올 내용 검토" }).click();
+  await page.getByRole("button", { name: "검토한 전체 변경안 저장" }).click();
+  await expect(page.getByText("전체 변경안을 저장했습니다.", { exact: false })).toBeVisible();
+  await expect(page.getByText("상세 조회 실패", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "상세 다시 조회", exact: true }).click();
+  await expect(page.getByRole("button", { name: "복원된 상세 검토 추가" })).toBeVisible();
+  expect(writes).toBe(1);
+  expect(reads).toBe(2);
+});
+
+test("낡은 원본과 세 버전을 구분하고 누락 속성의 명시 확인을 변경안에만 보낸다", async ({ page }) => {
+  let writes = 0;
+  await page.route("**/api/data-model/**", (route) => {
+    const req = route.request(), path = new URL(req.url()).pathname;
+    if (path.endsWith("/preview")) {
+      expect(req.postDataJSON()).not.toHaveProperty("remove_keys");
+      return route.fulfill({
+        json: {
+          ...review,
+          items: [{
+            ...review.items[0],
+            source_schema_version: 1,
+            current_schema_version: 3,
+            target_schema_version: 4,
+            source_is_stale: true,
+            removed_keys: ["prop_2"],
+            current_schema: { properties: { prop_2: { title: "가격" } } },
+            schema: { properties: {} },
+          }],
+        },
+      });
+    }
+    if (req.method() === "POST") {
+      writes++;
+      expect(req.postDataJSON().remove_keys).toEqual({ order: ["prop_2"] });
+      return route.fulfill({ json: created });
+    }
+    if (path.endsWith("/change-id")) return route.fulfill({ json: created });
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
+  await page.goto("/settings/data-model");
+  await page.getByRole("textbox", { name: "전체 모델 JSON" }).fill("오래된 원본");
+  await page.getByRole("button", { name: "가져올 내용 검토" }).click();
+  await expect(page.getByRole("button", { name: "검토한 전체 변경안 저장" })).toBeDisabled();
+  await page.getByRole("button", { name: /주문.*항목 제거 확인/ }).click();
+  await expect(page.getByText("파일 원본 버전 1 · 현재 버전 3 · 적용 버전 4")).toBeVisible();
+  await expect(page.getByText("파일 원본 버전이 현재 게시 버전과 다릅니다.", { exact: false })).toBeVisible();
+  await page.getByRole("checkbox", { name: "주문의 가격 항목 영구 제거 확인" }).check();
+  await page.getByRole("button", { name: "검토한 전체 변경안 저장" }).click();
+  await expect(page.getByText("전체 변경안을 저장했습니다.", { exact: false })).toBeVisible();
+  expect(writes).toBe(1);
+});

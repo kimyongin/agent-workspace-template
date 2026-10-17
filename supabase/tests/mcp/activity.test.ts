@@ -1,7 +1,5 @@
-import {
-  entitySchemaImportPrepare,
-  entitySchemaImportPreview,
-} from "../../functions/_shared/contracts/entity-schema-import.ts";
+import { dataModelAction, dataModelInput, dataModelPrepare } from "../../functions/_shared/contracts/data-model.ts";
+import { entitySchemaImportPrepare } from "../../functions/_shared/contracts/entity-schema-import.ts";
 import {
   identifierRuleCreate,
   identifierRuleUpdate,
@@ -216,7 +214,12 @@ const EXPECTED_TOOLS = [
   "create_entity_type",
   "update_entity_type",
   "get_entity_schema",
-  "preview_entity_schema_import",
+  "export_data_model",
+  "preview_data_model",
+  "prepare_data_model",
+  "list_data_model_changes",
+  "get_data_model_change",
+  "apply_data_model",
   "prepare_entity_schema_import",
   "list_entity_schema_versions",
   "create_entity_schema_change",
@@ -446,7 +449,15 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     create_entity_type: entityTypeCreate.extend({ request_key: requestKey }),
     update_entity_type: entityTypeUpdate.safeExtend({ type_id: z.string().uuid(), request_key: requestKey }),
     get_entity_schema: entitySchemaRead,
-    preview_entity_schema_import: entitySchemaImportPreview,
+    export_data_model: z.strictObject({}),
+    preview_data_model: dataModelInput,
+    prepare_data_model: dataModelPrepare.extend({ request_key: requestKey }),
+    list_data_model_changes: z.strictObject({
+      limit: z.number().int().min(1).max(100).default(20),
+      cursor: z.string().uuid().optional(),
+    }),
+    get_data_model_change: z.strictObject({ id: z.string().uuid() }),
+    apply_data_model: dataModelAction.extend({ id: z.string().uuid(), request_key: requestKey }),
     prepare_entity_schema_import: entitySchemaImportPrepare.safeExtend({ request_key: requestKey }),
     list_entity_schema_versions: entitySchemaHistory,
     create_entity_schema_change: schemaChangeCreate.extend({ type_id: z.string().uuid(), request_key: requestKey }),
@@ -503,7 +514,7 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     z.toJSONSchema(recordCreate.extend({ request_key: requestKey }), { target: "draft-2020-12", io: "input" }),
   );
   for (const t of tools) assertEquals(t.inputSchema.type, "object", t.name);
-  assertEquals(byName.preview_entity_schema_import.annotations?.readOnlyHint, true);
+  assertEquals(byName.preview_data_model.annotations?.readOnlyHint, true);
   assertEquals(byName.prepare_entity_schema_import.annotations?.readOnlyHint, false);
   assertEquals(byName.get_task.annotations?.readOnlyHint, true);
   assertEquals(byName.delete_task.annotations?.destructiveHint, true);
