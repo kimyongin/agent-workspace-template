@@ -14,7 +14,6 @@ import { RecordDetailPage } from "../../src/features/activity/RecordDetailPage.t
 import { TagsPage } from "../../src/features/tags/TagsPage.tsx";
 import { SearchPage } from "../../src/features/search/SearchPage.tsx";
 import { GuidePage } from "../../src/features/settings/GuidePage.tsx";
-import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 const target=new URLSearchParams(location.search).get("route")??"/entities";
 if(location.pathname.endsWith("workspace-screens.html"))history.replaceState(null,"",target);

@@ -1,4 +1,6 @@
+@layer legacy, theme, base, components, utilities;
 @import "tailwindcss";
+@import "./tokens.css" layer(legacy);
 @import "./legacy.css" layer(legacy);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -127,5 +129,7 @@
     }
   html {
     @apply font-sans;
+    font-size: calc(100% * var(--display-scale, 1));
+    color-scheme: dark;
     }
 }

@@ -4,7 +4,6 @@ import { createRoot } from "react-dom/client";
 import { createMemoryRouter, Outlet, RouterProvider, useBlocker } from "react-router";
 import { Navigation } from "../../src/app/Navigation.tsx";
 import { ConfirmDialog } from "../../src/components/Modal.tsx";
-import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 
 function DirtyPage() {

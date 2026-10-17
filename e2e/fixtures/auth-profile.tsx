@@ -7,7 +7,6 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { AuthProvider, useAuth } from "../../src/features/auth/AuthProvider.tsx";
 import { SettingsPage } from "../../src/features/settings/SettingsPage.tsx";
 import { Navigation } from "../../src/app/Navigation.tsx";
-import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 
 function Probe() {
