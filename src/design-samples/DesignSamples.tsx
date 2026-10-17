@@ -1,6 +1,12 @@
+import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group.tsx";
+import { FieldGroup, FieldSet, FieldLegend } from "../components/ui/field.tsx";
+import { PlusIcon, RotateCcwIcon, UnlinkIcon } from "lucide-react";
+import { Button } from "../components/ui/button.tsx";
+import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
+import { Input } from "../components/ui/input.tsx";
 import { RelationSettingsSample } from "./RelationSettingsSample.tsx";
 import { type CSSProperties, useRef, useState } from "react";
-import { BodyAction } from "../components/BodyAction.tsx";
+
 import { Field, Notice } from "../components/Field.tsx";
 import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSection.tsx";
 import { MaterialWorkspaceSample } from "./PropertySamples.tsx";
@@ -33,28 +39,28 @@ export function DesignSamples() {
   const params = new URLSearchParams(location.search);
   if (params.get("screen") === "settings") {
     return (
-      <main className="samples-content">
+      <main className="mx-auto flex max-w-6xl flex-col gap-8 p-4 sm:p-8">
         <AccountSettingsSample standalone />
       </main>
     );
   }
   if (params.get("screen") === "relations") {
     return (
-      <main className="samples-content">
+      <main className="mx-auto flex max-w-6xl flex-col gap-8 p-4 sm:p-8">
         <RelationSettingsSample standalone />
       </main>
     );
   }
   if (params.get("screen") === "issuers") {
     return (
-      <main className="samples-content">
+      <main className="mx-auto flex max-w-6xl flex-col gap-8 p-4 sm:p-8">
         <IssuerSettingsSample standalone />
       </main>
     );
   }
   if (params.get("screen") === "filters") {
     return (
-      <main className="samples-content">
+      <main className="mx-auto flex max-w-6xl flex-col gap-8 p-4 sm:p-8">
         <FilterSamples />
       </main>
     );
@@ -68,40 +74,34 @@ function SamplesPreview() {
   const frame = useRef<HTMLIFrameElement>(null);
   const contentUrl = new URL("./index.html?content=1", location.href).href;
   return (
-    <div className="samples-preview">
-      <header className="samples-preview-header">
-        <div className="page-heading">
-          <h1 className="page-title">디자인 샘플</h1>
-          <p className="page-description">화면 폭을 바꾸며 예시 데이터로 디자인과 동작을 확인합니다.</p>
+    <div className="flex h-dvh flex-col">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b px-4 py-4 sm:px-6">
+        <div className="flex min-w-0 flex-col gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight wrap-anywhere">디자인 샘플</h1>
+          <p className="text-sm text-muted-foreground">화면 폭을 바꾸며 예시 데이터로 디자인과 동작을 확인합니다.</p>
         </div>
-        <div className="actions" role="group" aria-label="미리보기 화면 폭">
-          {[["auto", "현재 화면"], ["390", "모바일"], ["1280", "데스크톱"]].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className="btn"
-              aria-pressed={width === value}
-              onClick={() => setWidth(value)}
-            >
-              {label}
-            </button>
-          ))}
-          <a className="btn btn-text" href={contentUrl} target="_blank" rel="noreferrer">샘플만 열기 ↗</a>
+        <div className="flex flex-wrap items-center gap-2">
+          <ToggleGroup type="single" variant="outline" value={width} aria-label="미리보기 화면 폭"
+            onValueChange={next => { if (next) setWidth(next); }}>
+            {[["auto", "현재 화면"], ["390", "모바일"], ["1280", "데스크톱"]].map(([value, label]) =>
+              <ToggleGroupItem key={value} value={value}>{label}</ToggleGroupItem>)}
+          </ToggleGroup>
+          <Button asChild variant="ghost"><a  href={contentUrl} target="_blank" rel="noreferrer">샘플만 열기 ↗</a></Button>
         </div>
       </header>
-      <nav className="samples-topics" aria-label="샘플 바로가기">
+      <nav className="flex flex-wrap gap-1 px-4 py-2" aria-label="샘플 바로가기">
         {topics.map(([id, label]) => (
-          <button
+          <Button variant="ghost"
             key={id}
             type="button"
-            className="btn btn-text"
+
             onClick={() => frame.current?.contentDocument?.getElementById(id)?.scrollIntoView()}
           >
             {label}
-          </button>
+          </Button>
         ))}
       </nav>
-      <div className="samples-preview-space">
+      <div className="min-h-0 flex-1 overflow-auto p-2 sm:p-4 [&_iframe]:mx-auto [&_iframe]:block [&_iframe]:h-full [&_iframe]:min-h-60 [&_iframe]:rounded-xl [&_iframe]:border [&_iframe]:bg-background">
         <iframe
           ref={frame}
           title="직접 조작하는 디자인 샘플"
@@ -115,61 +115,61 @@ function SamplesPreview() {
 
 function SamplesContent() {
   return (
-    <main className="samples-content">
-      <header className="page-heading">
-        <p className="meta">WORKSPACE · DESIGN SAMPLES</p>
-        <h1 className="page-title">같은 역할, 같은 문법</h1>
-        <p className="page-description">
+    <main className="mx-auto flex max-w-6xl flex-col gap-8 p-4 sm:p-8">
+      <header className="flex min-w-0 flex-col gap-2">
+        <p className="text-xs text-muted-foreground">WORKSPACE · DESIGN SAMPLES</p>
+        <h1 className="text-2xl font-semibold tracking-tight wrap-anywhere">같은 역할, 같은 문법</h1>
+        <p className="text-sm text-muted-foreground">
           공용 스타일과 컴포넌트를 로그인 없이 예시 데이터로 조작해 봅니다.
         </p>
       </header>
-      <section id="settings" className="samples-topic" aria-label="기본 설정 샘플">
+      <section id="settings" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-label="기본 설정 샘플">
         <AccountSettingsSample />
       </section>
-      <section id="relations" className="samples-topic" aria-label="자료 관계 샘플">
+      <section id="relations" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-label="자료 관계 샘플">
         <RelationSettingsSample />
       </section>
-      <section id="issuers" className="samples-topic" aria-label="번호 출처 샘플">
+      <section id="issuers" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-label="번호 출처 샘플">
         <IssuerSettingsSample />
       </section>
-      <section id="record-actions" className="samples-topic" aria-label="기록 설정 샘플">
+      <section id="record-actions" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-label="기록 설정 샘플">
         <RecordActionsSample />
       </section>
-      <section id="buttons" className="samples-topic" aria-labelledby="buttons-title">
-        <h2 id="buttons-title" className="page-title">버튼</h2>
-        <p className="secondary">입력 옆 조작은 입력과 크기를 맞추고, 독립적인 보조 행동은 가볍게 표시합니다.</p>
+      <section id="buttons" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-labelledby="buttons-title">
+        <h2 id="buttons-title" className="text-2xl font-semibold tracking-tight wrap-anywhere">버튼</h2>
+        <p className="text-sm text-muted-foreground">입력 옆 조작은 입력과 크기를 맞추고, 독립적인 보조 행동은 가볍게 표시합니다.</p>
         <ButtonSamples />
       </section>
-      <section id="forms" className="samples-topic" aria-labelledby="forms-title">
-        <h2 id="forms-title" className="page-title">폼과 상태</h2>
-        <p className="secondary">필수 입력, 도움말, 오류, 읽기 전용과 비활성을 비교해보세요.</p>
+      <section id="forms" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-labelledby="forms-title">
+        <h2 id="forms-title" className="text-2xl font-semibold tracking-tight wrap-anywhere">폼과 상태</h2>
+        <p className="text-sm text-muted-foreground">필수 입력, 도움말, 오류, 읽기 전용과 비활성을 비교해보세요.</p>
         <FormSamples />
       </section>
-      <section id="filters" className="samples-topic" aria-labelledby="filters-title">
-        <h2 id="filters-title" className="page-title">필터</h2>
-        <p className="secondary">조건을 편집한 뒤 아래 필터 적용으로 결과를 확인합니다.</p>
+      <section id="filters" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-labelledby="filters-title">
+        <h2 id="filters-title" className="text-2xl font-semibold tracking-tight wrap-anywhere">필터</h2>
+        <p className="text-sm text-muted-foreground">조건을 편집한 뒤 아래 필터 적용으로 결과를 확인합니다.</p>
         <FilterSamples />
       </section>
-      <section id="tags" className="samples-topic" aria-labelledby="tags-title">
-        <h2 id="tags-title" className="page-title">태그</h2>
-        <p className="secondary">
+      <section id="tags" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-labelledby="tags-title">
+        <h2 id="tags-title" className="text-2xl font-semibold tracking-tight wrap-anywhere">태그</h2>
+        <p className="text-sm text-muted-foreground">
           기본 기록 태그와 필터의 초안 선택을 비교합니다. 기존 자료의 독립 태그 연결은 아래 모달과 확인 예시에서 조작합니다.
         </p>
         <TagSamples />
       </section>
-      <section id="workspace" className="samples-topic" aria-labelledby="workspace-title">
-        <h2 id="workspace-title" className="page-title">목록과 자료 설정</h2>
-        <p className="secondary">
+      <section id="workspace" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-labelledby="workspace-title">
+        <h2 id="workspace-title" className="text-2xl font-semibold tracking-tight wrap-anywhere">목록과 자료 설정</h2>
+        <p className="text-sm text-muted-foreground">
           입력 항목을 수정하고 변경 검토를 눌러보세요. 이력에는 당시 입력 항목과 변경 결과가 표시됩니다.
         </p>
         <MaterialWorkspaceSample />
       </section>
-      <section id="dialogs" className="samples-topic" aria-labelledby="dialogs-title">
-        <h2 id="dialogs-title" className="page-title">모달과 확인</h2>
-        <p className="secondary">보기와 편집은 같은 전체 입력 항목을 유지합니다. 보기에서 태그만 연결하고, 편집에서는 같은 태그를 읽기 전용으로 확인합니다.</p>
+      <section id="dialogs" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-labelledby="dialogs-title">
+        <h2 id="dialogs-title" className="text-2xl font-semibold tracking-tight wrap-anywhere">모달과 확인</h2>
+        <p className="text-sm text-muted-foreground">보기와 편집은 같은 전체 입력 항목을 유지합니다. 보기에서 태그만 연결하고, 편집에서는 같은 태그를 읽기 전용으로 확인합니다.</p>
         <ModalSamples />
       </section>
-      <footer className="samples-content-footer secondary">
+      <footer className="border-t pt-4 text-sm text-muted-foreground">
         시각 값의 기준은 시각 규격, 동작의 기준은 UI 패턴 문서입니다. 샘플은 실제 업무 자료를 저장하지 않습니다.
       </footer>
     </main>
@@ -182,23 +182,23 @@ function ButtonSamples() {
   const [options, setOptions] = useState(["판매 중"]);
   const [message, setMessage] = useState("");
   return (
-    <div className="samples-stack">
-      <div className="material-settings-toolbar">
+    <div className="grid min-w-0 gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Field label="자료 종류 선택">
           {(props) => (
-            <select
+            <NativeSelect
               {...props}
-              className="input"
+
               value={type}
               onChange={(event) => setType(event.target.value)}
             >
-              {types.map((value) => <option key={value}>{value}</option>)}
-            </select>
+              {types.map((value) => <NativeSelectOption key={value}>{value}</NativeSelectOption>)}
+            </NativeSelect>
           )}
         </Field>
-        <button
+        <Button variant="outline"
           type="button"
-          className="btn btn-input"
+          className=""
           onClick={() => {
             const next = `새 종류 ${types.length - 1}`;
             setTypes([...types, next]);
@@ -207,81 +207,81 @@ function ButtonSamples() {
           }}
         >
           종류 추가
-        </button>
+        </Button>
       </div>
-      <div className="settings">
+      <div className="flex min-w-0 flex-col gap-6">
         <MaterialSettingsSection title="입력 옆 조작과 섹션 푸터" summary="선택 항목" initialOpen>
-          <div className="settings-fields">
+          <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4">
             {options.map((value, index) => (
-              <div className="schema-option-row" key={index}>
+              <div className="flex min-w-0 flex-wrap items-end gap-3" key={index}>
                 <Field pair label={`선택 항목 ${index + 1}`}>
                   {(props) => (
-                    <input
+                    <Input
                       {...props}
-                      className="input"
+
                       value={value}
                       onChange={(event) =>
                         setOptions(options.map((prior, i) => i === index ? event.target.value : prior))}
                     />
                   )}
                 </Field>
-                <button
+                <Button variant="outline"
                   type="button"
-                  className="btn btn-input"
+                  className=""
                   aria-label={`선택 항목 ${index + 1} 제거`}
                   onClick={() => setOptions(options.filter((_, i) => i !== index))}
                 >
                   제거
-                </button>
+                </Button>
               </div>
             ))}
             <div>
-              <BodyAction icon="create" onClick={() => setOptions([...options, `새 선택 항목 ${options.length + 1}`])}>
+              <Button variant="ghost" type="button"  onClick={() => setOptions([...options, `새 선택 항목 ${options.length + 1}`])}><PlusIcon data-icon="inline-start" />
                 항목 추가
-              </BodyAction>
+              </Button>
             </div>
           </div>
-          <div className="settings-section-footer">
-            <div className="actions schema-actions">
-              <button
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline"
                 type="button"
-                className="btn"
+
                 onClick={() => {
                   setOptions(["판매 중"]);
                   setMessage("예시 입력을 되돌렸습니다.");
                 }}
               >
                 변경 취소
-              </button>
-              <button type="button" className="btn btn-primary" onClick={() => setMessage("예시 입력을 저장했습니다.")}>
+              </Button>
+              <Button variant="default" type="button"  onClick={() => setMessage("예시 입력을 저장했습니다.")}>
                 저장
-              </button>
+              </Button>
             </div>
           </div>
         </MaterialSettingsSection>
       </div>
       <div>
-        <BodyAction
-          icon="reset"
+        <Button variant="ghost" type="button"
+
           onClick={() => {
             setTypes(["상품", "재료"]);
             setType("상품");
             setOptions(["판매 중"]);
             setMessage("예시를 처음 상태로 되돌렸습니다.");
           }}
-        >
+        ><RotateCcwIcon data-icon="inline-start" />
           예시 초기화
-        </BodyAction>
-        <BodyAction
-          danger
-          icon="unlink"
+        </Button>
+        <Button variant="destructive" type="button"
+
+
           onClick={() => setMessage("위험 행동은 명확한 이름과 위험 색으로 표시합니다.")}
-        >
+        ><UnlinkIcon data-icon="inline-start" />
           연결 해제 예시
-        </BodyAction>
-        <BodyAction disabled icon="create">권한 없는 조작</BodyAction>
+        </Button>
+        <Button variant="ghost" type="button" disabled ><PlusIcon data-icon="inline-start" />권한 없는 조작</Button>
       </div>
-      <p className="secondary samples-status" role="status">
+      <p className="text-sm text-muted-foreground m-0" role="status">
         {message || "종류 추가·항목 추가·제거·저장을 눌러 크기와 배치를 비교해보세요."}
       </p>
     </div>
@@ -295,7 +295,7 @@ function FormSamples() {
   const [saved, setSaved] = useState(false);
   return (
     <form
-      className="form"
+      className="flex min-w-0 flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault();
         const invalid = !name.trim();
@@ -304,12 +304,12 @@ function FormSamples() {
         if (invalid) event.currentTarget.querySelector<HTMLInputElement>("input")?.focus();
       }}
       noValidate
-    >
+    ><FieldGroup>
       <Field pair label="상품명" required help="목록에서 알아볼 수 있는 이름을 입력하세요." error={error}>
         {(props) => (
-          <input
+          <Input
             {...props}
-            className="input"
+
             required
             value={name}
             onChange={(event) => {
@@ -320,34 +320,24 @@ function FormSamples() {
           />
         )}
       </Field>
-      <fieldset className="field plain-fieldset settings-icon-pair key-value-full">
-        <legend className="label">반복 주기</legend>
-        <div className="chips">
-          {["매일", "매주", "매월"].map((value) => (
-            <label key={value} className="chip choice-chip">
-              <input
-                type="radio"
-                name="sample-frequency"
-                checked={frequency === value}
-                onChange={() => setFrequency(value)}
-              />
-              {value}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <FieldSet className="border-0 p-0 flex min-w-0 flex-col gap-3 col-span-full">
+        <FieldLegend className="text-sm font-medium">반복 주기</FieldLegend>
+        <ToggleGroup type="single" variant="outline" aria-label="반복 주기" value={frequency} onValueChange={next => { if (next) setFrequency(next); }}>
+          {["매일", "매주", "매월"].map(value => <ToggleGroupItem key={value} value={value}>{value}</ToggleGroupItem>)}
+        </ToggleGroup>
+      </FieldSet>
       <Field pair label="시간대">
         {(props) => <TimezoneSelect {...props} value={zone} onChange={(event) => setZone(event.target.value)} />}
       </Field>
-      <div className="key-value-grid">
+      <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
         <Field pair label="읽기 전용" help="내용을 읽고 복사할 수 있습니다.">
-          {(props) => <input {...props} className="input" readOnly value="상품 · 버전 2" />}
+          {(props) => <Input {...props}  readOnly value="상품 · 버전 2" />}
         </Field>
         <Field pair label="비활성" help="현재 단계에서는 조작할 수 없습니다.">
-          {(props) => <input {...props} className="input" disabled value="처리 중" />}
+          {(props) => <Input {...props}  disabled value="처리 중" />}
         </Field>
       </div>
-      <dl className="key-value-grid key-value-static samples-values">
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere min-w-0">
         <div>
           <dt>수량</dt>
           <dd>0</dd>
@@ -361,10 +351,10 @@ function FormSamples() {
           <dd>공백없는아주긴상품이름도글자크기를줄이지않고자연스럽게줄바꿈합니다</dd>
         </div>
       </dl>
-      <div className="actions schema-actions">
-        <button className="btn btn-primary" type="submit">입력 확인</button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="default"  type="submit">입력 확인</Button>
       </div>
       {saved && <Notice kind="success">입력 조건을 충족합니다.</Notice>}
-    </form>
+    </FieldGroup></form>
   );
 }

@@ -29,7 +29,7 @@ function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, 
     {record && preparing && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner />기록 메모 준비 중…</p>}
     {record && <FieldSet disabled={frozen}><FieldGroup>
       <Field pair fullWidth label="기록 메모" error={errors.change_note}>{p => <Textarea {...p}  rows={4} value={note} onChange={e=>onNote(e.target.value)} placeholder="변경 내용과 이유를 작성하세요"/>}</Field>
-      <div className="min-w-0"><TagPicker label="기록 태그" value={tags} error={errors.change_tag_ids} onChange={onTags} excludeId={excludeTag}/></div>
+      <div className="min-w-0"><TagPicker disabled={frozen} label="기록 태그" value={tags} error={errors.change_tag_ids} onChange={onTags} excludeId={excludeTag}/></div>
     </FieldGroup></FieldSet>}
   </div>;
 }

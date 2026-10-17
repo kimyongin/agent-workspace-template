@@ -1,6 +1,14 @@
+import { CardFooter } from "../components/ui/card.tsx";
+import { Card, CardHeader, CardTitle, CardContent, CardAction } from "../components/ui/card.tsx";
+import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group.tsx";
+import { FieldGroup } from "../components/ui/field.tsx";
+import { RotateCcwIcon } from "lucide-react";
+import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
+import { Input } from "../components/ui/input.tsx";
+import { Button } from "../components/ui/button.tsx";
 import { TimezoneSelect } from "../components/TimezoneSelect.tsx";
 import { useRef, useState } from "react";
-import { BodyAction } from "../components/BodyAction.tsx";
+
 import { Field } from "../components/Field.tsx";
 import { EntityTypeIcon } from "../features/entity/EntityTypeIcon.tsx";
 import { NavigationRowActions } from "../features/settings/NavigationRowActions.tsx";
@@ -38,19 +46,15 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
           )
           : choices
           ? (
-            <select
-              {...props}
-              className="input"
-              value={draft[key]}
-              onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
-            >
-              {choices.map((value) => <option key={value} value={value}>{value}%</option>)}
-            </select>
+            <ToggleGroup {...props} type="single" variant="outline" aria-label={label} value={draft[key]}
+              onValueChange={next => { if (next) setDraft({ ...draft, [key]: next }); }}>
+              {choices.map(value => <ToggleGroupItem key={value} value={value}>{value}%</ToggleGroupItem>)}
+            </ToggleGroup>
           )
           : (
-            <input
+            <Input
               {...props}
-              className="input"
+
               value={draft[key]}
               onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
             />
@@ -58,10 +62,10 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
     </Field>
   );
   return (
-    <section className="panel settings account-settings" aria-label="기본 설정 예시">
-      <header className="page-heading">
-        <Heading className="page-title">기본 설정</Heading>
-        <p className="page-description">프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다.</p>
+    <section className="flex flex-col gap-6 min-w-0" aria-label="기본 설정 예시">
+      <header className="flex min-w-0 flex-col gap-2">
+        <Heading className="text-2xl font-semibold tracking-tight wrap-anywhere">기본 설정</Heading>
+        <p className="text-sm text-muted-foreground">프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다.</p>
       </header>
       {([
         { id: "profile", title: "프로필", keys: ["nickname"], content: field("nickname", "닉네임") },
@@ -76,7 +80,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
           title: "화면 표시",
           keys: ["mobile", "desktop"],
           content: (
-            <div className="key-value-grid">
+            <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
               {field("mobile", "모바일 화면 배율", ["100", "110", "125", "150"])}
               {field("desktop", "데스크톱 화면 배율", ["100", "110", "125", "150"])}
             </div>
@@ -85,55 +89,56 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
       ] as const).map(({ id, title, keys, content }) => {
         const dirty = keys.some((key) => draft[key] !== saved[key]);
         return (
-          <section key={id} className="settings-section" aria-label={title}>
-            <SectionHeading className="settings-section-title">{title}</SectionHeading>
+          <Card key={id} role="region" aria-label={title}>
+            <CardHeader><CardTitle><SectionHeading>{title}</SectionHeading></CardTitle></CardHeader>
+            <CardContent>
             <form
-              className="form"
+              className="flex min-w-0 flex-col gap-5"
               aria-label={`${title} 예시`}
               onSubmit={(event) => {
                 event.preventDefault();
                 setSaved({ ...saved, ...Object.fromEntries(keys.map((key) => [key, draft[key]])) });
                 setMessage(`${title} 설정을 저장했습니다.`);
               }}
-            >
+            ><FieldGroup>
               {content}
-              <div className="settings-section-footer">
-                <div className="actions">
-                  <button
+              <CardFooter className="-mx-4 mt-4 flex-wrap justify-end gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline"
                     type="button"
-                    className="btn"
+
                     disabled={!dirty}
                     onClick={() => setDraft({ ...draft, ...Object.fromEntries(keys.map((key) => [key, saved[key]])) })}
                   >
                     취소
-                  </button>
-                  <button className="btn btn-primary" disabled={!dirty}>저장</button>
+                  </Button>
+                  <Button variant="default"  disabled={!dirty}>저장</Button>
                 </div>
-              </div>
-            </form>
-          </section>
+              </CardFooter>
+            </FieldGroup></form></CardContent>
+          </Card>
         );
       })}
-      <section className="settings-section navigation-settings" aria-label="메뉴 바로가기">
-        <div className="navigation-settings-heading">
-          <SectionHeading className="settings-section-title">메뉴 바로가기</SectionHeading>
-          <span className="secondary" aria-label={`${menus.length}개 선택, 최대 4개`}>{menus.length}/4</span>
-        </div>
+      <Card role="region" aria-label="메뉴 바로가기">
+        <CardHeader>
+          <CardTitle><SectionHeading>메뉴 바로가기</SectionHeading></CardTitle><CardAction>
+          <span className="text-sm text-muted-foreground" aria-label={`${menus.length}개 선택, 최대 4개`}>{menus.length}/4</span></CardAction>
+        </CardHeader><CardContent>
         <form
-          className="form"
+          className="flex min-w-0 flex-col gap-5"
           aria-label="메뉴 바로가기 예시"
           onSubmit={(event) => {
             event.preventDefault();
             setSavedMenus(menus);
             setMessage("메뉴 설정을 저장했습니다.");
           }}
-        >
-          <ol className="navigation-selection" aria-label="선택한 바로가기">
+        ><FieldGroup>
+          <ol className="flex min-w-0 flex-col gap-3" aria-label="선택한 바로가기">
             {menus.map((id, index) => {
               const entry = menuChoices.find((choice) => choice.id === id)!;
               return (
-                <li key={id}>
-                  <span className="navigation-selection-label">
+                <li className="flex min-w-0 flex-wrap items-center gap-3" key={id}>
+                  <span className="min-w-0 flex-1 wrap-anywhere">
                     <EntityTypeIcon id={entry.icon} />
                     {entry.label}
                   </span>
@@ -158,23 +163,23 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
               );
             })}
           </ol>
-          {menus.length === 0 && <p className="secondary">내 프로필만 표시합니다.</p>}
-          <div className="navigation-add-row">
-            <select
+          {menus.length === 0 && <p className="text-sm text-muted-foreground">내 프로필만 표시합니다.</p>}
+          <div className="flex min-w-0 flex-wrap items-end gap-3">
+            <NativeSelect
               ref={addSelect}
-              className="input"
+
               aria-label="추가할 메뉴"
               disabled={menus.length >= 4}
               value={candidate}
               onChange={(event) => setCandidate(event.target.value)}
             >
-              <option value="">{menus.length >= 4 ? "최대 4개 선택" : "메뉴 선택"}</option>
+              <NativeSelectOption value="">{menus.length >= 4 ? "최대 4개 선택" : "메뉴 선택"}</NativeSelectOption>
               {menuChoices.filter((entry) => !menus.includes(entry.id)).map((entry) => (
-                <option key={entry.id} value={entry.id}>{entry.label}</option>
+                <NativeSelectOption key={entry.id} value={entry.id}>{entry.label}</NativeSelectOption>
               ))}
-            </select>
-            <button
-              className="btn"
+            </NativeSelect>
+            <Button variant="outline"
+
               type="button"
               disabled={!candidate || menus.length >= 4}
               onClick={() => {
@@ -183,20 +188,20 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
               }}
             >
               추가
-            </button>
+            </Button>
           </div>
-          <div className="settings-section-footer navigation-settings-footer">
-            <BodyAction
-              icon="reset"
+          <CardFooter className="-mx-4 mt-4 flex-wrap justify-end gap-3">
+            <Button variant="ghost" type="button"
+
               disabled={JSON.stringify(menus) === JSON.stringify(initialMenus)}
               onClick={() => setMenus(initialMenus)}
-            >
+            ><RotateCcwIcon data-icon="inline-start" />
               기본 구성 사용
-            </BodyAction>
-            <div className="actions">
-              <button
+            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline"
                 type="button"
-                className="btn"
+
                 disabled={!menuDirty}
                 onClick={() => {
                   setMenus(savedMenus);
@@ -204,13 +209,13 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
                 }}
               >
                 취소
-              </button>
-              <button className="btn btn-primary" disabled={!menuDirty}>저장</button>
+              </Button>
+              <Button variant="default"  disabled={!menuDirty}>저장</Button>
             </div>
-          </div>
-        </form>
-      </section>
-      {message && <p role="status" className="secondary">{message}</p>}
+          </CardFooter>
+        </FieldGroup></form></CardContent>
+      </Card>
+      {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
     </section>
   );
 }

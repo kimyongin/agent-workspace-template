@@ -1,7 +1,13 @@
+import { CardFooter } from "../components/ui/card.tsx";
+import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card.tsx";
+import { FieldGroup } from "../components/ui/field.tsx";
+import { EyeIcon } from "lucide-react";
+import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
+import { Button } from "../components/ui/button.tsx";
 import { TemplateMemoEditor } from "../features/settings/TemplateMemoEditor.tsx";
 import { useState } from "react";
 import { Field } from "../components/Field.tsx";
-import { BodyAction } from "../components/BodyAction.tsx";
+
 import {
   modelActions,
   type RecordTemplates,
@@ -25,32 +31,32 @@ export function RecordActionsSample() {
     return target ? [{ action: target.action, message: issue.message }] : [];
   });
   return (
-    <section className="settings-section" aria-label="액션별 저장 샘플">
-      <h2 className="settings-section-title">기록 자동 완성</h2>
+    <Card role="region" aria-label="액션별 저장 샘플">
+      <CardHeader><CardTitle><h2>기록 자동 완성</h2></CardTitle></CardHeader><CardContent>
       <form
-        className="key-value-grid"
+        className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere"
         onSubmit={(event) => {
           event.preventDefault();
           if (!result.success) return;
           setSaved(structuredClone(draft));
           setMessage("예시 변경을 저장했습니다.");
         }}
-      >
+      ><FieldGroup>
         <Field pair label="액션">
           {(props) => (
-            <select
+            <NativeSelect
               {...props}
-              className="input"
+
               value={action}
               onChange={(event) => setAction(event.target.value as TemplateAction)}
             >
               {modelActions("task").map((key) => (
-                <option key={key} value={key}>
+                <NativeSelectOption key={key} value={key}>
                   {templateActionNames[key]}
                   {errors.some((error) => error.action === key) ? " · 오류" : changes.includes(key) ? " · 미저장" : ""}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
           )}
         </Field>
         <Field pair fullWidth label="메모 템플릿" error={errors.find((error) => error.action === action)?.message}>
@@ -68,21 +74,21 @@ export function RecordActionsSample() {
           )}
         </Field>
         {errors.filter((error) => error.action !== action).map((error, index) => (
-          <p className="error-text" key={index}>
+          <p className="text-sm text-destructive" key={index}>
             {templateActionNames[error.action]}: {error.message}{" "}
-            <BodyAction icon="view" onClick={() => setAction(error.action)}>오류 항목 보기</BodyAction>
+            <Button variant="ghost" type="button"  onClick={() => setAction(error.action)}><EyeIcon data-icon="inline-start" />오류 항목 보기</Button>
           </p>
         ))}
         {message && <p role="status">{message}</p>}
-        <div className="settings-section-footer">
+        <CardFooter className="-mx-4 mt-4 flex-wrap justify-end gap-3">
           {changes.length > 0 && (
-            <p className="secondary" aria-label="저장할 변경">
+            <p className="text-sm text-muted-foreground" aria-label="저장할 변경">
               변경: {changes.map((key) => templateActionNames[key]).join(" · ")}
             </p>
           )}
-          <div className="actions">
-            <button
-              className="btn"
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline"
+
               type="button"
               disabled={!changes.length}
               onClick={() => {
@@ -91,13 +97,13 @@ export function RecordActionsSample() {
               }}
             >
               취소
-            </button>
-            <button className="btn btn-primary" type="submit" disabled={!changes.length || !result.success}>
+            </Button>
+            <Button variant="default"  type="submit" disabled={!changes.length || !result.success}>
               저장
-            </button>
+            </Button>
           </div>
-        </div>
-      </form>
-    </section>
+        </CardFooter>
+      </FieldGroup></form></CardContent>
+    </Card>
   );
 }
