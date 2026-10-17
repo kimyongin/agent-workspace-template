@@ -196,8 +196,12 @@ test("entity pairs reflow at 200 percent and preserve keyboard editing and cance
   expect(await detail.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("zoom-200-edit.png") });
   await detail.getByRole("button", { name: "취소", exact: true }).click();
-  const discard = executionDialog(page);
-  if (await discard.isVisible()) await discard.getByRole("button", { name: /버리|나가/ }).click();
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
+  await expect(discard).toBeVisible();
+  await discard.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(quantity).toHaveValue("13");
+  await detail.getByRole("button", { name: "취소", exact: true }).click();
+  await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
   await expect(detail.getByRole("button", { name: "편집", exact: true })).toBeVisible();
   await expect(detail.locator("dd:visible", { hasText: /^0$/ })).toBeVisible();
   expect(state.writes).toHaveLength(0);

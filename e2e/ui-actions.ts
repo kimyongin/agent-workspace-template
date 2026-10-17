@@ -94,7 +94,13 @@ export async function saveOnce(page: Page, scope: Page | Locator = page, label =
     } else await final.click();
     if (waitForWrite) {
       await expect.poll(() => !!write && settled).toBe(true);
-      await expect(executionDialog(page).getByRole("button", { disabled: true })).toHaveCount(0);
+      // Unknown results keep prepared fields locked; only the action footer becomes ready again.
+      await expect.poll(async () => {
+        if (await executionDialog(page).count() === 0) return true;
+        const cancel = executionDialog(page).getByRole("button", { name: "취소", exact: true });
+        return await final.count() === 1 && await final.isEnabled()
+          && await cancel.count() === 1 && await cancel.isEnabled();
+      }).toBe(true);
     }
   } finally {
     page.off("request", started); page.off("requestfinished", finished); page.off("requestfailed", finished);
