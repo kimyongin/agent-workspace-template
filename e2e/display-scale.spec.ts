@@ -110,7 +110,7 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
   for (const option of await choices.all()) {
     const box = (await option.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
   }
-  await smallFont.evaluate(node => node.remove());
+  await smallFont.evaluate(node => (node as HTMLStyleElement).remove());
   await page.setViewportSize({ width: 320, height: 844 });
   for (const path of ["/entities", "/tasks", "/records", "/guide"]) {
     await page.goto(path);
@@ -199,3 +199,50 @@ test("display scale: existing saved scale is preserved for desktop; mobile-only 
   await page.reload(); await expect.poll(() => rootSize(page)).toBe(24);
   await page.setViewportSize({ width: 1440, height: 900 }); await expect.poll(() => rootSize(page)).toBe(20);
 });
+
+for (const scale of [100, 110, 125, 150]) {
+  test(`display scale: ${scale}% retains the dirty editor across exact width and height thresholds`, async ({ page }) => {
+    const state = await fixture(page, String(scale));
+    const writes: string[] = [];
+    page.on("request", request => {
+      if (new URL(request.url()).pathname.startsWith("/api/") && !["GET", "HEAD", "OPTIONS"].includes(request.method())) writes.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    });
+    const width = 1280 * scale / 100, height = 480 * scale / 100;
+    await page.setViewportSize({ width: 2160, height: 900 });
+    await page.goto(`/tasks/${id(2)}`);
+    await expect.poll(() => rootSize(page)).toBeCloseTo(16 * scale / 100, 1);
+    await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+    const editor = page.getByRole("dialog", { name: "할 일 편집", exact: true });
+    const body = editor.getByRole("textbox", { name: /^본문/ });
+    const draft = `${scale}% 경계를 넘어도 유지할 초안`;
+    await body.fill(draft);
+    await body.evaluate((element: HTMLTextAreaElement) => { element.focus(); element.setSelectionRange(3, 7); });
+    const original = await body.elementHandle();
+    for (const axis of ["width", "height"] as const) {
+      const threshold = axis === "width" ? width : height;
+      for (const delta of [-1, 0, 1]) {
+        await test.step(`${axis} ${threshold + delta}px`, async () => {
+          await page.setViewportSize(axis === "width" ? { width: threshold + delta, height: 900 } : { width: 2160, height: threshold + delta });
+          const docked = delta >= 0;
+          const divider = page.getByRole("separator", { name: "상세 패널 너비 조절", exact: true });
+          if (docked) {
+            await expect(divider).toBeVisible();
+            await expect(editor).not.toHaveAttribute("aria-modal", "true");
+          } else {
+            await expect(divider).not.toBeVisible();
+            await expect(editor).toHaveAttribute("aria-modal", "true");
+            await expect(editor.getByRole("button", { name: "닫기", exact: true })).toBeInViewport({ ratio: 1 });
+          }
+          await expect(editor.getByRole("button", { name: "저장", exact: true })).toBeInViewport({ ratio: 1 });
+          await expect(body).toHaveValue(draft);
+          await expect(body).toBeFocused();
+          expect(await body.evaluate((element, retained) => element === retained, original)).toBe(true);
+          expect(await body.evaluate((element: HTMLTextAreaElement) => [element.selectionStart, element.selectionEnd])).toEqual([3, 7]);
+          expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        });
+      }
+    }
+    expect(state.writes).toEqual([]);
+    expect(writes).toEqual([]);
+  });
+}
