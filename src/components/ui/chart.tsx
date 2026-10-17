@@ -28,6 +28,9 @@ type ChartContextProps = {
 
 const ChartContext = React.createContext<ChartContextProps | null>(null)
 
+// Reuse the official context when a legend needs normal document flow.
+const ChartProvider = ChartContext.Provider
+
 function useChart() {
   const context = React.useContext(ChartContext)
 
@@ -363,6 +366,7 @@ function getPayloadConfigFromPayload(
 }
 
 export {
+  ChartProvider,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,

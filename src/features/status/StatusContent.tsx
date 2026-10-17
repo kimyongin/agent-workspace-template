@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   type ChartConfig,
   ChartContainer,
-  ChartLegend,
+  ChartProvider,
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
@@ -101,43 +101,48 @@ function DailyChart({ title, days, series, stacked = false }: {
                 }
               }}
             >
-              <ChartContainer config={config} className="h-56 w-full aspect-auto [&_.recharts-text]:text-[0.75rem]">
-                <BarChart
-                  data={rows}
-                  accessibilityLayer={false}
-                  onClick={selectActive}
-                  margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-                >
-                  <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tickLine={false}
-                    axisLine={false}
-                    minTickGap={32}
-                    tickFormatter={(date) => date.slice(5)}
-                  />
-                  <YAxis
-                    width="auto"
-                    tickLine={false}
-                    axisLine={false}
-                    allowDecimals={false}
-                    tickFormatter={(value) => new Intl.NumberFormat("ko-KR", { notation: "compact" }).format(value)}
-                  />
-                  <ReferenceArea x1={current.date} x2={current.date} fill="var(--muted)" fillOpacity={0.6} />
-                  <ChartTooltip active={tooltipOpen} trigger="click" content={<ChartTooltipContent />} />
-                  <ChartLegend verticalAlign="top" content={<ChartLegendContent className="flex-wrap gap-2" />} />
-                  {series.map((s) => (
-                    <Bar
-                      key={s.key}
-                      dataKey={s.key}
-                      fill={`var(--color-${s.key})`}
-                      stackId={stacked ? "indexing" : undefined}
-                      radius={stacked ? 0 : 4}
-                      isAnimationActive={false}
+              <ChartProvider value={{ config }}>
+                <ChartContainer config={config} className="h-56 w-full aspect-auto [&_.recharts-text]:text-[0.75rem]">
+                  <BarChart
+                    data={rows}
+                    accessibilityLayer={false}
+                    onClick={selectActive}
+                    margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                  >
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      minTickGap={32}
+                      tickFormatter={(date) => date.slice(5)}
                     />
-                  ))}
-                </BarChart>
-              </ChartContainer>
+                    <YAxis
+                      width="auto"
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                      tickFormatter={(value) => new Intl.NumberFormat("ko-KR", { notation: "compact" }).format(value)}
+                    />
+                    <ReferenceArea x1={current.date} x2={current.date} fill="var(--muted)" fillOpacity={0.6} />
+                    <ChartTooltip active={tooltipOpen} trigger="click" content={<ChartTooltipContent />} />
+                    {series.map((s) => (
+                      <Bar
+                        key={s.key}
+                        dataKey={s.key}
+                        fill={`var(--color-${s.key})`}
+                        stackId={stacked ? "indexing" : undefined}
+                        radius={stacked ? 0 : 4}
+                        isAnimationActive={false}
+                      />
+                    ))}
+                  </BarChart>
+                </ChartContainer>
+                <ChartLegendContent
+                  className="flex-wrap gap-2 pb-1 text-xs"
+                  payload={series.map((s, i) => ({ dataKey: s.key, value: s.label, color: `var(--chart-${i + 1})`, type: "square" as const }))}
+                />
+              </ChartProvider>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Button
