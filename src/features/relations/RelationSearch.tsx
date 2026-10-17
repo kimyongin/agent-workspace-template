@@ -144,7 +144,7 @@ export function RelationSearch(
   const more = () => session.more();
   const candidates = result?.items.filter((item) => !item.type?.archived && !excluded(item)) ?? [];
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4" aria-busy={pending || undefined}>
       <Field label={`${label} 제목 검색`}>
         {(props) => (
           <Input
