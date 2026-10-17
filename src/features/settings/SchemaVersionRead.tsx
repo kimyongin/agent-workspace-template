@@ -45,7 +45,7 @@ export function SchemaVersionRead(
           (source &&
             (source.type_id !== typeId ||
               source.schema_version !== version - 1))
-        ) throw new Error("요청한 스키마 버전과 조회 결과가 다릅니다.");
+        ) throw new Error("요청한 입력 항목 버전과 조회 결과가 다릅니다.");
         setValue({ target, source });
       })
       .catch((error) => {

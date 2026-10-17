@@ -246,9 +246,9 @@ export function RelationDefinitionForm(
       </div>
       <ConfirmDialog
         open={confirm !== null}
-        title={confirm === "delete" ? "관계를 삭제할까요?" : "변경을 버릴까요?"}
+        title={confirm === "delete" ? "연결 설정을 삭제할까요?" : "변경을 버릴까요?"}
         message={confirm === "delete"
-          ? "연결이 있는 관계는 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요."
+          ? "자료 연결이 있는 설정은 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요."
           : "저장하지 않은 연결 설정이 사라집니다."}
         confirmLabel={confirm === "delete" ? "삭제" : "버리기"}
         onConfirm={() => confirm === "delete" ? void remove() : onClose()}

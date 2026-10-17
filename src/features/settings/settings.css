@@ -272,3 +272,8 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .material-number-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .material-number-heading h2, .material-number-heading p { margin: 0; }
 .material-number-heading > div { display: grid; gap: var(--space-2); min-width: 0; }
+
+.material-relation-settings .issuer-entry .material-section-toggle { display: grid; grid-template-columns: minmax(0,1fr) 1rem; gap: var(--space-1) var(--space-2); }
+.material-relation-settings .issuer-entry .material-section-toggle > span { grid-column: 1; }
+.material-relation-settings .issuer-entry .material-section-toggle > .secondary { margin-left: 0; text-align: left; }
+.material-relation-settings .issuer-entry .material-section-toggle::after { grid-column: 2; grid-row: 1 / span 2; justify-self: center; }

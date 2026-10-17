@@ -102,7 +102,7 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
           ))}
           {Object.entries(review.mapping.relations).map(([source, target]) => (
             <div key={`relation:${source}`}>
-              <dt>자료 관계</dt>
+              <dt>연결 설정</dt>
               <dd>{source} → {target}</dd>
             </div>
           ))}
@@ -584,7 +584,7 @@ export function DataModelSettings() {
                   }}
                 >
                   <option value="update">기존 모델에 반영</option>
-                  <option value="copy">새 자료 종류와 관계로 복사</option>
+                  <option value="copy">새 자료 종류와 연결 설정으로 복사</option>
                 </select>
               )}
             </Field>

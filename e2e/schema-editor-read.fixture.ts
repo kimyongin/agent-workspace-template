@@ -454,8 +454,8 @@ test("서버가 거부한 속성은 검토 실패 뒤 해당 행을 열고 초�
         status: 400,
         json: {
           code: "invalid",
-          message: "대표 속성 조건을 확인하세요.",
-          fields: [{ path: "properties.prop_1", message: "대표 속성 조건을 확인하세요." }],
+          message: "대표 입력 항목 조건을 확인하세요.",
+          fields: [{ path: "properties.prop_1", message: "대표 입력 항목 조건을 확인하세요." }],
         },
       }),
   );
@@ -468,7 +468,7 @@ test("서버가 거부한 속성은 검토 실패 뒤 해당 행을 열고 초�
     ".schema-field .material-section-toggle[aria-expanded=true]",
   ).click();
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("대표 속성 조건");
+  await expect(page.getByRole("alert")).toContainText("대표 입력 항목 조건");
   await expect(page.getByLabel("최소 길이", { exact: true })).toBeVisible();
   await expect(page.getByLabel("최소 길이", { exact: true })).toHaveValue("2");
 });

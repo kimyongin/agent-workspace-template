@@ -1482,7 +1482,7 @@ test(
       document.documentElement.style.fontSize = "";
     });
     await row.getByRole("button", { name: /버전 2 · 적용됨$/ }).click();
-    await expect(row.getByRole("alert")).toContainText("요청한 스키마 버전");
+    await expect(row.getByRole("alert")).toContainText("요청한 입력 항목 버전");
     await row.getByRole("button", { name: /버전 2 · 적용됨$/ }).click();
     await expect(page.getByRole("region", { name: "변경 이력", exact: true }).locator("h2").first().getByRole("button"))
       .toContainText("오류");

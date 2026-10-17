@@ -86,7 +86,7 @@ export function RelationSettingsPage() {
     />
   );
   return (
-    <section className="panel settings material-settings" aria-label="연결 설정">
+    <section className="panel settings material-settings material-relation-settings" aria-label="연결 설정">
       <MaterialSettingsHeading section="relations" />
       <fieldset disabled={edit !== null} className="relation-settings-filters">
         <Field label="자료 종류 필터">

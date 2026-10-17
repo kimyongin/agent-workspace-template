@@ -921,7 +921,7 @@ export function SchemaEditor(
       >
         <SchemaExport definition={definition} current />
         <div className="schema-history-list">
-          <CollectionList view="list" label="스키마 변경 이력">
+          <CollectionList view="list" label="입력 항목 변경 이력">
             {historyRows.map((row) => {
               const c = row.change;
               const rowJob = row.jobs.find((job) => job.id === selectedJob) ??
