@@ -1246,3 +1246,87 @@ test("task responsive parity: resized panel and 200% text enlargement preserve t
   await page.screenshot({path:info.outputPath("task-panel-200-percent.png")});
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
+
+for (const width of [320, 1440]) for (const kind of ["user", "result", "change"] as const) {
+  test(`record data parity: ${kind} ${width}px keeps context and only saves permitted values`, async ({page}, info) => {
+    await page.setViewportSize({width,height:900});
+    const state = await fixture(page);
+    const row = state.rows.records[0];
+    Object.assign(row, {record_kind:kind, occurred_at:"2026-10-01T02:03:04.567Z", occurrence_on:kind === "result" ? "2026-10-01" : null,
+      change:kind === "change" ? {event_id:id(450),target_kind:"entity",target_id:entityKey(1),target_title:"당시 등심",action:"update",source:"http",before:{properties:{prop_1:0,prop_2:false,prop_3:null},property_labels:{prop_1:"당시 수량",prop_2:"당시 사용",prop_3:"당시 메모"}},after:{title:"등심"},path:null}:null});
+    await page.goto(`/records/${row.id}`);
+    const surface=width<1100?page.locator("dialog.modal[open]").first():panel(page);
+    const labels=()=>surface.locator("dt:visible, .field > label:visible").allTextContents();
+    const expected=["본문","종류",...(kind==="change"?["출처"]:[]),"수행 시각",...(kind==="change"?["변경 대상","행동"]:[])];
+    await expect(surface.locator("dt:visible").filter({hasText:/^본문$/})).toHaveCount(1);
+    expect((await labels()).slice(0,expected.length)).toEqual(expected);
+    await surface.getByRole("button",{name:"편집",exact:true}).click();
+    expect((await labels()).slice(0,expected.length).map(s=>s.replace(/\*\(필수\)/g,""))).toEqual(expected);
+    await expect(surface.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toContainText(kind==="change"?"당시 등심":"등심");
+    await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true})).toContainText("등심 구매하기");
+    await expect(surface.getByRole("region",{name:"연결된 자료 (1개)",exact:true}).getByRole("button")).toHaveCount(0);
+    await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true}).getByRole("button")).toHaveCount(0);
+    await expect(surface.getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
+    if(kind==="result") await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true}).locator("dt").filter({hasText:/^회차$/}).locator("../dd")).toHaveText("2026-10-01");
+    if(kind==="change") {
+      await expect(surface.getByLabel("수행 시각")).toHaveCount(0);
+      await surface.getByText("변경 전후 값",{exact:true}).filter({visible:true}).click();
+      await expect(surface.locator("dt:visible").filter({hasText:"당시 수량"}).locator("../dd")).toHaveText("0");
+      await expect(surface.locator("dt:visible").filter({hasText:"당시 사용"}).locator("../dd")).toHaveText("아니오");
+      await expect(surface.locator("dt:visible").filter({hasText:"당시 메모"}).locator("../dd")).toHaveText("값 없음");
+      const historicalKey=surface.locator("dt:visible").filter({hasText:"당시 수량"});
+      expect((await historicalKey.boundingBox())!.x).toBeCloseTo((await surface.locator("label:visible").filter({hasText:/^본문/}).boundingBox())!.x,0);
+      await surface.locator("dt:visible").filter({hasText:"당시 메모"}).scrollIntoViewIfNeeded();
+      await page.screenshot({path:info.outputPath(`record-change-${width}-history.png`)});
+    } else await expect(surface.getByLabel("수행 시각")).toBeVisible();
+    await page.screenshot({path:info.outputPath(`record-${kind}-${width}-edit.png`)});
+    await surface.getByLabel("본문").fill("정정한 본문");
+    await surface.getByRole("button",{name:"저장",exact:true}).click();
+    await expect(surface.getByRole("button",{name:"편집",exact:true})).toBeVisible();
+    expect(state.writes).toHaveLength(1);
+    expect(state.writes[0].body).toEqual({body:"정정한 본문",expected_version:1,...(kind==="change"?{}:{occurred_at:"2026-10-01T02:03:04.567Z"})});
+    expect(state.errors).toEqual([]);
+  });
+}
+
+for (const width of [320,360,390,639,640,768,1024,1440]) {
+  test(`record responsive parity: ${width}px shares the body value area`,async({page},info)=>{
+    const state=await fixture(page);
+    state.rows.records[0].body="긴본문과근거".repeat(80);
+    await page.setViewportSize({width,height:900});
+    await page.goto(`/records/${state.rows.records[0].id}`);
+    const surface=width<1100?page.locator("dialog.modal[open]").first():panel(page);
+    const key=surface.locator("dt:visible").filter({hasText:/^본문$/});
+    await expect(key).toBeVisible();
+    const beforeKey=(await key.boundingBox())!,beforeValue=(await key.locator("../dd").boundingBox())!;
+    const readingSize=await surface.locator(".markdown:visible").evaluate(el=>getComputedStyle(el).fontSize);
+    await page.screenshot({path:info.outputPath(`record-view-${width}.png`)});
+    await surface.getByRole("button",{name:"편집",exact:true}).click();
+    const input=surface.getByLabel("본문");
+    const afterKey=(await surface.locator("label:visible").filter({hasText:/^본문/}).boundingBox())!,afterValue=(await input.boundingBox())!;
+    expect(afterKey.x).toBeCloseTo(beforeKey.x,0);
+    expect(afterValue.x).toBeCloseTo(beforeValue.x,0);
+    expect(afterValue.width).toBeCloseTo(beforeValue.width,0);
+    expect(await input.evaluate(el=>getComputedStyle(el).fontSize)).toBe(readingSize);
+    await input.focus();await expect(input).toBeFocused();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.screenshot({path:info.outputPath(`record-edit-${width}.png`)});
+    expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+  });
+}
+
+test("record responsive parity: panel resize and 200% text enlargement keep the body draft",async({page},info)=>{
+  const state=await fixture(page);
+  await page.goto(`/records/${state.rows.records[0].id}`);
+  await dragSplit(page,-700);
+  await panel(page).getByRole("button",{name:"편집",exact:true}).click();
+  await panel(page).getByLabel("본문").fill("패널을 바꾸어도 보존할 근거");
+  const width=await detailWidth(page);
+  await dragSplit(page,400);
+  expect(await detailWidth(page)).toBeLessThan(width);
+  await page.evaluate(()=>{document.documentElement.style.fontSize="32px";});
+  await expect(panel(page).getByLabel("본문")).toHaveValue("패널을 바꾸어도 보존할 근거");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath("record-panel-200-percent.png")});
+  expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+});

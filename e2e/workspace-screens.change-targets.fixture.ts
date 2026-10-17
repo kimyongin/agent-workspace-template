@@ -65,7 +65,7 @@ for (const kind of ["entity", "task"] as const) {
             "true",
           );}
         if (kind === "task") {
-          await expect(tasks).toContainText("2026-10-04 회차");
+          await expect(tasks.locator("dt").filter({hasText:/^회차$/}).first().locator("../dd")).toHaveText("2026-10-04");
           if (!deleted) await expect(tasks).toContainText("진행 중");
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
