@@ -3,7 +3,7 @@ import { setEntityCategory } from "./ui-actions.ts";
 import { openDetailEditor, openListDetail, openListEditor, openTabFilters } from "./ui-actions.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
-import { base, entity, fixtureSchema, id, record, stamp, task } from "./support/workspace-data.ts";
+import { base, entity, id, record, stamp, task } from "./support/workspace-data.ts";
 import { fixtures, form, go } from "./support/workspace-screens.ts";
 
 for (const kind of ["entities", "records"] as const) {
@@ -550,7 +550,7 @@ test("#211 기록 필터·날짜 그룹·표시·편집은 계정 시간대로 �
 
 
 for (const outcome of ["success", "failed"] as const) {
-  test(`자료 펼침 복원은 지연된 속성 정의의 ${outcome} 표시까지 초점을 기다린다`, async ({ page }) => {
+  test(`자료 펼침 복원은 지연된 상세의 ${outcome} 표시까지 초점을 기다린다`, async ({ page }) => {
     const state = await fixtures(page);
     await page.setViewportSize({ width: 390, height: 800 });
     const rows = Array.from({ length: 21 }, (_, n) => entity(100 + n, { prop_1: `정의 대기 자료 ${n}`, prop_2: 1234 }));
@@ -559,12 +559,12 @@ for (const outcome of ["success", "failed"] as const) {
     let started!: () => void, release!: () => void;
     const arrived = new Promise<void>((resolve) => started = resolve);
     const held = new Promise<void>((resolve) => release = resolve);
-    await page.route("**/api/entity-types/*/schema?schema_version=1", async (route) => {
+    await page.route(`**/api/entities/${encodeURIComponent(target.id)}`, async (route) => {
       started();
       await held;
       await route.fulfill(outcome === "success"
-        ? { json: fixtureSchema }
-        : { status: 503, json: { code: "unavailable", message: "속성 정의 일시 실패" } });
+        ? { json: target }
+        : { status: 503, json: { code: "unavailable", message: "상세 일시 실패" } });
     });
     const params = new URLSearchParams({ open: `/entities/${encodeURIComponent(target.id)}`, scroll: "650" });
     try {
@@ -572,13 +572,22 @@ for (const outcome of ["success", "failed"] as const) {
       await arrived;
       const toggle = page.getByRole("button", { name: target.title, exact: true });
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
-      await expect(page.getByText("속성 정의를 불러오는 중…", { exact: true })).toBeVisible();
-      // Flush the restoration animation frame while the schema request remains gated.
+      const row = page.locator(".related-item").filter({ has: toggle });
+      const preview = row.locator(".related-preview");
+      await expect(preview.getByText("불러오는 중…", { exact: true })).toBeVisible();
+      // Flush the restoration animation frame while the preview request remains gated.
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       await expect(toggle).not.toBeFocused();
       release();
-      if (outcome === "success") await expect(page.locator(".related-preview .props")).toContainText("1234");
-      else await expect(page.getByRole("button", { name: "속성 정의 다시 조회", exact: true })).toBeVisible();
+      if (outcome === "success") {
+        const identity = preview.locator("dt", { hasText: /^자료 번호$/ }).locator("../dd");
+        await expect(identity).toBeVisible();
+        await expect(identity).toHaveText(target.external_id);
+        await expect(row.locator("dt", { hasText: /^수량$/ }).locator("../dd")).toHaveText("1234");
+      } else {
+        await expect(preview.getByText("내용을 불러오지 못했습니다.", { exact: true })).toBeVisible();
+        await expect(preview.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
+      }
       await expect(toggle).toBeFocused();
       await expect(toggle).toBeInViewport();
       expect(state.writes).toHaveLength(0);

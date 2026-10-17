@@ -1292,8 +1292,12 @@ for (const width of [320, 1440]) {
     const summary = page.locator(".status-issue-list summary");
     await expect(summary).toBeVisible();
     await summary.press("Enter");
+    await expect(summary.locator("..")).toHaveAttribute("open", "");
     for (const [label, value] of [["현재 구간 전송 시도", "1회"], ["본문 구간", "0/1 완료"], ["준비 중", "0"], ["응답 확인 불가", "1"], ["확인된 실패", "0"]]) {
-      await expect(page.locator(".status-issue-list dt").filter({ hasText: new RegExp(`^${label}$`) }).locator("../dd")).toHaveText(value);
+      const displayedValue = page.locator(".status-issue-list dt").filter({ hasText: new RegExp(`^${label}$`) }).locator("../dd");
+      await expect(displayedValue).toHaveCount(1);
+      await expect(displayedValue).toBeVisible();
+      await expect(displayedValue).toHaveText(value);
     }
     const marker = await summary.evaluate((el) => ({
       column: getComputedStyle(el, "::after").gridColumnStart,
