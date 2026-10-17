@@ -110,7 +110,7 @@ for (const [kind, route, n] of targetCases) {
       );
       await go(page, `/records/${r.id}`);
       const target = connectedTarget(page, kind);
-      await expect(target.locator("[data-slot='item'] .item-title")).toContainText(change.target_title);
+      await expect(target.getByRole("button", { name: change.target_title, exact: true })).toContainText(change.target_title);
       const link = target.getByRole("button", { name: change.target_title, exact: true });
       if (outcome === "exists") await expect(link).toHaveAttribute("aria-expanded", "false");
       else if (outcome === "failed") {

@@ -22,10 +22,10 @@ for (const kind of ["entities", "records"] as const) {
     state.failRead({ kind, page: 24 }, { message: "partial restoration failure" });
     await go(page, `/${kind}?pages=250`);
     await expect(page.getByRole("alert")).toBeVisible();
-    await expect(page.locator(kind === "entities" ? ".list .item-title" : `.${kind} .list .item-title`)).toHaveCount(
+    await expect(page.getByRole("region", { name: kind === "entities" ? "검사 자료 목록" : "기록 목록", exact: true }).locator("[data-list-anchor]")).toHaveCount(
       23,
     );
-    await expect(page.locator(kind === "entities" ? ".list .item-title" : `.${kind} .list .item-title`).last())
+    await expect(page.getByRole("region", { name: kind === "entities" ? "검사 자료 목록" : "기록 목록", exact: true }).locator("[data-list-anchor]").last())
       .toHaveText("부분 행 22");
     expect(state.reads.filter((url) => new URL(url).pathname === "/api/" + kind)).toHaveLength(24);
     expect(state.writes).toHaveLength(0);
