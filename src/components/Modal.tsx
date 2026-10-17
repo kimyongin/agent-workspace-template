@@ -219,12 +219,12 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
       </div>
       {description && <DialogDescription id={`${titleId}-description`}>{description}</DialogDescription>}
     </DialogHeader>
-    <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4" aria-busy={!ready || undefined} tabIndex={0}>{children}</div>
+    <div ref={bodyRef} role="region" aria-label="상세 내용" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4" aria-busy={!ready || undefined} tabIndex={0}>{children}</div>
     {footer && <DialogFooter ref={footerRef} className="m-0 shrink-0 rounded-none">{typeof footer === "function" ? footer(requestCancelEdit) : footer}</DialogFooter>}
   </>;
   return <SurfaceActionContext.Provider value={registerAction}><Dialog open={open && active && !dialogDocked} onOpenChange={next => { if (!next) requestClose(); }}>
     <div ref={desktopSlot} hidden={!dialogDocked || !active} role={dialogDocked ? "dialog" : undefined} aria-label={domain ? title : undefined} aria-labelledby={domain ? undefined : titleId} aria-describedby={description ? `${titleId}-description` : undefined} className="flex h-full min-h-0 flex-col" />
-    <DialogContent ref={setMobileContent} showCloseButton={false} aria-label={domain ? title : undefined} aria-labelledby={titleId} aria-describedby={description ? `${titleId}-description` : undefined}
+    <DialogContent ref={setMobileContent} showCloseButton={false} aria-label={domain ? title : undefined} aria-labelledby={domain ? undefined : titleId} aria-describedby={description ? `${titleId}-description` : undefined}
       className="flex h-[min(48rem,calc(100dvh-2rem))] max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
       onOpenAutoFocus={event => { event.preventDefault(); initialFocus(); }}
