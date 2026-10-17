@@ -9,7 +9,7 @@ import {
   writeEntityListUrl,
 } from "../../lib/entity-list-url.ts";
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { displayedProperty, fieldType } from "./property-fields.tsx";
 import { TypedEntityFilters, validatePropertyFilters } from "./TypedEntityFilters.tsx";
@@ -42,6 +42,7 @@ import { entityListQuery, type EntitySummary } from "@contracts/entity.ts";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { ListExpansionProvider, ListPreviewItem, useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { Notice } from "../../components/Field.tsx";
+import { scrollOwner } from "../../lib/surface-dom.ts";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
@@ -239,6 +240,16 @@ export function EntitiesPage() {
     : list.error
     ? list.error instanceof ApiError ? list.error.message : "자료를 불러오지 못했습니다."
     : null;
+  const pageControl = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    const control = pageControl.current;
+    if (!error || !control || document.activeElement !== control) return;
+    const bounds = scrollOwner(control)?.getBoundingClientRect();
+    const rect = control.getBoundingClientRect();
+    if (rect.top < (bounds?.top ?? 0) || rect.bottom > (bounds?.bottom ?? window.innerHeight)) {
+      control.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }, [error]);
   const readiness = useRestoreListPosition(
     "entities",
     (dictionary.tags !== null || dictionary.failed) && !busy && !!page,
@@ -485,6 +496,7 @@ export function EntitiesPage() {
           </TagReadProvider>
           {page && (page.next_cursor || page.pages > 1) && (
             <Button
+              ref={pageControl}
               variant="ghost"
               type="button"
               aria-disabled={busy || !page.next_cursor}
