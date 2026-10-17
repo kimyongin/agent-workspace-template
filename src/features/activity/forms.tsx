@@ -1,4 +1,4 @@
-import { TimezoneSelect } from "../../components/TimezoneSelect.tsx";
+import { TaskDataFields } from "./TaskDataFields.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
@@ -11,11 +11,10 @@ import { type Recurrence, taskCreate, taskLabels, type TaskResult } from "@contr
 import { api } from "../../lib/api.ts";
 import { type ReactNode, useState } from "react";
 import { Field } from "../../components/Field.tsx";
-import { FormModal, type TextDraft, TextFields } from "../../components/ContentForm.tsx";
+import { FormModal, type TextDraft } from "../../components/ContentForm.tsx";
 import { browserTimezone, fieldErrors, fromLocalInput, todayIn, toLocalInput } from "../../lib/format.ts";
 import type { EntityContext } from "@contracts/entity-links.ts";
 
-const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 // ---------- 기록 폼(직접 작성·완료 결과·회차 기록·편집) ----------
 
@@ -258,7 +257,7 @@ export function TaskFormModal(
     onRouteDiscard?: () => void;
     // The caller wraps this operation to retain its read cancellation and confirmed-value lifetime.
     onSave: (save: () => Promise<TaskResult>) => Promise<void>;
-  } & ({ mode: "create"; target?: never } | { mode: "edit"; target: { id: string; version: number } }),
+  } & ({ mode: "create"; target?: never } | { mode: "edit"; target: TaskResult }),
 ) {
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
@@ -328,121 +327,10 @@ export function TaskFormModal(
               </div>
             </fieldset>
           )}
-          <TextFields draft={draft} set={set} errors={errors} />
           <section className="detail-section form">
-            {props.mode === "create" && (
-              <EntityMultiPicker
-                value={draft.entity_ids ?? []}
-                context={draft.entity_context}
-                error={errors.entity_ids}
-                onChange={(entity_ids) => set({ entity_ids })}
-              />
-            )}
+            <TaskDataFields task={props.mode === "edit" ? props.target : undefined} draft={draft} set={set} errors={errors}/>
           </section>
-          <section className="detail-section form">
-            {draft.kind === "once"
-              ? (
-                <Field label={taskLabels.due_on} error={errors.due_on}>
-                  {(p) => (
-                    <input
-                      {...p}
-                      className="input"
-                      type="date"
-                      value={draft.due_on}
-                      onChange={(e) => set({ due_on: e.target.value })}
-                    />
-                  )}
-                </Field>
-              )
-              : (
-                <>
-                  <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-                    <legend className="label">{taskLabels.recurrence}</legend>
-                    <div className="chips">
-                      {(["daily", "weekly", "monthly"] as const).map((f) => (
-                        <label key={f} className="chip choice-chip">
-                          <input
-                            type="radio"
-                            name="task-frequency"
-                            checked={draft.freq === f}
-                            onChange={() => set({ freq: f })}
-                          />
-                          {taskLabels[f]}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                  {draft.freq === "weekly" && (
-                    <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-                      <legend className="label">{taskLabels.weekdays}</legend>
-                      <div className="chips">
-                        {WEEKDAYS.map((w, i) => {
-                          const day = i + 1;
-                          const on = draft.weekdays.includes(day);
-                          return (
-                            <button
-                              key={w}
-                              type="button"
-                              className="chip"
-                              aria-pressed={on}
-                              onClick={() =>
-                                set((d) => ({
-                                  weekdays: d.weekdays.includes(day)
-                                    ? d.weekdays.filter((x) => x !== day)
-                                    : [...d.weekdays, day],
-                                }))}
-                            >
-                              {w}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {errors.weekdays && <p className="error-text" style={{ margin: 0 }}>{errors.weekdays}</p>}
-                    </fieldset>
-                  )}
-                  {draft.freq === "monthly" && (
-                    <Field
-                      label={taskLabels.month_days}
-                      error={errors.month_days}
-                      help="해당 달에 없는 날짜는 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다."
-                    >
-                      {(p) => (
-                        <input
-                          {...p}
-                          className="input"
-                          placeholder="예: 1, 15, 31"
-                          inputMode="text"
-                          value={draft.month_days}
-                          onChange={(e) => set({ month_days: e.target.value })}
-                        />
-                      )}
-                    </Field>
-                  )}
-                  <div className="field-row">
-                    <Field label={taskLabels.starts_on} required error={errors.starts_on}>
-                      {(p) => (
-                        <input
-                          {...p}
-                          className="input"
-                          type="date"
-                          value={draft.starts_on}
-                          onChange={(e) => set({ starts_on: e.target.value })}
-                        />
-                      )}
-                    </Field>
-                    <Field label={taskLabels.timezone} required error={errors.timezone}>
-                      {(p) => (
-                        <TimezoneSelect
-                          {...p}
-                          value={draft.timezone}
-                          onChange={(e) => set({ timezone: e.target.value })}
-                        />
-                      )}
-                    </Field>
-                  </div>
-                </>
-              )}
-          </section>
+          {props.mode === "create" && <section className="detail-section form"><EntityMultiPicker value={draft.entity_ids ?? []} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>set({entity_ids})}/></section>}
           <section className="detail-section">
             {props.mode === "edit" ? <ReadonlyTags scope="task" ids={props.initial.tag_ids} /> : <TagPicker scope="task" value={draft.tag_ids} error={errors.tag_ids} onChange={(tag_ids) => set({ tag_ids })} />}
           </section>
