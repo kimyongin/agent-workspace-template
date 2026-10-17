@@ -60,13 +60,13 @@ function ComboboxInput({
   showClear?: boolean
 }) {
   return (
-    <InputGroup className={cn("w-auto", className)}>
+    <InputGroup className={cn("h-auto w-auto", className)}>
       <ComboboxPrimitive.Input
         render={<InputGroupInput />}
         disabled={disabled}
         {...props}
       />
-      <InputGroupAddon align="inline-end">
+      <InputGroupAddon align="inline-end" className="shrink-0 p-0 has-[>button]:mr-0">
         {showTrigger && (
           <InputGroupButton
             size="icon-xs"
