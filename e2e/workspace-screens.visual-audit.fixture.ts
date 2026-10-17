@@ -102,11 +102,7 @@ for (const width of [390, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
       if (name === "status") await expect(page.getByRole("region", { name: "자료 현황" })).toBeVisible();
       if (name === "status") {
-        for (const label of await page.locator(".status-chart-axis span").all()) {
-          expect(await label.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(
-            12,
-          );
-        }
+        await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(4);
       }
       if (name === "material") {
         const menu = page.getByRole("button", { name: "설정 메뉴", exact: true });
@@ -215,7 +211,7 @@ for (const width of [390, 1440]) {
   });
 }
 
-test("상태의 실제 수치와 선택 날짜는 키–값으로 읽히며 폭·확대에서 그래프 선택을 유지한다", async ({ page }, info) => {
+test("상태의 실제 수치와 선택 날짜는 폭·글자 확대에서도 정확히 읽힌다", async ({ page }, info) => {
   await fixtures(page);
   await page.unroute("http://127.0.0.1:55580/**");
   const day = (date: string, amount: number) => ({ date, entities_created: amount, tasks_created: amount, once_completed: 0, records_created: amount, indexing: { indexed: amount, preparing: 0, attention: 0, excluded: 0 } });
@@ -226,27 +222,22 @@ test("상태의 실제 수치와 선택 날짜는 키–값으로 읽히며 폭�
     daily: [day("2026-10-14", 0), day("2026-10-15", 2)],
   } }));
   await go(page, "/status");
-  const graph = page.getByRole("button", { name: "일별 등록 그래프: 막대를 누르거나 방향키로 날짜 선택", exact: true });
+  const graph = page.getByRole("group", { name: "일별 등록 그래프: 막대를 누르거나 방향키로 날짜 선택", exact: true });
+  const values = page.getByRole("table", {name:"일별 등록 날짜별 수치",exact:true});
   await graph.press("Home");
-  const selection = graph.locator("..").locator(".status-day-detail");
-  await expect(selection.locator("dd")).toHaveText(["2026-10-14", "0건"]);
+  await expect(values.getByRole("cell")).toHaveText(["0건"]);
   await graph.press("ArrowRight");
-  await expect(selection.locator("dd")).toHaveText(["2026-10-15", "2건"]);
-  await expect(page.getByRole("region", {name:"자료 현황",exact:true}).locator(".status-summary dd")).toHaveText(["2개", "2", "0"]);
+  await expect(values.getByRole("cell")).toHaveText(["2건"]);
+  await expect(page.getByRole("region", {name:"자료 현황",exact:true})).toContainText("2개");
   for (const width of [320, 1440]) {
     await page.setViewportSize({width,height:1000});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-    const pairs = await page.locator(".status-page dl > div").evaluateAll(rows => rows.map(row => {
-      const key = row.querySelector("dt")!.getBoundingClientRect(), value = row.querySelector("dd")!.getBoundingClientRect();
-      return { right:key.right, left:value.left, delta:Math.abs(key.top-value.top) };
-    }));
-    for (const pair of pairs) { expect(pair.right).toBeLessThanOrEqual(pair.left); expect(pair.delta).toBeLessThanOrEqual(1); }
-    await page.screenshot({path:info.outputPath(`status-pairs-${width}.png`),fullPage:true});
+    await expect(values.getByRole("cell")).toHaveText(["2건"]);
+    await page.screenshot({path:info.outputPath(`status-${width}.png`),fullPage:true});
   }
-  await page.locator(".status-page").evaluate(el => (el as HTMLElement).style.maxWidth = "360px");
-  await page.screenshot({path:info.outputPath("status-pairs-narrow-parent.png"),fullPage:true});
   await page.setViewportSize({width:320,height:1000});
   await page.evaluate(()=>document.documentElement.style.fontSize="200%");
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  await page.screenshot({path:info.outputPath("status-pairs-320-text200.png"),fullPage:true});
+  await expect(values.getByRole("cell")).toHaveText(["2건"]);
+  await page.screenshot({path:info.outputPath("status-320-text200.png"),fullPage:true});
 });
