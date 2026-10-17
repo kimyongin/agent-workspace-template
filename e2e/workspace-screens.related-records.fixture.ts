@@ -97,7 +97,7 @@ test("연결 조회 늦은 응답은 다음 할 일·기록에 섞이지 않는�
   });
   await go(page, `/tasks/${id(2)}`);
   await started;
-  await page.getByRole("link", { name: "할 일 fixture", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  await page.getByRole("link", { name: "할 일 fixture", exact: true, includeHidden: true }).evaluate((el: HTMLAnchorElement) => el.click());
   await openListDetail(page, "다음 할 일");
   await expect(form(page)).toContainText("기록 (0개)");
   release();
@@ -112,7 +112,7 @@ test("연결 조회 늦은 응답은 다음 할 일·기록에 섞이지 않는�
   });
   await go(page, `/records/${id(3)}`);
   await startedTask;
-  await page.getByRole("link", { name: "기록 fixture", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  await page.getByRole("link", { name: "기록 fixture", exact: true, includeHidden: true }).evaluate((el: HTMLAnchorElement) => el.click());
   await openListDetail(page, "다음 기록");
   await expect(form(page).getByRole("button", { name: "다음 할 일", exact: true })).toBeVisible();
   releaseTask();

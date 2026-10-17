@@ -22,7 +22,7 @@ test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 �
   await page.goBack();
   await expect(page).toHaveURL(/tags\/record$/);
   await expect(confirm).toBeVisible();
-  await page.getByRole("link", { name: "엔터티 fixture", exact: true }).evaluate((el) =>
+  await page.getByRole("link", { name: "엔터티 fixture", exact: true, includeHidden: true }).evaluate((el) =>
     el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
   );
   await expect(page).toHaveURL(/tags\/record$/);
@@ -165,7 +165,7 @@ test("태그: 두 사전 같은 이름·인라인 CRUD·dirty scoped 이동", as
   await form(page).getByRole("textbox", { name: /태그 이름/ }).fill("엔터티 분류");
   await saveOnce(page, form(page));
   await expect(page.getByRole("button", { name: "엔터티 분류 이름 변경" })).toBeFocused();
-  await page.getByRole("link", { name: "기록 태그 fixture" }).evaluate((el: HTMLAnchorElement) => el.click());
+  await page.getByRole("link", { name: "기록 태그 fixture", includeHidden: true }).evaluate((el: HTMLAnchorElement) => el.click());
   await expect(page.getByRole("button", { name: "같은 이름 이름 변경" })).toBeVisible();
   await expect(page.getByRole("button", { name: "엔터티 분류 이름 변경" })).toHaveCount(0);
   await form(page).getByRole("textbox", { name: /태그 이름/ }).fill("활동 추가");

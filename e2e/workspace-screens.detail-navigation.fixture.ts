@@ -114,7 +114,7 @@ for (const width of [320, 1440]) {
     await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
     await expect(openDialogs(page)).toHaveCount(1);
     await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
-    await expect(form(page).getByRole("heading", { name: "할 일", exact: true })).toHaveText("할 일");
+    await expect(form(page).locator('[data-slot="dialog-title"]')).toHaveText("할 일");
     await form(page).evaluate((el) => el.dataset.sameDialog = "yes");
     await openDetailEditor(page);
     await expect(form(page)).toHaveAttribute("data-same-dialog", "yes");
@@ -279,7 +279,7 @@ test("엔터티 상세: 편집·할 일 작성·기록 작성 뒤 성공 알림�
     await saveOnce(page, form(page), submit);
     await expect(form(page).getByRole("button", { name: label, exact: true })).toBeVisible();
   }
-  await expect(form(page).locator(".notice")).toHaveCount(0);
+  await expect(form(page).getByRole("alert").or(form(page).getByRole("status"))).toHaveCount(0);
   await expect(form(page).getByText(/^수정 /)).toHaveCount(0);
   await expect(form(page).getByRole("link", { name: /전체 (할 일|기록) 보기/ })).toHaveCount(0);
   for (const width of [390, 1440]) {
@@ -454,13 +454,12 @@ for (
       await go(page, `/${kind}`);
       await expect(page.getByRole("link", { name: title + " 상세", exact: true })).toHaveCount(0);
       const titleLink = page.getByRole("button", { name: title, exact: true }),
-        row = titleLink.locator(
-          "xpath=ancestor::li[contains(@class,'list-item')]",
-        ).first();
+        row = page.getByRole("listitem").filter({ has: page.getByRole("button", { name: title, exact: true }) }).first();
       const t = (await titleLink.boundingBox())!, r = (await row.boundingBox())!;
       expect(t.width).toBeLessThan(r.width - 40);
-      await page.mouse.click(t.x + t.width + 12, t.y + t.height / 2);
+      await row.click({ position: { x: 4, y: 4 } });
       await expect(form(page)).toHaveCount(0);
+      await expect(titleLink).toHaveAttribute("aria-expanded", "false");
       await titleLink.click();
       await page.getByRole("link", { name: title + " 상세", exact: true }).click();
       await expect(form(page)).toHaveCount(1);

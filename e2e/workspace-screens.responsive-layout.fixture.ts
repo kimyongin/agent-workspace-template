@@ -55,7 +55,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         const t = (await title.boundingBox())!;
         await expect(edit).toHaveCount(0);
         expect(t.height).toBeGreaterThanOrEqual(44);
-        await expect(page.locator(".memo-text")).toHaveCount(0);
+        await expect(page.getByText("강조하지 않을 보충 메모", { exact: true })).toHaveCount(0);
       }
       if (width === 390 && ["/tasks", "/guide", "/tags/entity", "/search"].includes(path)) {
         await page.screenshot({
@@ -65,7 +65,8 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     }
     Object.assign(state.rows.records[0], { body: "", tag_ids: [] });
     await go(page, `/records/${id(3)}`);
-    await expect(form(page).locator(".document-summary,.markdown")).toHaveCount(0);
+    await expect(form(page).locator(".markdown")).toHaveCount(0);
+    await expect(form(page).getByRole("term").filter({ hasText: /^본문$/ }).locator("..").getByRole("definition")).toHaveText("—");
     await expect(form(page).getByRole("heading", { name: "태그", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("heading", { name: "기록", exact: true })).toHaveCount(1);
     await form(page).getByRole("button", { name: "편집", exact: true }).click();

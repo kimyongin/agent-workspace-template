@@ -64,8 +64,8 @@ test("dirty 작성 조건 이동 승인: create 유지 URL도 새 초안", async
   const state = await fixtures(page);
   await go(page, "/tasks?create=1");
   await fillText(page, "버릴 작성 초안");
-  // Native dialog makes background links inert; trigger the route guard through the fixture router.
-  await page.getByRole("link", { name: "작성 조건 변경 fixture" }).evaluate((el) =>
+  // The official modal hides background links; deliberately exercise the fixture router's guard.
+  await page.getByRole("link", { name: "작성 조건 변경 fixture", includeHidden: true }).evaluate((el) =>
     el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
   );
   const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });

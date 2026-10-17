@@ -15,15 +15,14 @@ for (const width of [390, 1440]) {
       });
       await page.setViewportSize({ width, height: 800 });
       await go(page, `/${kind}/${id(n)}`);
-      await expect(
-        form(page).getByRole("heading", { name: "title" in item ? item.title : "기록", exact: true }),
-      ).toBeVisible();
+      await expect(form(page).locator('[data-slot="dialog-title"]')).toHaveText(kind === "tasks" ? "할 일" : "기록");
+      if ("title" in item) await expect(form(page).getByRole("region", { name: "상세 내용", exact: true }).getByRole("heading", { name: item.title, exact: true })).toBeVisible();
       await expect(form(page).locator(".markdown strong")).toHaveText("본문");
-      await expect(form(page).locator(".document-summary")).toHaveCount(0);
+      await expect(form(page).locator(".markdown")).toContainText("읽기 확인");
       await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
       await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
       await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeVisible();
-      await expect(form(page).locator(".panel,img,script,a[href^='javascript:']")).toHaveCount(0);
+      await expect(form(page).locator("img,script,a[href^='javascript:']")).toHaveCount(0);
       await expect(form(page).getByRole("link", { name: "이미지: 외부", exact: true })).toHaveAttribute(
         "rel",
         "noopener noreferrer nofollow",
@@ -40,7 +39,7 @@ for (const width of [390, 1440]) {
 }
 
 for (const width of [390, 1440]) {
-  test(`숨긴 scrollbar ${width}px: wheel·PageDown·긴 코드 가로 스크롤`, async ({ page }, info) => {
+  test(`본문 스크롤 ${width}px: wheel·PageDown·긴 코드 가로 스크롤`, async ({ page }, info) => {
     const state = await fixtures(page, { long: true });
     state.rows.tasks[0].body = "```text\n" + "long_unbroken_code_".repeat(100) + "\n```\n\n" +
       "긴 본문 문단\n\n".repeat(200);
@@ -49,8 +48,9 @@ for (const width of [390, 1440]) {
     const body = form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]"), code = form(page).locator("pre");
     await expect(code).toBeVisible();
     expect(
-      await body.evaluate((el) => getComputedStyle(el).scrollbarWidth),
-    ).toBe("none");
+      await body.evaluate((el) => getComputedStyle(el).overflowY),
+    ).toMatch(/auto|scroll/);
+    expect(await body.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
     expect(await code.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
     await code.hover();
     await page.mouse.wheel(240, 0);
@@ -84,7 +84,7 @@ for (const width of [390, 1440]) {
     await expect(table).toBeVisible();
     await expect(table.getByRole("columnheader")).toHaveCount(40);
     expect(await table.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
-    expect(await table.evaluate((el) => getComputedStyle(el).scrollbarWidth)).toBe("none");
+    expect(await table.evaluate((el) => getComputedStyle(el).overflowX)).toMatch(/auto|scroll/);
     await table.hover();
     await page.mouse.wheel(300, 0);
     await expect.poll(() => table.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
@@ -127,8 +127,11 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const text = form(page).locator(".markdown"),
       meta = form(page).getByRole("term").filter({ hasText: /^종류$/ });
     const style = async (el: ReturnType<typeof form>) =>
-      el.evaluate((n) => ({ size: parseFloat(getComputedStyle(n).fontSize), color: getComputedStyle(n).color }));
-    expect((await style(text)).size).toBeGreaterThan((await style(meta)).size);
+      el.evaluate((n) => ({ size: parseFloat(getComputedStyle(n).fontSize), color: getComputedStyle(n).color, lineHeight: parseFloat(getComputedStyle(n).lineHeight) }));
+    const bodyStyle = await style(text), metadataStyle = await style(meta);
+    expect(bodyStyle.size).toBeGreaterThanOrEqual(14);
+    expect(bodyStyle.lineHeight).toBeGreaterThanOrEqual(bodyStyle.size * 1.4);
+    expect(metadataStyle.size).toBeGreaterThanOrEqual(12);
     expect((await style(text)).color).not.toBe((await style(meta)).color);
     await expect(form(page).getByText("저장 정보", { exact: true })).toHaveCount(0);
     await expect(form(page)).not.toContainText("만든 시각");

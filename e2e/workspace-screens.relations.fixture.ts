@@ -331,10 +331,11 @@ test("#185 빈 연결 개수만 표시·관계 카드 빈 공간은 이동하지
   });
   await page.reload();
   const link = form(page).getByRole("button", { name: "자료", exact: true }),
-    card = link.locator("xpath=ancestor::div[contains(@class,'related-item')][last()]");
-  const t = (await link.boundingBox())!;
-  await page.mouse.click(t.x + t.width + 12, t.y + t.height / 2);
+    card = form(page).getByRole("listitem").filter({ has: page.getByRole("button", { name: "자료", exact: true }) });
+  await expect(card).toHaveCount(1);
+  await card.click({ position: { x: 4, y: 4 } });
   await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
+  await expect(link).toHaveAttribute("aria-expanded", "false");
   await link.click();
   await expect(link).toHaveAttribute("aria-expanded", "true");
   await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
