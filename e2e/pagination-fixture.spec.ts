@@ -162,3 +162,32 @@ test("Entity restored pages: retry cursor, focus and filter reset", async ({ pag
   await expect(more).toHaveAttribute("aria-disabled", "false");
   expect(cursors.slice(beforeFilter)).toEqual([null, null]);
 });
+
+test("Entity pagination failure does not move focus or scroll after the user leaves the page control", async ({ page }) => {
+  await fixture(page);
+  let release!: () => void, started!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const pending = new Promise<void>(resolve => { started = resolve; });
+  await page.route("**/api/entities?**", async route => {
+    if (new URL(route.request().url()).searchParams.has("cursor")) {
+      started();
+      await waiting;
+      return route.fulfill({ status: 503, json: { code: "unavailable", message: "지연된 페이지 실패", retryable: true, fields: [] } });
+    }
+    return route.fulfill({ json: { items: [entity(1), entity(2)], next_cursor: "next" } });
+  });
+  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.getByRole("button", { name: "더 보기", exact: true }).click();
+  await pending;
+  try {
+    const search = page.getByRole("textbox", { name: "자료 제목 검색", exact: true });
+    await search.focus();
+    const main = page.getByRole("main");
+    const top = await main.evaluate(element => element.scrollTop);
+    release();
+    await expect(page.getByRole("alert")).toContainText("지연된 페이지 실패");
+    await expect(search).toBeFocused();
+    await expect.poll(() => main.evaluate(element => element.scrollTop)).toBe(top);
+    await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeEnabled();
+  } finally { release(); }
+});
