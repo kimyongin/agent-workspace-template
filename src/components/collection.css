@@ -71,3 +71,8 @@
 @container collection (max-width: 40rem) {
   .collection-numeric .collection-cell-value { text-align: right; }
 }
+
+/* A title owns a 44px control; avoid adding the static value's inset around it.
+   Wrapped titles start beside the key instead of centering the first line lower. */
+.collection .collection-title-data dd { padding-block: 0; align-items: flex-start; }
+.collection .collection-title-data .item-title { padding-block: 11px; align-items: flex-start; }

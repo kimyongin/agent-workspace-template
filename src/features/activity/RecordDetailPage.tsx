@@ -53,7 +53,7 @@ export function RecordDetailPage() {
       {error && <Notice kind="error">{error}</Notice>}
       <RecordDataFields record={record}/>
       {loadError && <><Notice kind="error">{loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
-      <TagConnections scope="record" target={record} readonly={record.record_kind === "change"} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
+      <TagConnections onDraftClosed={detail.editClosed} scope="record" target={record} readonly={record.record_kind === "change"} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
 
     </div>;
   return <DetailSurface onError={detail.failed} footer={<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="기록" description="기록 내용을 읽고 수정하며, 연결된 업무를 확인합니다." tabTitle={recordDisplayText(record.body)} onClose={()=>navigate(back)} busy={busy}>
