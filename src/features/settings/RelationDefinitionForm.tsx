@@ -114,7 +114,7 @@ export function RelationDefinitionForm(
           return (
             <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" key={n}>
               <h3>{types.find((type) => type.id === end.type_id)?.label ?? `${prefix} 자료`}에서 보이는 연결</h3>
-              <Field pair label="자료 종류" required>
+              <Field label="자료 종류" required>
                 {(props) => (
                   <NativeSelect
 
@@ -130,7 +130,7 @@ export function RelationDefinitionForm(
                   </NativeSelect>
                 )}
               </Field>
-              <Field pair label="연결 이름" required help="이 자료에서 상대를 부르는 이름입니다.">
+              <Field label="연결 이름" required help="이 자료에서 상대를 부르는 이름입니다.">
                 {(props) => (
                   <Input
 
@@ -142,7 +142,7 @@ export function RelationDefinitionForm(
                   />
                 )}
               </Field>
-              <Field pair label="연결 개수" help="몇 개까지 연결할 수 있는지 정합니다.">
+              <Field label="연결 개수" help="몇 개까지 연결할 수 있는지 정합니다.">
                 {(props) => (
                   <NativeSelect
 
@@ -161,7 +161,7 @@ export function RelationDefinitionForm(
         })}
       </FieldSet>
       {baseline && (
-        <Field pair label="보관" help="기존 연결을 유지하고 새 연결을 중단합니다.">
+        <Field label="보관" help="기존 연결을 유지하고 새 연결을 중단합니다.">
           {(props) => (
             <Checkbox
               {...props}

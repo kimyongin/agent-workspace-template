@@ -67,7 +67,7 @@ function Literal(
   const nullable = Array.isArray(field.type) && field.type.includes("null");
   return (
     <>
-      <Field pair label="보완값 상태">
+      <Field label="보완값 상태">
         {(props) => (
           <NativeSelect
             {...props}
@@ -91,7 +91,7 @@ function Literal(
         )}
       </Field>
       {value !== null && (
-        <Field pair label="보완값">
+        <Field label="보완값">
           {(props) => (scalar === "boolean"
             ? (
               <NativeSelect
@@ -234,7 +234,7 @@ export function ConversionEditor(
                   scalar = fieldType(f);
                 return (
                   <section className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" key={key}>
-                    <Field pair label={f?.title ?? sourceField?.title ?? "삭제한 입력 항목"}>
+                    <Field label={f?.title ?? sourceField?.title ?? "삭제한 입력 항목"}>
                       {(p) => (
                         <NativeSelect
                           {...p}
@@ -350,7 +350,7 @@ export function ConversionEditor(
                           />{" "}
                           이미 허용된 코드는 유지
                         </FieldLabel>
-                        <Field pair label="이전 코드">
+                        <Field label="이전 코드">
                           {(p) => (
                             <Input
                               {...p}
@@ -365,7 +365,7 @@ export function ConversionEditor(
                           )}
                         </Field>
                         {Object.entries(r.mapping).map(([code, to]) => (
-                          <Field pair key={code} label={`${code} → 새 코드`}>
+                          <Field key={code} label={`${code} → 새 코드`}>
                             {(p) => (
                               <NativeSelect
                                 {...p}

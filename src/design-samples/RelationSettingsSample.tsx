@@ -72,7 +72,7 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
                 return (
                   <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere" key={index}>
                     <h3>{prefix} 방향</h3>
-                    <Field pair label={`${prefix} 자료 종류`} required>
+                    <Field label={`${prefix} 자료 종류`} required>
                       {(props) => (
                         <NativeSelect
                           {...props}
@@ -83,7 +83,7 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
                         </NativeSelect>
                       )}
                     </Field>
-                    <Field pair label={`${prefix} 관계 이름`} required help="이 자료에서 상대를 부르는 이름">
+                    <Field label={`${prefix} 관계 이름`} required help="이 자료에서 상대를 부르는 이름">
                       {(props) => (
                         <Input
                           {...props}
@@ -93,7 +93,7 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
                         />
                       )}
                     </Field>
-                    <Field pair label={`${prefix} 연결 개수`}>
+                    <Field label={`${prefix} 연결 개수`}>
                       {(props) => (
                         <NativeSelect
                           {...props}

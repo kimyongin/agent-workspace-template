@@ -117,7 +117,7 @@ function PropertyList(
                     {open
                       ? (
                         <div className="min-w-0 flex-1">
-                          <Field pair fullWidth label="항목 이름" required error={labelError}>{props => <Input {...props}  required value={field.label} onChange={event => edit(field.id, { label: event.target.value })} />}</Field>
+                          <Field fullWidth label="항목 이름" required error={labelError}>{props => <Input {...props}  required value={field.label} onChange={event => edit(field.id, { label: event.target.value })} />}</Field>
                           {summary}
                         </div>
                       )
@@ -174,7 +174,7 @@ function PropertyList(
                 </div>
                 <FieldSet id={bodyId} hidden={!open} className="border-0 p-0 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
                   <FieldLegend className="sr-only">{field.label || "새 항목"} 편집</FieldLegend>
-                  <Field pair label="데이터 타입">
+                  <Field label="데이터 타입">
                     {(props) => (
                       <NativeSelect
                         {...props}
@@ -210,7 +210,7 @@ function PropertyList(
                         />목록에 표시
                       </FieldLabel>
                       {field.type === "text" && (
-                        <Field pair label="최대 길이" error={errors[`${field.id}.maxLength`]}>
+                        <Field label="최대 길이" error={errors[`${field.id}.maxLength`]}>
                           {(props) => (
                             <Input
                               {...props}
@@ -385,7 +385,7 @@ export function MaterialWorkspaceSample() {
         title="기본 정보"
         state={{ dirty: typeName !== savedTypeName, busy: false }}
       >
-        <Field pair label="종류 이름">
+        <Field label="종류 이름">
           {(props) => (
             <Input
               {...props}
@@ -454,14 +454,14 @@ export function MaterialWorkspaceSample() {
         state={{ dirty: template !== savedTemplate, busy: false }}
       >
         <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-          <Field pair label="액션">
+          <Field label="액션">
             {(props) => (
               <NativeSelect {...props} >
                 <NativeSelectOption>수정</NativeSelectOption>
               </NativeSelect>
             )}
           </Field>
-          <Field pair label="변수 삽입">
+          <Field label="변수 삽입">
             {(props) => (
               <NativeSelect
                 {...props}
@@ -476,7 +476,7 @@ export function MaterialWorkspaceSample() {
               </NativeSelect>
             )}
           </Field>
-          <Field pair fullWidth label="메모 템플릿" help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요.">
+          <Field fullWidth label="메모 템플릿" help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요.">
             {(props) => (
               <TemplateMemoEditor
                 {...props}

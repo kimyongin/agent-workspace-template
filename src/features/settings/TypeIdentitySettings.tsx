@@ -158,7 +158,7 @@ export function TypeIdentitySettings(
             </div>
           )}
           <FieldSet className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" disabled={busy || uncertain || disabled}>
-            <Field pair label="이름" required help="자료에 표시할 번호 이름입니다. 예: 상품 번호·주문 번호">
+            <Field label="이름" required help="자료에 표시할 번호 이름입니다. 예: 상품 번호·주문 번호">
               {(props) => (
                 <Input
                   {...props}
@@ -226,7 +226,7 @@ export function TypeIdentitySettings(
                           </dl>
                         )
                         : (
-                          <Field pair label="번호 종류">
+                          <Field label="번호 종류">
                             {(props) => (
                               <NativeSelect
                                 {...props}

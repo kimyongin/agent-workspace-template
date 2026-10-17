@@ -211,7 +211,7 @@ function ButtonSamples() {
           <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4">
             {options.map((value, index) => (
               <div className="flex min-w-0 flex-wrap items-end gap-3" key={index}>
-                <Field pair label={`선택 항목 ${index + 1}`}>
+                <Field label={`선택 항목 ${index + 1}`}>
                   {(props) => (
                     <Input
                       {...props}
@@ -297,7 +297,7 @@ function FormSamples() {
       }}
       noValidate
     ><FieldGroup>
-      <Field pair label="상품명" required help="목록에서 알아볼 수 있는 이름을 입력하세요." error={error}>
+      <Field label="상품명" required help="목록에서 알아볼 수 있는 이름을 입력하세요." error={error}>
         {(props) => (
           <Input
             {...props}
@@ -317,14 +317,14 @@ function FormSamples() {
           {["매일", "매주", "매월"].map(value => <ToggleGroupItem key={value} value={value}>{value}</ToggleGroupItem>)}
         </ToggleGroup>
       </FieldSet>
-      <Field pair label="시간대">
+      <Field label="시간대">
         {(props) => <TimezoneSelect {...props} value={zone} onChange={(event) => setZone(event.target.value)} />}
       </Field>
       <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-        <Field pair label="읽기 전용" help="내용을 읽고 복사할 수 있습니다.">
+        <Field label="읽기 전용" help="내용을 읽고 복사할 수 있습니다.">
           {(props) => <Input {...props}  readOnly value="상품 · 버전 2" />}
         </Field>
-        <Field pair label="비활성" help="현재 단계에서는 조작할 수 없습니다.">
+        <Field label="비활성" help="현재 단계에서는 조작할 수 없습니다.">
           {(props) => <Input {...props}  disabled value="처리 중" />}
         </Field>
       </div>

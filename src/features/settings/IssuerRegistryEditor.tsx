@@ -316,7 +316,6 @@ export function IssuerRegistryEditor(
           disabled={busy || reading || uncertain}
         >
           <Field
-            pair
             label={target.kind === "issuer" ? "번호 출처 이름" : "번호 종류 이름"}
             required
           >

@@ -373,7 +373,7 @@ export function SchemaEditor(
                             {expanded
                               ? (
                                 <div className="flex min-w-0 flex-1 flex-col items-start gap-2 text-left">
-                                  <Field pair fullWidth label="항목 이름">
+                                  <Field fullWidth label="항목 이름">
                                     {(nameProps) => (
                                       <Input
                                         {...nameProps}
@@ -448,7 +448,7 @@ export function SchemaEditor(
                           hidden={!openFields.includes(key)}
                           disabled={Boolean(plan?.recovery)}
                         >
-                          <Field pair label="데이터 타입">
+                          <Field label="데이터 타입">
                             {(p) => (
                               <NativeSelect
                                 {...p}
@@ -497,7 +497,7 @@ export function SchemaEditor(
                                 i,
                               ) => (
                                 <div className="flex min-w-0 flex-wrap items-end gap-2 [&>div]:flex-1" key={code!}>
-                                  <Field pair label={`선택 항목 ${i + 1}`}>
+                                  <Field label={`선택 항목 ${i + 1}`}>
                                     {(props) => (
                                       <Input
                                         {...props}
@@ -609,7 +609,7 @@ export function SchemaEditor(
                                 />{" "}
                                 읽기 전용
                               </FieldLabel>
-                              <Field pair fullWidth label="설명">
+                              <Field fullWidth label="설명">
                                 {(p) => (
                                   <Textarea
                                     {...p}
@@ -632,7 +632,7 @@ export function SchemaEditor(
                                       <p className="text-sm text-destructive">
                                         현재 타입에서 사용할 수 없는 이전 조건 입력입니다. 입력을 확인하고 제거하세요.
                                       </p>
-                                      <Field pair label={`이전 ${label} 입력`}>
+                                      <Field label={`이전 ${label} 입력`}>
                                         {(props) => (
                                           <Input
                                             {...props}
@@ -659,7 +659,6 @@ export function SchemaEditor(
                                     name,
                                   ) => (
                                     <Field
-                                      pair
                                       key={name}
                                       label={name === "minLength" ? "최소 길이" : "최대 길이"}
                                     >
@@ -683,7 +682,7 @@ export function SchemaEditor(
                               {["integer", "number"].includes(scalar) && (
                                 <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] col-span-full">
                                   {(["minimum", "maximum", "multipleOf"] as const).map((name) => (
-                                    <Field pair key={name} label={numericConditionNames[name]}>
+                                    <Field key={name} label={numericConditionNames[name]}>
                                       {(p) => (
                                         <Input
                                           {...p}
@@ -700,7 +699,7 @@ export function SchemaEditor(
                                   ))}
                                 </div>
                               )}
-                              <Field pair label="생성 기본값 (기존 자료에는 채우지 않음)">
+                              <Field label="생성 기본값 (기존 자료에는 채우지 않음)">
                                 {(p) => (
                                   <NativeSelect
                                     {...p}
@@ -729,7 +728,7 @@ export function SchemaEditor(
                                 )}
                               </Field>
                               {f.default !== undefined && f.default !== null && (
-                                <Field pair label="기본값">
+                                <Field label="기본값">
                                   {(p) =>
                                     scalar === "boolean"
                                       ? (

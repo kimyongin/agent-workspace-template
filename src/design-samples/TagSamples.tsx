@@ -17,7 +17,7 @@ export function TagSamples() {
   const [selected, setSelected] = useState<string[]>([]);
   return (
     <div className="grid min-w-0 gap-4">
-      <Field pair label="태그 예시 상태">
+      <Field label="태그 예시 상태">
         {(props) => (
           <NativeSelect
             {...props}

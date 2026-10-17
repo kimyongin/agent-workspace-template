@@ -165,7 +165,7 @@ function AccountSettings() {
   );
   const profile = (
     <>
-      <Field pair label="닉네임">
+      <Field label="닉네임">
         {(props) => (
           <Input
             {...props}
@@ -194,7 +194,7 @@ function AccountSettings() {
     </>
   );
   const date = (
-    <Field pair label="표시 시간대">
+    <Field label="표시 시간대">
       {(props) => (
         <TimezoneSelect
           {...props}

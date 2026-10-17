@@ -42,7 +42,7 @@ export function RecordActionsSample() {
           setMessage("예시 변경을 저장했습니다.");
         }}
       ><FieldGroup>
-        <Field pair label="액션">
+        <Field label="액션">
           {(props) => (
             <NativeSelect
               {...props}
@@ -58,7 +58,7 @@ export function RecordActionsSample() {
             </NativeSelect>
           )}
         </Field>
-        <Field pair fullWidth label="메모 템플릿" error={errors.find((error) => error.action === action)?.message}>
+        <Field fullWidth label="메모 템플릿" error={errors.find((error) => error.action === action)?.message}>
           {(props) => (
             <TemplateMemoEditor
               key={action}

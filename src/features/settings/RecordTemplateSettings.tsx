@@ -326,7 +326,7 @@ function RecordTemplateForm({
           >
             <>
               {!materialResource && !selectedModel && (
-                <Field pair label="대상">
+                <Field label="대상">
                   {(props) => (
                     <Select value={model} onValueChange={(value) => {
                         const next = value as TemplateModel;
@@ -344,7 +344,7 @@ function RecordTemplateForm({
                   )}
                 </Field>
               )}
-              <Field pair label="액션">
+              <Field label="액션">
                 {(props) => (
                   <Select value={action} onValueChange={(value) => setAction(value as TemplateAction)} disabled={busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                     {modelActions(model).map((key) => (
@@ -369,7 +369,7 @@ function RecordTemplateForm({
                 )}
               </>
             )}
-            <Field pair label="변수 삽입">
+            <Field label="변수 삽입">
               {(props) => (
                 <Combobox<(typeof variables)[number]> items={variables} value={null} inputValue={variableQuery} onInputValueChange={setVariableQuery} itemToStringLabel={variable => variable.label} onValueChange={variable => { if(variable) text.current?.insert(variable.value); setVariableQuery(""); }} disabled={schemaUnavailable || busy || uncertain}>
                   <ComboboxInput {...props} placeholder="변수를 선택하세요" /><ComboboxContent finalFocus={false}><ComboboxEmpty>일치하는 변수가 없습니다.</ComboboxEmpty><ComboboxList>{variable => <ComboboxItem key={variable.value} value={variable}>{variable.label}</ComboboxItem>}</ComboboxList></ComboboxContent>
@@ -377,7 +377,6 @@ function RecordTemplateForm({
               )}
             </Field>
             <Field
-              pair
               fullWidth
               label="메모 템플릿"
               help={schemaUnavailable

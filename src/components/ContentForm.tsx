@@ -25,10 +25,10 @@ export function TextFields(
   return (
     <>
       <FieldGroup>
-      <Field pair label={contentLabels.title} required error={errors.title}>
+      <Field label={contentLabels.title} required error={errors.title}>
         {(p) => <Input {...p}  placeholder="대상과 행동 또는 결론" value={draft.title} onChange={(e) => set({ title: e.target.value })} />}
       </Field>
-      <Field pair fullWidth label={contentLabels.body} error={errors.body}>
+      <Field fullWidth label={contentLabels.body} error={errors.body}>
         {(p) => (
           <Textarea {...p}  rows={8} placeholder="상세 내용과 근거를 작성하세요 (마크다운)" value={draft.body} onChange={(e) => set({ body: e.target.value })} />
         )}

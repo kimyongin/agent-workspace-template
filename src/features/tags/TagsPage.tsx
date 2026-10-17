@@ -370,7 +370,7 @@ export function TagManagement(
       }}
     >
       <FieldGroup>
-        <Field pair label={tagLabels.name} required error={fieldError}>
+        <Field label={tagLabels.name} required error={fieldError}>
           {(p) => (
             <Input
               {...p}

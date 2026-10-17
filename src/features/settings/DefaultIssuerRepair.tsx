@@ -91,7 +91,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
       {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {!identity && !error && <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert>}
       {identity && (
-        <Field pair label={`${type.label} 기본 번호 출처`}>
+        <Field label={`${type.label} 기본 번호 출처`}>
           {(props) => (
             <NativeSelect
               {...props}

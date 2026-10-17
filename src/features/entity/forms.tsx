@@ -527,7 +527,7 @@ export function EntityForm({
                   </dl>
                 )
                 : (
-                  <Field pair label="번호 출처" required error={errors.source}>
+                  <Field label="번호 출처" required error={errors.source}>
                     {(p) => (
                       <NativeSelect
                         {...p}
@@ -575,7 +575,7 @@ export function EntityForm({
                   </dl>
                 )
                 : (
-                  <Field pair label={identitySettings?.label ?? "번호"} error={errors.external_id}>
+                  <Field label={identitySettings?.label ?? "번호"} error={errors.external_id}>
                     {(p) => (
                       <Input
                         {...p}

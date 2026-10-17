@@ -34,7 +34,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
   const [message, setMessage] = useState("");
   const menuDirty = JSON.stringify(menus) !== JSON.stringify(savedMenus);
   const field = (key: keyof typeof initial, label: string, choices?: string[]) => (
-    <Field pair label={label}>
+    <Field label={label}>
       {(props) =>
         key === "timezone"
           ? (

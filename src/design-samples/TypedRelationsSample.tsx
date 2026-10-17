@@ -52,7 +52,7 @@ export function TypedRelationsSample() {
             <div><dt>번호</dt><dd>등록 시 자동 발급</dd></div>
           </dl>
           <p className="text-sm text-muted-foreground">저장하면 새로 작성한 자료로 교체합니다.</p>
-          <Field pair label="주문명" required>
+          <Field label="주문명" required>
             {(p) => (
               <Input
                 {...p}

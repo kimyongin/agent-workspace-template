@@ -351,7 +351,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
               disabled={busy || uncertain || latestBusy}
             >
-              <Field pair label="자료 종류 이름">
+              <Field label="자료 종류 이름">
                 {(props) => (
                   <Input
                     {...props}
@@ -371,7 +371,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 </ToggleGroup>
               </FieldSet>
               {!type_id && (
-                <Field pair label="대표 입력 항목 이름">
+                <Field label="대표 입력 항목 이름">
                   {(props) => (
                     <Input
                       {...props}

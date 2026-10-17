@@ -128,7 +128,7 @@ export function IdentitySourceModal({
     >
       <FieldGroup className="flex min-w-0 flex-col gap-5">
         <div className="flex min-w-0 flex-wrap items-end gap-3 [&>div]:flex-1">
-          <Field pair label="번호 출처">
+          <Field label="번호 출처">
             {(props) => (
               <NativeSelect
                 {...props}
@@ -164,7 +164,7 @@ export function IdentitySourceModal({
                 ? <Alert role="status"><AlertDescription>번호 종류를 읽는 중…</AlertDescription></Alert>
                 : eligible.length > 1
                 ? (
-                  <Field pair label="번호 종류">
+                  <Field label="번호 종류">
                     {(props) => (
                       <NativeSelect
                         {...props}

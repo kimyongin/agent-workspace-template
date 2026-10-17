@@ -141,7 +141,6 @@ export function PropertyFields(
         }
         return (
           <Field
-            pair
             fullWidth={key === schemaPresentation(definition).representative}
             className={cn(key === schemaPresentation(definition).representative ? "col-span-full" : undefined)}
             key={key}

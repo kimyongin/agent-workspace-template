@@ -119,7 +119,7 @@ export function RecordFormModal(props: {
     >
       {(errors, frozen) => {
         const body = (
-          <Field pair fullWidth label="본문" required error={errors.body}>
+          <Field fullWidth label="본문" required error={errors.body}>
             {(p) => (
               <Textarea
                 {...p}
@@ -132,7 +132,7 @@ export function RecordFormModal(props: {
           </Field>
         );
         const occurredAt = (
-          <Field pair label={recordLabels.occurred_at} error={errors.occurred_at}>
+          <Field label={recordLabels.occurred_at} error={errors.occurred_at}>
             {(p) => (
               <Input
                 {...p}

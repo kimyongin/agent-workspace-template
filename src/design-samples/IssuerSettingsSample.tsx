@@ -228,7 +228,6 @@ function SampleCreation({ source, created, initialLabel, onClose, onSave }: {
                 </p>
               )}
               <Field
-        pair
                 label={source ? "번호 종류 이름" : "번호 출처 이름"}
                 required
               >
@@ -280,7 +279,7 @@ function SampleNumberEditor(
       }}
     ><FieldGroup>
       <FieldSet className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-        <Field pair label="번호 종류 이름" required>
+        <Field label="번호 종류 이름" required>
           {(props) => (
             <Input
               {...props}

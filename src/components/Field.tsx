@@ -7,7 +7,6 @@ import { cn } from "../lib/utils.ts";
 interface FieldProps {
   label: string;
   className?: string;
-  pair?: boolean;
   fullWidth?: boolean;
   hideLabel?: boolean;
   required?: boolean;

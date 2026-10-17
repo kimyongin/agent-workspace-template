@@ -42,7 +42,6 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
     full = false,
   ) => (
     <Field
-      pair
       fullWidth={full}
       label={label}
       required={key === "title" || key === "starts_on" || key === "timezone"}
@@ -93,7 +92,7 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
           <>
             {draft
               ? (
-                <Field pair label={taskLabels.recurrence}>
+                <Field label={taskLabels.recurrence}>
                   {(p) => (
                     <ToggleGroup
                       id={p.id}
@@ -115,7 +114,7 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
               : pair(taskLabels.recurrence, freq ? taskLabels[freq] : "—")}
             {freq === "weekly" && (draft
               ? (
-                <Field pair label={taskLabels.weekdays} error={errors.weekdays}>
+                <Field label={taskLabels.weekdays} error={errors.weekdays}>
                   {(p) => (
                     <ToggleGroup
                       id={p.id}

@@ -48,7 +48,6 @@ export function ModalSamples() {
   return (
     <div className="grid min-w-0 gap-4">
       <Field
-        pair
         label="샘플 저장 결과"
         help="실패·결과 미확정은 첫 실행에서 발생하며, 다시 시도하거나 결과를 확인하면 완료됩니다."
       >
@@ -214,7 +213,7 @@ function EditDialog(
                 review();
               }}
             ><FieldGroup>
-              <Field pair label="상품명" required error={error}>
+              <Field label="상품명" required error={error}>
                 {(props) => (
                   <Input
                     {...props}
@@ -227,9 +226,9 @@ function EditDialog(
                 )}
               </Field>
               <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>자료 번호</dt><dd>SAMPLE-001</dd></div></dl>
-              <Field pair label="수량">{props => <Input {...props}  inputMode="decimal" value={draft.quantity} onChange={e => setDraft({ ...draft, quantity: e.target.value })} readOnly={uncertain} />}</Field>
-              <Field pair label="판매 중">{props => <NativeSelect {...props}  value={String(draft.sale)} onChange={e => setDraft({ ...draft, sale: e.target.value === "true" })} disabled={uncertain}><NativeSelectOption value="false">아니요</NativeSelectOption><NativeSelectOption value="true">예</NativeSelectOption></NativeSelect>}</Field>
-              <Field pair fullWidth label="메모">{props => <Textarea {...props}  rows={3} value={draft.memo} onChange={e => setDraft({ ...draft, memo: e.target.value })} readOnly={uncertain} />}</Field>
+              <Field label="수량">{props => <Input {...props}  inputMode="decimal" value={draft.quantity} onChange={e => setDraft({ ...draft, quantity: e.target.value })} readOnly={uncertain} />}</Field>
+              <Field label="판매 중">{props => <NativeSelect {...props}  value={String(draft.sale)} onChange={e => setDraft({ ...draft, sale: e.target.value === "true" })} disabled={uncertain}><NativeSelectOption value="false">아니요</NativeSelectOption><NativeSelectOption value="true">예</NativeSelectOption></NativeSelect>}</Field>
+              <Field fullWidth label="메모">{props => <Textarea {...props}  rows={3} value={draft.memo} onChange={e => setDraft({ ...draft, memo: e.target.value })} readOnly={uncertain} />}</Field>
               <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere col-span-full"><div><dt>태그</dt><dd>{tags.length ? <span className="flex flex-wrap items-center gap-2">{sampleTags.filter(tag => tags.includes(tag.id)).map(tag => <Badge variant="secondary" key={tag.id} >{tag.name}</Badge>)}</span> : "연결된 태그 없음"}</dd></div></dl>
               <p className="text-sm text-muted-foreground">취소하면 같은 보기로 돌아갑니다. 변경한 입력은 폐기 확인을 거쳐 버립니다.</p>
             </FieldGroup></form>
@@ -246,7 +245,7 @@ function EditDialog(
                     return <div className={cn(key === "memo" ? "col-span-full" : undefined)} key={key}><dt>{label}</dt><dd>{text(initial[key])} → {text(after[key])}</dd></div>;
                   })}
                 </dl>
-                <Field pair fullWidth label="기록 메모">
+                <Field fullWidth label="기록 메모">
                   {(props) => (
                     <Textarea
                       {...props}

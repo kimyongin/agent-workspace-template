@@ -613,7 +613,6 @@ export function DataModelSettings() {
           </p>
           <FieldSet className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" disabled={locked}>
             <Field
-              pair
               label="가져오는 방법"
               help="현재 자료 종류에 반영하거나, 새 자료 종류와 연결 설정을 만들 수 있습니다."
             >
@@ -632,7 +631,7 @@ export function DataModelSettings() {
                 </NativeSelect>
               )}
             </Field>
-            <Field pair label="설정 파일" help="이 앱에서 내보낸 설정 파일(.json)을 선택하세요.">
+            <Field label="설정 파일" help="이 앱에서 내보낸 설정 파일(.json)을 선택하세요.">
               {(props) => (
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
                   <Input
@@ -659,7 +658,6 @@ export function DataModelSettings() {
               )}
             </Field>
             <Field
-              pair
               fullWidth
               label="설정 파일 내용"
               help="선택한 파일의 내용이 표시됩니다. 내용을 직접 붙여넣을 수도 있습니다."
