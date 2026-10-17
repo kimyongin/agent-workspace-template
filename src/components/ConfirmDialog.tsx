@@ -1,5 +1,5 @@
 import { type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { registerSurface } from "../lib/surface-dom.ts";
+import { firstField, registerSurface } from "../lib/surface-dom.ts";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog.tsx";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.tsx";
 import { Button } from "./ui/button.tsx";
@@ -12,12 +12,16 @@ interface ConfirmProps {
 
 export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy = false, confirmDisabled = false, onConfirm, onCancel }: ConfirmProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const origin = useRef<HTMLElement | null>(null);
   const heading = useRef<HTMLHeadingElement>(null), footer = useRef<HTMLDivElement>(null);
   const elements = useRef({ title, body: root, heading: heading.current, footer: footer.current, active: open, modal: true, confirmation: true, ready: true });
   useLayoutEffect(() => { elements.current = { title, body: root, heading: heading.current, footer: footer.current, active: open, modal: true, confirmation: true, ready: true }; });
   useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
   return <AlertDialog open={open} onOpenChange={next => { if (!next && !busy) onCancel(); }}>
-    <AlertDialogContent ref={setRoot} onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
+    <AlertDialogContent ref={setRoot}
+      onOpenAutoFocus={() => { origin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }}
+      onCloseAutoFocus={event => { event.preventDefault(); if (origin.current?.isConnected) origin.current.focus(); }}
+      onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
       <AlertDialogHeader><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
       <AlertDialogFooter ref={footer}>
         <AlertDialogCancel disabled={busy} onClick={event => { event.preventDefault(); if (!busy) onCancel(); }}>취소</AlertDialogCancel>
@@ -32,6 +36,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
   open: boolean; title: string; busy?: boolean; onCancel: () => void; footer: ReactNode; children: ReactNode; closeButton?: boolean;
 }) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const origin = useRef<HTMLElement | null>(null);
   const body = useRef<HTMLDivElement>(null), heading = useRef<HTMLHeadingElement>(null), footerElement = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = root;
   useSurfaceViewport(viewportRef, root);
@@ -43,6 +48,12 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
     <DialogContent ref={setRoot} showCloseButton={false} aria-describedby={undefined}
       className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)" }}
+      onOpenAutoFocus={event => {
+        origin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const field = firstField(body.current);
+        if (field) { event.preventDefault(); field.focus(); }
+      }}
+      onCloseAutoFocus={event => { event.preventDefault(); if (origin.current?.isConnected) origin.current.focus(); }}
       onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}
       onEscapeKeyDown={event => { event.preventDefault(); event.stopPropagation(); cancel(); }}>
       <DialogHeader className="shrink-0 p-4"><div className="flex min-w-0 items-center gap-2"><DialogTitle ref={heading} className="min-w-0 flex-1 break-words">{title}</DialogTitle>
