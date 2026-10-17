@@ -33,7 +33,7 @@ export function EntityDetailPage() {
     navigate = useDetailNavigate();
   const afterClose = useDeferredNavigation();
   const relationSaved = useRef(false);
-  const relationCreateLabel = useRef<string | null>(null);
+  const relationCreateTarget = useRef<string | null>(null);
   const location = useLocation();
   const [creating, setCreating] = useState<"task" | "record" | "relation" | null>(null);
   const returnCreateFocus = useRef<"task" | "record" | "relation" | null>(null),
@@ -82,7 +82,7 @@ export function EntityDetailPage() {
     if (creating || !editReady || !returnCreateFocus.current) return;
     const frame = requestAnimationFrame(() => {
       if (returnCreateFocus.current === "relation") {
-        const button = Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] [aria-label$="작성해서 연결"]')).find((el) => el.getAttribute("aria-label") === relationCreateLabel.current);
+        const button = Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] [aria-label$="작성해서 연결"]')).find((el) => el.dataset.relationCreate === relationCreateTarget.current);
         button?.focus();
         returnCreateFocus.current = null;
         return;
@@ -214,7 +214,7 @@ export function EntityDetailPage() {
             <EntityTypedRelations
               entity={entity}
               onCreate={(definition, side) => {
-                relationCreateLabel.current = `${definition.ends[side].label} 작성해서 연결`;
+                relationCreateTarget.current = `${definition.id}:${side}`;
                 const p = new URLSearchParams(params);
                 p.set("create", "relation");
                 p.set("relation_id", definition.id);

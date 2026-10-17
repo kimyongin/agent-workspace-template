@@ -170,6 +170,7 @@ export function EntityRelationSection(
                   icon="create"
                   disabled={preparing}
                   aria-label={`${def.ends[side].label} 작성해서 연결`}
+                  data-relation-create={`${def.id}:${side}`}
                   onClick={() => onCreate(def, side)}
                 >
                   작성
