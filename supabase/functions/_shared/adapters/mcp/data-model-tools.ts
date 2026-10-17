@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dataModelAction, dataModelInput, dataModelPrepare } from "../../contracts/data-model.ts";
+import { dataModelAction, dataModelInput, dataModelPrepare, modelGroupAnalyze } from "../../contracts/data-model.ts";
 import {
   applyDataModel,
   type DataModelDeps,
@@ -10,8 +10,34 @@ import {
   previewDataModel,
 } from "../../core/data-model/application.ts";
 import { keyedTool, type ToolDef } from "./tools.ts";
+import { analyzeDataModel, changeDataModelGroup } from "../../core/data-model/groups.ts";
 export function dataModelTools(d: DataModelDeps): ToolDef[] {
   return [
+    keyedTool({
+      name: "analyze_data_model",
+      description:
+        "저장된 전체 모델의 종류별 변환 규칙·실패 행 보완을 하나의 영속 분석으로 접수합니다. 정본은 게시하지 않습니다.",
+      input: modelGroupAnalyze.extend({ id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { id, ...input } = i;
+        return analyzeDataModel(d, a, String(id), input);
+      },
+    }),
+    ...(["cancel", "retry"] as const).map((action) =>
+      keyedTool({
+        name: `${action}_data_model`,
+        description: action === "cancel"
+          ? "전체 모델 작업을 한 번에 취소합니다. 확정과 경쟁하면 현재 완료 상태를 확인합니다."
+          : "일시 실패한 같은 전체 모델 작업을 원본을 확인해 다시 접수합니다.",
+        input: dataModelAction.extend({ id: z.string().uuid() }),
+        readOnly: false,
+        handler: (i, a) => {
+          const { id, ...input } = i;
+          return changeDataModelGroup(d, a, String(id), input, action);
+        },
+      })
+    ),
     {
       name: "export_data_model",
       description:
@@ -56,7 +82,7 @@ export function dataModelTools(d: DataModelDeps): ToolDef[] {
     keyedTool({
       name: "apply_data_model",
       description:
-        "검토한 전체 모델의 호환 변경/복사를 한 transaction에서 확정합니다. 기준이 바뀌거나 값 변환이 필요하면 어떤 종류도 부분 적용하지 않습니다. 응답 불명은 같은 request_key와 expected_version으로 확인합니다.",
+        "검토한 전체 모델을 적용합니다. 호환 변경·복사는 한 transaction에서 확정하고, 분석을 완료한 값 변환은 영속 준비 작업으로 접수해 모든 준비 뒤 한 번에 확정합니다. 기준이 바뀌거나 값 변환이 필요하면 어떤 종류도 부분 적용하지 않습니다. 응답 불명은 같은 request_key와 expected_version으로 확인합니다.",
       input: dataModelAction.extend({ id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {

@@ -10,6 +10,7 @@ import {
   prepareDataModel,
   previewDataModel,
 } from "../../core/data-model/application.ts";
+import { analyzeDataModel, changeDataModelGroup } from "../../core/data-model/groups.ts";
 export function dataModelRoutes(d: DataModelDeps) {
   const app = new Hono<HttpEnv>();
   app.get("/data-model/export", async (c) => c.json(await exportDataModel(d, c.get("actor"))));
@@ -30,5 +31,16 @@ export function dataModelRoutes(d: DataModelDeps) {
     "/data-model/changes/:id/apply",
     async (c) => c.json(await applyDataModel(d, c.get("actor"), c.req.param("id"), await json(c.req.raw))),
   );
+  app.post(
+    "/data-model/changes/:id/analyze",
+    async (c) => c.json(await analyzeDataModel(d, c.get("actor"), c.req.param("id"), await json(c.req.raw))),
+  );
+  for (const action of ["cancel", "retry"] as const) {
+    app.post(
+      `/data-model/changes/:id/${action}`,
+      async (c) =>
+        c.json(await changeDataModelGroup(d, c.get("actor"), c.req.param("id"), await json(c.req.raw), action)),
+    );
+  }
   return app;
 }

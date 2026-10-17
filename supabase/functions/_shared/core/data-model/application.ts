@@ -38,7 +38,7 @@ export interface DataModelStore extends RequestStore {
   save(plan: ModelPlan): Promise<ModelChange>;
   get(id: string, lock?: boolean): Promise<(ModelChange & { plan: ModelPlan }) | null>;
   list(limit: number, cursor?: string): Promise<{ items: ModelChange[]; next_cursor: string | null }>;
-  publishPreparedModel(plan: ModelPlan): Promise<NonNullable<ModelChange["result"]>>;
+  publishPreparedModel(plan: ModelPlan, id: string): Promise<NonNullable<ModelChange["result"]>>;
   complete(id: string, result: NonNullable<ModelChange["result"]>): Promise<ModelChange>;
 }
 export interface DataModelDeps {
@@ -441,6 +441,6 @@ export function applyDataModel(d: DataModelDeps, a: Actor, id: string, raw: unkn
     if (await definitionFingerprint(await s.snapshot()) !== c.plan.baseline) {
       throw new AppError("schema_plan_stale", "검토 후 모델이나 자료가 변경되었습니다. 다시 검토하세요");
     }
-    return s.complete(id, await s.publishPreparedModel(c.plan));
+    return s.complete(id, await s.publishPreparedModel(c.plan, c.id));
   });
 }

@@ -3,12 +3,9 @@ import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 import type { DataModelStore, ModelPlan, ModelSnapshot } from "../../core/data-model/application.ts";
 import type { DataModelDocument, ModelChange } from "../../contracts/data-model.ts";
-import { APP_IDENTIFIER_RULE_ID } from "../../contracts/entity-issuer.ts";
-import { canonical, schemaDefinitionDiff } from "../../core/entity-types/evolution.ts";
-import { AppError, invalidInput } from "../../core/shared/errors.ts";
+import { invalidInput } from "../../core/shared/errors.ts";
 import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
 import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
-import { SqlEntityRelationDefinitionStore } from "./entity-relation-definition-store.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import { runAsActor } from "./sql-context.ts";
 import { decodeCursor, paginate, scopeOf } from "../../core/shared/operations.ts";
@@ -25,9 +22,10 @@ function changeRow(r: postgres.Row): ModelChange & { plan: ModelPlan } {
     created_at: r.created_at.toISOString(),
   };
 }
-function receiptChange(value: ModelChange): ModelChange {
+export function receiptChange(value: ModelChange): ModelChange {
   return {
     ...value,
+    ...(value.group ? { group: { ...value.group, children: [] } } : {}),
     review: {
       ...value.review,
       items: value.review.items.map((
@@ -36,7 +34,6 @@ function receiptChange(value: ModelChange): ModelChange {
     },
   };
 }
-const same = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 export class SqlDataModelStore implements DataModelStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
   executeRequest<T>(r: RequestIdentity, fn: () => Promise<T>) {
@@ -162,159 +159,15 @@ export class SqlDataModelStore implements DataModelStore {
       scope,
     );
   }
-  async publishPreparedModel(plan: ModelPlan) {
-    const tx = this.tx, target = plan.target, source = plan.source, registry = new SqlEntityIssuerStore(tx, this.actor);
-    // All callers own one transaction. No public use case is called from this publication port.
-    const [count] = await tx`select count(*)::int as n from app.entity_types`;
-    if (
-      Number(count.n) +
-          plan.review.items.filter((i) => i.kind === "new" && target.entity_types.some((t) => t.ref === i.ref)).length >
-        64
-    ) throw invalidInput("자료 종류는 64개까지 만들 수 있습니다");
-    const issuerCodes = new Set(
-      [...source.identity_definitions.issuers, ...target.identity_definitions.issuers].map((i) => i.code),
-    );
-    if (issuerCodes.size > 64) throw invalidInput("발급처는 64개까지 만들 수 있습니다");
-    for (const code of issuerCodes) {
-      const rules = new Set(
-        [...source.identity_definitions.rules, ...target.identity_definitions.rules].filter((r) => r.source === code)
-          .map((r) => r.id),
-      );
-      if (rules.size > 64) throw invalidInput("발급처별 규칙은 64개까지 만들 수 있습니다");
+  async publishPreparedModel(plan: ModelPlan, id: string) {
+    const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
+    for (const type of plan.target.entity_types) {
+      assertSchemaTemplateReferences({ schema: type.schema }, settings?.settings ?? {}, type.schema["x-type-id"]);
     }
-    for (const t of target.entity_types) {
-      const old = source.entity_types.find((o) => o.schema["x-type-id"] === t.schema["x-type-id"]);
-      if (old) {
-        const [row] = await tx`select schema_write_locked from app.entity_types where id=${
-          t.schema["x-type-id"]
-        }::uuid for update`;
-        if (row.schema_write_locked) {
-          throw new AppError("schema_migration_in_progress", "값 변환이 진행 중인 자료 종류입니다");
-        }
-      }
-    }
-    const [settings] = await tx`select settings from app.user_business_settings where id='record_templates'`;
-    for (const t of target.entity_types) {
-      assertSchemaTemplateReferences({ schema: t.schema }, settings?.settings ?? {}, t.schema["x-type-id"]);
-    }
-    for (const i of target.identity_definitions.issuers) {
-      const old = source.identity_definitions.issuers.find((o) => o.code === i.code);
-      if (i.system) {
-        if (!old) {
-          await tx`insert into app.entity_issuers(owner_id,code,label,active,system) values(${this.actor.userId},'app','앱',true,true)`;
-        }
-        continue;
-      }
-      if (!old) {
-        await tx`insert into app.entity_issuers(owner_id,code,label,active,system) values(${this.actor.userId},${i.code},${i.label},${i.active},false)`;
-      } else if (!same({ label: old.label, active: old.active }, { label: i.label, active: i.active })) {
-        await tx`update app.entity_issuers set label=${i.label},active=${i.active},version=version+1 where code=${i.code}`;
-      }
-    }
-    for (const rule of target.identity_definitions.rules) {
-      const old = source.identity_definitions.rules.find((o) => o.id === rule.id);
-      if (rule.id === APP_IDENTIFIER_RULE_ID && old) continue;
-      if (!old) {
-        await tx`insert into app.entity_identifier_rules(owner_id,id,source,label,meaning,generation,active) values(${this.actor.userId},${rule.id}::uuid,${rule.source},${rule.label},${rule.meaning},${rule.generation},${rule.active})`;
-      } else if (
-        !same({ label: old.label, meaning: old.meaning, active: old.active }, {
-          label: rule.label,
-          meaning: rule.meaning,
-          active: rule.active,
-        })
-      ) {
-        if (old.source !== rule.source || old.generation !== rule.generation) {
-          throw invalidInput("번호 종류의 발급처·방식은 변경할 수 없습니다");
-        }
-        await tx`update app.entity_identifier_rules set label=${rule.label},meaning=${rule.meaning},active=${rule.active},version=version+1 where id=${rule.id}::uuid`;
-      }
-    }
-    for (const t of target.entity_types) {
-      const id = t.schema["x-type-id"],
-        old = source.entity_types.find((o) => o.schema["x-type-id"] === id);
-      if (!old) {
-        await tx`insert into app.entity_types(owner_id,id,next_property_number) values(${this.actor.userId},${id}::uuid,${
-          Math.max(1, ...Object.keys(t.schema.properties).map((k) => Number(k.slice(5)))) + 1
-        })`;
-      }
-      if (!old || schemaDefinitionDiff({ schema: old.schema }, { schema: t.schema }).length) {
-        await tx`insert into app.entity_schema_versions(owner_id,schema) values(${this.actor.userId},${
-          tx.json(t.schema as never)
-        })`;
-        await tx`update app.entity_types set schema_version=${
-          t.schema["x-version"]
-        },next_property_number=greatest(next_property_number,${
-          Math.max(1, ...Object.keys(t.schema.properties).map((k) => Number(k.slice(5)))) + 1
-        }),updated_at=now() where id=${id}::uuid`;
-      }
-      const input = {
-        label: t.identity.label,
-        default_source: t.identity.default_source,
-        sources: t.identity.sources,
-        expected_version: old?.identity.version ?? 1,
-      };
-      if (!old) {
-        await tx`insert into app.entity_type_identity(owner_id,type_id,label,default_source) values(${this.actor.userId},${id}::uuid,${input.label},${input.default_source})`;
-        for (const s of input.sources) {
-          await tx`insert into app.entity_type_identity_sources(owner_id,type_id,code,rule_id,active) values(${this.actor.userId},${id}::uuid,${s.code},${s.rule_id}::uuid,${s.active})`;
-        }
-      } else if (
-        !same(
-          { label: old.identity.label, default_source: old.identity.default_source, sources: old.identity.sources },
-          { label: input.label, default_source: input.default_source, sources: input.sources },
-        )
-      ) {
-        const current = (await registry.getTypeIdentity(id, true))!;
-        for (const source of current.sources) {
-          if (source.referenced && !input.sources.some((s) => s.code === source.code && s.rule_id === source.rule_id)) {
-            throw invalidInput("참조된 발급처 규칙은 제거하거나 교체할 수 없습니다");
-          }
-        }
-        const available = await registry.identitySourceAvailability(input.sources);
-        if (input.sources.some((s) => !available.some((v) => v.code === s.code && v.rule_id === s.rule_id))) {
-          throw invalidInput("발급처와 번호 정의를 확인하세요");
-        }
-        await registry.updateTypeIdentity(id, input);
-      }
-    }
-    for (const relation of target.relations) {
-      const old = source.relations.find((o) => o.id === relation.id);
-      const ends = relation.ends.map((e) => ({
-        type_id: plan.review.mapping.types[e.type_ref],
-        label: e.label,
-        cardinality: e.cardinality,
-      }));
-      const oldEnds = old?.ends.map((e) => ({
-        type_id: source.entity_types.find((t) => t.ref === e.type_ref)!.schema["x-type-id"],
-        label: e.label,
-        cardinality: e.cardinality,
-      }));
-      if (old && same(ends, oldEnds) && old.archived === relation.archived) continue;
-      await new SqlEntityRelationDefinitionStore(tx, this.actor).assertCompatible(
-        relation.id,
-        ends as import("../../contracts/entity-relation.ts").EntityRelationDefinition["ends"],
-      );
-      await tx`select app.publish_data_model_relation(${relation.id}::uuid,${old?.version ?? null}::integer,${
-        tx.json(ends)
-      },${relation.archived})`;
-    }
-    const summarize = (items: ModelPlan["review"]["items"]) => ({
-      added: items.filter((i) => i.kind === "new").length,
-      updated: items.filter((i) => i.kind === "compatible").length,
-      unchanged: items.filter((i) => i.kind === "unchanged").length,
-    });
-    const counts = {
-      types: summarize(plan.review.items.slice(0, target.entity_types.length)),
-      relations: summarize(plan.review.items.filter((i) => i.ref.startsWith("relation:"))),
-      issuers: summarize(plan.review.items.filter((i) => i.ref.startsWith("issuer:"))),
-      rules: summarize(plan.review.items.filter((i) => i.ref.startsWith("rule:"))),
-    };
-    return {
-      changed: Object.values(counts).some((c) => c.added + c.updated > 0),
-      counts,
-      type_ids: target.entity_types.map((t) => t.schema["x-type-id"]),
-      relation_ids: target.relations.map((t) => t.id),
-    };
+    const [change] = await this.tx`select version from app.data_model_changes where id=${id}::uuid`;
+    const [row] = await this
+      .tx`select app.publish_prepared_data_model(${id}::uuid,${change.version}::integer) as result`;
+    return row.result as NonNullable<ModelChange["result"]>;
   }
   async complete(id: string, result: NonNullable<ModelChange["result"]>) {
     const [r] = await this.tx`update app.data_model_changes set status='applied',version=version+1,result=${
@@ -325,10 +178,13 @@ export class SqlDataModelStore implements DataModelStore {
   }
 }
 export class SqlDataModelUnitOfWork {
-  constructor(private readonly sql: postgres.Sql) {}
+  constructor(
+    private readonly sql: postgres.Sql,
+    private readonly Store: typeof SqlDataModelStore = SqlDataModelStore,
+  ) {}
   run<T>(a: Actor, fn: (s: DataModelStore) => Promise<T>, readOnly = false) {
     return runAsActor(this.sql, a, async (tx) => {
-      if (readOnly) return fn(new SqlDataModelStore(tx, a));
+      if (readOnly) return fn(new this.Store(tx, a));
       // Before any model/type/entity row lock, share relation-definition writer ordering.
       await tx`select pg_advisory_xact_lock(hashtextextended(${a.userId + ":entity-relations"},0))`;
       await tx`select pg_advisory_xact_lock(hashtextextended(${a.userId + ":entity-types"},0))`;
@@ -337,7 +193,7 @@ export class SqlDataModelUnitOfWork {
       for (const suffix of [":entity-identity-registry", ":record_templates"]) {
         await tx`select pg_advisory_xact_lock(hashtextextended(${a.userId + suffix},0))`;
       }
-      return fn(new SqlDataModelStore(tx, a));
+      return fn(new this.Store(tx, a));
     }, readOnly ? "repeatable read read only" : undefined);
   }
 }

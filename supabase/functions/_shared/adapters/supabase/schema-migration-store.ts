@@ -204,6 +204,9 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
   }
   async loadMigrationAction(id: string): Promise<SchemaMigrationActionContext> {
     const identity = await this.job(id);
+    if (identity.model_change_id && identity.model_change_id !== this.modelChangeId) {
+      throw invalidInput("전체 모델 소속 작업은 자료 모델에서 함께 처리하세요");
+    }
     const [type] = await this
       .tx`select schema_write_locked from app.entity_types where id=${identity.type_id} for update`;
     if (!type) throw notFound();

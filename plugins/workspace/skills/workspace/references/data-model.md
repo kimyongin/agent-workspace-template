@@ -15,3 +15,5 @@
 개별 prepare_entity_schema_import는 과거 완료 요청의 정확한 조회 전용이다. 새 작업에서 사용하지 않는다. 이 도구가 발견되더라도 신규 가져오기를 지원한다고 해석하지 않는다. 실제 연결된 서버의 도구 목록에 전체 모델 도구가 없으면 현재 소스 구현과 배포된 기능을 구분해 보고한다.
 
 | 전환 전 완료 요청의 정확한 재확인만 | `prepare_entity_schema_import` | 새 가져오기는 거절되며 보존된 성공 결과만 확인한다 |
+
+값 변환이 필요한 전체 변경안은 `analyze_data_model`에 각 type_ref의 제한된 migration rules와 실패 행 overrides를 함께 제출한다. `get_data_model_change`에서 모든 종류의 성공 분석과 행 보완을 확인한 뒤 `apply_data_model`로 전체 준비를 접수한다. queued/preparing/ready_to_commit/committing은 완료가 아니며 같은 변경안 ID를 조회한다. 종류별 자식 도구로 별도 게시·취소·재시도하지 않는다. 하나라도 실패하면 어떤 종류도 부분 적용되지 않는다. 적용 전 취소는 `cancel_data_model`, retryable 실패의 같은 작업 재개는 `retry_data_model`이며 expected_version과 request_key에 결속한다. 응답 불명은 새 작업을 만들지 말고 같은 키·같은 입력 재확인과 상태 조회를 사용한다.
