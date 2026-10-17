@@ -6,6 +6,7 @@ import { ProfileIcon } from "../features/settings/profile.tsx";
 import { accountPreferences, profileName } from "../features/settings/account-preferences.ts";
 
 import { navigationSection } from "./navigation-section.ts";
+import { workspaceBase } from "../features/details/workspace-context.ts";
 import appIcon from "./app-icon.svg";
 import { api } from "../lib/api.ts";
 import type { EntityDetail } from "@contracts/entity.ts";
@@ -77,11 +78,8 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
     return () => controller.abort();
   }, [location.pathname, requestedTypeId, session?.user.id]);
   const owner = location.pathname.startsWith("/settings") ? null : location.state?.workspaceOwner;
-  const current = navigationSection(
-    typeof owner === "string" && /^\/(entities|tasks|records|search)$/.test(owner)
-      ? owner
-      : location.pathname,
-  );
+  const currentPath = typeof owner === "string" && workspaceBase(owner) ? owner : location.pathname;
+  const current = navigationSection(currentPath);
   const isCurrent = (entry: (typeof entries)[number]) => navigationEntryCurrent(entry, current, typeId);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -150,10 +148,10 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
     };
   }, [open]);
   const profileCurrent = current === "more" || !!current && !entries.slice(0, capacity).some(isCurrent);
-  const settingsTypeId = location.pathname.match(/^\/settings\/(?:entity-types|materials)\/([^/]+)/)?.[1];
+  const settingsTypeId = currentPath.match(/^\/settings\/(?:entity-types|materials)\/([^/]+)/)?.[1];
   const currentLabel = currentNavigationName(
     current,
-    location.pathname,
+    currentPath,
     catalog.types?.find((type) => type.id === (settingsTypeId ?? typeId))?.label,
   );
   return (

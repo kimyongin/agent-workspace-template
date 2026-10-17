@@ -302,15 +302,41 @@ test("desktop: closing an inactive dirty tab asks once; cancel and discard prese
   await expect(page.getByRole("tab")).toHaveCount(1); await expect(confirm).not.toBeVisible();
   await expect(panel(page).getByRole("heading", { name: "등심", exact: true })).toBeVisible(); expect(state.errors).toEqual([]);
 });
-test("desktop: hidden dirty drafts protect leaving workspace and cleanup after approval", async ({ page }) => {
-  const state = await fixture(page); await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`); await openTask(page);
-  await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("초안");
-  await page.getByRole("tab", { name: "등심", exact: true }).click(); await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click(); await page.getByRole("link", { name: "설정", exact: true }).click();
-  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" }); await confirm.getByRole("button", { name: "취소", exact: true }).click();
+test("desktop: settings and guide preserve retained drafts; logout still protects them", async ({ page }, info) => {
+  const state = await fixture(page);
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await openTask(page);
+  await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+  await panel(page).getByLabel("본문", { exact: true }).fill("메뉴를 이동해도 유지할 초안");
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
+  await page.getByRole("link", { name: "설정", exact: true }).click();
+  const left = page.locator(".workspace-list");
+  await expect(left.getByRole("heading", { name: "기본 설정", level: 1, exact: true })).toBeVisible();
+  await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
+  await left.getByLabel("닉네임", { exact: true }).fill("왼쪽 설정의 초안");
+  await page.getByRole("tab", { name: "등심", exact: true }).click();
+  await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
+  await expect(left.getByLabel("닉네임", { exact: true })).toHaveValue("왼쪽 설정의 초안");
+  await expect(page.getByRole("button", { name: /^내 프로필 · 설정 현재 화면$/ })).toHaveAttribute("aria-current", "page");
+  await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
+  await page.screenshot({ path: info.outputPath("settings-and-retained-detail.png") });
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
+  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  await confirm.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(left.getByLabel("닉네임", { exact: true })).toHaveValue("왼쪽 설정의 초안");
+  if (await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).getAttribute("aria-expanded") !== "true") await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
+  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  await confirm.getByRole("button", { name: "변경 버리기" }).click();
+  await expect(left.getByRole("heading", { name: "사용 가이드", level: 1, exact: true })).toBeVisible();
+  await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
+  await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("tab")).toHaveCount(2);
-  if(await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/}).getAttribute("aria-expanded")!=="true")await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click(); await confirm.getByRole("button", { name: "변경 버리기" }).click();
-  await expect(page).toHaveURL(/\/settings$/); await expect(page.getByRole("tab")).toHaveCount(0); expect(state.errors).toEqual([]);
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
 });
 test("mobile: direct detail keeps existing modal and no desktop tabs", async ({ page }) => {
   const state = await fixture(page); await page.setViewportSize({ width: 390, height: 844 }); await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
@@ -723,7 +749,7 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900");
   await page.getByRole("button", {name:"검사 자료 추가",exact:true}).click();
   const form = page.getByRole("dialog", {name:"검사 자료 추가",exact:true});
-  await expect(form.getByLabel("번호")).toBeDisabled();
+  await expect(form.getByRole("textbox", { name: "번호", exact: true })).toBeDisabled();
   if (entered) await form.getByLabel("제목").fill("설정 도착 전 입력");
   releaseSettings();
   await expect(form.getByLabel("자료 번호")).toBeEnabled();
@@ -973,4 +999,84 @@ test("related navigation hides the previous model edit action while the destinat
   } finally {
     release();
   }
+});
+
+test("desktop: opened detail tabs stay visible while navigating to another list", async ({ page }) => {
+  const state = await fixture(page);
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await openTask(page);
+  await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+  await panel(page).getByLabel("본문", { exact: true }).fill("목록 이동 후에도 유지");
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "기록", exact: true }).click();
+  await expect(page).toHaveURL(/\/records$/);
+  await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible();
+  await expect(page.locator(".detail-workspace")).toHaveClass(/has-detail-panel/);
+  await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toBeVisible();
+  await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("목록 이동 후에도 유지");
+  expect(state.writes).toEqual([]);
+});
+
+test("desktop: opened detail tabs stay visible when opening settings from the left menu", async ({ page }) => {
+  await fixture(page);
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
+  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("heading", { name: "기본 설정", level: 1, exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
+});
+
+test("desktop: a pending detail write remains protected while settings is the left pane", async ({ page }) => {
+  const state = await fixture(page, { hold: true });
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await openTask(page);
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
+  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await expect(page.locator(".workspace-list").getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+  await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+  await panel(page).getByLabel("본문", { exact: true }).fill("설정 화면에서 상세 저장");
+  await panel(page).getByRole("button", { name: "저장", exact: true }).click();
+  await page.locator("dialog.modal-action[open]").getByRole("button", { name: "수정하고 저장" }).click();
+  await state.pending;
+  try {
+    await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기록", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+    for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true }).evaluate((el: HTMLButtonElement) => el.click());
+    await expect(page.locator(".workspace-list").getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveCount(2);
+    await expect(page.locator(".detail-workspace")).toHaveClass(/has-detail-panel/);
+  } finally { state.release(); }
+  await expect(panel(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  expect(state.errors).toEqual([]);
+});
+
+test("desktop: a pending base setting also prevents closing or hiding the retained detail", async ({ page }) => {
+  await fixture(page);
+  let release!: () => void;
+  let started!: () => void;
+  const waiting = new Promise<void>((resolve) => { release = resolve; });
+  const pending = new Promise<void>((resolve) => { started = resolve; });
+  await page.route("**/auth/v1/user", async (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    started();
+    await waiting;
+    await route.fulfill({ status: 400, json: { message: "Fixture profile save rejected" } });
+  });
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
+  await page.getByRole("link", { name: "설정", exact: true }).click();
+  const form = page.getByRole("form", { name: "프로필 설정", exact: true });
+  await form.getByLabel("닉네임", { exact: true }).fill("진행 중인 왼쪽 설정");
+  await form.getByRole("button", { name: "프로필 저장", exact: true }).click();
+  await pending;
+  try {
+    await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).evaluate((el: HTMLButtonElement) => el.click());
+    await page.getByRole("button", { name: "상세 패널 숨기기", exact: true }).evaluate((el: HTMLButtonElement) => el.click());
+    await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기록", exact: true }).click();
+    await expect(form).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
+    await expect(page.locator(".detail-workspace")).toHaveClass(/has-detail-panel/);
+  } finally { release(); }
+  await expect(form).toHaveAttribute("aria-busy", "false");
+  await expect(form.getByLabel("닉네임", { exact: true })).toHaveValue("진행 중인 왼쪽 설정");
 });

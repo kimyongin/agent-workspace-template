@@ -1,6 +1,7 @@
+import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { SettingsHeading } from "../settings/SettingsHeading.tsx";
 import { useEffect, useRef, useState } from "react";
-import { useBlocker, useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { ConfirmationSurface, ConfirmDialog } from "../../components/ConfirmDialog.tsx";
 import { type SurfaceAction, SurfaceActionContext } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
@@ -17,7 +18,7 @@ export function TagSettingsPage() {
   const [state, setState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const [action, setAction] = useState<SurfaceAction | null>(null);
   const selector = useRef<HTMLSelectElement>(null);
-  const blocker = useBlocker(state.dirty || state.busy);
+  const blocker = usePageNavigationBlocker(state.dirty, state.busy);
   useEffect(() => {
     if (state.busy && blocker.state === "blocked") blocker.reset();
   }, [state.busy, blocker]);

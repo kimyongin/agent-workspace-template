@@ -1,5 +1,5 @@
+import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useState } from "react";
-import { useBlocker } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
@@ -18,7 +18,7 @@ export function RecordSettingsPage() {
   const report = useCallback((id: string, state: MaterialSectionState) => setStates(current => ({ ...current, [id]: state })), []);
   const busy = Object.values(states).some(state => state.busy);
   const dirty = Object.values(states).some(state => state.dirty || state.uncertain);
-  const blocker = useBlocker(dirty || busy);
+  const blocker = usePageNavigationBlocker(dirty, busy);
   useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => { if (dirty || busy) { event.preventDefault(); event.returnValue = ""; } };

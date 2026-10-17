@@ -1,5 +1,6 @@
+import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useBlocker, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import type { EntityRelationDefinition, EntityRelationDefinitionPage } from "@contracts/entity-relation.ts";
 import { api, query } from "../../lib/api.ts";
 import { Field } from "../../components/Field.tsx";
@@ -28,7 +29,7 @@ export function RelationSettingsPage() {
     returnFocus = useRef<HTMLElement | null>(null),
     request = useRef<AbortController | null>(null);
   const endpoint = `/entity-relation-definitions${query({ type_id: typeId, q, archived })}`;
-  const blocked = useBlocker(formState.dirty || formState.busy);
+  const blocked = usePageNavigationBlocker(formState.dirty, formState.busy);
   useEffect(() => {
     if (formState.busy && blocked.state === "blocked") blocked.reset();
   }, [formState.busy, blocked]);

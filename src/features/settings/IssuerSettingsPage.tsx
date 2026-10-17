@@ -1,5 +1,5 @@
+import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { useBlocker } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
@@ -310,7 +310,7 @@ export function IssuerSettingsPage() {
 function InlineNumberNavigationGuard(
   { dirty, locked }: { dirty: boolean; locked: boolean },
 ) {
-  const blocker = useBlocker(dirty || locked);
+  const blocker = usePageNavigationBlocker(dirty, locked);
   useEffect(() => {
     if (locked && blocker.state === "blocked") blocker.reset();
   }, [locked, blocker]);
