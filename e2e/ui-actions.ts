@@ -19,9 +19,12 @@ export async function openMainNavigation(page: Page) {
   const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
   const sheet = page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true });
   if (await compactNavigation(page)) {
-    await expect(trigger).toBeVisible();
     if (await sheet.count() && await sheet.getAttribute("data-state") === "closed") await expect(sheet).toHaveCount(0);
-    if (!await sheet.count()) await trigger.click();
+    if (!await sheet.count()) {
+      await expect(trigger).toBeVisible();
+      await trigger.click();
+    }
+    await expect(sheet).toHaveAttribute("data-state", "open");
     await expect(sheet).toBeVisible();
   } else {
     await expect(trigger).toHaveCount(0);
@@ -42,7 +45,7 @@ export async function closeMainNavigation(page: Page) {
 export async function openProfileMenu(page: Page) {
   const compact = await compactNavigation(page);
   const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
-  if (compact) await expect(trigger).toBeVisible(); else await expect(trigger).toHaveCount(0);
+  if (!compact) await expect(trigger).toHaveCount(0);
   const popup = page.getByRole("menu", { includeHidden: true }).filter({ has: page.getByRole("menuitem", { name: "로그아웃", exact: true, includeHidden: true }) });
   const sheet = page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true });
   if (await popup.isVisible() && await popup.getAttribute("data-state") === "open") {
