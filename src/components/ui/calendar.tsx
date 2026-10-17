@@ -219,7 +219,12 @@ function CalendarDayButton({
         props.onFocus?.(event)
         cancelAnimationFrame(revealFrame.current)
         // Reveal the full target after DayPicker commits its controlled focus and selection.
-        revealFrame.current = requestAnimationFrame(() => ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" }))
+        revealFrame.current = requestAnimationFrame(() => {
+          const button = ref.current
+          if (button && button.ownerDocument.activeElement === button) {
+            button.scrollIntoView({ block: "nearest", inline: "nearest" })
+          }
+        })
       }}
     />
   )
