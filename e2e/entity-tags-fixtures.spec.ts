@@ -54,9 +54,10 @@ async function settings(page: Page) {
   if(inert)await link.evaluate((el:HTMLAnchorElement)=>el.click());else await link.click();
 }
 async function closeMainNavigation(page: Page) {
-  const menu = page.getByRole("dialog", { name: "주 메뉴", exact: true });
+  // The closing confirmation temporarily aria-hides the still-open navigation Sheet.
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true, includeHidden: true })).toHaveCount(0);
+  const menu = page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true });
   if (await menu.isVisible()) {
-    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true })).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
   }
