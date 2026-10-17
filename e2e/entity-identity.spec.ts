@@ -495,6 +495,15 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
   await form.getByRole("button", { name: "저장", exact: true }).click();
   const defaults = await (await prepared).json();
   const confirmation = executionDialog(page);
+  const target = confirmation.getByRole("term").filter({ hasText: /^대상$/ })
+    .locator("..").getByRole("definition");
+  expect(defaults.prepared_input).toMatchObject({
+    entity_type_id: fixtureType!.id,
+    source,
+    external_id: identity,
+    properties: { prop_1: title },
+  });
+  await expect(target).toHaveText(title);
   await expect(confirmation.getByLabel("기록 메모", { exact: true }))
     .toHaveValue(defaults.change_note);
   release();
@@ -505,7 +514,7 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
   await expect(
     confirmation.getByRole("button", { name: "등록하고 저장", exact: true }),
   ).toBeEnabled();
-  await expect(confirmation.getByRole("heading")).toContainText(title);
+  await expect(target).toHaveText(title);
   await expect(confirmation.getByLabel("기록 메모", { exact: true }))
     .toHaveValue(defaults.change_note);
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
