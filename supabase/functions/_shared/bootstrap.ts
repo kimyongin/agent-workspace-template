@@ -107,3 +107,10 @@ let relationDefinitions: EntityRelationDefinitionDeps | undefined;
 export function entityRelationDefinitionDeps(): EntityRelationDefinitionDeps {
   return relationDefinitions ??= { uow: new SqlEntityRelationDefinitionUnitOfWork(database()) };
 }
+
+import { SqlDataModelUnitOfWork } from "./adapters/supabase/data-model-store.ts";
+import type { DataModelDeps } from "./core/data-model/application.ts";
+let model: DataModelDeps | undefined;
+export function dataModelDeps(): DataModelDeps {
+  return model ??= { uow: new SqlDataModelUnitOfWork(database()) };
+}

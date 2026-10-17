@@ -1,0 +1,88 @@
+import { z } from "zod";
+import type { EntitySchema } from "./entity-type.ts";
+import type { SchemaDiff } from "./entity-schema-change.ts";
+import { issuerCode, typeIdentityUpdate } from "./entity-issuer.ts";
+import { relationEnd } from "./entity-relation.ts";
+const version = z.number().int().positive();
+export const modelIssuer = z.strictObject({
+  code: issuerCode,
+  label: z.string().min(1).max(100),
+  active: z.boolean(),
+  system: z.boolean(),
+  version,
+});
+export const modelRule = z.strictObject({
+  id: z.string().uuid(),
+  source: issuerCode,
+  label: z.string().min(1).max(100),
+  meaning: z.string().min(1).max(500),
+  generation: z.enum(["automatic", "direct"]),
+  active: z.boolean(),
+  version,
+});
+export const modelIdentity = z.strictObject({
+  label: typeIdentityUpdate.shape.label,
+  default_source: typeIdentityUpdate.shape.default_source,
+  sources: typeIdentityUpdate.shape.sources,
+  version,
+});
+export const modelRelation = z.strictObject({
+  id: z.string().uuid(),
+  version,
+  archived: z.boolean().default(false),
+  ends: z.tuple([
+    relationEnd.omit({ type_id: true }).extend({ type_ref: z.string().min(1) }),
+    relationEnd.omit({ type_id: true }).extend({ type_ref: z.string().min(1) }),
+  ]),
+});
+export const dataModelDocument = z.strictObject({
+  format: z.literal("workspace-data-model"),
+  format_version: z.literal(1),
+  title: z.string().min(1).max(100),
+  description: z.string().optional(),
+  entity_types: z.array(
+    z.strictObject({
+      ref: z.string().min(1),
+      schema: z.custom<EntitySchema>((v) => !!v && typeof v === "object" && !Array.isArray(v)),
+      identity: modelIdentity,
+    }),
+  ).max(64),
+  relations: z.array(modelRelation),
+  identity_definitions: z.strictObject({ issuers: z.array(modelIssuer), rules: z.array(modelRule) }),
+});
+export type DataModelDocument = z.infer<typeof dataModelDocument>;
+export const dataModelInput = z.strictObject({ document: z.string().min(1), mode: z.enum(["update", "copy"]) });
+export const dataModelPrepare = dataModelInput.extend({ preview_fingerprint: z.string().regex(/^[a-f0-9]{64}$/) });
+export const dataModelAction = z.strictObject({ expected_version: version });
+export type ModelItem = {
+  ref: string;
+  label: string;
+  kind: "new" | "unchanged" | "compatible" | "migration_required" | "conflict";
+  diff: SchemaDiff[];
+  current_schema_version?: number;
+  target_schema_version?: number;
+  message?: string;
+  schema?: EntitySchema;
+  current_schema?: EntitySchema;
+};
+export type ModelReview = {
+  fingerprint: string;
+  mode: "update" | "copy";
+  title: string;
+  items: ModelItem[];
+  mapping: {
+    types: Record<string, string>;
+    rules: Record<string, string>;
+    relations: Record<string, string>;
+    properties: Record<string, Record<string, string>>;
+  };
+  can_apply: boolean;
+};
+export type ModelChange = {
+  id: string;
+  version: number;
+  status: "ready" | "needs_conversion" | "applied" | "cancelled";
+  review: ModelReview;
+  created_at: string;
+  result: null | { type_ids: string[]; relation_ids: string[] };
+};

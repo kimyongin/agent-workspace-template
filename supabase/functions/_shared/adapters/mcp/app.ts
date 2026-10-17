@@ -1,3 +1,5 @@
+import type { DataModelDeps } from "../../core/data-model/application.ts";
+import { dataModelTools } from "./data-model-tools.ts";
 import type { EntityRelationDefinitionDeps } from "../../core/entity-relations/application.ts";
 import { entityRelationDefinitionTools } from "./entity-relation-definition-tools.ts";
 import { entityIssuerTools } from "./entity-issuer-tools.ts";
@@ -54,8 +56,10 @@ export function createMcpApp(
   entityPairs?: EntityPairDeps,
   issuers?: EntityIssuerDeps,
   relationDefinitions?: EntityRelationDefinitionDeps,
+  dataModel?: DataModelDeps,
 ) {
   const tools = [
+    ...(dataModel ? dataModelTools(dataModel) : []),
     ...(relationDefinitions ? entityRelationDefinitionTools(relationDefinitions) : []),
     ...(issuers ? entityIssuerTools(issuers) : []),
     ...activityTools(deps),

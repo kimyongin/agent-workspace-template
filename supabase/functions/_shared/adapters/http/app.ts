@@ -1,3 +1,5 @@
+import type { DataModelDeps } from "../../core/data-model/application.ts";
+import { dataModelRoutes } from "./data-model-routes.ts";
 import type { EntityRelationDefinitionDeps } from "../../core/entity-relations/application.ts";
 import { entityRelationDefinitionRoutes } from "./entity-relation-definition-routes.ts";
 import { entityIssuerRoutes } from "./entity-issuer-routes.ts";
@@ -48,6 +50,7 @@ export function createHttpApp(
   entityPairs?: EntityPairDeps,
   issuers?: EntityIssuerDeps,
   relationDefinitions?: EntityRelationDefinitionDeps,
+  dataModel?: DataModelDeps,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -86,6 +89,7 @@ export function createHttpApp(
   if (settings) app.route("/", settingsRoutes(settings));
   if (status) app.route("/", statusRoutes(status));
   if (entityPairs) app.route("/", entityPairRoutes(entityPairs));
+  if (dataModel) app.route("/", dataModelRoutes(dataModel));
   if (relationDefinitions) app.route("/", entityRelationDefinitionRoutes(relationDefinitions));
   if (issuers) app.route("/", entityIssuerRoutes(issuers));
   if (entityTypes) app.route("/", entityTypeRoutes(entityTypes));
