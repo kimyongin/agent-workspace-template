@@ -531,7 +531,7 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
   await page.getByRole("button", { name: "상태 다시 조회", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(
-    "값 변환은 완료되었습니다. 최신 속성 조회에 실패",
+    "값 변환은 완료되었습니다. 최신 입력 항목 조회에 실패",
   );
   await expect(page.getByRole("button", { name: /^입력 항목 변경/ }))
     .toContainText("적용됨");
