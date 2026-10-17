@@ -121,3 +121,51 @@ Deno.test("whole model accepts a valid multi-kind bundle larger than the retired
   assertEquals(r.items.filter((i) => i.kind === "new" && i.ref.startsWith("kind_")).length, 12);
   assertEquals(r.can_apply, true);
 });
+
+import { resolveModel } from "./application.ts";
+Deno.test("the original update file reapplies without losing immutable kind, property, rule or relation identities", async () => {
+  const doc = example();
+  doc.entity_types[0].schema.properties.prop_9 = { type: "string", "x-order": 2, title: "원본 키" };
+  doc.identity_definitions.issuers.push({ code: "seller", label: "판매자", active: true, system: false, version: 1 });
+  doc.identity_definitions.rules.push({
+    id: "20000000-0000-4000-8000-000000000001",
+    source: "seller",
+    label: "SKU",
+    meaning: "판매자 코드",
+    generation: "direct",
+    active: true,
+    version: 1,
+  });
+  doc.entity_types[0].identity.sources.push({
+    code: "seller",
+    rule_id: "20000000-0000-4000-8000-000000000001",
+    active: true,
+  });
+  const first = await resolveModel({ document: empty as DataModelDocument, types: {} }, doc, "update", actor.userId);
+  const types = Object.fromEntries(
+    first.target.entity_types.map(
+      (t) => [t.schema["x-type-id"], { next_property_number: 10, count: 0, locked: false }],
+    ),
+  );
+  const second = await resolveModel({ document: first.target, types }, doc, "update", actor.userId);
+  assertEquals(second.review.items.every((i) => i.kind === "unchanged"), true);
+  assertEquals(second.review.mapping.types.ingredient, first.review.mapping.types.ingredient);
+  assertEquals(second.review.mapping.properties.ingredient.prop_9, "prop_9");
+  assertEquals(
+    second.review.mapping.relations[doc.relations[0].id],
+    first.review.mapping.relations[doc.relations[0].id],
+  );
+});
+Deno.test("whole model review surfaces existing typed link cardinality and endpoint conflicts", async () => {
+  const doc = example();
+  const snapshot = {
+    document: doc,
+    types: { [doc.entity_types[0].schema["x-type-id"]]: { next_property_number: 2, count: 0, locked: false } },
+    relation_usage: { [doc.relations[0].id]: { links: 2, left_many: true, right_many: false } },
+  };
+  const target = structuredClone(doc);
+  target.relations[0].ends[0].cardinality = "one";
+  const review = (await resolveModel(snapshot, target, "update", actor.userId)).review;
+  assertEquals(review.items.find((i) => i.ref === `relation:${doc.relations[0].id}`)?.kind, "conflict");
+  assertEquals(review.can_apply, false);
+});

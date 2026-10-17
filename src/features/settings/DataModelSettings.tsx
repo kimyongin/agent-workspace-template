@@ -11,6 +11,7 @@ import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
 import { schemaDiffLabel, schemaDiffValueLabel } from "./schema-labels.ts";
+import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { isModelGroup, ModelGroupEditor, type ModelGroupState } from "./ModelGroupEditor.tsx";
 import "./settings.css";
 
@@ -76,6 +77,37 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
   return (
     <section aria-label="전체 모델 검토" className="settings-fields">
       <h3 className="section-title">{review.title}</h3>
+      <details>
+        <summary>원본·대상 대응</summary>
+        <dl className="props schema-definition-values">
+          {Object.entries(review.mapping.types).map(([source, target]) => (
+            <div key={`type:${source}`}>
+              <dt>자료 종류 · {review.items.find((i) => i.ref === source)?.label ?? source}</dt>
+              <dd>{review.items.find((i) => i.ref === source)?.source_type_id ?? source} → {target}</dd>
+            </div>
+          ))}
+          {Object.entries(review.mapping.properties).flatMap(([type, properties]) =>
+            Object.entries(properties).map(([source, target]) => (
+              <div key={`${type}:${source}`}>
+                <dt>입력 항목 · {review.items.find((i) => i.ref === type)?.label ?? type}</dt>
+                <dd>{source} → {target}</dd>
+              </div>
+            ))
+          )}
+          {Object.entries(review.mapping.rules).map(([source, target]) => (
+            <div key={`rule:${source}`}>
+              <dt>번호 정의</dt>
+              <dd>{source} → {target}</dd>
+            </div>
+          ))}
+          {Object.entries(review.mapping.relations).map(([source, target]) => (
+            <div key={`relation:${source}`}>
+              <dt>자료 관계</dt>
+              <dd>{source} → {target}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
       <div className="issuer-registry-list">
         {review.items.map((item) => (
           <ReviewRow
@@ -112,6 +144,56 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
       onToggle={() => setOpen(!open)}
     >
       {item.message && <p>{item.message}</p>}
+      {item.relation_impact && (
+        <p className="help">
+          현재 연결 {item.relation_impact.links}개 · 첫 번째 역할 복수 연결{" "}
+          {item.relation_impact.left_many ? "있음" : "없음"} · 두 번째 역할 복수 연결{" "}
+          {item.relation_impact.right_many ? "있음" : "없음"}
+        </p>
+      )}
+      {item.schema && <SchemaDefinitionRead definition={{ schema: item.schema }} />}
+      {item.identity && (
+        <section aria-label="번호 설정 검토">
+          <h3 className="section-title">번호 설정</h3>
+          <dl className="props schema-definition-values">
+            <div>
+              <dt>번호 이름</dt>
+              <dd>{item.identity.label}</dd>
+            </div>
+            <div>
+              <dt>기본 발급처</dt>
+              <dd>{item.identity.default_source}</dd>
+            </div>
+            {item.identity.sources.map((source) => (
+              <div key={source.code}>
+                <dt>{source.code}</dt>
+                <dd>{source.rule_id} · {source.active ? "사용" : "중지"}</dd>
+              </div>
+            ))}
+          </dl>
+          {item.current_identity && (
+            <details>
+              <summary>현재 번호 설정</summary>
+              <dl className="props schema-definition-values">
+                <div>
+                  <dt>번호 이름</dt>
+                  <dd>{item.current_identity.label}</dd>
+                </div>
+                <div>
+                  <dt>기본 발급처</dt>
+                  <dd>{item.current_identity.default_source}</dd>
+                </div>
+                {item.current_identity.sources.map((source) => (
+                  <div key={source.code}>
+                    <dt>{source.code}</dt>
+                    <dd>{source.rule_id} · {source.active ? "사용" : "중지"}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          )}
+        </section>
+      )}
       {(item.source_schema_version !== undefined || item.current_schema_version !== undefined) && (
         <p className="help">
           파일 원본 버전 {item.source_schema_version ?? "기록 없음"} · 현재 버전{" "}

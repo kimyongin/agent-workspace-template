@@ -64,6 +64,7 @@ export type ModelItem = {
   label: string;
   kind: "new" | "unchanged" | "compatible" | "migration_required" | "conflict";
   diff: SchemaDiff[];
+  source_type_id?: string;
   source_schema_version?: number;
   source_is_stale?: boolean;
   removed_keys?: string[];
@@ -72,6 +73,9 @@ export type ModelItem = {
   message?: string;
   schema?: EntitySchema;
   current_schema?: EntitySchema;
+  identity?: DataModelDocument["entity_types"][number]["identity"];
+  current_identity?: DataModelDocument["entity_types"][number]["identity"];
+  relation_impact?: { links: number; left_many: boolean; right_many: boolean };
 };
 export type ModelReview = {
   fingerprint: string;

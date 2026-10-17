@@ -41,7 +41,7 @@ export function dataModelTools(d: DataModelDeps): ToolDef[] {
       description: "소유자의 전체 모델 변경 이력을 페이지 조회합니다.",
       input: z.strictObject({
         limit: z.number().int().min(1).max(100).default(20),
-        cursor: z.string().uuid().optional(),
+        cursor: z.string().optional(),
       }),
       readOnly: true,
       handler: (i, a) => listDataModelChanges(d, a, i),

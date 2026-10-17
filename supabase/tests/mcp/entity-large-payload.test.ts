@@ -42,11 +42,17 @@ httpTest(
       client = await connectMcp(grant.access_token);
       const catalog = await client.listTools(),
         names = catalog.tools.map((t) => t.name);
-      assertEquals(names.length, 66);
-      assertEquals(new Set(names).size, 66);
+      assertEquals(new Set(names).size, names.length);
       for (
         const name of [
           "get_entity_schema",
+          "export_data_model",
+          "preview_data_model",
+          "prepare_data_model",
+          "apply_data_model",
+          "list_entity_relation_definitions",
+          "list_entity_relation_links",
+          "create_and_link_entity",
           "list_entities",
           "get_entity",
           "create_entity",

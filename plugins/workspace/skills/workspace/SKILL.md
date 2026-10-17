@@ -90,6 +90,8 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 | 하려는 일 | 도구 |
 | --- | --- |
+| 전체 자료 모델 내보내기·가져오기 검토·준비·이력·전체 적용([상세](references/data-model.md)) | `export_data_model`, `preview_data_model`, `prepare_data_model`, `list_data_model_changes`, `get_data_model_change`, `apply_data_model` |
+| 전환 전 완료 요청의 정확한 재확인만(신규 가져오기는 거절, [상세](references/data-model.md)) | `prepare_entity_schema_import` |
 | 업무 설정 조회·요청받은 설정 변경 | `get_business_settings`, `update_business_settings` |
 | 변경 메모·기록 태그와 실제 저장 입력 준비 | `prepare_record_memo` |
 | 자료 종류의 번호 라벨·지원 발급처·기본값 조회·설정 | `get_entity_type_identity`, `update_entity_type_identity` |

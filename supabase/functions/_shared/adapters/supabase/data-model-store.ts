@@ -11,6 +11,8 @@ import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
 import { SqlEntityRelationDefinitionStore } from "./entity-relation-definition-store.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import { runAsActor } from "./sql-context.ts";
+import { decodeCursor, paginate, scopeOf } from "../../core/shared/operations.ts";
+import { z } from "zod";
 const ref = (id: string) => "type_" + id;
 function changeRow(r: postgres.Row): ModelChange & { plan: ModelPlan } {
   return {
@@ -28,7 +30,9 @@ function receiptChange(value: ModelChange): ModelChange {
     ...value,
     review: {
       ...value.review,
-      items: value.review.items.map(({ schema: _s, current_schema: _c, ...item }) => ({ ...item, diff: [] })),
+      items: value.review.items.map((
+        { schema: _s, current_schema: _c, identity: _i, current_identity: _ci, ...item },
+      ) => ({ ...item, diff: [] })),
     },
   };
 }
@@ -102,7 +106,25 @@ export class SqlDataModelStore implements DataModelStore {
     };
     const used =
       await tx`select r.id,exists(select 1 from app.entity_type_identity_sources s where s.rule_id=r.id and s.referenced) as referenced from app.entity_identifier_rules r`;
-    return { document, types, rule_usage: Object.fromEntries(used.map((r) => [String(r.id), Boolean(r.referenced)])) };
+    const usage = await tx`select d.id,
+      (select count(*)::int from app.entity_relation_links l where l.owner_id=d.owner_id and l.definition_id=d.id) as links,
+      exists(select 1 from app.entity_relation_links l where l.owner_id=d.owner_id and l.definition_id=d.id group by l.left_entity_id having count(*)>1) as left_many,
+      exists(select 1 from app.entity_relation_links l where l.owner_id=d.owner_id and l.definition_id=d.id group by l.right_entity_id having count(*)>1) as right_many
+      from app.entity_relation_definitions d where d.owner_id=${this.actor.userId}::uuid`;
+    return {
+      document,
+      types,
+      relation_usage: Object.fromEntries(
+        usage.map(
+          (r) => [String(r.id), {
+            links: Number(r.links),
+            left_many: Boolean(r.left_many),
+            right_many: Boolean(r.right_many),
+          }],
+        ),
+      ),
+      rule_usage: Object.fromEntries(used.map((r) => [String(r.id), Boolean(r.referenced)])),
+    };
   }
   async save(plan: ModelPlan) {
     const [r] = await this.tx`insert into app.data_model_changes(owner_id,status,plan) values(${this.actor.userId},${
@@ -118,16 +140,27 @@ export class SqlDataModelStore implements DataModelStore {
     return r ? changeRow(r) : null;
   }
   async list(limit: number, cursor?: string) {
-    const rows = await this.tx`select * from app.data_model_changes where (${cursor ?? null}::uuid is null or id>${
-      cursor ?? null
-    }::uuid) order by id limit ${limit + 1}`;
-    return {
-      items: rows.slice(0, limit).map((r) => {
-        const { plan: _p, ...v } = changeRow(r);
-        return v;
+    const scope = await scopeOf(this.actor, { list: "data-model-changes" });
+    const after = cursor ? decodeCursor(cursor, scope).id : null;
+    if (after) {
+      if (!z.string().uuid().safeParse(after).success) throw invalidInput("유효하지 않은 cursor입니다");
+      const [anchor] = await this
+        .tx`select id from app.data_model_changes where owner_id=${this.actor.userId}::uuid and id=${after}::uuid`;
+      if (!anchor) throw invalidInput("cursor의 기준 이력이 없습니다. 목록을 다시 조회하세요");
+    }
+    const rows = await this
+      .tx`select * from app.data_model_changes where owner_id=${this.actor.userId}::uuid and (${after}::uuid is null or id>${after}::uuid) order by id limit ${
+      limit + 1
+    }`;
+    return paginate(
+      rows.map((r) => {
+        const { plan: _p, ...value } = changeRow(r);
+        return receiptChange(value);
       }),
-      next_cursor: rows.length > limit ? rows[limit - 1].id : null,
-    };
+      limit,
+      () => "1970-01-01T00:00:00.000Z",
+      scope,
+    );
   }
   async publishPreparedModel(plan: ModelPlan) {
     const tx = this.tx, target = plan.target, source = plan.source, registry = new SqlEntityIssuerStore(tx, this.actor);

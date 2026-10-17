@@ -20,6 +20,7 @@ export type ModelSnapshot = {
   document: DataModelDocument;
   types: Record<string, { next_property_number: number; count: number; locked: boolean }>;
   rule_usage?: Record<string, boolean>;
+  relation_usage?: Record<string, { links: number; left_many: boolean; right_many: boolean }>;
 };
 export type ModelPlan = {
   target: DataModelDocument;
@@ -151,11 +152,13 @@ export async function resolveModel(
   snapshot: ModelSnapshot,
   document: DataModelDocument,
   mode: "update" | "copy",
+  namespace: string,
 ): Promise<ModelPlan> {
   const source = snapshot.document,
     baseline = await definitionFingerprint(snapshot),
     seed = await definitionFingerprint({ baseline, document, mode }),
     target = structuredClone(document);
+  const updateSeed = await definitionFingerprint(["data-model-update", namespace]);
   // Copy collisions receive a visible new label, never an implicit merge by name.
   const occupied = new Set(source.entity_types.filter((t) => !t.schema.deprecated).map((t) => t.schema.title));
   if (mode === "copy") {
@@ -182,11 +185,26 @@ export async function resolveModel(
   );
   const mapping: ModelReview["mapping"] = { types: {}, rules: {}, relations: {}, properties: {} };
   const items: ModelReview["items"] = [];
+  for (const r of target.identity_definitions.rules) {
+    const updateId = await mappedId(updateSeed, "rule:" + r.id);
+    const old = source.identity_definitions.rules.find((x) => x.id === r.id) ??
+      (mode === "update" ? source.identity_definitions.rules.find((x) => x.id === updateId) : undefined);
+    mapping.rules[r.id] = r.source === "app"
+      ? APP_IDENTIFIER_RULE_ID
+      : mode === "update" && old
+      ? old.id
+      : await mappedId(mode === "update" ? updateSeed : seed, "rule:" + r.id);
+    r.id = mapping.rules[r.id];
+  }
+  for (const t of target.entity_types) for (const s of t.identity.sources) s.rule_id = mapping.rules[s.rule_id];
   for (const t of target.entity_types) {
+    const updateId = await mappedId(updateSeed, "type:" + t.schema["x-type-id"]);
     const old = mode === "update"
-      ? source.entity_types.find((s) => s.schema["x-type-id"] === t.schema["x-type-id"])
+      ? source.entity_types.find((s) => s.schema["x-type-id"] === t.schema["x-type-id"]) ??
+        source.entity_types.find((s) => s.schema["x-type-id"] === updateId)
       : undefined;
-    mapping.types[t.ref] = old?.schema["x-type-id"] ?? await mappedId(seed, "type:" + t.ref);
+    mapping.types[t.ref] = old?.schema["x-type-id"] ??
+      (mode === "update" ? updateId : await mappedId(seed, "type:" + t.ref));
     const keys = Object.keys(t.schema.properties).sort((a, b) => Number(a.slice(5)) - Number(b.slice(5))),
       props: Record<string, string> = {};
     let next = old ? snapshot.types[old.schema["x-type-id"]].next_property_number : 1;
@@ -199,7 +217,8 @@ export async function resolveModel(
             message: "원본 종류의 최신 속성 키를 사용하세요",
           }]);
         }
-        props[k] = `prop_${next++}`;
+        props[k] = mode === "update" ? k : `prop_${next++}`;
+        if (mode === "update") next = Math.max(next, Number(k.slice(5)) + 1);
       }
     }
     mapping.properties[t.ref] = props;
@@ -225,9 +244,9 @@ export async function resolveModel(
       diff.push({
         path: "식별자 설정",
         before: old!.identity.label + " · 기본 " + old!.identity.default_source + " · " +
-          old!.identity.sources.map((x) => x.code).join(", "),
+          old!.identity.sources.map((x) => `${x.code} / ${x.rule_id} / ${x.active ? "사용" : "중지"}`).join(", "),
         after: t.identity.label + " · 기본 " + t.identity.default_source + " · " +
-          t.identity.sources.map((x) => x.code).join(", "),
+          t.identity.sources.map((x) => `${x.code} / ${x.rule_id} / ${x.active ? "사용" : "중지"}`).join(", "),
         before_present: true,
         after_present: true,
         kind: "compatible",
@@ -241,6 +260,7 @@ export async function resolveModel(
       kind,
       diff,
       current_schema_version: old?.schema["x-version"],
+      source_type_id: document.entity_types.find((x) => x.ref === t.ref)!.schema["x-type-id"],
       source_schema_version: document.entity_types.find((x) => x.ref === t.ref)!.schema["x-version"],
       source_is_stale: !!old &&
         old.schema["x-version"] !== document.entity_types.find((x) => x.ref === t.ref)!.schema["x-version"],
@@ -248,23 +268,17 @@ export async function resolveModel(
       target_schema_version: t.schema["x-version"],
       schema: t.schema,
       current_schema: old?.schema,
+      identity: t.identity,
+      current_identity: old?.identity,
     });
   }
-  for (const r of target.identity_definitions.rules) {
-    const old = source.identity_definitions.rules.find((x) => x.id === r.id);
-    mapping.rules[r.id] = r.source === "app"
-      ? APP_IDENTIFIER_RULE_ID
-      : mode === "update" && old
-      ? r.id
-      : await mappedId(seed, "rule:" + r.id);
-    r.id = mapping.rules[r.id];
-  }
-  for (const t of target.entity_types) for (const s of t.identity.sources) s.rule_id = mapping.rules[s.rule_id];
   for (const r of target.relations) {
     const id = r.id;
-    mapping.relations[id] = mode === "update" && source.relations.some((x) => x.id === id)
-      ? id
-      : await mappedId(seed, "relation:" + id);
+    const updateId = await mappedId(updateSeed, "relation:" + id);
+    const old = mode === "update"
+      ? source.relations.find((x) => x.id === id) ?? source.relations.find((x) => x.id === updateId)
+      : undefined;
+    mapping.relations[id] = old?.id ?? (mode === "update" ? updateId : await mappedId(seed, "relation:" + id));
     r.id = mapping.relations[id];
   }
   // Registry and relationship changes also appear in the same review, never silently apply outside its fingerprint.
@@ -292,13 +306,32 @@ export async function resolveModel(
       const immutableRuleConflict = category === "rule" && old && "meaning" in old && "meaning" in value &&
         (old.source !== value.source || old.generation !== value.generation ||
           (old.meaning !== value.meaning && snapshot.rule_usage?.[old.id]));
+      const usage = category === "relation" ? snapshot.relation_usage?.[key] : undefined;
+      const relationshipConflict = !!usage && "ends" in value && old && "ends" in old && (
+        (usage.links > 0 &&
+          value.ends.some((e, side) =>
+            target.entity_types.find((t) => t.ref === e.type_ref)?.schema["x-type-id"] !==
+              source.entity_types.find((t) => t.ref === old.ends[side].type_ref)?.schema["x-type-id"]
+          )) ||
+        (value.ends[0].cardinality === "one" && usage.left_many) ||
+        (value.ends[1].cardinality === "one" && usage.right_many)
+      );
       items.push({
         ref: `${category}:${key}`,
         label: "label" in value ? value.label : value.ends.map((e) => e.label).join(" ↔ "),
-        kind: immutableRuleConflict ? "conflict" : equal ? "unchanged" : old ? "compatible" : "new",
+        kind: immutableRuleConflict || relationshipConflict
+          ? "conflict"
+          : equal
+          ? "unchanged"
+          : old
+          ? "compatible"
+          : "new",
         message: immutableRuleConflict
           ? "참조된 번호 의미 또는 불변 발급처·방식은 바꿀 수 없습니다. 새 번호 정의를 사용하세요"
+          : relationshipConflict
+          ? "기존 연결의 자료 종류 또는 한쪽의 복수 연결이 새 관계와 맞지 않습니다. 연결을 먼저 정리하세요"
           : undefined,
+        relation_impact: usage,
         diff: equal ? [] : [{
           path: category === "relation" ? "자료 관계" : category === "rule" ? "번호 정의" : "발급처",
           before: old ? JSON.stringify(comparable(old as typeof value, source)) : null,
@@ -348,12 +381,12 @@ export function exportDataModel(d: DataModelDeps, a: Actor) {
 }
 export function previewDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelInput, raw), document = parseModel(i.document);
-  return d.uow.run(a, async (s) => (await resolveModel(await s.snapshot(), document, i.mode)).review, true);
+  return d.uow.run(a, async (s) => (await resolveModel(await s.snapshot(), document, i.mode, a.userId)).review, true);
 }
 export function prepareDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelPrepare, raw), document = parseModel(i.document);
   return runWrite(d.uow, a, "data-model.prepare", null, i, async (s) => {
-    const plan = await resolveModel(await s.snapshot(), document, i.mode);
+    const plan = await resolveModel(await s.snapshot(), document, i.mode, a.userId);
     if (plan.review.fingerprint !== i.preview_fingerprint) {
       throw new AppError("schema_plan_stale", "모델이 변경되었습니다. 입력을 유지하고 다시 검토하세요");
     }
@@ -373,7 +406,7 @@ export function listDataModelChanges(d: DataModelDeps, a: Actor, raw: unknown = 
   const q = parse(
     z.strictObject({
       limit: z.coerce.number().int().min(1).max(100).default(20),
-      cursor: z.string().uuid().optional(),
+      cursor: z.string().optional(),
     }),
     raw,
   );

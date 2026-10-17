@@ -340,3 +340,104 @@ dbTest(
     }
   },
 );
+
+import { listDataModelChanges } from "../../functions/_shared/core/data-model/application.ts";
+import { SqlEntityRelationLinkUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-relation-link-store.ts";
+import { connectEntityRelation } from "../../functions/_shared/core/entity-relations/links.ts";
+import { getEntity } from "../../functions/_shared/core/entity/application.ts";
+dbTest(
+  "the original whole-model update file is a no-op on replay, with stable owner-scoped IDs and sparse source keys",
+  async () => {
+    const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
+    try {
+      const doc = JSON.parse(await Deno.readTextFile("docs/examples/data-model/openmarket.json")) as DataModelDocument;
+      doc.entity_types[0].schema.properties.prop_9 = { type: "string", title: "원본 유지 항목", "x-order": 9 };
+      const first = await install(a.actor, doc, "update");
+      const before = await exportDataModel(deps, a.actor);
+      const second = await install(a.actor, doc, "update");
+      assertEquals(second.review.items.every((i) => i.kind === "unchanged"), true);
+      assertEquals(second.applied.result?.changed, false);
+      assertEquals(await exportDataModel(deps, a.actor), before);
+      assertEquals(second.review.mapping, first.review.mapping);
+      assertEquals(second.review.mapping.properties[doc.entity_types[0].ref].prop_9, "prop_9");
+      const other = await install(b.actor, doc, "update");
+      assertEquals(other.applied.status, "applied");
+      assertEquals(
+        other.review.mapping.types[doc.entity_types[0].ref] === first.review.mapping.types[doc.entity_types[0].ref],
+        false,
+      );
+    } finally {
+      await a.cleanup();
+      await b.cleanup();
+    }
+  },
+);
+dbTest("model history scopes cursors to owner and existing anchors and returns compact summaries", async () => {
+  const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
+  try {
+    const doc = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
+    await install(a.actor, doc, "update");
+    await install(a.actor, doc, "update");
+    const page = await listDataModelChanges(deps, a.actor, { limit: 1 });
+    assertEquals(typeof page.next_cursor, "string");
+    assertEquals(page.items[0].review.items[0].schema, undefined);
+    assertEquals(page.items[0].review.items[0].identity, undefined);
+    await assertRejects(() => listDataModelChanges(deps, b.actor, { limit: 1, cursor: page.next_cursor! }));
+    const second = await listDataModelChanges(deps, a.actor, { limit: 1, cursor: page.next_cursor! });
+    assertEquals(second.items.length, 1);
+    const detail = await getDataModelChange(deps, a.actor, page.items[0].id);
+    assertEquals(!!detail.review.items[0].schema, true);
+    await asUser(
+      sql,
+      a.actor.userId,
+      (tx) => tx`delete from app.data_model_changes where id=${page.items[0].id}::uuid`,
+    );
+    await assertRejects(() => listDataModelChanges(deps, a.actor, { limit: 1, cursor: page.next_cursor! }));
+  } finally {
+    await a.cleanup();
+    await b.cleanup();
+  }
+});
+dbTest("model preview reports incompatible typed link cardinality before apply", async () => {
+  const a = await fixtureOwner(admin);
+  try {
+    const doc = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
+    const installed = await install(a.actor, doc, "update");
+    const relation = installed.review.mapping.relations[doc.relations[0].id];
+    const target = await exportDataModel(deps, a.actor);
+    const def = target.relations.find((r) => r.id === relation)!;
+    const ends = def.ends.map((e) => target.entity_types.find((t) => t.ref === e.type_ref)!.schema["x-type-id"]);
+    const entityDeps = { uow: new SqlEntityUnitOfWork(sql) };
+    const create = (kind: string, name: string) =>
+      createEntity(entityDeps, requestActor(a.actor), {
+        entity_type_id: kind,
+        schema_version: 1,
+        properties: { prop_1: name },
+      });
+    const origin = await create(ends[0], "원점"),
+      left = await create(ends[1], "연결1"),
+      right = await create(ends[1], "연결2");
+    for (const other of [left, right]) {
+      const fresh = await getEntity(entityDeps, a.actor, origin.id);
+      await connectEntityRelation({ uow: new SqlEntityRelationLinkUnitOfWork(sql) }, requestActor(a.actor), {
+        definition_id: relation,
+        side: 0,
+        origin_id: fresh.id,
+        other_id: other.id,
+        expected_definition_version: 1,
+        expected_version: fresh.version,
+        expected_other_version: other.version,
+      });
+    }
+    const changed = await exportDataModel(deps, a.actor);
+    changed.relations.find((r) => r.id === relation)!.ends[0].cardinality = "one";
+    const preview = await previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(changed) });
+    const item = preview.items.find((i) => i.ref === `relation:${relation}`)!;
+    assertEquals(item.kind, "conflict");
+    assertEquals(item.relation_impact?.links, 2);
+    assertEquals(item.relation_impact?.left_many, true);
+    assertEquals(preview.can_apply, false);
+  } finally {
+    await a.cleanup();
+  }
+});

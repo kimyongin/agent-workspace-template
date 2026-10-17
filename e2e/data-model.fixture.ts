@@ -1,3 +1,4 @@
+import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect, test } from "@playwright/test";
 import type { ModelChange, ModelReview } from "../supabase/functions/_shared/contracts/data-model.ts";
 const review: ModelReview = {
@@ -419,3 +420,46 @@ for (const noOp of [true, false]) {
     await expect(page.getByText("자료 종류 3개 · 관계 2개 적용", { exact: true })).toHaveCount(0);
   });
 }
+
+test("신규 종류의 실제 정의와 번호 및 원본 대응을 검토한다", async ({ page }, info) => {
+  const schema = {
+    ...initialEntityDefinition("판매상품명").schema,
+    title: "주문",
+    "x-type-id": "10000000-0000-4000-8000-000000000001",
+    "x-version": 1,
+  };
+  const detailed: ModelReview = {
+    ...review,
+    mapping: {
+      types: { order: schema["x-type-id"] },
+      properties: { order: { prop_9: "prop_1" } },
+      rules: { "20000000-0000-4000-8000-000000000001": "30000000-0000-4000-8000-000000000001" },
+      relations: {},
+    },
+    items: [{
+      ...review.items[0],
+      source_type_id: "40000000-0000-4000-8000-000000000001",
+      schema,
+      identity: {
+        version: 1,
+        label: "판매자상품번호",
+        default_source: "seller",
+        sources: [{ code: "seller", rule_id: "30000000-0000-4000-8000-000000000001", active: false }],
+      },
+    }],
+  };
+  await page.route("**/api/data-model/preview", (route) => route.fulfill({ json: detailed }));
+  await page.goto("/settings/data-model");
+  await page.getByRole("textbox", { name: "전체 모델 JSON" }).fill('{"format":"workspace-data-model"}');
+  await page.getByRole("button", { name: "가져올 내용 검토" }).click();
+  await page.getByRole("button", { name: "주문 추가", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "판매상품명", exact: true })).toBeVisible();
+  await expect(page.getByText("판매자상품번호", { exact: true })).toBeVisible();
+  await page.getByText("원본·대상 대응", { exact: true }).click();
+  await expect(page.getByText("prop_9 → prop_1", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("40000000-0000-4000-8000-000000000001 → 10000000-0000-4000-8000-000000000001", { exact: true }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath("model-definition-mapping.png"), fullPage: true });
+});
