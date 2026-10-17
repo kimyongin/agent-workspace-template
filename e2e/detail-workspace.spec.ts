@@ -1,7 +1,7 @@
 import { openProfileMenu } from "./ui-actions.ts";
 import { baseWorkspace, detailDialog, executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { fixtureIdentity, fixtureSchema } from "./support/workspace-data.ts";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Locator } from "@playwright/test";
 import { entityKey } from "./support/workspace-data.ts";
 import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.ts";
 import { entity, task, record,  id, stamp } from "./support/workspace-data.ts";
@@ -19,6 +19,11 @@ async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<s
 }
 const workspaceGroup = (page: Page) => baseWorkspace(page).locator("xpath=ancestor::*[@data-slot='resizable-panel-group'][1]");
 const panel = (page: Page) => page.getByRole("tabpanel").filter({ visible: true });
+/** Compare settled surface geometry without suppressing the official entrance animation. */
+async function settleSurface(surface: Locator) {
+  await expect.poll(() => surface.evaluate(element => element.getAnimations({ subtree: true })
+    .filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
+}
 async function detailWidth(page: Page) {
   return (await page.locator("[aria-label=\"상세 작업 영역\"]").boundingBox())!.width;
 }
@@ -1169,10 +1174,10 @@ test("desktop: entity pairs follow resized panel width and keep the same edit ax
   const detail = panel(page);
   const source = detail.locator("dt:visible", { hasText: /^번호 출처$/ });
   const number = detail.locator("dt:visible", { hasText: /^자료 번호$/ });
-  await separator.press("Home");
+  await separator.press("End");
   await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeLessThan(1);
   await page.screenshot({ path: info.outputPath("entity-narrow-panel.png") });
-  await separator.press("End");
+  await separator.press("Home");
   await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeGreaterThan(200);
   const before = (await source.boundingBox())!.x;
   await page.screenshot({ path: info.outputPath("entity-wide-panel.png") });
@@ -1195,7 +1200,7 @@ for (const kind of ["once", "recurring", "done"] as const) {
     const surface = panel(page);
     const expected = ["제목", "본문", "상태", "종류", ...(kind === "recurring" ? ["반복 규칙", "요일", "시작일", "시간대"] : ["기한"]), ...(kind === "done" ? ["완료 시각"] : [])];
     await expect(surface.locator("dt").filter({ hasText: /^제목$/ })).toHaveCount(1);
-    const labels = async () => surface.locator("dt:visible, .field > label:visible").allTextContents();
+    const labels = async () => surface.locator('dt:visible, [data-slot="field-label"]:visible').allTextContents();
     expect((await labels()).slice(0, expected.length)).toEqual(expected);
     await surface.getByRole("button", { name: "편집", exact: true }).click();
     expect((await labels()).slice(0, expected.length).map(s => s.replace(/\*\(필수\)/g, ""))).toEqual(expected);
@@ -1219,11 +1224,13 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const surface = width < 1100 ? openDialogs(page).first() : panel(page);
     const titleKey = surface.locator("dt:visible").filter({hasText:/^제목$/});
     await expect(titleKey).toBeVisible();
+    await settleSurface(surface);
     const beforeKey = (await titleKey.boundingBox())!;
     const beforeValue = (await titleKey.locator("../dd").boundingBox())!;
     await page.screenshot({path:info.outputPath(`task-view-${width}.png`)});
     await surface.getByRole("button", {name:"편집",exact:true}).click();
     const input = surface.getByLabel("제목");
+    await settleSurface(surface);
     const afterKey = (await surface.locator("label:visible").filter({hasText:/^제목/}).boundingBox())!;
     const afterValue = (await input.boundingBox())!;
     expect(afterKey.x).toBeCloseTo(beforeKey.x,0);
@@ -1262,7 +1269,7 @@ for (const width of [320, 1440]) for (const kind of ["user", "result", "change"]
       change:kind === "change" ? {event_id:id(450),target_kind:"entity",target_id:entityKey(1),target_title:"당시 등심",action:"update",source:"http",before:{properties:{prop_1:0,prop_2:false,prop_3:null},property_labels:{prop_1:"당시 수량",prop_2:"당시 사용",prop_3:"당시 메모"}},after:{title:"등심"},path:null}:null});
     await page.goto(`/records/${row.id}`);
     const surface=width<1100?openDialogs(page).first():panel(page);
-    const labels=()=>surface.locator("dt:visible, .field > label:visible").allTextContents();
+    const labels=()=>surface.locator('dt:visible, [data-slot="field-label"]:visible').allTextContents();
     const expected=["본문","종류",...(kind==="change"?["출처"]:[]),"수행 시각",...(kind==="change"?["변경 대상","행동"]:[])];
     await expect(surface.locator("dt:visible").filter({hasText:/^본문$/})).toHaveCount(1);
     expect((await labels()).slice(0,expected.length)).toEqual(expected);
@@ -1304,11 +1311,13 @@ for (const width of [320,360,390,639,640,768,1024,1440]) {
     const surface=width<1100?openDialogs(page).first():panel(page);
     const key=surface.locator("dt:visible").filter({hasText:/^본문$/});
     await expect(key).toBeVisible();
+    await settleSurface(surface);
     const beforeKey=(await key.boundingBox())!,beforeValue=(await key.locator("../dd").boundingBox())!;
     const readingSize=await surface.locator(".markdown:visible").evaluate(el=>getComputedStyle(el).fontSize);
     await page.screenshot({path:info.outputPath(`record-view-${width}.png`)});
     await surface.getByRole("button",{name:"편집",exact:true}).click();
     const input=surface.getByLabel("본문");
+    await settleSurface(surface);
     const afterKey=(await surface.locator("label:visible").filter({hasText:/^본문/}).boundingBox())!,afterValue=(await input.boundingBox())!;
     expect(afterKey.x).toBeCloseTo(beforeKey.x,0);
     expect(afterValue.x).toBeCloseTo(beforeValue.x,0);
