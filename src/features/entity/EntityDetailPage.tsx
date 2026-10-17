@@ -13,7 +13,7 @@ import { RelatedTaskItem } from "../activity/RelatedTask.tsx";
 import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
-import { TagNames } from "../tags/TagPicker.tsx";
+import { TagConnections } from "../tags/TagConnections.tsx";
 import { EntityProperties } from "./EntityProperties.tsx";
 import type { EntityDetail } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
@@ -209,7 +209,7 @@ export function EntityDetailPage() {
               </div>
             </dl>
             <EntityProperties entity={entity} omitRepresentative />
-            <TagNames scope="entity" compact ids={entity.tag_ids} />
+            <TagConnections scope="entity" target={entity} readonly={!!entity.deleted_at} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
           </section>
           <div className="detail-relations">
             <EntityTypedRelations

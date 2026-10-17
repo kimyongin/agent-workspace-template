@@ -1,3 +1,5 @@
+import type { Session } from "@supabase/supabase-js";
+import { AuthContext } from "../../src/features/auth/auth-context.ts";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 import { createRoot } from "react-dom/client";
 import { TagDictionaryStatus, TagNames, TagReadProvider, useTagDictionary } from "../../src/features/tags/TagPicker.tsx";
@@ -5,6 +7,8 @@ import { useState } from "react";
 import { createBrowserRouter, Link, Outlet, RouterProvider, useNavigate } from "react-router";
 import { FormModal } from "../../src/components/ContentForm.tsx";
 import { TagsPage } from "../../src/features/tags/TagsPage.tsx";
+import { TaskDetailPage } from "../../src/features/activity/TaskDetailPage.tsx";
+import { RecordDetailPage } from "../../src/features/activity/RecordDetailPage.tsx";
 import { EntityDetailPage } from "../../src/features/entity/EntityDetailPage.tsx";
 import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
@@ -15,6 +19,8 @@ const router = createBrowserRouter([{
       <Link to="/entities/app%3A00000000-0000-4000-8000-000000000900%3A10000000-0000-4000-8000-000000000000">
         자료 fixture
       </Link>
+      <Link to="/tasks/20000000-0000-4000-8000-000000000000">할 일 fixture</Link>
+      <Link to="/records/30000000-0000-4000-8000-000000000000">기록 fixture</Link>
       <Link to="/modal-guard">모달 회귀</Link>
       <Outlet />
     </main></NavigationProtection>
@@ -22,6 +28,8 @@ const router = createBrowserRouter([{
   children: [
   { path: "/e2e/fixtures/entity-tags.html", element: new URLSearchParams(location.search).has("dictionary") ? <TagDictionaryFixture /> : <TagsPage /> },
   { path: "/entities/:id", element: <EntityDetailPage /> },
+  { path: "/tasks/:id", element: <TaskDetailPage /> },
+  { path: "/records/:id", element: <RecordDetailPage /> },
   { path: "/modal-guard", element: <ModalDiscardFixture /> },
 ],
 }]);
@@ -64,4 +72,4 @@ function ModalDiscardFixture() {
     </FormModal>
   );
 }
-createRoot(document.getElementById("root")!).render(<RouterProvider router={router} />);
+createRoot(document.getElementById("root")!).render(<AuthContext.Provider value={{session: {user: {id:"tag-fixture-owner"}} as Session, loading:false, savePreferences:async()=>{throw new Error("fixture");}}}><RouterProvider router={router} /></AuthContext.Provider>);

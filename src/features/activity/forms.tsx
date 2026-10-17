@@ -3,6 +3,7 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
 import { TagPicker } from "../tags/TagPicker.tsx";
+import { ReadonlyTags } from "../tags/TagConnections.tsx";
 import { RelationPicker } from "../relations/RelationPicker.tsx";
 import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
@@ -81,7 +82,7 @@ export function RecordFormModal(props: {
       ? { task_id: draft.task_id }
       : {}),
     occurred_at: recordDraftTime(draft, timezone),
-    tag_ids: draft.tag_ids,
+    ...(!props.editing ? { tag_ids: draft.tag_ids } : {}),
     ...(!props.editing && props.entityEditable !== false ? { entity_ids: draft.entity_ids ?? [] } : {}),
   });
   return (
@@ -130,11 +131,6 @@ export function RecordFormModal(props: {
           </section>
           {!props.systemRecord && (
             <section className="detail-section form">
-              <TagPicker
-                value={draft.tag_ids}
-                error={errors.tag_ids}
-                onChange={(tag_ids) => setDraft((d) => ({ ...d, tag_ids }))}
-              />
               {!props.editing && props.taskEditable !== false && props.entityEditable !== false && (
                 <RelationPicker
                   kind="task"
@@ -164,6 +160,9 @@ export function RecordFormModal(props: {
               </Field>
             </section>
           )}
+          <section className="detail-section">
+            {props.editing ? <ReadonlyTags scope="record" ids={props.initial.tag_ids} /> : <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={(tag_ids) => setDraft(d => ({ ...d, tag_ids }))} />}
+          </section>
           {props.details}
         </>
       )}
@@ -242,7 +241,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 // Both memo preparation and the write use the same business input. Relations are edited separately.
 function taskInput(draft: TaskDraft, mode: "create" | "edit"): Record<string, unknown> {
-  const text = { title: draft.title, body: draft.body, tag_ids: draft.tag_ids };
+  const text = { title: draft.title, body: draft.body, ...(mode === "create" ? { tag_ids: draft.tag_ids } : {}) };
   const input = draft.kind === "once"
     ? { ...text, ...(draft.due_on ? { due_on: draft.due_on } : mode === "edit" ? { due_on: null } : {}) }
     : { ...text, recurrence: recurrenceOf(draft), timezone: draft.timezone };
@@ -272,7 +271,7 @@ export function TaskFormModal(
       domain="할 일"
       description={props.mode === "create"
         ? "내용과 일정을 정하고, 관련 자료와 태그를 연결합니다."
-        : "할 일의 내용과 태그를 수정합니다."}
+        : "할 일의 내용과 일정을 수정합니다."}
       title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
       mutation={{ target: draft.title, action: props.mode === "create" ? "등록" : "수정" }}
       preparation={() => ({
@@ -339,12 +338,6 @@ export function TaskFormModal(
                 onChange={(entity_ids) => set({ entity_ids })}
               />
             )}
-            <TagPicker
-              scope="task"
-              value={draft.tag_ids}
-              error={errors.tag_ids}
-              onChange={(tag_ids) => set({ tag_ids })}
-            />
           </section>
           <section className="detail-section form">
             {draft.kind === "once"
@@ -449,6 +442,9 @@ export function TaskFormModal(
                   </div>
                 </>
               )}
+          </section>
+          <section className="detail-section">
+            {props.mode === "edit" ? <ReadonlyTags scope="task" ids={props.initial.tag_ids} /> : <TagPicker scope="task" value={draft.tag_ids} error={errors.tag_ids} onChange={(tag_ids) => set({ tag_ids })} />}
           </section>
           {props.details}
         </>

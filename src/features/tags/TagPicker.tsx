@@ -176,11 +176,12 @@ export function TagReadProvider(
   return <TagReadContext.Provider value={state}>{children}</TagReadContext.Provider>;
 }
 export function TagNames(
-  { ids, compact = false, scope = "record", onReadyChange }: {
+  { ids, compact = false, scope = "record", onReadyChange, onRemove }: {
     ids: string[];
     compact?: boolean;
     scope?: TagScope;
     onReadyChange?: (ready: boolean) => void;
+    onRemove?: (id: string) => void;
   },
 ) {
   const context = useContext(TagReadContext);
@@ -219,7 +220,8 @@ export function TagNames(
           <div className="chips" aria-label="태그">
             {ids.map((id) => (
               <span className="meta tag-read" key={id}>
-                {tags.find((t) => t.id === id)?.name ?? (pending ? "태그 확인 중…" : "태그 확인 필요")}
+                <span>{tags.find((t) => t.id === id)?.name ?? (pending ? "태그 확인 중…" : "태그 확인 필요")}</span>
+                {onRemove && <button type="button" className="body-action" aria-label={`${tags.find(t => t.id === id)?.name ?? "이름 확인이 필요한 태그"} 연결 해제`} onClick={() => onRemove(id)}>해제</button>}
               </span>
             ))}
           </div>

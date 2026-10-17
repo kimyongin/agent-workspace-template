@@ -23,3 +23,9 @@
 .tag-selection-count { margin-right: auto; color: var(--muted-ink); font-size: var(--text-meta); overflow-wrap: anywhere; }
 .modal-action:has(.tag-chooser) .modal-body { overflow: hidden; min-height: 0; display: flex; }
 .modal-action:has(.tag-chooser) .tag-chooser { flex: 1; }
+.tag-connections, .tag-connection-data { grid-column: 1 / -1; min-width: 0; width: 100%; }
+.tag-connections { display: flex; flex-direction: column; gap: var(--space-2); align-items: stretch; }
+.tag-connections > .body-action { align-self: flex-start; }
+.tag-connections .tag-connection-data { margin: 0; }
+.tag-connection-data .tag-read { color: var(--ink); font-size: var(--text-body); line-height: 24px; }
+.tag-connection-data .tag-read:has(button) { display: inline-flex; align-items: center; gap: var(--space-2); }
