@@ -1,3 +1,9 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FieldSet } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Input } from "../../components/ui/input.tsx";
+import { Button } from "../../components/ui/button.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { EntityRelationDefinition, EntityRelationEnd } from "@contracts/entity-relation.ts";
 import { relationDefinitionCreate } from "@contracts/entity-relation.ts";
@@ -92,42 +98,42 @@ export function RelationDefinitionForm(
     setEnds((old) => old.map((end, n) => n === side ? { ...end, ...patch } : end) as EntityRelationDefinition["ends"]);
   return (
     <form
-      className="relation-definition-form"
+      className="flex min-w-0 flex-col gap-5"
       ref={form}
       onSubmit={(e) => {
         e.preventDefault();
         void save();
       }}
     >
-      <p className="secondary">
+      <p className="text-sm text-muted-foreground">
         자료는 연결 없이도 작성할 수 있습니다.
       </p>
-      <fieldset disabled={writing.busy || writing.uncertain || reading} className="relation-definition-ends">
+      <FieldSet disabled={writing.busy || writing.uncertain || reading} className="grid min-w-0 gap-6 lg:grid-cols-2">
         {ends.map((end, n) => {
           const prefix = n === 0 ? "첫 번째" : "두 번째";
           return (
-            <div className="relation-definition-end key-value-grid" key={n}>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" key={n}>
               <h3>{types.find((type) => type.id === end.type_id)?.label ?? `${prefix} 자료`}에서 보이는 연결</h3>
               <Field pair label="자료 종류" required>
                 {(props) => (
-                  <select
-                    className="input"
+                  <NativeSelect
+                    
                     {...props}
                     aria-label={`${prefix} 자료 종류`}
                     value={end.type_id}
                     onChange={(e) => change(n, { type_id: e.target.value })}
                   >
-                    <option value="">종류 선택</option>
+                    <NativeSelectOption value="">종류 선택</NativeSelectOption>
                     {types.filter((t) => !t.archived || t.id === end.type_id).map((t) => (
-                      <option key={t.id} value={t.id}>{t.label}{t.archived ? " (보관)" : ""}</option>
+                      <NativeSelectOption key={t.id} value={t.id}>{t.label}{t.archived ? " (보관)" : ""}</NativeSelectOption>
                     ))}
-                  </select>
+                  </NativeSelect>
                 )}
               </Field>
               <Field pair label="연결 이름" required help="이 자료에서 상대를 부르는 이름입니다.">
                 {(props) => (
-                  <input
-                    className="input"
+                  <Input
+                    
                     {...props}
                     aria-label={`${prefix} 연결 이름`}
                     value={end.label}
@@ -138,37 +144,37 @@ export function RelationDefinitionForm(
               </Field>
               <Field pair label="연결 개수" help="몇 개까지 연결할 수 있는지 정합니다.">
                 {(props) => (
-                  <select
-                    className="input"
+                  <NativeSelect
+                    
                     {...props}
                     aria-label={`${prefix} 연결 개수`}
                     value={end.cardinality}
                     onChange={(e) => change(n, { cardinality: e.target.value as "one" | "many" })}
                   >
-                    <option value="one">하나만</option>
-                    <option value="many">여러 개</option>
-                  </select>
+                    <NativeSelectOption value="one">하나만</NativeSelectOption>
+                    <NativeSelectOption value="many">여러 개</NativeSelectOption>
+                  </NativeSelect>
                 )}
               </Field>
             </div>
           );
         })}
-      </fieldset>
+      </FieldSet>
       {baseline && (
         <Field pair label="보관" help="기존 연결을 유지하고 새 연결을 중단합니다.">
           {(props) => (
-            <input
+            <Checkbox
               {...props}
-              type="checkbox"
+              
               checked={archived}
               disabled={writing.busy || writing.uncertain || reading}
-              onChange={(e) => setArchived(e.target.checked)}
+              onCheckedChange={(checked) => setArchived(checked === true)}
             />
           )}
         </Field>
       )}
       {error && (
-        <div className="notice notice-error" role="alert">
+        <Alert variant="destructive" role="alert"><AlertDescription>
           {error}
           {conflict && baseline && (
             <BodyAction
@@ -187,10 +193,10 @@ export function RelationDefinitionForm(
               최신 버전 확인
             </BodyAction>
           )}
-        </div>
+        </AlertDescription></Alert>
       )}
       {latest && (
-        <div className="notice">
+        <div>
           <p>
             최신 버전 {latest.version}: {latest.ends.map((e) => e.label).join(" ↔ ")}
             {latest.archived ? " · 보관" : ""}. 내 입력은 유지됩니다.
@@ -219,39 +225,39 @@ export function RelationDefinitionForm(
           </BodyAction>
         </div>
       )}
-      <div className="actions">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {baseline && (
-          <button
-            className="btn btn-danger"
+          <Button variant="destructive"
+            
             type="button"
             disabled={writing.busy || reading || conflict || writing.uncertain && operation !== "delete"}
             onClick={() => writing.uncertain ? void remove() : setConfirm("delete")}
           >
             {writing.uncertain && operation === "delete" ? "같은 삭제 다시 확인" : "삭제"}
-          </button>
+          </Button>
         )}
-        <button
-          className="btn"
+        <Button variant="outline"
+          
           type="button"
           disabled={writing.busy || writing.uncertain || reading}
           onClick={() => dirty ? setConfirm("cancel") : onClose()}
         >
           취소
-        </button>
-        <button
-          className="btn btn-primary"
+        </Button>
+        <Button variant="default"
+          
           type="submit"
           disabled={writing.busy || reading || conflict || writing.uncertain && operation !== "save" ||
             !!baseline && !dirty && !writing.uncertain}
         >
           {writing.busy ? "처리 중…" : writing.uncertain ? "같은 저장 다시 확인" : baseline ? "저장" : "추가"}
-        </button>
+        </Button>
       </div>
       <ConfirmDialog
         open={confirm !== null}
         title={confirm === "delete" ? "연결 설정을 삭제할까요?" : "변경을 버릴까요?"}
         message={confirm === "delete"
-          ? <><dl className="key-value-grid key-value-static"><div className="key-value-full"><dt>대상</dt><dd>{ends.map(end => end.label).join(" ↔ ")}</dd></div></dl><p>자료 연결이 있는 설정은 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요.</p></>
+          ? <><dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3"><div className="col-span-full"><dt>대상</dt><dd>{ends.map(end => end.label).join(" ↔ ")}</dd></div></dl><p>자료 연결이 있는 설정은 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요.</p></>
           : "저장하지 않은 연결 설정이 사라집니다."}
         confirmLabel={confirm === "delete" ? "삭제" : "버리기"}
         onConfirm={() => confirm === "delete" ? void remove() : onClose()}

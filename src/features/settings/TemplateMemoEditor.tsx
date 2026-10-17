@@ -1,3 +1,5 @@
+import { InputGroup } from "@/components/ui/input-group";
+
 import { type Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import { memoFragment, memoText, type MemoVariable } from "./template-memo-document.ts";
 
@@ -121,10 +123,12 @@ export function TemplateMemoEditor({ value, variables, onChange, readOnly, disab
     () => ({ insert: (variable) => insert(`$${variable}$`), focus: () => element.current?.focus() }),
   );
   return (
+    <InputGroup className="h-auto">
     <div
       {...field}
       ref={element}
-      className="input template-memo-editor"
+      data-slot="input-group-control"
+      className="min-h-32 w-full min-w-0 whitespace-pre-wrap px-3 py-2 outline-none [overflow-wrap:anywhere]"
       role="textbox"
       aria-label="메모 템플릿"
       aria-multiline="true"
@@ -165,5 +169,6 @@ export function TemplateMemoEditor({ value, variables, onChange, readOnly, disab
         changed();
       }}
     />
+    </InputGroup>
   );
 }

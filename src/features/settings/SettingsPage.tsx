@@ -1,3 +1,12 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Notice } from "../../components/Field.tsx";
+import { FieldSet, FieldLegend, FieldLabel } from "@/components/ui/field";
+import { Button } from "../../components/ui/button.tsx";
+import { Input } from "../../components/ui/input.tsx";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { NavigationSettings } from "./NavigationSettingsPage.tsx";
 import { SettingsHeading } from "./SettingsHeading.tsx";
@@ -16,7 +25,6 @@ import {
   profileIcons,
   profileName,
 } from "./account-preferences.ts";
-import "./settings.css";
 import { useDisplayScalePreview } from "./display-scale.tsx";
 
 const preferenceSections = {
@@ -124,19 +132,14 @@ function AccountSettings() {
     }
   };
   const controls = (section: PreferenceSection) => (
-    <div className="settings-section-footer">
+    <div className="flex flex-col gap-3 pt-4">
       {messages[section] && (
-        <p
-          className={messages[section]?.error ? "error-text" : "secondary"}
-          role={messages[section]?.error ? "alert" : "status"}
-        >
-          {messages[section]?.text}
-        </p>
+        <Notice kind={messages[section]?.error ? "error" : "success"}>{messages[section]?.text}</Notice>
       )}
-      <div className="actions">
-        <button
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline"
           type="button"
-          className="btn"
+          
           disabled={!isDirty(section) || saving !== null}
           aria-label="변경 취소"
           onClick={() => {
@@ -148,15 +151,15 @@ function AccountSettings() {
           }}
         >
           취소
-        </button>
-        <button
+        </Button>
+        <Button variant="default"
           type="submit"
-          className="btn btn-primary"
+          
           aria-label={`${preferenceSections[section].title} 저장`}
           disabled={!isDirty(section) || saving !== null}
         >
           {saving === section ? "저장 중…" : "저장"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -164,9 +167,9 @@ function AccountSettings() {
     <>
       <Field pair label="닉네임">
         {(props) => (
-          <input
+          <Input
             {...props}
-            className="input"
+            
             type="text"
             maxLength={40}
             autoComplete="nickname"
@@ -179,27 +182,15 @@ function AccountSettings() {
           />
         )}
       </Field>
-      <fieldset className="profile-icon-field settings-icon-pair key-value-full">
-        <legend className="label">프로필 아이콘</legend>
-        <div className="profile-choices">
-          {profileIcons.map((icon) => (
-            <label key={icon.id} className="profile-choice" title={icon.label}>
-              <input
-                type="radio"
-                name="profile-icon"
-                value={icon.id}
-                aria-label={icon.label}
-                checked={draft.icon === icon.id}
-                onChange={() => {
-                  setDraft((value) => ({ ...value, icon: icon.id }));
-                  clearMessage("profile");
-                }}
-              />
-              <ProfileIcon id={icon.id} />
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <FieldSet className="col-span-full">
+        <FieldLegend className="text-sm font-medium">프로필 아이콘</FieldLegend>
+        <RadioGroup aria-label="프로필 아이콘" value={draft.icon} onValueChange={id => { setDraft(value => ({...value, icon: id as AccountPreferences["icon"]})); clearMessage("profile"); }} className="grid max-h-56 grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-2 overflow-auto p-1">
+          {profileIcons.map(icon => <FieldLabel key={icon.id} htmlFor={`profile-icon-${icon.id}`} title={icon.label} className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-lg border border-input p-2 has-[[data-state=checked]]:border-ring has-[[data-state=checked]]:bg-accent">
+            <RadioGroupItem id={`profile-icon-${icon.id}`} value={icon.id} aria-label={icon.label} />
+            <ProfileIcon id={icon.id} />
+          </FieldLabel>)}
+        </RadioGroup>
+      </FieldSet>
     </>
   );
   const date = (
@@ -218,33 +209,23 @@ function AccountSettings() {
     </Field>
   );
   const display = (
-    <div className="key-value-grid">
+    <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
       {([{ key: "mobileDisplayScale", label: "모바일 화면 배율" }, {
         key: "desktopDisplayScale",
         label: "데스크톱 화면 배율",
       }] as const).map(({ key, label }) => (
         <Field pair key={key} label={label}>
           {(props) => (
-            <select
-              {...props}
-              className="input"
-              value={draft[key]}
-              onChange={(event) => {
-                setDraft((value) => ({ ...value, [key]: displayScalePreference(event.target.value) }));
-                clearMessage("display");
-              }}
-            >
-              {displayScales.map((scale) => (
-                <option key={scale} value={scale}>{scale}%{scale === 100 ? " (기본)" : ""}</option>
-              ))}
-            </select>
+            <ToggleGroup type="single" value={String(draft[key])} disabled={saving !== null} onValueChange={value => { if(value) { setDraft(current => ({...current, [key]: displayScalePreference(value)})); clearMessage("display"); } }} id={props.id} aria-label={label} aria-describedby={props["aria-describedby"]} className="flex flex-wrap gap-1">
+              {displayScales.map(scale => <ToggleGroupItem key={scale} value={String(scale)}>{scale}%{scale === 100 ? " (기본)" : ""}</ToggleGroupItem>)}
+            </ToggleGroup>
           )}
         </Field>
       ))}
     </div>
   );
   return (
-    <section className="panel settings account-settings" aria-labelledby="settings-title">
+    <section className="min-w-0 flex w-full flex-col gap-6 max-w-4xl" aria-labelledby="settings-title">
       <SettingsHeading
         title="기본 설정"
         description="프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다."
@@ -252,10 +233,11 @@ function AccountSettings() {
       />
 
       {(["profile", "date", "display"] as const).map((section) => (
-        <section className="settings-section" aria-labelledby={`settings-${section}`} key={section}>
-          <h2 id={`settings-${section}`} className="settings-section-title">{preferenceSections[section].title}</h2>
+        <Card role="region" aria-labelledby={`settings-${section}`} key={section}>
+          <CardHeader><CardTitle><h2 id={`settings-${section}`}>{preferenceSections[section].title}</h2></CardTitle></CardHeader>
+          <CardContent>
           <form
-            className="form"
+            className="flex min-w-0 flex-col gap-5"
             aria-label={`${preferenceSections[section].title} 설정`}
             aria-busy={saving === section}
             onSubmit={(event) => {
@@ -263,12 +245,13 @@ function AccountSettings() {
               void saveSection(section);
             }}
           >
-            <fieldset disabled={saving !== null} className="settings-fields key-value-grid">
-              {{ profile, date, display }[section]}
-            </fieldset>
+            <FieldSet disabled={saving !== null} className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+              <FieldGroup>{{ profile, date, display }[section]}</FieldGroup>
+            </FieldSet>
             {controls(section)}
           </form>
-        </section>
+          </CardContent>
+        </Card>
       ))}
       <NavigationSettings inline onStateChange={setNavigationState} />
       <ConfirmDialog

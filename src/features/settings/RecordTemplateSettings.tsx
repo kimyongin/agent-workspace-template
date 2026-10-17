@@ -1,3 +1,9 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select";
+import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
+import { FieldSet } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { TemplateMemoEditor, type TemplateMemoHandle } from "./TemplateMemoEditor.tsx";
 import { changedTemplateActions, templateFieldTarget } from "./record-template-actions.ts";
@@ -103,6 +109,7 @@ function RecordTemplateForm({
     >
   >;
 }) {
+  const [variableQuery, setVariableQuery] = useState("");
   const { draft, dirty, busy, conflict, uncertain, latestReady } = editor;
   const saved = editor.saved?.settings;
   const setDraft = editor.resource.edit;
@@ -254,13 +261,13 @@ function RecordTemplateForm({
   const schemaUnavailable = model === "entity" && !!typeId && !schema;
   const title = "기록 자동 완성";
   return (
-    <section className={materialResource ? "material-record-template" : "settings-section"} aria-label={title}>
-      {!materialResource && !selectedModel && <h2 className="settings-section-title">{title}</h2>}
+    <section className={materialResource ? "min-w-0" : "flex min-w-0 flex-col gap-4"} aria-label={title}>
+      {!materialResource && !selectedModel && <h2 className="text-base font-semibold">{title}</h2>}
       {!saved && (
         <>
-          <p role={message ? "alert" : "status"}>
+          <Alert role={message ? "alert" : "status"}><AlertDescription>
             {message || "설정을 읽는 중…"}
-          </p>
+          </AlertDescription></Alert>
           {message && (
             <BodyAction icon="reset" type="button" disabled={busy} onClick={() => void read()}>
               다시 시도
@@ -270,7 +277,7 @@ function RecordTemplateForm({
       )}
       {saved && (
         <form
-          className="form"
+          className="flex min-w-0 flex-col gap-5"
           aria-label={title}
           aria-busy={busy}
           onSubmit={async (event) => {
@@ -312,50 +319,40 @@ function RecordTemplateForm({
               </BodyAction>
             </Notice>
           )}
-          <fieldset
+          <FieldSet
             disabled={busy || uncertain}
-            className="form plain-fieldset key-value-grid"
+            className="flex min-w-0 flex-col gap-5 border-0 p-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
           >
             <>
               {!materialResource && !selectedModel && (
                 <Field pair label="대상">
                   {(props) => (
-                    <select
-                      {...props}
-                      className="input"
-                      value={model}
-                      onChange={(event) => {
-                        const next = event.target.value as TemplateModel;
+                    <Select value={model} onValueChange={(value) => {
+                        const next = value as TemplateModel;
                         setModel(next);
                         if (!modelActions(next).includes(action)) {
                           setAction("create");
                         }
-                      }}
-                    >
+                      }} disabled={busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                       {TEMPLATE_MODELS.filter((key) => key !== "entity").map((key) => (
-                        <option key={key} value={key}>
+                        <SelectItem key={key} value={key}>
                           {templateModelNames[key]}
-                        </option>
+                        </SelectItem>
                       ))}
-                    </select>
+                    </SelectGroup></SelectContent></Select>
                   )}
                 </Field>
               )}
               <Field pair label="액션">
                 {(props) => (
-                  <select
-                    {...props}
-                    className="input"
-                    value={action}
-                    onChange={(event) => setAction(event.target.value as TemplateAction)}
-                  >
+                  <Select value={action} onValueChange={(value) => setAction(value as TemplateAction)} disabled={busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                     {modelActions(model).map((key) => (
-                      <option key={key} value={key}>
+                      <SelectItem key={key} value={key}>
                         {templateActionNames[key]}
                         {actionHasError(key) ? " · 오류" : changes.includes(key) ? " · 미저장" : ""}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
+                  </SelectGroup></SelectContent></Select>
                 )}
               </Field>
             </>
@@ -373,20 +370,9 @@ function RecordTemplateForm({
             )}
             <Field pair label="변수 삽입">
               {(props) => (
-                <select
-                  {...props}
-                  className="input"
-                  disabled={schemaUnavailable}
-                  value=""
-                  onChange={(event) => {
-                    text.current?.insert(event.target.value);
-                  }}
-                >
-                  <option value="" disabled>변수를 선택하세요</option>
-                  {variables.map((variable) => (
-                    <option key={variable.value} value={variable.value}>{variable.label}</option>
-                  ))}
-                </select>
+                <Combobox<(typeof variables)[number]> items={variables} value={null} inputValue={variableQuery} onInputValueChange={setVariableQuery} itemToStringLabel={variable => variable.label} onValueChange={variable => { if(variable) text.current?.insert(variable.value); setVariableQuery(""); }} disabled={schemaUnavailable || busy || uncertain}>
+                  <ComboboxInput {...props} placeholder="변수를 선택하세요" /><ComboboxContent><ComboboxEmpty>일치하는 변수가 없습니다.</ComboboxEmpty><ComboboxList>{variable => <ComboboxItem key={variable.value} value={variable}>{variable.label}</ComboboxItem>}</ComboboxList></ComboboxContent>
+                </Combobox>
               )}
             </Field>
             <Field
@@ -413,7 +399,7 @@ function RecordTemplateForm({
                         </BodyAction>
                       </Notice>
                     )
-                    : <p role="status">입력 항목 정의를 읽는 중…</p>
+                    : <Alert role="status"><AlertDescription>입력 항목 정의를 읽는 중…</AlertDescription></Alert>
                   : (
                     <TemplateMemoEditor
                       key={`${model}:${typeId}:${action}`}
@@ -429,14 +415,14 @@ function RecordTemplateForm({
               )}
             </Field>
             {model === "entity" && !usingDefault && !schemaUnavailable && (
-              <div className="record-template-defaults">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                 <BodyAction icon="reset" onClick={() => setValue({ memo: null })}>
                   기본 문구로 되돌리기
                 </BodyAction>
               </div>
             )}
 
-            <div className="settings-template-tags key-value-full">
+            <div className="min-w-0 col-span-full">
               <TagPicker
                 label="기본 기록 태그"
                 scope="record"
@@ -449,7 +435,7 @@ function RecordTemplateForm({
               const canOpen = target &&
                 (!materialResource || target.model === model && (model !== "entity" || target.typeId === typeId));
               return (
-                <p className="error-text" key={key} role="alert">
+                <Alert variant="destructive" className="text-sm text-destructive" key={key} role="alert"><AlertDescription>
                   {target ? `${templateActionNames[target.action]}: ` : "설정: "}
                   {error} {canOpen && target.action !== action && (
                     <BodyAction
@@ -464,26 +450,26 @@ function RecordTemplateForm({
                       오류 항목 보기
                     </BodyAction>
                   )}
-                </p>
+                </AlertDescription></Alert>
               );
             })}
-          </fieldset>
-          <p role="status">{message}</p>
+          </FieldSet>
+          <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>
           {conflict && (
             <BodyAction icon="reset" type="button" onClick={() => void read()}>
               최신값 확인
             </BodyAction>
           )}
-          <div className="settings-section-footer">
+          <div className="flex flex-col gap-3 pt-4">
             {changes.length > 0 && (
-              <p className="secondary" aria-label="저장할 변경">
+              <p className="text-sm text-muted-foreground" aria-label="저장할 변경">
                 변경: {changes.map((key) => templateActionNames[key]).join(" · ")}
               </p>
             )}
-            <div className="actions">
-              <button
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="outline"
                 type="button"
-                className="btn"
+                
                 disabled={busy || uncertain || (conflict ? !latestReady : !dirty)}
                 aria-label={conflict ? "최신값으로 다시 편집" : "변경 취소"}
                 onClick={() => {
@@ -493,15 +479,15 @@ function RecordTemplateForm({
                 }}
               >
                 {conflict ? "최신값으로 다시 편집" : "취소"}
-              </button>
-              <button
+              </Button>
+              <Button variant="default"
                 type="submit"
-                className="btn btn-primary"
+                
                 disabled={busy || !dirty || conflict || schemaUnavailable}
                 aria-label={busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 자동 완성 저장"}
               >
                 {busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
