@@ -624,7 +624,7 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     const readDescription = await description.innerText();
     await expect(view).toHaveAttribute("aria-describedby", await description.getAttribute("id") as string);
     if(item.title) await expect(view.getByRole("heading", { name: item.title, exact: true })).toHaveText(item.title);
-    else await expect(view.getByRole("term", { name: "본문", exact: true }).first().locator("..").getByRole("definition")).toHaveText("구매 기준을 정리했습니다.");
+    else await expect(view.getByRole("term").filter({ hasText: /^본문$/ }).first().locator("..").getByRole("definition")).toHaveText("구매 기준을 정리했습니다.");
     const relation = view.getByRole("region", { name: /^(연결된 자료|할 일|기록) \(\d+개\)$/ });
     await expect(relation).toHaveCount(2);
     for (const region of await relation.all()) await expect(region).toBeVisible();
@@ -641,7 +641,7 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     if(item.domain==="기록") {
       await view.getByLabel("본문",{exact:false}).fill("관계를 보존하는 본문 정정");
       await view.getByRole("button",{name:"저장",exact:true}).click();
-      await expect(view.getByRole("term", { name: "본문", exact: true }).first().locator("..").getByRole("definition")).toHaveText("관계를 보존하는 본문 정정");
+      await expect(view.getByRole("term").filter({ hasText: /^본문$/ }).first().locator("..").getByRole("definition")).toHaveText("관계를 보존하는 본문 정정");
       const write=state.writes.find(row=>row.method==="PATCH"&&row.path===`/api/records/${id(3)}`)!;
       expect(write.body).not.toHaveProperty("entity_ids"); expect(write.body).not.toHaveProperty("task_id");
       await expect(view.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toBeVisible();

@@ -8,7 +8,7 @@ for (const width of [390, 1440]) {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-    const properties = form(page).getByRole("term", { name: "제목", exact: true }).first().locator("xpath=ancestor::section[1]");
+    const properties = form(page).getByRole("term").filter({ hasText: /^제목$/ }).first().locator("xpath=ancestor::section[1]");
     await expect(properties.getByText("자료", { exact: true })).toHaveCount(1);
     await expect(properties.locator("dt", { hasText: "제목" })).toHaveCount(1);
     await expect(properties.locator("dt", { hasText: "자료 종류" })).toHaveCount(0);
@@ -109,7 +109,7 @@ test("nonrepresentative false, null and archived properties remain readable", as
   state.rows.entities[0].properties.prop_5 = false;
   await page.route("**/api/entity-types/*/schema?schema_version=1", (route) => route.fulfill({ json: schema }));
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-  const properties = form(page).getByRole("term", { name: "제목", exact: true }).first().locator("xpath=ancestor::section[1]");
+  const properties = form(page).getByRole("term").filter({ hasText: /^제목$/ }).first().locator("xpath=ancestor::section[1]");
   await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^판매 중$/ }) })).toContainText("거짓");
   await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^날짜$/ }) })).toContainText("값 없음");
   await expect(properties.locator("dt", { hasText: /^분류 · 보관$/ })).toBeVisible();
@@ -144,7 +144,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     }
     await expect(detail.locator("dt", { hasText: /^미입력 항목$/ })).toBeVisible();
     await expect(detail.locator("dd", { hasText: /^미입력$/ })).toBeVisible();
-    const primary = detail.getByRole("term", { name: "제목", exact: true }).first().locator("xpath=ancestor::section[1]");
+    const primary = detail.getByRole("term").filter({ hasText: /^제목$/ }).first().locator("xpath=ancestor::section[1]");
     const read = await primary.getByRole("term").allTextContents();
     expect(read).toHaveLength(9);
     const labels = read.map(label => label.replace(/ · (읽기 전용|보관)/g, "").trim());
@@ -167,7 +167,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         if (label === "제목") await expect(control.first()).toHaveValue(state.rows.entities[0].title);
         if (label === "수량") await expect(control.first()).toHaveValue("0");
       } else {
-        const key = detail.getByRole("term", { name: new RegExp(`^${escaped}(?: ·|$)`) }).filter({ visible: true }).first();
+        const key = detail.getByRole("term").filter({ hasText: new RegExp(`^${escaped}(?: ·|$)`) }).filter({ visible: true }).first();
         await expect(key).toBeVisible(); await expect(key.locator("..").getByRole("definition")).toBeVisible();
       }
       editedPairs++;

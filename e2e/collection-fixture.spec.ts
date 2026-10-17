@@ -304,7 +304,7 @@ for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read 
       ? ["제목", "본문", "상태", "종류", "기한", "태그"]
       : ["본문", "종류", "수행 시각", "태그"];
     for (const label of expectedKeys) {
-      const key = properties.getByRole("term", { name: label, exact: true }).filter({ visible: true }).first();
+      const key = properties.getByRole("term").and(properties.getByText(label, { exact: true })).filter({ visible: true }).first();
       await expect(key).toBeVisible();
       const value = key.locator("..").getByRole("definition").first(); await expect(value).toBeVisible();
       if (kind === "entities" && label === "수량") await expect(value).toHaveText("0");
