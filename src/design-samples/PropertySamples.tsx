@@ -178,7 +178,6 @@ function PropertyList(
                     {(props) => (
                       <NativeSelect
                         {...props}
-
                         value={field.type}
                         onChange={(event) => edit(field.id, { type: event.target.value as Property["type"] })}
                       >
@@ -215,7 +214,6 @@ function PropertyList(
                           {(props) => (
                             <Input
                               {...props}
-
                               type="number"
                               min="1"
                               value={field.maxLength}
@@ -227,7 +225,6 @@ function PropertyList(
                       <div className="flex flex-wrap items-center gap-2">
                         <Button variant="destructive"
                           type="button"
-
                           onClick={() => onChange(fields.filter((value) => value.id !== field.id))}
                         >
                           항목 삭제
@@ -383,7 +380,7 @@ export function MaterialWorkspaceSample() {
     setAction(null);
   };
   return (
-    <div className="flex-col grid min-w-0 gap-4">
+    <div className="grid min-w-0 gap-4">
       <MaterialSettingsSection
         title="기본 정보"
         state={{ dirty: typeName !== savedTypeName, busy: false }}
@@ -392,7 +389,6 @@ export function MaterialWorkspaceSample() {
           {(props) => (
             <Input
               {...props}
-
               value={typeName}
               onChange={(event) => setTypeName(event.target.value)}
             />
@@ -405,7 +401,6 @@ export function MaterialWorkspaceSample() {
             </Button>
             <Button variant="default"
               type="button"
-
               onClick={() => {
                 setSavedTypeName(typeName);
                 setMessage("예시 기본 정보를 저장했습니다.");
@@ -432,7 +427,6 @@ export function MaterialWorkspaceSample() {
         />
         <div>
           <Button variant="ghost" type="button"
-
             onClick={() =>
               setDraft([...draft, {
                 id: `prop_${nextField.current++}`,
@@ -471,7 +465,6 @@ export function MaterialWorkspaceSample() {
             {(props) => (
               <NativeSelect
                 {...props}
-
                 value=""
                 onChange={(event) => {
                   templateInput.current?.insert(event.target.value);
@@ -504,7 +497,6 @@ export function MaterialWorkspaceSample() {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="default"
               type="button"
-
               onClick={() => {
                 setSavedTemplate(template);
                 setMessage("예시 기록 문구를 저장했습니다.");
@@ -566,14 +558,12 @@ export function MaterialWorkspaceSample() {
                         <div className="flex flex-wrap items-center gap-2">
                           <Button variant="destructive"
                             type="button"
-
                             onClick={() => setAction({ kind: "discard", plan })}
                           >
                             폐기
                           </Button>
                           <Button variant="default"
                             type="button"
-
                             onClick={() => setAction({ kind: "apply", plan })}
                           >
                             변경 적용

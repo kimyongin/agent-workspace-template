@@ -12,6 +12,8 @@ interface ConfirmProps {
 
 export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy = false, confirmDisabled = false, onConfirm, onCancel }: ConfirmProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = root;
+  useSurfaceViewport(viewportRef, root);
   const origin = useRef<HTMLElement | null>(null);
   const heading = useRef<HTMLHeadingElement>(null), footer = useRef<HTMLDivElement>(null);
   const elements = useRef({ title, body: root, heading: heading.current, footer: footer.current, active: open, modal: true, confirmation: true, ready: true });
@@ -19,13 +21,15 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
   useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
   return <AlertDialog open={open} onOpenChange={next => { if (!next && !busy) onCancel(); }}>
     <AlertDialogContent ref={setRoot} aria-modal={true}
+      className="flex w-[calc(100%-1rem)] flex-col overflow-hidden"
+      style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
       onOpenAutoFocus={() => { origin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }}
       onCloseAutoFocus={event => { event.preventDefault(); if (origin.current?.isConnected) origin.current.focus(); }}
       onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
-      <AlertDialogHeader><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
-      <AlertDialogFooter ref={footer}>
-        <AlertDialogCancel disabled={busy} onClick={event => { event.preventDefault(); if (!busy) onCancel(); }}>취소</AlertDialogCancel>
-        <AlertDialogAction variant={danger ? "destructive" : "default"} disabled={busy || confirmDisabled} onClick={event => { event.preventDefault(); if (!busy && !confirmDisabled) onConfirm(); }}>{busy ? "처리 중…" : confirmLabel}</AlertDialogAction>
+      <AlertDialogHeader className="min-h-0 overflow-y-auto overscroll-contain"><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
+      <AlertDialogFooter ref={footer} className="shrink-0">
+        <AlertDialogCancel className="h-auto min-h-11 whitespace-normal wrap-anywhere" disabled={busy} onClick={event => { event.preventDefault(); if (!busy) onCancel(); }}>취소</AlertDialogCancel>
+        <AlertDialogAction className="h-auto min-h-11 whitespace-normal wrap-anywhere" variant={danger ? "destructive" : "default"} disabled={busy || confirmDisabled} onClick={event => { event.preventDefault(); if (!busy && !confirmDisabled) onConfirm(); }}>{busy ? "처리 중…" : confirmLabel}</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>;

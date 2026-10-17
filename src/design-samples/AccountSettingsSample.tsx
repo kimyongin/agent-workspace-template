@@ -48,13 +48,12 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
           ? (
             <ToggleGroup {...props} type="single" variant="outline" aria-label={label} value={draft[key]}
               onValueChange={next => { if (next) setDraft({ ...draft, [key]: next }); }}>
-              {choices.map(value => <ToggleGroupItem key={value} value={value}>{value}%</ToggleGroupItem>)}
+              {choices.map(value => <ToggleGroupItem key={value} value={value}>{value}{key === "mobile" || key === "desktop" ? "%" : ""}</ToggleGroupItem>)}
             </ToggleGroup>
           )
           : (
             <Input
               {...props}
-
               value={draft[key]}
               onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
             />
@@ -106,7 +105,6 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
                 <div className="flex flex-wrap items-center gap-2">
                   <Button variant="outline"
                     type="button"
-
                     disabled={!dirty}
                     onClick={() => setDraft({ ...draft, ...Object.fromEntries(keys.map((key) => [key, saved[key]])) })}
                   >
@@ -138,7 +136,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
               const entry = menuChoices.find((choice) => choice.id === id)!;
               return (
                 <li className="flex min-w-0 flex-wrap items-center gap-3" key={id}>
-                  <span className="min-w-0 flex-1 wrap-anywhere">
+                  <span className="flex min-w-0 flex-1 items-center gap-2 wrap-anywhere">
                     <EntityTypeIcon id={entry.icon} />
                     {entry.label}
                   </span>
@@ -167,7 +165,6 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
           <div className="flex min-w-0 flex-wrap items-end gap-3">
             <NativeSelect
               ref={addSelect}
-
               aria-label="추가할 메뉴"
               disabled={menus.length >= 4}
               value={candidate}
@@ -179,7 +176,6 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
               ))}
             </NativeSelect>
             <Button variant="outline"
-
               type="button"
               disabled={!candidate || menus.length >= 4}
               onClick={() => {
@@ -192,7 +188,6 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
           </div>
           <CardFooter className="-mx-4 mt-4 flex-wrap justify-end gap-3">
             <Button variant="ghost" type="button"
-
               disabled={JSON.stringify(menus) === JSON.stringify(initialMenus)}
               onClick={() => setMenus(initialMenus)}
             ><RotateCcwIcon data-icon="inline-start" />
@@ -201,7 +196,6 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline"
                 type="button"
-
                 disabled={!menuDirty}
                 onClick={() => {
                   setMenus(savedMenus);

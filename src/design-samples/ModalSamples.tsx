@@ -55,7 +55,6 @@ export function ModalSamples() {
         {(props) => (
           <NativeSelect
             {...props}
-
             value={outcome}
             onChange={(event) => setOutcome(event.target.value as Outcome)}
           >
@@ -92,7 +91,6 @@ export function ModalSamples() {
       </div>
       <div>
         <Button variant="ghost" type="button"
-
           onClick={() => {
             setValues(initialValues);
             setTags([]);
@@ -221,7 +219,6 @@ function EditDialog(
                   <Input
                     {...props}
                     ref={nameInput}
-
                     required
                     value={draft.name}
                     onChange={(event) => setDraft({ ...draft, name: event.target.value })}
@@ -253,7 +250,6 @@ function EditDialog(
                   {(props) => (
                     <Textarea
                       {...props}
-
                       rows={3}
                       value={note}
                       disabled={busy || uncertain}
