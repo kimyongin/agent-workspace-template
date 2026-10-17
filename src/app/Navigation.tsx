@@ -19,6 +19,29 @@ import type { EntityDetail } from "@contracts/entity.ts";
 import { defaultNavigationRefs, entityTypeLocation, navigationEntryCurrent, resolveNavigationRefs, visibleNavigationEntries } from "./type-navigation.ts";
 import { useEntityTypes } from "../features/entity/useEntityTypes.ts";
 import { EntityTypeIcon } from "../features/entity/EntityTypeIcon.tsx";
+// Keep the existing focused item reachable when the open profile menu reflows.
+function retainProfileFocusVisibility(content: HTMLDivElement | null) {
+  if (!content) return;
+  let frame = 0;
+  const observer = new ResizeObserver(() => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      if (!content.isConnected || content.dataset.state !== "open") return;
+      const active = content.ownerDocument.activeElement;
+      if (!(active instanceof HTMLElement) || !content.contains(active)) return;
+      const item = active.closest<HTMLElement>('[role="menuitem"]');
+      if (!item || !content.contains(item)) return;
+      const bounds = content.getBoundingClientRect(), focused = item.getBoundingClientRect();
+      if (focused.top < bounds.top || focused.bottom > bounds.bottom) {
+        item.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+    });
+  });
+  observer.observe(content);
+  for (const child of content.children) observer.observe(child);
+  return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+}
+
 export function Navigation({ brand }: { brand: string }) {
   const location = useLocation();
   const { session } = useAuth();
@@ -63,7 +86,7 @@ export function Navigation({ brand }: { brand: string }) {
       </SidebarGroup>
     </SidebarContent>
     <SidebarFooter><DropdownMenu><DropdownMenuTrigger asChild><SidebarMenuButton className="min-h-12" aria-label="내 프로필"><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><span className="min-w-0 flex-1 truncate">{profileName(session?.user.user_metadata)}</span><ChevronsUpDownIcon /></SidebarMenuButton></DropdownMenuTrigger>
-      <DropdownMenuContent side={isMobile ? "bottom" : "right"} align="end"><DropdownMenuLabel>{profileName(session?.user.user_metadata)}</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuGroup>{destinations.map(({ to, label, icon: Icon }) => <DropdownMenuItem asChild key={to}><Link to={to}><Icon /><span>{label}</span></Link></DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent>
+      <DropdownMenuContent ref={retainProfileFocusVisibility} side={isMobile ? "bottom" : "right"} align="end"><DropdownMenuLabel>{profileName(session?.user.user_metadata)}</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuGroup>{destinations.map(({ to, label, icon: Icon }) => <DropdownMenuItem asChild key={to}><Link to={to}><Icon /><span>{label}</span></Link></DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent>
     </DropdownMenu></SidebarFooter>
   </Sidebar>;
 }

@@ -305,6 +305,8 @@ test("#217 아이콘 선택은 가용 폭에서 조작 가능하고 프로필 �
 });
 
 test("#340 열린 메뉴가 화면 높이·확대·긴 닉네임 변경에도 화면 안에 유지된다", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
   await page.route("**/auth/v1/user", route => route.fulfill({json:{...user,user_metadata:{...user.user_metadata,full_name:"긴 닉네임 ".repeat(15)}}}));
   await page.goto("/settings"); await openProfile(page);
   const popup = profileMenu(page);
@@ -321,4 +323,5 @@ test("#340 열린 메뉴가 화면 높이·확대·긴 닉네임 변경에도 �
   await expect.poll(async()=>{const box=(await popup.boundingBox())!;return box.y>=0 && box.y+box.height<=320;}).toBe(true);
   await popup.getByRole("menuitem",{name:"로그아웃",exact:true}).focus();
   await expect(popup.getByRole("menuitem",{name:"로그아웃",exact:true})).toBeInViewport();
+  expect(errors).toEqual([]);
 });
