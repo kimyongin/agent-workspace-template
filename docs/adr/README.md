@@ -32,6 +32,8 @@
 
 | [0023](0023-single-schema-document.md) | 자료 종류·속성·표시의 단일 JSON Schema 정본 | 채택, 구현은 #468 |
 
+| [0024](0024-entity-relations-and-data-model.md) | 역할이 있는 자료 관계와 전체 자료 모델 교환 | 채택, 구현은 #482 |
+
 ## 문서의 책임
 
 ADR에는 결정·이유·대가를 담는다. 제품의 의미와 범위는 [PRD](../product/concept.md), 설계·개발 방법은 [Matt 스킬](../development/matt-skills.md)이 담당한다. 번호는 재사용하지 않는다. 합의한 변경과 과거 근거는 Git/GitHub에서 추적한다.
