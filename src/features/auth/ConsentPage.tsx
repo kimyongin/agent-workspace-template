@@ -1,9 +1,12 @@
-import { PageHeading } from "../../components/PageHeading.tsx";
 // MCP OAuth 동의 화면(/oauth/consent). Supabase OAuth 서버가 authorization_id와 함께 보낸다.
 // 클라이언트 이름과 돌아갈 주소를 보여 주고 사용자가 승인·거부한다(T02-1 실험 2의 채택 방식).
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
-import { Notice } from "../../components/Field.tsx";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { supabase } from "../../lib/supabase.ts";
 import { useAuth } from "./AuthProvider.tsx";
 
@@ -71,36 +74,37 @@ export function ConsentPage() {
 
   const name = details?.client?.name || details?.client?.id || "알 수 없는 클라이언트";
   return (
-    <section className="panel auth-panel" aria-labelledby="consent-title">
-      <PageHeading title="에이전트 연결 승인" id="consent-title" description="연결할 에이전트와 요청 범위를 확인하고 접근을 허용합니다." />
-      {error && <Notice kind="error">{error}</Notice>}
-      {!details && !error && <p className="secondary" role="status">요청을 확인하는 중…</p>}
-      {details && (
-        <>
-          <p style={{ margin: 0 }}>이 에이전트가 내 할 일과 기록을 조회하고 변경하려고 합니다.</p>
-          <p className="help" style={{ margin: 0 }}>클라이언트 이름은 등록한 쪽이 정한 값이므로 돌아갈 주소와 함께 확인하세요.</p>
-          <dl className="key-value-grid key-value-static">
-            <div className="key-value-full"><dt>클라이언트</dt><dd>{name}</dd></div>
-            <div className="key-value-full">
-              <dt>돌아갈 주소</dt>
-              <dd>{details.redirect_uri ?? "—"}</dd>
-            </div>
-            <div className="key-value-full">
-              <dt>요청 범위</dt>
-              <dd>{details.scope || "기본"}</dd>
-            </div>
-          </dl>
-          <p className="help" style={{ margin: 0 }}>
-            직접 시작한 연결이 아니거나 돌아갈 주소를 모르면 거부하세요. 승인은 에이전트가 이 계정의 데이터에 접근하도록 허용합니다.
-          </p>
-          <div className="actions">
-            <button type="button" className="btn" onClick={() => decide(false)} disabled={busy}>거부</button>
-            <button type="button" className="btn btn-primary" onClick={() => decide(true)} disabled={busy}>
-              {busy ? "처리 중…" : "승인"}
-            </button>
-          </div>
-        </>
-      )}
+    <section className="mx-auto w-full min-w-0 max-w-lg py-6" aria-labelledby="consent-title">
+      <Card>
+        <CardHeader>
+          <CardTitle><h1 id="consent-title">에이전트 연결 승인</h1></CardTitle>
+          <CardDescription>연결할 에이전트와 요청 범위를 확인하고 접근을 허용합니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex min-w-0 flex-col gap-5">
+          {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+          {!details && !error && <div role="status" className="flex items-center gap-2"><Spinner aria-hidden="true" />요청을 확인하는 중…</div>}
+          {details && <>
+            <Alert>
+              <AlertTitle>계정 데이터 접근 요청</AlertTitle>
+              <AlertDescription>이 에이전트가 내 할 일과 기록을 조회하고 변경하려고 합니다.</AlertDescription>
+            </Alert>
+            <CardDescription>클라이언트 이름은 등록한 쪽이 정한 값이므로 돌아갈 주소와 함께 확인하세요.</CardDescription>
+            <dl className="flex min-w-0 flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-1"><dt>클라이언트</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{name}</dd></div>
+              <div className="flex min-w-0 flex-col gap-1"><dt>돌아갈 주소</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{details.redirect_uri ?? "—"}</dd></div>
+              <div className="flex min-w-0 flex-col gap-1"><dt>요청 범위</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{details.scope || "기본"}</dd></div>
+            </dl>
+            <Separator />
+            <CardDescription>직접 시작한 연결이 아니거나 돌아갈 주소를 모르면 거부하세요. 승인은 에이전트가 이 계정의 데이터에 접근하도록 허용합니다.</CardDescription>
+          </>}
+        </CardContent>
+        {details && <CardFooter className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="outline" size="lg" className="min-h-11 min-w-16" onClick={() => decide(false)} disabled={busy}>거부</Button>
+          <Button type="button" size="lg" className="min-h-11 min-w-16" onClick={() => decide(true)} disabled={busy}>
+            {busy && <Spinner aria-hidden="true" data-icon="inline-start" />}{busy ? "처리 중…" : "승인"}
+          </Button>
+        </CardFooter>}
+      </Card>
     </section>
   );
 }
