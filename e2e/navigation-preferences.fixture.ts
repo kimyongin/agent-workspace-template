@@ -427,3 +427,39 @@ test("owner catalog refresh cancels obsolete reads and ignores another account i
   expect(state.writes).toEqual([]);
   expect(state.metadata().workspace_navigation).toEqual(preference);
 });
+
+test(
+  "기본 설정의 키와 값은 좁은 패널과 확대에서도 같은 행에서 독립 초안을 유지한다",
+  async ({ page, baseURL }, info) => {
+    const state = await fixture(page, baseURL!);
+    await page.goto("/settings");
+    const nickname = page.getByLabel("닉네임", { exact: true });
+    await nickname.fill("보존할 긴 프로필 이름");
+    for (const width of [320, 640, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      for (const name of ["닉네임", "표시 시간대", "모바일 화면 배율", "데스크톱 화면 배율"]) {
+        const input = page.getByLabel(name, { exact: true });
+        const geometry = await input.evaluate((control) => {
+          const label = document.querySelector(`label[for="${control.id}"]`)!;
+          const key = label.getBoundingClientRect(), value = control.getBoundingClientRect();
+          return { keyRight: key.right, valueLeft: value.left, keyTop: key.top, valueTop: value.top };
+        });
+        expect(geometry.keyRight).toBeLessThanOrEqual(geometry.valueLeft);
+        expect(Math.abs(geometry.keyTop - geometry.valueTop)).toBeLessThanOrEqual(1);
+      }
+      await expect(nickname).toHaveValue("보존할 긴 프로필 이름");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`settings-pairs-${width}.png`), fullPage: true });
+    }
+    await page.locator(".account-settings").evaluate((panel) => {
+      (panel as HTMLElement).style.maxWidth = "360px";
+    });
+    await page.screenshot({ path: info.outputPath("settings-pairs-narrow-parent.png"), fullPage: true });
+    await page.setViewportSize({ width: 320, height: 1000 });
+    await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect(nickname).toHaveValue("보존할 긴 프로필 이름");
+    await page.screenshot({ path: info.outputPath("settings-pairs-200.png"), fullPage: true });
+    expect(state.writes).toEqual([]);
+  },
+);

@@ -108,7 +108,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     jobState.uncertain;
   const anyBusy = busy || identityState.busy || schemaState.busy ||
     jobState.busy;
-  const navigationLocked = anyBusy || uncertain || identityState.uncertain || schemaState.uncertain || jobState.uncertain;
+  const navigationLocked = anyBusy || uncertain || identityState.uncertain || schemaState.uncertain ||
+    jobState.uncertain;
   useEffect(() => {
     const controller = new AbortController();
     setSelectedSchema(null);
@@ -341,10 +342,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               </p>
             )}
             <fieldset
-              className="settings-fields"
+              className="settings-fields key-value-grid"
               disabled={busy || uncertain || latestBusy}
             >
-              <Field label="자료 종류 이름">
+              <Field pair label="자료 종류 이름">
                 {(props) => (
                   <input
                     {...props}
@@ -357,7 +358,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   />
                 )}
               </Field>
-              <fieldset className="entity-type-icon-picker">
+              <fieldset className="entity-type-icon-picker settings-icon-pair key-value-full">
                 <legend className="label">아이콘</legend>
                 <div className="entity-type-icon-options">
                   {entityTypeIcons.map((item) => (
@@ -378,7 +379,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 </div>
               </fieldset>
               {!type_id && (
-                <Field label="대표 입력 항목 이름">
+                <Field pair label="대표 입력 항목 이름">
                   {(props) => (
                     <input
                       {...props}
@@ -392,7 +393,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 </Field>
               )}
               {type_id && (
-                <label className="choice-control">
+                <label className="choice-control settings-choice-pair">
                   <input
                     type="checkbox"
                     checked={archived}

@@ -354,7 +354,16 @@ export function SchemaMigrationJob(
       )}
       {job && (
         <>
-          <p role="status">{migrationLabels[job.status]} · {job.processed}/{job.total}개 준비</p>
+          <dl className="key-value-grid key-value-static" role="status">
+            <div>
+              <dt>상태</dt>
+              <dd>{migrationLabels[job.status]}</dd>
+            </div>
+            <div>
+              <dt>준비한 자료</dt>
+              <dd>{job.processed}/{job.total}개 준비</dd>
+            </div>
+          </dl>
           {migrationActive(job) && (
             <progress aria-label="값 변환 진행률" max={Math.max(job.total, 1)} value={job.processed} />
           )}
@@ -366,10 +375,30 @@ export function SchemaMigrationJob(
           )}
           {job.status === "committing" && <p>최종 적용 중입니다. 취소 대신 확정 결과를 확인하세요.</p>}
           {job.result && (
-            <p>새 입력 항목 버전 {job.result.schema_version} · {job.result.total}개 적용 · {job.result.changed}개 값 변경</p>
+            <dl className="key-value-grid key-value-static">
+              <div>
+                <dt>새 입력 항목 버전</dt>
+                <dd>{job.result.schema_version}</dd>
+              </div>
+              <div>
+                <dt>적용</dt>
+                <dd>{job.result.total}개 적용</dd>
+              </div>
+              <div>
+                <dt>값 변경</dt>
+                <dd>{job.result.changed}개 값 변경</dd>
+              </div>
+            </dl>
           )}
           {job.status !== "succeeded" && job.source_expires_at && (
-            <p>원본 보존 만료: {new Date(job.source_expires_at).toLocaleString()}</p>
+            <dl className="key-value-grid key-value-static">
+              <div>
+                <dt>원본 보존 만료</dt>
+                <dd>
+                  <time dateTime={job.source_expires_at}>{new Date(job.source_expires_at).toLocaleString()}</time>
+                </dd>
+              </div>
+            </dl>
           )}
           {job.status === "failed" && (
             <p role="alert" className="error-text">

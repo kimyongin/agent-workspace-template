@@ -308,7 +308,9 @@ export function SchemaEditor(
               </button>
             </h2>
           </div>
-          <p className="material-section-description secondary">상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다.</p>
+          <p className="material-section-description secondary">
+            상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다.
+          </p>
           <div hidden={!propertiesOpen} className="schema-input-content">
             <fieldset
               id="schema-property-inputs"
@@ -355,21 +357,25 @@ export function SchemaEditor(
                         }}
                       >
                         <div className="schema-field-heading">
-                          <h3 className="item-title">
+                          <div className="item-title" role="heading" aria-level={3}>
                             {expanded
                               ? (
-                                <span className="schema-field-title">
-                                  <input
-                                    className="input"
-                                    aria-label="항목 이름"
-                                    maxLength={80}
-                                    data-schema-setting="title"
-                                    value={f.title ?? ""}
-                                    disabled={Boolean(plan?.recovery)}
-                                    onChange={(event) => editField(key, { ...f, title: event.target.value })}
-                                  />
+                                <div className="schema-field-title">
+                                  <Field pair fullWidth label="항목 이름">
+                                    {(nameProps) => (
+                                      <input
+                                        {...nameProps}
+                                        className="input"
+                                        maxLength={80}
+                                        data-schema-setting="title"
+                                        value={f.title ?? ""}
+                                        disabled={Boolean(plan?.recovery)}
+                                        onChange={(event) => editField(key, { ...f, title: event.target.value })}
+                                      />
+                                    )}
+                                  </Field>
                                   {fieldSummary}
-                                </span>
+                                </div>
                               )
                               : (
                                 <button
@@ -394,7 +400,7 @@ export function SchemaEditor(
                                   {fieldSummary}
                                 </button>
                               )}
-                          </h3>
+                          </div>
                           <div className="schema-order-actions">
                             <BodyAction
                               type="button"
@@ -445,12 +451,12 @@ export function SchemaEditor(
                           />
                         </div>
                         <fieldset
-                          className="settings-fields"
+                          className="settings-fields key-value-grid"
                           id={`schema-field-${key}`}
                           hidden={!openFields.includes(key)}
                           disabled={Boolean(plan?.recovery)}
                         >
-                          <Field label="데이터 타입">
+                          <Field pair label="데이터 타입">
                             {(p) => (
                               <select
                                 {...p}
@@ -492,14 +498,14 @@ export function SchemaEditor(
                             )}
                           </Field>
                           {fieldChoices(f) && (
-                            <div className="schema-options">
+                            <div className="schema-options key-value-full">
                               <h4 className="section-title">선택 항목</h4>
                               {fieldChoices(f)!.filter((value) => value !== null).map((
                                 code,
                                 i,
                               ) => (
                                 <div className="schema-option-row" key={code!}>
-                                  <Field label={`선택 항목 ${i + 1}`}>
+                                  <Field pair label={`선택 항목 ${i + 1}`}>
                                     {(props) => (
                                       <input
                                         {...props}
@@ -567,7 +573,7 @@ export function SchemaEditor(
                             chooseRepresentative={editor.chooseRepresentative}
                           />
                           <details
-                            className="schema-advanced"
+                            className="schema-advanced key-value-full"
                             open={advancedFields.includes(key)}
                             onToggle={(event) => {
                               const open = event.currentTarget.open;
@@ -579,8 +585,8 @@ export function SchemaEditor(
                             }}
                           >
                             <summary>추가 설정</summary>
-                            <div className="form">
-                              <label className="choice-control">
+                            <div className="form key-value-grid">
+                              <label className="choice-control settings-choice-pair">
                                 <input
                                   type="checkbox"
                                   checked={draft.schema.required.includes(key)}
@@ -588,7 +594,7 @@ export function SchemaEditor(
                                 />{" "}
                                 필수 입력
                               </label>
-                              <label className="choice-control">
+                              <label className="choice-control settings-choice-pair">
                                 <input
                                   type="checkbox"
                                   aria-label={`${f.title || "새 항목"} 목록에 표시`}
@@ -604,7 +610,7 @@ export function SchemaEditor(
                                 목록에 표시
                               </label>
 
-                              <label className="choice-control">
+                              <label className="choice-control settings-choice-pair">
                                 <input
                                   type="checkbox"
                                   checked={!!f.readOnly}
@@ -613,7 +619,7 @@ export function SchemaEditor(
                                 />{" "}
                                 읽기 전용
                               </label>
-                              <Field label="설명">
+                              <Field pair fullWidth label="설명">
                                 {(p) => (
                                   <textarea
                                     {...p}
@@ -636,7 +642,7 @@ export function SchemaEditor(
                                       <p className="error-text">
                                         현재 타입에서 사용할 수 없는 이전 조건 입력입니다. 입력을 확인하고 제거하세요.
                                       </p>
-                                      <Field label={`이전 ${label} 입력`}>
+                                      <Field pair label={`이전 ${label} 입력`}>
                                         {(props) => (
                                           <input
                                             {...props}
@@ -658,11 +664,12 @@ export function SchemaEditor(
                                 },
                               )}
                               {scalar === "string" && !f.format && (
-                                <div className="schema-constraints">
+                                <div className="schema-constraints key-value-grid key-value-full">
                                   {(["minLength", "maxLength"] as const).map((
                                     name,
                                   ) => (
                                     <Field
+                                      pair
                                       key={name}
                                       label={name === "minLength" ? "최소 길이" : "최대 길이"}
                                     >
@@ -684,9 +691,9 @@ export function SchemaEditor(
                                 </div>
                               )}
                               {["integer", "number"].includes(scalar) && (
-                                <div className="schema-constraints">
+                                <div className="schema-constraints key-value-grid key-value-full">
                                   {(["minimum", "maximum", "multipleOf"] as const).map((name) => (
-                                    <Field key={name} label={numericConditionNames[name]}>
+                                    <Field pair key={name} label={numericConditionNames[name]}>
                                       {(p) => (
                                         <input
                                           {...p}
@@ -703,7 +710,7 @@ export function SchemaEditor(
                                   ))}
                                 </div>
                               )}
-                              <Field label="생성 기본값 (기존 자료에는 채우지 않음)">
+                              <Field pair label="생성 기본값 (기존 자료에는 채우지 않음)">
                                 {(p) => (
                                   <select
                                     {...p}
@@ -732,7 +739,7 @@ export function SchemaEditor(
                                 )}
                               </Field>
                               {f.default !== undefined && f.default !== null && (
-                                <Field label="기본값">
+                                <Field pair label="기본값">
                                   {(p) =>
                                     scalar === "boolean"
                                       ? (
@@ -1006,10 +1013,10 @@ export function SchemaEditor(
                       <span className="schema-history-heading">
                         <span>{title}</span>
                         <time className="secondary" dateTime={row.createdAt}>
-                          {new Date(row.createdAt).toLocaleString()}
+                          시각 {new Date(row.createdAt).toLocaleString()}
                         </time>
                       </span>
-                      <span className="secondary schema-history-status">{status}</span>
+                      <span className="secondary schema-history-status">상태 {status}</span>
                     </button>
                     <div
                       id={`schema-history-${row.id}`}
@@ -1133,8 +1140,8 @@ export function SchemaEditor(
                                 </time>
                               </p>
                               <p>
-                                복구안의 입력 항목과 변환 규칙은 원본 기준으로 유지됩니다. 보완이 필요하면 현재 자료를 직접
-                                수정하거나 새 변경안을 준비하고 다시 분석하세요.
+                                복구안의 입력 항목과 변환 규칙은 원본 기준으로 유지됩니다. 보완이 필요하면 현재 자료를
+                                직접 수정하거나 새 변경안을 준비하고 다시 분석하세요.
                               </p>
                             </section>
                           )}

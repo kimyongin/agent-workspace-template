@@ -426,13 +426,13 @@ export function EntitiesPage() {
                 : []}
               columns={displaySchema
                 ? [
-                  "자료",
+                  displaySchema.schema.properties[schemaPresentation(displaySchema).representative].title ?? "자료 이름",
                   ...schemaPresentation(displaySchema).list_columns.filter((key) =>
                     key !== schemaPresentation(displaySchema).representative
                   )
                     .map((key) => displaySchema.schema.properties[key].title ?? key),
                 ]
-                : ["자료", "자료 종류"]}
+                : ["자료 이름", "자료 종류"]}
             >
               {page?.items.map((e) => (
                 <li className="list-item" key={e.id}>

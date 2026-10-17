@@ -181,15 +181,12 @@ export function RelationSearch(
               to={draftMode ? undefined : `/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(item.id)}`}
               restoreKey={`relation-candidate-${kind}-${item.id}`}
               title={item.title}
+              titleLabel={kind === "task" ? "제목" : "자료 이름"}
               metadata={item.identity && (
-                <span>
-                  {item.type && (
-                    <>
-                      <EntityTypeIcon id={item.type.icon_id} /> {item.type.label} ·
-                    </>
-                  )}
-                  {item.identity}
-                </span>
+                <dl className="key-value-grid">
+                  {item.type && <div><dt>자료 종류</dt><dd><EntityTypeIcon id={item.type.icon_id} /> {item.type.label}</dd></div>}
+                  <div><dt>자료 식별</dt><dd>{item.identity}</dd></div>
+                </dl>
               )}
               action={
                 <BodyAction

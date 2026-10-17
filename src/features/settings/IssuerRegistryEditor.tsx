@@ -307,10 +307,11 @@ export function IssuerRegistryEditor(
           </div>
         )}
         <fieldset
-          className="settings-fields"
+          className="settings-fields key-value-grid"
           disabled={busy || reading || uncertain}
         >
           <Field
+            pair
             label={target.kind === "issuer" ? "번호 출처 이름" : "번호 종류 이름"}
             required
           >
@@ -325,15 +326,17 @@ export function IssuerRegistryEditor(
             )}
           </Field>
           {inline && target.kind === "rule" && baseline && (
-            <div className="issuer-input-method">
-              <span className="label">입력 방식</span>
-              <span>
-                {target.rule?.generation === "automatic" ? "자동 생성" : "직접 입력"}
-              </span>
-            </div>
+            <dl className="issuer-input-method key-value-static">
+              <div>
+                <dt>입력 방식</dt>
+                <dd>
+                  {target.rule?.generation === "automatic" ? "자동 생성" : "직접 입력"}
+                </dd>
+              </div>
+            </dl>
           )}
           {baseline && (
-            <label className="issuer-status-choice">
+            <label className="issuer-status-choice settings-choice-pair">
               <input
                 type="checkbox"
                 checked={active}

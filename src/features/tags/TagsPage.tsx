@@ -140,7 +140,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
   const reportDeletion=(id:string,state:DeletionState)=>setDeletions(current=>{const before=current[id];return before&&before.armed===state.armed&&before.busy===state.busy&&before.uncertain===state.uncertain?current:{...current,[id]:state};});
   const deleteAction=(target:TagResult,editor=false)=><DeleteAction key={target.id} excludeTag={target.id} disabled={busy||(deletionDirty&&!deletions[target.id]?.armed&&!deletions[target.id]?.uncertain)||(editor&&(uncertain||conflict))} label={editor?"삭제":`${target.name} 삭제`} message={`${target.name} 태그와 연결을 제거합니다. 원문은 보존합니다.`} onStateChange={state=>{reportDeletion(target.id,state);if(editor)setDeletionState(current=>current.armed===state.armed&&current.busy===state.busy&&current.uncertain===state.uncertain?current:state);}} onConfirm={(reason,tags,requestKey)=>deleteTag(target,reason,tags,requestKey)}/>;
   const editor=(initial:TagResult|null)=><form className="form tag-editor" data-mode={initial?"edit":"create"} aria-label={initial?"태그 이름 변경":"태그 추가"} onSubmit={e=>{e.preventDefault();void save();}}>
-    <Field label={tagLabels.name} required error={fieldError}>{p=><input {...p} ref={input} className="input" placeholder="태그 이름" value={draft?.name??""} readOnly={busy||uncertain||deletionState.armed} onChange={e=>setDraft({initial,name:e.target.value})}/>}</Field>
+    <Field pair label={tagLabels.name} required error={fieldError}>{p=><input {...p} ref={input} className="input" placeholder="태그 이름" value={draft?.name??""} readOnly={busy||uncertain||deletionState.armed} onChange={e=>setDraft({initial,name:e.target.value})}/>}</Field>
     <div className="actions">
       {initial&&deleteAction(initial,true)}
       {draft&&<button type="button" className={initial?"btn":"btn btn-input"} disabled={busy} onClick={()=>change(cancel)}>취소</button>}
@@ -156,7 +156,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     {loading && <p className="secondary" role="status">불러오는 중…</p>}
     {page?.items.length === 0 && <p className="secondary">아직 태그가 없습니다.</p>}
     <ul className="list">{(draft?.initial&&!page?.items.some(t=>t.id===draft.initial?.id)?[draft.initial,...(page?.items??[])]:page?.items??[]).map(t=><li key={t.id} className="list-item">
-      {draft?.initial?.id===t.id?editor(t):<><span className="item-title">{t.name}</span><div className="actions">
+      {draft?.initial?.id===t.id?editor(t):<><dl className="key-value-static tag-dictionary-value"><div><dt>태그 이름</dt><dd>{t.name}</dd></div></dl><div className="actions">
         <BodyAction id={`tag-${t.id}`} disabled={busy} aria-label={`${t.name} 이름 변경`} onClick={()=>select(t)}>이름 변경</BodyAction>
         {deleteAction(t)}
       </div></>}

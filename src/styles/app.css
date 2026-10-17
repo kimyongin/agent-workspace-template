@@ -946,7 +946,7 @@ details[open] > summary::after { transform: rotate(135deg); }
 }
 .key-value-full { grid-column: 1 / -1; }
 .key-value-static { margin: 0; min-width: 0; }
-.key-value-grid > :is(div:has(> dt), .field), .key-value-static > div {
+.key-value-grid > :is(div:has(> dt), .field), .key-value-static > div, .key-value-pair {
   display: grid;
   grid-template-columns: min(6rem, 32%) minmax(0, 1fr);
   gap: var(--space-3);
@@ -955,7 +955,7 @@ details[open] > summary::after { transform: rotate(135deg); }
 }
 .key-value-grid > div:not(.field):not(:has(> dt)) { grid-column: 1 / -1; }
 .key-value-grid > :is(p, section, button, fieldset) { grid-column: 1 / -1; }
-.key-value-grid :is(dt, .label), .key-value-static dt {
+.key-value-grid :is(dt, .label), .key-value-static dt, .key-value-pair > .label {
   color: var(--muted-ink);
   font-size: var(--text-label);
   font-weight: 400;
@@ -973,8 +973,8 @@ details[open] > summary::after { transform: rotate(135deg); }
   line-height: 1.375rem;
   overflow-wrap: anywhere;
 }
-.key-value-grid .field-value { display: grid; gap: var(--space-2); min-width: 0; }
-.key-value-grid :is(.input, dd) { min-width: 0; }
+.key-value-grid .field-value, .key-value-pair > .field-value { display: grid; gap: var(--space-2); min-width: 0; }
+.key-value-grid :is(.input, dd), .key-value-pair .input { min-width: 0; }
 .key-value-grid .detail-title { font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; }
 .key-value-grid .key-value-primary .input { font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; }
 

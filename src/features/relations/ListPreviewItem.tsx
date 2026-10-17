@@ -65,5 +65,5 @@ export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityLis
       void Promise.resolve(navigate(visit.back,{replace:true,preventScrollReset:true})).then(()=>navigate(visit.to,{state:null}));
     }};
   };
-  return <div className={kind==="records"?"related-record":undefined}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} cells={cells} summary={kind==="tasks"?cells?.[0]:undefined} list={{link,metadata}}/></div>;
+  return <div className={kind==="records"?"related-record":undefined}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} titleLabel={kind==="tasks"?"제목":kind==="records"?"본문 대표 문구":undefined} cells={cells} list={{link,metadata}}/></div>;
 }

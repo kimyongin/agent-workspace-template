@@ -56,7 +56,7 @@ export function RecordCalendar<T extends { id: string }>({ items, at, children, 
     })}</div>
     </div>
     <section className="calendar-selection" aria-label={`${selected} 기록`}><h3 className="section-title">{Number(selected.slice(5, 7))}월 {Number(selected.slice(8))}일 · 기록 {records.length}개</h3>
-      {records.length > 0 ? <CollectionList label={`${selected} 기록`}>{records.map(item => <li key={item.id}>{children(item)}</li>)}</CollectionList> : <p className="secondary">이 날짜에 불러온 기록이 없습니다.</p>}
+      {records.length > 0 ? <CollectionList label={`${selected} 기록`} columns={["본문 대표 문구", "종류", "날짜"]}>{records.map(item => <li key={item.id}>{children(item)}</li>)}</CollectionList> : <p className="secondary">이 날짜에 불러온 기록이 없습니다.</p>}
     </section>
   </div>;
 }
