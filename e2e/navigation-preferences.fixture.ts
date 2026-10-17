@@ -417,15 +417,15 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
   });
   await page.goto(`/settings/entity-types/${material.id}`);
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
-  const picker = page.getByRole("radiogroup", { name: "아이콘", exact: true });
+  const picker = page.getByRole("radiogroup", { name: "자료 종류 아이콘", exact: true });
   await expect(picker.getByRole("radio")).toHaveCount(6);
   await expect(picker.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
   await expect(picker.locator("svg")).toHaveCount(6);
   await picker.getByRole("radio", { name: "잎", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
   await expect(picker.getByRole("radio", { name: "포장", exact: true })).toBeChecked();
-  expect(await picker.locator("label").evaluateAll((labels) => labels.every((label) => {
-    const rect = label.getBoundingClientRect();
+  expect(await picker.getByRole("radio").evaluateAll((controls) => controls.every((control) => {
+    const rect = control.getBoundingClientRect();
     return rect.width >= 44 && rect.height >= 44;
   }))).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
@@ -472,7 +472,7 @@ test("owner catalog refresh cancels obsolete reads and ignores another account i
 });
 
 test(
-  "기본 설정의 키와 값은 좁은 패널과 확대에서도 같은 행에서 독립 초안을 유지한다",
+  "기본 설정의 라벨과 값은 좁은 패널과 확대에서도 읽기 순서와 독립 초안을 유지한다",
   async ({ page, baseURL }, info) => {
     const state = await fixture(page, baseURL!);
     await page.goto("/settings");
@@ -484,11 +484,15 @@ test(
         const input = page.getByLabel(name, { exact: true });
         const geometry = await input.evaluate((control) => {
           const label = document.querySelector(`label[for="${control.id}"]`)!;
-          const key = label.getBoundingClientRect(), value = control.getBoundingClientRect();
-          return { keyRight: key.right, valueLeft: value.left, keyTop: key.top, valueTop: value.top };
+          const field = control.closest('[data-slot="field"]')!;
+          const key = label.getBoundingClientRect(), value = control.getBoundingClientRect(), bounds = field.getBoundingClientRect();
+          return { keyBottom: key.bottom, valueTop: value.top, keyLeft: key.left, keyRight: key.right, valueLeft: value.left, valueRight: value.right, fieldLeft: bounds.left, fieldRight: bounds.right };
         });
-        expect(geometry.keyRight).toBeLessThanOrEqual(geometry.valueLeft);
-        expect(Math.abs(geometry.keyTop - geometry.valueTop)).toBeLessThanOrEqual(1);
+        expect(geometry.keyBottom).toBeLessThanOrEqual(geometry.valueTop);
+        for (const [left, right] of [[geometry.keyLeft, geometry.keyRight], [geometry.valueLeft, geometry.valueRight]]) {
+          expect(left).toBeGreaterThanOrEqual(geometry.fieldLeft - 1);
+          expect(right).toBeLessThanOrEqual(geometry.fieldRight + 1);
+        }
       }
       await expect(nickname).toHaveValue("보존할 긴 프로필 이름");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
