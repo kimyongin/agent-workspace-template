@@ -53,7 +53,8 @@ test("defined-only upgrade preserves exact historical links, business context, a
     const original =
       await sql`select * from app.entity_pairs where owner_id in (${owner},${other}) and entity_id='a' and other_id='b' order by owner_id`;
     const before = await snapshot();
-    await sql.begin((tx) => tx.unsafe(migration));
+    // Match CLI migration execution: the migration owns its transaction boundary.
+    await sql.unsafe(migration);
     assert.deepEqual(await snapshot(), before);
     assert.deepEqual(
       await sql`select * from private.retired_entity_pairs where owner_id in (${owner},${other}) and entity_id='a' and other_id='b' order by owner_id`,
