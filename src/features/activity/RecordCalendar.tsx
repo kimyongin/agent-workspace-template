@@ -1,6 +1,7 @@
 import { type ComponentProps, createContext, type ReactNode, useContext } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
-import { TZDate } from "react-day-picker";
+import { TZDate, type RootProps } from "react-day-picker";
+import { addDays, addMonths, addYears, startOfWeek, endOfWeek } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,9 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { groupRecords } from "./timeline.ts";
 import { calendarDay, calendarMonth } from "./calendar.ts";
 
+function RecordCalendarRoot({ rootRef, ...props }: RootProps) {
+  return <div data-slot="calendar" ref={rootRef} {...props} />;
+}
 const DayCounts = createContext(new Map<string, number>());
 function civilDay(date: Date) {
   return `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${
@@ -116,12 +120,22 @@ export function RecordCalendar<T extends { id: string }>(
                     choose(day.slice(0, 7), day);
                   }
                 }}
-                onDayFocus={(date) => {
-                  const day = civilDay(date);
-                  if (day !== selected) choose(day.slice(0, 7), day);
+                onDayKeyDown={(date, _modifiers, event) => {
+                  const next = event.key === "ArrowLeft" ? (event.shiftKey ? addMonths(date, -1) : addDays(date, -1))
+                    : event.key === "ArrowRight" ? (event.shiftKey ? addMonths(date, 1) : addDays(date, 1))
+                    : event.key === "ArrowUp" ? (event.shiftKey ? addYears(date, -1) : addDays(date, -7))
+                    : event.key === "ArrowDown" ? (event.shiftKey ? addYears(date, 1) : addDays(date, 7))
+                    : event.key === "PageUp" ? (event.shiftKey ? addYears(date, -1) : addMonths(date, -1))
+                    : event.key === "PageDown" ? (event.shiftKey ? addYears(date, 1) : addMonths(date, 1))
+                    : event.key === "Home" ? startOfWeek(date)
+                    : event.key === "End" ? endOfWeek(date) : null;
+                  if (next && next.getFullYear() >= 1 && next.getFullYear() <= 9999) {
+                    const day = civilDay(next);
+                    choose(day.slice(0, 7), day);
+                  }
                 }}
                 labels={{ labelPrevious: () => "이전 달", labelNext: () => "다음 달" }}
-                components={{ DayButton: RecordDayButton }}
+                components={{ Root: RecordCalendarRoot, DayButton: RecordDayButton }}
               />
             </DayCounts.Provider>
             <ScrollBar orientation="horizontal" />

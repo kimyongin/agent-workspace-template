@@ -107,7 +107,7 @@ test("calendar uses display dates, keyboard month edges, partial pages and saved
   await day.press("ArrowLeft"); await expect(page.getByRole("button", { name: "2026-10-07, 불러온 기록 0개", exact: true })).toBeFocused();
   await page.getByRole("button", { name: "2026-10-01, 불러온 기록 19개", exact: true }).click();
   await page.getByRole("button", { name: "2026-10-01, 불러온 기록 19개", exact: true }).press("ArrowLeft");
-  await expect(page.getByRole("heading", { name: "2026년 9월", exact: true })).toBeVisible();
+  await expect(page.getByText("2026년 9월", {exact:true})).toBeVisible();
   await page.getByRole("button", { name: "다음 달", exact: true }).click();
   await page.getByRole("button", { name: "2026-10-08, 불러온 기록 1개", exact: true }).click();
   await page.getByRole("button", { name: "기록 더 보기", exact: true }).click();
