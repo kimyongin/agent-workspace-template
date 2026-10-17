@@ -627,6 +627,8 @@ test("알 수 없는 변수와 조합 입력은 임의 치환 없이 원문을 �
   await memo.press("Shift+Enter");
   await memo.pressSequentially("끝 줄");
   await save.click();
+  await expect.poll(() => state.writes.length).toBe(2);
+  await expect(form.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toBeVisible();
   expect(state.writes[1].body.value.entity_types[materials.id].create.memo).toBe("첫 줄\n끝 줄");
   await memo.fill("$자료.이후.가격$ $없는변수$ $$엔터티.이후.prop_2$$");
   await expect(memo.locator(".template-variable-token")).toHaveCount(0);
