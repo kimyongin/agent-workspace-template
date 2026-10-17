@@ -39,9 +39,9 @@ agent-workspace-template/
 │  │  ├─ search/                   # 검색 화면과 API 호출
 │  │  ├─ tags/                     # 태그 관리
 │  │  └─ settings/                 # 앱 설정과 연결 안내
-│  ├─ components/                  # 공통 UI
+│  ├─ components/                  # 업무 공통 UI, ui/에는 공식 shadcn 소스
 │  ├─ lib/                         # HTTP/Auth 클라이언트와 표시 유틸
-│  └─ styles/                      # 공통 스타일
+│  └─ styles/app.css               # Tailwind 진입·shadcn 의미 토큰·안전한 Markdown 표현
 ├─ supabase/
 │  ├─ config.toml
 │  ├─ migrations/                  # 테이블·RLS·제약·pgmq·pgvector 설정
