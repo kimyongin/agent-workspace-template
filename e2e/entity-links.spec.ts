@@ -31,7 +31,25 @@ test("general record selects two entities in web; MCP, both related views and de
     await mcp.call("delete_entity", { id: first.id, expected_version: first.version }); firstDeleted = true;
     await page.goto(`/records/${recordId}`); await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "기록 편집", exact: true });
-    await expect(edit.getByRole("region", { name: /^연결된 자료/ })).toHaveCount(0);
+    const connected = edit.getByRole("region", { name: "연결된 자료 (2개)", exact: true });
+    await expect(connected).toBeVisible();
+    await expect(connected.getByRole("listitem")).toHaveCount(2);
+    for (const target of [first, second]) {
+      const capture = read.entity_context.find((value: { id: string }) => value.id === target.id);
+      expect(capture?.type).toBeTruthy();
+      expect(capture?.schema_version).toBeDefined();
+      const row = connected.getByRole("listitem").filter({ has: connected.getByText(target.title, { exact: true }) });
+      await expect(row).toHaveCount(1);
+      for (const [label, value] of [
+        ["당시 자료 종류", capture.type.label],
+        ["당시 입력 항목 버전", String(capture.schema_version)],
+        ["자료 식별", target.id],
+      ]) {
+        const term = row.getByRole("term").and(row.getByText(label, { exact: true }));
+        await expect(term.locator("..").getByRole("definition")).toHaveText(value);
+      }
+    }
+    await expect(connected.getByRole("button").or(connected.getByRole("link"))).toHaveCount(0);
     await expect(edit.getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
     await edit.getByRole("textbox", { name: /^본문/ }).fill("대상 삭제 후에도 자료를 보존");
     await edit.getByRole("button", { name: "저장", exact: true }).click();

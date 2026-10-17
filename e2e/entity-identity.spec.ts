@@ -530,8 +530,8 @@ test("seven settings workspaces retain real API selections and stay within the v
       ["/settings/tags", "태그 설정"],
       ["/settings/records", "기록 설정"],
       ["/settings/issuers", "자료 설정"],
-      ["/settings/relations", "연결 설정"],
-      ["/settings/data-model", "자료 모델"],
+      ["/settings/relations", "자료 설정"],
+      ["/settings/data-model", "자료 설정"],
     ]
   ) {
     await page.goto(path);
@@ -547,15 +547,18 @@ test("seven settings workspaces retain real API selections and stay within the v
       ["기록", "/settings/records"],
       ["번호 출처", "/settings/issuers"],
     ] as const;
-    await expect(menu.getByRole("link")).toHaveCount(7);
-    await expect(menu.getByRole("link")).toHaveText(destinations.map(([label]) => label));
+    await expect(menu.getByRole("menuitem")).toHaveCount(7);
+    await expect(menu.getByRole("menuitem")).toHaveText(destinations.map(([label]) => label));
     for (const [label, href] of destinations) {
       await expect(menu.getByRole("menuitem", { name: label, exact: true })).toHaveAttribute("href", href);
     }
-    await page.getByRole("button", { name: "설정 메뉴", exact: true }).press("Escape");
-    if (title === "자료 설정") {
+    await page.keyboard.press("Escape");
+    await expect(menu).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toBeFocused();
+    if (path === `/settings/entity-types/${fixtureType!.id}`) {
       const identity = page.getByRole("region", { name: "자료 번호", exact: true });
-      await identity.getByRole("button", { name: /^자료 번호/ }).click();
+      const disclosure = identity.getByRole("heading", { level: 2 }).getByRole("button", { name: /^자료 번호/ });
+      if (await disclosure.getAttribute("aria-expanded") !== "true") await disclosure.click();
       await expect(identity.getByLabel("이름", { exact: false })).toHaveValue("자료 번호");
       await expect(identity.getByRole("radio", { name: "시험 마켓 기본 번호 출처", exact: true })).toBeChecked();
       await expect(page.getByRole("region", { name: "기록 자동 완성", exact: true })).toHaveCount(0);
@@ -578,6 +581,6 @@ test("seven settings workspaces retain real API selections and stay within the v
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
       .toBe(true);
-    await page.screenshot({ path: info.outputPath(`${title}.png`), fullPage: true });
+    await page.screenshot({ path: info.outputPath(`${path.slice(1).replaceAll("/", "-")}.png`), fullPage: true });
   }
 });
