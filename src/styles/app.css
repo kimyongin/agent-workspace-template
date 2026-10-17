@@ -953,6 +953,10 @@ details[open] > summary::after { transform: rotate(135deg); }
   align-items: start;
   min-width: 0;
 }
+/* Full-span and short pairs share the key axis of their actual data container. */
+.key-value-grid > :is(div:has(> dt), .field), .key-value-grid .key-value-static > div {
+  grid-template-columns: min(6rem, 32cqw) minmax(0, 1fr);
+}
 .key-value-grid > div:not(.field):not(:has(> dt)) { grid-column: 1 / -1; }
 .key-value-grid > :is(p, section, button, fieldset) { grid-column: 1 / -1; }
 .key-value-grid :is(dt, .label), .key-value-static dt, .key-value-pair > .label {

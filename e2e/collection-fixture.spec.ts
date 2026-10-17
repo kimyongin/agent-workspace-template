@@ -319,7 +319,7 @@ test("soft-deleted entity returned by GET keeps historical relation without a de
   expect(state.writes).toEqual([]);
 });
 
-for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read properties use aligned horizontal key/value rows at every width`, async ({page}) => {
+for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read properties use aligned horizontal key/value rows at every width`, async ({page}, info) => {
   const state=await fixture(page);
   const key=kind==="entities"?entity.id:kind==="tasks"?task.id:record.id;
   for(const width of [320,360,390,639,640,768,1024,1440]) {
@@ -358,6 +358,7 @@ for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read 
         };
       })
     );
+    if ([320, 639, 640, 1440].includes(width)) await page.screenshot({path:info.outputPath(`detail-axis-${kind}-${width}.png`)});
     for (const row of rows) {
       expect(row.valueX).toBeGreaterThan(row.keyRight);
       expect(row.valueRight).toBeLessThanOrEqual(row.gridRight + 1);
