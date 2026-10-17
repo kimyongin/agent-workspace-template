@@ -214,7 +214,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   // Base editors use the same retained parent on the first authenticated render and after startup commits.
   if ((!started && !retainedBase) || !eligible) return <div className="min-w-0 p-4 lg:p-6">{children}</div>;
   return <WorkspaceContext.Provider value={{ revision, navigationKey: location.key, saved, open, registerGuard }}>
-    <ResizablePanelGroup elementRef={groupElement} orientation="horizontal" className={cn("min-h-0 min-w-0", desktop && shown && "h-[calc(100dvh-3.5rem)]")} resizeTargetMinimumSize={{ coarse: 44, fine: 44 }}>
+    <ResizablePanelGroup elementRef={groupElement} orientation="horizontal" className={cn("min-h-0 min-w-0", desktop && shown ? "h-[calc(100dvh-3.5rem)]" : "h-auto")} resizeTargetMinimumSize={{ coarse: 44, fine: 44 }}>
       <ResizablePanel id="list" minSize={desktop && shown ? minimums.list : 0} className="min-w-0">
         <div className={cn("flex min-w-0 flex-col gap-5 p-4 lg:p-6", desktop && shown && "h-full overflow-y-auto overscroll-contain")} ref={listRef} role="region" aria-label="기본 작업 영역">
           {render(base)}
