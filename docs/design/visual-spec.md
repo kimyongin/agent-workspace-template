@@ -12,7 +12,7 @@
 
 ## 타이포그래피
 
-기본 글꼴은 패키지로 제공하는 Geist Variable과 한국어 시스템 fallback이다. 외부 폰트 서비스에 연결하지 않는다. html은 사용자의 기본 글자 크기를 축소하지 않고 개인 배율을 곱한다. 글자·간격은 rem 기반 Tailwind 토큰으로 조절한다. 제목과 본문은 CardTitle·DialogTitle·FieldLabel 등 해당 부품의 역할을 사용하고 임의의 페이지별 덮어쓰기를 피한다. 일반 입력은 모바일에서 읽을 수 있는 크기를 유지한다.
+기본 글꼴은 패키지로 제공하는 Geist Variable과 한국어 시스템 fallback이다. 외부 폰트 서비스에 연결하지 않는다. 배포에는 [Geist의 SIL OFL 라이선스](../../public/fonts/Geist-LICENSE.txt)를 함께 포함한다. html은 사용자의 기본 글자 크기를 축소하지 않고 개인 배율을 곱한다. 글자·간격은 rem 기반 Tailwind 토큰으로 조절한다. 제목과 본문은 CardTitle·DialogTitle·FieldLabel 등 해당 부품의 역할을 사용하고 임의의 페이지별 덮어쓰기를 피한다. 일반 입력은 모바일에서 읽을 수 있는 크기를 유지한다.
 
 긴 본문은 안전한 MarkdownContent로 표시한다. raw HTML과 위험 URL·외부 이미지 자동 로딩을 차단하고 원문의 줄바꿈을 유지한다. 제목·목록·표·코드는 `app.css`의 문서 의미 스타일로 표현하며 코드·표만 내부 가로 스크롤을 허용한다. 숫자 비교에는 tabular-nums를 사용한다.
 

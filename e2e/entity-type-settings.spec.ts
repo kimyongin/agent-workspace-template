@@ -116,7 +116,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
           .toHaveText(value);
       }
       await expect(definition.locator("input,select,textarea")).toHaveCount(0);
-      await expect(row.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term", { name: "버전", exact: true }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
+      await expect(row.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
       const published = await mcp.call("get_entity_schema", { type_id: typeId, schema_version: 1 });
       expect({
         type_id: published.type_id,
