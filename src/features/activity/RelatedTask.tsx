@@ -28,7 +28,7 @@ export function RelatedTaskItem({ id, occurrence }: { id: string; occurrence: st
             : undefined}
         />
       )}
-      {!task && !error && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
+      {!task && !error && <p className="text-sm text-muted-foreground" role="status" aria-busy="true">불러오는 중…</p>}
       {error && (
         <p className="text-sm text-muted-foreground">
           {error === "missing"
