@@ -125,7 +125,7 @@ function DailyChart({ title, days, series, stacked = false }: {
                   />
                   <ReferenceArea x1={current.date} x2={current.date} fill="var(--muted)" fillOpacity={0.6} />
                   <ChartTooltip active={tooltipOpen} trigger="click" content={<ChartTooltipContent />} />
-                  <ChartLegend content={<ChartLegendContent className="flex-wrap gap-2" />} />
+                  <ChartLegend verticalAlign="top" content={<ChartLegendContent className="flex-wrap gap-2" />} />
                   {series.map((s) => (
                     <Bar
                       key={s.key}

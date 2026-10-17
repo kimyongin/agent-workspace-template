@@ -101,7 +101,7 @@ test("빈 날짜 응답과 새로고침 실패는 수치를 만들거나 기존 
 
 test.describe("차트 직접 선택", () => {
   test.use({ hasTouch: true });
-  test("그래프를 클릭하거나 터치하면 선택 날짜의 정확한 값이 바뀐다", async ({ page }) => {
+  test("그래프를 클릭하거나 터치하면 선택 날짜의 정확한 값이 바뀐다", async ({ page }, info) => {
     test.setTimeout(120_000);
     await fixture(page);
     for (const scale of [100, 110, 125, 150]) {
@@ -110,20 +110,32 @@ test.describe("차트 직접 선택", () => {
       for (const width of [320, 390, 1440]) {
         await page.setViewportSize({ width, height: 900 });
         for (const [title, last, first] of charts) {
-          const graph = page.getByRole("group", { name: `${title} 그래프: 막대를 누르거나 방향키로 날짜 선택`, exact: true });
-          const values = page.getByRole("table", { name: `${title} 날짜별 수치`, exact: true });
-          await graph.evaluate((node) => node.scrollIntoView({ block: "center" }));
-          let box = (await graph.boundingBox())!;
-          await graph.click({ position: { x: box.width * .2, y: box.height * .4 } });
-          await expect(values.getByRole("cell")).toHaveText([...first]);
-          box = (await graph.boundingBox())!;
-          await page.touchscreen.tap(box.x + box.width * .85, box.y + box.height * .4);
-          await expect(values.getByRole("cell")).toHaveText([...last]);
-          expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-          await graph.press("Home");
-          await expect(values.getByRole("cell")).toHaveText([...first]);
-          await graph.press("End");
-          await expect(values.getByRole("cell")).toHaveText([...last]);
+          await test.step(`${width}px · ${scale}% · ${title}`, async () => {
+            const graph = page.getByRole("group", { name: `${title} 그래프: 막대를 누르거나 방향키로 날짜 선택`, exact: true });
+            const values = page.getByRole("table", { name: `${title} 날짜별 수치`, exact: true });
+            await graph.evaluate((node) => node.scrollIntoView({ block: "center" }));
+            const firstLabel = graph.getByText("10-14", { exact: true });
+            await expect(firstLabel).toBeVisible();
+            await firstLabel.hover();
+            let box = (await graph.boundingBox())!;
+            const firstTick = (await firstLabel.boundingBox())!;
+            await graph.click({ position: { x: firstTick.x + firstTick.width / 2 - box.x, y: box.height * .4 } });
+            await expect(values.getByRole("cell")).toHaveText([...first]);
+            box = (await graph.boundingBox())!;
+            const lastLabel = graph.getByText("10-16", { exact: true });
+            await expect(lastLabel).toBeVisible();
+            const lastTick = (await lastLabel.boundingBox())!;
+            await page.touchscreen.tap(lastTick.x + lastTick.width / 2, box.y + box.height * .4);
+            await expect(values.getByRole("cell")).toHaveText([...last]);
+            expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+            if (width === 320 && (scale === 110 || scale === 150)) {
+              await graph.screenshot({ path: info.outputPath(`pointer-${title}-${width}-${scale}.png`) });
+            }
+            await graph.press("Home");
+            await expect(values.getByRole("cell")).toHaveText([...first]);
+            await graph.press("End");
+            await expect(values.getByRole("cell")).toHaveText([...last]);
+          });
         }
       }
     }
