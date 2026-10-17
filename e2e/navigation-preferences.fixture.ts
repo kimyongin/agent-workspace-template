@@ -462,7 +462,7 @@ test(
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: info.outputPath(`settings-pairs-${width}.png`), fullPage: true });
     }
-    await page.locator(".account-settings").evaluate((panel) => {
+    await page.getByRole("region", { name: "프로필", exact: true }).evaluate((panel) => {
       (panel as HTMLElement).style.maxWidth = "360px";
     });
     await page.screenshot({ path: info.outputPath("settings-pairs-narrow-parent.png"), fullPage: true });
