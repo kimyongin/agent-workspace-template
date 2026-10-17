@@ -1,3 +1,4 @@
+import { openProfileMenu } from "./ui-actions.ts";
 import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
@@ -39,7 +40,7 @@ test("더 보기 응답이 늦어도 새 태그 필터 목록에 섞이지 않�
       // Changing the filter aborts the superseded read, so no browser response event is required.
       release();await done;
       await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(1);await page.unroute(`**/api/${path}?**`);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(1);await page.unroute(`**/api/${path}?**`);
     }
   }finally{release();await mcp.close();}
 });
@@ -50,10 +51,10 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
   try{
     const tag=await mcp.call("create_tag",{scope:"record",name:unique("지연 삭제").slice(0,30)});
     await page.goto("/entities");
-    await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();
-    await page.getByRole("link",{name:"설정",exact:true}).click();
+    await openProfileMenu(page);
+    await page.getByRole("menuitem",{name:"설정",exact:true}).click();
     await page.getByRole("button",{name:"설정 메뉴",exact:true}).click();
-    await page.getByRole("navigation",{name:"설정 메뉴",exact:true}).getByRole("link",{name:"태그",exact:true}).click();
+    await page.getByRole("menu",{name:"설정 메뉴",exact:true}).getByRole("menuitem",{name:"태그",exact:true}).click();
     await page.getByLabel("관리 대상",{exact:true}).selectOption("record");
     await expect(page).toHaveURL(/settings\/tags\?scope=record$/);
     let arrived!:()=>void,finished!:()=>void,deletes=0;
@@ -96,7 +97,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
       await openDetailEditor(page);const edit=page.getByRole("dialog",{name:kind==="entity"?/^검사 자료.* 편집$/:"기록 편집"});
       await expect(edit.getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
-      await expect(edit.locator(".tag-connection-data:visible").getByText("연결된 태그 없음",{exact:true})).toBeVisible();
+      await expect(edit.getByText("연결된 태그 없음",{exact:true})).toBeVisible();
       await edit.getByRole("button",{name:"취소",exact:true}).click();
       const beforeRestore=await mcp.call(`get_${kind}`,{id});
       await mcp.call(`update_${kind}`,{id,expected_version:beforeRestore.version,tag_ids:[tag.id],...(kind==="entity"?{schema_version:beforeRestore.current_schema_version,change_note:"분류 복구"}:{})});
@@ -104,7 +105,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       expect(filtered.items.map((x:{id:string})=>x.id)).toEqual([id]);
       await page.goto(`${path}?tag_id=${tag.id}`);await openListDetail(page,title);await openDetailEditor(page);
       const revisit=page.getByRole("dialog",{name:kind==="entity"?/^검사 자료.* 편집$/:"기록 편집"});await revisit.getByLabel(kind==="entity"?"수량":"본문").fill(kind==="entity"?"10":"원문 보존");if(kind==="entity")await fillChangeMemo(page,revisit,"분류 상태에서 원문 정정");await saveOnce(page,revisit);await expect(revisit).not.toBeVisible();expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([tag.id]);
-      await page.getByRole("button",{name:"닫기",exact:true}).click();await openTabFilters(page);await expect(page.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
+      await page.getByRole("button",{name:"닫기",exact:true}).click();await openTabFilters(page);await expect(page.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
       if(kind==="entity")await expect(detailDialog(page).getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
@@ -147,7 +148,7 @@ test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 
     await mcp.call("update_task",{id,expected_version:beforeRestore.version,tag_ids:[tag.id],change_note:"분류 복구"});
     await page.reload();await openDetailEditor(page);const edit=page.getByRole("dialog",{name:"할 일 편집"});
     await expect(edit.getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
-    await expect(edit.locator(".tag-connection-data .tag-read:visible")).toHaveText(tag.name);
+    await expect(edit.getByRole("term", { name: "태그", exact: true }).locator("..").getByRole("definition")).toHaveText(tag.name);
     await edit.getByLabel("본문").fill("삭제 후에도 보존");await fillChangeMemo(page,edit,"원문 보존 확인");await saveOnce(page,edit);
     await expect(edit).not.toBeVisible();expect((await mcp.call("get_task",{id})).tag_ids).toEqual([tag.id]);
     const items=await mcp.call("list_tasks",{tag_id:tag.id});expect(items.items.map((t:{id:string})=>t.id)).toEqual([id]);
@@ -164,11 +165,11 @@ test("추가 페이지 태그의 편집 취소·충돌·저장 뒤 목록과 초
     for(let i=0;i<21;i++)tags.push(await mcp.call("create_tag",{name:unique(`보존 ${i}`).slice(0,30)}));
     const oldest=tags[0];await page.goto("/tags/record");
     const trigger=page.getByRole("button",{name:`${oldest.name} 이름 변경`,exact:true});
-    await expect(page.locator(".tag-management .list-item").first()).toBeVisible();
+    await expect(page.getByRole("listitem").filter({ has: page.getByRole("button", { name: / 이름 변경$/ }) }).first()).toBeVisible();
     while(await trigger.count()===0){
-      const before=await page.locator(".tag-management .list-item").count();
+      const before=await page.getByRole("listitem").filter({ has: page.getByRole("button", { name: / 이름 변경$/ }) }).count();
       await page.getByRole("button",{name:"더 보기",exact:true}).click();
-      await expect.poll(()=>page.locator(".tag-management .list-item").count()).toBeGreaterThan(before);
+      await expect.poll(()=>page.getByRole("listitem").filter({ has: page.getByRole("button", { name: / 이름 변경$/ }) }).count()).toBeGreaterThan(before);
     }
     await trigger.click();let form=page.getByRole("form",{name:"태그 이름 변경"});
     await form.getByRole("button", {name:"취소",exact:true}).click();await expect(trigger).toBeFocused();

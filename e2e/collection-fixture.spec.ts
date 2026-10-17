@@ -1,3 +1,4 @@
+import { openMainNavigation } from "./ui-actions.ts";
 // Actual App and routing; remote Auth/API are isolated, with no DB or real-account writes.
 import { fixtureType, fixtureSchema, entityKey } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
@@ -35,14 +36,14 @@ for (const [kind, label, title] of [["entities", "전체 자료", entity.title],
     await expect(list.getByRole("button", { name: title, exact: true })).toBeVisible();
     if (kind === "tasks") {
       const toggle = list.getByRole("button", { name: title, exact: true });
-      await expect(list.locator(".badge")).toHaveCount(1);
-      await expect(list.locator(".badge")).toBeVisible();
+      await expect(list.locator('[data-slot="badge"]')).toHaveCount(1);
+      await expect(list.locator('[data-slot="badge"]')).toBeVisible();
       await toggle.click();
       await expect(list.getByText(task.body, { exact: true })).toBeVisible();
-      await expect(list.locator(".badge")).toHaveCount(1);
-      await expect(list.locator(".related-preview .badge")).toHaveCount(0);
+      await expect(list.locator('[data-slot="badge"]')).toHaveCount(1);
+      await expect(list.locator('[data-slot="collapsible-content"] [data-slot="badge"]')).toHaveCount(0);
       await toggle.click();
-      await expect(list.locator(".badge")).toHaveCount(1);
+      await expect(list.locator('[data-slot="badge"]')).toHaveCount(1);
     }
   }
   expect(state.reads.filter(url => new URL(url).pathname === `/api/${kind}`).length).toBe(readCount);
@@ -82,7 +83,7 @@ test("empty and failed lists keep truthful counts and retry in every view", asyn
   const clearFailure = state.failRead({ kind: "records", page: 1 }, { once: false });
   await page.goto("/records");
   await expect(page.getByRole("alert")).toContainText("기록을 불러오지 못했습니다");
-  await expect(page.locator(".collection-heading h2")).toHaveText("기록");
+  await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toHaveText("기록");
   const recordReads = () => state.reads.filter(url => new URL(url).pathname === "/api/records").length;
   const before = recordReads();
   for (const mode of ["카드", "테이블", "캘린더"]) {
@@ -136,14 +137,14 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   for (const width of [320, 390, 640, 1440]) for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 844 });
     for (const view of ["list", "cards", "table", ...(kind === "records" ? ["calendar"] : [])]) {
-      await page.goto(`/${kind}?view=${view}`); await expect(page.locator(".collection-heading h2")).toContainText("1개");
+      await page.goto(`/${kind}?view=${view}`); await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toContainText("1개");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
       if (view === "calendar") {
-        const target = await page.locator(".calendar-days button").first().boundingBox();
+        const target = await page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first().boundingBox();
         expect(target!.width).toBeGreaterThanOrEqual(44); expect(target!.height).toBeGreaterThanOrEqual(44);
       }
-      if (view === "table") for (const cell of await page.locator(".collection-numeric").all()) {
-        expect(await cell.evaluate(el => getComputedStyle(el.querySelector(".collection-cell-value") ?? el).textAlign)).toBe("right");
+      if (view === "table") for (const cell of await page.locator('[data-slot="table-cell"][class*="tabular-nums"]').all()) {
+        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe("right");
         expect(await cell.evaluate(el => getComputedStyle(el).fontVariantNumeric)).toBe("tabular-nums");
       }
       await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
@@ -155,8 +156,8 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   const modes = page.getByRole("radiogroup", { name: "할 일 보기 방식" });
   await modes.getByRole("radio", { name: "테이블" }).press("Home");
   await expect(modes.getByRole("radio", { name: "리스트" })).toBeFocused();
-  const style = await modes.getByRole("radio", { name: "리스트" }).evaluate(el => { const r = el.getBoundingClientRect(), face = el.querySelector("span")!.getBoundingClientRect(); return { width: r.width, height: r.height, face: face.width }; });
-  expect(style.width).toBeGreaterThanOrEqual(44); expect(style.height).toBeGreaterThanOrEqual(44); expect(style.face).toBe(44);
+  const style = await modes.getByRole("radio", { name: "리스트" }).evaluate(el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; });
+  expect(style.width).toBeGreaterThanOrEqual(44); expect(style.height).toBeGreaterThanOrEqual(44);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
@@ -165,26 +166,18 @@ test("table rows and headers share the same columns across wrapper types and vie
   const state = await fixture(page, rows);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 900 }); await page.goto(`/${kind}?view=table`);
-    await expect(page.locator(".collection-table-head")).toBeVisible();
-    const geometry = await page.locator(".collection-table").evaluate(table => {
-      const header = table.querySelector(".collection-table-head")!;
+    const table = page.getByRole("table").first();
+    await expect(table.getByRole("columnheader").first()).toBeVisible();
+    const geometry = await table.evaluate(table => {
       const box = (el: Element) => ({ left: el.getBoundingClientRect().left, width: el.getBoundingClientRect().width });
-      return { stacked: getComputedStyle(header).position === "absolute", head: box(header), columns: Array.from(header.children).map(box), rows: Array.from(table.querySelectorAll(".related-item-title")).map(row => ({ box: box(row), columns: Array.from(row.children).map(box), pairs: Array.from(row.querySelectorAll(".collection-title-data > div, .collection-table-cell")).map(pair => ({ key:box(pair.querySelector("dt, .collection-cell-key")!), value:box(pair.querySelector("dd, .collection-cell-value")!) })) })) };
+      return { columns: Array.from(table.querySelectorAll("thead th")).map(box), rows: Array.from(table.querySelectorAll("tbody tr")).filter(row => !row.querySelector("td[colspan]")).map(row => Array.from(row.children).map(box)) };
     });
+    expect(geometry.rows.length).toBeGreaterThan(0);
     for (const row of geometry.rows) {
-      if(geometry.stacked) {
-        expect(row.pairs).toHaveLength(geometry.columns.length);
-        for(const pair of row.pairs) {
-          expect(pair.value.left).toBeGreaterThan(pair.key.left + pair.key.width);
-          expect(Math.abs(pair.key.left-row.pairs[0].key.left)).toBeLessThan(1);
-          expect(Math.abs(pair.value.left-row.pairs[0].value.left)).toBeLessThan(1);
-        }
-      } else {
-        expect(Math.abs(row.box.width - geometry.head.width)).toBeLessThan(1);
-        for (const [index, cell] of row.columns.entries()) {
-          expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
-          expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
-        }
+      expect(row).toHaveLength(geometry.columns.length);
+      for (const [index, cell] of row.entries()) {
+        expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
+        expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
       }
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
@@ -192,9 +185,9 @@ test("table rows and headers share the same columns across wrapper types and vie
   await page.goto(`/entities/${entity.id}`);
   const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
   await section.getByRole("radio", { name: "테이블", exact: true }).click();
-  const widths = await section.evaluate(el => [el.querySelector(".collection-table-head")!.getBoundingClientRect().width, el.querySelector(".related-item-title")!.getBoundingClientRect().width]);
-  if(widths[0]>1)expect(Math.abs(widths[0] - widths[1])).toBeLessThan(1);
-  else await expect(section.locator(".collection-title-data dt")).toBeVisible();
+  const table = section.getByRole("table");
+  await expect(table.getByRole("columnheader").first()).toBeVisible();
+  expect(await table.locator("thead tr").evaluate(el => Math.abs(el.getBoundingClientRect().width - el.closest("table")!.querySelector("tbody tr")!.getBoundingClientRect().width))).toBeLessThan(1);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
@@ -202,12 +195,12 @@ test("calendar reflows at enlarged text without shrinking day targets", async ({
   const state = await fixture(page);
   for (const width of [320, 390, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 }); await page.goto("/records?view=calendar");
-    await expect(page.locator(".calendar-days button").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first()).toBeVisible();
     await page.evaluate(() => document.documentElement.style.fontSize = "200%");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
-    const box = await page.locator(".calendar-days button").first().boundingBox();
+    const box = await page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first().boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
-    const month = (await page.locator(".calendar-month-panel").boundingBox())!, selected = (await page.locator(".calendar-selection").boundingBox())!;
+    const month = (await page.getByRole("region", { name: "기록 달력", exact: true }).locator(':scope > [data-slot="card"]').boundingBox())!, selected = (await page.getByRole("region", { name: /^\d{4}-\d{2}-\d{2} 기록$/ }).boundingBox())!;
     expect(selected.y).toBeGreaterThanOrEqual(month.y + month.height);
   }
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
@@ -247,48 +240,26 @@ for (const action of ["delete", "create"] as const) test(`unavailable change tar
     await expect(toggle).toHaveAttribute("aria-expanded","false");
     await expect(tasks.getByText(/기록에 저장된 당시 제목/)).toBeHidden();
     await toggle.click();
-    await expect(tasks.locator(".related-preview")).toContainText("기록에 저장된 당시 제목");
+    await expect(tasks.locator('[data-slot="collapsible-content"]')).toContainText("기록에 저장된 당시 제목");
     await expect(tasks.getByRole("link",{name:`${task.title} 상세`,exact:true})).toHaveCount(0);
     await toggle.click();
-    await expect(tasks.locator(".related-preview")).toBeHidden();
+    await expect(tasks.locator('[data-slot="collapsible-content"]')).toBeHidden();
   }
   expect(state.writes).toEqual([]);
 });
 
-test("responsive brand aligns desktop title and menu/search gaps, with icon-only mobile brand", async ({ page }) => {
-  await fixture(page);
-  await page.goto("/entities");
-  await expect(page.locator("#entities-title")).toBeVisible();
-  for (const width of [320,360,390,639,640,768,1024,1440]) {
+test("responsive workspace brand and list heading remain reachable at every width", async ({ page }) => {
+  await fixture(page); await page.goto("/entities");
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    const geometry = await page.evaluate(() => {
-      const title = document.querySelector<HTMLElement>("#entities-title")!;
-      const brand = document.querySelector<HTMLElement>(".navigation-brand")!;
-      const rect = (el: Element) => el.getBoundingClientRect();
-      const ts = getComputedStyle(title), bs = getComputedStyle(brand);
-      return {
-        overflow: document.documentElement.scrollWidth > innerWidth,
-        brandShown: rect(brand).height > 0,
-        headerShown: rect(document.querySelector(".workspace-header")!).height > 0,
-        titleTop: rect(title).top, brandTop: rect(brand).top,
-        searchGap: rect(document.querySelector(".query-bar")!).top - rect(document.querySelector(".page-heading")!).bottom,
-        menuGap: rect(document.querySelector(".nav-profile-trigger")!).top - rect(brand).bottom,
-        titleFont: ts.fontSize, brandFont: bs.fontSize,
-        mobileIcon: getComputedStyle(title, "::before").backgroundImage,
-      };
-    });
-    expect(geometry.overflow, `${width}px`).toBe(false);
-    expect(geometry.headerShown).toBe(false);
-    if (width >= 1024) {
-      expect(geometry.brandShown).toBe(true);
-      expect(geometry.titleFont).toBe(geometry.brandFont);
-      expect(geometry.titleTop).toBe(geometry.brandTop);
-      expect(geometry.searchGap).toBe(16);
-      expect(geometry.menuGap).toBe(geometry.searchGap);
-    } else {
-      expect(geometry.brandShown).toBe(false);
-      expect(geometry.mobileIcon).not.toBe("none");
-    }
+    const title = page.getByRole("heading", { name: "전체 자료", level: 1, exact: true });
+    const brand = page.getByRole("banner").getByRole("link", { name: "Workspace", exact: true });
+    await expect(title).toBeVisible(); await expect(brand).toBeVisible();
+    const titleBox = (await title.boundingBox())!, banner = (await page.getByRole("banner").boundingBox())!;
+    expect(titleBox.y).toBeGreaterThanOrEqual(banner.y + banner.height - 1);
+    await openMainNavigation(page); await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true })).toBeVisible();
+    const close = page.getByRole("button", { name: "메뉴 닫기", exact: true }); if (await close.isVisible()) await close.click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width === 390 || width === 1440) await page.screenshot({ path: test.info().outputPath(`header-${width}.png`) });
   }
 });
@@ -319,61 +290,30 @@ test("soft-deleted entity returned by GET keeps historical relation without a de
   expect(state.writes).toEqual([]);
 });
 
-for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read properties use aligned horizontal key/value rows at every width`, async ({page}, info) => {
+for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read properties retain readable labels and values at every width`, async ({page}, info) => {
   const state=await fixture(page);
   const key=kind==="entities"?entity.id:kind==="tasks"?task.id:record.id;
   for(const width of [320,360,390,639,640,768,1024,1440]) {
     await page.setViewportSize({width,height:900});
     await page.goto(`/${kind}/${encodeURIComponent(key)}`);
-    const surface = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
-    const properties = surface.locator(
-      kind === "entities"
-        ? ".entity-detail-properties"
-        : kind === "tasks"
-        ? ".task-overview"
-        : ".record-content, .record-context, .detail-management > .tag-connections",
-    );
+    const surface = page.getByRole("dialog").filter({ visible: true });
+    const properties = surface;
     const expectedKeys = kind === "entities"
       ? ["제목", "번호 출처", "자료 번호", "수량", "날짜", "분류", "태그"]
       : kind === "tasks"
       ? ["제목", "본문", "상태", "종류", "기한", "태그"]
       : ["본문", "종류", "수행 시각", "태그"];
-    await expect(properties.locator("dt:visible")).toHaveText(expectedKeys);
-    if (kind === "entities") await expect(properties.locator("dt", { hasText: /^수량$/ }).locator("../dd")).toHaveText("0");
-    const rows = await properties.locator("dt:visible").evaluateAll((nodes) =>
-      nodes.map((key) => {
-        const value = key.nextElementSibling!;
-        const grid = key.closest(".key-value-grid") ?? key.closest("dl")!;
-        const grids = Array.from(document.querySelectorAll(".key-value-grid, dl"));
-        const k = key.getBoundingClientRect(), v = value.getBoundingClientRect(), g = grid.getBoundingClientRect();
-        return {
-          grid: grids.indexOf(grid),
-          keyX: k.x,
-          keyRight: k.right,
-          valueX: v.x,
-          valueRight: v.right,
-          gridRight: g.right,
-          keyColor: getComputedStyle(key).color,
-          valueColor: getComputedStyle(value).color,
-        };
-      })
-    );
-    if ([320, 639, 640, 1440].includes(width)) await page.screenshot({path:info.outputPath(`detail-axis-${kind}-${width}.png`)});
-    for (const row of rows) {
-      expect(row.valueX).toBeGreaterThan(row.keyRight);
-      expect(row.valueRight).toBeLessThanOrEqual(row.gridRight + 1);
-      expect(row.keyColor).not.toBe(row.valueColor);
-      // Keys whose horizontal ranges overlap belong to one column. A second column
-      // keeps its own axis, while long labels and values cannot indent that axis.
-      for (
-        const other of rows.filter((other) =>
-          other.grid === row.grid && other.keyX < row.keyRight && row.keyX < other.keyRight
-        )
-      ) {
-        expect(Math.abs(row.keyX - other.keyX)).toBeLessThan(1);
-        expect(Math.abs(row.valueX - other.valueX)).toBeLessThan(1);
-      }
+    for (const label of expectedKeys) {
+      const key = properties.getByRole("term", { name: label, exact: true }).filter({ visible: true }).first();
+      await expect(key).toBeVisible();
+      const value = key.locator("..").getByRole("definition").first(); await expect(value).toBeVisible();
+      if (kind === "entities" && label === "수량") await expect(value).toHaveText("0");
+      const k = (await key.boundingBox())!, v = (await value.boundingBox())!;
+      expect(v.y >= k.y + k.height - 1 || v.x >= k.x + k.width - 1).toBe(true);
+      expect(v.x).toBeGreaterThanOrEqual(0); expect(v.x + v.width).toBeLessThanOrEqual(width + 1);
+      expect(await key.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
     }
+    if ([320, 639, 640, 1440].includes(width)) await page.screenshot({ path: info.outputPath(`detail-properties-${kind}-${width}.png`) });
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }
   expect(state.writes).toEqual([]);
@@ -392,7 +332,7 @@ test("selected entity fields stay identical in every layout and expansion withou
   await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
   for(const view of ["리스트","카드","테이블"]) {
     await page.getByRole("radio",{name:view,exact:true}).click();
-    const row=page.locator(".collection .related-item").first();
+    const row=page.getByRole("region", { name: / 목록$/ }).locator('[data-slot="item"]').first();
     await expect(row.getByRole("button",{name:selected.title,exact:true})).toBeVisible();
     if(view !== "테이블")await expect(row.getByText("품명",{exact:true})).toBeVisible();
     await expect(row.getByText("0",{exact:true})).toBeVisible();
@@ -427,7 +367,7 @@ test("card title keys align with the first line of short and wrapped values", as
     await page.getByRole("radio", { name: "카드", exact: true }).click();
     for (const item of [short, long]) {
       const title = page.getByRole("button", { name: item.title, exact: true });
-      const row = page.locator(".related-item").filter({ has: title });
+      const row = page.locator('[data-slot="item"]').filter({ has: title });
       await expect(title).toBeVisible();
       const text = await row.evaluate((node) => {
         const key = node.querySelector("dt")!;

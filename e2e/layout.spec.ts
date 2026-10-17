@@ -1,3 +1,4 @@
+import { openMainNavigation } from "./ui-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 // 디자인 가이드의 화면 검수 중 자동으로 확인할 수 있는 항목(docs/design/guide.md "화면 완료 체크리스트").
@@ -8,11 +9,11 @@ import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support
 
 const WIDTHS = [320,360,390,639,640,768,1024,1440];
 
-test("사용자 바로가기와 별도로 프로필에서 전체 업무 화면에 접근한다",async({page})=>{
+test("사용자 바로가기와 별도로 탐색 메뉴에서 전체 업무 화면에 접근한다",async({page})=>{
   await devLogin(page);await page.goto("/entities");
   const navigation = page.getByRole("navigation",{name:"주 메뉴"});
-  await navigation.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();
-  const menu = page.locator('[role="menu"]');
+  await openMainNavigation(page);
+  const menu = navigation;
   for (const [path, label] of [["/entities","전체 자료"],["/tasks","할 일"],["/records","기록"]]) {
     const link = menu.locator(`a[href="${path}"]`);
     await expect(link).toHaveAccessibleName(label);
@@ -35,7 +36,7 @@ async function layoutProblems(page: Page) {
       const inline = el.tagName === "A" && !el.classList.contains("btn") && getComputedStyle(el).display === "inline";
       if (inline) continue; // 문장 속 링크는 가이드상 예외(텍스트 조작)
       // Native checkbox/radio glyphs use their associated label as the real pointer target.
-      if (el instanceof HTMLInputElement && ["checkbox", "radio"].includes(el.type)) {
+      if (el instanceof HTMLInputElement && ["checkbox", "radio"].includes(el.type) || el instanceof HTMLButtonElement && ["checkbox", "radio", "switch"].includes(el.getAttribute("role") ?? "")) {
         const label = [...(el.labels ?? [])].find(label => {
           const box = label.getBoundingClientRect();
           return box.width >= r.width && box.height >= r.height && box.left <= r.left && box.right >= r.right

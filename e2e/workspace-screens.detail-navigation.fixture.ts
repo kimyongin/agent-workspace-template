@@ -35,7 +35,7 @@ for (const [kind, title] of [["entities", "자료"], ["tasks", "할 일"], ["rec
     test(`#203 ${kind} ${exit}: 상세 버튼은 보기·편집은 모드 전환·한 dialog`, async ({ page }) => {
       const state = await fixtures(page);
       await go(page, `/${kind}?pages=1`);
-      const row = page.locator(".list .related-item").first();
+      const row = page.locator(".list [data-slot='item']").first();
       await row.getByRole("button", { name: title, exact: true }).click();
       await expect(row.getByRole("link", { name: title + " 편집", exact: true })).toHaveCount(0);
       await expect(row.getByRole("link", { name: title + " 상세", exact: true })).toHaveText("상세");
@@ -310,7 +310,7 @@ test("상세 탐색: 같은 엔터티는 한 행으로 합치고 역사 제목�
   });
   await go(page, `/records/${id(3)}`);
   const group = connectedTarget(page, "entity");
-  await expect(group.locator(".related-item")).toHaveCount(1);
+  await expect(group.locator("[data-slot='item']")).toHaveCount(1);
   const toggle = group.getByRole("button", { name: "당시 엔터티", exact: true });
   await toggle.click();
   await expect(group.getByRole("button", { name: "연결 제목", exact: true })).toHaveCount(0);

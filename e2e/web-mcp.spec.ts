@@ -39,7 +39,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   await expect(detailDialog(page).getByText("완료", { exact: true })).toBeVisible();
   const result=page.getByRole("button", { name: "초안 공유 완료", exact:true });await result.click();
   await expect(result).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(taskUrl);
-  await expect(page.locator(".related-preview .markdown")).toContainText("초안 공유 완료");
+  await expect(page.locator('[data-slot="collapsible-content"] .markdown')).toContainText("초안 공유 완료");
 });
 
 test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 고치면 MCP가 바뀐 값을 본다", async ({ page }) => {

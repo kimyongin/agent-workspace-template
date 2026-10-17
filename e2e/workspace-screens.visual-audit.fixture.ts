@@ -115,7 +115,7 @@ for (const width of [390, 1440]) {
         }
       }
       if (name.endsWith("-detail")) {
-        for (const list of await page.locator(".collection-list:has(> .related-items:empty)").all()) {
+        for (const list of await page.locator(".collection-list:has(> [data-slot='item-group']:empty)").all()) {
           expect(await list.evaluate((node) => getComputedStyle(node).borderTopWidth)).toBe("0px");
         }
       }
@@ -175,7 +175,7 @@ for (const width of [390, 1440]) {
     }).click();
     await go(page, "/settings");
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    await expect(page.getByRole("navigation", { name: "설정 메뉴", exact: true })).toBeVisible();
+    await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath(`settings-menu-${width}.png`) });
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /^내 프로필/ }).click();

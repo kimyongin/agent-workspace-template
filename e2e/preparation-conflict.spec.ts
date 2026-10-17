@@ -74,7 +74,7 @@ for (const model of ["entity", "task"] as const) {
         await editor.getByRole("button", { name: "취소", exact: true }).click();
         await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" })
           .click();
-        await expect(editor.locator(".detail-title")).toHaveText(latest);
+        await expect(editor.getByRole("heading", { name: latest, exact: true })).toHaveText(latest);
         if (model === "task") {
           await expect(editor.getByText("완료", { exact: true })).toBeVisible();
           await expect(editor.getByRole("button", { name: "완료하고 기록", exact: true })).toHaveCount(0);
