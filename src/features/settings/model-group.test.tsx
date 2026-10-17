@@ -25,7 +25,7 @@ it("저장한 전체 모델 이력 안에서 자료 종류별 변환 편집과 �
     <ModelGroupEditor change={change} onChange={() => {}} onState={() => {}} disabled={false} />,
   );
   expect(html).toContain("상품 변환");
-  expect(html).toContain("전체 영향 분석");
+  expect(html).toContain("변경 영향 확인");
   expect(html).toContain("상품명 변환 방식");
-  expect(html).not.toContain("전체 적용</button>");
+  expect(html).not.toContain("설정 적용</button>");
 });

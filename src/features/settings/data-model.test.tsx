@@ -11,7 +11,7 @@ vi.mock(
   }),
 );
 
-it("전체 모델 검토는 충돌과 변환 필요를 구별하고 대상별 결과를 보여 준다", () => {
+it("가져올 설정 검토는 충돌과 변환 필요를 구별하고 대상별 결과를 보여 준다", () => {
   const html = renderToStaticMarkup(
     <DataModelReview
       review={{
@@ -42,7 +42,7 @@ it("전체 모델 검토는 충돌과 변환 필요를 구별하고 대상별 �
   expect(html).toContain("오픈마켓");
   expect(html).toContain("값 변환 필요");
   expect(html).toContain("단일 관계에 여러 연결이 있습니다");
-  expect(html).not.toContain("전체 적용</button>");
+  expect(html).not.toContain("설정 적용</button>");
 });
 
 it("전체 모델 미리보기는 요청 키 없는 읽기이며 원문을 그대로 보낸다", async () => {
@@ -62,7 +62,7 @@ it("전체 모델 미리보기는 요청 키 없는 읽기이며 원문을 그�
   }
 });
 
-it("신규 종류 검토는 실제 속성과 번호 설정 및 원본·대상 대응을 보여 준다", () => {
+it("신규 종류 검토는 실제 속성과 번호 설정 및 파일과 현재 설정의 연결 정보을 보여 준다", () => {
   const html = renderToStaticMarkup(
     <DataModelReview
       review={{
@@ -109,7 +109,7 @@ it("신규 종류 검토는 실제 속성과 번호 설정 및 원본·대상 �
       }}
     />,
   );
-  expect(html).toContain("원본·대상 대응");
+  expect(html).toContain("파일과 현재 설정의 연결 정보");
   expect(html).toContain("prop_9");
   expect(html).toContain("prop_2");
   expect(html).toContain("source-rule");

@@ -199,14 +199,14 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
   await page.goto("/settings/data-model");
   await page.getByRole("button", { name: "재고 모델 값 변환 필요", exact: true }).click();
   await page.getByRole("combobox", { name: "수량 변환 방식" }).selectOption("convert");
-  await page.getByRole("button", { name: "전체 영향 분석", exact: true }).click();
+  await page.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
   await expect(page.getByText("정수 입력이 필요합니다", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "보완값 지정", exact: true }).click();
   await page.getByRole("textbox", { name: "보완값", exact: true }).fill("4");
   await page.screenshot({ path: info.outputPath("group-correction.png"), fullPage: true });
-  await page.getByRole("button", { name: "전체 영향 분석", exact: true }).click();
-  await page.getByRole("button", { name: "검토한 전체 모델 적용", exact: true }).click();
-  await expect(page.getByText("전체 작업 진행 중입니다.", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
+  await page.getByRole("button", { name: "검토한 설정 적용", exact: true }).click();
+  await expect(page.getByText("요청한 작업을 진행하고 있습니다.", { exact: false })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();
   await expect(page.getByText("자료 종류: 추가 0개 · 수정 1개 · 변경 없음 0개", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("group-applied.png"), fullPage: true });
@@ -236,10 +236,10 @@ test("새로고침한 진행 작업은 읽기만 하고 실패 후 같은 그룹
     (route) => route.fulfill({ json: { items: [], next_after: null } }),
   );
   await page.goto("/settings/data-model");
-  await page.getByRole("button", { name: "재고 모델 전체 변환 준비 중", exact: true }).click();
+  await page.getByRole("button", { name: "재고 모델 자료 값 변환 준비 중", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();
   await page.reload();
-  await page.getByRole("button", { name: "재고 모델 전체 변환 준비 중", exact: true }).click();
+  await page.getByRole("button", { name: "재고 모델 자료 값 변환 준비 중", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();
   expect(writes).toEqual([]);
   model = {
@@ -248,8 +248,8 @@ test("새로고침한 진행 작업은 읽기만 하고 실패 후 같은 그룹
     status: "failed",
     group: { ...model.group!, retryable: true, failure_reason: "작업을 다시 접수할 수 있습니다" },
   };
-  await page.getByRole("button", { name: "전체 변환 다시 시도", exact: true }).click();
-  await page.getByRole("button", { name: "전체 변경안 취소", exact: true }).click();
+  await page.getByRole("button", { name: "값 변환 다시 시도", exact: true }).click();
+  await page.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(page.getByRole("button", { name: "재고 모델 취소됨", exact: true })).toBeVisible();
   expect(writes).toEqual(["/api/data-model/changes/model-group/retry", "/api/data-model/changes/model-group/cancel"]);
 });
@@ -274,11 +274,11 @@ test("분석 접수 응답 유실은 변환안을 잠그고 같은 키·원래 �
   await page.goto("/settings/data-model");
   await page.getByRole("button", { name: "재고 모델 값 변환 필요", exact: true }).click();
   await page.getByRole("combobox", { name: "수량 변환 방식" }).selectOption("convert");
-  await page.getByRole("button", { name: "전체 영향 분석", exact: true }).click();
+  await page.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("저장 여부를 알 수 없습니다");
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();
   await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
-  await expect(page.getByRole("button", { name: "검토한 전체 모델 적용", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "검토한 설정 적용", exact: true })).toBeVisible();
   expect(writes).toHaveLength(2);
   expect(writes[1]).toEqual(writes[0]);
 });
@@ -316,18 +316,18 @@ test("변환 초안은 자료 설정 이동에서 보호하고 잘못된 숫자 
   await page.getByRole("button", { name: "재고 모델 값 변환 필요", exact: true }).click();
   await page.getByRole("button", { name: "보완값 지정", exact: true }).click();
   await page.getByRole("textbox", { name: "보완값", exact: true }).fill("1.0000000000000001");
-  await page.getByRole("button", { name: "전체 영향 분석", exact: true }).click();
+  await page.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
   expect(writes).toBe(0);
   await expect(page.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("1.0000000000000001");
-  await page.getByRole("button", { name: "설정 메뉴" }).click();
-  await page.getByRole("link", { name: "자료", exact: true }).click();
+  await page.getByRole("navigation", { name: "자료 설정 항목", exact: true })
+    .getByRole("link", { name: "자료 종류", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("1.0000000000000001");
-  await page.getByRole("button", { name: "전체 변경안 취소", exact: true }).click();
+  await page.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(page.getByRole("button", { name: "재고 모델 취소됨", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "설정 메뉴" }).click();
-  await page.getByRole("link", { name: "자료", exact: true }).click();
+  await page.getByRole("navigation", { name: "자료 설정 항목", exact: true })
+    .getByRole("link", { name: "자료 종류", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
 });
 
@@ -346,9 +346,9 @@ test("worker 준비 완료 상태는 규칙을 잠그고 GET 조회로 전체 �
     (route) => route.fulfill({ json: { items: [], next_after: null } }),
   );
   await page.goto("/settings/data-model");
-  await page.getByRole("button", { name: "재고 모델 전체 모델 확정 대기", exact: true }).click();
+  await page.getByRole("button", { name: "재고 모델 설정 적용 대기", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "검토한 전체 모델 적용", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "검토한 설정 적용", exact: true })).toHaveCount(0);
   model = {
     ...model,
     version: 5,

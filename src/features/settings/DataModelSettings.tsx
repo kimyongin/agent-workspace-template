@@ -25,14 +25,14 @@ const labels = {
 const states = {
   ready: "적용 준비됨",
   needs_conversion: "값 변환 필요",
-  applied: "전체 적용 완료",
+  applied: "설정 적용 완료",
   cancelled: "취소됨",
-  analyzing: "전체 분석 중",
+  analyzing: "변경 영향 확인 중",
   queued: "변환 준비 대기",
-  preparing: "전체 변환 준비 중",
-  ready_to_commit: "전체 모델 확정 대기",
-  committing: "전체 모델 확정 중",
-  failed: "전체 변환 실패",
+  preparing: "자료 값 변환 준비 중",
+  ready_to_commit: "설정 적용 대기",
+  committing: "설정 적용 중",
+  failed: "자료 값 변환 실패",
 };
 
 function changeSummary(change: ModelChange) {
@@ -41,8 +41,8 @@ function changeSummary(change: ModelChange) {
 function savedNotice(change: ModelChange) {
   if (change.result?.changed === false) return "변경 없음. 검토 이력만 보존했습니다.";
   return change.status === "applied"
-    ? "전체 자료 모델을 적용했습니다."
-    : "전체 변경안을 저장했습니다. 아래 변경 이력에서 검토하고 적용하세요.";
+    ? "자료 설정을 적용했습니다."
+    : "검토한 변경 내용을 저장했습니다. 아래 변경 이력에서 확인한 뒤 적용하세요.";
 }
 export function DataModelResult({ result }: { result: NonNullable<ModelChange["result"]> }) {
   const groups = [["types", "자료 종류"], ["relations", "연결 설정"], ["issuers", "번호 출처"], [
@@ -75,10 +75,10 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
   disabled?: boolean;
 }) {
   return (
-    <section aria-label="전체 모델 검토" className="settings-fields">
+    <section aria-label="가져올 설정 검토" className="settings-fields">
       <h3 className="section-title">{review.title}</h3>
       <details>
-        <summary>원본·대상 대응</summary>
+        <summary>파일과 현재 설정의 연결 정보</summary>
         <dl className="props schema-definition-values">
           {Object.entries(review.mapping.types).map(([source, target]) => (
             <div key={`type:${source}`}>
@@ -146,8 +146,8 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
       {item.message && <p>{item.message}</p>}
       {item.relation_impact && (
         <p className="help">
-          현재 연결 {item.relation_impact.links}개 · 첫 번째 역할 복수 연결{" "}
-          {item.relation_impact.left_many ? "있음" : "없음"} · 두 번째 역할 복수 연결{" "}
+          현재 연결 {item.relation_impact.links}개 · 첫 번째 자료에 여러 개 연결{" "}
+          {item.relation_impact.left_many ? "있음" : "없음"} · 두 번째 자료에 여러 개 연결{" "}
           {item.relation_impact.right_many ? "있음" : "없음"}
         </p>
       )}
@@ -202,8 +202,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
       )}
       {item.source_is_stale && (
         <p className="help">
-          파일 원본 버전이 현재 적용 버전과 다릅니다. 현재 정의와 비교한 아래 변경을 확인하세요. 파일 원본 버전은
-          덮어쓰기 권한이 아닙니다.
+          파일 원본 버전이 현재 적용 버전과 다릅니다. 아래에서 현재 설정과 달라지는 내용을 확인한 뒤 적용하세요.
         </p>
       )}
       {!!item.removed_keys?.length && (
@@ -445,7 +444,7 @@ export function DataModelSettings() {
     } catch {
       if (alive.current) {
         setError(
-          "UTF-8 JSON 파일을 읽지 못했습니다. 기존 입력은 유지했습니다.",
+          "설정 파일을 읽지 못했습니다. 이 앱에서 내보낸 설정 파일(.json)인지 확인하세요. 기존 입력은 유지했습니다.",
         );
       }
     } finally {
@@ -532,7 +531,7 @@ export function DataModelSettings() {
       anchor.download = "workspace-data-model.json";
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
-      setNotice("전체 자료 모델 파일을 내보냈습니다.");
+      setNotice("자료 설정을 파일로 내보냈습니다.");
     } catch (e) {
       if (alive.current) failure(e);
     } finally {
@@ -565,14 +564,14 @@ export function DataModelSettings() {
               disabled={locked}
               onClick={() => void exportModel()}
             >
-              전체 모델 내보내기
+              설정 내보내기
             </button>
           </div>
           <p className="help">
-            실제 자료와 개별 연결·기록은 포함하지 않습니다. 파일에 없는 정의도 삭제하지 않습니다.
+            실제 자료와 개별 연결·기록은 포함하지 않습니다. 파일에 없는 현재 설정은 삭제하지 않습니다.
           </p>
           <fieldset className="settings-fields" disabled={locked}>
-            <Field label="가져오는 방법">
+            <Field label="가져오는 방법" help="현재 자료 종류에 반영하거나, 새 자료 종류와 연결 설정을 만들 수 있습니다.">
               {(props) => (
                 <select
                   {...props}
@@ -583,12 +582,12 @@ export function DataModelSettings() {
                     setMode(e.target.value as "update" | "copy");
                   }}
                 >
-                  <option value="update">기존 모델에 반영</option>
-                  <option value="copy">새 자료 종류와 연결 설정으로 복사</option>
+                  <option value="update">현재 설정에 반영</option>
+                  <option value="copy">새 자료 종류로 추가</option>
                 </select>
               )}
             </Field>
-            <Field label="JSON 파일">
+            <Field label="설정 파일" help="이 앱에서 내보낸 설정 파일(.json)을 선택하세요.">
               {(props) => (
                 <div className="schema-import-file">
                   <input
@@ -608,13 +607,13 @@ export function DataModelSettings() {
                     type="button"
                     onClick={() => file.current?.click()}
                   >
-                    JSON 파일 선택
+                    설정 파일 선택
                   </button>
                   <span className="help">{fileName || "선택한 파일 없음"}</span>
                 </div>
               )}
             </Field>
-            <Field label="전체 모델 JSON">
+            <Field label="설정 파일 내용" help="선택한 파일의 내용이 표시됩니다. 내용을 직접 붙여넣을 수도 있습니다.">
               {(props) => (
                 <textarea
                   {...props}
@@ -670,7 +669,7 @@ export function DataModelSettings() {
                     review.items.some((i) => i.kind === "conflict") || !uncertain && missingRemovalConfirmation}
                   onClick={() => void prepare()}
                 >
-                  {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "검토한 전체 변경안 저장"}
+                  {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "검토 내용 저장"}
                 </button>
               </div>
             </>
@@ -706,7 +705,7 @@ export function DataModelSettings() {
             </div>
           )}
           {!loading && !historyError && changes.length === 0 && (
-            <p className="help">저장된 전체 모델 변경안이 없습니다.</p>
+            <p className="help">저장한 설정 변경 내용이 없습니다.</p>
           )}
           <div className="issuer-registry-list">
             {changes.map((change) => (
@@ -759,7 +758,7 @@ export function DataModelSettings() {
                         uncertain && pendingAction !== change.id}
                       onClick={() => void apply(change)}
                     >
-                      {busy ? "적용 중…" : uncertain ? "같은 요청 다시 확인" : "전체 적용"}
+                      {busy ? "적용 중…" : uncertain ? "같은 요청 다시 확인" : "설정 적용"}
                     </button>
                   </div>
                 )}
@@ -781,7 +780,7 @@ export function DataModelSettings() {
         title="변경을 버릴까요?"
         message={uncertain || groupUncertain
           ? "저장 여부를 먼저 확인하는 것이 좋습니다. 이동해도 처리 중인 요청이 취소되지는 않습니다."
-          : "저장하지 않은 전체 모델 입력이 사라집니다."}
+          : "저장하지 않은 설정 파일 내용이 사라집니다."}
         confirmLabel="이동"
         onConfirm={() => {
           if (blocker.state === "blocked") blocker.proceed();
