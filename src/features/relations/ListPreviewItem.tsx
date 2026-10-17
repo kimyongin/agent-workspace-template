@@ -1,3 +1,5 @@
+import { Fragment } from "react";
+import { useItemLayout } from "../../components/Collection.tsx";
 import { restoreScroll, scrollTop } from "../../lib/surface-dom.ts";
 import { useContext, useEffect, useMemo, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { WorkspaceContext } from "../details/workspace-context.ts";
@@ -55,6 +57,8 @@ export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityLis
   const location=useLocation(),navigate=useNavigate();
   const workspace=useContext(WorkspaceContext);
   const path=`/${kind}/${encodeURIComponent(id)}`;
+  const table = useItemLayout()?.view === "table";
+  const Wrapper = table ? Fragment : "div";
   const link=()=>{
     return {to:listDetailVisit(kind,location,id,0).to,onClick:(event:MouseEvent<HTMLAnchorElement>)=>{
       if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
@@ -64,5 +68,5 @@ export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityLis
       void Promise.resolve(navigate(visit.back,{replace:true,preventScrollReset:true})).then(()=>navigate(visit.to,{state:null}));
     }};
   };
-  return <div className={kind==="records"?"related-record":undefined}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} titleLabel={kind==="tasks"?"제목":kind==="records"?"본문 대표 문구":undefined} cells={cells} list={{link,metadata}}/></div>;
+  return <Wrapper {...(table ? {} : {className: kind === "records" ? "related-record" : undefined})}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} titleLabel={kind==="tasks"?"제목":kind==="records"?"본문 대표 문구":undefined} cells={cells} list={{link,metadata}}/></Wrapper>;
 }

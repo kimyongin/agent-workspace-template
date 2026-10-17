@@ -1,3 +1,4 @@
+import { Button } from "./ui/button.tsx";
 import type { PrepareRecordMemo } from "@contracts/record-preparation.ts";
 import { useEffect, type ReactNode } from "react";
 import { useRecordConfirmation, type ConfirmationValue } from "./RecordConfirmation.tsx";
@@ -26,6 +27,6 @@ export function DeleteAction({message,target,data,onConfirm,note=true,onStateCha
   });
   const { active: armed, busy, uncertain } = confirmation;
   useEffect(() => { onStateChange?.({armed,busy,uncertain}); }, [armed,busy,uncertain,onStateChange]);
-  return <button type="button" className="btn btn-text btn-danger" aria-label={label} disabled={busy||disabled}
-    onClick={() => confirmation.begin("delete")}>{label === "삭제" ? label : "삭제"}</button>;
+  return <Button variant="destructive" type="button"  aria-label={label} disabled={busy||disabled}
+    onClick={() => confirmation.begin("delete")}>{label === "삭제" ? label : "삭제"}</Button>;
 }

@@ -13,8 +13,13 @@ import {
 } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { Field } from "./Field.tsx";
-import { BodyAction } from "./BodyAction.tsx";
-import "./workspace.css";
+import { Button } from "./ui/button.tsx";
+import { InputGroup, InputGroupInput, InputGroupAddon, InputGroupButton } from "./ui/input-group.tsx";
+import { FieldGroup } from "./ui/field.tsx";
+import { Card, CardHeader, CardTitle, CardAction, CardContent, CardFooter } from "./ui/card.tsx";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "./ui/collapsible.tsx";
+import { SearchIcon, XIcon, SlidersHorizontalIcon, RotateCcwIcon } from "lucide-react";
+
 
 export function clearListPosition(params: URLSearchParams) {
   params.delete("open");
@@ -49,60 +54,24 @@ export function TabSearch({ entity = false, inputRef }: { entity?: boolean; inpu
     }, 300);
     return () => clearTimeout(timer);
   }, [draft, composing, applied, name, setParams]);
-  return (
-    <div className="workspace-search">
-      <Field label={entity ? "자료 제목 검색" : "검색어"}>
-        {(props) => (
-          <div className="workspace-search-input">
-            <svg
-              className="search-glyph"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <circle cx="10.5" cy="10.5" r="6.5" />
-              <path d="m16 16 4.5 4.5" />
-            </svg>
-            <input
-              {...props}
-              ref={node => { input.current = node; if (inputRef) inputRef.current = node; }}
-              className="input"
-              value={draft}
-              maxLength={entity ? 100 : 200}
-              placeholder={entity ? "자료 이름 검색" : "검색어 입력"}
-              onChange={(event) => setDraft(event.target.value)}
-              onCompositionStart={() => setComposing(true)}
-              onCompositionEnd={(event) => {
-                setDraft(event.currentTarget.value);
-                setComposing(false);
-              }}
-            />
-            {!!draft && (
-              <button
-                type="button"
-                className="search-clear"
-                aria-label="검색어 지우기"
-                onClick={() => {
-                  setDraft("");
-                  setComposing(false);
-                  const next = clearListPosition(new URLSearchParams(latest.current));
-                  next.delete(name);
-                  setParams(next, { replace: true });
-                  input.current?.focus();
-                }}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        )}
-      </Field>
-    </div>
-  );
+  return <Field label={entity ? "자료 제목 검색" : "검색어"}>
+    {(props) => <InputGroup>
+      <InputGroupAddon><SearchIcon aria-hidden="true" /></InputGroupAddon>
+      <InputGroupInput {...props} ref={node => { input.current = node; if (inputRef) inputRef.current = node; }} value={draft} maxLength={entity ? 100 : 200}
+        placeholder={entity ? "자료 이름 검색" : "검색어 입력"}
+        onChange={event => setDraft(event.target.value)}
+        onCompositionStart={() => setComposing(true)}
+        onCompositionEnd={event => { setDraft(event.currentTarget.value); setComposing(false); }} />
+      {!!draft && <InputGroupAddon align="inline-end"><InputGroupButton size="icon-sm" aria-label="검색어 지우기"
+        onClick={() => {
+          setDraft(""); setComposing(false);
+          const next = clearListPosition(new URLSearchParams(latest.current)); next.delete(name);
+          setParams(next, { replace: true }); input.current?.focus();
+        }}><XIcon /></InputGroupButton></InputGroupAddon>}
+    </InputGroup>}
+  </Field>;
 }
+
 export function resetTabFilters(params: URLSearchParams) {
   return new URLSearchParams(
     [...params].filter(([key]) => ["q", "keyword", "filters", "view", "entity_type_id"].includes(key)),
@@ -123,62 +92,41 @@ export function TabFilters(
   const [params] = useSearchParams(), location = useLocation(), navigate = useNavigate();
   const open = params.get("filters") === "1", controls = useId();
   const label = `필터 ${open ? "닫기" : "열기"}${attention ? " · 확인 필요" : active ? " · 적용 중" : ""}`;
-  return (
-    <div className="tab-filters">
-      <div className="tab-filter-toolbar">
-        <BodyAction
-          icon="filter"
-          className="tab-filter-toggle"
-          aria-label={label}
-          title={label}
-          aria-expanded={open}
-          aria-controls={controls}
-          onClick={() => {
-            const next = new URLSearchParams(params);
-            open ? next.delete("filters") : next.set("filters", "1");
-            void navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, {
-              replace: true,
-              preventScrollReset: true,
-            });
-          }}
-        >
-          {null}
-        </BodyAction>
-      </div>
-      {!open && (summary.length > 0 || attention) && (
-        <p className="applied-filter-summary" aria-label="적용된 필터">
-          {summary.join(" · ")}
-          {attention && `${summary.length ? " · " : ""}조건 확인 필요`}
-        </p>
-      )}
-      <FilterPanel id={controls} hidden={!open} dirty={dirty} onReset={onReset} onApply={onApply}>
-        {children}
-      </FilterPanel>
+  const changeOpen = (value: boolean) => {
+    const next = new URLSearchParams(params);
+    value ? next.set("filters", "1") : next.delete("filters");
+    void navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, {
+      replace: true, preventScrollReset: true,
+    });
+  };
+  return <Collapsible open={open} onOpenChange={changeOpen} className="flex flex-col gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      {!open && (summary.length > 0 || attention) && <p className="mr-auto text-sm text-muted-foreground" aria-label="적용된 필터">
+        {summary.join(" · ")}{attention && `${summary.length ? " · " : ""}조건 확인 필요`}
+      </p>}
+      <CollapsibleTrigger asChild><Button variant="outline" aria-label={label} title={label}>
+        <SlidersHorizontalIcon data-icon="inline-start" />필터
+      </Button></CollapsibleTrigger>
     </div>
-  );
+    <CollapsibleContent id={controls} forceMount hidden={!open}>
+      <FilterPanel dirty={dirty} onReset={onReset} onApply={onApply}>{children}</FilterPanel>
+    </CollapsibleContent>
+  </Collapsible>;
 }
 
 export function FilterPanel({ children, dirty = false, onReset, onApply, id, hidden }: {
-  children: ReactNode;
-  dirty?: boolean;
-  onReset: () => void;
-  onApply: () => void;
-  id?: string;
-  hidden?: boolean;
+  children: ReactNode; dirty?: boolean; onReset: () => void; onApply: () => void; id?: string; hidden?: boolean;
 }) {
-  return (
-    <div className="form filter-panel" id={id} hidden={hidden}>
-      <div className="tab-filter-panel-head">
-        <span className="label">필터</span>
-        <BodyAction icon="reset" className="filter-reset" onClick={onReset}>조건 초기화</BodyAction>
-      </div>
-      {children}
-      <div className="filter-apply-footer">
-        {dirty && <span className="help" role="status">변경사항 적용 대기</span>}
-        <button type="button" className="btn btn-primary" onClick={onApply}>필터 적용</button>
-      </div>
-    </div>
-  );
+  return <Card id={id} hidden={hidden}>
+    <CardHeader><CardTitle>필터</CardTitle><CardAction>
+      <Button type="button" variant="ghost" onClick={onReset}><RotateCcwIcon data-icon="inline-start" />조건 초기화</Button>
+    </CardAction></CardHeader>
+    <CardContent><FieldGroup>{children}</FieldGroup></CardContent>
+    <CardFooter className="flex-wrap justify-end gap-3">
+      {dirty && <span className="mr-auto text-sm text-muted-foreground" role="status">변경사항 적용 대기</span>}
+      <Button type="button" onClick={onApply}>필터 적용</Button>
+    </CardFooter>
+  </Card>;
 }
 
 /** Applied optional conditions synchronize independently of text/disclosure/list position. */

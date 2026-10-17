@@ -1,6 +1,6 @@
 import { PageHeading } from "../../components/PageHeading.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
-import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionHeading, CollectionList, useMainCollectionView  } from "../../components/Collection.tsx";
 import { RecordCalendar } from "./RecordCalendar.tsx";
 import { StatusBadge } from "./shared.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
@@ -125,7 +125,7 @@ function ActivitySection(
                   columns={["제목", "상태", "종류", "기한"]}
                   numericColumns={[3]}
                 >
-                  {list.items.map((item) => <li key={item.id}>{preview(item)}</li>)}
+                  {list.items.map((item) => <CollectionItem key={item.id}>{preview(item)}</CollectionItem>)}
                 </CollectionList>
               )
               : view === "calendar"

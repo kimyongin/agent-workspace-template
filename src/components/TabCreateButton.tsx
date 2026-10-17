@@ -1,4 +1,5 @@
-import { BodyAction } from "./BodyAction.tsx";
+import { PlusIcon } from "lucide-react";
+import { Button } from "./ui/button.tsx";
 export function TabCreateButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return <BodyAction data-page-action="" icon="create" className="tab-create-button" aria-label={label} onClick={onClick}>작성</BodyAction>;
+  return <Button data-page-action="" type="button" aria-label={label} onClick={onClick}><PlusIcon data-icon="inline-start" />작성</Button>;
 }
