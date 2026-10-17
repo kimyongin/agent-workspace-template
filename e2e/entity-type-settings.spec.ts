@@ -1,7 +1,7 @@
 import { entitySchemaPresentation } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { analyzeAndApply, schemaAnalysisTick } from "./entity-schema-support.ts";
 import { revealSetting } from "./ui-actions.ts";
 
@@ -154,7 +154,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     releaseDestination?.();
     await mcp.close();
     if (typeId) {
-      const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+      const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
       try {
         await admin`delete from app.entity_types where id=${typeId}`;
       } finally {
@@ -207,7 +207,7 @@ test("자료 종류 생성의 성공 응답 유실은 초안·같은 요청을 �
   } finally {
     await mcp.close();
     if (typeId) {
-      const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+      const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
       try {
         await admin`delete from app.entity_types where id=${typeId}`;
       } finally {

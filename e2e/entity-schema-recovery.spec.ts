@@ -1,13 +1,13 @@
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 
 test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결·현재 이름 유지·320px·만료", async ({ page }) => {
   test.setTimeout(120_000);
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   const types: string[] = [], entities: string[] = [], relations: string[] = [];
   try {
     const type = await mcp.call("create_entity_type", { label: unique("원본 복구"), icon_id: "leaf" }),

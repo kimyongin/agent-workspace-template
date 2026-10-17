@@ -52,9 +52,10 @@ test("속성 이름으로 작성한 문구는 안정 키로 저장되고 MCP의 
     });
     expect(updated.properties.prop_2).toBe(2);
     const records = await mcp.call("list_records", { record_kind: "change", limit: 100 });
-    const change = records.items.find((record: { change?: { target_id: string; action: string } }) =>
-      record.change?.target_id === entity.id && record.change.action === "update"
-    );
+    const change = records.items.find((record: { change?: { target_id: string; action: string } }) => {
+      const metadata = record.change;
+      return !!metadata && metadata.target_id === entity.id && metadata.action === "update";
+    });
     expect(change?.body).toBe("수량 0 → 2");
     await page.screenshot({ path: info.outputPath("readable-template-saved.png"), fullPage: true });
   } finally {

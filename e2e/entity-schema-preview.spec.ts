@@ -1,11 +1,11 @@
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·MCP 결과·stale·모바일 초안 보존", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   let typeId: string | undefined, entityId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("변환 준비") });
@@ -109,7 +109,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
 test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰지 않는다", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   let typeId: string | undefined;
   const ids: string[] = [];
   let release = () => {};

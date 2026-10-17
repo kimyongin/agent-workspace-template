@@ -67,8 +67,10 @@ test("날짜 ID 검색 결과도 상세 왕복 후 새로고침하면 원문 링
   let created: {id:string;version:number} | undefined;
   try {
     const marker = unique("날짜 ID 검색 복귀");
-    created = await mcp.call("create_record", {body:marker});
-    expect(created!.id).toMatch(/^[0-9]{8}-[0-9A-Z]{8}$/);
+    const result = await mcp.call("create_record", {body:marker});
+    if (typeof result.id !== "string" || typeof result.version !== "number" || !Number.isInteger(result.version) || result.version < 1) throw new Error("create_record returned an invalid fixture identity/version");
+    created = { id: result.id, version: result.version };
+    expect(created.id).toMatch(/^[0-9]{8}-[0-9A-Z]{8}$/);
     await page.goto(`/search?q=${encodeURIComponent(marker)}&mode=keyword&record_kind=user`);
     const link = page.getByRole("link", {name:marker,exact:true});
     await expect(link).toBeVisible(); await link.click();

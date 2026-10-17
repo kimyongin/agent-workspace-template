@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 async function stopWorker(child: ChildProcess | undefined) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
@@ -22,7 +22,7 @@ async function stopWorker(child: ChildProcess | undefined) {
 test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완료→MCP 상태→직접 링크·새로고침", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   const types: string[] = [], entities: string[] = [], relations: string[] = [];
   let runner: ChildProcess | undefined;
   try {
@@ -91,7 +91,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     await page.getByRole("link", { name: "할 일", exact: true }).click();
     await page.goto(`/entities?entity_type_id=${other.id}`);
     // Explicit test infrastructure owns execution. No GET/page poll calls the worker.
-    const origin = new URL(env.VITE_SUPABASE_URL);
+    const origin = new URL(requiredEnv("VITE_SUPABASE_URL"));
     expect(["127.0.0.1", "localhost"]).toContain(origin.hostname);
     expect(origin.protocol).toBe("http:");
     runner = spawn(process.execPath, [
@@ -151,7 +151,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
 test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유지", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   let typeId: string | undefined, entityId: string | undefined, restartedJobId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("취소 작업"), icon_id: "leaf" });
@@ -251,7 +251,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
 });
 
 test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→완료·MCP 성공 재현", async ({ page }) => {
-  const workerUrl = new URL(env.LOCAL_DB_URL!);
+  const workerUrl = new URL(requiredEnv("LOCAL_DB_URL")!);
   if (!["127.0.0.1", "localhost"].includes(workerUrl.hostname)) {
     throw new Error("worker failure fixture requires a loopback database");
   }
@@ -268,7 +268,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
   workerUrl.password = encodeURIComponent(env.APP_WORKER_PASSWORD);
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} }),
+    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} }),
     worker = postgres(workerUrl.href, { max: 1, prepare: false, onnotice: () => {} });
   let typeId: string | undefined, entityId: string | undefined;
   try {

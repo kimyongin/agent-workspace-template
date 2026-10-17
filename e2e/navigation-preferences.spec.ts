@@ -1,22 +1,22 @@
 import { chooseSetting } from "./settings-actions.ts";
 import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { test, devLogin, env } from "./support.ts";
+import { test, devLogin, env, requiredEnv } from "./support.ts";
 // Serial real Auth metadata round trip, run by the integration owner.
 test("personal navigation partial save survives reload and login without changing other profile metadata", async ({ page }) => {
   await devLogin(page);
   const authenticate = async () => {
-    const response = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-      headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
+    const response = await page.request.post(`${requiredEnv("VITE_SUPABASE_URL")}/auth/v1/token?grant_type=password`, {
+      headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY") },
       data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
     });
     expect(response.ok(), `Auth test session creation failed (HTTP ${response.status()})`).toBe(true);
     return await response.json() as { access_token: string; user: { id: string } };
   };
   const original = await authenticate();
-  const headers = { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY, authorization: `Bearer ${original.access_token}` };
+  const headers = { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY"), authorization: `Bearer ${original.access_token}` };
   const read = async () => {
-    const response = await page.request.get(`${env.VITE_SUPABASE_URL}/auth/v1/user`, { headers });
+    const response = await page.request.get(`${requiredEnv("VITE_SUPABASE_URL")}/auth/v1/user`, { headers });
     expect(response.ok()).toBe(true);
     return (await response.json()).user_metadata as Record<string, unknown>;
   };
@@ -66,8 +66,8 @@ test("personal navigation partial save survives reload and login without changin
       // Obtain a fresh session solely for restoration, then verify that it belongs to the original account.
       const cleanup = await authenticate();
       expect(cleanup.user.id === original.user.id, "Navigation restoration must use the original account").toBe(true);
-      const restored = await page.request.put(`${env.VITE_SUPABASE_URL}/auth/v1/user`, {
-        headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY, authorization: `Bearer ${cleanup.access_token}` },
+      const restored = await page.request.put(`${requiredEnv("VITE_SUPABASE_URL")}/auth/v1/user`, {
+        headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY"), authorization: `Bearer ${cleanup.access_token}` },
         data: { data: { workspace_navigation: before.workspace_navigation ?? null } },
       });
       expect(restored.ok(), `Navigation restoration failed (HTTP ${restored.status()})`).toBe(true);

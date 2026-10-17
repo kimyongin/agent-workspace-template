@@ -1,7 +1,7 @@
 import { executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { analyzeAndApply } from "./entity-schema-support.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
@@ -9,7 +9,7 @@ import { initialEntityDefinition } from "../supabase/functions/_shared/contracts
 test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편집은 summary에 없는 값도 유지한다", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
-  const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+  const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   let typeId: string | undefined, entityId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", {

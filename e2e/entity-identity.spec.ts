@@ -3,7 +3,7 @@ import { executionDialog } from "./ui-actions.ts";
 import postgres from "postgres";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
-import { devLogin, env, ownFixtureResult, test, unique } from "./support.ts";
+import { devLogin, env, ownFixtureResult, test, unique, requiredEnv } from "./support.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 
 let fixtureSource: string;
@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   const login = await page.request.post(
     `${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`,
     {
-      headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY") },
       data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
     },
   );
@@ -76,7 +76,7 @@ test.beforeEach(async ({ page }) => {
     definition.schema.properties[key]["x-order"] = (index + 1) * 10;
   });
   definition.schema["x-version"] = 2;
-  const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+  const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   try {
     await admin.begin(async (tx) => {
       const [owner] = await tx`select owner_id from app.entity_types where id=${fixtureType!.id}`;
@@ -95,7 +95,7 @@ test("manual tuple registration restores stored properties and links while ident
   const login = await page.request.post(
     `${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`,
     {
-      headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY") },
       data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
     },
   );
@@ -236,7 +236,10 @@ test("manual tuple registration restores stored properties and links while ident
     const events = await api("GET", "/records?record_kind=change&limit=100");
     const deletionEvent = events.items.find((
       event: { change?: { target_id: string; action: string } },
-    ) => event.change?.target_id === entityId && event.change.action === "delete");
+    ) => {
+      const change = event.change;
+      return !!change && change.target_id === entityId && change.action === "delete";
+    });
     expect(deletionEvent.body).not.toBe("삭제 템플릿");
     expect(deletionEvent.body).toContain(name);
   } finally {

@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import { readFileSync } from "node:fs";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 import type { DataModelDocument } from "../supabase/functions/_shared/contracts/data-model.ts";
 
@@ -31,6 +31,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     initial.entity_types = initial.entity_types.slice(0, 2);
     initial.relations = [];
     for (const t of initial.entity_types) {
+      if (typeof t.schema.title !== "string") throw new Error("initial model fixture type requires a title");
       t.schema.title = unique(t.schema.title);
       t.schema.properties.prop_2 = { type: "string", title: "수량", "x-order": 20 };
     }
@@ -89,7 +90,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     for (const entity of entities) expect((await mcp.call("get_entity", { id: entity.id })).schema_version).toBe(1);
     await page.getByRole("link", { name: "할 일", exact: true }).click();
     await expect(page).toHaveURL(/\/tasks(?:[?#]|$)/);
-    const origin = new URL(env.VITE_SUPABASE_URL);
+    const origin = new URL(requiredEnv("VITE_SUPABASE_URL"));
     expect(["127.0.0.1", "localhost"]).toContain(origin.hostname);
     expect(origin.protocol).toBe("http:");
     runner = spawn(process.execPath, [

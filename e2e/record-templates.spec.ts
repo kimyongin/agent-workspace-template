@@ -1,14 +1,14 @@
 import { chooseSetting } from "./settings-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
 import { scalarFixtureType } from "./entity-schema-support.ts";
-import { test, mcpClient, mcpTokenViaConsent } from "./support.ts";
+import { test, mcpClient, mcpTokenViaConsent, requiredEnv } from "./support.ts";
 import { expect } from "@playwright/test";
 import { devLogin, env, unique } from "./support.ts";
 import { beginTabAction, chooseTag } from "./ui-actions.ts";
 
 test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·수정 메모 보존·고정 재시도", async ({page}) => {
   await devLogin(page);
-  const login = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {headers:{apikey:env.VITE_SUPABASE_PUBLISHABLE_KEY},data:{email:env.DEV_USER_A_EMAIL,password:env.DEV_USER_A_PASSWORD}});
+  const login = await page.request.post(`${requiredEnv("VITE_SUPABASE_URL")}/auth/v1/token?grant_type=password`, {headers:{apikey:requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY")},data:{email:requiredEnv("DEV_USER_A_EMAIL"),password:requiredEnv("DEV_USER_A_PASSWORD")}});
   const token = (await login.json()).access_token;
   const api = async(method:string,path:string,data?:unknown) => {
     const response = await page.request.fetch(`${env.VITE_API_URL}${path}`,{method,headers:{authorization:`Bearer ${token}`,...(method!=="GET"?{"Idempotency-Key":crypto.randomUUID()}:{})},data});
@@ -87,7 +87,10 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     expect(keys[1]).toBe(keys[0]);expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
     expect(preparedInputs.length).toBeGreaterThan(0);for(const input of preparedInputs)expect(input).not.toHaveProperty("id");
     const records=await api("GET","/records?record_kind=change&limit=100");
-    const record=records.items.find((value:{change?:{target_id:string;action:string}})=>value.change?.target_id===taskId&&value.change.action==="create");
+    const record=records.items.find((value:{change?:{target_id:string;action:string}})=>{
+      const change=value.change;
+      return !!change&&change.target_id===taskId&&change.action==="create";
+    });
     expect(record.body).toBe("  내 메모\n"); expect(record.tag_ids).toEqual([]);
   } finally {
     if(taskId){const task=await api("GET",`/tasks/${taskId}`);await api("POST",`/tasks/${taskId}/delete`,{expected_version:task.version,change_tag_ids:[]});}

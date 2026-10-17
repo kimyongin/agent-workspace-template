@@ -2,14 +2,14 @@ import { chooseSetting } from "./settings-actions.ts";
 import { openProfileMenu } from "./ui-actions.ts";
 import postgres from "postgres";
 import { expect } from "@playwright/test";
-import { devLogin, env, test, unique } from "./support.ts";
+import { devLogin, env, test, unique, requiredEnv } from "./support.ts";
 import { closeDetail, saveOnce } from "./ui-actions.ts";
 
 // Real API/Auth/DB consumer round-trip. Run only in the serial integration environment.
 test("settings type creation opens typed entity creation, immutable detail, and list return", async ({ page }) => {
   await devLogin(page);
   const login = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
+    headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY") },
     data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
   });
   expect(login.ok()).toBe(true);
@@ -92,7 +92,7 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
   } finally {
     if (typeId) {
-      const database = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+      const database = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
       try {
         await database`delete from app.entities where entity_type_id=${typeId}`;
         await database`delete from app.entity_types where id=${typeId}`;

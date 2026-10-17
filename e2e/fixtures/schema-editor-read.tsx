@@ -96,13 +96,13 @@ function ReviewActionsFixture() {
       <output aria-label="현재 행동">{action?.kind ?? "none"}</output>
       <output aria-label="행동 차단">{String(action?.disabled ?? true)}</output>
       <button onClick={() => setDisabled(!disabled)}>상위 차단 전환</button>
-      <button onClick={() => editor.migrationStateChanged({ busy: true, uncertain: false, error: false })}>
+      <button onClick={() => editor.migrationStateChanged({ busy: true, uncertain: false })}>
         변환 접수 대기
       </button>
-      <button onClick={() => editor.migrationStateChanged({ busy: false, uncertain: true, error: false })}>
+      <button onClick={() => editor.migrationStateChanged({ busy: false, uncertain: true })}>
         변환 접수 결과 불명
       </button>
-      <button onClick={() => editor.migrationStateChanged({ busy: false, uncertain: false, error: false })}>
+      <button onClick={() => editor.migrationStateChanged({ busy: false, uncertain: false })}>
         변환 접수 종료
       </button>
       <button onClick={() => void editor.refreshPlan()}>상태 조회</button>

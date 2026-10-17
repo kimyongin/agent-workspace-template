@@ -5,7 +5,7 @@ import { createFixtureEntity } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, openListDetail, openTabFilters, chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { test, devLogin, env, ownFixtureResult, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, env, ownFixtureResult, mcpClient, mcpTokenViaConsent, unique, requiredEnv } from "./support.ts";
 
 for (
   const [kind, path, label, editLabel] of [
@@ -23,7 +23,7 @@ for (
     // to that authenticated owner; assertions still exercise public API CRUD.
     const owner = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub as string;
     expect(owner).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-    const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
     const tag = await mcp.call("create_tag", { scope:kind, name: unique("활동 왕복").slice(0, 30) });
     const emptyTag = await mcp.call("create_tag", { scope:kind, name: unique("빈 활동 조건").slice(0, 30) });
     const entity = await createFixtureEntity(mcp, { prop_1: unique("활동 문맥"), prop_2: 0 });

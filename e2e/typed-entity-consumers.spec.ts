@@ -1,13 +1,13 @@
 import { chooseSetting } from "./settings-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { analyzeAndApply } from "./entity-schema-support.ts";
 import { openTabFilters } from "./ui-actions.ts";
 test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를 사용하며 과거 사실을 보존한다", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} }),
+    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} }),
     types: string[] = [],
     entities: string[] = [],
     tasks: string[] = [],

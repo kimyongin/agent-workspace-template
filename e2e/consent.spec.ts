@@ -1,6 +1,12 @@
 // Actual App/StrictMode/Supabase SDK; only Auth HTTP replies are fixtures. No DB or credentials.
 import { expect, type Page, test } from "@playwright/test";
 
+function deferred<T>() {
+  let resolve: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve: (value: T) => resolve(value) };
+}
+
 const userA = "00000000-0000-4000-8000-000000000001", userB = "00000000-0000-4000-8000-000000000002";
 type RequestKey = { id: string; userId: string };
 const details = (name: string) => ({
@@ -102,7 +108,7 @@ test("StrictMode shares one details request before an approval decision", async 
 });
 
 test("a late previous authorization redirect cannot replace current consent", async ({ page }) => {
-  const old = Promise.withResolvers<object>();
+  const old = deferred<object>();
   const f = await authFixture(page, key => key.id === "old" ? old.promise : Promise.resolve(details("New agent")));
   await page.goto("/login"); await session(page);
   await page.goto("/oauth/consent?authorization_id=old");
@@ -119,7 +125,7 @@ test("a late previous authorization redirect cannot replace current consent", as
 });
 
 test("changing session user reloads details and ignores the previous user response", async ({ page }) => {
-  const old = Promise.withResolvers<object>();
+  const old = deferred<object>();
   const f = await authFixture(page, key => key.userId === userA ? old.promise : Promise.resolve(details("User B agent")));
   await page.goto("/login"); await session(page);
   await page.goto("/oauth/consent?authorization_id=same");
