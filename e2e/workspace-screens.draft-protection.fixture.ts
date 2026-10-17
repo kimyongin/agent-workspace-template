@@ -286,7 +286,7 @@ test("저장 성공 후 GET 실패·조회만 재시도·서버 conflict 초안 
   await fillChangeMemo(page, form(page), "수정 사유");
   await saveOnce(page, form(page));
   await expect(form(page).getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toBeVisible();
-  await expect(form(page).locator(".detail-title").filter({ hasText: "최신 내용" })).toBeVisible();
+  await expect(form(page).getByRole("heading", { name: "최신 내용", exact: true })).toBeVisible();
   fail = false;
   await form(page).getByRole("button", { name: "조회 다시 시도" }).click();
   await expect(form(page).getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toHaveCount(0);

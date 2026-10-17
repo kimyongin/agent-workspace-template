@@ -151,7 +151,7 @@ for (const width of [320, 1440]) {
     const draft = form(page);
     await draft.getByRole("textbox", { name: /^본문/ }).fill("상담 내역");
     await expect(draft.getByRole("group", { name: "태그", exact: true })).toHaveCount(0);
-    const tags = draft.locator(".tag-picker");
+    const tags = draft.getByRole("group", { name: "기록 태그", exact: true });
     await expect(tags).toContainText("기록 태그");
     await chooseTag(page, tags, "같은 이름");
     await expect(draft.getByRole("searchbox")).toHaveCount(0);
@@ -173,7 +173,7 @@ for (const width of [320, 1440]) {
     expect(state.writes).toHaveLength(0);
     await expect(draft.getByRole("list", { name: "선택한 할 일" }).locator("[data-slot='item']")).toHaveCount(1);
     await expect(draft.getByRole("list", { name: "선택한 자료" }).locator("[data-slot='item']")).toHaveCount(1);
-    await expect(draft.locator(".entity-choice")).toHaveCount(0);
+    await expect(draft.getByRole("group", { name: "자료 검색 결과", exact: true }).getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
     await draft.getByRole("button", { name: "자료 해제", exact: true }).click();
     await expect(entitySearch).toBeFocused();
     await draft.getByRole("group", { name: "자료 검색 결과" }).getByRole("button", {

@@ -286,7 +286,7 @@ for (const [kind, n, label] of [["entities", 1, "자료 태그"], ["tasks", 2, "
     await chooseTag(page, picker, "같은 이름");
     await expect(choice).toHaveCount(1);
     await expect(picker).toHaveAccessibleName(label);
-    await expect(picker.locator(".tag-selection").getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
+    await expect(picker.locator('[aria-label="선택한 태그"]').getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
     await clear.click();
     await expect(clear).toHaveCount(0);
     await expect(choice).toHaveCount(0);

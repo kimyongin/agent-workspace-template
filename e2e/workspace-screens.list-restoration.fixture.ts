@@ -51,7 +51,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]]
     ) {
       await go(page, "/" + kind);
-      const filters = page.locator(".tab-filters"),
+      const filters = page.getByRole("button", { name: /^필터 (열기|닫기)/ }).locator("xpath=ancestor::*[@data-slot='collapsible'][1]"),
         summary = filters.getByRole("button", { name: /^필터 (열기|닫기)/ }),
         input = page.getByLabel(kind === "entities" ? "자료 제목 검색" : "검색어", { exact: true });
       await expect(input).toBeVisible();
@@ -578,7 +578,7 @@ for (const outcome of ["success", "failed"] as const) {
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       await expect(toggle).not.toBeFocused();
       release();
-      if (outcome === "success") await expect(page.locator(".related-preview .props")).toContainText("1234");
+      if (outcome === "success") await expect(page.locator('[data-slot="collapsible-content"] dl')).toContainText("1234");
       else await expect(page.getByRole("button", { name: "속성 정의 다시 조회", exact: true })).toBeVisible();
       await expect(toggle).toBeFocused();
       await expect(toggle).toBeInViewport();

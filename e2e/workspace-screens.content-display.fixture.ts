@@ -16,9 +16,7 @@ for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 800 });
       await go(page, `/${kind}/${id(n)}`);
       await expect(
-        form(page).locator(kind === "records" ? ".dialog-title" : ".detail-title").filter({
-          hasText: "title" in item ? item.title : "기록",
-        }),
+        form(page).getByRole("heading", { name: "title" in item ? item.title : "기록", exact: true }),
       ).toBeVisible();
       await expect(form(page).locator(".markdown strong")).toHaveText("본문");
       await expect(form(page).locator(".document-summary")).toHaveCount(0);
