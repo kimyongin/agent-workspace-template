@@ -1,4 +1,7 @@
-import { PageHeading } from "../../components/PageHeading.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { supabase } from "../../lib/supabase.ts";
@@ -33,12 +36,25 @@ export function LogoutPage() {
     }
     if (!started.current) { started.current = true; void signOut(); }
   }, [loading, session, navigate]);
-  return <section className="panel auth-panel" aria-labelledby="logout-title">
-    <PageHeading title="로그아웃" id="logout-title" description="로그인 상태를 종료하고 로그인 화면으로 이동합니다." />
-    {error ? <>
-      <p className="error-text" role="alert">{localSignedOut ? "이 기기에서는 로그아웃했습니다. 서버의 다른 세션 로그아웃은 확인하지 못했습니다." : "로그아웃하지 못했습니다. 다시 시도하세요."}</p>
-      {localSignedOut ? <div className="actions"><Link className="btn btn-primary" to="/login">로그인으로 이동</Link></div>
-        : <div className="actions"><button className="btn" onClick={signOut}>다시 시도</button><Link className="btn" to="/tasks">할 일로 돌아가기</Link></div>}
-    </> : <p className="secondary" role="status">로그아웃 중…</p>}
+  return <section className="mx-auto w-full min-w-0 max-w-md px-4 py-6 sm:px-0" aria-labelledby="logout-title">
+    <Card>
+      <CardHeader>
+        <CardTitle><h1 id="logout-title">로그아웃</h1></CardTitle>
+        <CardDescription>로그인 상태를 종료하고 로그인 화면으로 이동합니다.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {error
+          ? <Alert variant="destructive"><AlertDescription>{localSignedOut ? "이 기기에서는 로그아웃했습니다. 서버의 다른 세션 로그아웃은 확인하지 못했습니다." : "로그아웃하지 못했습니다. 다시 시도하세요."}</AlertDescription></Alert>
+          : <div role="status" className="flex items-center gap-2"><Spinner aria-hidden="true" />로그아웃 중…</div>}
+      </CardContent>
+      {error && <CardFooter className="flex flex-wrap gap-2">
+        {localSignedOut
+          ? <Button asChild size="lg" className="min-h-11"><Link to="/login">로그인으로 이동</Link></Button>
+          : <>
+            <Button type="button" variant="outline" size="lg" className="min-h-11" onClick={signOut}>다시 시도</Button>
+            <Button asChild variant="ghost" size="lg" className="min-h-11"><Link to="/tasks">할 일로 돌아가기</Link></Button>
+          </>}
+      </CardFooter>}
+    </Card>
   </section>;
 }
