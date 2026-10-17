@@ -48,7 +48,7 @@ async function settings(page: Page) {
   await revealNavigation(page);
   const profile=page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true,includeHidden:inert});
   if(await profile.getAttribute("aria-expanded")!=="true"){
-    if(inert)await profile.evaluate((el:HTMLButtonElement)=>el.click());else await profile.click();
+    if(inert)await profile.dispatchEvent("pointerdown", {button:0,ctrlKey:false,pointerType:"mouse",isPrimary:true});else await profile.click();
   }
   const link=page.getByRole("menuitem",{name:"설정",exact:true,includeHidden:inert});
   if(inert)await link.evaluate((el:HTMLAnchorElement)=>el.click());else await link.click();
@@ -401,6 +401,8 @@ test("태그 설정의 인라인 초안은 대상 전환·탐색 취소와 histo
   await page.getByRole("textbox", { name: /태그 이름/ }).fill("탐색 보존 초안");
   await settingsCategory(page, "기본");
   await discard.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "기본", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toBeFocused();
   await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("탐색 보존 초안");
   await settingsCategory(page, "기본");
@@ -613,9 +615,9 @@ for (const kind of ["entity", "task", "record"] as const) {
     await page.goto(url);
     await page.getByRole("link", {name:kind === "entity" ? "자료 fixture" : kind === "task" ? "할 일 fixture" : "기록 fixture",exact:true,includeHidden:true}).evaluate((el:HTMLAnchorElement)=>el.click());
     await openDetailEditor(page);
-    const form = page.getByRole("dialog").filter({visible:true});
+    const form = page.getByRole("dialog", { name: `${kind === "entity" ? fixtureType.label : kind === "task" ? "할 일" : "기록"} 편집`, exact: true });
     await expect(form.getByRole("button", {name:"태그 선택",exact:true})).toHaveCount(0);
-    await expect(form.getByText("첫 태그",{exact:true})).toBeVisible();
+    await expect(form.getByRole("term", {name:"태그",exact:true}).locator("..").getByText("첫 태그",{exact:true})).toBeVisible();
     await (kind === "entity" ? form.getByRole("textbox", {name:/^제목/}) : form.getByRole("textbox", {name:/^본문/})).fill("본문 수정");
     await saveOnce(page, form);
     await expect(page.getByRole("button",{name:"편집",exact:true})).toBeVisible();

@@ -135,6 +135,29 @@ test.describe("차트 직접 선택", () => {
             await expect(values.getByRole("cell")).toHaveText([...first]);
             await graph.press("End");
             await expect(values.getByRole("cell")).toHaveText([...last]);
+            if (width === 320 && scale === 150) {
+              const graphBounds = (await graph.boundingBox())!;
+              const axisBounds = (await graph.getByText("10-16", { exact: true }).boundingBox())!;
+              for (const label of await values.getByRole("rowheader").allTextContents()) {
+                const legendLabel = graph.getByText(label, { exact: true });
+                await expect(legendLabel).toHaveCount(1);
+                const labelBounds = (await legendLabel.boundingBox())!;
+                expect(labelBounds.y).toBeGreaterThanOrEqual(axisBounds.y + axisBounds.height);
+                expect(labelBounds.y + labelBounds.height).toBeLessThanOrEqual(graphBounds.y + graphBounds.height);
+              }
+              const previous = (await page.getByRole("button", { name: `${title} 이전 날짜`, exact: true }).boundingBox())!;
+              const tableBounds = (await values.boundingBox())!;
+              expect(graphBounds.y + graphBounds.height).toBeLessThanOrEqual(previous.y);
+              expect(previous.y + previous.height).toBeLessThanOrEqual(tableBounds.y);
+              if (title === "작성일별 현재 색인 상태") {
+                const card = page.getByRole("region", { name: "색인 현황", exact: true });
+                const cardBounds = (await card.boundingBox())!;
+                // Keep width and scale fixed while fitting the whole card in the capture viewport.
+                await page.setViewportSize({ width, height: Math.ceil(cardBounds.height + 200) });
+                await card.screenshot({ path: info.outputPath("indexing-whole-card-320-150.png") });
+                await page.setViewportSize({ width, height: 900 });
+              }
+            }
           });
         }
       }
