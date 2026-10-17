@@ -107,9 +107,9 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     expect(current.properties).not.toHaveProperty("prop_2");
     await oldForm.getByRole("button", { name: "저장", exact: true }).click();
     await expect(
-      oldPage.locator("dialog.modal-action[open]").getByRole("alert"),
+      oldPage.locator('[role="dialog"][aria-modal="true"]').getByRole("alert"),
     ).toBeVisible();
-    await oldPage.locator("dialog.modal-action[open]").getByRole("button", {
+    await oldPage.locator('[role="dialog"][aria-modal="true"]').getByRole("button", {
       name: "취소",
       exact: true,
     }).click();

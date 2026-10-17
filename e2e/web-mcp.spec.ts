@@ -70,7 +70,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
     await expect(dialog.getByLabel("편집 메모")).toHaveCount(0);
     await dialog.getByRole("button", { name: "저장" }).click();
     await expect(dialog).not.toBeVisible();
-    await expect(page.locator("dialog.modal:not(.modal-confirm)[open] .dialog-title")).toHaveText("기록");
+    await expect(page.locator('[role="dialog"] [data-slot="dialog-title"]')).toHaveText("기록");
 
     // 웹: 반복 할 일의 오늘 회차가 기록함
     await page.goto(`/tasks/${task.id}`);

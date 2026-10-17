@@ -202,7 +202,7 @@ test("직접 편집의 실패·Escape·확인 취소는 초안을 유지한다",
   await expect(title).toHaveValue("보존할 초안");
   await title.focus();
   await page.keyboard.press("Escape");
-  const discard = page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});
+  const discard = page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true});
   await expect(discard).toBeVisible();
   await discard.getByRole("button",{name:"취소",exact:true}).click();
   await expect(title).toHaveValue("보존할 초안");
@@ -298,7 +298,7 @@ for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","
     await title.fill("이탈 확인 초안");
     // The fixture probe exercises real router navigation while the modal owns focus.
     await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
-    const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});
+    const confirm=page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true});
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button",{name:"취소",exact:true}).click();
     await expect(title).toHaveValue("이탈 확인 초안");
@@ -319,7 +319,7 @@ for (const kind of ["records","tasks"]) {
     const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
     await title.fill("상세 이동 초안");
     await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
-    const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});
+    const confirm=page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true});
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button",{name:"취소",exact:true}).click();
     await expect(title).toHaveValue("상세 이동 초안");

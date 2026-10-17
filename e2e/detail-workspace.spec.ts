@@ -619,7 +619,7 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     await expect(description).toBeVisible();
     const readDescription = await description.innerText();
     await expect(view).toHaveAttribute("aria-describedby", await description.getAttribute("id") as string);
-    if(item.title) await expect(view.locator(".modal-body .detail-title")).toHaveText(item.title);
+    if(item.title) await expect(view.locator('[aria-label="상세 내용"] h2')).toHaveText(item.title);
     else await expect(view.locator(".record-content")).toHaveText("구매 기준을 정리했습니다.");
     const relation=view.locator(".detail-relations");
     {
@@ -672,7 +672,7 @@ test("related previous: one starting tab survives cross-links, dirty drafts, res
   await panel(page).getByLabel("본문",{exact:true}).fill("이전 이동해도 보존할 초안");
   await panel(page).getByRole("button",{name:"이전: 등심",exact:true}).click();
   await expect(page.getByRole("tab",{name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
-  await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).not.toBeVisible();
+  await expect(page.getByRole("alertdialog",{name:"변경을 버릴까요?"})).not.toBeVisible();
   await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
   await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(panel(page).getByLabel("본문",{exact:true})).toHaveValue("이전 이동해도 보존할 초안");
@@ -759,7 +759,7 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await expect(form.getByRole("combobox", {name:"번호 출처",exact:true})).toHaveCount(0);
   if (entered) await expect(form.getByLabel("제목")).toHaveValue("설정 도착 전 입력");
   await form.getByRole("button", {name:"취소",exact:true}).click();
-  const discard = page.getByRole("dialog", {name:"변경을 버릴까요?",exact:true});
+  const discard = page.getByRole("alertdialog", {name:"변경을 버릴까요?",exact:true});
   if (entered) {
     await expect(discard).toBeVisible();
     await discard.getByRole("button", {name:"변경 버리기",exact:true}).click();

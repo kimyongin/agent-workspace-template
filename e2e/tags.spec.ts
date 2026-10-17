@@ -176,7 +176,7 @@ test("추가 페이지 태그의 편집 취소·충돌·저장 뒤 목록과 초
     const server=unique("서버").slice(0,30);await mcp.call("rename_tag",{id:oldest.id,expected_version:1,name:server});
     await saveOnce(page,form);await expect(form.getByText(/다른 변경이 저장/)).toBeVisible();
     await expect(form.getByRole("textbox",{name:/태그 이름/})).toHaveValue(draft);await form.getByRole("button", {name:"취소",exact:true}).click();
-    await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();
+    await page.getByRole("alertdialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();
     const fresh=page.getByRole("button",{name:`${server} 이름 변경`,exact:true});await expect(fresh).toBeFocused();
     await expect(trigger).toHaveCount(0);await fresh.click();form=page.getByRole("form",{name:"태그 이름 변경"});
     await form.getByRole("textbox",{name:/태그 이름/}).fill(draft);await saveOnce(page,form);

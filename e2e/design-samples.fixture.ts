@@ -582,7 +582,7 @@ test("보기와 편집은 전체 정보를 유지하고 태그 연결은 상품 
     await page.screenshot({path:info.outputPath(`sample-edit-pairs-${width}.png`)});
     await editor.getByLabel("상품명",{exact:false}).fill("저장하지 않을 변경");
     await editor.getByRole("button",{name:"취소",exact:true}).click();
-    await page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true}).getByRole("button",{name:"변경 버리기",exact:true}).click();
+    await page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true}).getByRole("button",{name:"변경 버리기",exact:true}).click();
     await expect(view.getByText("중요",{exact:true})).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }

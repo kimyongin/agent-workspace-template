@@ -257,7 +257,7 @@ test("계정 저장: 실패 초안·폐기 보호·기존 metadata·다른 탭·
   const setting = page.getByRole("form", {name:"날짜와 시각 설정"});
   await setting.getByLabel("표시 시간대").selectOption("America/New_York");
   await page.getByRole("link", {name:"기록",exact:true}).click();
-  await page.getByRole("dialog", {name:"변경을 버릴까요?"}).getByRole("button",{name:"취소",exact:true}).click();
+  await page.getByRole("alertdialog", {name:"변경을 버릴까요?"}).getByRole("button",{name:"취소",exact:true}).click();
   await expect(setting.getByLabel("표시 시간대")).toHaveValue("America/New_York");
   await setting.getByRole("button", {name:"날짜와 시각 저장",exact:true}).click();
   await expect(setting.getByRole("alert")).toContainText("입력한 설정을 유지");
@@ -337,7 +337,7 @@ for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크
   await expect(otherTab.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
   await page.reload(); await expect(page.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
   await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();
-  const popup=page.locator("#nav-profile-options");await expect(popup).toContainText("새 닉네임");await expect(popup).not.toContainText(user.email);await expect(popup.locator(".profile-icon")).toHaveText("🎯");
+  const popup=page.locator('[role="menu"]');await expect(popup).toContainText("새 닉네임");await expect(popup).not.toContainText(user.email);await expect(popup.locator(".profile-icon")).toHaveText("🎯");
   await page.screenshot({path:info.outputPath(`profile-popup-${width}.png`)});
   await page.keyboard.press("Escape");
   await page.getByLabel("닉네임",{exact:true}).fill(" ");await page.getByRole("button",{name:"프로필 저장",exact:true}).click();await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("설정을 저장했습니다");

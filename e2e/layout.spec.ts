@@ -12,7 +12,7 @@ test("사용자 바로가기와 별도로 프로필에서 전체 업무 화면�
   await devLogin(page);await page.goto("/entities");
   const navigation = page.getByRole("navigation",{name:"주 메뉴"});
   await navigation.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();
-  const menu = page.locator("#nav-profile-options");
+  const menu = page.locator('[role="menu"]');
   for (const [path, label] of [["/entities","전체 자료"],["/tasks","할 일"],["/records","기록"]]) {
     const link = menu.locator(`a[href="${path}"]`);
     await expect(link).toHaveAccessibleName(label);
@@ -77,7 +77,7 @@ test.describe("화면 폭별 배치", () => {
     await recordDialog.getByLabel("본문").fill(recordTitle+"\n"+"b".repeat(150));
     await recordDialog.locator('button[type="submit"]').click();
     await expect(page).toHaveURL(/\/records\/[^/?]+/);
-    await expect(page.locator("dialog.modal:not(.modal-confirm)[open] .dialog-title")).toHaveText("기록");
+    await expect(page.locator('[role="dialog"] [data-slot="dialog-title"]')).toHaveText("기록");
     const recordDetail = page.url();
 
 
@@ -123,7 +123,7 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   await expect(dialog).toBeVisible();
   // 열리면 초점이 대화상자 안에 있다.
-  expect(await page.evaluate(() => !!document.activeElement?.closest("dialog[open]"))).toBe(true);
+  expect(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"], [role="alertdialog"]'))).toBe(true);
 
   // 대화상자 안으로 초점이 들어가고, 뒤 화면 요소로 빠져나가지 않는다.
   // 네이티브 모달은 마지막 요소 다음에 초점을 브라우저 UI로 보낼 수 있다(activeElement가 body). 뒤 화면 요소로는 가면 안 된다.
@@ -133,7 +133,7 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
     const where = await page.evaluate(() => {
       const el = document.activeElement;
       if (!el || el === document.body) return "browser";
-      return el.closest("dialog[open]") ? "dialog" : `outside:${el.tagName}:${(el.textContent || "").trim().slice(0, 20)}`;
+      return el.closest('[role="dialog"], [role="alertdialog"]') ? "dialog" : `outside:${el.tagName}:${(el.textContent || "").trim().slice(0, 20)}`;
     });
     expect(where === "dialog" || where === "browser", where).toBe(true);
     if (where === "dialog") inDialog++;

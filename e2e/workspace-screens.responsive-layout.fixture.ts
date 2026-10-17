@@ -295,7 +295,7 @@ test("200% reflow·축소 visual viewport·한 글자 제목", async ({ page }, 
   await page.setViewportSize({ width: 390, height: 360 });
   await expect(form(page).getByRole("button", { name: "수정하고 저장", exact: true })).toBeInViewport({ ratio: 1 });
   await expect(form(page).getByRole("button", { name: "취소", exact: true })).toBeInViewport({ ratio: 1 });
-  const actions = await form(page).locator(".modal-foot > .btn").evaluateAll(nodes => nodes.map(node => ({ width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })));
+  const actions = await form(page).locator('[data-slot="dialog-footer"] button').evaluateAll(nodes => nodes.map(node => ({ width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })));
   for (const action of actions) { expect(action.width).toBeGreaterThanOrEqual(44); expect(action.height).toBeGreaterThanOrEqual(44); }
   await page.screenshot({ path: info.outputPath("zoom-keyboard-viewport.png") });
   expect(state.errors).toEqual([]);

@@ -171,7 +171,7 @@ for (
       await expect(page).toHaveURL(initialDetail);await expect(entityEdit).toBeFocused();
       await editLoadedDetail(`/${path}/${target.id}`,kind === "record" ? "기록" : title);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
       await dialog.getByLabel("본문").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
-      const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
+      const discard=page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
       expect((await mcp.call(`get_${kind}`,{id:target.id})).body).toBe(target.body);await dialog.getByLabel("본문").fill(target.body);await dialog.getByRole("button",{name:"닫기",exact:true}).click();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(42);
       await expect(link).toBeFocused();await openListDetail(page,await link.innerText());

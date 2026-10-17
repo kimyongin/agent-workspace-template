@@ -95,7 +95,7 @@ for (const width of [390, 1440]) {
       await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toBeVisible();
       await expect(page.getByRole("status").filter({ hasText: /로그인 상태를 확인/ })).toHaveCount(0);
       const introduction = name.endsWith("-detail")
-        ? page.locator("dialog.modal[open] .modal-head > .page-description")
+        ? page.locator('[role="dialog"] [data-slot="dialog-description"]')
         : page.locator(".page-heading > .page-description");
       await expect(introduction).toHaveCount(1);
       await expect(introduction).toBeVisible();
@@ -147,7 +147,7 @@ for (const width of [390, 1440]) {
       await go(page, path);
       if (name.endsWith("-create") || name.endsWith("-edit")) {
         await expect(page.getByRole("textbox").first()).toBeVisible();
-        await expect(page.locator("dialog.modal[open] .modal-head > .page-description")).toBeVisible();
+        await expect(page.locator('[role="dialog"] [data-slot="dialog-description"]')).toBeVisible();
       }
       if (name.endsWith("-filters")) await expect(page.getByText("필터", { exact: true })).toBeVisible();
       if (name === "record-calendar") await expect(page.locator(".record-calendar")).toBeVisible();
@@ -179,7 +179,7 @@ for (const width of [390, 1440]) {
     await page.screenshot({ path: info.outputPath(`settings-menu-${width}.png`) });
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /^내 프로필/ }).click();
-    await expect(page.locator("#nav-profile-options")).toBeVisible();
+    await expect(page.locator('[role="menu"]')).toBeVisible();
     await page.screenshot({ path: info.outputPath(`profile-menu-${width}.png`) });
     expect(state.errors).toEqual([]);
     expect(state.writes).toHaveLength(0);
