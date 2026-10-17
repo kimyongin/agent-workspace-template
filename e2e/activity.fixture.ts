@@ -17,13 +17,16 @@ for(const width of [390,1024])test(`변경 기록 metadata ${width}px: 종류·�
   const rows=page.locator(".record-timeline .list-item");await expect(rows).toHaveCount(2);
   for(const [index, row] of (await rows.all()).entries()){
     await row.getByRole("button",{name:/^할 일 (수정|삭제)$/,exact:true}).click();
-    const properties = row.locator(".props");
-    await expect(properties.locator("dt")).toHaveText(["종류", "출처", "수행 시각", "변경 대상"]);
+    const properties = row.locator(".related-preview > .key-value-grid");
+    await expect(properties.locator("dt")).toHaveText(["종류", "출처", "수행 시각", "변경 대상", "행동"]);
     await expect(properties.locator("dd").nth(0)).toHaveText("변경 기록");
     await expect(properties.locator("dd").nth(1)).toHaveText("에이전트");
     await expect(properties.locator("time")).toHaveAttribute("datetime", items[0].occurred_at);
-    await expect(properties.locator("dd").last()).toContainText(`할 일 「${items[index].change.target_title}」`);
-    for (const property of await properties.locator(":scope > div").all()) {
+    await expect(properties.locator("dt", { hasText: /^변경 대상$/ }).locator("../dd")).toContainText(
+      `할 일 「${items[index].change.target_title}」`,
+    );
+    await expect(properties.locator("dt", { hasText: /^행동$/ }).locator("../dd")).toHaveText(index ? "삭제" : "수정");
+    for (const property of await properties.locator(".key-value-static > div").all()) {
       const name = (await property.locator("dt").boundingBox())!, value = (await property.locator("dd").boundingBox())!;
       expect(value.x).toBeGreaterThan(name.x + name.width);
       expect(value.y).toBeLessThan(name.y + name.height);

@@ -325,18 +325,53 @@ for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read 
   for(const width of [320,360,390,639,640,768,1024,1440]) {
     await page.setViewportSize({width,height:900});
     await page.goto(`/${kind}/${encodeURIComponent(key)}`);
-    const properties=page.locator("dialog.modal:not(.modal-confirm)[open] .detail-section .props").first();
-    await expect(properties.locator("dt").first()).toBeVisible();
-    const rows=await properties.locator(":scope > div").evaluateAll(nodes=>nodes.map(node=>{
-      const key=node.querySelector("dt")!,value=node.querySelector("dd")!;
-      const k=key.getBoundingClientRect(),v=value.getBoundingClientRect();
-      return {keyX:k.x,keyRight:k.right,valueX:v.x,keyColor:getComputedStyle(key).color,valueColor:getComputedStyle(value).color};
-    }));
-    for(const row of rows) {
+    const surface = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+    const properties = surface.locator(
+      kind === "entities"
+        ? ".entity-detail-properties"
+        : kind === "tasks"
+        ? ".task-overview"
+        : ".record-content, .record-context, .detail-management > .tag-connections",
+    );
+    const expectedKeys = kind === "entities"
+      ? ["제목", "번호 출처", "자료 번호", "수량", "날짜", "분류", "태그"]
+      : kind === "tasks"
+      ? ["제목", "본문", "상태", "종류", "기한", "태그"]
+      : ["본문", "종류", "수행 시각", "태그"];
+    await expect(properties.locator("dt:visible")).toHaveText(expectedKeys);
+    if (kind === "entities") await expect(properties.locator("dt", { hasText: /^수량$/ }).locator("../dd")).toHaveText("0");
+    const rows = await properties.locator("dt:visible").evaluateAll((nodes) =>
+      nodes.map((key) => {
+        const value = key.nextElementSibling!;
+        const grid = key.closest(".key-value-grid") ?? key.closest("dl")!;
+        const grids = Array.from(document.querySelectorAll(".key-value-grid, dl"));
+        const k = key.getBoundingClientRect(), v = value.getBoundingClientRect(), g = grid.getBoundingClientRect();
+        return {
+          grid: grids.indexOf(grid),
+          keyX: k.x,
+          keyRight: k.right,
+          valueX: v.x,
+          valueRight: v.right,
+          gridRight: g.right,
+          keyColor: getComputedStyle(key).color,
+          valueColor: getComputedStyle(value).color,
+        };
+      })
+    );
+    for (const row of rows) {
       expect(row.valueX).toBeGreaterThan(row.keyRight);
-      expect(Math.abs(row.keyX-rows[0].keyX)).toBeLessThan(1);
-      expect(Math.abs(row.valueX-rows[0].valueX)).toBeLessThan(1);
+      expect(row.valueRight).toBeLessThanOrEqual(row.gridRight + 1);
       expect(row.keyColor).not.toBe(row.valueColor);
+      // Keys whose horizontal ranges overlap belong to one column. A second column
+      // keeps its own axis, while long labels and values cannot indent that axis.
+      for (
+        const other of rows.filter((other) =>
+          other.grid === row.grid && other.keyX < row.keyRight && row.keyX < other.keyRight
+        )
+      ) {
+        expect(Math.abs(row.keyX - other.keyX)).toBeLessThan(1);
+        expect(Math.abs(row.valueX - other.valueX)).toBeLessThan(1);
+      }
     }
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }

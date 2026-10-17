@@ -204,8 +204,8 @@ test("manual tuple registration restores stored properties and links while ident
       name: `${fixtureType!.label} 편집`,
       exact: true,
     });
-    await expect(rekey.getByLabel("자료 번호")).toHaveAttribute("readonly", "");
-    await expect(rekey.getByLabel("자료 번호")).toHaveValue(external_id);
+    await expect(rekey.locator("dt:visible", { hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(external_id);
+    await expect(rekey.getByRole("textbox", { name: "자료 번호", exact: true })).toHaveCount(0);
     await rekey.getByLabel("이름", { exact: false }).fill(name + " 수정");
     await saveOnce(page, rekey);
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(target.id)));

@@ -727,7 +727,8 @@ test("desktop: ordinary edits preserve the immutable identity, retained tab and 
   const state = await fixture(page), oldId = entityKey(1);
   await page.goto(`/entities/${encodeURIComponent(oldId)}`);
   await panel(page).getByRole("button", {name:"편집",exact:true}).click();
-  await expect(panel(page).getByLabel("번호",{exact:true})).toHaveAttribute("readonly", "");
+  await expect(panel(page).locator("dt:visible", { hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(id(1));
+  await expect(panel(page).getByRole("textbox", { name: /^(번호|자료 번호)$/ })).toHaveCount(0);
   await panel(page).getByLabel("제목",{exact:false}).fill("등심 수정");
   await saveOnce(page,panel(page));
   await expect(page).toHaveURL(new RegExp(encodeURIComponent(oldId)));

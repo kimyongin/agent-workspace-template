@@ -51,10 +51,11 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await page.getByRole("button", { name: "편집", exact: true }).click();
     const editing = page.getByRole("dialog", { name: `${label} 편집`, exact: true });
     await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
-    await expect(editing.getByLabel("번호", { exact: true })).toHaveValue(stored.external_id);
-    await expect(editing.getByLabel("번호", { exact: true })).toHaveAttribute("readonly", "");
-    await expect(editing.getByRole("textbox", { name: "번호 출처", exact: true })).toHaveValue(stored.source_label);
-    await expect(editing.getByRole("textbox", { name: "번호 출처", exact: true })).toHaveAttribute("readonly", "");
+    await expect(editing.locator("dt:visible", { hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(stored.external_id);
+    await expect(editing.locator("dt:visible", { hasText: /^번호 출처$/ }).locator("../dd")).toHaveText(
+      stored.source_label,
+    );
+    await expect(editing.getByRole("textbox", { name: /^(번호|자료 번호|번호 출처)$/ })).toHaveCount(0);
     const updatedTitle = `${title} 수정`;
     await editing.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill(updatedTitle);
     await saveOnce(page, editing);
