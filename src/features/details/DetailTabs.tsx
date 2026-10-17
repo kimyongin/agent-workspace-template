@@ -76,7 +76,9 @@ export function DetailTabs({ tabs, active, enabled, isBusy, select, close, reord
       data-dragging={drag?.id === tab.id || undefined} data-drop={drag?.placement?.id === tab.id && drag.id !== tab.id ? drag.placement.before ? "before" : "after" : undefined}>
       <TabsTrigger value={tab.id} className="min-h-11 min-w-0 flex-none px-3" id={`tab-${tab.id}`} aria-selected={active === tab.id} aria-controls={`panel-${tab.id}`} aria-describedby={help}
         aria-keyshortcuts="Control+Shift+ArrowLeft Control+Shift+ArrowRight" tabIndex={active === tab.id ? 0 : -1} title={tab.title}
-        draggable={enabled} onClick={() => select(tab.id)} onDragStart={event => {
+        draggable={enabled} onClick={() => select(tab.id)} onKeyDown={event => {
+          if (["Enter", " "].includes(event.key)) { event.preventDefault(); if (enabled && !isBusy()) select(tab.id); }
+        }} onDragStart={event => {
           if (!enabled || isBusy()) { event.preventDefault(); return; }
           source.current = tab.id; setDrag({ id: tab.id, placement: null });
           event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-workspace-tab", tab.id);
