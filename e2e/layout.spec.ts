@@ -15,7 +15,8 @@ test("사용자 바로가기와 별도로 탐색 메뉴에서 전체 업무 화�
   await openMainNavigation(page);
   const menu = navigation;
   for (const [path, label] of [["/entities","전체 자료"],["/tasks","할 일"],["/records","기록"]]) {
-    const link = menu.locator(`a[href="${path}"]`);
+    const link = menu.getByRole("link", { name: label, exact: true });
+    await expect(link).toHaveAttribute("href", path);
     await expect(link).toHaveAccessibleName(label);
     await expect(link).toBeVisible();
   }
