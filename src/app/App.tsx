@@ -60,7 +60,7 @@ function Layout() {
     scrollRegistration.current?.();
     scrollRegistration.current = node ? registerScrollOwner(node, () => true) : null;
   }, []);
-  return <SidebarProvider key={session?.user.id ?? "signed-out"} className="h-dvh min-h-0 w-full overflow-hidden" style={{ "--sidebar-width": "100%" } as React.CSSProperties}>
+  return <SidebarProvider key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"} className="h-dvh min-h-0 w-full overflow-hidden" style={{ "--sidebar-width": "100%" } as React.CSSProperties}>
     <span ref={navigation.remProbe} aria-hidden="true" className="pointer-events-none absolute h-0 w-[1rem] overflow-hidden" />
     <ResizablePanelGroup orientation="horizontal" className="min-h-0 min-w-0 flex-1" resizeTargetMinimumSize={{ coarse: 44, fine: 44 }}>
       <ResizablePanel id="navigation" panelRef={navigation.panel} minSize={session && navigation.desktop ? `${13 * navigation.rem}px` : 0} maxSize={session && navigation.desktop ? `${20 * navigation.rem}px` : 0} defaultSize={session && navigation.desktop ? `${13 * navigation.rem}px` : 0} onResize={size => navigation.remember(size.inPixels)}>
