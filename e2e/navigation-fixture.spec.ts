@@ -217,9 +217,17 @@ for (const width of [390, 1440]) test(`#205 ${width}px: 설정·가이드 구획
   await page.screenshot({ path: info.outputPath(`settings-${width}.png`) });
   await openProfile(page); await expect(profileMenu(page).getByRole("menuitem", { name: "로그아웃", exact: true })).toBeInViewport();
   await page.keyboard.press("Escape"); await expect(profileButton(page)).toBeFocused();
-  await page.goto("/guide"); await expect(page.getByRole("list").filter({ has: page.getByRole("heading", { level: 2 }) }).getByRole("listitem")).toHaveCount(5);
+  await page.goto("/guide"); await expect(page.getByRole("list").filter({ has: page.getByRole("heading", { level: 2 }) }).locator(":scope > li")).toHaveCount(5);
   await page.screenshot({ path: info.outputPath(`guide-${width}.png`) });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  for (const [label, path] of [["할 일로 이동", "/tasks"], ["기록으로 이동", "/records"]]) {
+    const link = page.getByRole("link", { name: label, exact: true });
+    await expect(link).toHaveAttribute("href", path);
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "사용 가이드", level: 1, exact: true })).toBeVisible();
+  }
   if (width >= 1024) for (const height of [320, 280]) {
     await page.setViewportSize({ width, height }); await openProfile(page);
     await expect(profileMenu(page).getByRole("menuitem", { name: "로그아웃", exact: true })).toBeInViewport();
