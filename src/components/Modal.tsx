@@ -126,7 +126,8 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   const returnFocus = useRef<Element | null>(null);
   const guard = useRef({open,dirty,busy,surface,action});
   guard.current = {open,dirty,busy,surface,action};
-  // The router keeps this callback; it reads the committed mode instead of a previous editor's boolean.
+  // The router keeps this callback. Surface refs distinguish a live child draft from
+  // dirty props rendered by an editor that has already saved and unregistered.
   const shouldBlock = useCallback(() => {
     const state=guard.current;
     return state.open && (!!actionRef.current || (state.surface ? !!state.surface.protection.current?.dirty || !!state.surface.protection.current?.busy || !!state.surface.editor.current?.dirty || !!state.surface.editor.current?.busy || state.surface.busy.current : state.dirty || state.busy));

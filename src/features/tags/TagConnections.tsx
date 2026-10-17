@@ -49,7 +49,10 @@ export function TagConnections({ scope, target, readonly = false, onSaved, onDra
           <TagConnectionDraft
             scope={scope}
             target={editing}
-            onCancel={() => { setEditing(null); onDraftClosed?.(); }}
+            onCancel={() => {
+              setEditing(null);
+              onDraftClosed?.();
+            }}
             onSaved={(saved) => {
               onSaved(saved);
               setEditing(null);

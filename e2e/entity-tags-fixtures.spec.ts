@@ -668,15 +668,35 @@ test("기록 태그 연결 버전 충돌은 원문과 선택 초안을 보존한
 });
 
 test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 연결을 다시 시작한다", async ({ page }) => {
-  let current = { ...makeEntity(1), id: `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000`, tag_ids: [tags[0].id] };
+  let current = {
+    ...makeEntity(1),
+    id: `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000`,
+    tag_ids: [tags[0].id],
+  };
   const writes: Record<string, unknown>[] = [];
-  await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : { items: [fixtureType], next_cursor: null } }));
-  await page.route("**/api/entities/**", async route => {
+  await page.route(
+    "**/api/entity-types**",
+    (route) =>
+      route.fulfill({
+        json: new URL(route.request().url()).pathname.endsWith("/schema")
+          ? fixtureSchema
+          : new URL(route.request().url()).pathname.endsWith("/identity")
+          ? fixtureIdentity()
+          : { items: [fixtureType], next_cursor: null },
+      }),
+  );
+  await page.route("**/api/entities/**", async (route) => {
     if (route.request().method() === "PATCH") {
       const input = route.request().postDataJSON();
       writes.push(input);
       if (writes.length === 1) {
-        current = { ...current, title: "외부에서 바뀐 자료", properties: { ...current.properties, prop_1: "외부에서 바뀐 자료" }, tag_ids: [tags[1].id], version: 2 };
+        current = {
+          ...current,
+          title: "외부에서 바뀐 자료",
+          properties: { ...current.properties, prop_1: "외부에서 바뀐 자료" },
+          tag_ids: [tags[1].id],
+          version: 2,
+        };
         return route.fulfill({ status: 409, json: { code: "conflict", message: "다른 변경이 저장되었습니다." } });
       }
       current = { ...current, tag_ids: input.tag_ids, version: 3 };
@@ -702,13 +722,13 @@ test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 �
   await region.getByRole("button", { name: "연결 적용", exact: true }).click();
   await action.getByRole("button", { name: "연결하고 저장", exact: true }).click();
   await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
-  expect(writes.map(input => input.expected_version)).toEqual([1, 2]);
+  expect(writes.map((input) => input.expected_version)).toEqual([1, 2]);
   expect(current.properties.prop_1).toBe("외부에서 바뀐 자료");
 });
 
 test("태그 연결 초안은 닫기·뒤로가기·경로 이동 취소에서 선택과 초점을 지키고 승인한 경로만 이동한다", async ({ page }) => {
   const record = { ...makeRecord(3), id: "30000000-0000-4000-8000-000000000000", tag_ids: [tags[0].id] };
-  await page.route("**/api/records/**", route => route.fulfill({ json: record }));
+  await page.route("**/api/records/**", (route) => route.fulfill({ json: record }));
   await page.goto(url);
   await page.getByRole("link", { name: "기록 fixture", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
   const region = page.getByRole("region", { name: "태그 연결" });
@@ -744,14 +764,18 @@ test("태그 연결 초안은 닫기·뒤로가기·경로 이동 취소에서 �
 test("태그 연결 처리 중과 응답 불명은 Escape·뒤로가기를 막고 같은 시도만 재확인한다", async ({ page }) => {
   const record = { ...makeRecord(3), id: "30000000-0000-4000-8000-000000000000", tag_ids: [tags[0].id] };
   let release = () => {}, arrived = () => {};
-  const started = new Promise<void>(resolve => { arrived = resolve; });
+  const started = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
   const requests: { body: Record<string, unknown>; key: string | undefined }[] = [];
-  await page.route("**/api/records/**", async route => {
+  await page.route("**/api/records/**", async (route) => {
     if (route.request().method() !== "PATCH") return route.fulfill({ json: record });
     requests.push({ body: route.request().postDataJSON(), key: route.request().headers()["idempotency-key"] });
     if (requests.length === 1) {
       arrived();
-      await new Promise<void>(resolve => { release = resolve; });
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
       return route.abort();
     }
     return route.fulfill({ json: { ...record, tag_ids: [], version: 2 } });
@@ -782,5 +806,7 @@ test("태그 연결 처리 중과 응답 불명은 Escape·뒤로가기를 막�
     await page.locator("dialog.modal[open]:visible").getByRole("button", { name: "닫기", exact: true }).click();
     await expect(region).toHaveCount(0);
     await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
-  } finally { release(); }
+  } finally {
+    release();
+  }
 });

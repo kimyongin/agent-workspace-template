@@ -393,7 +393,7 @@ test("card title keys align with the first line of short and wrapped values", as
       const title = page.getByRole("button", { name: item.title, exact: true });
       const row = page.locator(".related-item").filter({ has: title });
       await expect(title).toBeVisible();
-      const text = await row.evaluate(node => {
+      const text = await row.evaluate((node) => {
         const key = node.querySelector("dt")!;
         const value = node.querySelector(".related-item-text")!;
         const first = (el: Element) => {
