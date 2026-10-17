@@ -40,8 +40,8 @@ export async function closeDetail(page: Page, title: string) {
   const dialog = detailDialog(page);
   await expect(dialog).toBeVisible();
   const tabClose = page.getByRole("button", { name: `${title} 탭 닫기`, exact: true });
-  if (await tabClose.isVisible()) await tabClose.click();
-  else await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  const dialogClose = dialog.getByRole("button", { name: "닫기", exact: true });
+  await tabClose.or(dialogClose).filter({ visible: true }).first().click();
 }
 
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
