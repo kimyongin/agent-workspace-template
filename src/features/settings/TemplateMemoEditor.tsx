@@ -1,7 +1,10 @@
 import { InputGroup } from "@/components/ui/input-group";
 
-import { type Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
+import { type Ref, type RefObject, createContext, useContext, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import { memoFragment, memoText, type MemoVariable } from "./template-memo-document.ts";
+
+/** A retained editor's owner bounds native history events to its own controls. */
+export const MemoHistoryBoundaryContext = createContext<RefObject<HTMLElement | null> | null>(null);
 
 export type TemplateMemoHandle = { insert: (variable: string) => void; focus: () => void };
 
@@ -18,6 +21,16 @@ export function TemplateMemoEditor({ value, variables, onChange, readOnly, disab
   "aria-invalid"?: boolean;
 }) {
   const element = useRef<HTMLDivElement>(null), selection = useRef<Range | null>(null), composing = useRef(false);
+  const historyBoundary = useContext(MemoHistoryBoundaryContext);
+  useEffect(() => {
+    const root = element.current, owner = historyBoundary?.current;
+    if (!root || !owner) return;
+    const protectHistory = (event: InputEvent) => {
+      if (!composing.current && !event.isComposing && event.cancelable && ["historyUndo", "historyRedo"].includes(event.inputType) && document.activeElement === root && event.target instanceof Node && !root.contains(event.target)) event.preventDefault();
+    };
+    owner.addEventListener("beforeinput", protectHistory, true);
+    return () => owner.removeEventListener("beforeinput", protectHistory, true);
+  }, [historyBoundary]);
   const labelKey = JSON.stringify(variables);
   const previousLabels = useRef(labelKey);
   const remember = () => {
