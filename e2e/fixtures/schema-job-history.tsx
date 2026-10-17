@@ -6,7 +6,6 @@ import {
   SchemaMigrationJob,
   useMigrationHistory,
 } from "../../src/features/settings/SchemaMigrationJobs.tsx";
-import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 const stateChange = () => {};
 function History({ typeId }: { typeId: string }) {
