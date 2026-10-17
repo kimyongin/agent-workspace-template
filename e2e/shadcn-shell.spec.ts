@@ -135,7 +135,7 @@ test("shell reflow: 200% text and zoom preserve a usable workspace at 1024 and 1
   expect(state.writes).toEqual([]);
 });
 
-test("shell enlarged text: navigation constraints remain feasible at desktop widths", async ({ page }) => {
+test("shell enlarged text: navigation constraints remain feasible at desktop widths", async ({ page }, info) => {
   const state = await fixture(page, "150");
   await page.goto("/tasks");
   const divider = page.getByRole("separator", { name: "탐색 메뉴 너비 조절", exact: true });
@@ -144,6 +144,7 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
     await page.setViewportSize({ width, height: 900 });
     for (const fontSize of [32, 48]) {
       await page.evaluate(size => { document.documentElement.style.fontSize = `${size}px`; }, fontSize);
+      await expect.poll(() => divider.evaluate(element => Number(element.getAttribute("aria-valuemin")) * (element.parentElement!.clientWidth - (element as HTMLElement).offsetWidth) / 100)).toBeCloseTo(13 * fontSize, 0);
       await expect.poll(() => divider.evaluate(element => {
         const minimum = Number(element.getAttribute("aria-valuemin"));
         const maximum = Number(element.getAttribute("aria-valuemax"));
@@ -159,7 +160,24 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
       })).toBe(true);
       await expect(navigation.getByRole("link", { name: "기록", exact: true })).toBeInViewport();
       await expect(page.getByRole("main")).toBeInViewport();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px/root${fontSize}px`).toBe(width);
+      if (width === 1024 && fontSize === 48) {
+        const views = page.getByRole("radiogroup", { name: "할 일 보기 방식", exact: true });
+        const choices = views.getByRole("radio");
+        await expect(choices).toHaveCount(3);
+        expect(await choices.evaluateAll(elements => elements.every(element => {
+          const target = element.getBoundingClientRect(), main = element.closest("main")!.getBoundingClientRect();
+          return target.width >= 44 && target.height >= 44 && target.left >= main.left - 1 && target.right <= main.right + 1;
+        }))).toBe(true);
+        await choices.first().focus();
+        await page.keyboard.down("ArrowRight");
+        await expect(views.getByRole("radio", { name: "카드", exact: true })).toBeFocused();
+        await page.keyboard.up("ArrowRight");
+        await page.keyboard.press("Space");
+        await expect(views.getByRole("radio", { name: "카드", exact: true })).toBeChecked();
+        await expect(views.getByRole("radio", { name: "카드", exact: true })).toBeInViewport();
+        await page.screenshot({ path: info.outputPath("navigation-text200-scale150.png") });
+      }
     }
   }
   expect(state.writes).toEqual([]);
