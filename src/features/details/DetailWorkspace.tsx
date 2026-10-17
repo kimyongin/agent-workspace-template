@@ -8,7 +8,7 @@ import { activeSurface, registerScrollOwner, scrollOwner, restoreScroll } from "
 import { useNavigationBlocker, useNavigationBusy } from "../../lib/navigation-protection.tsx";
 import { entityListAnchor, detailListReturn } from "../../lib/entity-list-url.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
-import { useLocation, useNavigate, type Location, type NavigateOptions, type To } from "react-router";
+import { useLocation, useNavigate, useNavigationType, type Location, type NavigateOptions, type To } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, workspaceBase, materialSettingsBase, type WorkspaceGuard } from "./workspace-context.ts";
 import { useDisplayScale } from "../settings/display-scale.tsx";
@@ -30,7 +30,7 @@ function ownerList(location: Location): Location {
 
 /** One owner for retained detail visits, their URLs and all guards within the desktop workspace. */
 export function DetailWorkspace({ children, render, enabled }: { children: ReactNode; render: (location: Location) => ReactNode; enabled: boolean }) {
-  const location = useLocation(), navigate = useNavigate();
+  const location = useLocation(), navigate = useNavigate(), navigationType = useNavigationType();
   const scale = useDisplayScale();
   const desktopQuery = useMemo(() => window.matchMedia(`(min-width: ${1280 * scale / 100}px) and (min-height: ${480 * scale / 100}px)`), [scale]);
   const subscribeDesktop = useCallback((notify: () => void) => {
@@ -54,6 +54,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   const baseFocus = useRef<HTMLElement | null>(null);
   const tabFocus = useRef<string | null>(null);
   const openedLocation = useRef<Location | null>(null);
+  const pendingVisit = useRef<string | null>(null);
   const registerGuard = useCallback((key: string, guard: () => WorkspaceGuard) => {
     guards.current.set(key, guard);
     return () => { guards.current.delete(key); };
@@ -65,6 +66,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   useEffect(() => {
     if (!identityDestination) return;
     setIdentityDestination(null);
+    pendingVisit.current = null;
     void navigate(identityDestination.path, {replace:true,state:{workspaceOwner:identityDestination.owner}});
   }, [identityDestination,navigate]);
   const [discard, setDiscard] = useState<(() => void) | null>(null);
@@ -90,6 +92,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     return () => window.removeEventListener("beforeunload", unload);
   }, []);
   useLayoutEffect(() => {
+    if (openedLocation.current !== location && (navigationType === "POP" || !eligible || !detailIdentity(location.pathname) || pendingVisit.current === href(location))) pendingVisit.current = null;
     if (!eligible) { setTabs([]); setActive(null); setStarted(false); return; }
     // Do not reparent a mobile form while its native dialog owns an unfinished visit.
     if (!started) {
@@ -118,7 +121,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     setTabs(previous => previous.some(tab => tab.id === id)
       ? previous.map(tab => tab.id === id && href(tab.location) !== href(location) ? { ...tab, location } : tab)
       : [...previous, { id, location, title: kindLabels[id.split("/")[1]], returnTo: typeof location.state?.workspaceReturnTo === "string" && previous.some(value => value.id === location.state.workspaceReturnTo) ? location.state.workspaceReturnTo : undefined }]);
-  }, [location, eligible, desktop, started, retainedBase]);
+  }, [location, navigationType, eligible, desktop, started, retainedBase]);
 
   // Related visits remember only their starting tab, never a growing history of cross-links.
   const returnTarget = (origin: Location, target: string | null) => {
@@ -139,10 +142,11 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       const url = new URL(path, "https://workspace.invalid");
       // A mode transition is a new visit even when its URL matches; selecting a retained tab is not.
       setTabs(previous => previous.map(value => value.id === id ? { ...value, location: { ...value.location, pathname: url.pathname, search: url.search, hash: url.hash, key: crypto.randomUUID() } } : value));
-      if (state.active === id) void navigate(path, { replace: true, state: { workspaceOwner: state.base.pathname } });
+      if (state.active === id) { pendingVisit.current = null; void navigate(path, { replace: true, state: { workspaceOwner: state.base.pathname } }); }
     } else if (identity) {
       const returnTo = returnTarget(tab.location, identity);
       rememberReturn(identity, returnTo);
+      pendingVisit.current = path;
       void navigate(path, { state: { workspaceOwner: state.base.pathname, workspaceReturnTo: returnTo } });
     }
     else closeTab(id);
@@ -168,10 +172,15 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     const state = current.current, path = destination(to, origin), identity = detailIdentity(path);
     const existing = state.tabs.find(tab => tab.id === identity);
     if (workspaceBase(origin.pathname)) { setBase(origin); if(materialSettingsBase(origin.pathname) && !detailIdentity(location.pathname))baseFocus.current=document.activeElement instanceof HTMLElement ? document.activeElement : null; }
-    if (existing && state.active === identity && href(location) === href(existing.location)) { setVisible(true); return; }
+    // A prior visit can be pending while React still renders this target as selected.
+    if (existing && state.active === identity && href(location) === href(existing.location) && (!pendingVisit.current || pendingVisit.current === href(existing.location))) { setVisible(true); return; }
     const returnTo = returnTarget(origin, identity);
     rememberReturn(identity, returnTo);
-    const visit = () => navigate(existing ? href(existing.location) : path, { replace: !!existing && !!detailIdentity(location.pathname), state: { workspaceOwner: workspaceBase(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
+    const visit = () => {
+      const target = existing ? href(existing.location) : path;
+      pendingVisit.current = target;
+      return navigate(target, { replace: !!existing && !!detailIdentity(location.pathname), state: { workspaceOwner: workspaceBase(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
+    };
     // Back must return to the same row context as the retained list pane.
     if (workspaceList(location.pathname) && workspaceList(origin.pathname) && href(origin) !== href(location)) {
       void Promise.resolve(navigate(href(origin), { replace: true, state: location.state, preventScrollReset: true })).then(visit);
