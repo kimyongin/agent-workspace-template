@@ -55,6 +55,7 @@ export function parseModel(raw: string): DataModelDocument {
   unique(d.identity_definitions.rules.map((t) => t.id), "identity_definitions.rules.id");
   unique(d.identity_definitions.issuers.map((t) => t.code), "identity_definitions.issuers.code");
   for (const [n, t] of d.entity_types.entries()) {
+    t.identity.sources.sort((a, b) => a.code.localeCompare(b.code));
     try {
       t.schema = validateEntityDefinition({ schema: t.schema }).schema;
     } catch (e) {
