@@ -1,3 +1,4 @@
+import { durableFocusTarget } from "./surface-dom.ts";
 import {
   createContext,
   type ReactNode,
@@ -18,13 +19,14 @@ const Context = createContext<
     owner: string | null;
     blocker: Blocker;
     isBusy: () => boolean;
+    origin: HTMLElement | null;
   } | null
 >(null);
 
 /** React Router has one blocker; the two panes contribute protections without replacing each other. */
 export function NavigationProtection({ children }: { children: ReactNode }) {
   const protections = useRef(new Map<string, Protection>());
-  const pending = useRef<{ owner: string | null; matches: Protection[] }>({ owner: null, matches: [] });
+  const pending = useRef<{ owner: string | null; matches: Protection[]; origin: HTMLElement | null }>({ owner: null, matches: [], origin: null });
   const register = useCallback((id: string, protection: Protection) => {
     protections.current.set(id, protection);
     return () => {
@@ -35,7 +37,7 @@ export function NavigationProtection({ children }: { children: ReactNode }) {
   const blocker = useBlocker((transition) => {
     const matches = [...protections.current].filter(([, protection]) => protection.blocks(transition));
     matches.sort((a, b) => b[1].priority - a[1].priority);
-    pending.current = { owner: matches[0]?.[0] ?? null, matches: matches.map(([, protection]) => protection) };
+    pending.current = { owner: matches[0]?.[0] ?? null, matches: matches.map(([, protection]) => protection), origin: matches.length ? durableFocusTarget(document.activeElement) : null };
     return matches.length > 0;
   });
   const busy = blocker.state === "blocked" && pending.current.matches.some((protection) => protection.busy());
@@ -43,7 +45,7 @@ export function NavigationProtection({ children }: { children: ReactNode }) {
     if (blocker.state === "blocked" && (busy || !protections.current.has(pending.current.owner ?? ""))) blocker.reset();
   }, [blocker, busy]);
   return (
-    <Context.Provider value={{ register, owner: busy ? null : pending.current.owner, blocker, isBusy }}>
+    <Context.Provider value={{ register, owner: busy ? null : pending.current.owner, blocker, isBusy, origin: pending.current.origin }}>
       {children}
     </Context.Provider>
   );
@@ -77,4 +79,10 @@ export function useNavigationBusy() {
   const context = useContext(Context);
   if (!context) throw new Error("Navigation protection requires NavigationProtection.");
   return context.isBusy;
+}
+
+/** Capture the blocked navigation intent before a menu primitive unmounts its selected item. */
+export function useNavigationOrigin() {
+  const context = useContext(Context);
+  return context?.blocker.state === "blocked" ? context.origin : null;
 }
