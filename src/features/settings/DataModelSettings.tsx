@@ -1,3 +1,11 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { FieldLabel, FieldGroup, FieldSet } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "../../components/ui/button.tsx";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Input } from "../../components/ui/input.tsx";
+import { Textarea } from "../../components/ui/textarea.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -14,7 +22,6 @@ import { IssuerRow } from "./IssuerRow.tsx";
 import { schemaDiffLabel, schemaDiffValueLabel } from "./schema-labels.ts";
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { isModelGroup, ModelGroupEditor, type ModelGroupState } from "./ModelGroupEditor.tsx";
-import "./settings.css";
 
 const labels = {
   new: "추가",
@@ -52,16 +59,19 @@ export function DataModelResult({ result }: { result: NonNullable<ModelChange["r
   ]] as const;
   return (
     <div>
-      <p role="status">{result.changed === false ? "변경 없음. 검토 이력만 보존했습니다." : "적용 완료"}</p>
+      <Alert role="status"><AlertDescription>{result.changed === false ? "변경 없음. 검토 이력만 보존했습니다." : "적용 완료"}</AlertDescription></Alert>
       {result.counts && (
-        <ul>
+        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
           {groups.map(([key, label]) => {
             const count = result.counts![key];
             return (
-              <li key={key}>{label}: 추가 {count.added}개 · 수정 {count.updated}개 · 변경 없음 {count.unchanged}개</li>
+              <div className="col-span-full" key={key}>
+                <dt>{label}</dt>
+                <dd>추가 {count.added}개 · 수정 {count.updated}개 · 변경 없음 {count.unchanged}개</dd>
+              </div>
             );
           })}
-        </ul>
+        </dl>
       )}
       <Link to="/settings/materials">자료 설정</Link> · <Link to="/settings/relations">연결 설정으로 이동</Link>
     </div>
@@ -76,40 +86,48 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
   disabled?: boolean;
 }) {
   return (
-    <section aria-label="가져올 설정 검토" className="settings-fields">
-      <h3 className="section-title">{review.title}</h3>
-      <details>
-        <summary>파일과 현재 설정의 연결 정보</summary>
-        <dl className="props schema-definition-values">
+    <section aria-label="가져올 설정 검토" className="min-w-0">
+      <h3 className="text-base font-semibold">{review.title}</h3>
+      <Collapsible>
+        <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">파일과 현재 설정의 연결 정보</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
           {Object.entries(review.mapping.types).map(([source, target]) => (
-            <div key={`type:${source}`}>
-              <dt>자료 종류 · {review.items.find((i) => i.ref === source)?.label ?? source}</dt>
+            <div className="col-span-full" key={`type:${source}`}>
+              <dt>
+                자료 종류 · {review.items.find((i) =>
+                  i.ref === source
+                )?.label ?? source}
+              </dt>
               <dd>{review.items.find((i) => i.ref === source)?.source_type_id ?? source} → {target}</dd>
             </div>
           ))}
           {Object.entries(review.mapping.properties).flatMap(([type, properties]) =>
             Object.entries(properties).map(([source, target]) => (
-              <div key={`${type}:${source}`}>
-                <dt>입력 항목 · {review.items.find((i) => i.ref === type)?.label ?? type}</dt>
+              <div className="col-span-full" key={`${type}:${source}`}>
+                <dt>
+                  입력 항목 · {review.items.find((i) =>
+                    i.ref === type
+                  )?.label ?? type}
+                </dt>
                 <dd>{source} → {target}</dd>
               </div>
             ))
           )}
           {Object.entries(review.mapping.rules).map(([source, target]) => (
-            <div key={`rule:${source}`}>
+            <div className="col-span-full" key={`rule:${source}`}>
               <dt>번호 종류</dt>
               <dd>{source} → {target}</dd>
             </div>
           ))}
           {Object.entries(review.mapping.relations).map(([source, target]) => (
-            <div key={`relation:${source}`}>
+            <div className="col-span-full" key={`relation:${source}`}>
               <dt>연결 설정</dt>
               <dd>{source} → {target}</dd>
             </div>
           ))}
         </dl>
-      </details>
-      <div className="issuer-registry-list">
+      </CollapsibleContent></Collapsible>
+      <div className="flex min-w-0 flex-col gap-4">
         {review.items.map((item) => (
           <ReviewRow
             key={item.ref}
@@ -121,7 +139,7 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
         ))}
       </div>
       {!settled && !review.can_apply && (
-        <p className="help">
+        <p className="text-sm text-muted-foreground">
           충돌 또는 값 변환이 필요한 항목을 확인하세요. 일부 항목만 적용하지 않습니다.
         </p>
       )}
@@ -146,17 +164,26 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
     >
       {item.message && <p>{item.message}</p>}
       {item.relation_impact && (
-        <p className="help">
-          현재 연결 {item.relation_impact.links}개 · 첫 번째 자료에 여러 개 연결{" "}
-          {item.relation_impact.left_many ? "있음" : "없음"} · 두 번째 자료에 여러 개 연결{" "}
-          {item.relation_impact.right_many ? "있음" : "없음"}
-        </p>
+        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+          <div>
+            <dt>현재 연결</dt>
+            <dd>{item.relation_impact.links}개</dd>
+          </div>
+          <div>
+            <dt>첫 번째 자료에 여러 개 연결</dt>
+            <dd>{item.relation_impact.left_many ? "있음" : "없음"}</dd>
+          </div>
+          <div>
+            <dt>두 번째 자료에 여러 개 연결</dt>
+            <dd>{item.relation_impact.right_many ? "있음" : "없음"}</dd>
+          </div>
+        </dl>
       )}
       {item.schema && <SchemaDefinitionRead definition={{ schema: item.schema }} />}
       {item.identity && (
         <section aria-label="번호 설정 검토">
-          <h3 className="section-title">번호 설정</h3>
-          <dl className="props schema-definition-values">
+          <h3 className="text-base font-semibold">번호 설정</h3>
+          <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
             <div>
               <dt>번호 이름</dt>
               <dd>{item.identity.label}</dd>
@@ -173,9 +200,9 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
             ))}
           </dl>
           {item.current_identity && (
-            <details>
-              <summary>현재 번호 설정</summary>
-              <dl className="props schema-definition-values">
+            <Collapsible>
+              <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">현재 번호 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+              <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
                 <div>
                   <dt>번호 이름</dt>
                   <dd>{item.current_identity.label}</dd>
@@ -191,46 +218,56 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
                   </div>
                 ))}
               </dl>
-            </details>
+            </CollapsibleContent></Collapsible>
           )}
         </section>
       )}
       {(item.source_schema_version !== undefined || item.current_schema_version !== undefined) && (
-        <p className="help">
-          파일 원본 버전 {item.source_schema_version ?? "기록 없음"} · 현재 버전{" "}
-          {item.current_schema_version ?? "새 종류"} · 적용 버전 {item.target_schema_version ?? "유지"}
-        </p>
+        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+          <div>
+            <dt>파일 원본 버전</dt>
+            <dd>{item.source_schema_version ?? "기록 없음"}</dd>
+          </div>
+          <div>
+            <dt>현재 버전</dt>
+            <dd>{item.current_schema_version ?? "새 종류"}</dd>
+          </div>
+          <div>
+            <dt>적용 버전</dt>
+            <dd>{item.target_schema_version ?? "유지"}</dd>
+          </div>
+        </dl>
       )}
       {item.source_is_stale && (
-        <p className="help">
+        <p className="text-sm text-muted-foreground">
           파일 원본 버전이 현재 적용 버전과 다릅니다. 아래에서 현재 설정과 달라지는 내용을 확인한 뒤 적용하세요.
         </p>
       )}
       {!!item.removed_keys?.length && (
         <div>
-          <p className="help">
+          <p className="text-sm text-muted-foreground">
             파일에서 빠진 항목:{" "}
             {item.removed_keys.map((key) =>
               item.current_schema?.properties[key]?.title ?? item.schema?.properties[key]?.title ?? key
             ).join(", ")}
           </p>
           {onConfirmRemoval && (
-            <label className="choice-control">
-              <input
-                type="checkbox"
+            <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+              <Checkbox
+
                 checked={confirmed}
                 disabled={disabled}
-                onChange={(e) => onConfirmRemoval(item.ref, e.target.checked)}
+                onCheckedChange={(checked) => onConfirmRemoval(item.ref, checked === true)}
               />
               {item.label}의 {item.removed_keys.map((key) =>
                 item.current_schema?.properties[key]?.title ?? item.schema?.properties[key]?.title ?? key
               ).join(", ")} 항목 영구 제거 확인
-            </label>
+            </FieldLabel>
           )}
         </div>
       )}
       {item.diff.length > 0 && (
-        <dl className="schema-change-list">
+        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
           {item.diff.map((d, i) => (
             <div key={i}>
               <dt>
@@ -306,7 +343,10 @@ export function DataModelSettings() {
     (removeKeys[item.ref]?.length !== item.removed_keys.length ||
       item.removed_keys.some((key) => !removeKeys[item.ref].includes(key)))
   );
-  const blocker = usePageNavigationBlocker(dirty || groupDirty, busy || uncertain || groupUncertain || reading || groupBusy);
+  const blocker = usePageNavigationBlocker(
+    dirty || groupDirty,
+    busy || uncertain || groupUncertain || reading || groupBusy,
+  );
   useEffect(() => {
     if ((busy || reading || groupBusy) && blocker.state === "blocked") blocker.reset();
   }, [busy, reading, groupBusy, blocker]);
@@ -540,85 +580,92 @@ export function DataModelSettings() {
     }
   };
   return (
-    <section className="panel settings material-settings">
+    <section className="min-w-0 flex w-full flex-col gap-6 max-w-6xl">
       <MaterialSettingsHeading section="exchange" />
       {error && (
-        <div role="alert" className="error-text">
+        <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>
           <p>{error}</p>
           {fields.length > 0 && (
             <ul>
               {fields.map((f, i) => <li key={i}>{f.path}: {f.message}</li>)}
             </ul>
           )}
-        </div>
+        </AlertDescription></Alert>
       )}
-      {notice && <p role="status">{notice}</p>}
+      {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
       <MaterialSettingsSection
         title="가져오기·내보내기"
         initialOpen
         state={{ dirty, busy: busy || reading, uncertain }}
       >
-        <div className="settings-fields">
+        <FieldGroup className="min-w-0">
           <div>
-            <button
-              className="btn"
+            <Button variant="outline"
+
               disabled={locked}
               onClick={() => void exportModel()}
             >
               설정 내보내기
-            </button>
+            </Button>
           </div>
-          <p className="help">
+          <p className="text-sm text-muted-foreground">
             실제 자료와 개별 연결·기록은 포함하지 않습니다. 파일에 없는 현재 설정은 삭제하지 않습니다.
           </p>
-          <fieldset className="settings-fields" disabled={locked}>
-            <Field label="가져오는 방법" help="현재 자료 종류에 반영하거나, 새 자료 종류와 연결 설정을 만들 수 있습니다.">
+          <FieldSet className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" disabled={locked}>
+            <Field
+              label="가져오는 방법"
+              help="현재 자료 종류에 반영하거나, 새 자료 종류와 연결 설정을 만들 수 있습니다."
+            >
               {(props) => (
-                <select
+                <NativeSelect
                   {...props}
-                  className="input"
+
                   value={mode}
                   onChange={(e) => {
                     edit(document);
                     setMode(e.target.value as "update" | "copy");
                   }}
                 >
-                  <option value="update">현재 설정에 반영</option>
-                  <option value="copy">새 자료 종류로 추가</option>
-                </select>
+                  <NativeSelectOption value="update">현재 설정에 반영</NativeSelectOption>
+                  <NativeSelectOption value="copy">새 자료 종류로 추가</NativeSelectOption>
+                </NativeSelect>
               )}
             </Field>
             <Field label="설정 파일" help="이 앱에서 내보낸 설정 파일(.json)을 선택하세요.">
               {(props) => (
-                <div className="schema-import-file">
-                  <input
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                  <Input
                     {...props}
                     ref={file}
                     type="file"
                     accept=".json,application/json"
-                    className="visually-hidden"
+                    className="hidden"
                     tabIndex={-1}
                     onChange={(e) => {
                       void readFile(e.target.files?.[0]);
                       e.target.value = "";
                     }}
                   />
-                  <button
-                    className="btn"
+                  <Button variant="outline"
+
                     type="button"
                     onClick={() => file.current?.click()}
                   >
                     설정 파일 선택
-                  </button>
-                  <span className="help">{fileName || "선택한 파일 없음"}</span>
+                  </Button>
+                  <span className="text-sm text-muted-foreground">{fileName || "선택한 파일 없음"}</span>
                 </div>
               )}
             </Field>
-            <Field label="설정 파일 내용" help="선택한 파일의 내용이 표시됩니다. 내용을 직접 붙여넣을 수도 있습니다.">
+            <Field
+              fullWidth
+              label="설정 파일 내용"
+              help="선택한 파일의 내용이 표시됩니다. 내용을 직접 붙여넣을 수도 있습니다."
+            >
               {(props) => (
-                <textarea
+                <Textarea
                   {...props}
-                  className="input schema-import-document"
+                  className="min-h-64 font-mono"
                   rows={8}
                   value={document}
                   spellCheck={false}
@@ -626,10 +673,10 @@ export function DataModelSettings() {
                 />
               )}
             </Field>
-          </fieldset>
-          <div className="actions schema-actions">
-            <button
-              className="btn"
+          </FieldSet>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button variant="outline"
+
               disabled={locked || !document}
               onClick={() => {
                 edit("");
@@ -638,14 +685,14 @@ export function DataModelSettings() {
               }}
             >
               입력 비우기
-            </button>
-            <button
-              className="btn btn-primary"
+            </Button>
+            <Button variant="default"
+
               disabled={locked || !document.trim()}
               onClick={() => void preview()}
             >
               {reading ? "읽는 중…" : "가져올 내용 검토"}
-            </button>
+            </Button>
           </div>
           {review && (
             <>
@@ -662,53 +709,53 @@ export function DataModelSettings() {
                     return next;
                   })}
               />
-              <div className="actions schema-actions">
-                <button
-                  className="btn btn-primary"
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button variant="default"
+
                   disabled={busy || reading || groupBusy || groupUncertain || groupDirty ||
                     uncertain && pendingAction !== "prepare" ||
                     review.items.some((i) => i.kind === "conflict") || !uncertain && missingRemovalConfirmation}
                   onClick={() => void prepare()}
                 >
                   {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "검토 내용 저장"}
-                </button>
+                </Button>
               </div>
             </>
           )}
-        </div>
+        </FieldGroup>
       </MaterialSettingsSection>
       <MaterialSettingsSection
         title="변경 이력"
         initialOpen
         summary={`${changes.length}개`}
       >
-        <div className="settings-fields">
-          <div className="actions">
-            <button
-              className="btn"
+        <FieldGroup className="min-w-0">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button variant="outline"
+
               disabled={locked || loading}
               onClick={() => void history()}
             >
               변경 이력 새로 읽기
-            </button>
+            </Button>
           </div>
-          {loading && <p role="status">변경 이력을 읽는 중…</p>}
+          {loading && <Alert role="status"><AlertDescription>변경 이력을 읽는 중…</AlertDescription></Alert>}
           {historyError && (
-            <div role="alert">
-              <p className="error-text">{historyError}</p>
-              <button
-                className="btn"
+            <Alert variant="destructive" role="alert"><AlertDescription>
+              <p className="text-sm text-destructive">{historyError}</p>
+              <Button variant="outline"
+
                 disabled={locked}
                 onClick={() => void history(undefined, failedCursor.current)}
               >
                 변경 이력 다시 읽기
-              </button>
-            </div>
+              </Button>
+            </AlertDescription></Alert>
           )}
           {!loading && !historyError && changes.length === 0 && (
-            <p className="help">저장한 설정 변경 내용이 없습니다.</p>
+            <p className="text-sm text-muted-foreground">저장한 설정 변경 내용이 없습니다.</p>
           )}
-          <div className="issuer-registry-list">
+          <div className="flex min-w-0 flex-col gap-4">
             {changes.map((change) => (
               <IssuerRow
                 key={change.id}
@@ -724,19 +771,24 @@ export function DataModelSettings() {
                   }
                 }}
               >
-                <p className="help">
-                  <time dateTime={change.created_at}>
-                    {new Date(change.created_at).toLocaleString("ko-KR")}
-                  </time>
-                </p>
-                {detailState[change.id]?.loading && <p role="status">변경안 상세를 읽는 중…</p>}
-                {detailState[change.id]?.error && (
-                  <div role="alert">
-                    <p className="error-text">저장 결과는 유지했습니다. {detailState[change.id].error}</p>
-                    <button className="btn" disabled={locked} onClick={() => void loadDetail(change.id)}>
-                      상세 다시 조회
-                    </button>
+                <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+                  <div>
+                    <dt>시각</dt>
+                    <dd>
+                      <time dateTime={change.created_at}>
+                        {new Date(change.created_at).toLocaleString("ko-KR")}
+                      </time>
+                    </dd>
                   </div>
+                </dl>
+                {detailState[change.id]?.loading && <Alert role="status"><AlertDescription>변경안 상세를 읽는 중…</AlertDescription></Alert>}
+                {detailState[change.id]?.error && (
+                  <Alert variant="destructive" role="alert"><AlertDescription>
+                    <p className="text-sm text-destructive">저장 결과는 유지했습니다. {detailState[change.id].error}</p>
+                    <Button variant="outline"  disabled={locked} onClick={() => void loadDetail(change.id)}>
+                      상세 다시 조회
+                    </Button>
+                  </AlertDescription></Alert>
                 )}
                 <DataModelReview review={change.review} settled={["applied", "cancelled"].includes(change.status)} />
                 {isModelGroup(change) && (
@@ -751,16 +803,16 @@ export function DataModelSettings() {
                   />
                 )}
                 {change.status === "ready" && !isModelGroup(change) && change.review.can_apply && (
-                  <div className="actions">
-                    <button
-                      className="btn btn-primary"
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button variant="default"
+
                       disabled={busy || reading || groupBusy || groupUncertain || detailState[change.id]?.loading ||
                         !!detailState[change.id]?.error ||
                         uncertain && pendingAction !== change.id}
                       onClick={() => void apply(change)}
                     >
                       {busy ? "적용 중…" : uncertain ? "같은 요청 다시 확인" : "설정 적용"}
-                    </button>
+                    </Button>
                   </div>
                 )}
                 {change.result && <DataModelResult result={change.result} />}
@@ -768,13 +820,13 @@ export function DataModelSettings() {
             ))}
           </div>
           {nextCursor && (
-            <div className="actions">
-              <button className="btn" disabled={locked || loading} onClick={() => void history(undefined, nextCursor)}>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="outline"  disabled={locked || loading} onClick={() => void history(undefined, nextCursor)}>
                 더 보기
-              </button>
+              </Button>
             </div>
           )}
-        </div>
+        </FieldGroup>
       </MaterialSettingsSection>
       <ConfirmDialog
         open={!busy && !reading && !groupBusy && blocker.state === "blocked"}

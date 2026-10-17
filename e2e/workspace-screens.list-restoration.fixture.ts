@@ -1,9 +1,10 @@
+import { listHeader } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 import { openDetailEditor, openListDetail, openListEditor, openTabFilters } from "./ui-actions.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
-import { base, entity, fixtureSchema, id, record, stamp, task } from "./support/workspace-data.ts";
+import { base, entity, id, record, stamp, task } from "./support/workspace-data.ts";
 import { fixtures, form, go } from "./support/workspace-screens.ts";
 
 for (const kind of ["entities", "records"] as const) {
@@ -21,10 +22,10 @@ for (const kind of ["entities", "records"] as const) {
     state.failRead({ kind, page: 24 }, { message: "partial restoration failure" });
     await go(page, `/${kind}?pages=250`);
     await expect(page.getByRole("alert")).toBeVisible();
-    await expect(page.locator(kind === "entities" ? ".list .item-title" : `.${kind} .list .item-title`)).toHaveCount(
+    await expect(page.getByRole("region", { name: kind === "entities" ? "검사 자료 목록" : "기록 목록", exact: true }).locator("[data-list-anchor]")).toHaveCount(
       23,
     );
-    await expect(page.locator(kind === "entities" ? ".list .item-title" : `.${kind} .list .item-title`).last())
+    await expect(page.getByRole("region", { name: kind === "entities" ? "검사 자료 목록" : "기록 목록", exact: true }).locator("[data-list-anchor]").last())
       .toHaveText("부분 행 22");
     expect(state.reads.filter((url) => new URL(url).pathname === "/api/" + kind)).toHaveLength(24);
     expect(state.writes).toHaveLength(0);
@@ -50,7 +51,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]]
     ) {
       await go(page, "/" + kind);
-      const filters = page.locator(".tab-filters"),
+      const filters = page.getByRole("button", { name: /^필터 (열기|닫기)/ }).locator("xpath=ancestor::*[@data-slot='collapsible'][1]"),
         summary = filters.getByRole("button", { name: /^필터 (열기|닫기)/ }),
         input = page.getByLabel(kind === "entities" ? "자료 제목 검색" : "검색어", { exact: true });
       await expect(input).toBeVisible();
@@ -58,8 +59,8 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true })).toBeHidden();
       await expect(filters.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true })).toBeHidden();
       await expect(filters.getByRole("combobox")).toHaveCount(0);
-      if (kind === "entities") await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
-      await expect(page.locator(".list .related-item").first()).toBeVisible();
+      if (kind === "entities") await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
+      await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first()).toBeVisible();
       const beforeReads = reads;
       await summary.focus();
       await summary.press("Enter");
@@ -213,7 +214,7 @@ test("기록 기간 변경과 잘못된 범위는 할 일을 재조회하지 않
     return route.fulfill({ json: { items: [task(2)], next_cursor: null } });
   });
   await go(page, "/records");
-  await expect(page.locator(".records .list .item-title")).toBeVisible();
+  await expect(page.locator("[data-list-anchor]")).toBeVisible();
   expect(tasks).toBe(0);
   await openTabFilters(page);
   await page.getByLabel("기록 종료일", { exact: true }).fill("2026-10-05");
@@ -223,8 +224,8 @@ test("기록 기간 변경과 잘못된 범위는 할 일을 재조회하지 않
   await page.getByLabel("기록 시작일", { exact: true }).fill("2026-10-06");
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("이전 유효 기간");
-  await expect(page.locator(".records .list .item-title")).toHaveText("기록");
-  await expect(page.locator(".tasks")).toHaveCount(0);
+  await expect(page.locator("[data-list-anchor]")).toHaveText("기록");
+  await expect(page.getByRole("region", { name: "할 일", exact: true })).toHaveCount(0);
   expect(reads).toHaveLength(2);
   expect(tasks).toBe(0);
 });
@@ -269,8 +270,8 @@ test("늦은 다른 탭 페이지는 기록 날짜·페이지·검색 초안과 
   await expect(date).toHaveValue("2026-10-01");
   await expect(date).toBeFocused();
   await expect(input).toHaveValue("아직 조합 중인 초안");
-  await expect(page.locator(".records .list .item-title")).toHaveCount(2);
-  await expect(page.locator(".tasks")).toHaveCount(0);
+  await expect(page.locator("[data-list-anchor]")).toHaveCount(2);
+  await expect(page.getByRole("region", { name: "할 일", exact: true })).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });
 
@@ -300,11 +301,11 @@ for (const overLimit of [false, true]) {
     const appliedReads = requests.length;
     await page.getByRole("button", { name: "태그 선택", exact: true }).click();
     const picker = page.getByRole("dialog", { name: "할 일 태그 선택", exact: true });
-    if (!overLimit) for (const tag of tags.slice(0, 10)) await picker.getByRole("checkbox", { name: tag.name, exact: true }).check();
-    const eleventh = picker.getByRole("checkbox", { name: tags[10].name, exact: true });
+    if (!overLimit) for (const tag of tags.slice(0, 10)) await picker.getByRole("option", { name: tag.name, exact: true }).click();
+    const eleventh = picker.getByRole("option", { name: tags[10].name, exact: true });
     await expect(eleventh).toBeDisabled();
-    await expect(picker.getByRole("checkbox", { checked: true })).toHaveCount(10);
-    await picker.getByRole("checkbox", { name: tags[0].name, exact: true }).uncheck();
+    await expect(picker.getByRole("option", { checked: true })).toHaveCount(10);
+    await picker.getByRole("option", { name: tags[0].name, exact: true }).click();
     await expect(eleventh).toBeEnabled();
     await eleventh.check();
     await expect(eleventh).toBeChecked();
@@ -354,7 +355,7 @@ for (const kind of ["tasks"] as const) {
       });
     });
     await go(page, `/${kind}?q=old`);
-    const section = kind === "tasks" ? page.locator(".tasks") : page.locator("main");
+    const section = page.getByRole("region", { name: "할 일 목록", exact: true });
     await section.getByRole("button", { name: kind === "tasks" ? "할 일 더 보기" : "더 보기", exact: true }).click();
     await pending;
     const canceled = page.waitForEvent(
@@ -402,7 +403,7 @@ test("검색 복원의 마지막 요청 페이지가 cursor를 반복하면 이�
     });
   });
   await go(page, "/tasks?q=검색&pages=2");
-  const section = page.locator(".tasks");
+  const section = page.getByRole("region", { name: "할 일 목록", exact: true });
   await expect(section.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
   await expect(section.getByRole("button", { name: "보존할 결과", exact: true })).toBeVisible();
   await expect(section.getByRole("button", { name: "거절할 결과", exact: true })).toHaveCount(0);
@@ -439,7 +440,7 @@ test("검색의 반복 cursor 실패는 기존 행·coverage를 보존하고 같
     });
   });
   await go(page, "/tasks?q=검색");
-  const section = page.locator(".tasks");
+  const section = page.getByRole("region", { name: "할 일 목록", exact: true });
   await expect(section.getByText(/색인 대기 1개/)).toBeVisible();
   await section.getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await expect(section.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
@@ -541,16 +542,16 @@ test("#211 기록 필터·날짜 그룹·표시·편집은 계정 시간대로 �
   await saveOnce(page, form(page));
   await expect.poll(() => state.writes[0]?.body.occurred_at).toBe("2026-10-07T23:15:22.123Z");
   await go(page, "/tasks");
-  await expect(page.locator(".list .item-title").first()).toBeVisible();
+  await expect(page.locator("[data-list-anchor]").first()).toBeVisible();
   await page.getByRole("button", { name: "할 일 등록", exact: true }).click();
-  await form(page).getByRole("radio", { name: "반복", exact: true }).check();
+  await form(page).getByRole("radio", { name: "반복", exact: true }).click();
   await expect(form(page).getByLabel("시간대", { exact: false })).toHaveValue("America/New_York");
   expect(state.errors).toEqual([]);
 });
 
 
 for (const outcome of ["success", "failed"] as const) {
-  test(`자료 펼침 복원은 지연된 속성 정의의 ${outcome} 표시까지 초점을 기다린다`, async ({ page }) => {
+  test(`자료 펼침 복원은 지연된 상세 조회의 ${outcome} 표시까지 초점을 기다린다`, async ({ page }) => {
     const state = await fixtures(page);
     await page.setViewportSize({ width: 390, height: 800 });
     const rows = Array.from({ length: 21 }, (_, n) => entity(100 + n, { prop_1: `정의 대기 자료 ${n}`, prop_2: 1234 }));
@@ -559,12 +560,12 @@ for (const outcome of ["success", "failed"] as const) {
     let started!: () => void, release!: () => void;
     const arrived = new Promise<void>((resolve) => started = resolve);
     const held = new Promise<void>((resolve) => release = resolve);
-    await page.route("**/api/entity-types/*/schema?schema_version=1", async (route) => {
+    await page.route(`**/api/entities/${encodeURIComponent(target.id)}`, async (route) => {
       started();
       await held;
       await route.fulfill(outcome === "success"
-        ? { json: fixtureSchema }
-        : { status: 503, json: { code: "unavailable", message: "속성 정의 일시 실패" } });
+        ? { json: target }
+        : { status: 503, json: { code: "unavailable", message: "상세 조회 일시 실패" } });
     });
     const params = new URLSearchParams({ open: `/entities/${encodeURIComponent(target.id)}`, scroll: "650" });
     try {
@@ -572,13 +573,19 @@ for (const outcome of ["success", "failed"] as const) {
       await arrived;
       const toggle = page.getByRole("button", { name: target.title, exact: true });
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
-      await expect(page.getByText("속성 정의를 불러오는 중…", { exact: true })).toBeVisible();
-      // Flush the restoration animation frame while the schema request remains gated.
+      const preview = toggle.locator("xpath=ancestor::li[1]");
+      await expect(preview.getByRole("status")).toHaveText("불러오는 중…");
+      // Flush the restoration animation frame while the actual preview read remains gated.
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       await expect(toggle).not.toBeFocused();
       release();
-      if (outcome === "success") await expect(page.locator(".related-preview .props")).toContainText("1234");
-      else await expect(page.getByRole("button", { name: "속성 정의 다시 조회", exact: true })).toBeVisible();
+      if (outcome === "success") {
+        await expect(preview.getByRole("term").filter({ hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(target.external_id);
+        await expect(preview.getByRole("term").filter({ hasText: /^수량$/ }).locator("../dd")).toHaveText("1234");
+      } else {
+        await expect(preview.getByRole("alert")).toHaveText("내용을 불러오지 못했습니다.");
+        await expect(preview.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
+      }
       await expect(toggle).toBeFocused();
       await expect(toggle).toBeInViewport();
       expect(state.writes).toHaveLength(0);

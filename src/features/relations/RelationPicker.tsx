@@ -1,7 +1,10 @@
+import { FieldGroup } from "../../components/ui/field.tsx";
+import { Button } from "../../components/ui/button.tsx";
+import { RotateCcwIcon, UnlinkIcon } from "lucide-react";
 import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import type { EntityContext } from "@contracts/entity-links.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { useEffect, useId, useRef, useState } from "react";
 import type { EntitySummary } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
@@ -10,12 +13,13 @@ import { api } from "../../lib/api.ts";
 import { type Candidate, RelationSearch, RelationSearchAction } from "./RelationSearch.tsx";
 
 /** Draft membership only; callers decide when and how to persist the relationship. */
-export function RelationPicker({ kind, value, context = [], onChange, error }: {
+export function RelationPicker({ kind, value, context = [], onChange, error, disabled = false }: {
   kind: "entity" | "task";
   value: string[];
   context?: Array<Pick<EntityContext, "id" | "title" | "type" | "schema_version">>;
   onChange: (ids: string[]) => void;
   error?: string;
+  disabled?: boolean;
 }) {
   const label = kind === "entity" ? "자료" : "할 일";
   const [names, setNames] = useState(() => new Map(context.map((item) => [item.id, item.title])));
@@ -73,6 +77,7 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
     nextFocus.current = null;
   }, [selection]);
   const choose = (item: Candidate) => {
+    if (disabled) return;
     setNames((prior) => new Map(prior).set(item.id, item.title));
     if (item.type) setTypes((prior) => new Map(prior).set(item.id, item.type!));
     if (item.identity) setIdentities((prior) => new Map(prior).set(item.id, item.identity!));
@@ -80,7 +85,7 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
     onChange(kind === "task" ? [item.id] : [...value, item.id].sort());
   };
   return (
-    <div ref={root} className="form">
+    <FieldGroup ref={root} className="flex min-w-0 flex-col gap-5">
       <RelatedSection
         views={false}
         title={label}
@@ -90,15 +95,16 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
             kind={kind}
             expanded={searching}
             controls={searchId}
+            disabled={disabled}
             onToggle={() => setSearching((value) => !value)}
           />
         }
       >
-        {error && <p className="error-text" role="alert">{error}</p>}
+        {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
         {[...failed].some((id) => value.includes(id)) && (
-          <p className="error-text" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             선택한 {label} 정보를 확인하지 못했습니다.{" "}
-            <BodyAction icon="reset" onClick={() => setRetry((value) => value + 1)}>다시 조회</BodyAction>
+            <Button variant="ghost" type="button"  onClick={() => setRetry((value) => value + 1)}><RotateCcwIcon data-icon="inline-start" />다시 조회</Button>
           </p>
         )}
         <div id={searchId} hidden={!searching}>
@@ -106,50 +112,47 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
             <RelationSearch
               draftMode
               kind={kind}
-              disabled={false}
+              disabled={disabled}
               excluded={(item) => value.includes(item.id)}
               onChoose={choose}
             />
           )}
         </div>
-        <ul className="related-items" aria-label={`선택한 ${label}`}>
+        <ul className="flex min-w-0 flex-col gap-3" aria-label={`선택한 ${label}`}>
           {value.map((id) => (
             <li key={id}>
               <RelatedItem
                 title={names.get(id) ?? label}
+                titleLabel={kind === "task" ? "제목" : "자료 이름"}
                 metadata={kind === "entity"
                   ? (
-                    <span>
-                      {types.get(id) && (
-                        <>
-                          <EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label}
-                          {identities.has(id) ? " · " : ""}
-                        </>
-                      )}
-                      {identities.get(id)}
-                      {pending.has(id) && <span role="status">· 확인 중…</span>}
-                      {failed.has(id) && <span>· 정보 확인 필요</span>}
-                    </span>
+                    <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+                      {types.get(id) && <div><dt>자료 종류</dt><dd><EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label}</dd></div>}
+                      {identities.has(id) && <div><dt>자료 식별</dt><dd>{identities.get(id)}</dd></div>}
+                      {pending.has(id) && <div><dt>조회 상태</dt><dd role="status">확인 중…</dd></div>}
+                      {failed.has(id) && <div><dt>조회 상태</dt><dd>정보 확인 필요</dd></div>}
+                    </dl>
                   )
                   : undefined}
                 action={
-                  <BodyAction
-                    icon="unlink"
+                  <Button variant="ghost" type="button"
+
+                    disabled={disabled}
                     data-selection={id}
                     aria-label={`${names.get(id) ?? label} 해제`}
                     onClick={() => {
                       nextFocus.current = "";
                       onChange(value.filter((value) => value !== id));
                     }}
-                  >
+                  ><UnlinkIcon data-icon="inline-start" />
                     해제
-                  </BodyAction>
+                  </Button>
                 }
               />
             </li>
           ))}
         </ul>
       </RelatedSection>
-    </div>
+    </FieldGroup>
   );
 }

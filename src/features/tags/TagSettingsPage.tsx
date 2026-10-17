@@ -1,3 +1,4 @@
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { SettingsHeading } from "../settings/SettingsHeading.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -8,7 +9,6 @@ import { Field } from "../../components/Field.tsx";
 import { type MaterialSectionState, MaterialSettingsSection } from "../settings/MaterialSettingsSection.tsx";
 import { type TagScope, tagScopeLabels } from "./TagPicker.tsx";
 import { TagManagement } from "./TagsPage.tsx";
-import "../settings/settings.css";
 
 /** One settings surface; each target keeps its independent tag dictionary. */
 export function TagSettingsPage() {
@@ -17,7 +17,7 @@ export function TagSettingsPage() {
   const scope: TagScope = rawScope === "task" || rawScope === "record" ? rawScope : "entity";
   const [state, setState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const [action, setAction] = useState<SurfaceAction | null>(null);
-  const selector = useRef<HTMLSelectElement>(null);
+  const selector = useRef<HTMLDivElement>(null);
   const blocker = usePageNavigationBlocker(state.dirty || !!state.uncertain, state.busy || !!state.uncertain);
   useEffect(() => {
     if (state.busy && blocker.state === "blocked") blocker.reset();
@@ -33,22 +33,33 @@ export function TagSettingsPage() {
     return () => window.removeEventListener("beforeunload", unload);
   }, [state.dirty, state.busy]);
   return (
-    <section className="panel settings" aria-labelledby="tag-heading">
-      <SettingsHeading title="태그 설정" description="자료·할 일·기록에 사용할 태그를 한곳에서 관리합니다." id="tag-heading" tabIndex={-1} />
+    <section className="@container flex min-w-0 flex-col gap-6" aria-labelledby="tag-heading">
+      <SettingsHeading
+        title="태그 설정"
+        description="자료·할 일·기록에 사용할 태그를 한곳에서 관리합니다."
+        id="tag-heading"
+        tabIndex={-1}
+      />
 
-      <div className="material-settings-toolbar">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
         <Field label="관리 대상" hideLabel>
           {(props) => (
-            <select
+            <ToggleGroup
               {...props}
+              type="single"
+              variant="outline"
               ref={selector}
-              className="input"
+              aria-label="관리 대상"
               value={scope}
               disabled={state.busy}
-              onChange={(event) => navigate(`/settings/tags?scope=${event.target.value}`)}
+              onValueChange={(value) => {
+                if (value) navigate(`/settings/tags?scope=${value}`);
+              }}
             >
-              {Object.entries(tagScopeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            </select>
+              {Object.entries(tagScopeLabels).map(([value, label]) => (
+                <ToggleGroupItem key={value} value={value}>{label}</ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           )}
         </Field>
       </div>
@@ -61,12 +72,13 @@ export function TagSettingsPage() {
         <ConfirmationSurface
           open
           title={action.title}
+          returnFocus={action.returnFocus}
           busy={action.busy}
           onCancel={action.onCancel}
           closeButton
           footer={action.footer}
         >
-          <div className="surface-action">{action.body}</div>
+          <div className="flex min-w-0 flex-col gap-4">{action.body}</div>
         </ConfirmationSurface>
       )}
       <ConfirmDialog
@@ -76,7 +88,7 @@ export function TagSettingsPage() {
         confirmLabel="변경 버리기"
         onCancel={() => {
           if (blocker.state === "blocked") blocker.reset();
-          selector.current?.focus();
+          selector.current?.querySelector<HTMLButtonElement>('button[data-state="on"]')?.focus();
         }}
         onConfirm={() => {
           if (blocker.state === "blocked") blocker.proceed();

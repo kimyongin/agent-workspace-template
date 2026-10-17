@@ -17,7 +17,7 @@ agent-workspace-template/
 ├─ CLAUDE.md                       # Claude Code 진입점, AGENTS.md를 가져옴
 ├─ .gitattributes · .editorconfig  # UTF-8·LF 강제
 ├─ GLOSSARY.md                     # 도메인 용어 정본
-├─ .agents/skills/<skill>/          # Matt Pocock 공식 27개 공유 정본
+├─ .agents/skills/<skill>/          # Matt Pocock 개발 방법·shadcn UI 기술의 공유 정본
 │  ├─ SKILL.md                     # 원본 작업 방법과 호출 정책
 │  ├─ agents/openai.yaml           # 원본 Codex 표시·호출 정보
 │  └─ <참조 자료·보조 파일>        # 원본의 상대 경로 유지
@@ -39,9 +39,9 @@ agent-workspace-template/
 │  │  ├─ search/                   # 검색 화면과 API 호출
 │  │  ├─ tags/                     # 태그 관리
 │  │  └─ settings/                 # 앱 설정과 연결 안내
-│  ├─ components/                  # 공통 UI
+│  ├─ components/                  # 업무 공통 UI, ui/에는 공식 shadcn 소스
 │  ├─ lib/                         # HTTP/Auth 클라이언트와 표시 유틸
-│  └─ styles/                      # 공통 스타일
+│  └─ styles/app.css               # Tailwind 진입·shadcn 의미 토큰·안전한 Markdown 표현
 ├─ supabase/
 │  ├─ config.toml
 │  ├─ migrations/                  # 테이블·RLS·제약·pgmq·pgvector 설정

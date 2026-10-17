@@ -33,14 +33,14 @@ for (const [kind, path, label, restored] of [
       const deadline = Date.now() + 60_000;
       const remaining = () => Math.max(1, deadline - Date.now());
       for (let target = Math.min(25, restored); target <= restored; target += Math.min(25, restored)) {
-        await expect.poll(() => page.locator(`.${path} .list .item-title`).count(), {
+        await expect.poll(() => page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]").count(), {
           message: `${label}: restore must reach ${target}/${restored} rows without stalling`,
           timeout: Math.min(10_000, remaining()),
           intervals: [100, 250, 500],
         }).toBeGreaterThanOrEqual(target);
         expect(reads.slice(0, target)).toEqual(Array.from({ length: target }, (_, index) => index));
       }
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored, { timeout: remaining() });
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored, { timeout: remaining() });
       expect(reads).toEqual(Array.from({ length: restored }, (_, index) => index));
     };
     let failNext = true;
@@ -78,30 +78,30 @@ for (const [kind, path, label, restored] of [
     const first = page.getByRole("button", { name: `${label} 경계 0`, exact: true });
     await page.locator(`#activity-${path}-page-control`).click();
     await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
-    await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored);
+    await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored);
     const retry = page.getByRole("button", { name: "다시 시도", exact: true });
     await retry.scrollIntoViewIfNeeded();
-    const readingRow = page.locator(`#${await page.locator(`.${path} .list .item-title`).last().getAttribute("id")}`);
+    const readingRow = page.locator(`#${await page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]").last().getAttribute("id")}`);
     await expect(readingRow).toBeInViewport();
     const readingY = (await readingRow.boundingBox())!.y;
-    const readingScroll = await page.evaluate(() => window.scrollY);
+    const readingScroll = await page.getByRole("main").evaluate(el => el.scrollTop);
     await retry.click();
-    await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored + 1);
+    await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored + 1);
     await expect(first).toHaveCount(1);
     await expect(page.locator(`#activity-${path}-page-control`)).toBeFocused();
-    expect(await page.evaluate(() => window.scrollY)).toBe(readingScroll);
+    expect(await page.getByRole("main").evaluate(el => el.scrollTop)).toBe(readingScroll);
     await expect(readingRow).toBeInViewport();
     expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
     expect(new URL(page.url()).searchParams.get("pages")).toBe(String(restored + 1));
     expect(reads).toEqual([...Array.from({ length: restored }, (_, index) => index), restored, restored]);
     await page.locator(`#activity-${path}-page-control`).click();
-    await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored + 2);
+    await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored + 2);
     expect(reads.at(-1)).toBe(restored + 1);
     reads.length = 0;
     await page.reload();
     if (restored === 250) await expectRestoredPages();
     else {
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(restored + 2);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(restored + 2);
       expect(reads).toEqual(Array.from({ length: restored + 2 }, (_, index) => index));
     }
   });
@@ -138,27 +138,56 @@ test("Entity restored pages: retry cursor, focus and filter reset", async ({ pag
   await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&pages=2");
   const more = page.getByRole("button", { name: "더 보기", exact: true });
   await expect(more).toHaveAttribute("aria-disabled", "false", { timeout: 30000 });
-  await expect(page.locator(".list .item-title")).toHaveCount(2);
+  await expect(page.locator("[data-list-anchor]")).toHaveCount(2);
   expect(cursors).toHaveLength(2);
   await more.click();
   const retry = page.getByRole("button", { name: "다시 시도", exact: true });
   await expect(retry).toBeFocused();
   await expect(retry).toBeInViewport();
-  await expect(page.locator(".list .item-title")).toHaveCount(2);
+  await expect(page.locator("[data-list-anchor]")).toHaveCount(2);
   expect(new URL(page.url()).searchParams.get("pages")).toBe("3");
   expect(cursors.at(-1)).toBe("page-2");
   await retry.click();
-  await expect(page.locator(".list .item-title")).toHaveCount(3);
+  await expect(page.locator("[data-list-anchor]")).toHaveCount(3);
   await expect(more).toBeFocused();
   expect(cursors).toHaveLength(4);
   expect(cursors.slice(-2)).toEqual(["page-2", "page-2"]);
   const beforeFilter = cursors.length;
   await openTabFilters(page);
   await setEntityCategory(page, "b");
-  await expect(page.locator(".list .item-title")).toHaveCount(1);
+  await expect(page.locator("[data-list-anchor]")).toHaveCount(1);
   await setEntityCategory(page, "");
   await expect.poll(() => cursors.length).toBe(beforeFilter + 2);
-  await expect(page.locator(".list .item-title")).toHaveCount(1);
+  await expect(page.locator("[data-list-anchor]")).toHaveCount(1);
   await expect(more).toHaveAttribute("aria-disabled", "false");
   expect(cursors.slice(beforeFilter)).toEqual([null, null]);
+});
+
+test("Entity pagination failure does not move focus or scroll after the user leaves the page control", async ({ page }) => {
+  await fixture(page);
+  let release!: () => void, started!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const pending = new Promise<void>(resolve => { started = resolve; });
+  await page.route("**/api/entities?**", async route => {
+    if (new URL(route.request().url()).searchParams.has("cursor")) {
+      started();
+      await waiting;
+      return route.fulfill({ status: 503, json: { code: "unavailable", message: "지연된 페이지 실패", retryable: true, fields: [] } });
+    }
+    return route.fulfill({ json: { items: [entity(1), entity(2)], next_cursor: "next" } });
+  });
+  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.getByRole("button", { name: "더 보기", exact: true }).click();
+  await pending;
+  try {
+    const search = page.getByRole("textbox", { name: "자료 제목 검색", exact: true });
+    await search.focus();
+    const main = page.getByRole("main");
+    const top = await main.evaluate(element => element.scrollTop);
+    release();
+    await expect(page.getByRole("alert")).toContainText("지연된 페이지 실패");
+    await expect(search).toBeFocused();
+    await expect.poll(() => main.evaluate(element => element.scrollTop)).toBe(top);
+    await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeEnabled();
+  } finally { release(); }
 });

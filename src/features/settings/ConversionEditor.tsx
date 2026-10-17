@@ -1,7 +1,14 @@
+import { Button } from "../../components/ui/button.tsx";
+import { RotateCcwIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FieldSet, FieldGroup, FieldLabel, FieldLegend } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Input } from "../../components/ui/input.tsx";
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { FilterPanel } from "../../components/TabSearch.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { schemaDiffLabel, schemaEntityLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -60,64 +67,76 @@ function Literal(
   const nullable = Array.isArray(field.type) && field.type.includes("null");
   return (
     <>
-      <select
-        className="input"
-        aria-label="보완값 상태"
-        value={value === null ? "null" : "value"}
-        onChange={(e) =>
-          onChange(
-            e.target.value === "null"
-              ? null
-              : scalar === "boolean"
-              ? false
-              : scalar === "integer" || scalar === "number"
-              ? 0
-              : "",
-          )}
-      >
-        <option value="value">값 지정</option>
-        {nullable && <option value="null">명시적 값 없음</option>}
-      </select>
-      {value !== null && (scalar === "boolean"
-        ? (
-          <select
-            className="input"
-            aria-label="보완값"
-            value={String(value)}
-            onChange={(e) => onChange(e.target.value === "true")}
-          >
-            <option value="false">거짓</option>
-            <option value="true">참</option>
-          </select>
-        )
-        : fieldChoices(field)
-        ? (
-          <select
-            className="input"
-            aria-label="보완값"
-            value={String(value)}
-            onChange={(e) => onChange(e.target.value)}
-          >
-            <option value="">선택하세요</option>
-            {fieldChoices(field)!.filter((v) => v !== null).map((code) => (
-              <option key={code!} value={code!}>{schemaOptionLabel(optionLabels, code!)}</option>
-            ))}
-          </select>
-        )
-        : (
-          <input
-            className="input"
-            aria-label="보완값"
-            value={String(value ?? "")}
-            type={field.format === "date" ? "date" : "text"}
-            inputMode={scalar === "number" || scalar === "integer" ? "decimal" : undefined}
-            step="any"
+      <Field label="보완값 상태">
+        {(props) => (
+          <NativeSelect
+            {...props}
+
+            aria-label="보완값 상태"
+            value={value === null ? "null" : "value"}
             onChange={(e) =>
               onChange(
-                scalar === "number" || scalar === "integer" ? e.target.value : e.target.value,
+                e.target.value === "null"
+                  ? null
+                  : scalar === "boolean"
+                  ? false
+                  : scalar === "integer" || scalar === "number"
+                  ? 0
+                  : "",
               )}
-          />
-        ))}
+          >
+            <NativeSelectOption value="value">값 지정</NativeSelectOption>
+            {nullable && <NativeSelectOption value="null">명시적 값 없음</NativeSelectOption>}
+          </NativeSelect>
+        )}
+      </Field>
+      {value !== null && (
+        <Field label="보완값">
+          {(props) => (scalar === "boolean"
+            ? (
+              <NativeSelect
+                {...props}
+
+                aria-label="보완값"
+                value={String(value)}
+                onChange={(e) => onChange(e.target.value === "true")}
+              >
+                <NativeSelectOption value="false">거짓</NativeSelectOption>
+                <NativeSelectOption value="true">참</NativeSelectOption>
+              </NativeSelect>
+            )
+            : fieldChoices(field)
+            ? (
+              <NativeSelect
+                {...props}
+
+                aria-label="보완값"
+                value={String(value)}
+                onChange={(e) => onChange(e.target.value)}
+              >
+                <NativeSelectOption value="">선택하세요</NativeSelectOption>
+                {fieldChoices(field)!.filter((v) => v !== null).map((code) => (
+                  <NativeSelectOption key={code!} value={code!}>{schemaOptionLabel(optionLabels, code!)}</NativeSelectOption>
+                ))}
+              </NativeSelect>
+            )
+            : (
+              <Input
+                {...props}
+
+                aria-label="보완값"
+                value={String(value ?? "")}
+                type={field.format === "date" ? "date" : "text"}
+                inputMode={scalar === "number" || scalar === "integer" ? "decimal" : undefined}
+                step="any"
+                onChange={(e) =>
+                  onChange(
+                    scalar === "number" || scalar === "integer" ? e.target.value : e.target.value,
+                  )}
+              />
+            ))}
+        </Field>
+      )}
     </>
   );
 }
@@ -189,13 +208,13 @@ export function ConversionEditor(
     <section aria-label="변환 규칙과 영향 미리보기">
       {!plan.recovery && (
         <>
-          <h3 className="section-title">명시적인 변환 규칙</h3>
+          <h3 className="text-base font-semibold">명시적인 변환 규칙</h3>
           <p>
             기본값은 기존 자료에 채우지 않습니다. 변환 → 행 보완 → 실패 대체 → 최종 검증 순으로 처리합니다. 보완 저장 후
             다시 분석하세요.
           </p>
-          <fieldset disabled={disabled}>
-            <div className="settings-fields">
+          <FieldSet disabled={disabled}>
+            <FieldGroup className="min-w-0">
               {[
                 ...new Set([
                   ...schemaPresentation(plan.target).order,
@@ -214,12 +233,12 @@ export function ConversionEditor(
                   replacement = migration.rules.find((r) => r.key === key && r.op === "replace_failure"),
                   scalar = fieldType(f);
                 return (
-                  <section className="schema-field" key={key}>
+                  <section className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" key={key}>
                     <Field label={f?.title ?? sourceField?.title ?? "삭제한 입력 항목"}>
                       {(p) => (
-                        <select
+                        <NativeSelect
                           {...p}
-                          className="input"
+
                           aria-label={`${f?.title ?? sourceField?.title ?? "삭제한 항목"} 변환 방식`}
                           value={r?.op ?? "none"}
                           onChange={(e) => {
@@ -251,11 +270,11 @@ export function ConversionEditor(
                             );
                           }}
                         >
-                          <option value="none">유지 · 최종 정의로 검증</option>
-                          {!f ? <option value="remove">입력 항목 값을 명시적으로 제거</option> : (
+                          <NativeSelectOption value="none">유지 · 최종 정의로 검증</NativeSelectOption>
+                          {!f ? <NativeSelectOption value="remove">입력 항목 값을 명시적으로 제거</NativeSelectOption> : (
                             <>
                               {scalar !== "boolean" && (
-                                <option value="convert">
+                                <NativeSelectOption value="convert">
                                   {f.format === "date"
                                     ? "날짜"
                                     : scalar === "string"
@@ -263,26 +282,26 @@ export function ConversionEditor(
                                     : scalar === "integer"
                                     ? "정수"
                                     : "숫자"}로 변환
-                                </option>
+                                </NativeSelectOption>
                               )}
-                              {fieldChoices(f) && <option value="map">선택 코드 매핑</option>}
+                              {fieldChoices(f) && <NativeSelectOption value="map">선택 코드 매핑</NativeSelectOption>}
                             </>
                           )}
-                        </select>
+                        </NativeSelect>
                       )}
                     </Field>
                     {f && (["fill", "replace_failure"] as const).map((op) => {
                       const rule = op === "fill" ? fill : replacement;
                       return (
                         <section key={op}>
-                          <label className="choice-control">
-                            <input
-                              type="checkbox"
+                          <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                            <Checkbox
+
                               checked={!!rule}
-                              onChange={(e) =>
+                              onCheckedChange={(checked) =>
                                 setRule(
                                   key,
-                                  e.target.checked
+                                  checked === true
                                     ? {
                                       op,
                                       key,
@@ -298,7 +317,7 @@ export function ConversionEditor(
                                 )}
                             />{" "}
                             {op === "fill" ? "누락값 채우기" : "실패값 명시 대체"}
-                          </label>
+                          </FieldLabel>
                           {rule && (rule.op === "fill" || rule.op === "replace_failure") && (
                             <Literal
                               field={f}
@@ -309,33 +328,33 @@ export function ConversionEditor(
                             />
                           )}
                           {rule?.op === "fill" && (
-                            <label className="choice-control">
-                              <input
-                                type="checkbox"
+                            <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                              <Checkbox
+
                                 checked={rule.include_null}
-                                onChange={(e) => setRule(key, { ...rule, include_null: e.target.checked })}
+                                onCheckedChange={(checked) => setRule(key, { ...rule, include_null: checked === true })}
                               />{" "}
                               명시적 값 없음도 채우기
-                            </label>
+                            </FieldLabel>
                           )}
                         </section>
                       );
                     })}
                     {r?.op === "map" && (
                       <>
-                        <label className="choice-control">
-                          <input
-                            type="checkbox"
+                        <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                          <Checkbox
+
                             checked={r.identity}
-                            onChange={(e) => setRule(key, { ...r, identity: e.target.checked })}
+                            onCheckedChange={(checked) => setRule(key, { ...r, identity: checked === true })}
                           />{" "}
                           이미 허용된 코드는 유지
-                        </label>
+                        </FieldLabel>
                         <Field label="이전 코드">
                           {(p) => (
-                            <input
+                            <Input
                               {...p}
-                              className="input"
+
                               onBlur={(e) => {
                                 if (e.target.value && !Object.hasOwn(r.mapping, e.target.value)) {
                                   setRule(key, { ...r, mapping: { ...r.mapping, [e.target.value]: "" } });
@@ -348,19 +367,19 @@ export function ConversionEditor(
                         {Object.entries(r.mapping).map(([code, to]) => (
                           <Field key={code} label={`${code} → 새 코드`}>
                             {(p) => (
-                              <select
+                              <NativeSelect
                                 {...p}
-                                className="input"
+
                                 aria-label={`${code} 매핑`}
                                 value={to}
                                 onChange={(e) =>
                                   setRule(key, { ...r, mapping: { ...r.mapping, [code]: e.target.value } })}
                               >
-                                <option value="">선택</option>
+                                <NativeSelectOption value="">선택</NativeSelectOption>
                                 {fieldChoices(f)?.filter((v) => v !== null).map((v) => (
-                                  <option key={v!} value={v!}>{v}</option>
+                                  <NativeSelectOption key={v!} value={v!}>{v}</NativeSelectOption>
                                 ))}
-                              </select>
+                              </NativeSelect>
                             )}
                           </Field>
                         ))}
@@ -369,16 +388,16 @@ export function ConversionEditor(
                   </section>
                 );
               })}
-            </div>
-          </fieldset>
+            </FieldGroup>
+          </FieldSet>
         </>
       )}
-      <h3 className="section-title">{plan.recovery ? "복구 값 영향 미리보기" : "분석 결과"}</h3>
+      <h3 className="text-base font-semibold">{plan.recovery ? "복구 값 영향 미리보기" : "분석 결과"}</h3>
       {unsaved
         ? (
-          <p role="status">
+          <Alert role="status"><AlertDescription>
             보완을 변경했습니다. 초안을 저장하고 다시 분석하세요. 표시된 이전 결과는 저장 전 계획의 결과입니다.
-          </p>
+          </AlertDescription></Alert>
         )
         : null}
       {plan.analysis?.status !== "succeeded" ? <p>분석 완료 후 원본과 변환값을 확인할 수 있습니다.</p> : (
@@ -388,20 +407,20 @@ export function ConversionEditor(
             onReset={() => setDraftFailures(false)}
             onApply={() => setFailures(draftFailures)}
           >
-            <label className="choice-control">
-              <input type="checkbox" checked={draftFailures} onChange={(e) => setDraftFailures(e.target.checked)} />
+            <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+              <Checkbox  checked={draftFailures} onCheckedChange={(checked) => setDraftFailures(checked === true)} />
               {" "}
               실패한 자료만 보기
-            </label>
+            </FieldLabel>
           </FilterPanel>
           {page?.items.length === 0 && <p>표시할 자료가 없습니다. 전체 대상 {plan.analysis.total}개</p>}
           {page?.items.map((row) => (
-            <article className="schema-field" key={row.entity_id}>
-              <h4 className="item-title">
+            <article className="min-w-0" key={row.entity_id}>
+              <h4 className="min-w-0 [overflow-wrap:anywhere]">
                 {analysisRowTitle(row, plan.target, sourceDefinition)} ·{" "}
                 {row.errors.length ? "변환 실패" : row.changed ? "변경" : "무변경"}
               </h4>
-              <dl className="props">
+              <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
                 {previewKeys(row).map((key) => (
                   <div key={key}>
                     <dt>
@@ -431,9 +450,9 @@ export function ConversionEditor(
                 ))}
               </dl>
               {row.errors.map((e, i) => (
-                <p role="alert" className="error-text" key={i}>
+                <Alert variant="destructive" role="alert" className="text-sm text-destructive" key={i}><AlertDescription>
                   {schemaDiffLabel(e.path, plan.target, sourceDefinition ?? plan.target)}: {e.message}
-                </p>
+                </AlertDescription></Alert>
               ))}
               {!plan.recovery &&
                 [...new Set(row.errors.map((e) => e.path.split(".").at(-1)!))].filter((key) =>
@@ -441,9 +460,9 @@ export function ConversionEditor(
                 ).map((key) => {
                   const o = migration.overrides.find((o) => o.entity_id === row.entity_id && o.key === key);
                   return (
-                    <fieldset disabled={disabled} key={key}>
-                      <legend>{plan.target.schema.properties[key]?.title ?? "입력 항목"} 직접 보완</legend>
-                      <BodyAction
+                    <FieldSet disabled={disabled} key={key}>
+                      <FieldLegend>{plan.target.schema.properties[key]?.title ?? "입력 항목"} 직접 보완</FieldLegend>
+                      <Button variant="ghost" type="button"
                         onClick={() =>
                           setOverride(
                             row,
@@ -457,7 +476,7 @@ export function ConversionEditor(
                           )}
                       >
                         보완값 지정
-                      </BodyAction>
+                      </Button>
                       {o && (
                         <>
                           <Literal
@@ -466,7 +485,7 @@ export function ConversionEditor(
                             value={o.value}
                             onChange={(v) => setOverride(row, key, v)}
                           />
-                          <BodyAction
+                          <Button variant="ghost" type="button"
                             onClick={() =>
                               onChange({
                                 ...migration,
@@ -474,19 +493,19 @@ export function ConversionEditor(
                               })}
                           >
                             보완 취소
-                          </BodyAction>
+                          </Button>
                         </>
                       )}
-                    </fieldset>
+                    </FieldSet>
                   );
                 })}
             </article>
           ))}
-          {page?.next_after && <BodyAction onClick={() => void load(page.next_after!)}>다음 결과</BodyAction>}
-          <BodyAction icon="reset" onClick={() => void load()}>첫 결과 다시 조회</BodyAction>
+          {page?.next_after && <Button variant="ghost" type="button" onClick={() => void load(page.next_after!)}>다음 결과</Button>}
+          <Button variant="ghost" type="button"  onClick={() => void load()}><RotateCcwIcon data-icon="inline-start" />첫 결과 다시 조회</Button>
         </>
       )}
-      {error && <p role="alert" className="error-text">{error}</p>}
+      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     </section>
   );
 }

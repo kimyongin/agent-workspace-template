@@ -15,11 +15,11 @@ export function SchemaDefinitionRead(
     ]),
   ];
   return (
-    <section aria-label="입력 항목 정의" className="schema-definition-read">
-      <h3 className="section-title">
-        입력 항목 <span className="secondary">읽기 전용</span>
+    <section aria-label="입력 항목 정의" className="flex min-w-0 flex-col gap-4">
+      <h3 className="text-base font-semibold">
+        입력 항목 <span className="text-sm text-muted-foreground">읽기 전용</span>
       </h3>
-      <dl className="props schema-definition-values">
+      <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
         <div>
           <dt>종류 이름</dt>
           <dd>{definition.schema.title ?? "당시 이름 기록 없음"}</dd>
@@ -43,14 +43,14 @@ export function SchemaDefinitionRead(
           </dd>
         </div>
         {definition.schema.description && (
-          <div>
+          <div className="col-span-full">
             <dt>종류 설명</dt>
             <dd>{definition.schema.description}</dd>
           </div>
         )}
       </dl>
       {!definition.schema.title && (
-        <p className="help">이 과거 버전에는 당시 종류 이름·아이콘·보관 상태가 기록되지 않았습니다.</p>
+        <p className="text-sm text-muted-foreground">이 과거 버전에는 당시 종류 이름·아이콘·보관 상태가 기록되지 않았습니다.</p>
       )}
       {keys.map((key) => {
         const field = definition.schema.properties[key];
@@ -63,23 +63,19 @@ export function SchemaDefinitionRead(
               ? "비워 두기"
               : schemaOptionLabel(schemaPresentation(definition).option_labels[key], value));
         const values: Array<[string, string]> = [
+          ["항목 이름", field.title || "이름 없는 항목"],
           ["데이터 타입", fieldTypeLabel(field)],
-          [
-            "필수 입력",
-            definition.schema.required.includes(key) ? "예" : "아니요",
-          ],
-          [
-            "목록에 표시",
-            schemaPresentation(definition).list_columns.includes(key) ? "예" : "아니요",
-          ],
         ];
-        if (key === schemaPresentation(definition).representative) {
-          values.push(["자료 이름", "사용"]);
+        if (fieldChoices(field)) {
+          values.push(["선택 항목", fieldChoices(field)!.map(optionLabel).join(", ")]);
         }
-        if (schemaPresentation(definition).archived.includes(key)) {
-          values.push(["사용 상태", "사용 중지"]);
-        }
-        if (field.readOnly) values.push(["읽기 전용", "예"]);
+        values.push(
+          ["자료 이름으로 사용", key === schemaPresentation(definition).representative ? "사용" : "사용 안 함"],
+          ["필수 입력", definition.schema.required.includes(key) ? "예" : "아니요"],
+          ["목록에 표시", schemaPresentation(definition).list_columns.includes(key) ? "예" : "아니요"],
+          ["읽기 전용", field.readOnly ? "예" : "아니요"],
+        );
+        if (schemaPresentation(definition).archived.includes(key)) values.push(["사용 상태", "사용 중지"]);
         if (field.examples?.length) {
           values.push([
             "입력 예시",
@@ -122,21 +118,17 @@ export function SchemaDefinitionRead(
               : schemaValueLabel(field.default),
           ]);
         }
-        if (fieldChoices(field)) {
-          values.push([
-            "선택 항목",
-            fieldChoices(field)!.map(optionLabel).join(", "),
-          ]);
-        }
         return (
           <section
             key={key}
             aria-label={`${field.title || "이름 없는 항목"} 정의`}
           >
-            <h4 className="section-title">{field.title || "이름 없는 항목"}</h4>
-            <dl className="props schema-definition-values">
+            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
               {values.map(([label, value]) => (
-                <div key={label}>
+                <div
+                  key={label}
+                  className={["설명", "입력 예시", "선택 항목"].includes(label) ? "col-span-full" : undefined}
+                >
                   <dt>{label}</dt>
                   <dd>{value}</dd>
                 </div>

@@ -1,6 +1,9 @@
+import { PlusIcon, LinkIcon, UnlinkIcon } from "lucide-react";
+import { Input } from "../components/ui/input.tsx";
+import { Button } from "../components/ui/button.tsx";
 import { useState } from "react";
-import { BodyAction } from "../components/BodyAction.tsx";
-import { CollectionList } from "../components/Collection.tsx";
+
+import { CollectionItem, CollectionList  } from "../components/Collection.tsx";
 import { Field } from "../components/Field.tsx";
 import { RelatedItem } from "../components/RelatedItems.tsx";
 /** Presentation-only example: the app's real permission, version and atomic writes are integration-tested. */
@@ -11,60 +14,58 @@ export function TypedRelationsSample() {
     [title, setTitle] = useState("");
   return (
     <section aria-label="자료 상세 관계 샘플">
-      <h3 className="section-title">자료 상세 예시</h3>
-      <p className="secondary">
+      <h3 className="text-base font-semibold">자료 상세 예시</h3>
+      <p className="text-sm text-muted-foreground">
         하나만은 값 한 줄, 여러 개는 기존 연속 목록으로 표시합니다. 아래 조작은
         이 샘플에만 반영됩니다.
       </p>
-      <section className="detail-section">
-        <div className="detail-section-head">
-          <h4 className="section-title">소속 주문</h4>
-          <div className="actions">
-            <BodyAction icon="create" onClick={() => setWriting(true)}>
+      <section className="flex min-w-0 flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h4 className="text-base font-semibold">소속 주문</h4>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" type="button"  onClick={() => setWriting(true)}><PlusIcon data-icon="inline-start" />
               작성
-            </BodyAction>
-            <BodyAction icon="link" onClick={() => setSelected(true)}>
+            </Button>
+            <Button variant="ghost" type="button"  onClick={() => setSelected(true)}><LinkIcon data-icon="inline-start" />
               {selected ? "변경" : "연결"}
-            </BodyAction>
+            </Button>
             {selected && (
-              <BodyAction
-                icon="unlink"
+              <Button variant="ghost" type="button"
                 onClick={() => setSelected(false)}
-              >
+              ><UnlinkIcon data-icon="inline-start" />
                 해제
-              </BodyAction>
+              </Button>
             )}
           </div>
         </div>
-        <p>{selected ? "주문 2026-001" : "연결된 자료가 없습니다."}</p>
+        <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>주문명</dt><dd>{selected ? "주문 2026-001" : "연결된 자료가 없습니다."}</dd></div></dl>
       </section>
       {writing && (
         <section
-          className="detail-section form"
+          className="flex min-w-0 flex-col gap-5"
           aria-label="작성해서 연결 샘플"
         >
-          <h4 className="section-title">작성 후 연결</h4>
-          <p>주문품목 → 소속 주문</p>
-          <p className="secondary">
-            기존 연결: 주문 2026-001. 저장하면 새로 작성한 자료로 교체합니다.
-          </p>
-          <Field label="번호">{() => <p>등록 시 자동 발급</p>}</Field>
+          <h4 className="text-base font-semibold">작성 후 연결</h4>
+          <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+            <div><dt>연결 설정</dt><dd>주문품목 → 소속 주문</dd></div>
+            <div><dt>기존 연결</dt><dd>주문 2026-001</dd></div>
+            <div><dt>번호</dt><dd>등록 시 자동 발급</dd></div>
+          </dl>
+          <p className="text-sm text-muted-foreground">저장하면 새로 작성한 자료로 교체합니다.</p>
           <Field label="주문명" required>
             {(p) => (
-              <input
+              <Input
                 {...p}
-                className="input"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
             )}
           </Field>
-          <div className="actions">
-            <button className="btn" onClick={() => setWriting(false)}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline"  onClick={() => setWriting(false)}>
               취소
-            </button>
-            <button
-              className="btn btn-primary"
+            </Button>
+            <Button variant="default"
               disabled={!title.trim()}
               onClick={() => {
                 setWriting(false);
@@ -72,34 +73,35 @@ export function TypedRelationsSample() {
               }}
             >
               작성하고 연결
-            </button>
+            </Button>
           </div>
         </section>
       )}
-      <section className="detail-section">
-        <div className="detail-section-head">
-          <h4 className="section-title">
+      <section className="flex min-w-0 flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h4 className="text-base font-semibold">
             구성재료 ({more ? 4 : 2}개{more ? "" : "+"})
           </h4>
-          <BodyAction icon="link">연결</BodyAction>
+          <Button variant="ghost" type="button" ><LinkIcon data-icon="inline-start" />연결</Button>
         </div>
         <CollectionList>
           {["밀가루", "달걀", ...(more ? ["우유", "소금"] : [])].map((
             title,
           ) => (
-            <li key={title}>
+            <CollectionItem key={title}>
               <RelatedItem
                 title={title}
-                metadata="재료"
-                action={<BodyAction icon="unlink">해제</BodyAction>}
+                titleLabel="자료 이름"
+                metadata={<dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>종류</dt><dd>재료</dd></div></dl>}
+                action={<Button variant="ghost" type="button" ><UnlinkIcon data-icon="inline-start" />해제</Button>}
               />
-            </li>
+            </CollectionItem>
           ))}
         </CollectionList>
         {!more && (
-          <BodyAction onClick={() => setMore(true)}>
+          <Button variant="ghost" type="button" onClick={() => setMore(true)}>
             더 보기
-          </BodyAction>
+          </Button>
         )}
       </section>
     </section>

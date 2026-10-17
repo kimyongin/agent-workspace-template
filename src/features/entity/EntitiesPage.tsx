@@ -1,3 +1,5 @@
+import { EyeIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
+import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { PageHeading } from "../../components/PageHeading.tsx";
 import {
@@ -7,7 +9,7 @@ import {
   writeEntityListUrl,
 } from "../../lib/entity-list-url.ts";
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { displayedProperty, fieldType } from "./property-fields.tsx";
 import { TypedEntityFilters, validatePropertyFilters } from "./TypedEntityFilters.tsx";
@@ -16,7 +18,12 @@ import { useEntityTypes } from "./useEntityTypes.ts";
 import { typeListSearch } from "../../app/type-navigation.ts";
 import { Link } from "react-router";
 import { entityPath } from "@contracts/entity-identity.ts";
-import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
+import {
+  CollectionHeading,
+  CollectionItem,
+  CollectionList,
+  useMainCollectionView,
+} from "../../components/Collection.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import {
   applyFilterParams,
@@ -35,13 +42,14 @@ import { entityListQuery, type EntitySummary } from "@contracts/entity.ts";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { ListExpansionProvider, ListPreviewItem, useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { Notice } from "../../components/Field.tsx";
+import { scrollOwner } from "../../lib/surface-dom.ts";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
-import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
 
 export function EntitiesPage() {
+  const searchInput = useRef<HTMLInputElement>(null);
   const create = useCreateMode();
   const [view, changeView] = useMainCollectionView();
   const dictionary = useTagDictionary(true, true, "entity");
@@ -69,11 +77,11 @@ export function EntitiesPage() {
   if (urlFilters.raw) applied.set("property_filters", urlFilters.raw);
   const editing = useFilterDraft(applied, filter.entity_type_id ?? "");
   const [filterError, setFilterError] = useState("");
-  const filterArea = useRef<HTMLDivElement>(null);
+  const filterApply = useRef<HTMLButtonElement>(null);
   const [focusRecoveryApply, setFocusRecoveryApply] = useState(false);
   useEffect(() => {
     if (!focusRecoveryApply || params.get("filters") !== "1") return;
-    filterArea.current?.querySelector<HTMLButtonElement>(".filter-apply-footer button")?.focus();
+    filterApply.current?.focus();
     setFocusRecoveryApply(false);
   }, [focusRecoveryApply, params]);
   const resetFilters = () => {
@@ -232,6 +240,16 @@ export function EntitiesPage() {
     : list.error
     ? list.error instanceof ApiError ? list.error.message : "자료를 불러오지 못했습니다."
     : null;
+  const pageControl = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    const control = pageControl.current;
+    if (!error || !control || document.activeElement !== control) return;
+    const bounds = scrollOwner(control)?.getBoundingClientRect();
+    const rect = control.getBoundingClientRect();
+    if (rect.top < (bounds?.top ?? 0) || rect.bottom > (bounds?.bottom ?? window.innerHeight)) {
+      control.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }, [error]);
   const readiness = useRestoreListPosition(
     "entities",
     (dictionary.tags !== null || dictionary.failed) && !busy && !!page,
@@ -255,83 +273,91 @@ export function EntitiesPage() {
   };
   return (
     <>
-      <section className="panel main-tab-header" aria-labelledby="entities-title">
+      <section className="flex min-w-0 flex-col gap-5 border-b pb-6" aria-labelledby="entities-title">
         <PageHeading
           title={label}
           id="entities-title"
           tabIndex={-1}
           description="자료를 등록하고, 속성과 연결된 할 일·기록을 관리합니다."
         />
-        <div ref={filterArea} className="query-bar entity-query-bar">
+        <div className="@container flex min-w-0 flex-col gap-3">
           <EntityTypePicker
             types={types ?? []}
             value={filter.entity_type_id ?? ""}
             all
             compact
             disabled={types === null}
+            catalogState={types === null ? typeError ? "unavailable" : "loading" : "ready"}
             onChange={(value) => set("entity_type_id", value)}
           />
-          <TabSearch entity />
           {!types && !typeError && <p role="status">자료 종류를 확인하는 중…</p>}
           {typeError && (
             <>
               <Notice kind="error">자료 종류를 불러오지 못했습니다.</Notice>
-              <button className="btn" onClick={retryTypes}>종류 다시 시도</button>
+              <Button variant="outline" onClick={retryTypes}>종류 다시 시도</Button>
             </>
           )}
           {schemaReadError && (
             <Notice kind="error">
               속성 정의를 읽지 못했습니다.{" "}
-              <button type="button" className="btn" onClick={() => setSchemaRetry((value) => value + 1)}>
+              <Button variant="outline" type="button" onClick={() => setSchemaRetry((value) => value + 1)}>
                 속성 정의 다시 시도
-              </button>
+              </Button>
             </Notice>
           )}
           {selectedType?.archived && (
             <Notice>보관된 자료 종류입니다. 기존 자료를 읽을 수 있으며 새 자료를 추가하려면 보관을 해제하세요.</Notice>
           )}
-          {types?.length === 0 && <p className="secondary">아직 자료 종류가 없습니다.</p>}
+          {types?.length === 0 && <p className="text-sm text-muted-foreground">아직 자료 종류가 없습니다.</p>}
           {types && types.length > 0 && types.every((type) => type.archived) && (
-            <p className="secondary">모든 자료 종류가 보관되어 있습니다.</p>
+            <p className="text-sm text-muted-foreground">모든 자료 종류가 보관되어 있습니다.</p>
           )}
-          <TabFilters
-            active={!!(filter.tag_id || filter.sort !== "updated_at" || filter.filters)}
-            attention={dictionary.failed}
-            summary={filterSummary}
-            dirty={editing.dirty}
-            onReset={resetFilters}
-            onApply={applyFilters}
-          >
-            <div className="filter-grid" role="group" aria-label="자료 필터">
-              <TypedEntityFilters
-                schema={schema}
-                raw={editing.draft.get("property_filters")}
-                sort={editing.draft.get("sort") ?? "updated_at"}
-                onChange={(filters, sort) => {
-                  editing.setDraft((previous) => {
-                    const next = new URLSearchParams(previous);
-                    filters ? next.set("property_filters", filters) : next.delete("property_filters");
-                    sort !== "updated_at" ? next.set("sort", sort) : next.delete("sort");
-                    return next;
-                  });
-                }}
+          <div className="grid min-w-0 grid-cols-1 items-end gap-3 @min-[14rem]:grid-cols-[minmax(0,1fr)_auto]">
+            <TabSearch entity inputRef={searchInput} />
+            <TabFilters
+              applyRef={filterApply}
+              active={!!(filter.tag_id || filter.sort !== "updated_at" || filter.filters)}
+              attention={dictionary.failed}
+              summary={filterSummary}
+              dirty={editing.dirty}
+              onReset={resetFilters}
+              onApply={applyFilters}
+            >
+              <div
+                className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4"
+                role="group"
+                aria-label="자료 필터"
+              >
+                <TypedEntityFilters
+                  schema={schema}
+                  raw={editing.draft.get("property_filters")}
+                  sort={editing.draft.get("sort") ?? "updated_at"}
+                  onChange={(filters, sort) => {
+                    editing.setDraft((previous) => {
+                      const next = new URLSearchParams(previous);
+                      filters ? next.set("property_filters", filters) : next.delete("property_filters");
+                      sort !== "updated_at" ? next.set("sort", sort) : next.delete("sort");
+                      return next;
+                    });
+                  }}
+                />
+              </div>
+              <TagSelection
+                label="자료 태그"
+                tags={dictionary.tags}
+                value={editing.draft.get("tag_id") ? [editing.draft.get("tag_id")!] : []}
+                maxSelected={1}
+                onChange={(ids) => editing.set("tag_id", ids[0] ?? "")}
+                status={<TagDictionaryStatus dictionary={dictionary} />}
               />
-            </div>
-            <TagSelection
-              label="자료 태그"
-              tags={dictionary.tags}
-              value={editing.draft.get("tag_id") ? [editing.draft.get("tag_id")!] : []}
-              maxSelected={1}
-              onChange={(ids) => editing.set("tag_id", ids[0] ?? "")}
-              status={<TagDictionaryStatus dictionary={dictionary} />}
-            />
-            {filterError && <Notice kind="error">{filterError}</Notice>}
-          </TabFilters>
+              {filterError && <Notice kind="error">{filterError}</Notice>}
+            </TabFilters>
+          </div>
         </div>
       </section>
       <ListExpansionProvider readiness={readiness}>
-        <section className="activity-section" aria-label={`${label} 목록`}>
-          <div className="detail-section-head">
+        <section className="flex min-w-0 flex-col gap-6" aria-label={`${label} 목록`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <CollectionHeading
               hideLabel
               label={label}
@@ -343,26 +369,29 @@ export function EntitiesPage() {
             {!invalidType && !selectedType?.archived && types?.some((type) => !type.archived)
               ? <TabCreateButton label={`${selectedType?.label ?? "자료"} 추가`} onClick={create.begin} />
               : types && !typeError && !invalidType && (
-                <Link
-                  className="body-action"
-                  to={selectedType?.archived
-                    ? `/settings/entity-types/${selectedType.id}`
-                    : types.length
-                    ? "/settings/materials"
-                    : "/settings/entity-types"}
-                >
-                  <BodyActionFace icon={types.length ? "view" : "create"}>
-                    {selectedType?.archived ? "종류 설정" : types.length ? "보관된 종류 관리" : "자료 종류 추가"}
-                  </BodyActionFace>
-                </Link>
+                <Button asChild variant="ghost">
+                  <Link
+                    className=""
+                    to={selectedType?.archived
+                      ? `/settings/entity-types/${selectedType.id}`
+                      : types.length
+                      ? "/settings/materials"
+                      : "/settings/entity-types"}
+                  >
+                    <>
+                      {types.length ? <EyeIcon data-icon="inline-start" /> : <PlusIcon data-icon="inline-start" />}
+                      {selectedType?.archived ? "종류 설정" : types.length ? "보관된 종류 관리" : "자료 종류 추가"}
+                    </>
+                  </Link>
+                </Button>
               )}
           </div>
           {error && (
             <>
               <Notice kind="error">{error}</Notice>
               {unsupported && (
-                <button
-                  className="btn"
+                <Button
+                  variant="outline"
                   onClick={() => {
                     resetFilters();
                     setFocusRecoveryApply(true);
@@ -375,35 +404,39 @@ export function EntitiesPage() {
                   }}
                 >
                   조건 초기화
-                </button>
+                </Button>
               )}
               {!page &&
                 (
-                  <button className="btn" onClick={() => void list.retry()}>
+                  <Button variant="outline" onClick={() => void list.retry()}>
                     다시 시도
-                  </button>
+                  </Button>
                 )}
             </>
           )}
-          {!page && (busy || types === null && !typeError) && <p role="status" className="secondary">불러오는 중…</p>}
+          {!page && (busy || types === null && !typeError) && (
+            <p role="status" className="text-sm text-muted-foreground">불러오는 중…</p>
+          )}
           {page?.items.length === 0 && !error && (
             <>
-              <p className="secondary">
+              <p className="text-sm text-muted-foreground">
                 {hasConditions ? "조건에 맞는 자료가 없습니다." : "아직 자료가 없습니다."}
               </p>
               {!hasConditions && <GuideLink />}
               {hasConditions && (
-                <BodyAction
-                  icon="reset"
+                <Button
+                  variant="ghost"
+                  type="button"
                   onClick={() => {
                     const next = resetTabFilters(params);
                     next.delete("keyword");
                     navigate(`/entities?${next}`, { replace: true });
-                    document.querySelector<HTMLInputElement>(".workspace-search input")?.focus();
+                    searchInput.current?.focus();
                   }}
                 >
+                  <RotateCcwIcon data-icon="inline-start" />
                   검색 조건 해제
-                </BodyAction>
+                </Button>
               )}
             </>
           )}
@@ -426,45 +459,47 @@ export function EntitiesPage() {
                 : []}
               columns={displaySchema
                 ? [
-                  "자료",
+                  displaySchema.schema.properties[schemaPresentation(displaySchema).representative].title ??
+                    "자료 이름",
                   ...schemaPresentation(displaySchema).list_columns.filter((key) =>
                     key !== schemaPresentation(displaySchema).representative
                   )
                     .map((key) => displaySchema.schema.properties[key].title ?? key),
                 ]
-                : ["자료", "자료 종류"]}
+                : ["자료 이름", "자료 종류"]}
             >
               {page?.items.map((e) => (
-                <li className="list-item" key={e.id}>
-                  <div className="list-item-main">
-                    <ListPreviewItem
-                      kind="entities"
-                      id={e.id}
-                      title={e.title}
-                      cells={displaySchema
-                        ? schemaPresentation(displaySchema).list_columns.filter((key) =>
-                          key !== schemaPresentation(displaySchema).representative
-                        ).map(
-                          (key) =>
-                            displayedProperty(
-                              displaySchema.schema.properties[key],
-                              e.display_properties[key],
-                              schemaPresentation(displaySchema).option_labels[key],
-                            ),
-                        )
-                        : [
-                          <span key="type">
-                            <EntityTypeIcon id={e.type.icon_id} /> {e.type.label}
-                          </span>,
-                        ]}
-                    />
-                  </div>
-                </li>
+                <CollectionItem className="min-w-0" key={e.id}>
+                  <ListPreviewItem
+                    kind="entities"
+                    id={e.id}
+                    title={e.title}
+                    cells={displaySchema
+                      ? schemaPresentation(displaySchema).list_columns.filter((key) =>
+                        key !== schemaPresentation(displaySchema).representative
+                      ).map(
+                        (key) =>
+                          displayedProperty(
+                            displaySchema.schema.properties[key],
+                            e.display_properties[key],
+                            schemaPresentation(displaySchema).option_labels[key],
+                          ),
+                      )
+                      : [
+                        <span key="type">
+                          <EntityTypeIcon id={e.type.icon_id} /> {e.type.label}
+                        </span>,
+                      ]}
+                  />
+                </CollectionItem>
               ))}
             </CollectionList>
           </TagReadProvider>
           {page && (page.next_cursor || page.pages > 1) && (
-            <BodyAction
+            <Button
+              ref={pageControl}
+              variant="ghost"
+              type="button"
               aria-disabled={busy || !page.next_cursor}
               onClick={() => {
                 if (busy || !page.next_cursor) return;
@@ -483,7 +518,7 @@ export function EntitiesPage() {
               }}
             >
               {busy ? "불러오는 중…" : error ? "다시 시도" : page.next_cursor ? "더 보기" : "모두 불러왔습니다"}
-            </BodyAction>
+            </Button>
           )}
           {creating && !invalidType && !selectedType?.archived && (
             <EntityForm

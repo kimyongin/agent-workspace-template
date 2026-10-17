@@ -1,3 +1,4 @@
+import { executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
@@ -107,7 +108,7 @@ test(
     }).click();
     await expect(page.getByText("작성 후 연결", { exact: true })).toBeVisible();
     await expect(
-      page.locator("dialog[open]").getByRole("combobox", {
+      openDialogs(page).getByRole("combobox", {
         name: "자료 종류",
         exact: true,
       }),
@@ -130,7 +131,7 @@ test(
     }
     await page.getByRole("button", { name: "취소", exact: true }).last()
       .click();
-    const discard = page.locator("dialog.modal-confirm[open]");
+    const discard = shortDialog(page);
     await discard.getByRole("button", { name: /버리|나가기|취소하고/ }).click();
     await expect(section.getByRole("link", { name: "기존 품목", exact: true }))
       .toBeVisible();
@@ -151,12 +152,12 @@ test(
     await page.getByRole("button", { name: "등록하고 저장", exact: true })
       .click();
     await expect(
-      page.locator("dialog.modal-action[open]").getByRole("button", {
+      executionDialog(page).getByRole("button", {
         name: "같은 내용 다시 시도",
         exact: true,
       }),
     ).toBeVisible();
-    await page.locator("dialog.modal-action[open]").getByRole("button", {
+    await executionDialog(page).getByRole("button", {
       name: "같은 내용 다시 시도",
       exact: true,
     }).click();

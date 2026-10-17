@@ -1,9 +1,14 @@
+import { FieldLabel } from "../components/ui/field.tsx";
+import { FieldGroup, FieldSet } from "../components/ui/field.tsx";
+import { PlusIcon } from "lucide-react";
+import { Checkbox } from "../components/ui/checkbox.tsx";
+import { Button } from "../components/ui/button.tsx";
+import { Input } from "../components/ui/input.tsx";
 import { useEffect, useRef, useState } from "react";
-import { BodyAction } from "../components/BodyAction.tsx";
-import { ConfirmDialog, useSurfaceViewport } from "../components/ConfirmDialog.tsx";
+
+import { ConfirmDialog, ConfirmationSurface } from "../components/ConfirmDialog.tsx";
 import { Field } from "../components/Field.tsx";
 import { IssuerRow } from "../features/settings/IssuerRow.tsx";
-import "../features/settings/settings.css";
 
 type NumberKind = { label: string; active: boolean };
 type Source = { label: string; numbers: NumberKind[]; system?: boolean };
@@ -37,25 +42,24 @@ export function IssuerSettingsSample(
   >(null);
   const [message, setMessage] = useState("");
   return (
-    <section className="settings" aria-label="번호 출처 설정 샘플">
-      <header className="page-heading">
-        <Heading className="page-title">번호 설정</Heading>
-        <p className="page-description">
+    <section className="flex min-w-0 flex-col gap-6" aria-label="번호 출처 설정 샘플">
+      <header className="flex min-w-0 flex-col gap-2">
+        <Heading className="text-2xl font-semibold tracking-tight wrap-anywhere">번호 설정</Heading>
+        <p className="text-sm text-muted-foreground">
           번호 출처는 쿠팡·옥션처럼 구분하고, 번호 종류는 상품 번호·주문 번호처럼 용도를 나눕니다.
         </p>
       </header>
-      <div className="material-number-heading">
-        <h2 className="section-title">번호 출처</h2>
-        <BodyAction
-          icon="create"
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">번호 출처</h2>
+        <Button variant="ghost" type="button"
           disabled={!!numberEdit}
           onClick={() => setEditing({})}
-        >
+        ><PlusIcon data-icon="inline-start" />
           번호 출처 추가
-        </BodyAction>
+        </Button>
       </div>
       {message && <p role="status">{message}</p>}
-      <div className="issuer-registry-list">
+      <div className="flex min-w-0 flex-col gap-4">
         {sources.map((source, index) => (
           <IssuerRow
             key={index}
@@ -64,33 +68,31 @@ export function IssuerSettingsSample(
             open={selected === index}
             disabled={!!numberEdit}
             action={source.system ? undefined : selected !== index ? <span /> : (
-              <BodyAction
+              <Button variant="ghost" type="button"
                 disabled={!!numberEdit}
                 onClick={() => setEditing({ editSource: index })}
               >
                 출처 편집
-              </BodyAction>
+              </Button>
             )}
             onToggle={() => setSelected(selected === index ? null : index)}
           >
-            {source.numbers.length === 0 && <p className="secondary">등록된 번호 종류가 없습니다.</p>}
-            <div className="issuer-rule-list">
+            {source.numbers.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
+            <div className="flex min-w-0 flex-col gap-4">
               {source.numbers.map((number, numberIndex) => {
                 const expanded = numberEdit?.source === index &&
                   numberEdit.number === numberIndex;
                 return (
-                  <div className="issuer-number-entry" key={numberIndex}>
-                    <div className="issuer-rule-row issuer-rule-summary">
-                      <div>
-                        <span className="item-title">{number.label}</span>
-                        <span className="secondary">
-                          {source.system ? "자동 생성" : "직접 입력"}
-                          {!number.active && " · 사용 중지"}
-                        </span>
-                      </div>
+                  <div className="flex min-w-0 flex-col gap-4" key={numberIndex}>
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                      {!expanded && <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere min-w-0 flex-1">
+                        <div><dt>번호 종류 이름</dt><dd>{number.label}</dd></div>
+                        <div><dt>입력 방식</dt><dd>{source.system ? "자동 생성" : "직접 입력"}</dd></div>
+                        <div><dt>사용</dt><dd>{number.active ? "사용 중" : "사용 중지"}</dd></div>
+                      </dl>}
                       {!source.system && (
-                        <BodyAction
-                          className="issuer-rule-toggle"
+                        <Button variant="ghost" type="button"
+                          className="self-start"
                           aria-label={`${number.label} 편집`}
                           aria-expanded={expanded}
                           disabled={!!numberEdit}
@@ -101,7 +103,7 @@ export function IssuerSettingsSample(
                             })}
                         >
                           편집
-                        </BodyAction>
+                        </Button>
                       )}
                     </div>
                     {expanded && (
@@ -142,19 +144,18 @@ export function IssuerSettingsSample(
             </div>
             {!source.system && (
               <div>
-                <BodyAction
-                  icon="create"
+                <Button variant="ghost" type="button"
                   disabled={!!numberEdit}
                   onClick={() => setEditing({ source: index })}
-                >
+                ><PlusIcon data-icon="inline-start" />
                   번호 종류 추가
-                </BodyAction>
+                </Button>
               </div>
             )}
           </IssuerRow>
         ))}
       </div>
-      <p className="secondary">
+      <p className="text-sm text-muted-foreground">
         실제 상품 번호·주문 번호 값은 각 자료에 입력합니다.
       </p>
       {editing && (
@@ -204,63 +205,25 @@ function SampleCreation({ source, created, initialLabel, onClose, onSave }: {
   onClose: () => void;
   onSave: (label: string) => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const [label, setLabel] = useState(initialLabel ?? "");
   const [discard, setDiscard] = useState(false);
-  useSurfaceViewport(dialog);
-  useEffect(() => {
-    const entry = document.activeElement as HTMLElement, node = dialog.current;
-    node?.showModal();
-    node?.querySelector<HTMLInputElement>("input")?.focus();
-    return () => {
-      node?.close();
-      if (entry?.isConnected) entry.focus();
-    };
-  }, []);
   const close = () => label !== (initialLabel ?? "") ? setDiscard(true) : onClose();
   return (
     <>
-      <dialog
-        ref={dialog}
-        className="modal"
-        aria-labelledby="issuer-sample-title"
-        aria-describedby="issuer-sample-description"
-        onCancel={(e) => {
-          e.preventDefault();
-          close();
-        }}
-      >
-        <div className="modal-inner">
-          <header className="modal-head">
-            <h2 id="issuer-sample-title" className="dialog-title">
-              {initialLabel !== undefined ? "번호 출처 편집" : source ? "번호 종류 추가" : "번호 출처 추가"}
-            </h2>
-            <button
-              type="button"
-              className="btn btn-text modal-icon"
-              aria-label="닫기"
-              onClick={close}
-            >
-              ×
-            </button>
-            <p id="issuer-sample-description" className="page-description">
-              {source
-                ? "이 번호 출처에서 쓰는 번호 종류의 이름을 정합니다."
-                : "자료 번호를 발급하는 곳의 이름을 정합니다."}
-            </p>
-          </header>
-          <div className="modal-body">
+      <ConfirmationSurface open title={initialLabel !== undefined ? "번호 출처 편집" : source ? "번호 종류 추가" : "번호 출처 추가"}
+        onCancel={close} closeButton footer={<><Button type="button" variant="outline" onClick={close}>{created ? "나중에 추가" : "취소"}</Button><Button type="submit" form="issuer-sample-form" disabled={!label.trim()}>{source || initialLabel !== undefined ? "저장" : "저장하고 번호 추가"}</Button></>}>
+        <p className="mb-4 text-sm text-muted-foreground">{source ? "이 번호 출처에서 쓰는 번호 종류의 이름을 정합니다." : "자료 번호를 발급하는 곳의 이름을 정합니다."}</p>
             <form
-              className="form"
+              className="flex min-w-0 flex-col gap-5"
               id="issuer-sample-form"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (label.trim()) onSave(label.trim());
               }}
-            >
-              {source && <p className="item-title">{source}</p>}
+            ><FieldGroup>
+              {source && <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>번호 출처</dt><dd>{source}</dd></div></dl>}
               {created && (
-                <p className="secondary" role="status">
+                <p className="text-sm text-muted-foreground" role="status">
                   번호 출처를 저장했습니다.
                 </p>
               )}
@@ -269,32 +232,16 @@ function SampleCreation({ source, created, initialLabel, onClose, onSave }: {
                 required
               >
                 {(props) => (
-                  <input
+                  <Input
                     {...props}
-                    className="input"
                     required
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
                   />
                 )}
               </Field>
-            </form>
-          </div>
-          <footer className="modal-foot">
-            <button type="button" className="btn" onClick={close}>
-              {created ? "나중에 추가" : "취소"}
-            </button>
-            <button
-              type="submit"
-              form="issuer-sample-form"
-              className="btn btn-primary"
-              disabled={!label.trim()}
-            >
-              {source || initialLabel !== undefined ? "저장" : "저장하고 번호 추가"}
-            </button>
-          </footer>
-        </div>
-      </dialog>
+            </FieldGroup></form>
+      </ConfirmationSurface>
       <ConfirmDialog
         open={discard}
         title="변경을 버릴까요?"
@@ -324,69 +271,63 @@ function SampleNumberEditor(
   }, []);
   return (
     <form
-      className="issuer-rule-editor"
+      className="flex min-w-0 flex-col gap-4"
       aria-label="번호 종류 편집"
       onSubmit={(event) => {
         event.preventDefault();
         onSave(draft);
       }}
-    >
-      <fieldset className="settings-fields">
+    ><FieldGroup>
+      <FieldSet className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
         <Field label="번호 종류 이름" required>
           {(props) => (
-            <input
+            <Input
               {...props}
               ref={input}
-              className="input"
               required
               value={draft.label}
               onChange={(event) => setDraft({ ...draft, label: event.target.value })}
             />
           )}
         </Field>
-        <div className="issuer-input-method">
-          <span className="label">입력 방식</span>
-          <span>직접 입력</span>
-        </div>
-        <label className="issuer-status-choice">
-          <input
-            type="checkbox"
+        <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>입력 방식</dt><dd>직접 입력</dd></div></dl>
+        <FieldLabel className="min-h-11 w-full flex-wrap items-center gap-3">
+          <Checkbox
+
             checked={draft.active}
-            onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
+            onCheckedChange={(checked) => setDraft({ ...draft, active: (checked === true) })}
           />{" "}
           사용
-        </label>
-        <p className="help">사용을 중지해도 기존 자료의 번호는 유지됩니다.</p>
-      </fieldset>
-      <div className="issuer-rule-editor-actions">
-        <BodyAction danger onClick={() => setConfirm("delete")}>
+        </FieldLabel>
+        <p className="text-sm text-muted-foreground">사용을 중지해도 기존 자료의 번호는 유지됩니다.</p>
+      </FieldSet>
+      <div className="flex min-w-0 flex-col gap-4-actions">
+        <Button variant="destructive" type="button"  onClick={() => setConfirm("delete")}>
           번호 종류 삭제
-        </BodyAction>
+        </Button>
         <div>
-          <button
-            className="btn"
+          <Button variant="outline"
             type="button"
             onClick={() => dirty ? setConfirm("discard") : onClose()}
           >
             취소
-          </button>
-          <button
-            className="btn btn-primary"
+          </Button>
+          <Button variant="default"
             disabled={!dirty || !draft.label.trim()}
           >
             저장
-          </button>
+          </Button>
         </div>
       </div>
       <ConfirmDialog
         open={!!confirm}
         title={confirm === "delete" ? "번호 종류를 삭제할까요?" : "변경을 버릴까요?"}
-        message={confirm === "delete" ? `${number.label}을 삭제합니다.` : "저장하지 않은 내용이 사라집니다."}
+        message={confirm === "delete" ? <><dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>대상</dt><dd>{number.label}</dd></div></dl><p>예시 번호 종류를 삭제합니다.</p></> : "저장하지 않은 내용이 사라집니다."}
         confirmLabel={confirm === "delete" ? "삭제" : "변경 버리기"}
         danger={confirm === "delete"}
         onCancel={() => setConfirm(null)}
         onConfirm={() => confirm === "delete" ? onDelete() : onClose()}
       />
-    </form>
+    </FieldGroup></form>
   );
 }

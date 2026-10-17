@@ -1,6 +1,10 @@
+import { Button } from "../../components/ui/button.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { useEffect, useRef, useState } from "react";
 import { APP_IDENTIFIER_RULE_ID, type EntityTypeIdentity, type IdentityDefaultType } from "@contracts/entity-issuer.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { Field } from "../../components/Field.tsx";
 import { typeIdentityPort } from "./issuer-registry-api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -83,16 +87,16 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
     }
   };
   return (
-    <div className="settings-fields">
-      {error && <p role="alert" className="error-text">{error}</p>}
-      {!identity && !error && <p role="status">불러오는 중…</p>}
+    <FieldGroup className="min-w-0">
+      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {!identity && !error && <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert>}
       {identity && (
         <Field label={`${type.label} 기본 번호 출처`}>
           {(props) => (
-            <select
+            <NativeSelect
               {...props}
               ref={choice}
-              className="input"
+
               value={source}
               disabled={busy || uncertain}
               onChange={(e) => {
@@ -100,21 +104,21 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
                 attempt.reset();
               }}
             >
-              <option value="">선택하세요</option>
-              {choices.map((s) => <option key={s.code} value={s.code}>{s.source_label} · {s.rule_label}</option>)}
-            </select>
+              <NativeSelectOption value="">선택하세요</NativeSelectOption>
+              {choices.map((s) => <NativeSelectOption key={s.code} value={s.code}>{s.source_label} · {s.rule_label}</NativeSelectOption>)}
+            </NativeSelect>
           )}
         </Field>
       )}
       {identity && choices.length === 0 && (
-        <p role="status">다른 활성 번호 출처가 없습니다. 자료 설정에서 번호 출처를 연결한 뒤 다시 시도하세요.</p>
+        <Alert role="status"><AlertDescription>다른 활성 번호 출처가 없습니다. 자료 설정에서 번호 출처를 연결한 뒤 다시 시도하세요.</AlertDescription></Alert>
       )}
-      <div className="settings-inline-actions">
-        <BodyAction disabled={!source || busy} onClick={() => void save()}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="ghost" type="button" disabled={!source || busy} onClick={() => void save()}>
           {uncertain ? "같은 요청 다시 확인" : busy ? "저장 중…" : "기본 번호 출처 변경"}
-        </BodyAction>
+        </Button>
         {error && !uncertain && (
-          <BodyAction
+          <Button variant="ghost" type="button"
             disabled={busy}
             onClick={() => {
               setIdentity(null);
@@ -123,9 +127,9 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
             }}
           >
             다시 조회
-          </BodyAction>
+          </Button>
         )}
       </div>
-    </div>
+    </FieldGroup>
   );
 }

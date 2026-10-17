@@ -1,7 +1,14 @@
+import { RotateCcwIcon, EyeIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select";
+import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
+import { FieldSet } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { TemplateMemoEditor, type TemplateMemoHandle } from "./TemplateMemoEditor.tsx";
 import { changedTemplateActions, templateFieldTarget } from "./record-template-actions.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -103,6 +110,7 @@ function RecordTemplateForm({
     >
   >;
 }) {
+  const [variableQuery, setVariableQuery] = useState("");
   const { draft, dirty, busy, conflict, uncertain, latestReady } = editor;
   const saved = editor.saved?.settings;
   const setDraft = editor.resource.edit;
@@ -254,23 +262,23 @@ function RecordTemplateForm({
   const schemaUnavailable = model === "entity" && !!typeId && !schema;
   const title = "기록 자동 완성";
   return (
-    <section className={materialResource ? "material-record-template" : "settings-section"} aria-label={title}>
-      {!materialResource && !selectedModel && <h2 className="settings-section-title">{title}</h2>}
+    <section className={materialResource ? "min-w-0" : "flex min-w-0 flex-col gap-4"} aria-label={title}>
+      {!materialResource && !selectedModel && <h2 className="text-base font-semibold">{title}</h2>}
       {!saved && (
         <>
-          <p role={message ? "alert" : "status"}>
+          <Alert role={message ? "alert" : "status"}><AlertDescription>
             {message || "설정을 읽는 중…"}
-          </p>
+          </AlertDescription></Alert>
           {message && (
-            <BodyAction icon="reset" type="button" disabled={busy} onClick={() => void read()}>
+            <Button variant="ghost"  type="button" disabled={busy} onClick={() => void read()}><RotateCcwIcon data-icon="inline-start" />
               다시 시도
-            </BodyAction>
+            </Button>
           )}
         </>
       )}
       {saved && (
         <form
-          className="form"
+          className="flex min-w-0 flex-col gap-5"
           aria-label={title}
           aria-busy={busy}
           onSubmit={async (event) => {
@@ -299,7 +307,7 @@ function RecordTemplateForm({
             <Notice kind="error">
               삭제된 기본 기록 태그 {missing.length}개를 정리해야 합니다. {materialResource &&
                 "정리는 현재 설정 범위에만 적용합니다. 다른 종류나 모델의 오류는 해당 설정에서 정리하세요."}{" "}
-              <BodyAction
+              <Button variant="ghost"
                 type="button"
                 disabled={busy}
                 onClick={() => {
@@ -309,87 +317,67 @@ function RecordTemplateForm({
                 }}
               >
                 삭제된 태그 정리
-              </BodyAction>
+              </Button>
             </Notice>
           )}
-          <fieldset
+          <FieldSet
             disabled={busy || uncertain}
-            className="form plain-fieldset"
+            className="flex min-w-0 flex-col gap-5 border-0 p-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
           >
-            <div className="field-row">
+            <>
               {!materialResource && !selectedModel && (
                 <Field label="대상">
                   {(props) => (
-                    <select
-                      {...props}
-                      className="input"
-                      value={model}
-                      onChange={(event) => {
-                        const next = event.target.value as TemplateModel;
+                    <Select value={model} onValueChange={(value) => {
+                        const next = value as TemplateModel;
                         setModel(next);
                         if (!modelActions(next).includes(action)) {
                           setAction("create");
                         }
-                      }}
-                    >
+                      }} disabled={busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                       {TEMPLATE_MODELS.filter((key) => key !== "entity").map((key) => (
-                        <option key={key} value={key}>
+                        <SelectItem key={key} value={key}>
                           {templateModelNames[key]}
-                        </option>
+                        </SelectItem>
                       ))}
-                    </select>
+                    </SelectGroup></SelectContent></Select>
                   )}
                 </Field>
               )}
               <Field label="액션">
                 {(props) => (
-                  <select
-                    {...props}
-                    className="input"
-                    value={action}
-                    onChange={(event) => setAction(event.target.value as TemplateAction)}
-                  >
+                  <Select value={action} onValueChange={(value) => setAction(value as TemplateAction)} disabled={busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                     {modelActions(model).map((key) => (
-                      <option key={key} value={key}>
+                      <SelectItem key={key} value={key}>
                         {templateActionNames[key]}
                         {actionHasError(key) ? " · 오류" : changes.includes(key) ? " · 미저장" : ""}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
+                  </SelectGroup></SelectContent></Select>
                 )}
               </Field>
-            </div>
+            </>
             {model === "entity" && (
               <>
                 {typeError && !materialResource && (
                   <Notice kind="error">
                     자료 종류를 읽지 못했습니다.{" "}
-                    <BodyAction icon="reset" type="button" onClick={retryTypes}>
+                    <Button variant="ghost"  type="button" onClick={retryTypes}><RotateCcwIcon data-icon="inline-start" />
                       다시 시도
-                    </BodyAction>
+                    </Button>
                   </Notice>
                 )}
               </>
             )}
             <Field label="변수 삽입">
               {(props) => (
-                <select
-                  {...props}
-                  className="input"
-                  disabled={schemaUnavailable}
-                  value=""
-                  onChange={(event) => {
-                    text.current?.insert(event.target.value);
-                  }}
-                >
-                  <option value="" disabled>변수를 선택하세요</option>
-                  {variables.map((variable) => (
-                    <option key={variable.value} value={variable.value}>{variable.label}</option>
-                  ))}
-                </select>
+                <Combobox<(typeof variables)[number]> items={variables} value={null} inputValue={variableQuery} onInputValueChange={setVariableQuery} itemToStringLabel={variable => variable.label} onValueChange={variable => { if(variable) text.current?.insert(variable.value); setVariableQuery(""); }} disabled={schemaUnavailable || busy || uncertain}>
+                  <ComboboxInput {...props} placeholder="변수를 선택하세요" /><ComboboxContent finalFocus={false}><ComboboxEmpty>일치하는 변수가 없습니다.</ComboboxEmpty><ComboboxList>{variable => <ComboboxItem key={variable.value} value={variable}>{variable.label}</ComboboxItem>}</ComboboxList></ComboboxContent>
+                </Combobox>
               )}
             </Field>
             <Field
+              fullWidth
               label="메모 템플릿"
               help={schemaUnavailable
                 ? undefined
@@ -402,16 +390,16 @@ function RecordTemplateForm({
                     ? (
                       <Notice kind="error">
                         입력 항목 정의를 읽지 못했습니다.{" "}
-                        <BodyAction
-                          icon="reset"
+                        <Button variant="ghost" type="button"
+
                           aria-label="입력 항목 정의 다시 조회"
                           onClick={() => setSchemaAttempt((value) => value + 1)}
-                        >
+                        ><RotateCcwIcon data-icon="inline-start" />
                           다시 시도
-                        </BodyAction>
+                        </Button>
                       </Notice>
                     )
-                    : <p role="status">입력 항목 정의를 읽는 중…</p>
+                    : <Alert role="status"><AlertDescription>입력 항목 정의를 읽는 중…</AlertDescription></Alert>
                   : (
                     <TemplateMemoEditor
                       key={`${model}:${typeId}:${action}`}
@@ -427,59 +415,62 @@ function RecordTemplateForm({
               )}
             </Field>
             {model === "entity" && !usingDefault && !schemaUnavailable && (
-              <div className="record-template-defaults">
-                <BodyAction icon="reset" onClick={() => setValue({ memo: null })}>
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                <Button variant="ghost" type="button"  onClick={() => setValue({ memo: null })}><RotateCcwIcon data-icon="inline-start" />
                   기본 문구로 되돌리기
-                </BodyAction>
+                </Button>
               </div>
             )}
 
-            <TagPicker
-              label="기본 기록 태그"
-              scope="record"
-              value={value.tag_ids}
-              onChange={(tag_ids) => setValue({ tag_ids })}
-            />
+            <div className="min-w-0 col-span-full">
+              <TagPicker
+                disabled={busy || uncertain}
+                label="기본 기록 태그"
+                scope="record"
+                value={value.tag_ids}
+                onChange={(tag_ids) => setValue({ tag_ids })}
+              />
+            </div>
             {Object.entries(errors).filter(([key]) => key !== `${path}.memo`).map(([key, error]) => {
               const target = templateFieldTarget(key);
               const canOpen = target &&
                 (!materialResource || target.model === model && (model !== "entity" || target.typeId === typeId));
               return (
-                <p className="error-text" key={key} role="alert">
+                <Alert variant="destructive" className="text-sm text-destructive" key={key} role="alert"><AlertDescription>
                   {target ? `${templateActionNames[target.action]}: ` : "설정: "}
                   {error} {canOpen && target.action !== action && (
-                    <BodyAction
-                      icon="view"
+                    <Button variant="ghost"
+
                       type="button"
                       onClick={() => {
                         setModel(target.model);
                         setAction(target.action);
                         requestAnimationFrame(() => text.current?.focus());
                       }}
-                    >
+                    ><EyeIcon data-icon="inline-start" />
                       오류 항목 보기
-                    </BodyAction>
+                    </Button>
                   )}
-                </p>
+                </AlertDescription></Alert>
               );
             })}
-          </fieldset>
-          <p role="status">{message}</p>
+          </FieldSet>
+          <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>
           {conflict && (
-            <BodyAction icon="reset" type="button" onClick={() => void read()}>
+            <Button variant="ghost"  type="button" onClick={() => void read()}><RotateCcwIcon data-icon="inline-start" />
               최신값 확인
-            </BodyAction>
+            </Button>
           )}
-          <div className="settings-section-footer">
+          <div className="flex flex-col gap-3 pt-4">
             {changes.length > 0 && (
-              <p className="secondary" aria-label="저장할 변경">
+              <p className="text-sm text-muted-foreground" aria-label="저장할 변경">
                 변경: {changes.map((key) => templateActionNames[key]).join(" · ")}
               </p>
             )}
-            <div className="actions">
-              <button
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="outline"
                 type="button"
-                className="btn"
+
                 disabled={busy || uncertain || (conflict ? !latestReady : !dirty)}
                 aria-label={conflict ? "최신값으로 다시 편집" : "변경 취소"}
                 onClick={() => {
@@ -489,15 +480,15 @@ function RecordTemplateForm({
                 }}
               >
                 {conflict ? "최신값으로 다시 편집" : "취소"}
-              </button>
-              <button
+              </Button>
+              <Button variant="default"
                 type="submit"
-                className="btn btn-primary"
+
                 disabled={busy || !dirty || conflict || schemaUnavailable}
                 aria-label={busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 자동 완성 저장"}
               >
                 {busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}
-              </button>
+              </Button>
             </div>
           </div>
         </form>

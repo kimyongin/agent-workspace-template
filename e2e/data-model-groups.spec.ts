@@ -1,8 +1,9 @@
+import { openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import { readFileSync } from "node:fs";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 import type { DataModelDocument } from "../supabase/functions/_shared/contracts/data-model.ts";
 
@@ -31,6 +32,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     initial.entity_types = initial.entity_types.slice(0, 2);
     initial.relations = [];
     for (const t of initial.entity_types) {
+      if (typeof t.schema.title !== "string") throw new Error("initial model fixture type requires a title");
       t.schema.title = unique(t.schema.title);
       t.schema.properties.prop_2 = { type: "string", title: "수량", "x-order": 20 };
     }
@@ -87,9 +89,12 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     expect(accepted.status).toBe("queued");
     expect((await mcp.call("get_data_model_change", { id: change.id })).group.children).toHaveLength(2);
     for (const entity of entities) expect((await mcp.call("get_entity", { id: entity.id })).schema_version).toBe(1);
-    await page.getByRole("link", { name: "할 일", exact: true }).click();
+    await openMainNavigation(page);
+    const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
+    await expect(tasksLink).toHaveAttribute("href", "/tasks");
+    await tasksLink.click();
     await expect(page).toHaveURL(/\/tasks(?:[?#]|$)/);
-    const origin = new URL(env.VITE_SUPABASE_URL);
+    const origin = new URL(requiredEnv("VITE_SUPABASE_URL"));
     expect(["127.0.0.1", "localhost"]).toContain(origin.hostname);
     expect(origin.protocol).toBe("http:");
     runner = spawn(process.execPath, [
@@ -110,12 +115,12 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
       expect(current.properties.prop_2).toBe(index + 8);
     }
     await page.goto("/settings/data-model");
-    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toContainText("전체 적용 완료");
+    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toHaveAccessibleName(/설정 적용 완료/);
     await page.getByRole("button", { name: new RegExp(target.title) }).click();
     await expect(page.getByRole("region", { name: target.title, exact: true }).getByText("적용 완료", { exact: true }))
       .toBeVisible();
     await page.reload();
-    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toContainText("전체 적용 완료");
+    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toHaveAccessibleName(/설정 적용 완료/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
     await stopWorker(runner);

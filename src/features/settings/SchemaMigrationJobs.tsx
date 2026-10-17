@@ -1,4 +1,9 @@
-import { BodyAction } from "../../components/BodyAction.tsx";
+import { RotateCcwIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+
+import { Button } from "../../components/ui/button.tsx";
+
 import { materialSettingsPath } from "./material-settings-path.ts";
 import { type MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -64,15 +69,15 @@ export function MigrationStart(
     }
   };
   return (
-    <div className="schema-actions">
-      <button
-        className="btn btn-primary"
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button variant="default"
+
         disabled={busy || (!uncertain && (disabled || !plan.executable))}
         onClick={() => void start()}
       >
         {busy ? "접수 중…" : uncertain ? "같은 접수 요청 다시 확인" : "값 변환 시작"}
-      </button>
-      {error && <p role="alert" className="error-text">{error} 작업 목록에서 접수 여부를 확인할 수 있습니다.</p>}
+      </Button>
+      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error} 작업 목록에서 접수 여부를 확인할 수 있습니다.</AlertDescription></Alert>}
     </div>
   );
 }
@@ -340,23 +345,32 @@ export function SchemaMigrationJob(
     }
   };
   return (
-    <section aria-label="값 변환 상세" className="schema-job-detail">
-      <h3 className="section-title">값 변환</h3>
-      <p className="secondary">
+    <section aria-label="값 변환 상세" className="flex min-w-0 flex-col gap-4">
+      <h3 className="text-base font-semibold">값 변환</h3>
+      <p className="text-sm text-muted-foreground">
         접수한 작업은 화면을 닫거나 다른 페이지로 이동해도 계속됩니다. 다시 열면 서버의 확정 상태를 조회합니다.
       </p>
-      {(error || publicationError) && <p role="alert" className="error-text">{error || publicationError}</p>}
-      <BodyAction icon="reset" onClick={() => setRefresh((n) => n + 1)}>상태 다시 조회</BodyAction>
+      {(error || publicationError) && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error || publicationError}</AlertDescription></Alert>}
+      <Button variant="ghost" type="button"  onClick={() => setRefresh((n) => n + 1)}><RotateCcwIcon data-icon="inline-start" />상태 다시 조회</Button>
       {publicationError && (
-        <BodyAction icon="reset" onClick={() => setRefresh((n) => n + 1)}>
+        <Button variant="ghost" type="button"  onClick={() => setRefresh((n) => n + 1)}><RotateCcwIcon data-icon="inline-start" />
           최신 입력 항목 다시 조회
-        </BodyAction>
+        </Button>
       )}
       {job && (
         <>
-          <p role="status">{migrationLabels[job.status]} · {job.processed}/{job.total}개 준비</p>
+          <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3" role="status">
+            <div>
+              <dt>상태</dt>
+              <dd>{migrationLabels[job.status]}</dd>
+            </div>
+            <div>
+              <dt>준비한 자료</dt>
+              <dd>{job.processed}/{job.total}개 준비</dd>
+            </div>
+          </dl>
           {migrationActive(job) && (
-            <progress aria-label="값 변환 진행률" max={Math.max(job.total, 1)} value={job.processed} />
+            <Progress aria-label="값 변환 진행률" value={job.processed / Math.max(job.total, 1) * 100} aria-valuetext={`${job.processed}/${job.total}개`} />
           )}
           {migrationActive(job) && (
             <p>
@@ -366,16 +380,36 @@ export function SchemaMigrationJob(
           )}
           {job.status === "committing" && <p>최종 적용 중입니다. 취소 대신 확정 결과를 확인하세요.</p>}
           {job.result && (
-            <p>새 입력 항목 버전 {job.result.schema_version} · {job.result.total}개 적용 · {job.result.changed}개 값 변경</p>
+            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+              <div>
+                <dt>새 입력 항목 버전</dt>
+                <dd>{job.result.schema_version}</dd>
+              </div>
+              <div>
+                <dt>적용</dt>
+                <dd>{job.result.total}개 적용</dd>
+              </div>
+              <div>
+                <dt>값 변경</dt>
+                <dd>{job.result.changed}개 값 변경</dd>
+              </div>
+            </dl>
           )}
           {job.status !== "succeeded" && job.source_expires_at && (
-            <p>원본 보존 만료: {new Date(job.source_expires_at).toLocaleString()}</p>
+            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+              <div>
+                <dt>원본 보존 만료</dt>
+                <dd>
+                  <time dateTime={job.source_expires_at}>{new Date(job.source_expires_at).toLocaleString()}</time>
+                </dd>
+              </div>
+            </dl>
           )}
           {job.status === "failed" && (
-            <p role="alert" className="error-text">
+            <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>
               {job.failure_reason} · 기존 자료와 입력 항목 정의가 유지됩니다.{" "}
               {job.retryable ? "같은 작업을 재시도할 수 있습니다." : "변경안과 최신 분석을 다시 준비하세요."}
-            </p>
+            </AlertDescription></Alert>
           )}
           {job.status === "cancelled" && (
             <p>값 변환을 취소했습니다. 원본은 유지됩니다. 새 분석을 준비하여 실행하세요.</p>
@@ -386,33 +420,33 @@ export function SchemaMigrationJob(
             onState={setRecoveryState}
             disabled={disabled || busy || uncertain}
           />
-          <div className="schema-actions">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {["queued", "preparing", "ready_to_commit"].includes(job.status) && (
-              <button
-                className="btn"
+              <Button variant="outline"
+
                 disabled={busy || uncertain || disabled}
                 onClick={() => void write("cancel")}
               >
                 변환 취소
-              </button>
+              </Button>
             )}
             {job.status === "failed" && job.retryable && (
-              <button
-                className="btn btn-primary"
+              <Button variant="default"
+
                 disabled={busy || uncertain || disabled}
                 onClick={() => void write("retry")}
               >
                 같은 작업 재시도
-              </button>
+              </Button>
             )}
             {uncertain && pendingAction && (
-              <button
-                className="btn"
+              <Button variant="outline"
+
                 disabled={busy}
                 onClick={() => void write(pendingAction)}
               >
                 같은 요청 다시 확인
-              </button>
+              </Button>
             )}
           </div>
         </>

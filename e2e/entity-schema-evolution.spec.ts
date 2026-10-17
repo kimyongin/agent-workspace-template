@@ -1,11 +1,12 @@
+import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·이전 폼 충돌이 같은 정의를 사용한다", async ({ page, context }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
-  const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+  const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   let typeId: string | undefined;
   const entityIds: string[] = [];
   try {
@@ -37,7 +38,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
       "자료 이름",
     );
     await page.getByRole("button", { name: /^변경 이력/ }).click();
-    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "자료 이름 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true }),
     ).toHaveValue("자료 이름");
@@ -107,9 +108,9 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     expect(current.properties).not.toHaveProperty("prop_2");
     await oldForm.getByRole("button", { name: "저장", exact: true }).click();
     await expect(
-      oldPage.locator("dialog.modal-action[open]").getByRole("alert"),
+      executionDialog(oldPage).getByRole("alert"),
     ).toBeVisible();
-    await oldPage.locator("dialog.modal-action[open]").getByRole("button", {
+    await executionDialog(oldPage).getByRole("button", {
       name: "취소",
       exact: true,
     }).click();
@@ -124,17 +125,24 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     });
     entityIds.push(created.id);
     expect(created.properties.prop_2).toBe(0);
+    const assertCurrentProperties = async (title: string, quantity: string) => {
+      const viewer = detailDialog(page);
+      await expect(viewer.getByRole("heading", { name: title, exact: true })).toHaveText(title);
+      // The representative label now belongs to the same schema-driven definition list as other properties.
+      await expect(viewer.getByRole("term").filter({ hasText: /^이름$/ })).toHaveCount(0);
+      const representative = viewer.getByRole("term").filter({ hasText: /^자료 이름$/ });
+      await expect(representative).toHaveCount(1);
+      await expect(representative.locator("..").getByRole("definition")).toHaveText(title);
+      const count = viewer.getByRole("term").filter({ hasText: /^수량$/ });
+      await expect(count).toHaveCount(1);
+      await expect(count.locator("..").getByRole("definition")).toHaveText(quantity);
+    };
     await page.goto(`/entities/${encodeURIComponent(existing.id)}`);
-    await expect(page.locator(".detail-title")).toHaveText(existing.title);
-    await expect(page.getByText("자료 이름", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("수량", { exact: true })).toBeVisible();
-    await expect(page.getByText("미입력", { exact: true })).toBeVisible();
+    await assertCurrentProperties(existing.title, "미입력");
     await page.goto(`/entities/${encodeURIComponent(created.id)}`);
-    await expect(page.locator(".detail-title")).toHaveText(created.title);
-    await expect(page.getByText("자료 이름", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("0", { exact: true })).toBeVisible();
+    await assertCurrentProperties(created.title, "0");
     await page.goto(`/settings/entity-types/${typeId}/versions`);
-    const initialVersion = page.locator(".schema-history-row").filter({
+    const initialVersion = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
     });
     await initialVersion.getByRole("button", { name: /버전 2 · 적용됨$/ })
@@ -187,7 +195,7 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     });
     await page.goto(`/settings/entity-types/${type.id}/migrations?change_id=${change.id}`);
     await page.getByRole("button", { name: "폐기", exact: true }).click();
-    const confirm = page.getByRole("dialog", { name: "변경안을 폐기할까요?", exact: true });
+    const confirm = page.getByRole("alertdialog", { name: "변경안을 폐기할까요?", exact: true });
     await confirm.getByRole("button", { name: "취소", exact: true }).click();
     expect((await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: change.id })).status).toBe(
       "draft",
@@ -205,7 +213,11 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     ]);
     expect((await mcp.call("get_entity_schema", { type_id: type.id })).schema_version).toBe(1);
     await page.reload();
-    await expect(page.getByText("폐기됨", { exact: true }).first()).toBeVisible();
+    const discarded = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({
+      has: page.locator(`a[href*="change_id=${change.id}"]`),
+    });
+    await expect(discarded).toHaveCount(1);
+    await expect(discarded.getByRole("button", { name: /상태 폐기됨$/ })).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await expect(page.getByRole("list", { name: "입력 항목 목록", exact: true }).getByRole("listitem"))

@@ -1,90 +1,115 @@
+import { Item, ItemContent, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Button } from "../../components/ui/button.tsx";
+import { PlusIcon } from "lucide-react";
 import { useDetailResource } from "../details/useDetailResource.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { RelatedRecords } from "./RelatedRecords.tsx";
-import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
+import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
-import { taskLabels } from "@contracts/task.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
-import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
+import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
-import { MarkdownContent } from "../../components/MarkdownContent.tsx";
-import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
+import { TaskDataFields } from "./TaskDataFields.tsx";
+import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { addDays, todayIn } from "../../lib/format.ts";
-import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom } from "./forms.tsx";
-import { OccurrenceBadge, StatusBadge } from "./shared.tsx";
-import {TagNames} from "../tags/TagPicker.tsx";
-import {TaskEntityRelations} from "../entity/TaskEntityRelations.tsx";
-
-const WEEKDAY_NAMES = ["", "월", "화", "수", "목", "금", "토", "일"];
-
-function describeRecurrence(t: TaskResult): string {
-  const r = t.recurrence;
-  if (!r) return "—";
-  const rule = r.freq === "daily"
-    ? "매일"
-    : r.freq === "weekly"
-    ? `매주 ${r.weekdays.map((d) => WEEKDAY_NAMES[d]).join("·")}`
-    : `매월 ${r.month_days.join("·")}일`;
-  return `${rule}, ${r.starts_on}부터 (${t.timezone})`;
-}
+import { emptyRecord, RecordFormModal, taskDraftFrom, TaskFormModal } from "./forms.tsx";
+import { OccurrenceBadge } from "./shared.tsx";
+import { TagConnections } from "../tags/TagConnections.tsx";
+import { TaskEntityRelations } from "../entity/TaskEntityRelations.tsx";
 
 type Dialog = null | "complete" | "record" | "transition" | { occurrence: string };
 function requestedDialog(params: URLSearchParams): Dialog {
-
   const action = params.get("action");
-  return action === "complete" || action === "transition" || action === "record" ? action : params.has("occurrence") ? { occurrence: params.get("occurrence")! } : null;
+  return action === "complete" || action === "transition" || action === "record"
+    ? action
+    : params.has("occurrence")
+    ? { occurrence: params.get("occurrence")! }
+    : null;
 }
 
 export function TaskDetailPage() {
-  const { formatDateTime, timezone } = useDisplayTime();
+  const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
-  const back=useDetailOwnerReturn(`/tasks${query({kind:params.get("kind"),status:params.get("status"),tag_id:params.get("tag_id"),entity_id:params.get("entity_id")})}`);
-  const deleteBack=useDetailDeleteReturn(back);
+  const back = useDetailOwnerReturn(
+    `/tasks${
+      query({
+        kind: params.get("kind"),
+        status: params.get("status"),
+        tag_id: params.get("tag_id"),
+        entity_id: params.get("entity_id"),
+      })
+    }`,
+  );
+  const deleteBack = useDetailDeleteReturn(back);
   const navigate = useDetailNavigate();
   const navigateAfterClose = useDeferredNavigation();
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const relationSaved=useRef(false);
+  const relationSaved = useRef(false);
   const directEdit = params.get("edit") === "1";
   const [dialog, setDialog] = useState<Dialog>(requestedDialog(params));
-    const manage = (action: string, occurrence?: string) => { const next = new URLSearchParams(params); next.set("action", action); occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence"); navigate(`?${next}`); };
-  const closeManagement = () => { setDialog(null); const next = new URLSearchParams(params); next.delete("action"); next.delete("occurrence"); navigateAfterClose(`?${next}`, true); };
+  const manage = (action: string, occurrence?: string) => {
+    const next = new URLSearchParams(params);
+    next.set("action", action);
+    occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence");
+    navigate(`?${next}`);
+  };
+  const closeManagement = () => {
+    setDialog(null);
+    const next = new URLSearchParams(params);
+    next.delete("action");
+    next.delete("occurrence");
+    navigateAfterClose(`?${next}`, true);
+  };
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
-  const [recordRefresh,setRecordRefresh]=useState(0);
+  const [recordRefresh, setRecordRefresh] = useState(0);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
 
   const detail = useDetailResource<TaskDetail>({
-    id, query: params.toString(), refreshOnQuery: directEdit,
+    id,
+    query: params.toString(),
+    refreshOnQuery: directEdit,
     load: (id, signal) => api("GET", `/tasks/${id}`, undefined, signal),
   });
   const editor = useDetailEditor(detail.editClosed);
   const { value: task, editReady } = detail;
-  const loadError = detail.error ? detail.error instanceof ApiError && detail.error.code === "not_found" ? "할 일을 찾을 수 없습니다." : "할 일을 불러오지 못했습니다." : null;
+  const loadError = detail.error
+    ? detail.error instanceof ApiError && detail.error.code === "not_found"
+      ? "할 일을 찾을 수 없습니다."
+      : "할 일을 불러오지 못했습니다."
+    : null;
   const reload = detail.reload;
-  useEffect(() => { if (!detail.confirmed && detail.value) relationSaved.current = false; }, [detail.value, detail.confirmed]);
+  useEffect(() => {
+    if (!detail.confirmed && detail.value) relationSaved.current = false;
+  }, [detail.value, detail.confirmed]);
 
-  const occurrenceGeneration=useRef(0);
-  useEffect(()=>()=>{occurrenceGeneration.current++;},[id]);
+  const occurrenceGeneration = useRef(0);
+  useEffect(() => () => {
+    occurrenceGeneration.current++;
+  }, [id]);
   const loadOccurrences = useCallback(async (t: TaskResult, end: string | null) => {
-    const started=++occurrenceGeneration.current;
+    const started = ++occurrenceGeneration.current;
     try {
       // 할 일 시간대의 오늘 기준 앞 13일과 뒤 7일. 이전 기간으로 옮길 수 있다.
       const to = end ?? addDays(todayIn(t.timezone ?? "UTC"), 7);
       const from = addDays(to, -20);
-      const res = await api<{ today: string; items: Occurrence[] }>("GET", `/tasks/${t.id}/occurrences?from=${from}&to=${to}`);
-      if(started!==occurrenceGeneration.current)return;
+      const res = await api<{ today: string; items: Occurrence[] }>(
+        "GET",
+        `/tasks/${t.id}/occurrences?from=${from}&to=${to}`,
+      );
+      if (started !== occurrenceGeneration.current) return;
       setOccurrences({ today: res.today, items: [...res.items].reverse() });
     } catch {
-      if(started!==occurrenceGeneration.current)return;
+      if (started !== occurrenceGeneration.current) return;
       setOccurrences(null);
       setActionError("회차를 불러오지 못했습니다.");
     }
@@ -109,135 +134,270 @@ export function TaskDetailPage() {
     }
   };
 
-  useEffect(() => { setDialog(requestedDialog(params)); }, [id, params.toString()]);
+  useEffect(() => {
+    setDialog(requestedDialog(params));
+  }, [id, params.toString()]);
 
   if (loadError && !task) {
     return (
-      <DetailSurface title="할 일" description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다." onClose={()=>navigate(back)}>
+      <DetailSurface
+        ready={!detail.loading}
+        title="할 일"
+        description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다."
+        onClose={() => navigate(back)}
+      >
         <Notice kind="error">{loadError}</Notice>
-        <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
+        <Button variant="outline" type="button" onClick={reload}>조회 다시 시도</Button>
       </DetailSurface>
     );
   }
-  if (!task) return <p className="secondary" role="status">불러오는 중…</p>;
+  if (!task) return <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>;
 
-  const management = <div className="detail-management">
-      <section className="detail-section task-overview">
+  const management = (
+    <div className="flex min-w-0 flex-col gap-5">
+      <section className="flex min-w-0 flex-col gap-4">
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
-        {loadError && <><Notice kind="error">{relationSaved.current?"연결은 저장했습니다. 최신 내용을 불러오지 못했습니다.":message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
-        <DetailTitle>{task.title}</DetailTitle>
-        {task.body&&<MarkdownContent text={task.body}/>}
-        <dl className="props">
-          <div>
-            <dt>{taskLabels.status}</dt>
-            <dd><StatusBadge status={task.status} /></dd>
-          </div>
-          <div>
-            <dt>{taskLabels.kind}</dt>
-            <dd>{taskLabels[task.kind]}</dd>
-          </div>
-          {task.kind === "once"
-            ? task.due_on && (
-              <div>
-                <dt>{taskLabels.due_on}</dt>
-                <dd>{task.due_on}</dd>
-              </div>
-            )
-            : (
-              <div>
-                <dt>{taskLabels.recurrence}</dt>
-                <dd>{describeRecurrence(task)}{task.recurrence?.freq === "monthly" && <p className="help">해당 달에 없는 날짜는 그 달 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다.</p>}</dd>
-              </div>
-            )}
-          {task.completed_at && (
-            <div>
-              <dt>완료 시각</dt>
-              <dd>{formatDateTime(task.completed_at)}</dd>
-            </div>
-          )}
-        </dl>
-        <TagNames scope="task" compact ids={task.tag_ids}/>
-        {task.kind==="once"&&task.status==="done"&&!task.result_record&&<p className="secondary">결과 기록이 삭제되었습니다.</p>}
+        {loadError && (
+          <>
+            <Notice kind="error">
+              {relationSaved.current
+                ? "연결은 저장했습니다. 최신 내용을 불러오지 못했습니다."
+                : message
+                ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다."
+                : loadError}
+            </Notice>
+            <Button variant="outline" type="button" onClick={reload}>조회 다시 시도</Button>
+          </>
+        )}
+        <TaskDataFields task={task} />
+        <TagConnections
+          onDraftClosed={detail.editClosed}
+          scope="task"
+          target={task}
+          onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
+        />
+        {task.kind === "once" && task.status === "done" && !task.result_record && (
+          <p className="text-sm text-muted-foreground">결과 기록이 삭제되었습니다.</p>
+        )}
       </section>
-
-    </div>;
-  const occurrenceSection = <>{task.kind === "recurring" && (
-        <section className="detail-section" aria-labelledby="occ-title">
-          <div className="panel-head">
-            <h2 id="occ-title" className="section-title">회차</h2>
-            {occurrences && (
-              <div className="actions">
-                <BodyAction onClick={() => setRangeEnd(addDays(occurrences.items.at(-1)?.date ?? occurrences.today, -1))}>
+    </div>
+  );
+  const occurrenceSection = (readOnly = false) => (
+    <>
+      {task.kind === "recurring" && (
+        <section className="flex min-w-0 flex-col gap-4" aria-labelledby={readOnly ? "occ-edit-title" : "occ-title"}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id={readOnly ? "occ-edit-title" : "occ-title"} className="text-base font-semibold">회차</h2>
+            {occurrences && !readOnly && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="ghost"
+                  type="button"
+                  onClick={() => setRangeEnd(addDays(occurrences.items.at(-1)?.date ?? occurrences.today, -1))}
+                >
                   이전 기간
-                </BodyAction>
-                {rangeEnd && <BodyAction onClick={() => setRangeEnd(null)}>최근으로</BodyAction>}
+                </Button>
+                {rangeEnd && (
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => setRangeEnd(null)}
+                  >
+                    최근으로
+                  </Button>
+                )}
               </div>
             )}
           </div>
           {task.status === "stopped" && <Notice>중단된 할 일입니다. 재개하면 그날부터 회차가 생깁니다.</Notice>}
-          {!occurrences && <p className="secondary" role="status">불러오는 중…</p>}
-          {occurrences?.items.length === 0 && <p className="secondary">이 기간에는 회차가 없습니다.</p>}
+          {!occurrences && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
+          {occurrences?.items.length === 0 && (
+            <p className="text-sm text-muted-foreground">이 기간에는 회차가 없습니다.</p>
+          )}
           {occurrences && occurrences.items.length > 0 && (
-            <ul className="list">
+            <ItemGroup>
               {occurrences.items.map((o) => (
-                <li key={o.date} className="list-item">
-                  <div className="list-item-main">
-                    <span className="item-title">
+                <Item role="listitem" key={o.date} variant="outline">
+                  <ItemContent>
+                    <ItemTitle>
                       {o.date}
                       {o.date === occurrences.today ? " (오늘)" : ""}
-                    </span>
-                    {!o.in_rule && <span className="secondary">규칙 밖 기록</span>}
-                    {o.record_ids.length>0&&<span className="secondary">기록 {o.record_ids.length}개</span>}
-                  </div>
+                    </ItemTitle>
+                    {!o.in_rule && <span className="text-sm text-muted-foreground">규칙 밖 기록</span>}
+                    {o.record_ids.length > 0 && (
+                      <span className="text-sm text-muted-foreground">기록 {o.record_ids.length}개</span>
+                    )}
+                  </ItemContent>
                   <OccurrenceBadge status={o.status} />
-                  {o.in_rule && o.status !== "upcoming" && (
-                    <BodyAction onClick={() => manage("occurrence", o.date)} aria-label={`${o.date} 회차 기록`}>
+                  {!readOnly && o.in_rule && o.status !== "upcoming" && (
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      onClick={() => manage("occurrence", o.date)}
+                      aria-label={`${o.date} 회차 기록`}
+                    >
                       기록
-                    </BodyAction>
+                    </Button>
                   )}
-                </li>
+                </Item>
               ))}
-            </ul>
+            </ItemGroup>
           )}
         </section>
-      )}</>;
-  return <DetailSurface title="할 일" description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다." tabTitle={task.title} onClose={()=>navigate(back)} onError={detail.failed} busy={busy} footer={<>
-    <button type="button" className="btn" disabled={busy} onClick={editor.start}>편집</button>
-    {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
-    {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
-  </>}>
-      <div className="detail-stack">{management}
-      <div className="detail-relations"><TaskEntityRelations task={task} onSaved={(saved,before)=>{if(before)relationSaved.current=true;if(saved)detail.confirm(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
-      <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<BodyAction icon="create" aria-label="기록 작성" onClick={()=>manage("record")}>작성</BodyAction>}/>
-      {occurrenceSection}</div></div>
+      )}
+    </>
+  );
+  return (
+    <DetailSurface
+      ready={!detail.loading}
+      title="할 일"
+      description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다."
+      tabTitle={task.title}
+      onClose={() => navigate(back)}
+      onError={detail.failed}
+      busy={busy}
+      footer={
+        <>
+          <Button variant="outline" type="button" disabled={busy} onClick={editor.start}>편집</Button>
+          {task.kind === "once" && task.status === "open" && (
+            <Button
+              variant="default"
+              type="button"
+              disabled={busy}
+              onClick={() => manage("complete")}
+            >
+              완료하고 기록
+            </Button>
+          )}
+          {task.kind === "recurring" && (
+            <Button
+              variant="default"
+              type="button"
+              disabled={busy}
+              onClick={() => manage("transition")}
+            >
+              {task.status === "active" ? "중단" : "재개"}
+            </Button>
+          )}
+        </>
+      }
+    >
+      <div className="flex min-w-0 flex-col gap-6">
+        {management}
+        <div className="flex min-w-0 flex-col gap-6">
+          <TaskEntityRelations
+            task={task}
+            onSaved={(saved, before) => {
+              if (before) relationSaved.current = true;
+              if (saved) detail.confirm((current) => current ? { ...current, ...saved } : current);
+              setRecordRefresh((n) => n + 1);
+              void reload();
+            }}
+          />
+          <RelatedRecords
+            taskId={task.id}
+            revision={task.version + recordRefresh}
+            action={
+              <Button
+                variant="ghost"
+                type="button"
+                aria-label="기록 작성"
+                onClick={() => manage("record")}
+              >
+                <PlusIcon data-icon="inline-start" />작성
+              </Button>
+            }
+          />
+          {occurrenceSection()}
+        </div>
+      </div>
       {editor.active && !dialog && editReady && (
         <TaskFormModal
           mode="edit"
           target={task}
           open
           initial={taskDraftFrom(task, timezone)}
-          deletion={{preparation:()=>({model:"task",action:"delete",target_id:task.id,expected_version:task.version,input:{}}),message:<p style={{ margin: 0 }}>
-            「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
-          </p>,onConfirm:(reason,tags,requestKey) =>
-          run(async () => {
-            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason, change_tag_ids:tags}, undefined, requestKey());
-            editor.leave(deleteBack);
-          }, "삭제했습니다.")}}
+          details={
+            <>
+              {task.kind === "once" && task.status === "done" && !task.result_record && (
+                <p className="text-sm text-muted-foreground">결과 기록이 삭제되었습니다.</p>
+              )}
+              <div className="flex min-w-0 flex-col gap-6">
+                <TaskEntityRelations readOnly task={task} onSaved={() => {}} />
+                <RelatedRecords readOnly taskId={task.id} revision={task.version + recordRefresh} />
+                {occurrenceSection(true)}
+              </div>
+            </>
+          }
+          deletion={{
+            target: task.title,
+            preparation: () => ({
+              model: "task",
+              action: "delete",
+              target_id: task.id,
+              expected_version: task.version,
+              input: {},
+            }),
+            message: (
+              <p>
+                이 할 일을 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
+              </p>
+            ),
+            onConfirm: (reason, tags, requestKey) =>
+              run(async () => {
+                await api(
+                  "POST",
+                  `/tasks/${task.id}/delete`,
+                  { expected_version: task.version, change_note: reason, change_tag_ids: tags },
+                  undefined,
+                  requestKey(),
+                );
+                editor.leave(deleteBack);
+              }, "삭제했습니다."),
+          }}
           {...editor.formProps}
-          onSave={async save => {
-            await detail.save(async current => ({...current, ...await save()}));
+          onSave={async (save) => {
+            await detail.save(async (current) => ({ ...current, ...await save() }));
             editor.close();
             setMessage("저장했습니다.");
             await reload();
           }}
         />
       )}
-      {dialog === "record" && <RecordFormModal title="기록 작성" submitLabel="저장" open
-        initial={{...emptyRecord(),task_id:task.id,entity_ids:task.entity_ids,entity_context:task.entity_context}}
-        onClose={closeManagement} onRouteDiscard={()=>setDialog(null)}
-        onSave={async(value,requestKey)=>{await api("POST","/records",{...value}, undefined, requestKey());closeManagement();setRecordRefresh(n=>n+1);}}/>}
-      {task.kind==="recurring"&&<TaskTransitionForm key={`${task.id}:${task.version}`} open={dialog==="transition"} task={task} onClose={closeManagement} onSaved={async()=>{closeManagement();setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
+      {dialog === "record" && (
+        <RecordFormModal
+          title="기록 작성"
+          submitLabel="저장"
+          open
+          initial={{
+            ...emptyRecord(),
+            task_id: task.id,
+            entity_ids: task.entity_ids,
+            entity_context: task.entity_context,
+          }}
+          onClose={closeManagement}
+          onRouteDiscard={() => setDialog(null)}
+          onSave={async (value, requestKey) => {
+            await api("POST", "/records", { ...value }, undefined, requestKey());
+            closeManagement();
+            setRecordRefresh((n) => n + 1);
+          }}
+        />
+      )}
+      {task.kind === "recurring" && (
+        <TaskTransitionForm
+          key={`${task.id}:${task.version}`}
+          open={dialog === "transition"}
+          task={task}
+          onClose={closeManagement}
+          onSaved={async () => {
+            closeManagement();
+            setMessage(task.status === "active" ? "중단했습니다. 오늘부터 회차가 없습니다." : "재개했습니다.");
+            await reload();
+          }}
+        />
+      )}
       {dialog === "complete" && (
         <RecordFormModal
           title="할 일 완료"
@@ -247,8 +407,14 @@ export function TaskDetailPage() {
           initial={emptyRecord()}
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
-          onSave={async (value,requestKey) => {
-            await api("POST", `/tasks/${task.id}/complete`, { ...value, expected_version: task.version }, undefined, requestKey());
+          onSave={async (value, requestKey) => {
+            await api(
+              "POST",
+              `/tasks/${task.id}/complete`,
+              { ...value, expected_version: task.version },
+              undefined,
+              requestKey(),
+            );
             closeManagement();
             setMessage("완료하고 결과 기록을 저장했습니다.");
             await reload();
@@ -261,31 +427,69 @@ export function TaskDetailPage() {
           taskEditable={false}
           submitLabel="기록 저장"
           open
-          initial={{...emptyRecord(),entity_ids:task.entity_ids,entity_context:task.entity_context}}
+          initial={{ ...emptyRecord(), entity_ids: task.entity_ids, entity_context: task.entity_context }}
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value, requestKey) => {
-            await api<RecordResult>("POST", `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`, {
-              ...value,
-            }, undefined, requestKey());
+            await api<RecordResult>(
+              "POST",
+              `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`,
+              {
+                ...value,
+              },
+              undefined,
+              requestKey(),
+            );
             closeManagement();
             setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
-            setRecordRefresh(n=>n+1);
+            setRecordRefresh((n) => n + 1);
             await loadOccurrences(task, rangeEnd);
           }}
         />
       )}
-
-    </DetailSurface>;
+    </DetailSurface>
+  );
 }
 
-function TaskTransitionForm({task,open,onClose,onSaved}:{task:TaskResult;open:boolean;onClose:()=>void;onSaved:()=>Promise<void>}) {
-  const action=task.status==="active"?"stop":"resume",label=action==="stop"?"중단":"재개";
-  return <FormModal open={open} title={`반복 할 일 ${label}`} submitLabel={label} dirty={false} confirmationOnly
-    preparation={()=>({model:"task",action,target_id:task.id,expected_version:task.version,input:{}})}
-    mutation={{target:task.title,action:label,message:action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}}
-    onClose={onClose} onRouteDiscard={onClose} validate={()=>null} onSubmit={async(requestKey,memo)=>{
-      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,...memo}, undefined, requestKey());
-      await onSaved();
-    }}>{()=>null}</FormModal>;
+function TaskTransitionForm(
+  { task, open, onClose, onSaved }: {
+    task: TaskResult;
+    open: boolean;
+    onClose: () => void;
+    onSaved: () => Promise<void>;
+  },
+) {
+  const action = task.status === "active" ? "stop" : "resume", label = action === "stop" ? "중단" : "재개";
+  return (
+    <FormModal
+      open={open}
+      title={`반복 할 일 ${label}`}
+      submitLabel={label}
+      dirty={false}
+      confirmationOnly
+      preparation={() => ({ model: "task", action, target_id: task.id, expected_version: task.version, input: {} })}
+      mutation={{
+        target: task.title,
+        action: label,
+        message: action === "stop"
+          ? "오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다."
+          : "오늘부터 규칙에 따라 회차가 다시 생깁니다.",
+      }}
+      onClose={onClose}
+      onRouteDiscard={onClose}
+      validate={() => null}
+      onSubmit={async (requestKey, memo) => {
+        await api(
+          "POST",
+          `/tasks/${task.id}/${action}`,
+          { expected_version: task.version, ...memo },
+          undefined,
+          requestKey(),
+        );
+        await onSaved();
+      }}
+    >
+      {() => null}
+    </FormModal>
+  );
 }

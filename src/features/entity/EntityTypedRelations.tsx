@@ -1,3 +1,5 @@
+import { Button } from "../../components/ui/button.tsx";
+import { UnlinkIcon, PlusIcon, XIcon, LinkIcon } from "lucide-react";
 import { useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation } from "react-router";
 import type { EntityDetail, EntitySummary } from "@contracts/entity.ts";
@@ -7,9 +9,9 @@ import { entityPath } from "@contracts/entity-identity.ts";
 import { api, query } from "../../lib/api.ts";
 import { DetailLink, useDetailViewState } from "../../lib/detail-exploration.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
-import { RelatedSection } from "../../components/RelatedItems.tsx";
-import { CollectionList } from "../../components/Collection.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
+
 import { Notice } from "../../components/Field.tsx";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { createPagedList } from "../collections/paged-list.ts";
@@ -23,7 +25,8 @@ interface LinkPage {
   next_cursor: string | null;
 }
 export function EntityTypedRelations(
-  { entity, onSaved, onCreate }: {
+  { entity, onSaved, onCreate, readOnly = false }: {
+    readOnly?: boolean;
     entity: EntityDetail;
     onSaved: (version: number) => void;
     onCreate?: (definition: EntityRelationDefinition, side: 0 | 1) => void;
@@ -60,7 +63,7 @@ export function EntityTypedRelations(
     <>
       {error && (
         <Notice kind="error">
-          관계 정의를 읽지 못했습니다.<BodyAction onClick={() => setRetry((n) => n + 1)}>관계 다시 조회</BodyAction>
+          관계 정의를 읽지 못했습니다.<Button variant="ghost" type="button" onClick={() => setRetry((n) => n + 1)}>관계 다시 조회</Button>
         </Notice>
       )}
       {definitions.flatMap((def) =>
@@ -74,6 +77,7 @@ export function EntityTypedRelations(
                 side={side as 0 | 1}
                 onSaved={onSaved}
                 onCreate={onCreate}
+                readOnly={readOnly}
               />
             )
             : null
@@ -83,7 +87,8 @@ export function EntityTypedRelations(
   );
 }
 export function EntityRelationSection(
-  { entity, definition, side, onSaved, onCreate }: {
+  { entity, definition, side, onSaved, onCreate, readOnly = false }: {
+    readOnly?: boolean;
     entity: EntityDetail;
     definition: EntityRelationDefinition;
     side: 0 | 1;
@@ -131,7 +136,7 @@ export function EntityRelationSection(
   const def = state.page?.definition ?? definition,
     single = def.ends[side].cardinality === "one",
     current = state.page?.items[0],
-    active = !entity.deleted_at && !entity.type.archived && !def.archived;
+    active = !readOnly && !entity.deleted_at && !entity.type.archived && !def.archived;
   const prepare = async (item: Candidate, remove: boolean) => {
     if (preparing || surface?.editor.current) return;
     const started = locationKey.current, c = new AbortController();
@@ -160,41 +165,41 @@ export function EntityRelationSection(
       <div ref={section} tabIndex={-1} aria-label={`${def.ends[side].label} 관계`}>
         <RelatedSection
           title={def.ends[side].label + (def.archived ? " · 보관" : "")}
-          views={!single}
+          views={!single && !readOnly}
           count={single ? undefined : state.page?.items.length}
           hasMore={!single && !!state.page?.next_cursor}
           action={
-            <div className="actions">
+            <div className="flex flex-wrap items-center gap-2">
               {active && onCreate && (
-                <BodyAction
-                  icon="create"
+                <Button variant="ghost" type="button"
+
                   disabled={preparing}
                   aria-label={`${def.ends[side].label} 작성해서 연결`}
                   data-relation-create={`${def.id}:${side}`}
                   onClick={() => onCreate(def, side)}
-                >
+                ><PlusIcon data-icon="inline-start" />
                   작성
-                </BodyAction>
+                </Button>
               )}
               {active && (
-                <BodyAction
-                  icon={view.searching ? "close" : "link"}
+                <Button variant="ghost" type="button"
+
                   aria-expanded={view.searching}
                   aria-controls={searchId}
                   disabled={preparing || !!state.error || !state.page}
                   onClick={() => setView((v) => ({ ...v, searching: !v.searching }))}
-                >
+                >{view.searching ? <XIcon data-icon="inline-start" /> : <LinkIcon data-icon="inline-start" />}
                   {view.searching ? "닫기" : single && current ? "변경" : "연결"}
-                </BodyAction>
+                </Button>
               )}
-              {single && current && (
-                <BodyAction
-                  icon="unlink"
+              {!readOnly && single && current && (
+                <Button variant="ghost" type="button"
+
                   disabled={preparing}
                   onClick={() => void prepare(current, true)}
-                >
+                ><UnlinkIcon data-icon="inline-start" />
                   해제
-                </BodyAction>
+                </Button>
               )}
             </div>
           }
@@ -202,18 +207,20 @@ export function EntityRelationSection(
           {error && <Notice kind="error">{error}</Notice>}
           {!!state.error && (
             <Notice kind="error">
-              연결을 읽지 못했습니다.<BodyAction onClick={() => setRetry((n) => n + 1)}>다시 조회</BodyAction>
+              연결을 읽지 못했습니다.<Button variant="ghost" type="button" onClick={() => setRetry((n) => n + 1)}>다시 조회</Button>
             </Notice>
           )}
           {state.busy && !state.page && <p role="status">불러오는 중…</p>}
           {single
             ? (
-              <p className="entity-single-relation">
+              <p className="flex min-w-0 flex-col gap-3">
                 {current
                   ? (
                     <>
-                      <DetailLink to={entityPath(current.id)}>{current.title}</DetailLink>
-                      <span className="secondary">
+                      {readOnly
+                        ? <span>{current.title}</span>
+                        : <DetailLink to={entityPath(current.id)}>{current.title}</DetailLink>}
+                      <span className="text-sm text-muted-foreground">
                         {current.deleted_at ? " · 삭제됨" : ""}
                         {current.type.archived ? " · 보관됨" : ""}
                       </span>
@@ -226,35 +233,44 @@ export function EntityRelationSection(
             )
             : (
               <>
-                <CollectionList>
+                <CollectionList columns={["자료 이름"]}>
                   {state.page?.items.map((item) => (
-                    <li key={item.id}>
-                      <RelatedPreviewItem
-                        title={item.title}
-                        to={entityPath(item.id)}
-                        metadata={
-                          <>
-                            {item.type.label}
-                            {item.deleted_at ? " · 삭제됨" : ""}
-                            {item.type.archived ? " · 보관됨" : ""}
-                          </>
-                        }
-                        action={
-                          <BodyAction
-                            icon="unlink"
-                            aria-label={`${item.title} 연결 해제`}
-                            disabled={preparing}
-                            onClick={() => void prepare(item, true)}
-                          >
-                            해제
-                          </BodyAction>
-                        }
-                      />
-                    </li>
+                    <CollectionItem key={item.id}>
+                      {readOnly
+                        ? (
+                          <RelatedItem
+                            title={item.title}
+                            metadata={
+                              <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+                                <div><dt>자료 종류</dt><dd>{item.type.label}</dd></div>
+                                {item.deleted_at && <div><dt>상태</dt><dd>삭제됨</dd></div>}
+                                {item.type.archived && <div><dt>종류 상태</dt><dd>보관됨</dd></div>}
+                              </dl>
+                            }
+                          />
+                        )
+                        : (
+                          <RelatedPreviewItem
+                            title={item.title}
+                            to={entityPath(item.id)}
+                            metadata={item.type.archived ? <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>종류 상태</dt><dd>보관됨</dd></div></dl> : undefined}
+                            action={
+                              <Button variant="ghost" type="button"
+
+                                aria-label={`${item.title} 연결 해제`}
+                                disabled={preparing}
+                                onClick={() => void prepare(item, true)}
+                              ><UnlinkIcon data-icon="inline-start" />
+                                해제
+                              </Button>
+                            }
+                          />
+                        )}
+                    </CollectionItem>
                   ))}
                 </CollectionList>
                 {state.page?.next_cursor && (
-                  <BodyAction disabled={state.busy} onClick={() => void session.more()}>더 보기</BodyAction>
+                  <Button variant="ghost" type="button" disabled={state.busy} onClick={() => void session.more()}>더 보기</Button>
                 )}
               </>
             )}
@@ -282,9 +298,10 @@ export function EntityRelationSection(
           mutation={{
             target: `${mutation.origin.title} → ${mutation.definition.ends[side].label} → ${mutation.other.title}`,
             action: mutation.remove ? "해제" : single ? "수정" : "연결",
-            message: single && !mutation.remove
-              ? `기존: ${mutation.previous?.title ?? "연결 없음"} → 변경: ${mutation.other.title}`
-              : undefined,
+            data: single && !mutation.remove ? [
+              { label: "기존", value: mutation.previous?.title ?? "연결 없음", fullWidth: true },
+              { label: "변경", value: mutation.other.title, fullWidth: true },
+            ] : undefined,
           }}
           validate={() => null}
           onClose={() => setMutation(null)}

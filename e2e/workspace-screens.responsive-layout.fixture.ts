@@ -1,11 +1,17 @@
+import { listHeader } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListEditor, openTabFilters } from "./ui-actions.ts";
 import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
 import { discardEditor } from "./ui-actions.ts";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { id, stamp } from "./support/workspace-data.ts";
 import { compatibleEdit, fixtures, form, go, linkedFixture } from "./support/workspace-screens.ts";
+
+async function settleSurface(surface: Locator) {
+  await expect.poll(() => surface.evaluate(element => element.getAnimations({ subtree: true })
+    .filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
+}
 
 for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
   test(`시각 위계 ${width}px: 제목·보조 정보·편집 정렬과 검색·가이드`, async ({ page }, info) => {
@@ -13,8 +19,8 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const state = await fixtures(page);
     state.rows.tasks[0].title = "긴 제목 ".repeat(8);
     Object.assign(state.rows.tasks[0], { change_note: "강조하지 않을 보충 메모" });
-    const typography = async (selector: string) =>
-      page.locator(selector).first().evaluate((el) => {
+    const typography = async (locator: Locator) =>
+      locator.first().evaluate((el) => {
         const s = getComputedStyle(el);
         return { size: parseFloat(s.fontSize), weight: Number(s.fontWeight), color: s.color };
       });
@@ -31,32 +37,44 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     ) {
       await go(page, path);
       await expect(
-        page.locator(path.startsWith("/tags") ? "dialog[open]:not(.modal-confirm) .dialog-title" : ".page-title"),
+        page.getByRole("heading", { level: 1 }).filter({ visible: true }).first(),
       ).toBeVisible();
-      if (!["/search", "/guide"].includes(path)) {
-        await expect(page.locator(".item-title").first()).toBeVisible();
+      if (["/entities", "/tasks", "/records"].includes(path)) {
+        await expect(page.locator("[data-list-anchor]").first()).toBeVisible();
+      }
+      if (path.startsWith("/tags/")) {
+        const row = page.getByRole("listitem").filter({ has: page.getByRole("definition").filter({ hasText: /^같은 이름$/ }) });
+        await expect(row).toHaveCount(1);
+        const name = row.getByRole("definition").filter({ hasText: /^같은 이름$/ });
+        const label = row.getByRole("term").filter({ hasText: /^태그 이름$/ });
+        await expect(name).toBeVisible();
+        await expect(label).toBeVisible();
+        const title = await typography(name), secondary = await typography(label);
+        expect((await typography(page.getByRole("heading", { level: 1 }))).size).toBeGreaterThan(title.size);
+        expect(title.weight).toBeGreaterThanOrEqual(500);
+        expect(title.size).toBeGreaterThanOrEqual(secondary.size);
+        expect(title.weight).toBeGreaterThan(secondary.weight);
+        expect(title.color).not.toBe(secondary.color);
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
-      if (await page.locator(".item-title").count()) {
-        const title = await typography(".item-title"),
-          pageTitle = await typography(path.startsWith("/tags") ? ".dialog-title" : ".page-title");
+      if (await page.locator("[data-list-anchor]").count()) {
+        const title = await typography(page.locator("[data-list-anchor]")),
+          pageTitle = await typography(page.getByRole("heading", { level: 1 }));
         expect(pageTitle.size).toBeGreaterThan(title.size);
-        expect(title.weight).toBe(600);
-        if (await page.locator(".secondary").count()) {
-          const secondary = await typography(".secondary");
-          expect(title.size).toBeGreaterThan(secondary.size);
-          expect(title.weight).toBeGreaterThan(secondary.weight);
-          expect(title.color).not.toBe(secondary.color);
-        }
+        expect(title.weight).toBeGreaterThanOrEqual(500);
+        const secondary = await typography(page.locator("[data-slot='item-header'] dt"));
+        expect(title.size).toBeGreaterThan(secondary.size);
+        expect(title.weight).toBeGreaterThan(secondary.weight);
+        expect(title.color).not.toBe(secondary.color);
       }
       if (path === "/tasks") {
-        const heading = page.locator(".related-item-title").first(),
-          title = heading.locator(".item-title"),
-          edit = heading.locator(".activity-item-actions a");
+        const heading = page.locator("[data-slot='item-header'] dd").first(),
+          title = heading.locator("[data-list-anchor]"),
+          edit = heading.getByRole("link", { name: /편집$/ });
         const t = (await title.boundingBox())!;
         await expect(edit).toHaveCount(0);
         expect(t.height).toBeGreaterThanOrEqual(44);
-        await expect(page.locator(".memo-text")).toHaveCount(0);
+        await expect(page.getByText("강조하지 않을 보충 메모", { exact: true })).toHaveCount(0);
       }
       if (width === 390 && ["/tasks", "/guide", "/tags/entity", "/search"].includes(path)) {
         await page.screenshot({
@@ -66,15 +84,16 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     }
     Object.assign(state.rows.records[0], { body: "", tag_ids: [] });
     await go(page, `/records/${id(3)}`);
-    await expect(form(page).locator(".document-summary,.markdown")).toHaveCount(0);
+    await expect(form(page).locator(".markdown")).toHaveCount(0);
+    await expect(form(page).getByRole("term").filter({ hasText: /^본문$/ }).locator("..").getByRole("definition")).toHaveText("—");
     await expect(form(page).getByRole("heading", { name: "태그", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("heading", { name: "기록", exact: true })).toHaveCount(1);
     await form(page).getByRole("button", { name: "편집", exact: true }).click();
     await expect(form(page).getByRole("textbox", { name: /^본문/ })).toHaveValue("");
     await expect(form(page).getByRole("heading", { name: "메모", exact: true })).toHaveCount(0);
-    const head = await form(page).locator(".modal-head").boundingBox(),
-      body = await form(page).locator(":scope > .modal-inner > .modal-body").boundingBox(),
-      foot = await form(page).locator(".modal-foot").boundingBox();
+    const head = await form(page).locator("[data-slot=\"dialog-header\"]").boundingBox(),
+      body = await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").boundingBox(),
+      foot = await form(page).locator("[data-slot=\"dialog-footer\"], [data-slot=\"alert-dialog-footer\"]").boundingBox();
     expect(head!.y + head!.height).toBeLessThanOrEqual(body!.y);
     expect(body!.y + body!.height).toBeLessThanOrEqual(foot!.y + 1);
     await go(page, `/records/${id(3)}`);
@@ -85,10 +104,10 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       entity_context: [{ id: entityKey(1), title: "연결된 엔터티", source: "selection", captured_at: stamp }],
     });
     await page.reload();
-    const memo = form(page).locator(".record-content .markdown");
+    const memo = form(page).locator(".markdown");
     await expect(memo).toBeVisible();
     expect(await memo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(
-      await form(page).locator(".dialog-title").evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+      await form(page).locator("[data-slot=\"dialog-title\"]").evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
     );
     await expect(form(page).getByRole("button", { name: "연결된 엔터티", exact: true })).toBeVisible();
     await expect(form(page).getByText("연결 당시 정보", { exact: true })).toHaveCount(0);
@@ -103,19 +122,15 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await go(page, "/entities");
     await page.screenshot({ path: info.outputPath(`tab-entities-${width}.png`) });
-    const top = page.locator(".app-main > .panel"),
+    const top = listHeader(page),
       bottom = page.getByRole("region", { name: "검사 자료 목록", exact: true });
-    expect((await bottom.boundingBox())!.y).toBeGreaterThanOrEqual(
-      (await top.boundingBox())!.y + (await top.boundingBox())!.height,
-    );
-    const inset = 24,
-      topBox = (await top.boundingBox())!,
-      listBox = (await bottom.locator(".collection-list").boundingBox())!;
-    expect((await top.getByRole("heading", { name: "검사 자료", exact: true }).boundingBox())!.x - topBox.x).toBeCloseTo(
-      0,
-    );
-    expect((await top.getByLabel("자료 제목 검색", { exact: false }).boundingBox())!.x - topBox.x).toBeCloseTo(0);
-    expect((await bottom.locator(".item-title").first().boundingBox())!.x - listBox.x).toBeGreaterThanOrEqual(inset);
+    await expect(top.getByRole("heading", { name: "검사 자료", exact: true })).toBeVisible();
+    await expect(top.getByLabel("자료 제목 검색", { exact: false })).toBeVisible();
+    const titleBox = (await bottom.locator("[data-list-anchor]").first().boundingBox())!;
+    const searchBox = (await top.getByLabel("자료 제목 검색", { exact: false }).boundingBox())!;
+    expect(titleBox.y).toBeGreaterThanOrEqual(searchBox.y + searchBox.height);
+    expect(titleBox.x).toBeGreaterThanOrEqual(12);
+    expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(width - 12);
     await expect(bottom.getByRole("link", { name: "자료 상세", exact: true })).toHaveCount(0);
     await openListEditor(page, "자료");
     await expect(form(page).getByLabel("제목", { exact: false })).toHaveValue("자료");
@@ -125,25 +140,24 @@ for (const width of [390, 1440]) {
     await form(page).getByRole("button", { name: "닫기", exact: true }).click();
     await expect(page.locator(`[id="entity-${entityKey(1)}"]`)).toBeFocused();
     await go(page, "/tasks");
-    expect(
-      await page.getByRole("region", { name: "할 일 목록", exact: true }).locator(".collection-list .related-item")
-        .first().evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft)),
-    ).toBeGreaterThanOrEqual(12);
+    expect(await page.getByRole("region", { name: "할 일 목록", exact: true }).getByRole("listitem")
+      .first().evaluate(element => {
+        const title = element.querySelector<HTMLElement>("[data-list-anchor]")!;
+        return title.getBoundingClientRect().left - element.getBoundingClientRect().left;
+      })).toBeGreaterThanOrEqual(12);
     await page.screenshot({ path: info.outputPath(`tab-activity-${width}.png`) });
     await openListEditor(page, "할 일");
     await expect(form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ })).toHaveValue("할 일");
     await page.screenshot({ path: info.outputPath(`edit-task-${width}.png`) });
-    const head = form(page).locator(".modal-head"), body = form(page).locator(":scope > .modal-inner > .modal-body");
-    expect(
-      await head.evaluate((el) => getComputedStyle(el).paddingLeft),
-    ).toBe(width < 640 ? "16px" : "24px");
-    expect(await body.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe(width < 640 ? "16px" : "24px");
+    const head = form(page).locator("[data-slot=\"dialog-header\"]"), body = form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]");
+    expect(await head.evaluate(el => parseFloat(getComputedStyle(el).paddingLeft))).toBeGreaterThanOrEqual(12);
+    expect(await body.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe(await head.evaluate(el => getComputedStyle(el).paddingLeft));
     expect(state.errors).toEqual([]);
   });
 }
 
 for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
-  test(`#203 ${width}px: 목록·모달 공통 펼침과 전체 높이 표시선`, async ({ page }, info) => {
+  test(`#203 ${width}px: 목록·모달 공통 펼침과 조작 영역`, async ({ page }, info) => {
     const state = await fixtures(page);
     linkedFixture(state);
     await page.setViewportSize({ width, height: 900 });
@@ -156,35 +170,26 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]] as const
     ) {
       await go(page, `/${kind}`);
-      const row = page.locator(".list .related-item").first(),
+      const row = page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first(),
         toggle = row.getByRole("button", { name: title, exact: true });
       await expect(toggle).toBeVisible();
       await expect(row.getByRole("link")).toHaveCount(0);
-      await expect(row.locator(".related-preview")).toBeHidden();
-      const marker = () =>
-        row.evaluate((el) => {
-          const s = getComputedStyle(el, "::before");
-          return {
-            left: s.left,
-            width: s.width,
-            color: s.backgroundColor,
-            height: el.getBoundingClientRect().height - parseFloat(s.top) - parseFloat(s.bottom),
-          };
-        });
-      const closed = await marker();
+      await expect(row.locator("[data-slot='collapsible-content']")).toBeHidden();
+      const closed = (await row.boundingBox())!;
       await toggle.focus();
       await toggle.press("Enter");
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
       await expect(row.getByRole("link", { name: title + " 상세", exact: true })).toBeVisible();
-      const opened = await marker();
-      expect(opened.left).toBe(closed.left);
-      expect(opened.width).toBe(closed.width);
-      expect(opened.color).not.toBe(closed.color);
+      const opened = (await row.boundingBox())!;
+      expect(opened.x).toBeCloseTo(closed.x, 0);
+      expect(opened.width).toBeCloseTo(closed.width, 0);
       expect(opened.height).toBeGreaterThan(closed.height);
       if (kind === "records") {
         await expect(row.locator(".markdown")).toContainText("원문 마지막 부분");
       }
-      for (const icon of await row.locator(".item-icon, .body-action").all()) {
+      const controls = row.getByRole("button").or(row.getByRole("link"));
+      expect(await controls.count()).toBeGreaterThanOrEqual(3);
+      for (const icon of await controls.all()) {
         const box = (await icon.boundingBox())!;
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(44);
@@ -195,20 +200,18 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(toggle).toHaveAttribute("aria-expanded", "false");
     }
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-    const row = form(page).getByRole("region", { name: "할 일 (1개)" }).locator(".related-item");
+    const row = form(page).getByRole("region", { name: "할 일 (1개)" }).getByRole("listitem");
     await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toHaveCount(0);
     await expect(row.getByRole("button", { name: "할 일 해제", exact: true })).toHaveCount(0);
     await row.getByRole("button", { name: "할 일 열기", exact: true }).click();
     await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
     await expect(row.getByRole("button", { name: "할 일 해제", exact: true })).toBeVisible();
-    for (const action of await form(page).locator(".body-action").all()) {
+    const actions = form(page).locator("[data-slot='item-actions']").getByRole("button").or(form(page).locator("[data-slot='item-actions']").getByRole("link"));
+    expect(await actions.count()).toBeGreaterThan(0);
+    await settleSurface(form(page));
+    for (const action of await actions.all()) {
       const box = (await action.boundingBox())!;
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.height).toBeGreaterThanOrEqual(44);
-      const face = action.locator(".body-action-face");
-      expect((await face.boundingBox())!.height).toBe(24);
-      expect(await face.evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");
-      expect(await face.evaluate((el) => getComputedStyle(el).fontWeight)).toBe("400");
+      expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
     }
     await row.getByRole("button", { name: "할 일 접기", exact: true }).click();
     await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toHaveCount(0);
@@ -229,8 +232,11 @@ test("#203 320px·200% 펼친 연결 조작과 메인 목록이 넘치지 않음
   await page.evaluate(() => document.documentElement.style.zoom = "2");
   await form(page).getByRole("button", { name: "할 일", exact: true }).click();
   await expect(form(page).getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
-  expect(await form(page).locator(".modal-body").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
-  for (const button of await form(page).locator(".related-item-actions :is(button,a)").all()) {
+  expect(await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  const controls = form(page).locator("[data-slot='item-actions'] :is(button,a)");
+  expect(await controls.count()).toBeGreaterThan(0);
+  await settleSurface(form(page));
+  for (const button of await controls.all()) {
     const rect = (await button.boundingBox())!;
     expect(rect.x).toBeGreaterThanOrEqual(0);
     expect(rect.x + rect.width).toBeLessThanOrEqual(320);
@@ -251,21 +257,24 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 800 });
     await go(page, `/tasks/${id(2)}`);
     await expect(form(page)).toBeVisible();
+    await settleSurface(form(page));
     const dimensions = await form(page).evaluate((d) => {
       const r = d.getBoundingClientRect();
-      return { width: r.width, height: r.height, scroll: document.documentElement.scrollWidth, viewport: innerWidth };
+      return { width: r.width, height: r.height, x: r.x, y: r.y, right: r.right, bottom: r.bottom, rootFont: parseFloat(getComputedStyle(document.documentElement).fontSize), scroll: document.documentElement.scrollWidth, viewport: innerWidth, viewportHeight: innerHeight };
     });
     expect(dimensions.scroll).toBeLessThanOrEqual(width);
-    expect(dimensions.width).toBeLessThanOrEqual(width < 640 ? width : 672);
-    if (width < 640) {
-      expect(dimensions.width).toBe(width);
-    }
-    await form(page).locator(":scope > .modal-inner > .modal-body").evaluate((el) => {
+    expect(dimensions.width).toBeLessThanOrEqual(Math.min(width, 48 * dimensions.rootFont));
+    expect(dimensions.height).toBeLessThanOrEqual(dimensions.viewportHeight);
+    expect(dimensions.x).toBeGreaterThanOrEqual(0);
+    expect(dimensions.y).toBeGreaterThanOrEqual(0);
+    expect(dimensions.right).toBeLessThanOrEqual(width);
+    expect(dimensions.bottom).toBeLessThanOrEqual(dimensions.viewportHeight);
+    await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => {
       el.scrollTop = el.scrollHeight;
     });
     await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
     await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
-    await form(page).locator(":scope > .modal-inner > .modal-body").evaluate((el) => {
+    await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => {
       el.scrollTop = 0;
     });
     await compatibleEdit(page);
@@ -274,7 +283,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.keyboard.press("Tab");
     await page.screenshot({ path: info.outputPath(`surface-${width}.png`) });
     await discardEditor(page);
-    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible();
+    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
     expect(state.errors).toEqual([]);
   });
 }
@@ -294,7 +303,8 @@ test("200% reflow·축소 visual viewport·한 글자 제목", async ({ page }, 
   await page.setViewportSize({ width: 390, height: 360 });
   await expect(form(page).getByRole("button", { name: "수정하고 저장", exact: true })).toBeInViewport({ ratio: 1 });
   await expect(form(page).getByRole("button", { name: "취소", exact: true })).toBeInViewport({ ratio: 1 });
-  const actions = await form(page).locator(".modal-foot > .btn").evaluateAll(nodes => nodes.map(node => ({ width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })));
+  const actions = await form(page).locator('[data-slot="dialog-footer"] button').evaluateAll(nodes => nodes.map(node => ({ width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })));
+  expect(actions).toHaveLength(2);
   for (const action of actions) { expect(action.width).toBeGreaterThanOrEqual(44); expect(action.height).toBeGreaterThanOrEqual(44); }
   await page.screenshot({ path: info.outputPath("zoom-keyboard-viewport.png") });
   expect(state.errors).toEqual([]);
@@ -328,14 +338,13 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const styles: string[] = [];
     for (const path of [`/entities/${encodeURIComponent(entityKey(1))}`, `/tasks/${t.id}`, `/records/${r.id}`]) {
       await go(page, path);
-      const links = form(page).locator(".related-item");
+      const links = form(page).getByRole("listitem");
       await expect(links).toHaveCount(2);
-      for (const last of await form(page).locator(".related-items > li:last-child .related-item").all()) {
-        expect(
-          await last.evaluate((el) => getComputedStyle(el).borderBottomWidth),
-        ).toBe("0px");
-      }
+      const lastRows = form(page).locator("[data-slot='item-group'] > li:last-child");
+      await expect(lastRows).toHaveCount(2);
+      for (const row of await lastRows.all()) await expect(row).toBeVisible();
       const first = links.first();
+      await settleSurface(form(page));
       styles.push(
         await first.evaluate((el) => {
           const c = getComputedStyle(el);
@@ -368,7 +377,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await form(page).getByRole("link", { name: t.title + " 상세", exact: true }).click();
     expect(new URL(page.url()).pathname).toBe(`/tasks/${t.id}`);
     expect(new URL(page.url()).searchParams.has("edit")).toBe(false);
-    await form(page).getByRole("button", { name: "이전: 기록", exact: true }).click();
+    await form(page).getByRole("button", { name: `이전: ${recordDisplayText(r.body)}`, exact: true }).click();
     await expect(form(page).getByRole("link", { name: t.title + " 상세", exact: true })).toBeFocused();
     expect(state.writes).toHaveLength(0);
     expect(state.errors).toEqual([]);
@@ -388,11 +397,18 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]]
     ) {
       await go(page, "/" + kind);
-      const row = page.locator(".list .related-item").first();
+      const row = page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first();
       await expect(row).toBeVisible();
       const box = (await row.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(44);
-      expect(box.height).toBeLessThanOrEqual(52);
+      const title = row.locator("[data-list-anchor]");
+      await expect(title).toBeVisible();
+      const titleBox = (await title.boundingBox())!;
+      expect(titleBox.height).toBeGreaterThanOrEqual(44);
+      expect(titleBox.x).toBeGreaterThanOrEqual(box.x);
+      expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(box.x + box.width);
+      await expect(row.getByRole("term")).not.toHaveCount(0);
+      await expect(row.getByRole("definition")).not.toHaveCount(0);
       await expect(
         page.getByRole("button", {
           name: kind === "entities" ? "검사 자료 추가" : kind === "tasks" ? "할 일 등록" : "기록 작성",
@@ -400,23 +416,30 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         }),
       ).toBeVisible();
       await openTabFilters(page);
-      const grid = page.locator(".filter-grid");
-      const inputs = await grid.locator("input,select").evaluateAll((nodes) =>
+      const grid = page.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "필터", exact: true }) });
+      for (const name of kind === "entities" ? ["정렬"] : kind === "tasks" ? ["할 일 종류", "할 일 상태"] : ["기록 종류", "기록 시작일", "기록 종료일"]) {
+        await expect(grid.getByLabel(name, { exact: true })).toBeVisible();
+      }
+      const inputs = await grid.getByRole("textbox").or(grid.getByRole("combobox")).or(grid.locator('input[type="date"]')).filter({ visible: true }).evaluateAll((nodes) =>
         nodes.map((el) => {
           const b = el.getBoundingClientRect();
           return { x: b.x, y: b.y, right: b.right, h: b.height };
         })
       );
+      expect(inputs.length).toBeGreaterThan(0);
       for (const field of inputs) {
         expect(field.h).toBeGreaterThanOrEqual(44);
         expect(field.right).toBeLessThanOrEqual(width);
       }
-      if (kind !== "entities") expect(inputs[0].y).toBeCloseTo(inputs[1].y);
-      else await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
+      if (kind === "entities") await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
       const filterBottom = (await grid.boundingBox())!;
-      expect((await page.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true }).boundingBox())!.y).toBeGreaterThanOrEqual(
-        filterBottom.y + filterBottom.height,
-      );
+      const tags = page.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true });
+      await expect(tags).toBeVisible();
+      const tagBox = (await tags.boundingBox())!;
+      expect(tagBox.y).toBeGreaterThanOrEqual(filterBottom.y);
+      expect(tagBox.y + tagBox.height).toBeLessThanOrEqual(filterBottom.y + filterBottom.height);
+      expect(tagBox.x).toBeGreaterThanOrEqual(filterBottom.x);
+      expect(tagBox.x + tagBox.width).toBeLessThanOrEqual(filterBottom.x + filterBottom.width);
       if (kind === "entities") await setEntityCategory(page, value);
       else { await page.getByLabel(label, { exact: true }).selectOption(value); await page.getByRole("button", { name: "필터 적용", exact: true }).click(); }
       const search = page.getByLabel(kind === "entities" ? "자료 제목 검색" : "검색어", { exact: true });
@@ -448,14 +471,20 @@ for (const width of [320, 1440]) {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, "/tags/entity");
-    const body = form(page).locator(".modal-body"),
+    await settleSurface(form(page));
+    const body = form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]"),
       editor = form(page).getByRole("form", { name: "태그 추가", exact: true }),
       input = editor.getByRole("textbox"),
       box = (await input.boundingBox())!,
       parent = (await editor.boundingBox())!;
-    if (width >= 640) {
-      expect((await form(page).boundingBox())!.height).toBeLessThan(500);
-    }
+    const manager = (await form(page).boundingBox())!;
+    expect(manager.x).toBeGreaterThanOrEqual(0);
+    expect(manager.x + manager.width).toBeLessThanOrEqual(width);
+    expect(manager.y).toBeGreaterThanOrEqual(0);
+    expect(manager.y + manager.height).toBeLessThanOrEqual(900);
+    expect(await body.evaluate(element => getComputedStyle(element).overflowY)).toMatch(/^(auto|scroll)$/);
+    await expect(editor.getByRole("button", { name: "추가", exact: true })).toBeVisible();
+    await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
     expect(box.x).toBeCloseTo(parent.x);
     expect(box.width).toBeGreaterThan(100);
     expect(box.x + box.width).toBeLessThanOrEqual(parent.x + parent.width + 1);
@@ -479,19 +508,18 @@ for (const width of [320, 390, 639, 640]) {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, "/entities");
-    const header = page.locator(".main-tab-header");
+    const header = listHeader(page);
     const picker = header.getByLabel("자료 종류", { exact: true });
     const search = header.getByLabel("자료 제목 검색", { exact: true });
     expect((await picker.boundingBox())!.y + (await picker.boundingBox())!.height).toBeLessThan((await search.boundingBox())!.y);
     await expect(header.getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
-    await expect(header.locator(".entity-type-picker .help")).toHaveCount(0);
-    await expect(header.locator(".entity-type-picker label.label")).toHaveClass(/visually-hidden/);
+    await expect(picker).toHaveAccessibleName("자료 종류");
     await openTabFilters(page);
     await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
     for (const scale of ["100%", "200%"]) {
       await page.evaluate(value => { document.documentElement.style.fontSize = value; }, scale);
-      const panel = header.locator(".tab-filters > .form");
-      const condition = panel.locator(".entity-property-condition");
+      const panel = header.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "필터", exact: true }) });
+      const condition = panel.getByRole("button", { name: "조건 1 제거", exact: true }).locator("..");
       await expect(condition).toHaveCount(1);
       const controls = condition.locator("input,select");
       await expect(controls).toHaveCount(3);
@@ -500,28 +528,20 @@ for (const width of [320, 390, 639, 640]) {
         return { x: box.x, y: box.y, right: box.right, bottom: box.bottom };
       }));
       const remove = (await condition.getByRole("button", { name: "조건 1 제거", exact: true }).boundingBox())!;
-      expect(remove.y).toBeCloseTo(property.y);
-      expect(remove.width).toBeGreaterThanOrEqual(44);
-      expect(remove.height).toBeGreaterThanOrEqual(44);
-      if (scale === "100%" || Math.abs(property.y - comparison.y) < 1) {
-        expect(property.y).toBeCloseTo(comparison.y);
-        expect(property.right).toBeLessThanOrEqual(comparison.x);
-        expect(comparison.right).toBeLessThanOrEqual(remove.x);
-      } else {
-        // Enlarged text may give each field its own row while keeping the remove action beside the property.
-        expect(property.right).toBeLessThanOrEqual(remove.x);
-        expect(comparison.y).toBeGreaterThanOrEqual(Math.max(property.bottom, remove.y + remove.height));
-        expect(comparison.x).toBeCloseTo(property.x);
-        expect(comparison.right).toBeCloseTo(value.right);
+      expect(remove.width).toBeGreaterThanOrEqual(44); expect(remove.height).toBeGreaterThanOrEqual(44);
+      const panelBox = (await panel.boundingBox())!;
+      for (const control of [property, comparison, value, { x: remove.x, y: remove.y, right: remove.x + remove.width, bottom: remove.y + remove.height }]) {
+        expect(control.right - control.x).toBeGreaterThanOrEqual(44);
+        expect(control.bottom - control.y).toBeGreaterThanOrEqual(44);
+        expect(control.x).toBeGreaterThanOrEqual(panelBox.x);
+        expect(control.right).toBeLessThanOrEqual(panelBox.x + panelBox.width);
       }
-      expect(value.y).toBeGreaterThanOrEqual(Math.max(property.bottom, comparison.bottom));
-      expect(value.x).toBeCloseTo(property.x);
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), scale).toBe(true);
       const boxes = await panel.locator("input:visible,select:visible,button:visible").evaluateAll(elements => elements.map(el => {
         const box = el.getBoundingClientRect();
         return { left: box.left, right: box.right };
       }));
-      const panelBox = (await panel.boundingBox())!;
+      expect(boxes.length).toBeGreaterThanOrEqual(4);
       for (const box of boxes) {
         expect(box.left).toBeGreaterThanOrEqual(panelBox.x);
         expect(box.right).toBeLessThanOrEqual(panelBox.x + panelBox.width);

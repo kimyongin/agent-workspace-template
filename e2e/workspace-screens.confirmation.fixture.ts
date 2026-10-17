@@ -1,3 +1,4 @@
+import { executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListDetail } from "./ui-actions.ts";
@@ -66,7 +67,9 @@ for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"
     await expect(form(page).getByLabel("기록 메모")).toHaveCount(0);
     await form(page).getByRole("button", { name: kind === "tasks" ? "저장" : "저장", exact: true }).click();
     await expect(form(page).getByLabel("기록 메모")).toHaveValue("변경 초안 수정");
-    await expect(page.locator("dialog[open]")).toHaveCount(2);
+    await expect(form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^대상$/ }) }).locator("dd")).toHaveText("변경 초안");
+    await expect(form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^작업$/ }) }).locator("dd")).toHaveText("수정");
+    await expect(openDialogs(page)).toHaveCount(2);
     expect(state.writes).toHaveLength(0);
     const box = (await form(page).boundingBox())!;
     expect(box.height).toBeLessThan(844 - 32);
@@ -113,7 +116,7 @@ test("#181 일반 기록은 바로 저장하고 삭제만 작은 메모·태그 
   await form(page).getByRole("button", { name: "편집", exact: true }).click();
   await form(page).getByRole("button", { name: "삭제", exact: true }).click();
   await expect(form(page).getByLabel("기록 메모")).toBeVisible();
-  await expect(page.locator("dialog[open]")).toHaveCount(2);
+  await expect(openDialogs(page)).toHaveCount(2);
   await form(page).getByLabel("기록 메모").fill("중복 자료 삭제");
   await form(page).getByRole("button", { name: "삭제하고 기록", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(2);
@@ -188,7 +191,7 @@ test("할 일 보기에서 완료, 편집 초안은 닫기 확인으로 보호",
   await form(page).getByLabel("본문").fill("보존할 초안");
   await expect(form(page).getByRole("button", { name: "완료하고 기록", exact: true })).toHaveCount(0);
   await form(page).getByRole("button", { name: "닫기", exact: true }).click();
-  const discard = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
   await discard.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByLabel("본문")).toHaveValue("보존할 초안");
   await form(page).getByRole("button", { name: "닫기", exact: true }).click();
@@ -205,9 +208,9 @@ for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const
     await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1`);
     const before = state.writes.length;
     await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-    const confirm = page.locator("dialog.modal-action[open]");
+    const confirm = executionDialog(page);
     await expect(confirm.getByRole("button", { name: "삭제하고 기록", exact: true })).toBeVisible();
-    await expect(page.locator("dialog[open]")).toHaveCount(2);
+    await expect(openDialogs(page)).toHaveCount(2);
     expect(state.writes).toHaveLength(before);
     await expect(form(page).getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
     await confirm.getByRole("button", { name: "취소", exact: true }).click();
@@ -235,7 +238,7 @@ test("#229 할 일의 업무 단계가 직접 편집보다 우선하고 취소 �
   const url = new URL(page.url());
   expect(url.searchParams.get("tag_id")).toBe(id(9));
   expect(url.searchParams.has("edit")).toBe(false);
-  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(openDialogs(page)).toHaveCount(1);
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
@@ -272,10 +275,10 @@ test("#229 업무 확인의 서버 메모 오류는 해당 입력에 표시하�
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, n, label] of [["entities", 1, "자료 태그"], ["tasks", 2, "할 일 태그"], ["records", 3, "기록 태그"]] as const) {
-  test(`${kind}: tag clear stays outside choices, keeps the group name and only updates the draft`, async ({ page }) => {
+for (const [kind, label] of [["entities", "자료 태그"], ["tasks", "할 일 태그"], ["records", "기록 태그"]] as const) {
+  test(`${kind}: new registration tag clear stays outside choices, keeps the group name and only updates the draft`, async ({ page }) => {
     const state = await fixtures(page);
-    await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1&edit_from=view`);
+    await go(page, `/${kind}?create=1`);
     const picker = form(page).getByRole("group", { name: label, exact: true });
     const choice = picker.getByRole("button", { name: "같은 이름 선택 해제", exact: true });
     const clear = picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
@@ -283,7 +286,7 @@ for (const [kind, n, label] of [["entities", 1, "자료 태그"], ["tasks", 2, "
     await chooseTag(page, picker, "같은 이름");
     await expect(choice).toHaveCount(1);
     await expect(picker).toHaveAccessibleName(label);
-    await expect(picker.locator(".tag-selection").getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
+    await expect(picker.locator('[aria-label="선택한 태그"]').getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
     await clear.click();
     await expect(clear).toHaveCount(0);
     await expect(choice).toHaveCount(0);
@@ -295,13 +298,26 @@ for (const [kind, n, label] of [["entities", 1, "자료 태그"], ["tasks", 2, "
 
 test("failed tag lookup still permits clearing existing draft selections", async ({ page }) => {
   const state = await fixtures(page);
-  state.rows.records[0].tag_ids = [id(11)];
-  await page.route("**/api/tags**", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "fixture lookup failed", fields: [] } } }));
-  await go(page, `/records/${id(3)}?edit=1&edit_from=view`);
+  await go(page, "/records?create=1");
   const picker = form(page).getByRole("group", { name: "기록 태그", exact: true });
+  const choice = picker.getByRole("button", { name: "같은 이름 선택 해제", exact: true });
+  await chooseTag(page, picker, "같은 이름");
+  await expect(choice).toHaveCount(1);
+  let failedReads = 0;
+  await page.route("**/api/tags**", route => {
+    failedReads++;
+    return route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "fixture lookup failed", fields: [] } } });
+  });
+  // Returning to the window refreshes the dictionary while the new record's actual UI selection remains a draft.
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => failedReads).toBeGreaterThan(0);
   await expect(picker.getByRole("alert")).toContainText("기존 선택은 유지합니다");
+  await expect(picker).toHaveAccessibleName("기록 태그");
+  await expect(choice).toHaveCount(1);
+  await expect(picker.locator('[aria-label="선택한 태그"]').getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
   await picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true }).click();
   await expect(picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true })).toHaveCount(0);
+  await expect(choice).toHaveCount(0);
   await expect(picker.getByRole("button", { name: "태그 선택", exact: true })).toBeFocused();
   expect(state.writes).toHaveLength(0);
 });

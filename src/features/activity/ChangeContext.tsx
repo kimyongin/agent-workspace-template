@@ -1,9 +1,16 @@
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 import { recordLabels, type RecordResult } from "@contracts/record.ts";
 import { taskLabels } from "@contracts/task.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
 export type WorkspaceRecord = RecordResult;
-export const recordKindNames = { user: "직접 작성", result: "수행 결과", change: "변경 기록" };
+export const recordKindNames = {
+  user: "직접 작성",
+  result: "수행 결과",
+  change: "변경 기록",
+};
 export const changeActionNames = {
   create: "등록",
   update: "수정",
@@ -36,51 +43,84 @@ const snapshotLabels: Record<string, string> = {
   weekdays: "요일",
   month_days: "날짜",
 };
-function SnapshotValue({ value, labels, field }: { value: unknown; labels?: Record<string, string>; field?: string }) {
+function SnapshotValue(
+  { value, labels, field }: {
+    value: unknown;
+    labels?: Record<string, string>;
+    field?: string;
+  },
+) {
   if (value === null) return <>값 없음</>;
   if (typeof value === "boolean") return <>{value ? "예" : "아니오"}</>;
   if (Array.isArray(value)) {
-    return value.length
-      ? (
-        <ul>
-          {value.map((item, index) => (
-            <li key={index}>
-              <SnapshotValue value={item} />
-            </li>
-          ))}
-        </ul>
-      )
-      : <>없음</>;
+    if (!value.length) return <>없음</>;
+    return (
+      <>
+        {value.map((item, index) =>
+          item !== null && typeof item === "object"
+            ? (
+              <div key={index} className="col-span-full min-w-0">
+                <p className="text-sm font-medium">항목 {index + 1}</p>
+                <SnapshotValue value={item} />
+              </div>
+            )
+            : (
+              <span key={index}>
+                {index > 0 ? " · " : ""}
+                <SnapshotValue value={item} />
+              </span>
+            )
+        )}
+      </>
+    );
   }
   if (typeof value === "object") {
-    const captured = "property_labels" in value && value.property_labels && typeof value.property_labels === "object"
+    const captured = "property_labels" in value && value.property_labels &&
+        typeof value.property_labels === "object"
       ? Object.fromEntries(
-        Object.entries(value.property_labels).filter((entry): entry is [string, string] =>
-          typeof entry[1] === "string"
-        ),
+        Object.entries(value.property_labels).filter((
+          entry,
+        ): entry is [string, string] => typeof entry[1] === "string"),
       )
       : undefined;
     const entries = Object.entries(value).filter(([key]) => key !== "property_labels");
     return entries.length
       ? (
-        <dl className="props">
-          {entries.map(([key, item]) => (
-            <div key={key}>
-              <dt>
-                {(labels && Object.hasOwn(labels, key) ? labels[key] : undefined) ||
-                  (Object.hasOwn(snapshotLabels, key) ? snapshotLabels[key] : undefined) ||
-                  (/^prop_[0-9]+$/.test(key) ? `항목 ${key.slice(5)}` : key)}
-              </dt>
-              <dd>
-                <SnapshotValue value={item} labels={key === "properties" ? captured : undefined} field={key} />
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+          {entries.map(([key, item]) => {
+            const label = (labels && Object.hasOwn(labels, key) ? labels[key] : undefined) ||
+              (Object.hasOwn(snapshotLabels, key) ? snapshotLabels[key] : undefined) ||
+              (/^prop_[0-9]+$/.test(key) ? `항목 ${key.slice(5)}` : key);
+            const nested = item !== null && typeof item === "object" &&
+              (!Array.isArray(item) || item.some((value) => value !== null && typeof value === "object"));
+            return nested
+              ? (
+                <div key={key} className="col-span-full min-w-0">
+                  <p className="text-sm font-medium">{label}</p>
+                  <SnapshotValue
+                    value={item}
+                    labels={key === "properties" ? captured : undefined}
+                    field={key}
+                  />
+                </div>
+              )
+              : (
+                <dl key={key} className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+                  <div>
+                    <dt>{label}</dt>
+                    <dd>
+                      <SnapshotValue value={item} field={key} />
+                    </dd>
+                  </div>
+                </dl>
+              );
+          })}
+        </div>
       )
       : <>없음</>;
   }
-  const translated = typeof value === "string" && ["status", "kind", "freq"].includes(field ?? "")
+  const translated = typeof value === "string" &&
+      ["status", "kind", "freq"].includes(field ?? "")
     ? ({
       open: taskLabels.open,
       done: taskLabels.done,
@@ -95,62 +135,83 @@ function SnapshotValue({ value, labels, field }: { value: unknown; labels?: Reco
     : undefined;
   return <>{translated ?? (value === "" ? "빈 문자열" : String(value))}</>;
 }
-export function ChangeContext({ record, compact = false }: { record: WorkspaceRecord; compact?: boolean }) {
+export function ChangeContext(
+  { record, compact = false, occurredAt }: {
+    record: WorkspaceRecord;
+    compact?: boolean;
+    occurredAt?: ReactNode;
+  },
+) {
   const { formatDateTime } = useDisplayTime();
   const change = record.change;
   const target = change
     ? `${
       change.target_kind === "entity"
-        ? record.entity_context.find((item) => item.id === change.target_id)?.type?.label ?? targets.entity
+        ? record.entity_context.find((item) => item.id === change.target_id)
+          ?.type?.label ?? targets.entity
         : targets[change.target_kind]
-    } 「${change.target_title}」 · ${changeActionNames[change.action]}`
+    } 「${change.target_title}」`
     : null;
-  const properties = (
-    <dl className="props">
-      <div>
-        <dt>종류</dt>
-        <dd>{recordKindNames[record.record_kind] ?? "기록"}</dd>
-      </div>
-      {change && (
-        <div>
-          <dt>출처</dt>
-          <dd>{change.source === "http" ? "웹" : "에이전트"}</dd>
-        </div>
+  const pair = (label: string, value: ReactNode, full = false) => (
+    <dl
+      className={cn(
+        "min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere",
+        full && "col-span-full",
       )}
+    >
       <div>
-        <dt>{recordLabels.occurred_at}</dt>
-        <dd>
-          <time dateTime={record.occurred_at}>{formatDateTime(record.occurred_at)}</time>
-        </dd>
+        <dt>{label}</dt>
+        <dd>{value}</dd>
       </div>
-      {compact && target && (
-        <div>
-          <dt>변경 대상</dt>
-          <dd>{target}{change?.action === "delete" ? " · 삭제된 대상" : ""}</dd>
-        </div>
-      )}
     </dl>
+  );
+  const properties = (
+    <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+      {pair("종류", recordKindNames[record.record_kind] ?? "기록")}
+      {change && pair("출처", change.source === "http" ? "웹" : "에이전트")}
+      {occurredAt ??
+        pair(
+          recordLabels.occurred_at,
+          <time dateTime={record.occurred_at}>
+            {formatDateTime(record.occurred_at)}
+          </time>,
+        )}
+      {target &&
+        pair(
+          "변경 대상",
+          <>
+            {target}
+            {compact && change?.action === "delete" ? " · 삭제된 대상" : ""}
+          </>,
+          true,
+        )}
+      {change && pair("행동", changeActionNames[change.action])}
+    </div>
   );
   if (compact) return properties;
   return (
-    <div className="detail-section record-context">
+    <div className="flex min-w-0 flex-col gap-4">
       {properties}
       {change && (
         <>
           {(change.before !== null || change.after !== null) && (
-            <details className="workspace-additional">
-              <summary>변경 전후 값</summary>
-              <div className="change-snapshot">
-                <section>
-                  <h3 className="section-title">변경 전</h3>
-                  {change.before === null ? <p>없음</p> : <SnapshotValue value={change.before} />}
-                </section>
-                <section>
-                  <h3 className="section-title">변경 후</h3>
-                  {change.after === null ? <p>없음</p> : <SnapshotValue value={change.after} />}
-                </section>
-              </div>
-            </details>
+            <Accordion type="single" collapsible defaultValue="change">
+              <AccordionItem value="change">
+                <AccordionTrigger>변경 전후 값</AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2">
+                    <section>
+                      <h4 className="text-base font-semibold">변경 전</h4>
+                      {change.before === null ? <p>없음</p> : <SnapshotValue value={change.before} />}
+                    </section>
+                    <section>
+                      <h4 className="text-base font-semibold">변경 후</h4>
+                      {change.after === null ? <p>없음</p> : <SnapshotValue value={change.after} />}
+                    </section>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           )}
         </>
       )}

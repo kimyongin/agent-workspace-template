@@ -21,7 +21,7 @@
 | 제품 플러그인 | [패키징과 클라이언트 연결](../plugins/workspace/README.md) |
 | 설치·배포·복구 | [배포](deployment/release.md) |
 | 점검·장애·데이터 복원 | [운영](operations/runbook.md) |
-| 개발 스킬 설치 정보 | [27개 원본 스킬](development/matt-skills.md) |
+| 개발 스킬 설치 정보 | [Matt Pocock 27개 원본 스킬](development/matt-skills.md) · [shadcn/ui 공식 스킬](development/shadcn-skills.md) |
 
 PRD·ADR의 결정은 사람이 소유한다. 구체적인 대화 합의는 해당 문서에 반영한다([ADR-0008](adr/0008-document-ownership.md)). 가이드는 제품·환경의 기준을, 원본 스킬은 작업 방법을 소유한다. 실제 구현은 현재 checkout과 소스에서 확인한다.
 

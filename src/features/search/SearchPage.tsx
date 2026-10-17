@@ -1,7 +1,14 @@
+import { ItemGroup, Item, ItemContent } from "../../components/ui/item.tsx";
+import { Empty, EmptyHeader, EmptyDescription } from "../../components/ui/empty.tsx";
+import { Spinner } from "../../components/ui/spinner.tsx";
+import { FieldGroup } from "../../components/ui/field.tsx";
+import { Input } from "../../components/ui/input.tsx";
+import { Button } from "../../components/ui/button.tsx";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { applyFilterParams, pickFilterParams, TabFilters, useFilterDraft } from "../../components/TabSearch.tsx";
 import { workspaceSearchScope } from "./search-scope.ts";
 import { PageHeading } from "../../components/PageHeading.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { DetailLink as Link, useDetailExploration } from "../../lib/detail-exploration.tsx";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -101,16 +108,16 @@ export function SearchPage() {
       return next;
     });
   return (
-    <section className="panel search-page" aria-labelledby="search-title">
+    <section data-page-ready={!busy && (!!result || !!error || !q) ? "" : undefined} className="@container flex min-w-0 flex-col gap-6" aria-labelledby="search-title">
       <PageHeading
         title="검색"
         id="search-title"
         tabIndex={-1}
         description="할 일·기록을 키워드나 의미로 찾아봅니다."
       />
-      <div className="query-bar mixed-query-bar">
+      <div className="grid min-w-0 grid-cols-1 items-end gap-3 @min-[14rem]:grid-cols-[minmax(0,1fr)_auto]">
         <form
-          className="search-form"
+          className="flex min-w-0 flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
             if (composing.current) return;
@@ -118,12 +125,12 @@ export function SearchPage() {
             if (value === q) setRetry((n) => n + 1);
             else change("q", value);
           }}
-        >
+        ><FieldGroup>
           <Field label="검색어" required>
             {(p) => (
-              <input
+              <Input
                 {...p}
-                className="input"
+
                 placeholder="검색어 입력"
                 value={draft}
                 onCompositionStart={() => {
@@ -140,14 +147,14 @@ export function SearchPage() {
               />
             )}
           </Field>
-          <button className="btn btn-primary" type="submit" disabled={busy}>검색</button>
-        </form>
+          <Button variant="default"  type="submit" disabled={busy}>검색</Button>
+        </FieldGroup></form>
         {(params.has("status") || params.has("principle_view")) && (
           <Notice kind="error">
             이 링크에는 지원하지 않는 검색 조건이 있습니다. 조건을 지운 뒤 할 일이나 기록을 검색하세요.{" "}
-            <button
+            <Button variant="outline"
               type="button"
-              className="btn"
+
               onClick={() => {
                 const next = new URLSearchParams(params);
                 for (const key of ["status", "principle_view", "pages", "scroll"]) next.delete(key);
@@ -155,7 +162,7 @@ export function SearchPage() {
               }}
             >
               지원하지 않는 검색 조건 지우기
-            </button>
+            </Button>
           </Notice>
         )}
         <TabFilters
@@ -167,45 +174,45 @@ export function SearchPage() {
           }}
           onApply={applyFilters}
         >
-          <div className="search-advanced">
-            <div className="search-filters">
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="flex min-w-0 flex-col gap-4">
               <Field label="검색 대상">
                 {(p) => (
-                  <select
+                  <NativeSelect
                     {...p}
-                    className="input"
+
                     value={editing.draft.get("kind") ?? ""}
                     onChange={(e) => changeFilter("kind", e.target.value)}
                   >
-                    <option value="">전체</option>
-                    {Object.entries(kinds).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
+                    <NativeSelectOption value="">전체</NativeSelectOption>
+                    {Object.entries(kinds).map(([k, v]) => <NativeSelectOption key={k} value={k}>{v}</NativeSelectOption>)}
+                  </NativeSelect>
                 )}
               </Field>
               <Field label="검색 방식">
                 {(p) => (
-                  <select
+                  <NativeSelect
                     {...p}
-                    className="input"
+
                     value={editing.draft.get("mode") ?? "auto"}
                     onChange={(e) => changeFilter("mode", e.target.value)}
                   >
-                    <option value="auto">자동</option>
-                    <option value="keyword">키워드</option>
-                  </select>
+                    <NativeSelectOption value="auto">자동</NativeSelectOption>
+                    <NativeSelectOption value="keyword">키워드</NativeSelectOption>
+                  </NativeSelect>
                 )}
               </Field>
             </div>
-            <p className="help">
+            <p className="text-sm text-muted-foreground">
               현재 자료는 자료 목록에서 확인하고, 과거 변경과 근거는 기록을 검색해 원문을 읽으세요.
             </p>
             {editing.draft.has("tag_ids") && (
-              <div className="form">
+              <FieldGroup className="flex min-w-0 flex-col gap-5">
                 <TagReadProvider dictionary={dictionary}>
                   <TagNames scope={selectedKind === "task" ? "task" : "record"} ids={activityTags(editing.draft)} />
                 </TagReadProvider>
-                <button type="button" className="btn" onClick={clearTags}>저장된 태그 조건 해제</button>
-              </div>
+                <Button variant="outline" type="button"  onClick={clearTags}>저장된 태그 조건 해제</Button>
+              </FieldGroup>
             )}
             {
               <TagFilter
@@ -225,14 +232,14 @@ export function SearchPage() {
               value={editing.draft.get("entity_id") ?? ""}
               onChange={(id) => changeFilter("entity_id", id ?? "")}
             />
-            <div className="search-filters">
+            <div className="flex min-w-0 flex-col gap-4">
               {["from", "to"].map((name) => (
                 <Field key={name} label={name === "from" ? "기간 시작" : "기간 끝"}>
                   {(p) => (
-                    <input
+                    <Input
                       {...p}
                       type="datetime-local"
-                      className="input"
+
                       value={editing.draft.get(name) ?? ""}
                       onChange={(e) => changeFilter(name, e.target.value)}
                     />
@@ -247,47 +254,52 @@ export function SearchPage() {
       {error && (
         <>
           <Notice kind="error">{error}</Notice>
-          <button className="btn" type="button" onClick={() => setRetry((n) => n + 1)}>다시 시도</button>
+          <Button variant="outline"  type="button" onClick={() => setRetry((n) => n + 1)}>다시 시도</Button>
         </>
       )}
-      {busy && <p role="status" className="secondary">검색 중…</p>}
+      {busy && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner />검색 중…</p>}
       {result && (
         <>
           {result.search_state === "keyword_fallback" && (
             <Notice>현재 키워드 검색 결과를 표시합니다. 의미 검색을 사용할 수 없습니다.</Notice>
           )}
           {!!(result.semantic_coverage.pending + result.semantic_coverage.excluded) && (
-            <p className="help">
+            <p className="text-sm text-muted-foreground">
               의미 색인 대기 {result.semantic_coverage.pending}개 · 제외 {result.semantic_coverage.excluded}개
             </p>
           )}
           {!!result.semantic_coverage.pending && (
-            <p className="help">
+            <p className="text-sm text-muted-foreground">
               대기 중인 기록은 의미 검색 결과에 빠질 수 있습니다.{" "}
               <PageLink to="/status">상태에서 오래 갱신되지 않은 대기 확인</PageLink>{" "}
               후에도 계속되면 관리자에게 색인 서비스 점검을 요청하세요. 처리 실패로 확정된 상태는 아닙니다.
             </p>
           )}
-          {!result.items.length && <p className="secondary">검색 결과가 없습니다.</p>}
-          <ul className="list">
+          {!result.items.length && <Empty><EmptyHeader><EmptyDescription>검색 결과가 없습니다.</EmptyDescription></EmptyHeader></Empty>}
+          <ItemGroup asChild><ul className="min-w-0">
             {result.items.map((r) => {
               return (
-                <li className="list-item" key={`${r.kind}:${r.id}`}>
-                  <div className="list-item-main">
-                    <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>
-                      <span className={r.kind === "record" ? "record-preview" : undefined}>{r.title}</span>
-                    </Link>
-                    {r.snippet !== r.title && <span className="secondary record-snippet">{r.snippet}</span>}
-                    <div className="search-result-meta">
-                      <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span>
-                      <SearchMatch item={r} />
-                    </div>
-                  </div>
-                </li>
+                <Item asChild variant="outline" key={`${r.kind}:${r.id}`}><li className="min-w-0">
+                  <ItemContent className="min-w-0">
+                    <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+                      <div className="col-span-full"><dt>{r.kind === "record" ? "본문 대표 문구" : "제목"}</dt><dd>
+                        <Button asChild variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere">
+                          <Link data-list-anchor="" id={`search-${r.kind}-${r.id}`} to={r.path}>
+                            <span className="wrap-anywhere">{r.title}</span>
+                          </Link>
+                        </Button>
+                      </dd></div>
+                      {r.snippet !== r.title && <div className="col-span-full"><dt>일치 구간</dt><dd className="whitespace-pre-wrap wrap-anywhere">{r.snippet}</dd></div>}
+                      <div><dt>종류</dt><dd>{kinds[r.kind]}</dd></div>
+                      <div><dt>시각</dt><dd>{formatDateTime(r.at)}</dd></div>
+                    </dl>
+                    <SearchMatch item={r} />
+                  </ItemContent>
+                </li></Item>
               );
             })}
-          </ul>
-          {result.next_cursor && <BodyAction disabled={busy} onClick={() => more?.()}>더 보기</BodyAction>}
+          </ul></ItemGroup>
+          {result.next_cursor && <Button variant="ghost" type="button" disabled={busy} onClick={() => more?.()}>더 보기</Button>}
         </>
       )}
     </section>

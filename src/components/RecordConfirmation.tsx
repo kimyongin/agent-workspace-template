@@ -1,4 +1,9 @@
+import { FieldGroup, FieldSet } from "./ui/field.tsx";
+import { Spinner } from "./ui/spinner.tsx";
+import { Textarea } from "./ui/textarea.tsx";
+import { Button } from "./ui/button.tsx";
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { captureFocusOrigin, type FocusOrigin } from "../lib/surface-dom.ts";
 import { SurfaceActionContext, SurfaceContext } from "./Modal.tsx";
 import { changeNoteErrors } from "./change-note.ts";
 import { ApiError } from "../lib/api-error.ts";
@@ -9,20 +14,24 @@ import type { PrepareRecordMemo, PreparedRecordMemo } from "@contracts/record-pr
 import { api } from "../lib/api.ts";
 import { WorkspaceContext } from "../features/details/workspace-context.ts";
 
+export type ConfirmationValue = { label: string; value: ReactNode; fullWidth?: boolean };
+
 export interface RecordMemo { change_note?: string; change_tag_ids?: string[] }
-function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, message, record=true, excludeTag, preparing}: {
+function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, message, data, record=true, excludeTag, preparing}: {
   preparing?: boolean;
+  data?: ConfirmationValue[];
   note: string; tags: string[]; onNote: (value: string) => void; onTags: (value: string[]) => void;
   errors: Record<string,string>; failure?: string | null; frozen: boolean; message?: ReactNode; record?: boolean; excludeTag?: string;
 }) {
-  return <div className="form">
-    {message && <div className="secondary action-explanation">{message}</div>}
+  return <div className="flex min-w-0 flex-col gap-5">
+    {!!data?.length && <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">{data.map(({label,value,fullWidth}) => <div key={label} className={fullWidth ? "col-span-full" : undefined}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
+    {message && <div className="text-sm">{message}</div>}
     {failure && <Notice kind="error">{failure}</Notice>}
-    {record && preparing && <p role="status" className="secondary">기록 메모 준비 중…</p>}
-    {record && <fieldset disabled={frozen} className="form plain-fieldset">
-      <Field label="기록 메모" error={errors.change_note}>{p => <textarea {...p} className="input" rows={4} value={note} onChange={e=>onNote(e.target.value)} placeholder="변경 내용과 이유를 작성하세요"/>}</Field>
-      <TagPicker label="기록 태그" value={tags} error={errors.change_tag_ids} onChange={onTags} excludeId={excludeTag}/>
-    </fieldset>}
+    {record && preparing && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner />기록 메모 준비 중…</p>}
+    {record && <FieldSet disabled={frozen}><FieldGroup>
+      <Field fullWidth label="기록 메모" error={errors.change_note}>{p => <Textarea {...p}  rows={4} value={note} onChange={e=>onNote(e.target.value)} placeholder="변경 내용과 이유를 작성하세요"/>}</Field>
+      <div className="min-w-0"><TagPicker disabled={frozen} label="기록 태그" value={tags} error={errors.change_tag_ids} onChange={onTags} excludeId={excludeTag}/></div>
+    </FieldGroup></FieldSet>}
   </div>;
 }
 
@@ -35,6 +44,7 @@ interface ConfirmationDescription {
   preparation?: () => PrepareRecordMemo | Promise<PrepareRecordMemo>;
   onPrepared?: (result:PreparedRecordMemo) => void;
   message?: ReactNode;
+  data?: ConfirmationValue[];
   record: boolean;
   danger?: boolean;
   excludeTag?: string;
@@ -70,7 +80,9 @@ export function useRecordConfirmation(options: {
     setErrors(fields);
     setFailure(message);
   };
-  const begin = async (kind: ConfirmationKind) => {
+  const origin = useRef<FocusOrigin | null>(null);
+  const begin = async (kind: ConfirmationKind, invoker?: HTMLElement | null) => {
+    origin.current = captureFocusOrigin(invoker ?? document.activeElement);
     if (attempt.snapshot().busy || attempt.snapshot().uncertain) { setStage(kind); return; }
     setStage(kind);
     reject({}, null);
@@ -135,15 +147,15 @@ export function useRecordConfirmation(options: {
   useLayoutEffect(() => {
     if (!register || options.open === false || !stage || !description) return;
     register({
-      title: description.title, busy,
+      title: description.title, busy, returnFocus: origin.current,
       body: <RecordMemoFields note={note} tags={tags} onNote={value => { touched.current.note = true; setNote(value); }} onTags={value => { touched.current.tags = true; setTags(value); }}
         preparing={preparing}
         errors={errors} failure={failure} frozen={busy || uncertain || preparing} record={description.record}
-        message={description.message} excludeTag={description.excludeTag}/>,
-      footer: <><button type="button" className="btn" disabled={busy} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</button>
-        <button type="button" className={description.danger ? "btn btn-danger" : "btn btn-primary"} disabled={busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)} onClick={() => void write(stage)}>
+        data={description.data} message={description.message} excludeTag={description.excludeTag}/>,
+      footer: <><Button variant="outline" type="button"  disabled={busy} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</Button>
+        <Button variant={description.danger ? "destructive" : "default"} type="button" disabled={busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)} onClick={() => void write(stage)}>
           {busy ? description.pendingLabel ?? "처리 중…" : uncertain ? "같은 내용 다시 시도" : description.label}
-        </button></>,
+        </Button></>,
       onCancel: cancel,
     });
     return () => register(null);

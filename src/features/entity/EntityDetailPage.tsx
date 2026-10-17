@@ -1,30 +1,32 @@
+import { PlusIcon } from "lucide-react";
+import { Button } from "../../components/ui/button.tsx";
+import { recordDisplayText } from "@contracts/record-display.ts";
 import { CreateRelatedEntityForm } from "./CreateRelatedEntityForm.tsx";
 import { EntityTypedRelations } from "./EntityTypedRelations.tsx";
 import { detailModeLink } from "../../lib/entity-list-url.ts";
 import { entityPath } from "@contracts/entity-identity.ts";
 import { useDetailResource } from "../details/useDetailResource.ts";
-import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import type { EntityContext } from "@contracts/entity-links.ts";
-import { RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
 import { RelatedTaskItem } from "../activity/RelatedTask.tsx";
 import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
-import { TagNames } from "../tags/TagPicker.tsx";
+import { TagConnections } from "../tags/TagConnections.tsx";
 import { EntityProperties } from "./EntityProperties.tsx";
 import type { EntityDetail } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
-import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
+import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
-import "./entity.css";
-import { EntityTaskRelations } from "./TaskEntityRelations.tsx";
+import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams(),
@@ -61,6 +63,7 @@ export function EntityDetailPage() {
     load: (id, signal) => api("GET", entityPath(id), undefined, signal),
   });
   const { value: entity, editReady } = detail;
+  const taskRead = useEntityTaskRead(entity);
   const [actionError, setError] = useState<string | null>(null);
   useEffect(() => {
     if (detail.loading) setError(null);
@@ -70,6 +73,7 @@ export function EntityDetailPage() {
   const reload = detail.reload;
   const editor = useDetailEditor(detail.editClosed);
   const [busy, setBusy] = useState(false);
+  const readRoot = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!detail.confirmed && entity) relationSaved.current = false;
   }, [entity, detail.confirmed]);
@@ -82,14 +86,14 @@ export function EntityDetailPage() {
     const frame = requestAnimationFrame(() => {
       if (returnCreateFocus.current === "relation") {
         const button = Array.from(
-          document.querySelectorAll<HTMLButtonElement>('dialog[open] [aria-label$="작성해서 연결"]'),
+          readRoot.current?.querySelectorAll<HTMLButtonElement>('[aria-label$="작성해서 연결"]') ?? [],
         ).find((el) => el.dataset.relationCreate === relationCreateTarget.current);
         button?.focus();
         returnCreateFocus.current = null;
         return;
       }
       const label = returnCreateFocus.current === "task" ? "할 일 작성" : "기록 작성";
-      const button = Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button"))
+      const button = Array.from(readRoot.current?.querySelectorAll<HTMLButtonElement>("button[aria-label]") ?? [])
         .find((el) => el.getAttribute("aria-label") === label);
       if (button) {
         button.focus();
@@ -102,18 +106,19 @@ export function EntityDetailPage() {
     ? [{ id: entity.id, title: entity.title, source: "selection", captured_at: new Date().toISOString() }]
     : [];
   const management = entity && !entity.deleted_at && (
-    <div className="detail-management">
+    <div className="flex min-w-0 flex-col gap-6">
       {error && (
         <>
           <Notice kind="error">
             {relationSaved.current ? "연결은 저장했습니다. 최신 내용을 불러오지 못했습니다." : error}
           </Notice>
-          <button type="button" className="btn" onClick={() => void reload()}>
+          <Button variant="outline" type="button"  onClick={() => void reload()}>
             다시 시도
-          </button>
+          </Button>
         </>
       )}
       <EntityTaskRelations
+        read={taskRead}
         entity={entity}
         onSaved={(saved, before) => {
           if (saved && before) {
@@ -147,25 +152,25 @@ export function EntityDetailPage() {
           title={label}
           count={entity[kind].count}
           action={
-            <BodyAction
-              icon="create"
+            <Button variant="ghost" type="button"
+
               aria-label="기록 작성"
               onClick={() => {
                 const p = new URLSearchParams(params);
                 p.set("create", "record");
                 navigate(detailModeLink(location.pathname, p, location.hash));
               }}
-            >
+            ><PlusIcon data-icon="inline-start" />
               작성
-            </BodyAction>
+            </Button>
           }
         >
           {entity[kind].count > 0 && (
-            <CollectionList>
+            <CollectionList columns={["본문 대표 문구"]}>
               {entity[kind].items.map((item) => (
-                <li key={item.id}>
+                <CollectionItem key={item.id}>
                   <RelatedRecordItem record={item} />
-                </li>
+                </CollectionItem>
               ))}
             </CollectionList>
           )}
@@ -174,7 +179,7 @@ export function EntityDetailPage() {
     </div>
   );
   return (
-    <DetailSurface
+    <DetailSurface ready={!detail.loading}
       title={entity?.type.label ?? "자료"}
       description="속성과 연결된 자료·할 일·기록을 확인하고 수정합니다."
       tabTitle={entity?.title ?? "자료"}
@@ -182,36 +187,45 @@ export function EntityDetailPage() {
       onError={detail.failed}
       busy={busy}
       footer={entity && (
-        <button type="button" className="btn btn-primary" onClick={editor.start}>
+        <Button variant="default" type="button"  onClick={editor.start}>
           {entity.deleted_at ? "복원" : "편집"}
-        </button>
+        </Button>
       )}
     >
       {error && !entity && (
         <>
           <Notice kind="error">{error}</Notice>
-          <button className="btn" onClick={() => void reload()}>다시 시도</button>
+          <Button variant="outline"  onClick={() => void reload()}>다시 시도</Button>
         </>
       )}
-      {!entity && !error && <p className="secondary" role="status">불러오는 중…</p>}
+      {!entity && !error && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
       {entity && (
-        <div className="detail-stack">
-          <section className="detail-section entity-detail-properties">
-            <DetailTitle>{entity.title}</DetailTitle>
-            <dl className="props">
-              <div>
-                <dt>번호 출처</dt>
-                <dd>{entity.source_label}</dd>
-              </div>
-              <div>
-                <dt>자료 번호</dt>
-                <dd className="entity-identity-value">{entity.external_id}</dd>
-              </div>
-            </dl>
-            <EntityProperties entity={entity} omitRepresentative />
-            <TagNames scope="entity" compact ids={entity.tag_ids} />
+        <div ref={readRoot} className="flex min-w-0 flex-col gap-6">
+          <section className="flex flex-col gap-4 min-w-0">
+            <EntityProperties
+              entity={entity}
+              identity={
+                <>
+                  <div>
+                    <dt>번호 출처</dt>
+                    <dd>{entity.source_label}</dd>
+                  </div>
+                  <div>
+                    <dt>자료 번호</dt>
+                    <dd className="wrap-anywhere tabular-nums">{entity.external_id}</dd>
+                  </div>
+                </>
+              }
+            />
+            <TagConnections
+              onDraftClosed={detail.editClosed}
+              scope="entity"
+              target={entity}
+              readonly={!!entity.deleted_at}
+              onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
+            />
           </section>
-          <div className="detail-relations">
+          <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
             <EntityTypedRelations
               entity={entity}
               onCreate={(definition, side) => {
@@ -230,26 +244,26 @@ export function EntityDetailPage() {
             {entity.deleted_at && (
               <>
                 <RelatedSection title="할 일" count={entity.tasks.count}>
-                  <CollectionList>
+                  <CollectionList columns={["제목"]}>
                     {entity.tasks.items.map((item) => (
-                      <li key={item.id}>
+                      <CollectionItem key={item.id}>
                         <RelatedTaskItem id={item.id} occurrence={null} />
-                      </li>
+                      </CollectionItem>
                     ))}
                   </CollectionList>
                 </RelatedSection>
                 <RelatedSection title="기록" count={entity.records.count}>
-                  <CollectionList>
+                  <CollectionList columns={["본문 대표 문구"]}>
                     {entity.records.items.map((item) => (
-                      <li key={item.id}>
+                      <CollectionItem key={item.id}>
                         <RelatedRecordItem record={item} />
-                      </li>
+                      </CollectionItem>
                     ))}
                   </CollectionList>
                 </RelatedSection>
               </>
             )}
-            {entity.deleted_at && <p className="secondary">삭제됨</p>}
+            {entity.deleted_at && <p className="text-sm text-muted-foreground">삭제됨</p>}
             {management}
           </div>
           {creating === "relation" && !entity.deleted_at && (
@@ -308,6 +322,21 @@ export function EntityDetailPage() {
           {editor.active && !creating && editReady && (
             <EntityForm
               initial={entity}
+              relations={
+                <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
+                  <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />
+                  <EntityTaskRelations entity={entity} read={taskRead} readOnly />
+                  <RelatedSection title="기록" count={entity.records.count} views={false}>
+                    <CollectionList columns={["본문 대표 문구"]}>
+                      {entity.records.items.map((item) => (
+                        <CollectionItem key={item.id}>
+                          <RelatedItem title={recordDisplayText(item.body)} />
+                        </CollectionItem>
+                      ))}
+                    </CollectionList>
+                  </RelatedSection>
+                </div>
+              }
               deletion={entity.deleted_at ? undefined : {
                 preparation: () => ({
                   model: "entity",
@@ -316,7 +345,8 @@ export function EntityDetailPage() {
                   expected_version: entity.version,
                   input: {},
                 }),
-                message: `${entity.title}을 삭제 상태로 보관합니다. 속성·태그·할 일/기록 연결과 원문은 보존합니다.`,
+                target: entity.title,
+                message: "이 자료를 삭제 상태로 보관합니다. 속성·태그·할 일/기록 연결과 원문은 보존합니다.",
                 onConfirm: async (reason, tags, requestKey) => {
                   setBusy(true);
                   try {

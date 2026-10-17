@@ -29,7 +29,7 @@ test("할 일 연결 기록: 결과와 전체 기간 회차·페이지 오류 �
   await expect(related.getByRole("button", { name: first.body, exact: true })).toBeVisible();
   await related.getByRole("button", { name: "기록 다시 시도" }).click();
   await expect(related.getByRole("button", { name: old.body, exact: true })).toBeVisible();
-  await expect(related.locator(".related-item")).toHaveCount(2);
+  await expect(related.getByRole("listitem")).toHaveCount(2);
   state.rows.records.push(old);
   await related.getByRole("button", { name: old.body, exact: true }).click();
   await form(page).getByRole("link", { name: old.body + " 상세", exact: true }).click();
@@ -97,7 +97,7 @@ test("연결 조회 늦은 응답은 다음 할 일·기록에 섞이지 않는�
   });
   await go(page, `/tasks/${id(2)}`);
   await started;
-  await page.getByRole("link", { name: "할 일 fixture", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  await page.getByRole("link", { name: "할 일 fixture", exact: true, includeHidden: true }).evaluate((el: HTMLAnchorElement) => el.click());
   await openListDetail(page, "다음 할 일");
   await expect(form(page)).toContainText("기록 (0개)");
   release();
@@ -112,7 +112,7 @@ test("연결 조회 늦은 응답은 다음 할 일·기록에 섞이지 않는�
   });
   await go(page, `/records/${id(3)}`);
   await startedTask;
-  await page.getByRole("link", { name: "기록 fixture", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  await page.getByRole("link", { name: "기록 fixture", exact: true, includeHidden: true }).evaluate((el: HTMLAnchorElement) => el.click());
   await openListDetail(page, "다음 기록");
   await expect(form(page).getByRole("button", { name: "다음 할 일", exact: true })).toBeVisible();
   releaseTask();
@@ -151,7 +151,7 @@ for (const width of [320, 1440]) {
     const draft = form(page);
     await draft.getByRole("textbox", { name: /^본문/ }).fill("상담 내역");
     await expect(draft.getByRole("group", { name: "태그", exact: true })).toHaveCount(0);
-    const tags = draft.locator(".tag-picker");
+    const tags = draft.getByRole("group", { name: "기록 태그", exact: true });
     await expect(tags).toContainText("기록 태그");
     await chooseTag(page, tags, "같은 이름");
     await expect(draft.getByRole("searchbox")).toHaveCount(0);
@@ -171,9 +171,9 @@ for (const width of [320, 1440]) {
       exact: true,
     }).click();
     expect(state.writes).toHaveLength(0);
-    await expect(draft.getByRole("list", { name: "선택한 할 일" }).locator(".related-item")).toHaveCount(1);
-    await expect(draft.getByRole("list", { name: "선택한 자료" }).locator(".related-item")).toHaveCount(1);
-    await expect(draft.locator(".entity-choice")).toHaveCount(0);
+    await expect(draft.getByRole("list", { name: "선택한 할 일" }).getByRole("listitem")).toHaveCount(1);
+    await expect(draft.getByRole("list", { name: "선택한 자료" }).getByRole("listitem")).toHaveCount(1);
+    await expect(draft.getByRole("group", { name: "자료 검색 결과", exact: true }).getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
     await draft.getByRole("button", { name: "자료 해제", exact: true }).click();
     await expect(entitySearch).toBeFocused();
     await draft.getByRole("group", { name: "자료 검색 결과" }).getByRole("button", {
@@ -228,7 +228,7 @@ test("#191 할 일에서 일반 기록 작성: 귀속 미리 선택·변경·엔
     name: "다른 할 일 연결",
     exact: true,
   }).click();
-  await expect(draft.getByRole("list", { name: "선택한 할 일" }).locator(".related-item")).toHaveCount(1);
+  await expect(draft.getByRole("list", { name: "선택한 할 일" }).getByRole("listitem")).toHaveCount(1);
   await expect(draft.getByRole("list", { name: "선택한 자료" })).toContainText("자료");
   await draft.getByRole("button", { name: "저장", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(1);
@@ -237,7 +237,7 @@ test("#191 할 일에서 일반 기록 작성: 귀속 미리 선택·변경·엔
   expect(state.errors).toEqual([]);
 });
 
-test("#227 엔터티 할 일: 5건 미리보기 뒤 첫 페이지·중복 제거·같은 cursor 재시도", async ({ page }) => {
+test("#227 엔터티 할 일: 5건 미리보기 뒤 첫 페이지·중복 제거·같은 cursor 재시도", async ({ page }, info) => {
   const state = await fixtures(page),
     rows = Array.from({ length: 25 }, (_, i) => ({ ...task(100 + i), title: `배치 업무 ${i}` }));
   const reads: (string | null)[] = [];
@@ -261,15 +261,25 @@ test("#227 엔터티 할 일: 5건 미리보기 뒤 첫 페이지·중복 제거
   const section = form(page).getByRole("heading", { name: "할 일 (25개)", exact: true }).locator(
     "xpath=ancestor::section[1]",
   );
-  await expect(section.locator(".related-item")).toHaveCount(5);
+  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(5);
   expect(reads).toEqual([]);
   await section.getByRole("button", { name: "할 일 더 보기", exact: true }).click();
-  await expect(section.locator(".related-item")).toHaveCount(20);
+  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(20);
+  await form(page).getByRole("button", { name: "편집", exact: true }).click();
+  await expect(form(page).getByRole("textbox", { name: /^제목/ })).toBeVisible();
+  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(20);
+  await expect(section.getByRole("button", { name: /연결|작성|해제/ })).toHaveCount(0);
+  await expect(section.getByRole("button", { name: "할 일 더 보기", exact: true })).toBeVisible();
   await section.getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await expect(section.getByRole("alert")).toBeVisible();
-  await expect(section.locator(".related-item")).toHaveCount(20);
+  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(20);
   await section.getByRole("button", { name: "할 일 다시 시도", exact: true }).click();
-  await expect(section.locator(".related-item")).toHaveCount(25);
+  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(25);
+  await section.getByText("배치 업무 24", { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("readonly-tasks-late-page.png") });
+  await form(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(25);
   expect(reads).toEqual([null, "next", "next"]);
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);

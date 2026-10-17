@@ -1,7 +1,8 @@
+import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { entitySchemaPresentation } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { analyzeAndApply, schemaAnalysisTick } from "./entity-schema-support.ts";
 import { revealSetting } from "./ui-actions.ts";
 
@@ -18,10 +19,16 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(creation).toBeVisible();
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue("");
     await creation.getByRole("radio", { name: "별", exact: true }).check();
-    await page.getByRole("link", { name: "할 일", exact: true }).click();
-    const initialConfirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+    const beforeNavigation = page.url();
+    await openMainNavigation(page);
+    const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
+    await expect(tasksLink).toHaveAttribute("href", "/tasks");
+    await tasksLink.click();
+    const initialConfirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await expect(initialConfirm).toBeVisible();
     await initialConfirm.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(page).toHaveURL(beforeNavigation);
+    await closeMainNavigation(page);
     await creation.getByRole("button", { name: "변경 취소", exact: true }).click();
     await expect(creation.getByRole("radio", { name: "상자", exact: true })).toBeChecked();
     await creation.getByLabel("대표 입력 항목 이름", { exact: true }).fill("초안 이름");
@@ -58,7 +65,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     const changedLabel = unique("이름 변경");
     await page.getByLabel("자료 종류 이름", { exact: true }).fill(changedLabel);
     await page.getByRole("link", { name: "종류 추가", exact: true }).click();
-    const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+    const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button", { name: "취소", exact: true }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(changedLabel);
@@ -86,7 +93,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(changedLabel);
     await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
     const renamed = await mcp.call("get_entity_type", { type_id: typeId });
     expect(renamed.label).toBe(changedLabel);
     expect(renamed.icon_id).toBe("star");
@@ -94,7 +101,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     expect(renamed.schema_version).toBe(3);
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await history.getByRole("button", { name: /^변경 이력/ }).click();
-    const row = history.locator(".schema-history-row").filter({ hasText: "버전 1 · 적용됨" });
+    const row = history.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({ hasText: "버전 1 · 적용됨" });
     await expect(row).toHaveCount(1);
     await row.getByRole("button", { name: /^최초 생성/ }).click();
     await expect(page).toHaveURL(/schema_version=1/);
@@ -107,7 +114,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
           ["데이터 타입", "텍스트"],
           ["필수 입력", "예"],
           ["목록에 표시", "예"],
-          ["자료 이름", "사용"],
+          ["자료 이름으로 사용", "사용"],
           ["최소 길이", "1자"],
           ["최대 길이", "4096자"],
         ]
@@ -116,7 +123,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
           .toHaveText(value);
       }
       await expect(definition.locator("input,select,textarea")).toHaveCount(0);
-      await expect(row.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
+      await expect(row.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
       const published = await mcp.call("get_entity_schema", { type_id: typeId, schema_version: 1 });
       expect({
         type_id: published.type_id,
@@ -137,11 +144,11 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await page.getByRole("checkbox", { name: /자료 종류 보관/ }).check();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
     expect((await mcp.call("get_entity_type", { type_id: typeId })).archived).toBe(true);
     await page.getByRole("checkbox", { name: /자료 종류 보관/ }).uncheck();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
     expect((await mcp.call("get_entity_type", { type_id: typeId })).archived).toBe(false);
     await page.setViewportSize({ width: 320, height: 640 });
     await page.evaluate(() => {
@@ -154,7 +161,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     releaseDestination?.();
     await mcp.close();
     if (typeId) {
-      const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+      const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
       try {
         await admin`delete from app.entity_types where id=${typeId}`;
       } finally {
@@ -207,7 +214,7 @@ test("자료 종류 생성의 성공 응답 유실은 초안·같은 요청을 �
   } finally {
     await mcp.close();
     if (typeId) {
-      const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+      const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
       try {
         await admin`delete from app.entity_types where id=${typeId}`;
       } finally {

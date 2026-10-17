@@ -1,10 +1,11 @@
+import { detailDialog, executionDialog } from "./ui-actions.ts";
 import postgres from "postgres";
 import { generateDataId } from "../supabase/functions/_shared/contracts/data-id.ts";
 import { createFixtureEntity } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, openListDetail, openTabFilters, chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { test, devLogin, env, ownFixtureResult, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, env, ownFixtureResult, mcpClient, mcpTokenViaConsent, unique, requiredEnv } from "./support.ts";
 
 for (
   const [kind, path, label, editLabel] of [
@@ -22,7 +23,7 @@ for (
     // to that authenticated owner; assertions still exercise public API CRUD.
     const owner = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub as string;
     expect(owner).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-    const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
     const tag = await mcp.call("create_tag", { scope:kind, name: unique("활동 왕복").slice(0, 30) });
     const emptyTag = await mcp.call("create_tag", { scope:kind, name: unique("빈 활동 조건").slice(0, 30) });
     const entity = await createFixtureEntity(mcp, { prop_1: unique("활동 문맥"), prop_2: 0 });
@@ -38,7 +39,7 @@ for (
       return item;
     };
     const editLoadedDetail = async (detailPath: string, heading: string) => {
-      const viewer = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+      const viewer = detailDialog(page);
       // Route and target rendering must agree before invoking an action from
       // the retained previous viewer during a related-detail transition.
       await expect.poll(() => new URL(page.url()).pathname).toBe(detailPath);
@@ -86,7 +87,7 @@ for (
       await seedPage(target.id, 41, "앞선 항목");
       const listPath = `/${path}?tag_id=${tag.id}`;
       await page.goto(listPath);
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(20);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(20);
       const requests: (string | null)[] = [];
       let failedCursor: string | null = null;
       let releaseRetry!: () => void;
@@ -112,11 +113,11 @@ for (
       await more.click();
       const retry = page.getByRole("button", { name: "다시 시도", exact: true });
       await expect(retry).toBeVisible();
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(20);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(20);
       await retry.scrollIntoViewIfNeeded();
       await retry.focus();
-      const scrollBefore = await page.evaluate(() => window.scrollY);
-      const readingRow = page.locator(`#${await page.locator(`.${path} .list .item-title`).last().getAttribute("id")}`);
+      const scrollBefore = await page.getByRole("main").evaluate(el => el.scrollTop);
+      const readingRow = page.locator(`#${await page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]").last().getAttribute("id")}`);
       await expect(readingRow).toBeInViewport();
       const readingY = (await readingRow.boundingBox())!.y;
       if (kind === "task") await page.keyboard.press("Enter");
@@ -125,31 +126,31 @@ for (
       await expect.poll(() => requests.length).toBe(2);
       expect(requests).toEqual([failedCursor, failedCursor]);
       expect(failedCursor).toBeTruthy();
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(20);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(20);
       await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
-      expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+      expect(await page.getByRole("main").evaluate(el => el.scrollTop)).toBe(scrollBefore);
       expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
       await page.keyboard.press("Enter");
       expect(requests).toHaveLength(2);
       releaseRetry();
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(40);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(40);
       await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
       await expect(control).toBeFocused();
       await expect(control).toHaveAttribute("aria-disabled", "false");
-      expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+      expect(await page.getByRole("main").evaluate(el => el.scrollTop)).toBe(scrollBefore);
       await expect(readingRow).toBeInViewport();
       expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
       await control.scrollIntoViewIfNeeded();
-      const lastRow = page.locator(`#${await page.locator(`.${path} .list .item-title`).last().getAttribute("id")}`);
+      const lastRow = page.locator(`#${await page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]").last().getAttribute("id")}`);
       await lastRow.scrollIntoViewIfNeeded();
       await expect(lastRow).toBeInViewport();
       const lastY = (await lastRow.boundingBox())!.y;
-      const lastScroll = await page.evaluate(() => window.scrollY);
+      const lastScroll = await page.getByRole("main").evaluate(el => el.scrollTop);
       await control.click();
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(42);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(42);
       await expect(control).toBeFocused();
       await expect(control).toHaveAttribute("aria-disabled", "true");
-      expect(await page.evaluate(() => window.scrollY)).toBe(lastScroll);
+      expect(await page.getByRole("main").evaluate(el => el.scrollTop)).toBe(lastScroll);
       await expect(lastRow).toBeInViewport();
       expect((await lastRow.boundingBox())!.y).toBeCloseTo(lastY, 1);
       await page.keyboard.press("Enter");
@@ -162,7 +163,7 @@ for (
       await expect(link).toHaveAttribute("aria-expanded","true");
       await openListDetail(page,title);
       await expect(page.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
-      const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
+      const view=detailDialog(page);
       const initialDetail=page.url(),entityToggle=view.getByRole("region",{name:/^연결된 자료/}).getByRole("button",{name:entity.title,exact:true});
       await entityToggle.click();await expect(entityToggle).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(initialDetail);
       const entityEdit=view.getByRole("link",{name:entity.title+" 상세",exact:true});await entityEdit.click();await editLoadedDetail(`/entities/${encodeURIComponent(entity.id)}`,entity.title);
@@ -170,20 +171,20 @@ for (
       await expect(page).toHaveURL(initialDetail);await expect(entityEdit).toBeFocused();
       await editLoadedDetail(`/${path}/${target.id}`,kind === "record" ? "기록" : title);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
       await dialog.getByLabel("본문").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
-      const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
+      const discard=page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
       expect((await mcp.call(`get_${kind}`,{id:target.id})).body).toBe(target.body);await dialog.getByLabel("본문").fill(target.body);await dialog.getByRole("button",{name:"닫기",exact:true}).click();
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(42);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(42);
       await expect(link).toBeFocused();await openListDetail(page,await link.innerText());
       // Enter the rendered detail before simulating external rows and returning.
       await expect(view.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
       await seedPage(target.id, 21, "상세 중 추가");
       await page.goBack();
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(63);
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
       await openTabFilters(page);await expect(page.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);
       await page.reload();
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(63);
       await expect(link).toBeFocused();
       await openListDetail(page,await link.innerText());
       await editLoadedDetail(`/${path}/${target.id}`,kind === "record" ? "기록" : title);
@@ -198,13 +199,13 @@ for (
       await openListDetail(page,await link.innerText());
       await editLoadedDetail(`/${path}/${target.id}`,kind === "record" ? "기록" : title);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
-      await saveOnce(page,page.locator("dialog.modal-action[open]"),"삭제 확인");
+      await saveOnce(page,executionDialog(page),"삭제 확인");
       await expect(link).toHaveCount(0);
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(62);
       await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
       await expect(page.locator(`#activity-${path}-page-control`)).toHaveCount(0);
       await openTabFilters(page);await chooseTag(page,page,tag.name,false);await chooseTag(page,page,emptyTag.name);await applyTabFilters(page);
-      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(0);
+      await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(0);
       expect(new URL(page.url()).hash).toBe("");
       expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
       expect(new URL(page.url()).searchParams.has("scroll")).toBe(false);
