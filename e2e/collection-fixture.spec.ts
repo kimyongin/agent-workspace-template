@@ -332,7 +332,7 @@ test("selected entity fields stay identical in every layout and expansion withou
   await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
   for(const view of ["리스트","카드","테이블"]) {
     await page.getByRole("radio",{name:view,exact:true}).click();
-    const row=page.getByRole("region", { name: / 목록$/ }).locator('[data-slot="item"]').first();
+    const row=page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first();
     await expect(row.getByRole("button",{name:selected.title,exact:true})).toBeVisible();
     if(view !== "테이블")await expect(row.getByText("품명",{exact:true})).toBeVisible();
     await expect(row.getByText("0",{exact:true})).toBeVisible();
@@ -367,7 +367,7 @@ test("card title labels and wrapped values remain ordered and readable", async (
     await page.getByRole("radio", { name: "카드", exact: true }).click();
     for (const item of [short, long]) {
       const title = page.getByRole("button", { name: item.title, exact: true });
-      const row = page.locator('[data-slot="item"]').filter({ has: title });
+      const row = page.getByRole("listitem").filter({ has: title });
       await expect(title).toBeVisible();
       const key = row.getByRole("term").first();
       await expect(key).toBeVisible();

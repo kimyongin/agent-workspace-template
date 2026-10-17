@@ -1,3 +1,5 @@
+import { SidebarProvider } from "../../src/components/ui/sidebar.tsx";
+import { Button } from "../../src/components/ui/button.tsx";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 // 실제 provider·설정·SDK의 경쟁을 관찰한다. 인증 동작을 대체하지 않는다.
 import { useDisplayTime } from "../../src/lib/useDisplayTime.ts";
@@ -14,14 +16,15 @@ function Probe() {
   const display = useDisplayTime();
   const [result, setResult] = useState("idle");
   return (
-    <div className="has-navigation">
-      <main className="app-main">
+    <SidebarProvider>
+      <Navigation brand="Workspace" />
+      <main className="min-w-0 flex-1 p-4">
         <output data-testid="provider-account">{loading ? "loading" : session?.user.id ?? "signed-out"}</output>
         <output data-testid="provider-icon">{session?.user.user_metadata.workspace_avatar_id ?? "none"}</output>
         <output data-testid="display-timezone">{display.timezone}</output>
         <output data-testid="display-date">{display.formatDateTime("2026-10-07T23:15:00Z")}</output>
         <output data-testid="save-result">{result}</output>
-        <button
+        <Button
           onClick={async () => {
             setResult("pending");
             try {
@@ -33,11 +36,10 @@ function Probe() {
           }}
         >
           지연 저장 검사
-        </button>
+        </Button>
         <SettingsPage />
       </main>
-      <Navigation brand="Workspace" />
-    </div>
+    </SidebarProvider>
   );
 }
 const router = createMemoryRouter([{ path: "*", element: <NavigationProtection><Probe /></NavigationProtection> }], { initialEntries: ["/settings"] });
