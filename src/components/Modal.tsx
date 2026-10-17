@@ -1,3 +1,4 @@
+import { activeSurface, firstField, hasActiveConfirmation, registerSurface, surfaceFor } from "../lib/surface-dom.ts";
 // Native dialogs use showModal for mobile/confirmation and show for the docked desktop detail.
 // Escape·닫기는 같은 미저장 보호를 거치며 배경 클릭으로 초안을 버리지 않는다(docs/design/ui-patterns.md).
 import { useNavigationBlocker } from "../lib/navigation-protection.tsx";
@@ -28,6 +29,8 @@ export interface ModalProps {
   busy?: boolean;
   footer?: ReactNode | ((requestClose: () => void) => ReactNode);
   children: ReactNode;
+  ready?: boolean;
+  navigationTitle?: string;
 }
 
 export interface SurfaceEditor {
@@ -55,7 +58,7 @@ export interface SurfaceAction {
 export const SurfaceActionContext = createContext<((action: SurfaceAction | null) => void) | null>(null);
 
 /** URL detail and its editor share one native dialog, focus trap and scroll surface. */
-export function DetailSurface({title, description, tabTitle = title, onClose, children, busy = false, footer, onError}: {title: string; description?: string; tabTitle?: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode; onError?: (error: unknown) => void}) {
+export function DetailSurface({title, description, tabTitle = title, onClose, children, busy = false, footer, onError, ready = true}: {title: string; description?: string; tabTitle?: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode; onError?: (error: unknown) => void; ready?: boolean}) {
   const previous = useDetailExploration();
   const tab = useContext(DetailTabContext);
   useEffect(() => { tab?.title(tabTitle); }, [tabTitle, tab?.title]);
@@ -67,12 +70,13 @@ export function DetailSurface({title, description, tabTitle = title, onClose, ch
   const [dismissing,setDismissing]=useState(false);
   const editorRef = useRef<SurfaceEditor | null>(null), busyRef = useRef(busy);
   const readFocus=useRef<HTMLElement|null>(null);
+  const root = useRef<HTMLDivElement>(null);
   busyRef.current = busy;
   const register = useCallback((value: SurfaceEditor | null) => {
     if(value&&!readFocus.current)readFocus.current=document.activeElement as HTMLElement;
     editorRef.current=value; setEditor(value);
   }, []);
-  useEffect(()=>{if(!editor&&readFocus.current){if(readFocus.current.isConnected)readFocus.current.focus();else document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-foot button")?.focus();readFocus.current=null;}},[editor]);
+  useEffect(()=>{if(!editor&&readFocus.current){if(readFocus.current.isConnected)readFocus.current.focus();else surfaceFor(root.current)?.footer?.querySelector<HTMLElement>("button:not(:disabled)")?.focus();readFocus.current=null;}},[editor]);
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const dismiss=()=>{
     const active=editorRef.current;
@@ -83,10 +87,10 @@ export function DetailSurface({title, description, tabTitle = title, onClose, ch
   // Remove the editor before navigating, so its dirty guard cannot ask a second time.
   useEffect(()=>{if(dismissing&&!editor&&!protection){setDismissing(false);if(tab)tab.close();else onClose();}},[dismissing,editor,protection,onClose,tab]);
   return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef, onError, protection: protectionRef, protect}}>
-    <ModalShell open title={editor?.title ?? title} description={editor ? editor.description : description} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
+    <ModalShell open ready={ready} navigationTitle={tabTitle} title={editor?.title ?? title} description={editor ? editor.description : description} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard ?? (protection ? () => protectionRef.current?.discard() : undefined)} dirty={editor?.dirty || protection?.dirty} busy={busy || editor?.busy || protection?.busy}
       previous={tab?.previous ?? (editor ? null : previous)} footer={editor?.footer ?? (protection?.dirty ? <fieldset className="plain-fieldset actions" disabled>{footer}</fieldset> : footer)}>
-      <div hidden={!!editor}>{children}</div>
+      <div ref={root} hidden={!!editor}>{children}</div>
       <div ref={setSlot} hidden={!editor} />
     </ModalShell>
   </SurfaceContext.Provider></RelatedExpansionProvider>;
@@ -101,11 +105,14 @@ export function ModalShell(props: ModalProps) {
   return props.open ? <ActiveModalShell {...props} /> : null;
 }
 
-function ActiveModalShell({ title, description, domain, headingLevel=2, open, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
+function ActiveModalShell({ title, description, domain, headingLevel=2, open, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children, ready = true, navigationTitle = title }: ModalProps) {
   const tab = useContext(DetailTabContext);
   const workspace = useContext(WorkspaceContext);
   const active = tab?.active ?? true;
   const ref = useRef<HTMLDialogElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const discardDestination=useRef(onClose);
@@ -119,6 +126,9 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   const nativeDocked = useRef(docked);
   if (!actionOpen) nativeDocked.current = docked;
   const dialogDocked = nativeDocked.current;
+  const elements = useRef({ title: navigationTitle, body: bodyRef.current, heading: headingRef.current, footer: footerRef.current, active: false, modal: false, confirmation: false, ready });
+  useLayoutEffect(() => { elements.current = { title: navigationTitle, body: bodyRef.current, heading: headingRef.current, footer: footerRef.current, active: open && active, modal: !dialogDocked, confirmation: false, ready }; });
+  useLayoutEffect(() => ref.current ? registerSurface(ref.current, () => elements.current) : undefined, [open, active]);
   useEffect(() => {
     if (!actionOpen) ref.current?.querySelector<HTMLElement>("form [aria-invalid='true']")?.focus();
   }, [actionOpen]);
@@ -157,8 +167,8 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
       if (dialogDocked) d.show(); else d.showModal();
       (d.querySelector<HTMLElement>("form [aria-invalid='true']") ??
         (retainedFocus.current?.isConnected ? retainedFocus.current : null) ??
-        d.querySelector<HTMLElement>("form input, form textarea, form select") ??
-        d.querySelector<HTMLElement>(".dialog-title"))?.focus();
+        firstField(d.querySelector("form")) ??
+        headingRef.current)?.focus();
     } else if ((!open || !active) && d.open) {
       d.close();
       if (!tab) (returnFocus.current as HTMLElement | null)?.focus?.();
@@ -193,8 +203,8 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   // Capture Escape even if cancelling a stage temporarily leaves focus outside the dialog.
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
-      const top = Array.from(document.querySelectorAll<HTMLDialogElement>("dialog[open]")).at(-1);
-      if (event.key !== "Escape" || !active || (docked ? !ref.current?.contains(event.target as Node) || !!document.querySelector("dialog.modal-confirm[open]") : top !== ref.current)) return;
+      const top = activeSurface();
+      if (event.key !== "Escape" || !active || (docked ? !ref.current?.contains(event.target as Node) || hasActiveConfirmation() : top?.root !== ref.current)) return;
       event.preventDefault(); event.stopPropagation();
       if (!confirmDiscard) requestClose();
     };
@@ -217,14 +227,14 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
       <div className="modal-inner">
         <div className="modal-head">
           {previous && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={()=>tab ? previous.back() : requestLeave(previous.back)}><span aria-hidden="true">←</span></button>}
-          {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{domain ?? title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{domain ?? title}</h2>}
+          {headingLevel===1?<h1 ref={headingRef} id={titleId} className="dialog-title" tabIndex={-1}>{domain ?? title}</h1>:<h2 ref={headingRef} id={titleId} className="dialog-title" tabIndex={-1}>{domain ?? title}</h2>}
           {!docked && <button type="button" className="btn btn-text modal-icon" aria-label="닫기" title="닫기" onClick={requestClose} disabled={busy || action?.busy}>
             <span aria-hidden="true">×</span>
           </button>}
           {description && <p id={`${titleId}-description`} className="page-description">{description}</p>}
         </div>
-        <div className="modal-body" tabIndex={0}>{children}</div>
-        {footer && <div className="modal-foot">{typeof footer === "function" ? footer(requestCancelEdit) : footer}</div>}
+        <div ref={bodyRef} className="modal-body" aria-busy={!ready || undefined} tabIndex={0}>{children}</div>
+        {footer && <div ref={footerRef} className="modal-foot">{typeof footer === "function" ? footer(requestCancelEdit) : footer}</div>}
       </div>
       {action && <ConfirmationSurface open title={action.title} busy={action.busy} onCancel={action.onCancel}
         closeButton footer={action.footer}><div className="surface-action">{action.body}</div></ConfirmationSurface>}

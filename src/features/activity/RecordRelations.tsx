@@ -1,4 +1,4 @@
-import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import type { RecordResult } from "@contracts/record.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
@@ -50,7 +50,7 @@ export function RecordRelations(
               {ids.map((id) => {
                 const capture = record.entity_context.find((item) => item.id === id);
                 return (
-                  <li key={id}>
+                  <CollectionItem key={id}>
                     {change?.target_id === id
                       ? (
                         <ChangedRelation
@@ -113,7 +113,7 @@ export function RecordRelations(
                           />
                         )
                       : null}
-                  </li>
+                  </CollectionItem>
                 );
               })}
             </CollectionList>

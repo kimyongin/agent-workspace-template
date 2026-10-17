@@ -102,7 +102,7 @@ export function SearchPage() {
       return next;
     });
   return (
-    <section className="panel search-page" aria-labelledby="search-title">
+    <section data-page-ready={!busy && (!!result || !!error || !q) ? "" : undefined} className="panel search-page" aria-labelledby="search-title">
       <PageHeading
         title="검색"
         id="search-title"
@@ -277,7 +277,7 @@ export function SearchPage() {
                   <div className="list-item-main">
                     <dl className="key-value-grid">
                       <div className="key-value-full"><dt>{r.kind === "record" ? "본문 대표 문구" : "제목"}</dt><dd>
-                        <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>
+                        <Link data-list-anchor="" id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>
                           <span className={r.kind === "record" ? "record-preview" : undefined}>{r.title}</span>
                         </Link>
                       </dd></div>

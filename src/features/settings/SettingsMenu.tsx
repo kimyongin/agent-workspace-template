@@ -1,3 +1,4 @@
+import { hasActiveConfirmation } from "../../lib/surface-dom.ts";
 import { useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { settingsCategories } from "./SettingsNavigation.tsx";
@@ -15,7 +16,7 @@ export function SettingsMenu() {
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
-      if (!document.querySelector("dialog.modal-confirm[open]") && !root.current?.contains(event.target as Node)) {
+      if (!hasActiveConfirmation() && !root.current?.contains(event.target as Node)) {
         setOpen(false);
         requestAnimationFrame(() => {
           if (document.activeElement === document.body) trigger.current?.focus({ preventScroll: true });
@@ -36,7 +37,7 @@ export function SettingsMenu() {
       ref={root}
       onBlur={(event) => {
         if (
-          !document.querySelector("dialog.modal-confirm[open]") && event.relatedTarget &&
+          !hasActiveConfirmation() && event.relatedTarget &&
           !event.currentTarget.contains(event.relatedTarget as Node)
         ) setOpen(false);
       }}

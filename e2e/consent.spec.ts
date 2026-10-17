@@ -56,7 +56,7 @@ async function session(page: Page, userId = userA) {
 test("로그인·OAuth 동의의 긴 주소와 중요 안내는 320~1440px에서 읽힌다",async({page},info)=>{
   const f=await authFixture(page,async()=>({...details("긴 에이전트 이름 ".repeat(8)),redirect_uri:"https://example.invalid/callback?query="+"longvalue".repeat(15)}));
   await page.goto("/login");await expect(page.getByRole("heading",{name:"로그인",exact:true})).toBeVisible();
-  await expect(page.locator(".page-heading > .page-description")).toBeVisible();
+  await expect(page.getByRole("region", { name: "로그인", exact: true }).getByText("내 자료와 할 일·기록을 관리하려면 로그인하세요.", { exact: true })).toBeVisible();
   for(const width of [320,360,390,639,640,768,1024,1440]){
     await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     const heading=page.getByRole("heading",{name:"로그인",exact:true}),action=page.getByRole("button",{name:"Google로 로그인",exact:true});expect(await heading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(await action.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)));
@@ -68,7 +68,7 @@ test("로그인·OAuth 동의의 긴 주소와 중요 안내는 320~1440px에서
     for(const name of ["승인","거부"]){const box=(await page.getByRole("button",{name,exact:true}).boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);}
     if(width===320||width===390||width===1440)await page.screenshot({path:info.outputPath(`consent-hierarchy-${width}.png`)});
   }
-  const data = page.locator(".auth-panel dl");
+  const data = page.getByRole("region", { name: "에이전트 연결 승인", exact: true }).locator("dl");
   await expect(data.locator("dt")).toHaveText(["클라이언트", "돌아갈 주소", "요청 범위"]);
   await expect(data.locator("dd").first()).toHaveText("긴 에이전트 이름 ".repeat(8));
   await page.setViewportSize({width:320,height:900});

@@ -1,7 +1,7 @@
 import { TemplateMemoEditor, type TemplateMemoHandle } from "../features/settings/TemplateMemoEditor.tsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BodyAction } from "../components/BodyAction.tsx";
-import { CollectionList } from "../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../components/Collection.tsx";
 import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
 import { Field } from "../components/Field.tsx";
 import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSection.tsx";
@@ -113,7 +113,7 @@ function PropertyList(
             </span>
           );
           return (
-            <li key={field.id}>
+            <CollectionItem key={field.id}>
               <div className="related-item schema-field" data-property-id={field.id} data-expanded={open || undefined}>
                 <div className="schema-field-heading">
                   <div className="item-title" role="heading" aria-level={3}>
@@ -247,7 +247,7 @@ function PropertyList(
                   </details>
                 </fieldset>
               </div>
-            </li>
+            </CollectionItem>
           );
         })}
       </CollectionList>
@@ -535,7 +535,7 @@ export function MaterialWorkspaceSample() {
             const open = expanded.includes(plan.id);
             const id = `sample-plan-${plan.id}`;
             return (
-              <li key={plan.id}>
+              <CollectionItem key={plan.id}>
                 <div className="related-item schema-history-row" data-expanded={open || undefined}>
                   <h3 className="related-item-title">
                     <button
@@ -592,7 +592,7 @@ export function MaterialWorkspaceSample() {
                     )}
                   </div>
                 </div>
-              </li>
+              </CollectionItem>
             );
           })}
         </CollectionList>

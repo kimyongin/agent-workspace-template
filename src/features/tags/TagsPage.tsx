@@ -1,3 +1,4 @@
+import { surfaceFor } from "../../lib/surface-dom.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { dataId } from "@contracts/data-id.ts";
@@ -43,6 +44,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
   useEffect(()=>{if(closing&&!busy){setClosing(false);if(inline)onClose?.();else if(previous)previous.back();else void navigate(scope==="entity"?"/entities":scope==="task"?"/tasks":"/records");}},[closing,busy,previous,navigate,scope]);
   const [pending, setPending] = useState<(() => void) | null>(null);
   useEffect(()=>{setDeletionState({armed:false,busy:false,uncertain:false});},[draft?.initial?.id,!!draft]);
+  const root = useRef<HTMLDivElement>(null);
   const pageCount = useRef(1), focusId = useRef<string | null>(null), input = useRef<HTMLInputElement>(null), saving = useRef(false);
   const readEpoch = useRef(0), readAbort = useRef<AbortController | null>(null);
   const invalidateReads = () => { readEpoch.current++; readAbort.current?.abort(); };
@@ -70,7 +72,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     if (!focusId.current || loading) return;
     // Restore focus after the confirmation stage has revealed the refreshed management list.
     const frame = requestAnimationFrame(() => {
-      (document.getElementById(`tag-${focusId.current}`) ?? document.querySelector<HTMLElement>("dialog[open] .dialog-title") ?? document.getElementById("tag-heading"))?.focus();
+      (document.getElementById(`tag-${focusId.current}`) ?? surfaceFor(root.current)?.heading ?? document.getElementById("tag-heading"))?.focus();
       focusId.current = null;
     });
     return () => cancelAnimationFrame(frame);
@@ -91,7 +93,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     if(attempt.snapshot().uncertain){setNotice("이전 저장 결과를 확인하지 못했습니다. 새 작업 전에 갱신된 태그 목록을 확인하세요.");setRetry(n=>n+1);}
     const id = draft?.initial?.id ?? "heading"; setDraft(null); attempt.reset();setFailure(null);setFieldError(undefined);setConflict(false);
     if (conflict) { focusId.current = id; setRetry(n => n + 1); }
-    else requestAnimationFrame(() => (document.getElementById(`tag-${id}`) ?? document.querySelector<HTMLElement>("dialog[open] .dialog-title") ?? document.getElementById("tag-heading"))?.focus());
+    else requestAnimationFrame(() => (document.getElementById(`tag-${id}`) ?? surfaceFor(root.current)?.heading ?? document.getElementById("tag-heading"))?.focus());
     dismiss();
   };
   const save = async () => {
@@ -149,7 +151,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     {failure&&<Notice kind="error">{failure}</Notice>}
   </form>;
   const body = <>
-    <div className="tag-management">
+    <div ref={root} className="tag-management">
     {!draft?.initial&&editor(null)}
     {notice && <Notice>{notice}</Notice>}
     {error && <><Notice kind="error">{error}</Notice><button className="btn" disabled={loading} onClick={() => setRetry(n => n + 1)}>목록 다시 시도</button></>}
@@ -176,6 +178,6 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     </div>
   </>;
   if (inline) return <section aria-label={`${tagScopeLabels[scope]} 태그 관리`}>{body}</section>;
-    return <ModalShell open title={`${tagScopeLabels[scope]} 태그 관리`} description="태그를 추가하거나 이름을 바꾸고, 사용하지 않는 태그를 정리합니다." headingLevel={1} previous={previous} dirty={dirty} busy={busy} onClose={close} onRouteDiscard={()=>{setDraft(null);setDeletions({});attempt.reset();}}>
+    return <ModalShell open ready={!loading} title={`${tagScopeLabels[scope]} 태그 관리`} description="태그를 추가하거나 이름을 바꾸고, 사용하지 않는 태그를 정리합니다." headingLevel={1} previous={previous} dirty={dirty} busy={busy} onClose={close} onRouteDiscard={()=>{setDraft(null);setDeletions({});attempt.reset();}}>
 {body}</ModalShell>;
 }

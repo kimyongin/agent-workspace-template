@@ -1,6 +1,6 @@
 import { PageHeading } from "../../components/PageHeading.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
-import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionHeading, CollectionList, useMainCollectionView  } from "../../components/Collection.tsx";
 import { RecordCalendar } from "./RecordCalendar.tsx";
 import { StatusBadge } from "./shared.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
@@ -125,7 +125,7 @@ function ActivitySection(
                   columns={["제목", "상태", "종류", "기한"]}
                   numericColumns={[3]}
                 >
-                  {list.items.map((item) => <li key={item.id}>{preview(item)}</li>)}
+                  {list.items.map((item) => <CollectionItem key={item.id}>{preview(item)}</CollectionItem>)}
                 </CollectionList>
               )
               : view === "calendar"
@@ -172,6 +172,7 @@ function ActivitySection(
 }
 
 export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
+  const searchInput = useRef<HTMLInputElement>(null);
   const { timezone } = useDisplayTime();
   const [params, setParams] = useSearchParams(),
     location = useLocation(),
@@ -250,7 +251,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
             </Notice>
           )}
           <div className="query-bar">
-            <TabSearch />
+            <TabSearch inputRef={searchInput} />
             <TabFilters
               dirty={editing.dirty}
               onReset={() => {
@@ -396,7 +397,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
           next.delete("q");
           next.delete("keyword");
           void navigate({ pathname, search: next.toString(), hash: "" }, { replace: true });
-          document.querySelector<HTMLInputElement>(".workspace-search input")?.focus();
+          searchInput.current?.focus();
         }}
       />
       {create.open && (kind === "tasks"

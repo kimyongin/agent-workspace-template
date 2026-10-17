@@ -1,6 +1,6 @@
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
-import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
@@ -115,9 +115,9 @@ export function EntityLinks(
       <CollectionList columns={["자료 이름"]}>
         {ids.map((id) => {
           return (
-            <li key={id}>
+            <CollectionItem key={id}>
               <EntityLinkItem id={id} context={context} />
-            </li>
+            </CollectionItem>
           );
         })}
       </CollectionList>

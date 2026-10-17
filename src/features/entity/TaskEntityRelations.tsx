@@ -1,5 +1,5 @@
 import { createPagedList } from "../collections/paged-list.ts";
-import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { type ReactNode, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
@@ -159,7 +159,7 @@ export function TaskEntityRelations(
   { task, onSaved, readOnly = false }: { task: TaskResult; readOnly?: boolean; onSaved: (saved?: TaskResult, before?: TaskResult) => void },
 ) {
   if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={task.entity_ids.length}>
-    <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <li key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></li>)}</CollectionList>
+    <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <CollectionItem key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></CollectionItem>)}</CollectionList>
   </RelatedSection>;
   return (
     <RelationControls key={task.id} task={task} onSaved={onSaved}>
@@ -173,13 +173,13 @@ export function TaskEntityRelations(
                 title: task.entity_context.find((item) => item.id === id)?.title ?? "자료",
               };
               return (
-                <li key={id}>
+                <CollectionItem key={id}>
                   <RelatedPreviewItem
                     to={`/entities/${encodeURIComponent(id)}`}
                     title={item.title}
                     action={unlink(item)}
                   />
-                </li>
+                </CollectionItem>
               );
             })}
           </CollectionList>
@@ -230,11 +230,11 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
       {search}
       <CollectionList columns={["제목"]}>
         {read.items.map((item) => (
-          <li key={item.id}>
+          <CollectionItem key={item.id}>
             {readOnly
               ? <RelatedItem title={item.title} />
               : <RelatedPreviewItem to={`/tasks/${item.id}`} title={item.title} action={unlink?.(item)} />}
-          </li>
+          </CollectionItem>
         ))}
       </CollectionList>
       {read.failed && <Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
