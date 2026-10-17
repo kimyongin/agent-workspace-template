@@ -4,7 +4,7 @@ import type { RequestIdentity } from "../../core/shared/request.ts";
 import type { DataModelStore, ModelPlan, ModelSnapshot } from "../../core/data-model/application.ts";
 import type { DataModelDocument, ModelChange } from "../../contracts/data-model.ts";
 import { APP_IDENTIFIER_RULE_ID } from "../../contracts/entity-issuer.ts";
-import { canonical } from "../../core/entity-types/evolution.ts";
+import { canonical, schemaDefinitionDiff } from "../../core/entity-types/evolution.ts";
 import { AppError, invalidInput } from "../../core/shared/errors.ts";
 import { assertTypeIdentityUpdate } from "../../core/entity-issuers/domain.ts";
 import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
@@ -198,7 +198,7 @@ export class SqlDataModelStore implements DataModelStore {
           Math.max(1, ...Object.keys(t.schema.properties).map((k) => Number(k.slice(5)))) + 1
         })`;
       }
-      if (!old || item.diff.length) {
+      if (!old || schemaDefinitionDiff({ schema: old.schema }, { schema: t.schema }).length) {
         await tx`insert into app.entity_schema_versions(owner_id,schema) values(${this.actor.userId},${
           tx.json(t.schema as never)
         })`;

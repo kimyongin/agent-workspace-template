@@ -27,10 +27,14 @@ httpTest("whole model HTTP/OAuth MCP parity: reviewed copy, atomic apply, no-op 
       ),
       false,
     );
-    const applied = await tool(client, "apply_data_model", { id: prepared.id, expected_version: prepared.version });
+    const applied = await tool(client, "apply_data_model", {
+      id: prepared.id,
+      expected_version: prepared.version,
+      request_key: crypto.randomUUID(),
+    });
+    assertEquals(applied.status, "applied", JSON.stringify(applied));
     types.push(...applied.result.type_ids);
     relations.push(...applied.result.relation_ids);
-    assertEquals(applied.status, "applied");
     const exported = await tool(client, "export_data_model", {});
     assertEquals(exported, (await call(token, "GET", "/data-model/export")).body);
     assertEquals(

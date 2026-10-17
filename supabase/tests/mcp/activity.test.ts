@@ -515,7 +515,7 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
   );
   for (const t of tools) assertEquals(t.inputSchema.type, "object", t.name);
   assertEquals(byName.preview_data_model.annotations?.readOnlyHint, true);
-  assertEquals(byName.prepare_entity_schema_import.annotations?.readOnlyHint, false);
+  assertEquals(byName.prepare_entity_schema_import.annotations?.readOnlyHint, true);
   assertEquals(byName.get_task.annotations?.readOnlyHint, true);
   assertEquals(byName.delete_task.annotations?.destructiveHint, true);
 });

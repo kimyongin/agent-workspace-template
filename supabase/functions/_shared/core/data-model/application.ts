@@ -207,6 +207,20 @@ export async function resolveModel(
       ? "compatible"
       : "unchanged";
     if (old && !diff.length) t.schema["x-version"] = old.schema["x-version"];
+    if (identityChanged) {
+      diff.push({
+        path: "식별자 설정",
+        before: old!.identity.label + " · 기본 " + old!.identity.default_source + " · " +
+          old!.identity.sources.map((x) => x.code).join(", "),
+        after: t.identity.label + " · 기본 " + t.identity.default_source + " · " +
+          t.identity.sources.map((x) => x.code).join(", "),
+        before_present: true,
+        after_present: true,
+        kind: "compatible",
+        reason: "자료 번호 설정 변경",
+        next_action: "전체 모델과 함께 적용",
+      });
+    }
     items.push({
       ref: t.ref,
       label: t.schema.title!,
@@ -265,7 +279,16 @@ export async function resolveModel(
         ref: `${category}:${key}`,
         label: "label" in value ? value.label : value.ends.map((e) => e.label).join(" ↔ "),
         kind: equal ? "unchanged" : old ? "compatible" : "new",
-        diff: [],
+        diff: equal ? [] : [{
+          path: category === "relation" ? "자료 관계" : category === "rule" ? "번호 정의" : "발급처",
+          before: old ? JSON.stringify(comparable(old as typeof value, source)) : null,
+          after: JSON.stringify(comparable(value, target)),
+          before_present: !!old,
+          after_present: true,
+          kind: "compatible",
+          reason: "정의 설정 변경",
+          next_action: "전체 모델과 함께 적용",
+        }],
       });
     }
   }

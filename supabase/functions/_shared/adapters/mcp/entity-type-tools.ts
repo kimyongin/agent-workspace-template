@@ -53,14 +53,14 @@ import {
 import { keyedTool, type ToolDef } from "./tools.ts";
 export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
   const tools: ToolDef[] = [
-    {
+    keyedTool({
       name: "prepare_entity_schema_import",
       description:
         "보존된 개별 가져오기 완료 요청을 정확한 request_key·원본 입력으로 조회만 합니다. 새 개별 가져오기는 거절합니다. 새 작업은 preview_data_model/prepare_data_model/apply_data_model을 사용하세요.",
       input: entitySchemaImportPrepare,
-      readOnly: false,
+      readOnly: true,
       handler: (input, actor) => replayEntitySchemaImport(deps, actor, input),
-    },
+    }),
     {
       name: "create_entity_schema_recovery",
       description:
