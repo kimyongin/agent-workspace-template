@@ -8,12 +8,12 @@ test("issuer sample opens flat rows and separates saved issuer from optional fir
   await page.goto("/design-samples/index.html?screen=issuers");
   await page.getByRole("button", { name: "쿠팡", exact: true }).click();
   await expect(page.getByText("주문 번호", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "발급처 추가", exact: true }).click();
-  const issuer = page.getByRole("dialog", { name: "발급처 추가", exact: true });
-  await issuer.getByLabel("발급처 이름").fill("지마켓");
+  await page.getByRole("button", { name: "번호 출처 추가", exact: true }).click();
+  const issuer = page.getByRole("dialog", { name: "번호 출처 추가", exact: true });
+  await issuer.getByLabel("번호 출처 이름").fill("지마켓");
   await issuer.getByRole("button", { name: "저장하고 번호 추가" }).click();
   const number = page.getByRole("dialog", { name: "번호 종류 추가", exact: true });
-  await expect(number.getByRole("status")).toHaveText("발급처를 저장했습니다.");
+  await expect(number.getByRole("status")).toHaveText("번호 출처를 저장했습니다.");
   await page.screenshot({ path: info.outputPath("issuer-first-number.png"), fullPage: true });
   await number.getByRole("button", { name: "나중에 추가" }).click();
   const row = page.getByRole("region", { name: "지마켓", exact: true });

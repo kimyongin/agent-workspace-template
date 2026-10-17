@@ -16,9 +16,9 @@ const targets = { entity: "자료", task: "할 일", record: "기록" };
 const snapshotLabels: Record<string, string> = {
   title: "이름",
   body: "내용",
-  source: "발급처",
-  external_id: "식별자",
-  entity_type_id: "자료 종류 식별자",
+  source: "번호 출처",
+  external_id: "자료 번호",
+  entity_type_id: "자료 종류",
   schema_version: "입력 항목 버전",
   properties: "입력 항목",
   tag_ids: "태그",

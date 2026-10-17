@@ -401,17 +401,17 @@ function RecordTemplateForm({
                   ? schemaError
                     ? (
                       <Notice kind="error">
-                        속성 정의를 읽지 못했습니다.{" "}
+                        입력 항목 정의를 읽지 못했습니다.{" "}
                         <BodyAction
                           icon="reset"
-                          aria-label="속성 정의 다시 조회"
+                          aria-label="입력 항목 정의 다시 조회"
                           onClick={() => setSchemaAttempt((value) => value + 1)}
                         >
                           다시 시도
                         </BodyAction>
                       </Notice>
                     )
-                    : <p role="status">속성 정의를 읽는 중…</p>
+                    : <p role="status">입력 항목 정의를 읽는 중…</p>
                   : (
                     <TemplateMemoEditor
                       key={`${model}:${typeId}:${action}`}

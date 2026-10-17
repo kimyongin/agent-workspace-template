@@ -48,7 +48,7 @@ export function schemaDiffLabel(path: string, target: SchemaDefinition, source: 
   if (path === "recovery") return "자료 값 복구";
   const parts = path.split("."), key = parts.find((part) => /^prop_[0-9]+$/.test(part));
   const name = key
-    ? target.schema.properties[key]?.title ?? source.schema.properties[key]?.title ?? "삭제한 속성"
+    ? target.schema.properties[key]?.title ?? source.schema.properties[key]?.title ?? "삭제한 입력 항목"
     : "종류 설정";
   const labels: Record<string, string> = {
     title: "이름",
@@ -69,7 +69,7 @@ export function schemaDiffLabel(path: string, target: SchemaDefinition, source: 
     examples: "입력 예시",
     multipleOf: "배수",
     default: "생성 기본값",
-    representative: "대표 속성",
+    representative: "대표 입력 항목",
     order: "순서",
     archived: "보관",
     list_columns: "목록 표시",
@@ -93,7 +93,7 @@ export function schemaValueLabel(value: unknown, definition?: SchemaDefinition):
     return "설정 변경";
   }
   return definition && typeof value === "string" && /^prop_[0-9]+$/.test(value)
-    ? definition?.schema.properties[value]?.title ?? "속성"
+    ? definition?.schema.properties[value]?.title ?? "입력 항목"
     : String(value);
 }
 

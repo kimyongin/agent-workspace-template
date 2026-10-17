@@ -139,7 +139,7 @@ test(
     await expect(page.getByText("적용 완료", { exact: true })).toBeVisible();
     expect(applied).toBe(true);
     await expect(
-      page.getByRole("link", { name: "자료 관계 설정", exact: true }),
+      page.getByRole("link", { name: "연결 설정으로 이동", exact: true }),
     ).toBeVisible();
     await page.screenshot({
       path: info.outputPath("model-applied.png"),
@@ -413,9 +413,9 @@ for (const noOp of [true, false]) {
     } else {
       await page.getByRole("button", { name: "전체 적용", exact: true }).click();
       await expect(page.getByText("자료 종류: 추가 0개 · 수정 1개 · 변경 없음 2개", { exact: true })).toBeVisible();
-      await expect(page.getByText("자료 관계: 추가 1개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
-      await expect(page.getByText("발급처: 추가 0개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
-      await expect(page.getByText("번호 정의: 추가 0개 · 수정 1개 · 변경 없음 1개", { exact: true })).toBeVisible();
+      await expect(page.getByText("연결 설정: 추가 1개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
+      await expect(page.getByText("번호 출처: 추가 0개 · 수정 0개 · 변경 없음 1개", { exact: true })).toBeVisible();
+      await expect(page.getByText("번호 종류: 추가 0개 · 수정 1개 · 변경 없음 1개", { exact: true })).toBeVisible();
     }
     await expect(page.getByText("자료 종류 3개 · 관계 2개 적용", { exact: true })).toHaveCount(0);
   });

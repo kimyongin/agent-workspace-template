@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
-import { SettingsHeading } from "./SettingsHeading.tsx";
+import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { IssuerEditModal, type RegistryEditTarget } from "./IssuerEditModal.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
 import { issuerRegistry } from "./issuer-registry-api.ts";
@@ -24,7 +24,7 @@ export function IssuerSettingsPage() {
     void issuerRegistry.list(c.signal).then((result) => {
       if (!c.signal.aborted) setIssuers(result.items);
     }).catch((e) => {
-      if (!c.signal.aborted) setError(e instanceof Error ? e.message : "발급처를 읽지 못했습니다.");
+      if (!c.signal.aborted) setError(e instanceof Error ? e.message : "번호 출처를 읽지 못했습니다.");
     }).finally(() => {
       if (!c.signal.aborted) setLoading(false);
     });
@@ -68,7 +68,7 @@ export function IssuerSettingsPage() {
           : [...(current ?? []), row]
       );
       setSelected(row.code);
-      setMessage("발급처를 저장했습니다.");
+      setMessage("번호 출처를 저장했습니다.");
       if (editing?.kind === "issuer" && !editing.issuer) {
         setEditing({ kind: "rule", source: row.code, sourceLabel: row.label, createdIssuer: true });
         return;
@@ -85,18 +85,24 @@ export function IssuerSettingsPage() {
     setEditing(null);
   };
   return (
-    <section className="panel settings" aria-label="발급처 설정">
-      <SettingsHeading title="발급처 설정" description="자료 번호의 발급처와 번호 종류를 관리합니다." />
-      <div className="settings-inline-actions">
-        <button
-          type="button"
-          className="body-action"
-          ref={addButton}
-          disabled={loading}
-          onClick={() => edit({ kind: "issuer" })}
-        >
-          <BodyActionFace icon="create">발급처 추가</BodyActionFace>
-        </button>
+    <section className="panel settings material-settings" aria-label="번호 설정">
+      <MaterialSettingsHeading section="numbers" />
+      <div className="material-number-heading">
+        <div>
+          <h2 className="section-title">번호 출처</h2>
+          <p className="secondary">어느 곳의 번호인지 구분합니다. 예: 쿠팡·옥션·이 앱</p>
+        </div>
+        <div className="settings-inline-actions">
+          <button
+            type="button"
+            className="body-action"
+            ref={addButton}
+            disabled={loading}
+            onClick={() => edit({ kind: "issuer" })}
+          >
+            <BodyActionFace icon="create">번호 출처 추가</BodyActionFace>
+          </button>
+        </div>
       </div>
       {loading && <p role="status">불러오는 중…</p>}
       {error && (
@@ -106,14 +112,14 @@ export function IssuerSettingsPage() {
         </div>
       )}
       {message && <p role="status">{message}</p>}
-      {issuers?.length === 0 && !loading && !error && <p className="secondary">발급처가 없습니다.</p>}
+      {issuers?.length === 0 && !loading && !error && <p className="secondary">번호 출처가 없습니다.</p>}
       <div className="issuer-registry-list">
         {issuers?.map((issuer) => (
           <IssuerRow
             key={issuer.code}
             label={issuer.label}
             open={selected === issuer.code}
-            summary={!issuer.active ? "사용 중지" : issuer.system ? "자동 발급" : undefined}
+            summary={!issuer.active ? "사용 중지" : issuer.system ? "자동 생성" : undefined}
             onToggle={() => {
               setSelected((value) => value === issuer.code ? "" : issuer.code);
               setMessage("");
@@ -122,14 +128,17 @@ export function IssuerSettingsPage() {
             {!issuer.system && (
               <div className="issuer-entry-actions">
                 <BodyAction aria-label={`${issuer.label} 편집`} onClick={() => edit({ kind: "issuer", issuer })}>
-                  발급처 편집
+                  번호 출처 편집
                 </BodyAction>
               </div>
             )}
             {selected === issuer.code && (
               <>
                 <div className="settings-source-heading">
-                  <h3 className="label">번호 종류</h3>
+                  <div>
+                    <h3 className="label">번호 종류</h3>
+                    <p className="help">번호의 용도를 구분합니다. 예: 상품 번호·주문 번호</p>
+                  </div>
                   {!issuer.system && (
                     <BodyAction
                       icon="create"
@@ -150,7 +159,7 @@ export function IssuerSettingsPage() {
                 {rules?.length === 0 && <p className="secondary">등록된 번호 종류가 없습니다.</p>}
                 <div className="issuer-rule-list">
                   {rules?.map((rule) => {
-                    const generation = rule.generation === "automatic" ? "자동 발급" : "직접 입력";
+                    const generation = rule.generation === "automatic" ? "자동 생성" : "직접 입력";
                     const summary = [rule.label === generation ? "" : generation, rule.active ? "" : "사용 중지"]
                       .filter(Boolean).join(" · ");
                     return (
@@ -176,6 +185,7 @@ export function IssuerSettingsPage() {
           </IssuerRow>
         ))}
       </div>
+      <p className="secondary">실제 상품 번호·주문 번호 값은 각 자료에 입력합니다.</p>
       {editing && (
         <IssuerEditModal
           key={editing.kind === "issuer"
@@ -185,9 +195,12 @@ export function IssuerSettingsPage() {
           onClose={() => setEditing(null)}
           onSaved={saved}
           onDeleted={() => {
-            if (editing.kind === "issuer") { setSelected(""); setRevision(v => v + 1); }
-            else setRuleRevision(v => v + 1);
-            setEditing(null); setMessage("삭제했습니다.");
+            if (editing.kind === "issuer") {
+              setSelected("");
+              setRevision((v) => v + 1);
+            } else setRuleRevision((v) => v + 1);
+            setEditing(null);
+            setMessage("삭제했습니다.");
           }}
         />
       )}

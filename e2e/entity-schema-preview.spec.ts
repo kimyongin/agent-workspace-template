@@ -57,7 +57,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     );
     await page.getByRole("button", { name: "보완 내용 검토", exact: true }).click();
     await reviewed;
-    await expect(page.getByRole("region", { name: "속성 변경 요약", exact: true })).toHaveAttribute(
+    await expect(page.getByRole("region", { name: "입력 항목 변경 요약", exact: true })).toHaveAttribute(
       "data-change-version",
       "2",
     );

@@ -308,6 +308,7 @@ export function SchemaEditor(
               </button>
             </h2>
           </div>
+          <p className="material-section-description secondary">상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다.</p>
           <div hidden={!propertiesOpen} className="schema-input-content">
             <fieldset
               id="schema-property-inputs"
@@ -348,7 +349,7 @@ export function SchemaEditor(
                       <section
                         className="schema-field related-item"
                         data-expanded={openFields.includes(key) || undefined}
-                        aria-label={`${f.title || "새 항목"} 속성`}
+                        aria-label={`${f.title || "새 항목"} 입력 항목`}
                         ref={(element) => {
                           fieldElements.current[key] = element;
                         }}
@@ -374,7 +375,7 @@ export function SchemaEditor(
                                 <button
                                   className="schema-field-title related-toggle item-title"
                                   type="button"
-                                  aria-label={`${f.title || "새 항목"} 속성 편집`}
+                                  aria-label={`${f.title || "새 항목"} 입력 항목 편집`}
                                   aria-expanded={expanded}
                                   aria-controls={`schema-field-${key}`}
                                   onClick={() => {
@@ -647,7 +648,7 @@ export function SchemaEditor(
                                       </Field>
                                       <BodyAction
                                         type="button"
-                                        aria-label={`${f.title ?? "속성"} 이전 ${label} 입력 제거`}
+                                        aria-label={`${f.title ?? "입력 항목"} 이전 ${label} 입력 제거`}
                                         onClick={() => editor.removeNumericInput(address)}
                                       >
                                         이전 조건 입력 제거
@@ -897,6 +898,7 @@ export function SchemaEditor(
       {betweenSections}
       <MaterialSettingsSection
         title="변경 이력"
+        description="적용한 설정과 변경 내용을 확인합니다."
         summary={historyJobState?.uncertain || uncertain
           ? "결과 확인 필요"
           : historyJobState?.busy || busy
@@ -1077,7 +1079,7 @@ export function SchemaEditor(
                         !transforming && (
                         <section
                           className="schema-summary"
-                          aria-label="속성 변경 요약"
+                          aria-label="입력 항목 변경 요약"
                           data-change-version={plan.version}
                         >
                           <h3 className="section-title" ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
@@ -1131,7 +1133,7 @@ export function SchemaEditor(
                                 </time>
                               </p>
                               <p>
-                                복구안의 속성과 변환 규칙은 원본 기준으로 유지됩니다. 보완이 필요하면 현재 자료를 직접
+                                복구안의 입력 항목과 변환 규칙은 원본 기준으로 유지됩니다. 보완이 필요하면 현재 자료를 직접
                                 수정하거나 새 변경안을 준비하고 다시 분석하세요.
                               </p>
                             </section>
@@ -1215,7 +1217,7 @@ export function SchemaEditor(
                           {!planSyncNeeded && plan.analysis && plan.analysis.failed > 0 && (
                             <p>
                               실패한 자료 값을 확인하여 직접 수정하거나 값 변환 변경을 준비한 뒤 다시 분석하세요. 실패가
-                              있으면 게시할 수 없습니다.
+                              있으면 적용할 수 없습니다.
                             </p>
                           )}
                           {!row.version &&
@@ -1328,7 +1330,7 @@ export function SchemaEditor(
               disabled={historyBusy}
               onClick={() => void onMoreVersions?.()}
             >
-              {historyBusy ? "이전 버전 읽는 중…" : "이전 게시 버전 더 보기"}
+              {historyBusy ? "이전 버전 읽는 중…" : "이전 적용 버전 더 보기"}
             </BodyAction>
           )}
         </div>

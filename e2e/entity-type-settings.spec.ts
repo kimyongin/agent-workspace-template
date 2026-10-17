@@ -24,12 +24,12 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await initialConfirm.getByRole("button", { name: "취소", exact: true }).click();
     await creation.getByRole("button", { name: "변경 취소", exact: true }).click();
     await expect(creation.getByRole("radio", { name: "상자", exact: true })).toBeChecked();
-    await creation.getByLabel("대표 속성 이름", { exact: true }).fill("초안 이름");
+    await creation.getByLabel("대표 입력 항목 이름", { exact: true }).fill("초안 이름");
     await expect(creation.getByRole("button", { name: "변경 취소", exact: true })).toBeEnabled();
     await creation.getByRole("button", { name: "변경 취소", exact: true }).click();
-    await expect(creation.getByLabel("대표 속성 이름", { exact: true })).toHaveValue("이름");
+    await expect(creation.getByLabel("대표 입력 항목 이름", { exact: true })).toHaveValue("이름");
     await creation.getByLabel("자료 종류 이름", { exact: true }).fill(label);
-    await creation.getByLabel("대표 속성 이름", { exact: true }).fill("대표 이름");
+    await creation.getByLabel("대표 입력 항목 이름", { exact: true }).fill("대표 이름");
     await creation.getByRole("radio", { name: "잎", exact: true }).check();
     const destinationGate = new Promise<void>((resolve) => {
       releaseDestination = resolve;
@@ -225,17 +225,17 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
     await page.goto(`/settings/entity-types/${type.id}`);
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await page.getByRole("button", { name: "항목 추가", exact: true }).click();
-    let field = page.getByRole("region", { name: "새 항목 속성", exact: true });
+    let field = page.getByRole("region", { name: "새 항목 입력 항목", exact: true });
     await field.getByLabel("항목 이름", { exact: true }).fill("판매 상태");
-    field = page.getByRole("region", { name: "판매 상태 속성", exact: true });
+    field = page.getByRole("region", { name: "판매 상태 입력 항목", exact: true });
     await field.getByLabel("데이터 타입", { exact: true }).selectOption("select");
     await field.getByLabel("선택 항목 1", { exact: true }).fill("판매 중");
     await revealSetting(field.getByLabel("판매 상태 목록에 표시", { exact: true }));
     await field.getByLabel("판매 상태 목록에 표시", { exact: true }).check();
     await page.getByRole("button", { name: "항목 추가", exact: true }).click();
-    field = page.getByRole("region", { name: "새 항목 속성", exact: true });
+    field = page.getByRole("region", { name: "새 항목 입력 항목", exact: true });
     await field.getByLabel("항목 이름", { exact: true }).fill("상품명");
-    field = page.getByRole("region", { name: "상품명 속성", exact: true });
+    field = page.getByRole("region", { name: "상품명 입력 항목", exact: true });
     await revealSetting(field.getByLabel("필수 입력", { exact: true }));
     await field.getByLabel("필수 입력", { exact: true }).check();
     await field.getByRole("radio", { name: "상품명 자료 이름으로 사용", exact: true }).check();
@@ -274,9 +274,9 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
     if (await inputToggle.getAttribute("aria-expanded") === "false") await inputToggle.click();
     const renderedFields = page.getByRole("list", { name: "입력 항목 목록", exact: true }).getByRole("region");
     await expect(renderedFields).toHaveCount(3);
-    await expect(renderedFields.nth(0)).toHaveAttribute("aria-label", "상품명 속성");
-    await expect(renderedFields.nth(1)).toHaveAttribute("aria-label", "이름 속성");
-    await expect(renderedFields.nth(2)).toHaveAttribute("aria-label", "판매 상태 속성");
+    await expect(renderedFields.nth(0)).toHaveAttribute("aria-label", "상품명 입력 항목");
+    await expect(renderedFields.nth(1)).toHaveAttribute("aria-label", "이름 입력 항목");
+    await expect(renderedFields.nth(2)).toHaveAttribute("aria-label", "판매 상태 입력 항목");
   } finally {
     await mcp.close();
   }

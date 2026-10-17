@@ -93,7 +93,7 @@ export function EntityForm({
         }
       }).catch(() => {
         if (!c.signal.aborted) {
-          setIdentityMessage("식별자 설정을 읽지 못했습니다. 다시 조회하세요.");
+          setIdentityMessage("자료 번호 설정을 읽지 못했습니다. 다시 조회하세요.");
         }
       });
     }
@@ -203,7 +203,7 @@ export function EntityForm({
   };
   const checkExisting = async () => {
     if (initial || archived) return archived;
-    if (!identitySettings) throw new Error("식별자 설정을 확인하세요");
+    if (!identitySettings) throw new Error("자료 번호 설정을 확인하세요");
     if (!external && identitySettings.sources.find((item) => item.code === source)?.generation === "automatic") {
       return null;
     }
@@ -220,7 +220,7 @@ export function EntityForm({
         c.signal,
       );
       c.signal.throwIfAborted();
-      if (!stored.deleted_at) throw new Error("같은 발급처·식별자의 활성 자료가 있습니다.");
+      if (!stored.deleted_at) throw new Error("같은 번호 출처·자료 번호의 활성 자료가 있습니다.");
       if (stored.entity_type_id !== typeId) {
         throw new Error("삭제된 자료의 종류가 다릅니다. 원래 자료 종류에서 복원하세요.");
       }
@@ -232,7 +232,7 @@ export function EntityForm({
     } catch (e) {
       c.signal.throwIfAborted();
       if (e instanceof ApiError && e.status === 404) {
-        setIdentityMessage("새로운 식별자입니다.");
+        setIdentityMessage("새로운 자료 번호입니다.");
         return null;
       }
       throw e;
@@ -246,7 +246,7 @@ export function EntityForm({
       <FormModal
         open
         domain={label}
-        description="발급처와 번호를 확인하고, 자료의 속성과 태그를 입력합니다."
+        description="번호 출처와 번호를 확인하고, 자료의 입력 항목과 태그를 입력합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel={submitLabel}
         submitDisabled={!!typeId &&
@@ -334,7 +334,7 @@ export function EntityForm({
           }
           if (identitySettings.sources.find((item) => item.code === source)?.generation === "direct" && !external) {
             return {
-              external_id: "식별자를 입력하세요",
+              external_id: "자료 번호를 입력하세요",
             };
           }
           const errors: Record<string, string> = {};
@@ -374,7 +374,7 @@ export function EntityForm({
           } catch (error) {
             if (error instanceof ApiError && error.code === "settings_changed") {
               setIdentityStale(true);
-              setIdentityMessage("식별자 설정이 변경되었습니다. 입력을 유지했으니 현재 설정을 확인하세요.");
+              setIdentityMessage("자료 번호 설정이 변경되었습니다. 입력을 유지했으니 현재 설정을 확인하세요.");
             }
             throw error;
           }
@@ -470,12 +470,12 @@ export function EntityForm({
                   className="btn"
                   onClick={() => setIdentityReload((value) => value + 1)}
                 >
-                  식별자 설정 다시 조회
+                  자료 번호 설정 다시 조회
                 </button>
               )}
               {(initial || archived)
                 ? (
-                  <Field label="발급처">
+                  <Field label="번호 출처">
                     {(p) => (
                       <input
                         {...p}
@@ -490,7 +490,7 @@ export function EntityForm({
                 : identitySettings?.sources.filter((item) => item.active).length === 1
                 ? identitySettings.sources.find((item) => item.active)?.code === "app" ? null : (
                   <div className="field">
-                    <span className="label">발급처</span>
+                    <span className="label">번호 출처</span>
                     <p className="fixed-field-value">
                       {identitySettings.sources.find((item) => item.active)?.source_label}
                     </p>
@@ -498,7 +498,7 @@ export function EntityForm({
                   </div>
                 )
                 : (
-                  <Field label="발급처" required error={errors.source}>
+                  <Field label="번호 출처" required error={errors.source}>
                     {(p) => (
                       <select
                         {...p}
@@ -573,7 +573,7 @@ export function EntityForm({
                 </button>
               )}
               {(!identitySettings || !types) && !identityMessage && !catalogError && (
-                <p role="status">자료 종류·식별자 설정을 읽는 중…</p>
+                <p role="status">자료 종류·자료 번호 설정을 읽는 중…</p>
               )}
               {identityMessage && (
                 <p

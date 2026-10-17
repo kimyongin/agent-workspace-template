@@ -113,7 +113,7 @@ for (const width of [390, 1440]) {
         expect(await menu.locator("svg").evaluate((node) => node.getBoundingClientRect().width)).toBeGreaterThanOrEqual(
           18,
         );
-        for (const title of ["기본 정보", "식별자", "입력 항목"]) {
+        for (const title of ["기본 정보", "자료 번호", "입력 항목"]) {
           await page.getByRole("button", { name: title, exact: true }).click();
         }
       }

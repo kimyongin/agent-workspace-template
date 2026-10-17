@@ -63,7 +63,7 @@ export function TypeIdentitySettings(
   };
   const sourceName = (code: string) =>
     issuers.find((i) => i.code === code)?.label ?? saved?.sources.find((s) => s.code === code)?.source_label ??
-      "조회할 수 없는 발급처";
+      "조회할 수 없는 번호 출처";
   const isAvailable = (code: string, ruleId: string) => {
     const issuer = issuers.find((i) => i.code === code);
     const rule = rules[code]?.find((r) => r.id === ruleId);
@@ -82,15 +82,15 @@ export function TypeIdentitySettings(
       setInputError(parsed.error.issues[0]?.message ?? "설정 입력을 확인하세요.");
       return;
     }
-    if (await editor.resource.save()) setMessage("식별자 설정을 저장했습니다.");
+    if (await editor.resource.save()) setMessage("자료 번호 설정을 저장했습니다.");
   };
   const error = conflict
-    ? "같은 식별자 설정이 변경되었습니다. 입력을 유지했습니다. 최신 저장값을 확인하고 비교하세요."
+    ? "같은 자료 번호 설정이 변경되었습니다. 입력을 유지했습니다. 최신 저장값을 확인하고 비교하세요."
     : editor.error
     ? writeErrorMessage(editor.error)
     : inputError;
   return (
-    <MaterialSettingsSection title="식별자" state={state}>
+    <MaterialSettingsSection title="자료 번호" description="상품 번호처럼 자료를 구분할 번호를 설정합니다." state={state}>
       {error && <p role="alert" className="error-text">{error}</p>}
       {message && <p role="status">{message}</p>}
       {!saved && (
@@ -101,7 +101,7 @@ export function TypeIdentitySettings(
               className="btn"
               onClick={() => void editor.resource.read()}
             >
-              식별자 설정 다시 조회
+              자료 번호 설정 다시 조회
             </button>
           )}
         </>
@@ -109,7 +109,7 @@ export function TypeIdentitySettings(
       {saved && (
         <form
           className="form"
-          aria-label="식별자 설정"
+          aria-label="자료 번호 설정"
           onSubmit={(e) => {
             e.preventDefault();
             void save();
@@ -128,7 +128,7 @@ export function TypeIdentitySettings(
               {latestReady && (
                 <>
                   <p className="secondary">
-                    최신 저장값: {saved.label} · 기본 발급처 {sourceName(saved.default_source)} ·{" "}
+                    최신 저장값: {saved.label} · 기본 번호 출처 {sourceName(saved.default_source)} ·{" "}
                     {saved.sources.filter((s) => s.active).map((s) => s.source_label).join(", ")}
                   </p>
                   <button
@@ -146,7 +146,7 @@ export function TypeIdentitySettings(
             </div>
           )}
           <fieldset className="settings-fields" disabled={busy || uncertain || disabled}>
-            <Field label="이름" required>
+            <Field label="이름" required help="자료에 표시할 번호 이름입니다. 예: 상품 번호·주문 번호">
               {(props) => (
                 <input
                   {...props}
@@ -158,14 +158,14 @@ export function TypeIdentitySettings(
               )}
             </Field>
             <div className="settings-source-heading">
-              <h3 className="label">사용할 발급처</h3>
+              <h3 className="label">사용할 번호 출처</h3>
               <BodyAction icon="link" disabled={!!catalogError} onClick={() => setConnecting(true)}>연결</BodyAction>
             </div>
             {catalogError && (
               <p className="error-text" role="alert">
-                발급처·번호 종류를 읽지 못했습니다. {catalogError}{" "}
+                번호 출처·번호 종류를 읽지 못했습니다. {catalogError}{" "}
                 <button type="button" className="btn" onClick={() => setCatalogRevision((value) => value + 1)}>
-                  발급처·번호 종류 다시 조회
+                  번호 출처·번호 종류 다시 조회
                 </button>
               </p>
             )}
@@ -255,7 +255,7 @@ export function TypeIdentitySettings(
                       <input
                         type="radio"
                         name={`default-source-${typeId}`}
-                        aria-label={`${sourceName(source.code)} 기본 발급처`}
+                        aria-label={`${sourceName(source.code)} 기본 번호 출처`}
                         checked={source.active && available && draft.default_source === source.code}
                         disabled={!source.active || !available}
                         onChange={() => update((v) => ({ ...v, default_source: source.code }))}
@@ -267,7 +267,7 @@ export function TypeIdentitySettings(
               })}
             </div>
             {!active.some((source) => source.code === draft.default_source) && (
-              <p className="error-text">기본 발급처를 선택하세요.</p>
+              <p className="error-text">기본 번호 출처를 선택하세요.</p>
             )}
           </fieldset>
           <div className="settings-section-footer">
@@ -287,7 +287,7 @@ export function TypeIdentitySettings(
               </button>
               <button
                 className="btn btn-primary"
-                aria-label={busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "식별자 저장"}
+                aria-label={busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "자료 번호 저장"}
                 disabled={busy || disabled || conflict || (!dirty && !uncertain)}
               >
                 {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "저장"}

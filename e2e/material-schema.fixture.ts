@@ -173,7 +173,7 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
   await page.getByLabel("자료 종류 이름", { exact: true }).fill(
     "남길 기본 입력",
   );
-  await page.getByRole("button", { name: "이름 속성 편집", exact: true }).focus();
+  await page.getByRole("button", { name: "이름 입력 항목 편집", exact: true }).focus();
   await page.keyboard.press("Enter");
   const title = page.locator(".schema-field-heading").getByLabel("항목 이름", { exact: true });
   await expect(title).toHaveCount(1);
@@ -328,7 +328,7 @@ test("완료 작업에서 만든 원본 복구안은 같은 작업공간과 기�
   );
 });
 
-test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·식별자 초안을 유지한다", async ({ page }) => {
+test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·자료 번호 초안을 유지한다", async ({ page }) => {
   let complete = false;
   let definitionReads = 0;
   const original = initialEntityDefinition("이름");
@@ -410,9 +410,9 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
     .click();
   await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
-  await page.getByRole("region", { name: "식별자", exact: true }).locator(".material-section-toggle").click();
-  const record = page.getByRole("form", { name: "식별자 설정", exact: true });
-  await record.getByLabel("이름", { exact: false }).fill("남길 식별자 입력");
+  await page.getByRole("region", { name: "자료 번호", exact: true }).locator(".material-section-toggle").click();
+  const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
+  await record.getByLabel("이름", { exact: false }).fill("남길 자료 번호 입력");
   complete = true;
   await page.getByRole("button", { name: "상태 다시 조회", exact: true })
     .click();
@@ -429,7 +429,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   await expect(page.getByLabel("항목 이름", { exact: true }).first())
     .toHaveValue("남길 속성 입력");
   await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
-    "남길 식별자 입력",
+    "남길 자료 번호 입력",
   );
   await expect(
     page.getByRole("button", { name: /^게시된 추가값 항목 (?:펼치기|접기)$/, exact: true }),
@@ -537,7 +537,7 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
     .toContainText("적용됨");
   await expect(page.getByRole("status").filter({ hasText: "완료 · 10/10" }))
     .toBeVisible();
-  await page.getByRole("button", { name: "최신 속성 다시 조회", exact: true })
+  await page.getByRole("button", { name: "최신 입력 항목 다시 조회", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: /^갱신한 이름 항목 (?:펼치기|접기)$/, exact: true }),
@@ -546,7 +546,7 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
     "실패 후 유지할 기본 입력",
   );
   await expect(
-    page.getByRole("button", { name: "최신 속성 다시 조회", exact: true }),
+    page.getByRole("button", { name: "최신 입력 항목 다시 조회", exact: true }),
   ).toHaveCount(0);
 });
 
@@ -863,7 +863,7 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", {
-    name: "이전 게시 버전 더 보기",
+    name: "이전 적용 버전 더 보기",
     exact: true,
   }).click();
   await page.waitForFunction(() => document.documentElement.dataset.fixtureHistoryBody === "pending");
@@ -878,7 +878,7 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
   await expect(page.getByRole("button", { name: /버전 1 · 적용됨$/ })).toHaveCount(0);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.getByRole("button", {
-    name: "이전 게시 버전 더 보기",
+    name: "이전 적용 버전 더 보기",
     exact: true,
   }).click();
   await expect(page.getByRole("alert")).toContainText(
@@ -933,14 +933,14 @@ test(
     for (const width of [320, 390, 768]) {
       await page.setViewportSize({ width, height: 900 });
       const relation = page.locator(".material-settings-toolbar").getByRole("link", {
-        name: "이 자료의 관계 설정",
+        name: "이 자료의 연결 설정",
         exact: true,
       });
       await expect(relation).toHaveAttribute("href", `/settings/relations?type_id=${materials.id}`);
       const relationBox = (await relation.boundingBox())!;
       expect(relationBox.width).toBeGreaterThanOrEqual(44);
       expect(relationBox.height).toBeGreaterThanOrEqual(44);
-      const names = ["기본 정보", "식별자", "입력 항목", "변경 이력"];
+      const names = ["기본 정보", "자료 번호", "입력 항목", "변경 이력"];
       const boxes = [];
       for (const name of names) {
         boxes.push((await page.getByRole("region", { name, exact: true }).boundingBox())!);
@@ -978,7 +978,7 @@ test(
     ).toBeDisabled();
     await expect(page.locator(".material-settings-current")).toHaveCount(0);
     await expect(properties.getByRole("list", { name: "입력 항목 목록", exact: true })).toBeVisible();
-    const quantity = properties.getByRole("region", { name: "수량 속성", exact: true });
+    const quantity = properties.getByRole("region", { name: "수량 입력 항목", exact: true });
     const layout = await quantity.evaluate((el) => {
       const row = el.getBoundingClientRect();
       const header = el.querySelector(".schema-field-heading")!.getBoundingClientRect();
@@ -1034,8 +1034,8 @@ test(
       "rgb(255, 140, 150)",
     );
     await quantity.getByText("추가 설정", { exact: true }).click();
-    await page.getByRole("region", { name: "식별자", exact: true }).locator(".material-section-toggle").click();
-    const record = page.getByRole("form", { name: "식별자 설정", exact: true });
+    await page.getByRole("region", { name: "자료 번호", exact: true }).locator(".material-section-toggle").click();
+    const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
     await expect(record).toBeVisible();
     const innerChrome = await record.evaluate((el) => {
       const section = el.parentElement!;
@@ -1043,12 +1043,12 @@ test(
       return { border: style.borderTopWidth, padding: style.padding };
     });
     expect(innerChrome).toEqual({ border: "0px", padding: "0px" });
-    await expect(page.getByRole("heading", { name: /^식별자/ })).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: /^자료 번호/ })).toHaveCount(1);
     await page.screenshot({
       path: info.outputPath("identity-settings-flat.png"),
       fullPage: true,
     });
-    await page.getByRole("region", { name: "식별자", exact: true }).locator(".material-section-toggle").click();
+    await page.getByRole("region", { name: "자료 번호", exact: true }).locator(".material-section-toggle").click();
     await page.screenshot({
       path: info.outputPath("property-display-settings.png"),
       fullPage: true,
@@ -1216,7 +1216,7 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
   await expect(page.getByRole("button", { name: /^최초 생성/ })).toHaveCount(1);
   await applied.click();
   await expect(
-    page.getByText("새 속성 버전 2 · 10개 적용 · 6개 값 변경", { exact: true }),
+    page.getByText("새 입력 항목 버전 2 · 10개 적용 · 6개 값 변경", { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "폐기", exact: true }))
     .toHaveCount(0);
@@ -1428,7 +1428,7 @@ test(
       });
     });
     await page.goto(`/settings/entity-types/${materials.id}`);
-    const sections = ["기본 정보", "식별자", "입력 항목", "변경 이력"];
+    const sections = ["기본 정보", "자료 번호", "입력 항목", "변경 이력"];
     const styles = [];
     for (const name of sections) {
       styles.push(

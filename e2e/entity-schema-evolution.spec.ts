@@ -33,21 +33,21 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await page.goto(`/settings/entity-types/${typeId}`);
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
-    await page.getByRole("region", { name: "이름 속성", exact: true }).getByLabel("항목 이름", { exact: true }).fill(
+    await page.getByRole("region", { name: "이름 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true }).fill(
       "자료 이름",
     );
     await page.getByRole("button", { name: /^변경 이력/ }).click();
     await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
     await expect(
-      page.getByRole("region", { name: "자료 이름 속성", exact: true }).getByLabel("항목 이름", { exact: true }),
+      page.getByRole("region", { name: "자료 이름 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true }),
     ).toHaveValue("자료 이름");
     await page.getByRole("button", { name: "항목 추가", exact: true }).click();
     const field = page.getByRole("region", {
-      name: "새 항목 속성",
+      name: "새 항목 입력 항목",
       exact: true,
     });
     await field.getByLabel("항목 이름", { exact: true }).fill("수량");
-    const count = page.getByRole("region", { name: "수량 속성", exact: true });
+    const count = page.getByRole("region", { name: "수량 입력 항목", exact: true });
     await count.getByLabel("데이터 타입", { exact: true }).selectOption(
       "integer",
     );
@@ -210,7 +210,7 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await expect(page.getByRole("list", { name: "입력 항목 목록", exact: true }).getByRole("listitem"))
       .toHaveCount(1);
-    await expect(page.getByRole("region", { name: "메모 속성", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "메모 입력 항목", exact: true })).toHaveCount(0);
   } finally {
     await mcp.close();
   }

@@ -223,12 +223,12 @@ test("settings profile route keeps drafts and treats settings as account locatio
     "data-current",
     "true",
   );
-  await page.getByLabel("닉네임", { exact: true }).fill("식별자 초안");
+  await page.getByLabel("닉네임", { exact: true }).fill("자료 번호 초안");
   await page.getByRole("link", { name: "할 일", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
     .click();
   await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue(
-    "식별자 초안",
+    "자료 번호 초안",
   );
   page.on("dialog", (dialog) => dialog.accept());
   await page.reload();
@@ -554,8 +554,8 @@ test("definition history reads beyond the first hundred versions and opens the i
     return route.fulfill({ json: { ...materials, schema_version: 101 } });
   });
   await page.goto(`/settings/entity-types/${materials.id}/versions`);
-  await expect(page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true }).click();
+  await expect(page.getByRole("button", { name: "이전 적용 버전 더 보기", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "이전 적용 버전 더 보기", exact: true }).click();
   const history = page.getByRole("region", { name: "변경 이력", exact: true });
   await expect(history.locator(".schema-history-row")).toHaveCount(101);
   const oldest = history.locator(".schema-history-row").filter({ hasText: "버전 1 · 적용됨" });
@@ -572,7 +572,7 @@ test("definition history reads beyond the first hundred versions and opens the i
   expect(readVersions).toContain(1);
   expect(readVersions).not.toContain(0);
   expect(cursors).toEqual([null, "2"]);
-  await expect(page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "이전 적용 버전 더 보기", exact: true })).toHaveCount(0);
 });
 
 test("numeric schema bounds keep invalid raw decimals and reject before creating a change", async ({ page }) => {
@@ -600,7 +600,7 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
   await page.goto(`/settings/entity-types/${materials.id}`);
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^정확한 수량 항목 (?:펼치기|접기)$/, exact: true }).click();
-  const section = page.getByRole("region", { name: "정확한 수량 속성", exact: true });
+  const section = page.getByRole("region", { name: "정확한 수량 입력 항목", exact: true });
   await section.getByText("추가 설정", { exact: true }).click();
   const input = section.getByLabel("최소값", { exact: true });
   await input.fill("1.0000000000000001");
@@ -742,7 +742,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     await name.fill("保持する下書き");
     await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
-    await expect(form.getByRole("status").filter({ hasText: "자료 종류·식별자 설정을 읽는 중…" })).toBeVisible();
+    await expect(form.getByRole("status").filter({ hasText: "자료 종류·자료 번호 설정을 읽는 중…" })).toBeVisible();
     await name.press("Enter");
     expect(preparations).toEqual([]);
     expect(writes).toEqual([]);
@@ -828,7 +828,7 @@ test("immutable entity edit exposes identity catalog read failure and preserves 
   await form.getByLabel("이름", { exact: false }).fill("保留する名前");
   await expect(form.getByRole("alert").filter({ hasText: "자료 종류를 읽지 못했습니다." })).toBeVisible();
   await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
-  await expect(form.getByRole("status").filter({ hasText: "자료 종류·식별자 설정을 읽는 중…" })).toHaveCount(0);
+  await expect(form.getByRole("status").filter({ hasText: "자료 종류·자료 번호 설정을 읽는 중…" })).toHaveCount(0);
   await expect(form.getByLabel("이름", { exact: false })).toHaveValue("保留する名前");
   await expect(form.getByRole("button", { name: "취소", exact: true })).toBeEnabled();
   expect(preparations).toBe(0);
@@ -939,7 +939,7 @@ test(
     await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
     await page.screenshot({ path: info.outputPath("first-type.png"), fullPage: true });
     await page.getByLabel("자료 종류 이름", { exact: true }).fill("첫 자료");
-    await page.getByLabel("대표 속성 이름", { exact: true }).fill("제목");
+    await page.getByLabel("대표 입력 항목 이름", { exact: true }).fill("제목");
     await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(saved.id);
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();
@@ -1099,7 +1099,7 @@ test("lost creation response replays one result and selects its workspace", asyn
   await page.goto("/settings/entity-types");
   const name = page.getByLabel("자료 종류 이름", { exact: true });
   await name.fill("응답 유실 자료");
-  await page.getByLabel("대표 속성 이름", { exact: true }).fill("제목");
+  await page.getByLabel("대표 입력 항목 이름", { exact: true }).fill("제목");
   await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("저장 여부를 알 수 없습니다.");
   await expect(name).toHaveValue("응답 유실 자료");
@@ -1149,9 +1149,9 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
   await page.getByLabel("항목 이름", { exact: true }).fill("남길 속성 초안");
-  await page.getByRole("button", { name: /^식별자/ }).click();
-  const record = page.getByRole("form", { name: "식별자 설정", exact: true });
-  await record.getByLabel("이름", { exact: false }).fill("남길 식별자 초안");
+  await page.getByRole("button", { name: /^자료 번호/ }).click();
+  const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
+  await record.getByLabel("이름", { exact: false }).fill("남길 자료 번호 초안");
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   const name = page.getByLabel("자료 종류 이름", { exact: true });
   await name.fill("내 기본 정보 초안");
@@ -1164,7 +1164,7 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await expect(page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)")).toBeChecked();
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
   await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
-    "남길 식별자 초안",
+    "남길 자료 번호 초안",
   );
   await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", {
     name: "변경 취소",
@@ -1173,7 +1173,7 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await expect(name).toHaveValue("다른 화면 저장값");
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
   await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
-    "남길 식별자 초안",
+    "남길 자료 번호 초안",
   );
   await name.fill("내 기본 정보 초안");
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
@@ -1188,7 +1188,7 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await expect(name).toHaveValue("내 기본 정보 초안");
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
   await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
-    "남길 식별자 초안",
+    "남길 자료 번호 초안",
   );
 });
 

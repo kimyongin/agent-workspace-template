@@ -2,7 +2,7 @@ import { TypeIdentitySettings } from "./TypeIdentitySettings.tsx";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { createMaterialDefinition } from "./material-definition.ts";
-import { SettingsHeading } from "./SettingsHeading.tsx";
+import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { MaterialSettingsProtection } from "./MaterialSettingsProtection.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -149,7 +149,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       await definitions.readHistoryPage();
     } catch (e) {
       if (mounted.current && !(e instanceof DOMException && e.name === "AbortError")) {
-        setError(e instanceof Error ? e.message : "이전 게시 버전을 읽지 못했습니다.");
+        setError(e instanceof Error ? e.message : "이전 적용 버전을 읽지 못했습니다.");
       }
     }
   };
@@ -237,21 +237,17 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   // Its draft belongs to its fixed route scope and must never become the destination form.
   if (activeTypeId !== type_id) {
     return (
-      <section className="panel settings">
+      <section className="panel settings material-settings">
         <p role="status">불러오는 중…</p>
       </section>
     );
   }
   return (
     <section
-      className="panel settings"
+      className="panel settings material-settings"
       aria-labelledby="entity-types-title"
     >
-      <SettingsHeading
-        title="자료 설정"
-        description="자료 종류별 입력 항목과 식별자, 변경 이력을 관리합니다."
-        id="entity-types-title"
-      />
+      <MaterialSettingsHeading section="types" id="entity-types-title" />
 
       {(type_id || items.length > 0) && (
         <div className="material-settings-toolbar">
@@ -295,7 +291,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           )}
           {!loading && type_id && (
             <Link className="btn btn-input" to={`/settings/relations?type_id=${encodeURIComponent(type_id)}`}>
-              이 자료의 관계 설정
+              이 자료의 연결 설정
             </Link>
           )}
         </div>
@@ -320,6 +316,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       {!loading && (!type_id || type) && (
         <MaterialSettingsSection
           title={type_id ? "기본 정보" : "자료 종류 만들기"}
+          description="자료 종류의 이름과 아이콘을 정합니다."
           summary={type?.archived ? "보관" : undefined}
           state={{ dirty, busy, uncertain, error: !!error }}
           initialOpen={!type_id}
@@ -380,7 +377,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 </div>
               </fieldset>
               {!type_id && (
-                <Field label="대표 속성 이름">
+                <Field label="대표 입력 항목 이름">
                   {(props) => (
                     <input
                       {...props}

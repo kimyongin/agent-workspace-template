@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { createSettingsDraft } from "./settings-draft.ts";
 import { typeIdentitySettingsAdapter } from "./type-identity-settings.ts";
 import type { EntityTypeIdentity } from "@contracts/entity-issuer.ts";
-test("종류 식별자 이름 변경을 취소하면 저장된 발급처와 이름으로 돌아간다", async () => {
+test("자료 종류의 번호 이름 변경을 취소하면 저장된 번호 출처와 이름으로 돌아간다", async () => {
   const saved: EntityTypeIdentity = {
     type_id: "11111111-1111-4111-8111-111111111111",
     label: "상품 번호",
@@ -40,7 +40,7 @@ test("종류 식별자 이름 변경을 취소하면 저장된 발급처와 이�
 });
 
 import { ApiError } from "../../lib/api-error.ts";
-test("식별자 설정 충돌 뒤 최신 버전을 명시적으로 채택해도 입력 초안은 유지한다", async () => {
+test("자료 번호 설정 충돌 뒤 최신 버전을 명시적으로 채택해도 입력 초안은 유지한다", async () => {
   let saved: EntityTypeIdentity = {
     type_id: "11111111-1111-4111-8111-111111111111",
     label: "상품 번호",
@@ -80,7 +80,7 @@ test("식별자 설정 충돌 뒤 최신 버전을 명시적으로 채택해도 
   });
 });
 
-test("발급처 모달 뒤 조회가 더 새로운 설정을 읽어도 미저장 식별자 초안을 자동 재기준하지 않는다", async () => {
+test("번호 출처 모달 뒤 조회가 더 새로운 설정을 읽어도 미저장 자료 번호 초안을 자동 재기준하지 않는다", async () => {
   const before: EntityTypeIdentity = {
     type_id: "11111111-1111-4111-8111-111111111111",
     label: "상품 번호",

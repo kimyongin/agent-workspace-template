@@ -14,7 +14,7 @@ import { AccountSettingsSample } from "./AccountSettingsSample.tsx";
 
 const topics = [
   ["settings", "기본 설정"],
-  ["issuers", "발급처"],
+  ["issuers", "번호 출처"],
   ["relations", "자료 관계"],
   ["record-actions", "기록 설정"],
   ["buttons", "버튼"],
@@ -129,7 +129,7 @@ function SamplesContent() {
       <section id="relations" className="samples-topic" aria-label="자료 관계 샘플">
         <RelationSettingsSample />
       </section>
-      <section id="issuers" className="samples-topic" aria-label="발급처 샘플">
+      <section id="issuers" className="samples-topic" aria-label="번호 출처 샘플">
         <IssuerSettingsSample />
       </section>
       <section id="record-actions" className="samples-topic" aria-label="기록 설정 샘플">

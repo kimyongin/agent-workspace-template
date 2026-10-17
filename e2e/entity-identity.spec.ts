@@ -53,7 +53,7 @@ test.beforeEach(async ({ page }) => {
     meaning: "시험 상품 번호",
   });
   await api("PATCH", `/entity-types/${fixtureType!.id}/identity`, {
-    label: "식별자",
+    label: "자료 번호",
     default_source: fixtureSource,
     expected_version: 1,
     sources: [{ code: fixtureSource, rule_id: rule.id, active: true }],
@@ -111,7 +111,7 @@ test("manual tuple registration restores stored properties and links while ident
     return response.status() === 204 ? null : response.json();
   };
   const original = await api("GET", "/settings/business");
-  const external_id = `000Ab:/한글%${unique("식별자")}`,
+  const external_id = `000Ab:/한글%${unique("자료 번호")}`,
     name = unique("보관 자료");
   let entityId: string | undefined, taskId: string | undefined;
   try {
@@ -164,9 +164,9 @@ test("manual tuple registration restores stored properties and links while ident
       form.getByRole("button", { name: "기존 대상 확인", exact: true }),
     ).toHaveCount(0);
     releaseSettings();
-    await expect(form.getByLabel("식별자")).toBeEnabled();
+    await expect(form.getByLabel("자료 번호")).toBeEnabled();
     await expect(form.getByRole("button", { name: "기존 대상 확인", exact: true })).toHaveCount(0);
-    await form.getByLabel("식별자").fill(external_id);
+    await form.getByLabel("자료 번호").fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true })
       .click();
     const restore = page.getByRole("dialog", {
@@ -204,8 +204,8 @@ test("manual tuple registration restores stored properties and links while ident
       name: `${fixtureType!.label} 편집`,
       exact: true,
     });
-    await expect(rekey.getByLabel("식별자")).toHaveAttribute("readonly", "");
-    await expect(rekey.getByLabel("식별자")).toHaveValue(external_id);
+    await expect(rekey.getByLabel("자료 번호")).toHaveAttribute("readonly", "");
+    await expect(rekey.getByLabel("자료 번호")).toHaveValue(external_id);
     await rekey.getByLabel("이름", { exact: false }).fill(name + " 수정");
     await saveOnce(page, rekey);
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(target.id)));
@@ -272,16 +272,16 @@ test("kind identity settings retries a failed read and saves a label without cha
     await route.continue();
   });
   await page.goto(`/settings/entity-types/${fixtureType!.id}`);
-  const section = page.getByRole("region", { name: "식별자", exact: true });
-  await section.getByRole("button", { name: /^식별자/ }).click();
+  const section = page.getByRole("region", { name: "자료 번호", exact: true });
+  await section.getByRole("button", { name: /^자료 번호/ }).click();
   await expect(section.getByRole("alert")).toBeVisible();
   fail = false;
-  await section.getByRole("button", { name: "식별자 설정 다시 조회", exact: true }).click();
+  await section.getByRole("button", { name: "자료 번호 설정 다시 조회", exact: true }).click();
   await section.getByLabel("이름", { exact: false }).fill("상품 번호");
-  await section.getByRole("button", { name: "식별자 저장", exact: true }).click();
-  await expect(section.getByRole("status")).toHaveText("식별자 설정을 저장했습니다.");
+  await section.getByRole("button", { name: "자료 번호 저장", exact: true }).click();
+  await expect(section.getByRole("status")).toHaveText("자료 번호 설정을 저장했습니다.");
   await page.reload();
-  await section.getByRole("button", { name: /^식별자/ }).click();
+  await section.getByRole("button", { name: /^자료 번호/ }).click();
   await expect(section.getByLabel("이름", { exact: false })).toHaveValue("상품 번호");
 });
 
@@ -294,11 +294,11 @@ test("late archived lookup preserves newer identity and same-identity property e
       name: `${fixtureType!.label} 추가`,
       exact: true,
     });
-  await expect(form().getByLabel("식별자")).toBeEnabled();
+  await expect(form().getByLabel("자료 번호")).toBeEnabled();
   await expect(form().getByText("시험 마켓", { exact: true })).toBeVisible();
-  await expect(form().getByRole("combobox", { name: "발급처", exact: false })).toHaveCount(0);
+  await expect(form().getByRole("combobox", { name: "번호 출처", exact: false })).toHaveCount(0);
   const source = fixtureSource;
-  const identity = unique("지연 식별자");
+  const identity = unique("지연 자료 번호");
   const held: (() => Promise<void>)[] = [];
   let lookupNumber = 0;
   await page.route("**/entities/*", async (route) => {
@@ -365,24 +365,24 @@ test("late archived lookup preserves newer identity and same-identity property e
       new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     );
   };
-  await form().getByLabel("식별자").fill(identity);
+  await form().getByLabel("자료 번호").fill(identity);
   await start();
-  await form().getByLabel("식별자").fill("다른 식별자");
+  await form().getByLabel("자료 번호").fill("다른 자료 번호");
   await form().getByLabel("이름", { exact: false }).fill("새 입력");
   await settle();
-  await expect(form().getByLabel("식별자")).toHaveValue("다른 식별자");
+  await expect(form().getByLabel("자료 번호")).toHaveValue("다른 자료 번호");
   await expect(form().getByLabel("이름", { exact: false })).toHaveValue(
     "새 입력",
   );
 
-  await form().getByLabel("식별자").fill(identity);
+  await form().getByLabel("자료 번호").fill(identity);
   await start();
   await form().getByLabel("이름", { exact: false }).fill(
-    "같은 식별자에서 수정",
+    "같은 자료 번호에서 수정",
   );
   await settle();
   await expect(form().getByLabel("이름", { exact: false })).toHaveValue(
-    "같은 식별자에서 수정",
+    "같은 자료 번호에서 수정",
   );
   await start();
   await start();
@@ -405,8 +405,8 @@ test("late archived lookup preserves newer identity and same-identity property e
       .click();
   }
   await beginTabAction(page, `${fixtureType!.label} 추가`);
-  await expect(form().getByLabel("식별자")).toBeEnabled();
-  await form().getByLabel("식별자").fill(identity);
+  await expect(form().getByLabel("자료 번호")).toBeEnabled();
+  await form().getByLabel("자료 번호").fill(identity);
   await start();
   await form().getByRole("button", { name: "취소", exact: true }).click();
   if (await discard.isVisible()) {
@@ -414,10 +414,10 @@ test("late archived lookup preserves newer identity and same-identity property e
       .click();
   }
   await beginTabAction(page, `${fixtureType!.label} 추가`);
-  await expect(form().getByLabel("식별자")).toBeEnabled();
-  const newIdentity = await form().getByLabel("식별자").inputValue();
+  await expect(form().getByLabel("자료 번호")).toBeEnabled();
+  const newIdentity = await form().getByLabel("자료 번호").inputValue();
   await settle();
-  await expect(form().getByLabel("식별자")).toHaveValue(newIdentity);
+  await expect(form().getByLabel("자료 번호")).toHaveValue(newIdentity);
   await expect(form().getByLabel("이름", { exact: false })).toHaveValue("");
 });
 
@@ -429,12 +429,12 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
     name: `${fixtureType!.label} 추가`,
     exact: true,
   });
-  await expect(form.getByLabel("식별자")).toBeEnabled();
+  await expect(form.getByLabel("자료 번호")).toBeEnabled();
   await expect(form.getByText("시험 마켓", { exact: true })).toBeVisible();
-  await expect(form.getByRole("combobox", { name: "발급처", exact: false })).toHaveCount(0);
+  await expect(form.getByRole("combobox", { name: "번호 출처", exact: false })).toHaveCount(0);
   const source = fixtureSource;
   const identity = unique("확인 중 조회"), title = unique("지킬 입력");
-  await form.getByLabel("식별자").fill(identity);
+  await form.getByLabel("자료 번호").fill(identity);
   await form.getByLabel("이름", { exact: false }).fill(title);
   let release!: () => void, delivered!: () => void, reads = 0;
   const gate = new Promise<void>((resolve) => {
@@ -518,8 +518,8 @@ test("seven settings workspaces retain real API selections and stay within the v
       [`/settings/entity-types/${fixtureType!.id}`, "자료 설정"],
       ["/settings/tags", "태그 설정"],
       ["/settings/records", "기록 설정"],
-      ["/settings/issuers", "발급처 설정"],
-      ["/settings/relations", "자료 관계 설정"],
+      ["/settings/issuers", "자료 설정"],
+      ["/settings/relations", "연결 설정"],
       ["/settings/data-model", "자료 모델"],
     ]
   ) {
@@ -534,7 +534,7 @@ test("seven settings workspaces retain real API selections and stay within the v
       ["자료 관계", "/settings/relations"],
       ["태그", "/settings/tags"],
       ["기록", "/settings/records"],
-      ["발급처", "/settings/issuers"],
+      ["번호 출처", "/settings/issuers"],
     ] as const;
     await expect(menu.getByRole("link")).toHaveCount(7);
     await expect(menu.getByRole("link")).toHaveText(destinations.map(([label]) => label));
@@ -543,10 +543,10 @@ test("seven settings workspaces retain real API selections and stay within the v
     }
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).press("Escape");
     if (title === "자료 설정") {
-      const identity = page.getByRole("region", { name: "식별자", exact: true });
-      await identity.getByRole("button", { name: /^식별자/ }).click();
-      await expect(identity.getByLabel("이름", { exact: false })).toHaveValue("식별자");
-      await expect(identity.getByRole("radio", { name: "시험 마켓 기본 발급처", exact: true })).toBeChecked();
+      const identity = page.getByRole("region", { name: "자료 번호", exact: true });
+      await identity.getByRole("button", { name: /^자료 번호/ }).click();
+      await expect(identity.getByLabel("이름", { exact: false })).toHaveValue("자료 번호");
+      await expect(identity.getByRole("radio", { name: "시험 마켓 기본 번호 출처", exact: true })).toBeChecked();
       await expect(page.getByRole("region", { name: "기록 자동 완성", exact: true })).toHaveCount(0);
     }
     if (title === "기록 설정") {
@@ -557,11 +557,11 @@ test("seven settings workspaces retain real API selections and stay within the v
       await expect(template.getByLabel("메모 템플릿")).toHaveText("대상 액션");
       await expect(
         page.getByRole("status").filter({
-          hasText: /^(?:설정을 읽는 중|속성 정의를 읽는 중|태그를 불러오는 중)…$/,
+          hasText: /^(?:설정을 읽는 중|입력 항목 정의를 읽는 중|태그를 불러오는 중)…$/,
         }),
       ).toHaveCount(0);
     }
-    if (title === "발급처 설정") {
+    if (path === "/settings/issuers") {
       await page.getByRole("button", { name: "시험 마켓", exact: true }).click();
       await expect(page.getByText("상품 번호", { exact: true })).toBeVisible();
     }

@@ -28,7 +28,8 @@ export function SettingsMenu() {
   if (!location.pathname.startsWith("/settings")) return null;
   const current = (path: string) =>
     location.pathname === path || path !== "/settings" && location.pathname.startsWith(`${path}/`) ||
-    path === "/settings/materials" && location.pathname.startsWith("/settings/entity-types");
+    path === "/settings/materials" && ["/settings/entity-types", "/settings/relations", "/settings/issuers", "/settings/data-model"]
+      .some((prefix) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`));
   return (
     <div
       className="settings-menu"
@@ -102,7 +103,8 @@ export function SettingsMenu() {
               onClick={(event) => {
                 if (
                   event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey &&
-                  to === `${location.pathname}${location.search}${location.hash}`
+                  (to === `${location.pathname}${location.search}${location.hash}` ||
+                    to === "/settings/materials" && current(to))
                 ) {
                   event.preventDefault();
                   setOpen(false);

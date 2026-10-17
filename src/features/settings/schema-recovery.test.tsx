@@ -111,7 +111,7 @@ it("복구 미리보기는 서버 원본 계획을 유지하고 편집할 수 �
   expect(html).not.toContain("보완값 지정");
 });
 
-it("복구 충돌 목록은 자료 식별자를 안전한 상세 링크로 제공하고 연결·선택 사유를 설명한다", () => {
+it("복구 충돌 목록은 자료 번호를 안전한 상세 링크로 제공하고 연결·선택 사유를 설명한다", () => {
   const html = renderToStaticMarkup(
     <MemoryRouter>
       <RecoveryConflictList

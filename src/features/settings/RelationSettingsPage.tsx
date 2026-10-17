@@ -6,7 +6,7 @@ import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
-import { SettingsHeading } from "./SettingsHeading.tsx";
+import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
 import { RelationDefinitionForm } from "./RelationDefinitionForm.tsx";
 import "./settings.css";
@@ -71,9 +71,7 @@ export function RelationSettingsPage() {
   };
   const name = (id: string) => types.find((t) => t.id === id)?.label ?? id;
   const label = (row: EntityRelationDefinition) =>
-    row.ends.map((e) => `${name(e.type_id)} · ${e.label} (${e.cardinality === "one" ? "하나만" : "여러 개"})`).join(
-      " ↔ ",
-    );
+    `${name(row.ends[0].type_id)} → ${row.ends[0].label} · ${row.ends[0].cardinality === "one" ? "하나만" : "여러 개"}`;
   const editor = (row?: EntityRelationDefinition) => (
     <RelationDefinitionForm
       original={row}
@@ -82,14 +80,14 @@ export function RelationSettingsPage() {
       onState={report}
       onSaved={() => {
         close();
-        setMessage("자료 관계 설정을 저장했습니다.");
+        setMessage("연결 설정을 저장했습니다.");
         setRevision((n) => n + 1);
       }}
     />
   );
   return (
-    <section className="panel settings" aria-label="자료 관계 설정">
-      <SettingsHeading title="자료 관계 설정" description="두 자료 종류 사이의 관계 이름과 연결 개수를 관리합니다." />
+    <section className="panel settings material-settings" aria-label="연결 설정">
+      <MaterialSettingsHeading section="relations" />
       <fieldset disabled={edit !== null} className="relation-settings-filters">
         <Field label="자료 종류 필터">
           {(props) => (
@@ -99,12 +97,12 @@ export function RelationSettingsPage() {
               value={typeId}
               onChange={(e) => setParams(e.target.value ? { type_id: e.target.value } : {})}
             >
-              <option value="">전체 자료</option>
+              <option value="">모든 자료 종류</option>
               {types.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           )}
         </Field>
-        <Field label="관계 이름 또는 자료 종류 검색">
+        <Field label="연결 이름 또는 자료 종류 검색">
           {(props) => (
             <input
               className="input"
@@ -115,7 +113,7 @@ export function RelationSettingsPage() {
             />
           )}
         </Field>
-        <Field label="관계 상태">
+        <Field label="연결 설정 상태">
           {(props) => (
             <select
               className="input"
@@ -138,7 +136,7 @@ export function RelationSettingsPage() {
           disabled={edit !== null || !catalog.types}
           onClick={() => open("new")}
         >
-          관계 추가
+          연결 설정 추가
         </button>
       </div>
       {catalog.error && (
@@ -155,12 +153,14 @@ export function RelationSettingsPage() {
       )}
       {message && <p role="status">{message}</p>}
       <div className="issuer-registry-list">
-        {edit === "new" && <IssuerRow label="새 관계" open onToggle={() => {}}>{editor()}</IssuerRow>}
+        {edit === "new" && <IssuerRow label="새 연결 설정" open onToggle={() => {}}>{editor()}</IssuerRow>}
         {page.items.map((row) => (
           <IssuerRow
             key={row.id}
             label={label(row)}
-            summary={row.archived ? "보관" : undefined}
+            summary={`${name(row.ends[1].type_id)} → ${row.ends[1].label} · ${
+              row.ends[1].cardinality === "one" ? "하나만" : "여러 개"
+            }${row.archived ? " · 보관" : ""}`}
             open={edit !== null && edit !== "new" && edit.id === row.id}
             onToggle={() => {
               if (edit === null) open(row);
@@ -171,7 +171,7 @@ export function RelationSettingsPage() {
         ))}
       </div>
       {!loading && !error && page.items.length === 0 && edit === null && (
-        <p className="secondary">조건에 맞는 관계가 없습니다.</p>
+        <p className="secondary">조건에 맞는 연결 설정이 없습니다.</p>
       )}
       {page.next_cursor && (
         <BodyAction
@@ -205,7 +205,7 @@ export function RelationSettingsPage() {
       <ConfirmDialog
         open={!formState.busy && blocked.state === "blocked"}
         title="변경을 버릴까요?"
-        message="저장하지 않은 관계 설정이 사라집니다."
+        message="저장하지 않은 연결 설정이 사라집니다."
         confirmLabel="이동"
         onConfirm={() => {
           if (blocked.state === "blocked") blocked.proceed();

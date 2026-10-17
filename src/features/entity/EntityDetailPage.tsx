@@ -200,11 +200,11 @@ export function EntityDetailPage() {
             <DetailTitle>{entity.title}</DetailTitle>
             <dl className="props">
               <div>
-                <dt>발급처</dt>
+                <dt>번호 출처</dt>
                 <dd>{entity.source_label}</dd>
               </div>
               <div>
-                <dt>식별자</dt>
+                <dt>자료 번호</dt>
                 <dd className="entity-identity-value">{entity.external_id}</dd>
               </div>
             </dl>

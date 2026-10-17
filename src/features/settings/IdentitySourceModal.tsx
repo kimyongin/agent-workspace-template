@@ -100,8 +100,8 @@ export function IdentitySourceModal({
   return (
     <ModalShell
       open
-      title="발급처 연결"
-      description="이 자료 종류에 사용할 발급처와 번호 종류를 선택합니다."
+      title="번호 출처 연결"
+      description="이 자료 종류에 사용할 번호 출처와 번호 종류를 선택합니다."
       dirty={!!source || editState.dirty || !!editState.uncertain}
       busy={editState.busy || !!editState.uncertain}
       onClose={onClose}
@@ -123,7 +123,7 @@ export function IdentitySourceModal({
     >
       <div className="form">
         <div className="issuer-binding-choice">
-          <Field label="발급처">
+          <Field label="번호 출처">
             {(props) => (
               <select
                 {...props}
@@ -148,7 +148,7 @@ export function IdentitySourceModal({
               setEditing({ kind: "issuer" });
             }}
           >
-            발급처 추가
+            번호 출처 추가
           </button>
         </div>
         {error && <p className="error-text" role="alert">{error}</p>}
