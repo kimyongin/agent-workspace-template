@@ -26,6 +26,25 @@ test("issuer sample opens flat rows and separates saved issuer from optional fir
   expect(writes).toEqual([]);
 });
 
+test("number sample edits a kind in place and preserves the draft after cancelled discard", async ({ page }, info) => {
+  await page.goto("/design-samples/index.html?screen=issuers");
+  await page.getByRole("button", { name: "쿠팡", exact: true }).click();
+  await page.getByRole("button", { name: "상품 번호 편집", exact: true }).click();
+  const editor = page.getByRole("form", { name: "번호 종류 편집" });
+  await editor.getByLabel("번호 종류 이름").fill("마켓 상품 번호");
+  await editor.getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(editor.getByLabel("번호 종류 이름")).toHaveValue("마켓 상품 번호");
+  await page.screenshot({ path: info.outputPath("number-sample-inline.png"), fullPage: true });
+  await editor.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByText("마켓 상품 번호", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "출처 편집", exact: true }).click();
+  const modal = page.getByRole("dialog", { name: "번호 출처 편집", exact: true });
+  await modal.getByLabel("번호 출처 이름").fill("쿠팡 마켓");
+  await modal.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByRole("button", { name: "쿠팡 마켓", exact: true })).toBeVisible();
+});
+
 test("account settings sample keeps independent drafts and clear row actions", async ({ page }, info) => {
   await page.goto("/design-samples/index.html?screen=settings");
   const section = (name: string) => page.getByRole("region", { name, exact: true });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   type EntityIssuer,
   type IdentifierRule,
@@ -20,9 +20,11 @@ export type RegistryEditTarget = { kind: "issuer"; issuer?: EntityIssuer } | {
   createdIssuer?: boolean;
   rule?: IdentifierRule;
 };
-export function IssuerEditModal(
-  { target, onClose, onSaved, onState, onDeleted }: {
+export function IssuerRegistryEditor(
+  { target, onClose, onSaved, onState, onDeleted, inline = false }: {
     target: RegistryEditTarget;
+    /** The owning list protects close, switches and navigation for inline edits. */
+    inline?: boolean;
     onClose: () => void;
     onDeleted?: () => void;
     onSaved: (value: EntityIssuer | IdentifierRule) => void;
@@ -30,6 +32,10 @@ export function IssuerEditModal(
   },
 ) {
   const form = useRef<HTMLFormElement>(null);
+  const formId = useId();
+  useEffect(() => {
+    if (inline) form.current?.querySelector<HTMLInputElement>("input")?.focus();
+  }, [inline]);
   const original = target.kind === "issuer" ? target.issuer : target.rule;
   const [baseline, setBaseline] = useState(original),
     [label, setLabel] = useState(original?.label ?? ""),
@@ -45,18 +51,30 @@ export function IssuerEditModal(
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [blockedTypes, setBlockedTypes] = useState<IdentityDefaultType[]>([]);
   const [repairing, setRepairing] = useState<IdentityDefaultType | null>(null);
-  const [repairState, setRepairState] = useState({ busy: false, uncertain: false });
-  const reportRepair = useCallback((busy: boolean, uncertain: boolean) => setRepairState({ busy, uncertain }), []);
+  const [repairState, setRepairState] = useState({
+    busy: false,
+    uncertain: false,
+  });
+  const reportRepair = useCallback(
+    (busy: boolean, uncertain: boolean) => setRepairState({ busy, uncertain }),
+    [],
+  );
   const busy = saving.busy || deleting.busy || repairState.busy;
-  const uncertain = saving.uncertain || deleting.uncertain || repairState.uncertain;
+  const uncertain = saving.uncertain || deleting.uncertain ||
+    repairState.uncertain;
   const showFailure = (e: unknown) => {
     const changed = e instanceof ApiError && e.code === "settings_changed";
     setConflict(changed);
-    setError(changed ? `${e.message} 입력을 유지했습니다. 최신 저장값을 확인하세요.` : writeErrorMessage(e));
+    setError(
+      changed ? `${e.message} 입력을 유지했습니다. 최신 저장값을 확인하세요.` : writeErrorMessage(e),
+    );
     setBlockedTypes(
       e instanceof ApiError
         ? e.fields.filter((f) => f.path.startsWith(identityDefaultTypeField))
-          .map((f) => ({ type_id: f.path.slice(identityDefaultTypeField.length), label: f.message }))
+          .map((f) => ({
+            type_id: f.path.slice(identityDefaultTypeField.length),
+            label: f.message,
+          }))
         : [],
     );
   };
@@ -67,7 +85,11 @@ export function IssuerEditModal(
     try {
       await deleting.attempt.run(async () => {
         if (target.kind === "issuer") {
-          await issuerRegistry.remove((baseline as EntityIssuer).code, baseline.version, deleting.attempt.requestKey());
+          await issuerRegistry.remove(
+            (baseline as EntityIssuer).code,
+            baseline.version,
+            deleting.attempt.requestKey(),
+          );
         } else {
           await issuerRegistry.removeRule(
             (baseline as IdentifierRule).id,
@@ -88,11 +110,20 @@ export function IssuerEditModal(
       mounted.current = false;
     };
   }, []);
-  const dirty = label !== (baseline?.label ?? "") || active !== (baseline?.active ?? true);
+  const dirty = label !== (baseline?.label ?? "") ||
+    active !== (baseline?.active ?? true);
   useEffect(() => {
-    onState?.({ dirty: dirty || conflict, busy: busy || reading, uncertain, error: !!error });
+    onState?.({
+      dirty: dirty || conflict,
+      busy: busy || reading,
+      uncertain,
+      error: !!error,
+    });
   }, [dirty, conflict, busy, reading, uncertain, error, onState]);
-  useEffect(() => () => onState?.({ dirty: false, busy: false, uncertain: false }), [onState]);
+  useEffect(
+    () => () => onState?.({ dirty: false, busy: false, uncertain: false }),
+    [onState],
+  );
   const save = async (confirmed = false) => {
     if (busy || reading || conflict || (!dirty && !uncertain)) return;
     if (!label.trim()) {
@@ -121,7 +152,10 @@ export function IssuerEditModal(
             active,
             expected_version: baseline.version,
           }, attempt.requestKey())
-          : await issuerRegistry.createRule(target.source, { label, meaning: label }, attempt.requestKey());
+          : await issuerRegistry.createRule(target.source, {
+            label,
+            meaning: label,
+          }, attempt.requestKey());
         if (mounted.current) onSaved(saved);
       });
     } catch (e) {
@@ -143,50 +177,57 @@ export function IssuerEditModal(
       if (!row) throw new Error("최신 설정을 찾을 수 없습니다.");
       if (mounted.current) setLatest(row);
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : "조회하지 못했습니다.");
+      if (mounted.current) {
+        setError(e instanceof Error ? e.message : "조회하지 못했습니다.");
+      }
     } finally {
       if (mounted.current) setReading(false);
     }
   };
-  return (
-    <ModalShell
-      open
-      description={target.kind === "issuer"
-        ? "자료 번호의 번호 출처 이름과 사용 상태를 관리합니다."
-        : "번호 출처에서 쓰는 번호 종류의 이름과 사용 상태를 관리합니다."}
-      title={target.kind === "issuer"
-        ? baseline ? "번호 출처 편집" : "번호 출처 추가"
-        : baseline
-        ? "번호 종류 편집"
-        : "번호 종류 추가"}
-      dirty={dirty || conflict || uncertain}
-      busy={busy || reading || uncertain}
-      onClose={onClose}
-      footer={(requestClose) => (
-        <>
-          <button className="btn" type="button" disabled={busy || reading || uncertain} onClick={requestClose}>
-            {target.kind === "rule" && target.createdIssuer ? "나중에 추가" : "취소"}
-          </button>
-          <button
-            className="btn btn-primary"
-            type="submit"
-            form="registry-edit-form"
-            disabled={busy || reading || conflict || deleting.uncertain || repairState.uncertain ||
-              (!dirty && !uncertain)}
-          >
-            {saving.busy
-              ? "저장 중…"
-              : saving.uncertain
-              ? "같은 요청 다시 확인"
-              : target.kind === "issuer" && !baseline
-              ? "저장하고 번호 추가"
-              : "저장"}
-          </button>
-        </>
-      )}
-    >
+  const deleteAction = baseline && onDeleted && (
+    <div className="settings-inline-actions">
+      <BodyAction
+        danger
+        disabled={busy || reading || conflict || saving.uncertain ||
+          repairState.uncertain}
+        onClick={() => deleting.uncertain ? void remove() : setConfirmDelete(true)}
+      >
+        {deleting.uncertain ? "삭제 결과 다시 확인" : target.kind === "issuer" ? "번호 출처 삭제" : "번호 종류 삭제"}
+      </BodyAction>
+    </div>
+  );
+  const footer = (requestClose: () => void) => (
+    <>
+      <button
+        className="btn"
+        type="button"
+        disabled={busy || reading || uncertain}
+        onClick={requestClose}
+      >
+        {target.kind === "rule" && target.createdIssuer ? "나중에 추가" : "취소"}
+      </button>
+      <button
+        className="btn btn-primary"
+        type="submit"
+        form={formId}
+        disabled={busy || reading || conflict || deleting.uncertain ||
+          repairState.uncertain ||
+          (!dirty && !uncertain)}
+      >
+        {saving.busy
+          ? "저장 중…"
+          : saving.uncertain
+          ? "같은 요청 다시 확인"
+          : target.kind === "issuer" && !baseline
+          ? "저장하고 번호 추가"
+          : "저장"}
+      </button>
+    </>
+  );
+  const content = (
+    <>
       <form
-        id="registry-edit-form"
+        id={formId}
         ref={form}
         className="form"
         onSubmit={(e) => {
@@ -194,22 +235,23 @@ export function IssuerEditModal(
           void save();
         }}
       >
-        {target.kind === "rule" && <p className="item-title">{target.sourceLabel}</p>}
+        {target.kind === "rule" && !inline && <p className="item-title">{target.sourceLabel}</p>}
         {target.kind === "rule" && target.createdIssuer && (
           <p role="status" className="secondary">번호 출처를 저장했습니다.</p>
         )}
         {error && <p className="error-text" role="alert">{error}</p>}
         {blockedTypes.length > 0 && (
           <div className="settings-fields">
-            {blockedTypes.filter((type) => type.type_id !== repairing?.type_id).map((type) => (
-              <BodyAction
-                key={type.type_id}
-                disabled={busy || uncertain}
-                onClick={() => setRepairing(type)}
-              >
-                {type.label} 기본 번호 출처 변경
-              </BodyAction>
-            ))}
+            {blockedTypes.filter((type) => type.type_id !== repairing?.type_id)
+              .map((type) => (
+                <BodyAction
+                  key={type.type_id}
+                  disabled={busy || uncertain}
+                  onClick={() => setRepairing(type)}
+                >
+                  {type.label} 기본 번호 출처 변경
+                </BodyAction>
+              ))}
             {repairing && (
               <DefaultIssuerRepair
                 key={repairing.type_id}
@@ -222,7 +264,10 @@ export function IssuerEditModal(
                   setRepairing(null);
                   setRepairState({ busy: false, uncertain: false });
                   setError("");
-                  requestAnimationFrame(() => form.current?.querySelector<HTMLInputElement>("input")?.focus());
+                  requestAnimationFrame(() =>
+                    form.current?.querySelector<HTMLInputElement>("input")
+                      ?.focus()
+                  );
                 }}
               />
             )}
@@ -240,7 +285,9 @@ export function IssuerEditModal(
             </button>
             {latest && (
               <>
-                <p className="secondary">최신 저장값: {latest.label} · {latest.active ? "사용 중" : "중지"}</p>
+                <p className="secondary">
+                  최신 저장값: {latest.label} · {latest.active ? "사용 중" : "중지"}
+                </p>
                 <button
                   className="btn"
                   type="button"
@@ -259,8 +306,14 @@ export function IssuerEditModal(
             )}
           </div>
         )}
-        <fieldset className="settings-fields" disabled={busy || reading || uncertain}>
-          <Field label={target.kind === "issuer" ? "번호 출처 이름" : "번호 종류 이름"} required>
+        <fieldset
+          className="settings-fields"
+          disabled={busy || reading || uncertain}
+        >
+          <Field
+            label={target.kind === "issuer" ? "번호 출처 이름" : "번호 종류 이름"}
+            required
+          >
             {(props) => (
               <input
                 {...props}
@@ -271,23 +324,32 @@ export function IssuerEditModal(
               />
             )}
           </Field>
+          {inline && target.kind === "rule" && baseline && (
+            <div className="issuer-input-method">
+              <span className="label">입력 방식</span>
+              <span>
+                {target.rule?.generation === "automatic" ? "자동 생성" : "직접 입력"}
+              </span>
+            </div>
+          )}
           {baseline && (
             <label className="issuer-status-choice">
-              <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 사용
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+              />{" "}
+              사용
             </label>
           )}
+          {inline && (
+            <p className="help">
+              사용을 중지해도 기존 자료의 번호는 유지됩니다.
+            </p>
+          )}
         </fieldset>
-        {baseline && onDeleted && (
-          <div className="settings-inline-actions">
-            <BodyAction
-              danger
-              disabled={busy || reading || conflict || saving.uncertain || repairState.uncertain}
-              onClick={() => deleting.uncertain ? void remove() : setConfirmDelete(true)}
-            >
-              {deleting.uncertain ? "삭제 결과 다시 확인" : target.kind === "issuer" ? "번호 출처 삭제" : "번호 종류 삭제"}
-            </BodyAction>
-          </div>
-        )}
+
+        {!inline && deleteAction}
       </form>
       <ConfirmDialog
         open={confirmDelete}
@@ -308,6 +370,36 @@ export function IssuerEditModal(
         onConfirm={() => void save(true)}
         onCancel={() => setConfirmDisable(false)}
       />
+    </>
+  );
+  if (inline) {
+    return (
+      <section className="issuer-rule-editor" aria-label="번호 종류 편집">
+        {content}
+        <div className="issuer-rule-editor-actions">
+          {deleteAction}
+          <div>{footer(onClose)}</div>
+        </div>
+      </section>
+    );
+  }
+  return (
+    <ModalShell
+      open
+      description={target.kind === "issuer"
+        ? "자료 번호의 번호 출처 이름과 사용 상태를 관리합니다."
+        : "번호 출처에서 쓰는 번호 종류의 이름과 사용 상태를 관리합니다."}
+      title={target.kind === "issuer"
+        ? baseline ? "번호 출처 편집" : "번호 출처 추가"
+        : baseline
+        ? "번호 종류 편집"
+        : "번호 종류 추가"}
+      dirty={dirty || conflict || uncertain}
+      busy={busy || reading || uncertain}
+      onClose={onClose}
+      footer={footer}
+    >
+      {content}
     </ModalShell>
   );
 }
