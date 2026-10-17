@@ -299,6 +299,7 @@ test("통합 태그는 접힌 섹션에도 조회 오류와 저장 미확정 상
   await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/settings\/tags$/);
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await section.click();
   await expect(section).toHaveAttribute("aria-expanded", "false");
   await expect(section).toContainText("결과 확인 필요");
