@@ -23,7 +23,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
     admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
-  const types: string[] = [], entities: string[] = [];
+  const types: string[] = [], entities: string[] = [], relations: string[] = [];
   let runner: ChildProcess | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("재료 작업"), icon_id: "leaf" }),
@@ -40,7 +40,22 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
         properties: { prop_1: "무관 상품" },
       });
     entities.push(x.id, y.id);
-    await mcp.call("link_entities", { id: x.id, other_id: y.id, expected_version: 1, expected_other_version: 1 });
+    const relation = await mcp.call("create_entity_relation_definition", {
+      ends: [
+        { type_id: type.id, label: "관련 상품", cardinality: "many" },
+        { type_id: other.id, label: "관련 재료", cardinality: "many" },
+      ],
+    });
+    relations.push(relation.id);
+    await mcp.call("connect_entity_relation", {
+      definition_id: relation.id,
+      side: 0,
+      origin_id: x.id,
+      other_id: y.id,
+      expected_definition_version: 1,
+      expected_version: 1,
+      expected_other_version: 1,
+    });
     const otherBefore = await mcp.call("get_entity", { id: y.id });
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: type.id,
@@ -100,19 +115,36 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     expect(current.properties).toEqual({ prop_1: "원본", prop_2: 7 });
     expect(current.entity_type_id).toBe(type.id);
     expect(await mcp.call("get_entity", { id: y.id })).toEqual(otherBefore);
-    expect((await mcp.call("list_entity_links", { id: y.id })).items.map((r: { id: string }) => r.id)).toContain(x.id);
+    expect(
+      (await mcp.call("list_entity_relation_links", { definition_id: relation.id, side: 1, origin_id: y.id })).items
+        .map((r: { id: string }) => r.id),
+    ).toContain(x.id);
     const mcpJob = await mcp.call("get_entity_schema_migration", { job_id: accepted.job_id });
     expect(mcpJob.result.schema_version).toBe(2);
     await page.setViewportSize({ width: 320, height: 750 });
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
-    await stopWorker(runner);
-    await mcp.close();
-    if (entities.length) await admin`delete from app.records where entity_ids&&${entities}::text[]`;
-    if (entities.length) await admin`delete from app.entities where id=any(${entities}::text[])`;
-    if (types.length) await admin`delete from app.entity_types where id=any(${types}::uuid[])`;
-    await admin.end();
+    try {
+      await stopWorker(runner);
+    } finally {
+      try {
+        await admin.begin(async (tx) => {
+          if (entities.length) await tx`delete from app.records where entity_ids&&${entities}::text[]`;
+          if (relations.length) {
+            await tx`delete from app.entity_relation_definitions where id=any(${relations}::uuid[])`;
+          }
+          if (entities.length) await tx`delete from app.entities where id=any(${entities}::text[])`;
+          if (types.length) await tx`delete from app.entity_types where id=any(${types}::uuid[])`;
+        });
+      } finally {
+        try {
+          await mcp.close();
+        } finally {
+          await admin.end();
+        }
+      }
+    }
   }
 });
 

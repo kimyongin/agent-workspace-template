@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanupOwnedFixture, fixtureManifest, registryFixturePlan } from "./actual-fixture-cleanup.mjs";
+import {
+  cleanupOwnedFixture,
+  fixtureManifest,
+  registryFixturePlan,
+} from "./actual-fixture-cleanup.mjs";
 const type = "00000000-0000-4000-8000-000000000001",
   baseline = "00000000-0000-4000-8000-000000000002";
 const scope = {
@@ -113,15 +117,31 @@ test("cleanup rejects remote/mismatched environment before connecting and permit
 
 test("registry cleanup uses exact created owner/source/rule scope and blocks baseline references", () => {
   const rule = "00000000-0000-4000-8000-000000000003";
-  const created = { ...scope, ids: { ...scope.ids, entity_issuers: ["market"], entity_identifier_rules: [rule] } };
+  const created = {
+    ...scope,
+    ids: {
+      ...scope.ids,
+      entity_issuers: ["market"],
+      entity_identifier_rules: [rule],
+    },
+  };
   const inventory = {
     entity_issuers: [{ owner_id: "owner", code: "market", system: false }, {
       owner_id: "other",
       code: "market",
       system: false,
     }, { owner_id: "owner", code: "app", system: true }],
-    entity_identifier_rules: [{ owner_id: "owner", id: rule, source: "market" }],
-    entity_type_identity_sources: [{ owner_id: "owner", type_id: type, code: "market", rule_id: rule }],
+    entity_identifier_rules: [{
+      owner_id: "owner",
+      id: rule,
+      source: "market",
+    }],
+    entity_type_identity_sources: [{
+      owner_id: "owner",
+      type_id: type,
+      code: "market",
+      rule_id: rule,
+    }],
     entities: [{ owner_id: "owner", entity_type_id: type, source: "market" }],
   };
   assert.deepEqual(registryFixturePlan("owner", created, inventory), {
@@ -130,15 +150,81 @@ test("registry cleanup uses exact created owner/source/rule scope and blocks bas
     blockers: [],
   });
   const unapproved = structuredClone(inventory);
-  unapproved.entity_type_identity_sources.push({ owner_id: "owner", type_id: baseline, code: "market", rule_id: rule });
-  assert.deepEqual(registryFixturePlan("owner", created, unapproved).blockers, ["unapproved_type_identity_reference"]);
-  unapproved.entity_identifier_rules.push({ owner_id: "owner", id: baseline, source: "market" });
+  unapproved.entity_type_identity_sources.push({
+    owner_id: "owner",
+    type_id: baseline,
+    code: "market",
+    rule_id: rule,
+  });
+  assert.deepEqual(registryFixturePlan("owner", created, unapproved).blockers, [
+    "unapproved_type_identity_reference",
+  ]);
+  unapproved.entity_identifier_rules.push({
+    owner_id: "owner",
+    id: baseline,
+    source: "market",
+  });
   assert.deepEqual(registryFixturePlan("owner", created, unapproved).blockers, [
     "untracked_issuer_rule",
     "unapproved_type_identity_reference",
   ]);
   assert.deepEqual(
-    registryFixturePlan("owner", { ids: { entity_types: [], entity_issuers: ["app"] } }, inventory).blockers,
+    registryFixturePlan("owner", {
+      ids: { entity_types: [], entity_issuers: ["app"] },
+    }, inventory).blockers,
     ["system_issuer"],
   );
+});
+
+test("whole-model introduced roots exclude updated baseline types and system issuers", async () => {
+  const { modelFixtureRoots } = await import("./actual-fixture-cleanup.mjs");
+  assert.deepEqual(
+    modelFixtureRoots({
+      id: type,
+      review: {
+        mapping: { types: { fresh: type, existing: baseline } },
+        items: [
+          { ref: "fresh", kind: "new" },
+          { ref: "existing", kind: "compatible" },
+          { ref: `relation:${baseline}`, kind: "new" },
+          { ref: "issuer:app", kind: "new" },
+          { ref: "issuer:market", kind: "new" },
+          { ref: `rule:${baseline}`, kind: "new" },
+        ],
+      },
+    }),
+    {
+      data_model_changes: [type],
+      entity_types: [type],
+      entity_relation_definitions: [baseline],
+      entity_issuers: ["market"],
+      entity_identifier_rules: [baseline],
+    },
+  );
+});
+test("typed model scope includes only explicit definitions/history and keeps unrelated owner rows", () => {
+  const plan = fixtureManifest("owner", {
+    ...scope,
+    ids: {
+      ...scope.ids,
+      entity_relation_definitions: [type],
+      data_model_changes: [baseline],
+    },
+  }, {
+    entity_types: [{ owner_id: "owner", id: type }],
+    entity_relation_definitions: [{ owner_id: "owner", id: type }, {
+      owner_id: "other",
+      id: baseline,
+    }],
+    data_model_changes: [{ owner_id: "owner", id: baseline }, {
+      owner_id: "owner",
+      id: type,
+    }],
+    entities: [],
+    tasks: [],
+    records: [],
+    tags: [],
+  }, environment);
+  assert.deepEqual(plan.ids.entity_relation_definitions, [type]);
+  assert.deepEqual(plan.ids.data_model_changes, [baseline]);
 });

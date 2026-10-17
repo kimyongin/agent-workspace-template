@@ -1,7 +1,13 @@
+import type { DataModelDeps } from "../../core/data-model/application.ts";
+import { dataModelTools } from "./data-model-tools.ts";
+import { createAndLinkTools } from "./create-and-link-tools.ts";
+import type { CreateAndLinkDeps } from "../../core/entity-relations/create-and-link.ts";
+import { entityRelationLinkTools } from "./entity-relation-link-tools.ts";
+import type { EntityRelationLinkDeps } from "../../core/entity-relations/links.ts";
+import type { EntityRelationDefinitionDeps } from "../../core/entity-relations/application.ts";
+import { entityRelationDefinitionTools } from "./entity-relation-definition-tools.ts";
 import { entityIssuerTools } from "./entity-issuer-tools.ts";
 import type { EntityIssuerDeps } from "../../core/entity-issuers/application.ts";
-import { entityPairTools } from "./entity-pair-tools.ts";
-import type { EntityPairDeps } from "../../core/entity-pairs/application.ts";
 import { entityTypeTools } from "./entity-type-tools.ts";
 import type { EntityTypeDeps } from "../../core/entity-types/application.ts";
 import type { StatusDeps } from "../../core/status/application.ts";
@@ -49,10 +55,17 @@ export function createMcpApp(
   settings?: BusinessSettingsDeps,
   status?: StatusDeps,
   entityTypes?: EntityTypeDeps,
-  entityPairs?: EntityPairDeps,
   issuers?: EntityIssuerDeps,
+  relationDefinitions?: EntityRelationDefinitionDeps,
+  relationLinks?: EntityRelationLinkDeps,
+  dataModel?: DataModelDeps,
+  createAndLink?: CreateAndLinkDeps,
 ) {
   const tools = [
+    ...(createAndLink ? createAndLinkTools(createAndLink) : []),
+    ...(relationLinks ? entityRelationLinkTools(relationLinks) : []),
+    ...(dataModel ? dataModelTools(dataModel) : []),
+    ...(relationDefinitions ? entityRelationDefinitionTools(relationDefinitions) : []),
     ...(issuers ? entityIssuerTools(issuers) : []),
     ...activityTools(deps),
     ...tagTools(tags),
@@ -61,7 +74,6 @@ export function createMcpApp(
     ...(settings ? settingsTools(settings) : []),
     ...(status ? statusTools(status) : []),
     ...(entityTypes ? entityTypeTools(entityTypes) : []),
-    ...(entityPairs ? entityPairTools(entityPairs) : []),
   ];
   const handler = async (req: Request): Promise<Response> => {
     let actor;

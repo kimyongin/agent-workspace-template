@@ -1,0 +1,659 @@
+{
+  "format": "workspace-data-model",
+  "format_version": 1,
+  "title": "오픈마켓 자료 모델",
+  "description": "상품·SKU·마켓별 판매옵션·고객·주문·주문품목·문의를 설정하는 전체 모델. 실제 자료·연결·인증정보는 포함하지 않습니다.",
+  "entity_types": [
+    {
+      "ref": "product",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "10000000-0000-4000-8000-000000000001",
+        "x-version": 1,
+        "title": "상품",
+        "x-icon": "box",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "상품명",
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-show-in-list": true,
+            "minLength": 1,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "string",
+            "title": "브랜드",
+            "maxLength": 4096,
+            "x-order": 20,
+            "x-show-in-list": true
+          },
+          "prop_3": {
+            "type": "string",
+            "title": "상품 설명",
+            "maxLength": 4096,
+            "x-order": 30,
+            "x-show-in-list": true
+          },
+          "prop_4": {
+            "type": "string",
+            "title": "배송 예정일",
+            "format": "date",
+            "x-order": 40,
+            "x-show-in-list": true
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "자료 번호",
+        "default_source": "app",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          }
+        ]
+      }
+    },
+    {
+      "ref": "sku",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "10000000-0000-4000-8000-000000000002",
+        "x-version": 1,
+        "title": "판매 SKU",
+        "x-icon": "package",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "SKU 이름",
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-show-in-list": true,
+            "minLength": 1,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "string",
+            "title": "옵션",
+            "maxLength": 4096,
+            "x-order": 20,
+            "x-show-in-list": true
+          },
+          "prop_3": {
+            "type": "integer",
+            "title": "기준 판매가",
+            "minimum": 0,
+            "x-order": 30,
+            "x-show-in-list": true
+          },
+          "prop_4": {
+            "type": "integer",
+            "title": "재고",
+            "minimum": 0,
+            "x-order": 40,
+            "x-show-in-list": true
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "SKU 코드",
+        "default_source": "seller",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          },
+          {
+            "code": "seller",
+            "rule_id": "30000000-0000-4000-8000-000000000002",
+            "active": true
+          }
+        ]
+      }
+    },
+    {
+      "ref": "offer",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "10000000-0000-4000-8000-000000000003",
+        "x-version": 1,
+        "title": "마켓 판매옵션",
+        "x-icon": "package",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "판매옵션명",
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-show-in-list": true,
+            "minLength": 1,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "string",
+            "title": "마켓",
+            "oneOf": [
+              {
+                "const": "coupang",
+                "title": "쿠팡"
+              },
+              {
+                "const": "auction",
+                "title": "옥션"
+              }
+            ],
+            "x-order": 20,
+            "x-show-in-list": true
+          },
+          "prop_3": {
+            "type": "string",
+            "title": "판매계정",
+            "maxLength": 4096,
+            "x-order": 30,
+            "x-show-in-list": true
+          },
+          "prop_4": {
+            "type": "string",
+            "title": "마켓 상품번호",
+            "maxLength": 4096,
+            "x-order": 40,
+            "x-show-in-list": true
+          },
+          "prop_5": {
+            "type": "string",
+            "title": "마켓 옵션번호",
+            "maxLength": 4096,
+            "x-order": 50,
+            "x-show-in-list": true
+          },
+          "prop_6": {
+            "type": "integer",
+            "title": "판매가",
+            "minimum": 0,
+            "x-order": 60,
+            "x-show-in-list": true
+          },
+          "prop_7": {
+            "type": "string",
+            "title": "등록 상태",
+            "oneOf": [
+              {
+                "const": "draft",
+                "title": "초안"
+              },
+              {
+                "const": "listed",
+                "title": "등록됨"
+              },
+              {
+                "const": "suspended",
+                "title": "판매 중지"
+              }
+            ],
+            "x-order": 70,
+            "x-show-in-list": true
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "자료 번호",
+        "default_source": "app",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          }
+        ]
+      }
+    },
+    {
+      "ref": "customer",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "10000000-0000-4000-8000-000000000004",
+        "x-version": 1,
+        "title": "고객",
+        "x-icon": "star",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "고객 이름",
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-show-in-list": true,
+            "minLength": 1,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "string",
+            "title": "마켓",
+            "oneOf": [
+              {
+                "const": "coupang",
+                "title": "쿠팡"
+              },
+              {
+                "const": "auction",
+                "title": "옥션"
+              }
+            ],
+            "x-order": 20,
+            "x-show-in-list": true
+          },
+          "prop_3": {
+            "type": "string",
+            "title": "마켓 고객번호",
+            "maxLength": 4096,
+            "x-order": 30,
+            "x-show-in-list": true
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "자료 번호",
+        "default_source": "app",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          }
+        ]
+      }
+    },
+    {
+      "ref": "order",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "10000000-0000-4000-8000-000000000005",
+        "x-version": 1,
+        "title": "주문",
+        "x-icon": "box",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "주문명",
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-show-in-list": true,
+            "minLength": 1,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "string",
+            "title": "마켓",
+            "oneOf": [
+              {
+                "const": "coupang",
+                "title": "쿠팡"
+              },
+              {
+                "const": "auction",
+                "title": "옥션"
+              }
+            ],
+            "x-order": 20,
+            "x-show-in-list": true
+          },
+          "prop_3": {
+            "type": "string",
+            "title": "마켓 주문번호",
+            "maxLength": 4096,
+            "x-order": 30,
+            "x-show-in-list": true
+          },
+          "prop_4": {
+            "type": "string",
+            "title": "주문 상태",
+            "oneOf": [
+              {
+                "const": "paid",
+                "title": "결제 완료"
+              },
+              {
+                "const": "preparing",
+                "title": "출고 준비"
+              },
+              {
+                "const": "shipped",
+                "title": "출고 완료"
+              },
+              {
+                "const": "cancelled",
+                "title": "취소"
+              }
+            ],
+            "x-order": 40,
+            "x-show-in-list": true
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "자료 번호",
+        "default_source": "app",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          }
+        ]
+      }
+    },
+    {
+      "ref": "order_item",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "10000000-0000-4000-8000-000000000006",
+        "x-version": 1,
+        "title": "주문품목",
+        "x-icon": "box",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "주문품목명",
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-show-in-list": true,
+            "minLength": 1,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "integer",
+            "title": "수량",
+            "minimum": 1,
+            "x-order": 20,
+            "x-show-in-list": true
+          },
+          "prop_3": {
+            "type": "integer",
+            "title": "단가",
+            "minimum": 0,
+            "x-order": 30,
+            "x-show-in-list": true
+          },
+          "prop_4": {
+            "type": "string",
+            "title": "마켓 주문행번호",
+            "maxLength": 4096,
+            "x-order": 40,
+            "x-show-in-list": true
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "자료 번호",
+        "default_source": "app",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          }
+        ]
+      }
+    },
+    {
+      "ref": "inquiry",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "10000000-0000-4000-8000-000000000007",
+        "x-version": 1,
+        "title": "문의",
+        "x-icon": "book",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "문의 제목",
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-show-in-list": true,
+            "minLength": 1,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "string",
+            "title": "문의 내용",
+            "maxLength": 4096,
+            "x-order": 20,
+            "x-show-in-list": true
+          },
+          "prop_3": {
+            "type": "string",
+            "title": "처리 상태",
+            "oneOf": [
+              {
+                "const": "open",
+                "title": "미처리"
+              },
+              {
+                "const": "drafted",
+                "title": "답변 초안"
+              },
+              {
+                "const": "answered",
+                "title": "답변 완료"
+              }
+            ],
+            "x-order": 30,
+            "x-show-in-list": true
+          },
+          "prop_4": {
+            "type": "string",
+            "title": "답변 초안",
+            "maxLength": 4096,
+            "x-order": 40,
+            "x-show-in-list": true
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "자료 번호",
+        "default_source": "app",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          }
+        ]
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "ends": [
+        {
+          "type_ref": "product",
+          "label": "판매 SKU",
+          "cardinality": "many"
+        },
+        {
+          "type_ref": "sku",
+          "label": "원본 상품",
+          "cardinality": "one"
+        }
+      ],
+      "archived": false
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000002",
+      "version": 1,
+      "ends": [
+        {
+          "type_ref": "sku",
+          "label": "마켓 판매옵션",
+          "cardinality": "many"
+        },
+        {
+          "type_ref": "offer",
+          "label": "판매 SKU",
+          "cardinality": "one"
+        }
+      ],
+      "archived": false
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000003",
+      "version": 1,
+      "ends": [
+        {
+          "type_ref": "customer",
+          "label": "주문",
+          "cardinality": "many"
+        },
+        {
+          "type_ref": "order",
+          "label": "주문 고객",
+          "cardinality": "one"
+        }
+      ],
+      "archived": false
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000004",
+      "version": 1,
+      "ends": [
+        {
+          "type_ref": "order",
+          "label": "주문품목",
+          "cardinality": "many"
+        },
+        {
+          "type_ref": "order_item",
+          "label": "소속 주문",
+          "cardinality": "one"
+        }
+      ],
+      "archived": false
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000005",
+      "version": 1,
+      "ends": [
+        {
+          "type_ref": "offer",
+          "label": "주문품목",
+          "cardinality": "many"
+        },
+        {
+          "type_ref": "order_item",
+          "label": "마켓 판매옵션",
+          "cardinality": "one"
+        }
+      ],
+      "archived": false
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000006",
+      "version": 1,
+      "ends": [
+        {
+          "type_ref": "product",
+          "label": "관련 문의",
+          "cardinality": "many"
+        },
+        {
+          "type_ref": "inquiry",
+          "label": "문의 상품",
+          "cardinality": "one"
+        }
+      ],
+      "archived": false
+    }
+  ],
+  "identity_definitions": {
+    "issuers": [
+      {
+        "code": "app",
+        "label": "앱",
+        "active": true,
+        "system": true,
+        "version": 1
+      },
+      {
+        "code": "seller",
+        "label": "판매자",
+        "active": true,
+        "system": false,
+        "version": 1
+      }
+    ],
+    "rules": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "source": "app",
+        "label": "앱 자동 번호",
+        "meaning": "앱이 자료 등록 시 발급하는 내부 자료 번호",
+        "generation": "automatic",
+        "active": true,
+        "version": 1
+      },
+      {
+        "id": "30000000-0000-4000-8000-000000000002",
+        "source": "seller",
+        "label": "판매자 SKU 번호",
+        "meaning": "판매자가 관리하는 SKU 코드. 직접 입력하며 앞자리 0과 대소문자를 보존합니다.",
+        "generation": "direct",
+        "active": true,
+        "version": 1
+      }
+    ]
+  }
+}

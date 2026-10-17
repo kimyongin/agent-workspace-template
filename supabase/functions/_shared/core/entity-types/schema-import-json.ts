@@ -1,8 +1,11 @@
 import { entitySchemaImportLimits } from "../../contracts/entity-schema-import.ts";
 import { invalidInput } from "../shared/errors.ts";
 /** Parse the original JSON text, retaining duplicate-key evidence before object construction. */
-export function parseSchemaDocument(document: string): Record<string, unknown> {
-  if (new TextEncoder().encode(document).length > entitySchemaImportLimits.raw_bytes) {
+export function parseSchemaDocument(
+  document: string,
+  limits: { raw_bytes: number; depth: number } = entitySchemaImportLimits,
+): Record<string, unknown> {
+  if (new TextEncoder().encode(document).length > limits.raw_bytes) {
     throw invalidInput("정의 원문은 2 MiB 이하입니다", [{ path: "document", message: "원문 크기 한도를 넘었습니다" }]);
   }
   let offset = 0;
@@ -34,7 +37,7 @@ export function parseSchemaDocument(document: string): Record<string, unknown> {
   };
   const value = (path: string, depth: number): unknown => {
     whitespace();
-    if (depth > entitySchemaImportLimits.depth) fail(path, "JSON 중첩 깊이 한도를 넘었습니다");
+    if (depth > limits.depth) fail(path, "JSON 중첩 깊이 한도를 넘었습니다");
     const token = document[offset];
     if (token === '"') return string(path);
     if (token === "{") {

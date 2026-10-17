@@ -8,6 +8,8 @@ export const fixtureConfigs = [
   "e2e/schema-editor-read.config.ts", "e2e/schema-job-history.config.ts",
   "e2e/navigation-preferences.config.ts", "e2e/workspace-screens.config.ts",
   "e2e/material-schema.config.ts", "e2e/material-templates.config.ts", "e2e/issuer-settings.config.ts",
+  "e2e/relation-settings.config.ts", "e2e/typed-relations.config.ts", "e2e/data-model.config.ts",
+  "e2e/create-and-link.config.ts", "e2e/model-group.config.ts",
   "playwright.design-samples.config.ts",
   "e2e/query-layout.build.config.ts",
 ];

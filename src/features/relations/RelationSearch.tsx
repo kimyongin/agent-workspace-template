@@ -1,3 +1,4 @@
+import type { RelationLocation } from "@contracts/entity-relation-links.ts";
 import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import { createPagedList } from "../collections/paged-list.ts";
@@ -45,22 +46,27 @@ export function RelationSearchAction(
 }
 /** Current-title lookup, shared by the two directions of the same relationship. */
 export function RelationSearch(
-  { kind, excluded, onChoose, disabled, revision, draftMode = false, linkCandidateFor, entityTypeId }: {
+  { kind, excluded, onChoose, disabled, revision, draftMode = false, entityTypeId, relationContext }: {
     kind: "entity" | "task";
     excluded: (item: Candidate) => boolean;
     onChoose: (item: Candidate) => void;
     disabled: boolean;
     revision?: number | EntityDetail["tasks"];
     draftMode?: boolean;
-    linkCandidateFor?: string;
     entityTypeId?: string;
+    relationContext?: RelationLocation;
   },
 ) {
   const label = kind === "entity" ? "자료" : "할 일";
-  const [view, setView] = useDetailViewState(`${draftMode ? "draft-" : ""}relation-search-${kind}`, {
-    draft: "",
-    pages: 1,
-  });
+  const [view, setView] = useDetailViewState(
+    `${draftMode ? "draft-" : ""}relation-search-${kind}${
+      relationContext ? `-${relationContext.definition_id}-${relationContext.side}` : ""
+    }`,
+    {
+      draft: "",
+      pages: 1,
+    },
+  );
   const draft = view.draft, setDraft = (draft: string) => setView({ draft, pages: 1 });
   const [composing, setComposing] = useState(false), [retry, setRetry] = useState(0);
   const immediate = useRef(false), keyword = draft.trim();
@@ -70,9 +76,18 @@ export function RelationSearch(
         const page = kind === "entity"
           ? await api<{ items: EntitySummary[]; next_cursor: string | null }>(
             "GET",
-            `/entities${
-              query({ keyword, limit: 20, cursor, link_candidate_for: linkCandidateFor, entity_type_id: entityTypeId })
-            }`,
+            relationContext
+              ? `/entity-relations/${relationContext.definition_id}/${relationContext.side}/${
+                encodeURIComponent(relationContext.origin_id)
+              }/candidates${query({ q: keyword, limit: 20, cursor })}`
+              : `/entities${
+                query({
+                  keyword,
+                  limit: 20,
+                  cursor,
+                  entity_type_id: entityTypeId,
+                })
+              }`,
             undefined,
             signal,
           )
@@ -92,7 +107,17 @@ export function RelationSearch(
           })),
         };
       },
-    }), [keyword, composing, retry, kind, revision, linkCandidateFor, entityTypeId]);
+    }), [
+    keyword,
+    composing,
+    retry,
+    kind,
+    revision,
+    entityTypeId,
+    relationContext?.definition_id,
+    relationContext?.side,
+    relationContext?.origin_id,
+  ]);
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   const [waiting, setWaiting] = useState(!!keyword);
   useEffect(() => {

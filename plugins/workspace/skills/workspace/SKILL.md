@@ -31,11 +31,12 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 기록 저장 성공과 의미 검색 준비는 별개다. 현황은 `get_status`, 확인이 필요한 기록은 `list_indexing_issues`로 조회한다. indexing.waiting의 long_waiting은 threshold_minutes 이상 준비 상태 갱신이 없는 기록 수이며 oldest_waiting_since는 가장 오래된 갱신 시각이다. 이는 실패나 원인 확정이 아니다. 문제 목록이 비어도 오래 대기하는 기록이 있으면 관리자에게 서비스 점검을 요청하고 키워드·원문 조회로 이어간다. 문제 목록은 최근 작성 순 최대 5개이며 `next_cursor`를 다음 요청의 `cursor`로 사용한다. 이유·전송 시도 수·본문 구간 진행을 설명하고 응답 확인 불가는 성공·실패로 확정하지 않는다. 사용자 조회는 외부 호출이나 원본 쓰기를 수행하지 않는다. 결과 불명 요청은 현재 자료와 기존 의도를 먼저 확인한다.
 
 
-자료 간 연결/해제는 `prepare_record_memo`의 준비 대상이 아니므로 확인한 양쪽 버전과 메모·태그를 실제 쓰기에 직접 유지한다. 자료 간 관계를 다룰 때 `list_entity_links`로 현재 연결을 읽고 `list_entities`의 `link_candidate_for`에 원점을 지정해 자기 자신·이미 연결된 자료·삭제/보관 대상을 제외한 후보를 찾는다. 자료 종류와 대표 이름을 확인한 뒤 `link_entities` 또는 `unlink_entities`에 양쪽 ID·`expected_version`·`expected_other_version`을 전달한다. 연결은 무방향이며 같은/다른 종류와 순환을 허용한다. 자료당 보존 연결 한도는 100개다. 삭제/보관된 이전 연결은 조회·해제할 수 있다. 역순 재시도는 ID와 버전을 함께 뒤집고 같은 메모·태그·`request_key`를 유지한다. `changed=false`는 새 연결 변경·기록이 생기지 않았다는 뜻이며 재현 결과의 버전은 당시 값이다.
 
 자료 종류를 지정한 목록은 도구 계약의 `filters`에 `prop_n`·operator·value 조건을, `sort`에 key/direction을 전달한다. `unset`은 value 없이 누락과 null을 찾는다. 다른 종류의 같은 prop_n은 의미가 다르므로 `get_entity_schema`에서 현재 정의를 읽는다. 자료 종류별 기록 템플릿 설정은 `record_templates.entity_types.<type_id>.<action>`에 저장하며 속성 변수는 `$엔터티.이후.prop_1$`처럼 고정 키를 사용한다. 표시 라벨을 변수 키로 바꾸지 않는다. 자료 종류별 memo가 null이거나 행동 설정이 없으면 고정 기본 문구를 사용하며 tag_ids는 독립적이다. 자료 공통 record_templates.entity 설정은 지원하지 않는다.
 
 ## 현재 계약으로 수행하기
+
+전체 자료 종류·관계·번호 설정을 가져오거나 내보내는 요청은 [전체 자료 모델 업무](references/data-model.md)를 읽고 전체 검토·준비·적용 경계를 사용한다. 종류별 속성 편집은 아래 기존 흐름을 유지한다.
 
 할 일은 앞으로 할 행동이며 일반 기록은 자료·메모·참고를 담는다. 일반 참고 기록의 본문 링크만으로 할 일이 완료되거나 반복 회차가 수행된 것으로 처리되지 않는다. 실제 일회성 수행은 완료 기능의 결과 기록, 반복 수행은 해당 회차의 결과 기록으로 남긴다. 앱의 반복 할 일은 자동 실행·알림을 제공하지 않는다.
 
@@ -54,6 +55,8 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 자료 ID는 `발급처 코드:자료 종류 ID:원본 번호`다. 서버가 반환한 정본 ID를 참조에 그대로 사용한다. 번호의 대소문자·앞자리 0·구분자·Unicode를 바꾸지 않는다. 자료 종류의 불변 설정 ID를 사용하며 자료별 내부 UUID를 만들지 않는다. `get_entity_type_identity`로 해당 종류의 번호 라벨·기본 발급처·지원 규칙·발급 방식·`version`을 확인한다. 선택한 `source`와 `version`을 `identity_version`으로 저장 입력에 유지한다. `automatic` 방식은 `external_id` 생략 시 저장 트랜잭션에서 발급하고 `direct` 방식은 원본 문자열을 명시한다. `settings_changed`이면 초안을 보존하고 종류 설정을 다시 확인한 뒤 새 의도 키로 제출한다. 활성 중복은 덮어쓰지 않는다. 삭제된 조합은 정본 ID로 `get_entity`를 조회하여 보관값·`version`·`deleted_at`을 확인하고 명시 복원 의도와 현재 `expected_version`으로 등록한다. 발급처가 중지되어도 기존 자료의 읽기·속성 편집·복원은 유지된다. 자료 종류·발급처·번호는 등록 후 변경할 수 없다. 번호 정정은 올바른 번호로 새 자료를 만들며 기존 연결·기록을 자동 이관하지 않는다. `update_entity`에는 `schema_version`·`expected_version`과 업무 속성·태그만 전달한다. 복원은 기존 값·태그·연결을 되살리며 별도로 삭제한 할 일·기록은 되살리지 않는다.
 
 
+자료 사이에는 명시된 관계 정의만 사용한다. 먼저 `list_entity_relation_definitions`로 양끝 종류·역할·개수를 확인하고 해당 `definition_id`·`side`·`origin_id`로 현재 연결과 후보를 읽는다. 정의가 없으면 임의 연결하거나 정의를 자동 생성하지 않는다. 관계 설정 변경을 요청받은 경우에만 정의를 만든다. 연결·해제·단일 교체에는 최신 정의 버전과 양쪽 자료 버전·메모·태그·요청 키를 유지한다. 작성해서 연결은 `create_and_link_entity`로 한 번에 저장한다. 복수 관계의 전체 개수 제한은 없으며 페이지 커서로 모두 읽는다. 과거 정의 없는 연결 원본은 현재 관계로 자동 배정하지 않는다. 할 일·기록의 `entity_ids` 대상 지정은 이 관계 설정과 별개다.
+
 발급처 설정 변경을 요청받으면 해당 발급처·규칙 또는 종류 설정의 최신 `version`을 읽고 그 객체의 `expected_version`으로 저장한다. 종류마다 발급처 규칙 하나를 연결한다. 참조된 규칙의 의미와 연결은 유지하며 라벨 변경이나 새 등록 사용 중지만 수행한다. 기본 발급처를 중지하려면 영향을 받는 종류에서 다른 활성 기본값을 먼저 선택한다. 외부 플랫폼 API 가져오기·인증·동기화는 이 기반 도구의 기능이 아니다.
 
 일반 기록과 로그 메모의 편집은 추가 편집 로그를 만들지 않는다. change 기록의 사건 ID·시각·대상·행동과 과거 보존 자료의 before/after는 읽기 전용이며 메모 정정으로 업무 원본을 되돌리지 않는다. 새 변경 기록은 전체 업무 원본 캡처를 만들지 않는다. 자료·할 일의 실제 변경은 최종 메모와 원자적으로 저장한다. 조회·무변경·실패·동일 요청 재시도에는 추가 성공 기록이 생기지 않는다. 접수·원본 저장·검색 색인 완료를 구분하고 호출하지 않은 변경의 완료를 주장하지 않는다.
@@ -71,7 +74,6 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 `schema_changed`는 초안과 기존 데이터 버전을 유지한 채 `current` 참조 및 최신 정의를 확인하고 변경 의도를 검토한 뒤 새 `request_key`로 제출한다. `entity_type_archived`는 새 생성·복원을 막고 기존 읽기·편집은 유지한다. 타입 이름·아이콘·보관 상태 변경은 `update_entity_type`에 현재 `expected_schema_version`을 전달해 같은 문서의 새 게시 버전을 만든다. 보관 해제도 이 경로를 사용한다. 자료 값은 바꾸지 않는다. 지원 아이콘은 `list_entity_type_icons`, 과거 정의는 `list_entity_schema_versions`와 `get_entity_schema`의 명시 버전으로 확인한다.
 
 
-정의 내보내기는 `get_entity_schema` 결과의 `schema` 문서를 그대로 사용한다. JSON 파일·텍스트 가져오기는 `preview_entity_schema_import`에 원문 `document`와 `mode`를 전달해 위치별 오류·원본/현재 버전·차이·키 대응·삭제 후보를 확인한다. 기존 종류 갱신은 `type_id`와 현재 `expected_schema_version`을 명시하며 파일의 `x-version`으로 경쟁 버전을 대체하지 않는다. 새 종류 복사는 명시적 `copy` 의도이며 서버가 새 ID·초기 버전·속성 키를 발급한다. 미리보기는 저장하지 않는다. 검토한 `preview_fingerprint`와 같은 원문·대상·기대 버전·확인한 `remove_keys` 및 필요한 `new_keys`를 `prepare_entity_schema_import`에 새 논리 의도의 `request_key`와 함께 제출한다. 응답 불명에는 같은 요청을 유지한다. update 결과의 change는 변경안 요약이다. 해당 ID로 `get_entity_schema_change`를 읽어 전체 대상·차이·규칙을 확인한 뒤 아래의 분석·게시/값 변환 경로로 이어가며, changed=false면 새 게시를 만들지 않는다. 과거 원본 버전이 낡았다는 안내와 준비 이후 경쟁 실패를 구분한다. 보존 근거가 없는 누락 메타데이터를 임의로 추정하지 않는다.
 
 자료 종류의 속성 변경 요청은 현재 종류·스키마 버전을 확인하고 `create_entity_schema_change`로 제한된 edits와 추가 속성의 client_ref를 저장한다. 속성의 x-order·x-representative·x-show-in-list·deprecated와 oneOf의 const/title을 field에 직접 지정한다. 루트 메타데이터 변경은 실제 도구 계약의 set_metadata를 사용한다. 변환 규칙/행 보완의 key는 같은 edits의 추가 속성을 new_<client_ref>로 참조할 수 있으며 저장된 정의는 서버가 예약한 prop_n을 사용한다. 별도 set_display나 enum/라벨 사전을 전달하지 않는다. 서버가 예약한 prop_n과 필드별 차이를 검토한다. 수정은 `update_entity_schema_change`의 expected_change_version에 결속한다. 생성·수정·분석·게시에는 모두 request_key를 사용한다.
 
@@ -89,15 +91,20 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 | 하려는 일 | 도구 |
 | --- | --- |
+| 전체 자료 모델 내보내기·가져오기 검토·준비·이력·전체 적용([상세](references/data-model.md)) | `export_data_model`, `preview_data_model`, `prepare_data_model`, `list_data_model_changes`, `get_data_model_change`, `apply_data_model` |
+| 전체 모델의 종류별 변환 분석·전체 취소·일시 실패 재접수([상세](references/data-model.md)) | `analyze_data_model`, `cancel_data_model`, `retry_data_model` |
+| 전환 전 완료 요청의 정확한 재확인만(신규 가져오기는 거절, [상세](references/data-model.md)) | `prepare_entity_schema_import` |
 | 업무 설정 조회·요청받은 설정 변경 | `get_business_settings`, `update_business_settings` |
 | 변경 메모·기록 태그와 실제 저장 입력 준비 | `prepare_record_memo` |
 | 자료 종류의 번호 라벨·지원 발급처·기본값 조회·설정 | `get_entity_type_identity`, `update_entity_type_identity` |
 | 발급처 목록·생성·이름 변경·사용 중지 | `list_entity_issuers`, `create_entity_issuer`, `update_entity_issuer`, `delete_entity_issuer` |
 | 발급처의 번호 규칙 조회·생성·라벨 변경·사용 중지 | `list_entity_identifier_rules`, `create_entity_identifier_rule`, `update_entity_identifier_rule`, `delete_entity_identifier_rule` |
+| 자료 작성·복원과 연결·단일 교체를 한 번에 확정 | `create_and_link_entity` |
+| 역할별 연결·상대 종류 후보 조회·연결·단일 교체·해제 | `list_entity_relation_links`, `list_entity_relation_candidates`, `connect_entity_relation`, `replace_entity_relation`, `unlink_entity_relation` |
+| 자료 관계 정의 조회·요청받은 추가·편집·보관·미사용 삭제 | `list_entity_relation_definitions`, `get_entity_relation_definition`, `create_entity_relation_definition`, `update_entity_relation_definition`, `delete_entity_relation_definition` |
 | 자료 종류·현재 이름·아이콘·보관 상태 조회 | `list_entity_types`, `get_entity_type`, `list_entity_type_icons` |
 | 요청받은 자료 종류 생성·이름·아이콘·보관 상태 변경 | `create_entity_type`, `update_entity_type` |
 | 종류별 현재·과거 속성 정의와 버전 조회 | `get_entity_schema`, `list_entity_schema_versions` |
-| JSON 정의 원문 검토·요청받은 변경안 또는 새 종류 복사 준비 | `preview_entity_schema_import`, `prepare_entity_schema_import` |
 | 요청받은 속성 변경 초안·영향 분석·호환 가능한 게시 | `create_entity_schema_change`, `update_entity_schema_change`, `analyze_entity_schema_change`, `apply_entity_schema_change`, `discard_entity_schema_change` |
 | 변경 초안·차이·분석 상태 조회 | `get_entity_schema_change`, `list_entity_schema_changes` |
 | 완료한 현재 분석의 변환 전후·실패 페이지 조회 | `list_entity_schema_analysis_rows` |
@@ -113,7 +120,6 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
 | 기록 본문 의미 검색·업무 제목/본문 키워드 조회 | `search` |
-| 연결된 자료 조회·추가·해제 | `list_entity_links`, `link_entities`, `unlink_entities` |
 | 자료 찾기·전체 값 읽기·만들기·고치기·지우기 | `list_entities`, `get_entity`, `create_entity`, `update_entity`, `delete_entity` |
 
 ## 기록 내용과 결과 보고

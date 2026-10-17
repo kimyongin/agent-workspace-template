@@ -1,7 +1,10 @@
 import {
-  entitySchemaImportPrepare,
-  entitySchemaImportPreview,
-} from "../../functions/_shared/contracts/entity-schema-import.ts";
+  dataModelAction,
+  dataModelInput,
+  dataModelPrepare,
+  modelGroupAnalyze,
+} from "../../functions/_shared/contracts/data-model.ts";
+import { entitySchemaImportPrepare } from "../../functions/_shared/contracts/entity-schema-import.ts";
 import {
   identifierRuleCreate,
   identifierRuleUpdate,
@@ -17,8 +20,6 @@ import {
   schemaMigrationStart,
   schemaRecoveryCreate,
 } from "../../functions/_shared/contracts/entity-schema-migration.ts";
-import { entityPairQuery, entityPairWrite } from "../../functions/_shared/contracts/entity-pairs.ts";
-import { entityReferenceId } from "../../functions/_shared/contracts/entity-identity.ts";
 import {
   schemaAnalysisRows,
   schemaChangeAction,
@@ -207,17 +208,33 @@ const EXPECTED_TOOLS = [
   "get_entity",
   "list_entities",
   "update_entity",
-  "list_entity_links",
-  "link_entities",
-  "unlink_entities",
   "list_entity_type_icons",
   "list_entity_types",
   "get_entity_type",
   "create_entity_type",
   "update_entity_type",
   "get_entity_schema",
-  "preview_entity_schema_import",
+  "export_data_model",
+  "preview_data_model",
+  "prepare_data_model",
+  "list_data_model_changes",
+  "get_data_model_change",
+  "apply_data_model",
+  "analyze_data_model",
+  "cancel_data_model",
+  "retry_data_model",
   "prepare_entity_schema_import",
+  "list_entity_relation_definitions",
+  "get_entity_relation_definition",
+  "create_entity_relation_definition",
+  "update_entity_relation_definition",
+  "delete_entity_relation_definition",
+  "list_entity_relation_links",
+  "list_entity_relation_candidates",
+  "connect_entity_relation",
+  "unlink_entity_relation",
+  "replace_entity_relation",
+  "create_and_link_entity",
   "list_entity_schema_versions",
   "create_entity_schema_change",
   "get_entity_schema_change",
@@ -437,16 +454,24 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     update_entity_identifier_rule: identifierRuleUpdate.extend({ rule_id: z.string().uuid(), request_key: requestKey }),
     get_entity_type_identity: z.strictObject({ type_id: z.string().uuid() }),
     update_entity_type_identity: typeIdentityUpdate.safeExtend({ type_id: z.string().uuid(), request_key: requestKey }),
-    list_entity_links: entityPairQuery.extend({ id: entityReferenceId }),
-    link_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),
-    unlink_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),
     list_entity_type_icons: z.strictObject({}),
     list_entity_types: entityTypeList,
     get_entity_type: z.strictObject({ type_id: z.string().uuid() }),
     create_entity_type: entityTypeCreate.extend({ request_key: requestKey }),
     update_entity_type: entityTypeUpdate.safeExtend({ type_id: z.string().uuid(), request_key: requestKey }),
     get_entity_schema: entitySchemaRead,
-    preview_entity_schema_import: entitySchemaImportPreview,
+    export_data_model: z.strictObject({}),
+    preview_data_model: dataModelInput,
+    prepare_data_model: dataModelPrepare.extend({ request_key: requestKey }),
+    list_data_model_changes: z.strictObject({
+      limit: z.number().int().min(1).max(100).default(20),
+      cursor: z.string().optional(),
+    }),
+    get_data_model_change: z.strictObject({ id: z.string().uuid() }),
+    apply_data_model: dataModelAction.extend({ id: z.string().uuid(), request_key: requestKey }),
+    analyze_data_model: modelGroupAnalyze.extend({ id: z.string().uuid(), request_key: requestKey }),
+    cancel_data_model: dataModelAction.extend({ id: z.string().uuid(), request_key: requestKey }),
+    retry_data_model: dataModelAction.extend({ id: z.string().uuid(), request_key: requestKey }),
     prepare_entity_schema_import: entitySchemaImportPrepare.safeExtend({ request_key: requestKey }),
     list_entity_schema_versions: entitySchemaHistory,
     create_entity_schema_change: schemaChangeCreate.extend({ type_id: z.string().uuid(), request_key: requestKey }),
@@ -503,8 +528,8 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     z.toJSONSchema(recordCreate.extend({ request_key: requestKey }), { target: "draft-2020-12", io: "input" }),
   );
   for (const t of tools) assertEquals(t.inputSchema.type, "object", t.name);
-  assertEquals(byName.preview_entity_schema_import.annotations?.readOnlyHint, true);
-  assertEquals(byName.prepare_entity_schema_import.annotations?.readOnlyHint, false);
+  assertEquals(byName.preview_data_model.annotations?.readOnlyHint, true);
+  assertEquals(byName.prepare_entity_schema_import.annotations?.readOnlyHint, true);
   assertEquals(byName.get_task.annotations?.readOnlyHint, true);
   assertEquals(byName.delete_task.annotations?.destructiveHint, true);
 });

@@ -89,14 +89,36 @@ export function entityTypeDeps(): EntityTypeDeps {
   return entityTypes ??= { uow: new SqlEntityTypeUnitOfWork(database()) };
 }
 
-import { SqlEntityPairUnitOfWork } from "./adapters/supabase/entity-pair-store.ts";
-import type { EntityPairDeps } from "./core/entity-pairs/application.ts";
-let entityPairs: EntityPairDeps | undefined;
-export function entityPairDeps(): EntityPairDeps {
-  return entityPairs ??= { uow: new SqlEntityPairUnitOfWork(database()) };
-}
-
 let issuers: EntityIssuerDeps | undefined;
 export function entityIssuerDeps(): EntityIssuerDeps {
   return issuers ??= { uow: new SqlEntityIssuerUnitOfWork(database()) };
+}
+
+import { SqlEntityRelationDefinitionUnitOfWork } from "./adapters/supabase/entity-relation-definition-store.ts";
+import type { EntityRelationDefinitionDeps } from "./core/entity-relations/application.ts";
+let relationDefinitions: EntityRelationDefinitionDeps | undefined;
+export function entityRelationDefinitionDeps(): EntityRelationDefinitionDeps {
+  return relationDefinitions ??= { uow: new SqlEntityRelationDefinitionUnitOfWork(database()) };
+}
+
+import { SqlEntityRelationLinkUnitOfWork } from "./adapters/supabase/entity-relation-link-store.ts";
+import type { EntityRelationLinkDeps } from "./core/entity-relations/links.ts";
+let relationLinks: EntityRelationLinkDeps | undefined;
+export function entityRelationLinkDeps(): EntityRelationLinkDeps {
+  return relationLinks ??= { uow: new SqlEntityRelationLinkUnitOfWork(database()) };
+}
+
+import { SqlDataModelGroupStore } from "./adapters/supabase/data-model-group-store.ts";
+import { SqlDataModelUnitOfWork } from "./adapters/supabase/data-model-store.ts";
+import type { DataModelDeps } from "./core/data-model/application.ts";
+let model: DataModelDeps | undefined;
+export function dataModelDeps(): DataModelDeps {
+  return model ??= { uow: new SqlDataModelUnitOfWork(database(), SqlDataModelGroupStore) };
+}
+
+import { SqlCreateAndLinkUnitOfWork } from "./adapters/supabase/create-and-link-store.ts";
+import type { CreateAndLinkDeps } from "./core/entity-relations/create-and-link.ts";
+let createAndLink: CreateAndLinkDeps | undefined;
+export function createAndLinkDeps(): CreateAndLinkDeps {
+  return createAndLink ??= { uow: new SqlCreateAndLinkUnitOfWork(database()) };
 }

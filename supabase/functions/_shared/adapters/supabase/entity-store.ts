@@ -167,15 +167,8 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       ${q.source ? tx`and entities.source=${q.source}` : tx``}
       ${q.tag_id ? tx`and ${hasTag(tx, "entity", q.tag_id)}` : tx``}
       ${
-      q.link_candidate_for
-        ? tx`and not coalesce((v.schema->>'deprecated')::boolean,false) and entities.id<>${q.link_candidate_for} and not exists(select 1 from app.entity_pairs p where (p.entity_id=${q.link_candidate_for} and p.other_id=entities.id) or (p.other_id=${q.link_candidate_for} and p.entity_id=entities.id))`
-        : tx``
-    }
-      ${
       q.keyword
-        ? tx`and (position(lower(${q.keyword}) in lower(${title}))>0 or position(lower(${q.keyword}) in lower(entities.external_id))>0 or position(lower(${q.keyword}) in lower(entities.source))>0 ${
-          q.link_candidate_for ? tx`or position(lower(${q.keyword}) in lower(v.schema->>'title'))>0` : tx``
-        })`
+        ? tx`and (position(lower(${q.keyword}) in lower(${title}))>0 or position(lower(${q.keyword}) in lower(entities.external_id))>0 or position(lower(${q.keyword}) in lower(entities.source))>0)`
         : tx``
     }
       ${filters.reduce((all, filter) => tx`${all} ${filter}`, tx``)} ${boundary}

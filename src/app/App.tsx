@@ -1,3 +1,5 @@
+import { DataModelSettings } from "../features/settings/DataModelSettings.tsx";
+import { RelationSettingsPage } from "../features/settings/RelationSettingsPage.tsx";
 import { PageHeading } from "../components/PageHeading.tsx";
 import { IssuerSettingsPage } from "../features/settings/IssuerSettingsPage.tsx";
 import { RecordSettingsPage } from "../features/settings/RecordSettingsPage.tsx";
@@ -128,6 +130,8 @@ export function App() {
           <Route path="tags/:scope/:id" element={guarded(<TagsPage />)} />
           <Route path="guide" element={guarded(<GuidePage />)} />
           <Route path="settings/navigation" element={guarded(<Navigate to="/settings#settings-navigation" replace />)} />
+          <Route path="settings/data-model" element={guarded(<DataModelSettings />)} />
+          <Route path="settings/relations" element={guarded(<RelationSettingsPage />)} />
           <Route path="settings/issuers" element={guarded(<IssuerSettingsPage />)} />
           <Route path="settings/records" element={guarded(<RecordSettingsPage />)} />
           <Route path="settings" element={guarded(<SettingsPage />)} />

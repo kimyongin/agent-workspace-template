@@ -139,6 +139,11 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 | schema-editor-read | 속성 변경안 공개 화면의 지연 조회·조회 실패·초안·저장 결과·복구안 desktop/mobile |
 | material-schema | 통합 자료 설정의 속성 행·검토·변환·작업·복구와 기존 직접 주소 desktop/mobile |
 | material-templates | 자료 종류별 고정 기본 문구·독립 저장·충돌·재시도·일반 설정 태그 진입/복귀 desktop/mobile |
+| create-and-link | 자료 상세에서 작성·취소·단일 교체·응답 불명 재확인·초점 복귀 desktop/mobile |
+| typed-relations | 자료 상세의 단일 값·삭제 상대 교체·동일 요청 재확인·해제와 복수 101개 더 보기 desktop/mobile |
+| relation-settings | 별도 자료 관계 설정의 행 안 생성·편집·버전 충돌 초안 보존·보관 desktop/mobile |
+| data-model | 전체 모델 파일·원문 검토·복사/갱신·영구 제거 확인·이력 더 보기·저장 후 독립 상세 조회·전체 적용/응답 불명 desktop/mobile |
+| model-group | 모의 API 응답을 사용하는 종류별 변환 편집·분석·오류 행 보완·전체 적용 접수·진행 복귀·취소/재시도·이탈 보호 desktop/mobile; 실제 영속 worker·원자적 DB 게시 검증은 포함하지 않음 |
 | issuer-settings | 발급처 목록·첫 번호 종류 추가·종류별 연결과 기본 선택·등록·중첩 확인·초안 충돌·설정 메뉴 desktop/mobile |
 | schema-job-history | 값 변환 작업 공개 목록의 20개 초과 이력·자동 갱신·겹친 응답·더 보기 재시도·종류 전환 desktop/mobile |
 | design-samples | 인증·API 없이 공용 디자인 사례와 미리보기 폭 전환·입력/확인/실패 상태 desktop/mobile |
@@ -147,12 +152,16 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 
 페이지 읽기의 상한·취소·실패 규칙은 `paged-list.test.ts`에서 검증한다. `pagination-fixture.spec.ts`는 실제 앱에서 URL 복원·누적 행·재시도 cursor·초점·읽던 위치·필터 초기화를 확인한다. 대량 모의 목록 때문에 실제 로그인 검사를 반복하지 않는다. 실제 API의 로그인·저장·웹/MCP 왕복 검사는 기본 설정에 남긴다.
 
-전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 열여섯 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
+전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 스물한 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
 
 자료 조회 영역의 배치는 `npm run test:e2e -- --config=e2e/query-layout.build.config.ts`로 정적 빌드에서도 확인한다. 개발 서버와 운영 빌드는 CSS chunk의 순서가 달라질 수 있으므로, 관련 조작끼리 같은 행에 있는지·서로 겹치지 않는지도 검사한다. 선택창 위/검색창 아래 같은 개별 위치와 전체 가로 넘침 검사만으로 완료하지 않는다. 검사는 `test-results/query-layout-dist`에 모의 공개 설정으로 빌드하며 운영 서비스에 접속하지 않는다.
 
 구 고정 속성 표현의 보존·거부 분류와 현재 fixture 계약은 [전환 검사](typed-fixture-transition.md)에 있다.
 
-실제 API 검사의 `e2e/support.ts` 자동 fixture는 각 test의 새 자료 종류·업무 자료 ID와 요청 키를 소유자별로 추적한다. MCP 연결을 먼저 닫아도 자료는 화면 검사와 `afterEach`가 끝날 때까지 유지한다. 마지막에는 브라우저 context와 MCP 연결을 닫고, 도입한 종류의 현재·역사 참조와 검색 queue/state를 명시 manifest의 dry-run digest로 정리한다. Auth 사용자·OAuth 연결·다른 소유자·기존 종류·무관한 설정은 보존한다. 종류별 템플릿은 해당 종류의 명시 action 경로만 제거한다. 설정 도중 실패해도 성공한 요청 receipt로 도입 ID를 회수하며, 실패한 설정을 정리하는 동안 원래 테스트의 종류 ID를 가정하지 않는다.
+실제 전체 모델 파일 검사는 파일 내보내기·편집·검토·일괄 적용 후 기본값/읽기 전용/선택값·보관 복귀를 확인하고, 새 두 자료 종류와 명시 관계를 같은 파일로 구성해 웹 등록·MCP 연결·원본 무변경 재적용까지 검사한다. 개별 가져오기 신규 mutation을 다시 허용하지 않으며 과거 완료 요청의 정확한 재확인은 별도 DB/HTTP/MCP 검사로 유지한다.
+
+실제 전체 모델 변환은 `supabase/tests/database/data-model-groups.test.ts`에서 다중 종류의 비공개 준비·한 transaction 게시·후반 실패 rollback·취소·동일 작업 재시도·부모/자식 lease·템플릿 freshness·계정 cascade·분석 원문 만료를 검사한다. `supabase/tests/mcp/data-model-groups.test.ts`는 실제 HTTP/OAuth MCP 접수와 정확한 요청 재현·격리를 검사하고, `e2e/data-model-groups.spec.ts`는 두 종류의 웹 변환 입력·전체 분석/접수 후 페이지를 떠나 독립 local runner가 완료하는 경로와 재방문·새로고침을 desktop/mobile에서 검사한다. 모의 `model-group` 설정의 결과를 이 실제 저장·worker 검사의 증거로 대신하지 않는다.
+
+실제 API 검사의 `e2e/support.ts` 자동 fixture는 각 test의 새 자료 종류·업무 자료 ID와 요청 키를 소유자별로 추적한다. 전체 모델 준비 결과의 new 항목만 새 종류·관계·발급처·규칙으로 추적하고, 기존 update 대상은 정리 범위에 추가하지 않는다. 해당 실행의 모델 이력과 명시 관계·연결은 같은 digest/transaction 경계에서 정리한다. 응답 유실 시에는 그 실행의 정확한 요청 키로 보관된 결과를 회수한다. MCP 연결을 먼저 닫아도 자료는 화면 검사와 `afterEach`가 끝날 때까지 유지한다. 마지막에는 브라우저 context와 MCP 연결을 닫고, 도입한 종류의 현재·역사 참조와 검색 queue/state를 명시 manifest의 dry-run digest로 정리한다. Auth 사용자·OAuth 연결·다른 소유자·기존 종류·무관한 설정은 보존한다. 종류별 템플릿은 해당 종류의 명시 action 경로만 제거한다. 설정 도중 실패해도 성공한 요청 receipt로 도입 ID를 회수하며, 실패한 설정을 정리하는 동안 원래 테스트의 종류 ID를 가정하지 않는다.
 
 이 정리는 worker 1개인 loopback 실제 설정에서만 허용한다. `ENTITY_SCHEMA_WORKER_CONFIG`가 가리키는 Supabase 설정의 API·직접 DB 포트가 환경 파일과 일치해야 하며, fixture는 그 환경/소유자/개수/잔여 행만 결과에 첨부한다. 정리 정책의 서비스 없는 검사는 `node --test scripts/actual-fixture-cleanup.test.mjs scripts/demo-cleanup.test.mjs`다. 실제 격리 DB의 소유자·같은 ID·검색 재큐잉 회귀는 실행 lease 안에서 `LOCAL_DB_URL`을 그 DB로 지정하고 `node --test scripts/actual-fixture-cleanup.integration.mjs`로 별도 실행한다. 테스트가 만든 두 임시 Auth 사용자는 해당 통합 검사 자체의 finally에서만 제거한다.

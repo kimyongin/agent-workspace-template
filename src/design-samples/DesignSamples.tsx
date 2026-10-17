@@ -1,3 +1,4 @@
+import { RelationSettingsSample } from "./RelationSettingsSample.tsx";
 import { type CSSProperties, useRef, useState } from "react";
 import { BodyAction } from "../components/BodyAction.tsx";
 import { Field, Notice } from "../components/Field.tsx";
@@ -14,6 +15,7 @@ import { AccountSettingsSample } from "./AccountSettingsSample.tsx";
 const topics = [
   ["settings", "기본 설정"],
   ["issuers", "발급처"],
+  ["relations", "자료 관계"],
   ["record-actions", "기록 설정"],
   ["buttons", "버튼"],
   ["forms", "폼과 상태"],
@@ -33,6 +35,13 @@ export function DesignSamples() {
     return (
       <main className="samples-content">
         <AccountSettingsSample standalone />
+      </main>
+    );
+  }
+  if (params.get("screen") === "relations") {
+    return (
+      <main className="samples-content">
+        <RelationSettingsSample standalone />
       </main>
     );
   }
@@ -116,6 +125,9 @@ function SamplesContent() {
       </header>
       <section id="settings" className="samples-topic" aria-label="기본 설정 샘플">
         <AccountSettingsSample />
+      </section>
+      <section id="relations" className="samples-topic" aria-label="자료 관계 샘플">
+        <RelationSettingsSample />
       </section>
       <section id="issuers" className="samples-topic" aria-label="발급처 샘플">
         <IssuerSettingsSample />

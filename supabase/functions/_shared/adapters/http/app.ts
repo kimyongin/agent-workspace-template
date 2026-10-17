@@ -1,7 +1,13 @@
+import type { DataModelDeps } from "../../core/data-model/application.ts";
+import { dataModelRoutes } from "./data-model-routes.ts";
+import { createAndLinkRoutes } from "./create-and-link-routes.ts";
+import type { CreateAndLinkDeps } from "../../core/entity-relations/create-and-link.ts";
+import { entityRelationLinkRoutes } from "./entity-relation-link-routes.ts";
+import type { EntityRelationLinkDeps } from "../../core/entity-relations/links.ts";
+import type { EntityRelationDefinitionDeps } from "../../core/entity-relations/application.ts";
+import { entityRelationDefinitionRoutes } from "./entity-relation-definition-routes.ts";
 import { entityIssuerRoutes } from "./entity-issuer-routes.ts";
 import type { EntityIssuerDeps } from "../../core/entity-issuers/application.ts";
-import { entityPairRoutes } from "./entity-pair-routes.ts";
-import type { EntityPairDeps } from "../../core/entity-pairs/application.ts";
 import { entityTypeRoutes } from "./entity-type-routes.ts";
 import type { EntityTypeDeps } from "../../core/entity-types/application.ts";
 import type { StatusDeps } from "../../core/status/application.ts";
@@ -43,8 +49,11 @@ export function createHttpApp(
   settings?: BusinessSettingsDeps,
   status?: StatusDeps,
   entityTypes?: EntityTypeDeps,
-  entityPairs?: EntityPairDeps,
   issuers?: EntityIssuerDeps,
+  relationDefinitions?: EntityRelationDefinitionDeps,
+  relationLinks?: EntityRelationLinkDeps,
+  dataModel?: DataModelDeps,
+  createAndLink?: CreateAndLinkDeps,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -82,7 +91,10 @@ export function createHttpApp(
   if (entities) app.route("/", entityRoutes(entities));
   if (settings) app.route("/", settingsRoutes(settings));
   if (status) app.route("/", statusRoutes(status));
-  if (entityPairs) app.route("/", entityPairRoutes(entityPairs));
+  if (dataModel) app.route("/", dataModelRoutes(dataModel));
+  if (createAndLink) app.route("/", createAndLinkRoutes(createAndLink));
+  if (relationLinks) app.route("/", entityRelationLinkRoutes(relationLinks));
+  if (relationDefinitions) app.route("/", entityRelationDefinitionRoutes(relationDefinitions));
   if (issuers) app.route("/", entityIssuerRoutes(issuers));
   if (entityTypes) app.route("/", entityTypeRoutes(entityTypes));
 

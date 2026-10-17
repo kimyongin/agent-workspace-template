@@ -1,6 +1,8 @@
 # Workspace 제품 플러그인
 
-`workspace` 0.8.0는 현재 상태·관련 자료·기록 원문을 근거로 다음 업무를 준비하는 제품 스킬의 소스 후보다. Claude Code와 Codex가 같은 `skills/workspace/`를 사용하며 개발 스킬은 포함하지 않는다. 기존 운영 MCP `https://ayzcluvdppsppwszzaqx.supabase.co/functions/v1/mcp`에 연결하며 OAuth 로그인이 필요하다. 새 앱에서 이 패키지를 재사용할 때는 두 MCP 설정의 주소를 해당 앱의 검증한 주소로 함께 바꾼다. 토큰이나 서버 비밀을 파일에 넣지 않는다. 후보 소스 변경은 기존 설치 갱신이나 운영 서버 배포를 뜻하지 않는다.
+`workspace` 0.9.0은 자료 모델과 관계·현재 상태·기록 원문을 근거로 다음 업무를 준비하는 제품 스킬의 소스 후보다. Claude Code와 Codex가 같은 `skills/workspace/`를 사용하며 개발 스킬은 포함하지 않는다. 기존 운영 MCP `https://ayzcluvdppsppwszzaqx.supabase.co/functions/v1/mcp`에 연결하며 OAuth 로그인이 필요하다. 새 앱에서 이 패키지를 재사용할 때는 두 MCP 설정의 주소를 해당 앱의 검증한 주소로 함께 바꾼다. 토큰이나 서버 비밀을 파일에 넣지 않는다. 후보 소스 변경은 기존 설치 갱신이나 운영 서버 배포를 뜻하지 않는다.
+
+0.9.0 후보는 자료 관계 정의·역할별 단일/복수 연결·작성해서 연결과 전체 자료 모델 교환을 안내한다. 자료 간 연결은 명시한 관계만 사용하며 정의 없는 일반 연결 도구는 종료한다. 과거 연결 기록의 문맥은 유지한다. 전체 모델의 검토·복사/갱신·값 변환은 같은 변경안과 요청 키로 추적한다. 서버를 같은 revision으로 배포·검증한 뒤 설치 패키지를 갱신하며, 이번 개발의 운영 적용 여부는 [스펙 #482](https://github.com/kimyongin/agent-workspace-template/issues/482)와 연결된 PR에서 확인한다.
 
 0.6.1은 모든 업무 쓰기에 UUID `request_key`를 요구하며 같은 논리 요청의 불확실한 재시도에는 정확한 입력과 키를 유지한다. 공개 ID 사전 발급은 없고 준비는 읽기이며 생성 성공 응답의 정본 ID를 사용한다. 키/입력을 잃거나 결과가 만료되면 현재 상태와 다음 의도를 확인하고 새 키로 자동 반복하지 않는다. `get_status`로 현재 현황을, `list_indexing_issues`로 최대 5개 문제 기록의 이유·전송 시도 수·본문 구간 진행을 확인한다. 응답 확인 불가는 확정 실패가 아니다. 이전 키 없는 클라이언트와의 쓰기 호환은 제공하지 않는다.
 
@@ -51,7 +53,7 @@ Git source로 등록한 marketplace만 `codex plugin marketplace upgrade workspa
 ```powershell
 node scripts/check-plugin.mjs
 node --test scripts/check-plugin.test.mjs
-node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.8.0.zip
+node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.9.0.zip
 ```
 
 명령은 저장소 루트에서 실행한다. ZIP과 옆의 `.json` 증거는 저장소 밖에 쓴다. 파일 순서·ZIP 시각을 고정해 같은 원본은 같은 SHA-256을 만든다. 증거에 버전, endpoint, 도구 목록, 서버 도구 원본 해시와 각 패키지 파일 해시가 들어간다. 서버 원본의 해시는 실제 운영 revision 확인을 대신하지 않는다. 운영에서 아직 배포하지 않은 도구는 연결된 서버에서 사용할 수 없다.
@@ -62,4 +64,4 @@ node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.8.0.zip
 
 공식 형식과 명령(2026-10-04 확인): [Codex 패키징](https://developers.openai.com/plugins/build/plugins), [Claude manifest](https://code.claude.com/docs/en/plugins-reference), [Claude marketplace](https://code.claude.com/docs/en/plugin-marketplaces).
 
-JSON Schema 내보내기는 `get_entity_schema`의 `schema` 문서를 사용한다. 가져오기는 `preview_entity_schema_import`로 원문·버전·차이·키 대응을 검토하고 `prepare_entity_schema_import`로 기존 종류 변경안 또는 명시적인 새 종류 복사를 준비한다. 웹의 파일·텍스트 입력도 같은 파서와 검증을 사용한다.
+전체 자료 종류·관계·번호 설정은 `export_data_model`로 한 파일에 내보낸다. `preview_data_model`로 원문과 update/copy 차이·대응을 검토하고 `prepare_data_model`로 전체 변경안을 저장한 뒤 `apply_data_model`로 함께 적용한다. `list_data_model_changes`/`get_data_model_change`로 이력·결과를 확인한다. 개별 종류의 `get_entity_schema`는 속성 편집용 읽기를 유지한다. 구 `prepare_entity_schema_import`는 보존된 완료 요청 조회만 허용한다. 현재 소스 후보이며 서버 배포·패키지 설치 완료를 뜻하지 않는다.

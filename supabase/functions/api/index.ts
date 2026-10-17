@@ -3,9 +3,12 @@ import { createHttpApp } from "../_shared/adapters/http/app.ts";
 import {
   activityDeps,
   businessSettingsDeps,
+  createAndLinkDeps,
+  dataModelDeps,
   entityDeps,
   entityIssuerDeps,
-  entityPairDeps,
+  entityRelationDefinitionDeps,
+  entityRelationLinkDeps,
   entityTypeDeps,
   env,
   searchDeps,
@@ -27,8 +30,11 @@ const app = createHttpApp(
   businessSettingsDeps(),
   statusDeps(),
   entityTypeDeps(),
-  entityPairDeps(),
   entityIssuerDeps(),
+  entityRelationDefinitionDeps(),
+  entityRelationLinkDeps(),
+  dataModelDeps(),
+  createAndLinkDeps(),
 );
 
 Deno.serve(app.fetch);

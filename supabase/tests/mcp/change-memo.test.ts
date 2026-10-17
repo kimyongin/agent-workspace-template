@@ -11,7 +11,7 @@ httpTest("HTTP and MCP save body memo once and remove retired business preview i
     const tools = await client.listTools();
     assertEquals(
       tools.tools.filter((t) => t.name.startsWith("preview_")).map((t) => t.name).sort(),
-      ["preview_entity_schema_import"],
+      ["preview_data_model"],
     );
     const memo = "  저장한 근거\n" + "가".repeat(1200);
     const saved = await call(a, "PATCH", `/entities/${encodeURIComponent(e.id)}`, {
