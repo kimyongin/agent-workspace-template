@@ -1,4 +1,4 @@
-import { openDialogs } from "./ui-actions.ts";
+import { openDialogs, openMainNavigation } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entityKey, fixtureType, id, stamp } from "./support/workspace-data.ts";
 import { fixtures, go } from "./support/workspace-screens.ts";
@@ -92,10 +92,20 @@ for (const width of [390, 1440]) {
     for (const [name, path] of paths) {
       await go(page, path);
       await expect(page.locator("h1").first()).toBeVisible();
-      await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toBeVisible();
+      if (width < 1024 && name.endsWith("-detail")) {
+        await expect(openDialogs(page)).toHaveCount(1);
+        await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toHaveCount(0);
+      } else {
+        await openMainNavigation(page);
+        if (width < 1024) {
+          await page.getByRole("button", { name: "메뉴 닫기", exact: true }).click();
+          await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true })).toHaveCount(0);
+        }
+      }
       await expect(page.getByRole("status").filter({ hasText: /로그인 상태를 확인/ })).toHaveCount(0);
       const introduction = name.endsWith("-detail")
         ? page.locator('[role="dialog"] [data-slot="dialog-description"]')
+        : name === "missing-page" ? page.locator('[data-slot="empty-description"]')
         : page.getByRole("heading", { level: 1 }).first().locator("xpath=ancestor::header[1]").locator(":scope > p");
       await expect(introduction).toHaveCount(1);
       await expect(introduction).toBeVisible();
@@ -107,9 +117,10 @@ for (const width of [390, 1440]) {
       }
       if (name === "material") {
         const menu = page.getByRole("button", { name: "설정 메뉴", exact: true });
-        expect(await menu.locator("svg").evaluate((node) => node.getBoundingClientRect().width)).toBeGreaterThanOrEqual(
-          18,
-        );
+        await expect(menu.locator("svg")).toBeVisible();
+        const target = await menu.evaluate(node => node.getBoundingClientRect().toJSON());
+        expect(target.width).toBeGreaterThanOrEqual(44);
+        expect(target.height).toBeGreaterThanOrEqual(44);
         for (const title of ["기본 정보", "자료 번호", "입력 항목"]) {
           await page.getByRole("button", { name: title, exact: true }).click();
         }

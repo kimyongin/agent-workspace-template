@@ -88,7 +88,7 @@ for (const width of [320, 1440]) {
   });
 
   test(
-    `recurring task ${width}px: native single choice and time-zone selection preserve a valid monthly plan`,
+    `recurring task ${width}px: keyboard single choice and time-zone selection preserve a valid monthly plan`,
     async ({ page }, info) => {
       const state = await fixtures(page);
       await page.setViewportSize({ width, height: 900 });
@@ -97,6 +97,8 @@ for (const width of [320, 1440]) {
       await editor.getByLabel("제목", { exact: false }).fill("월말 정산");
       await editor.getByRole("radio", { name: "반복", exact: true }).click();
       await editor.getByRole("radio", { name: "매일", exact: true }).press("ArrowRight");
+      await expect(editor.getByRole("radio", { name: "매주", exact: true })).toBeFocused();
+      await editor.getByRole("radio", { name: "매주", exact: true }).press("Space");
       await expect(editor.getByRole("radio", { name: "매주", exact: true })).toHaveAttribute("aria-checked", "true");
       await expect(editor.getByRole("radio", { name: "매일", exact: true })).toHaveAttribute("aria-checked", "false");
       await editor.getByRole("radio", { name: "매월", exact: true }).click();

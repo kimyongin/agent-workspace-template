@@ -50,7 +50,7 @@ test("할 일 상세 뒤로 가기는 외부 추가와 원래 행 초점을 복�
   state.rows.tasks.push({ ...task(510), title: "외부 할 일" });
   await page.goBack();
   await expect(page).toHaveURL(/\/tasks\?/);
-  await expect(page.locator('[aria-label="기본 작업 영역"] [data-list-row]')).toHaveCount(2);
+  await expect(baseWorkspace(page).getByRole("region", { name: "할 일 목록", exact: true }).getByRole("listitem")).toHaveCount(2);
   await expect(baseWorkspace(page).getByRole("button", { name: "할 일", exact: true })).toBeFocused();
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
