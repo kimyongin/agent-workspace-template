@@ -189,6 +189,7 @@ for (const width of [390, 1440]) {
     await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath(`settings-menu-${width}.png`) });
     await page.keyboard.press("Escape");
+    await openMainNavigation(page);
     await page.getByRole("button", { name: /^내 프로필/ }).click();
     await expect(page.locator('[role="menu"]')).toBeVisible();
     await page.screenshot({ path: info.outputPath(`profile-menu-${width}.png`) });
