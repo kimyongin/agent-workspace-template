@@ -116,7 +116,8 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   const ref = useRef<HTMLElement>(host);
   const desktopSlot = useRef<HTMLDivElement>(null);
   const mobileSlot = useRef<HTMLDivElement>(null);
-  const mobileContent = useRef<HTMLDivElement>(null);
+  const [mobileContent, setMobileContent] = useState<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = mobileContent;
   const bodyRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
@@ -184,7 +185,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
     returnFocus.current = document.activeElement;
     return () => { if (!tab && returnFocus.current instanceof HTMLElement && returnFocus.current.isConnected) returnFocus.current.focus(); };
   }, [active, !!tab]);
-  useSurfaceViewport(mobileContent);
+  useSurfaceViewport(viewportRef, mobileContent);
   const requestLeave = (destination:()=>void) => {
     if (busy || action?.busy) return;
     if (action) return action.onCancel();
@@ -223,7 +224,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   </>;
   return <SurfaceActionContext.Provider value={registerAction}><Dialog open={open && active && !dialogDocked} onOpenChange={next => { if (!next) requestClose(); }}>
     <div ref={desktopSlot} hidden={!dialogDocked || !active} role={dialogDocked ? "dialog" : undefined} aria-label={domain ? title : undefined} aria-labelledby={domain ? undefined : titleId} aria-describedby={description ? `${titleId}-description` : undefined} className="flex h-full min-h-0 flex-col" />
-    <DialogContent ref={mobileContent} showCloseButton={false} aria-label={domain ? title : undefined} aria-labelledby={titleId} aria-describedby={description ? `${titleId}-description` : undefined}
+    <DialogContent ref={setMobileContent} showCloseButton={false} aria-label={domain ? title : undefined} aria-labelledby={titleId} aria-describedby={description ? `${titleId}-description` : undefined}
       className="flex h-[min(48rem,calc(100dvh-2rem))] max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
       onOpenAutoFocus={event => { event.preventDefault(); initialFocus(); }}

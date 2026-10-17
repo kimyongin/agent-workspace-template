@@ -1,6 +1,6 @@
 import { type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { registerSurface } from "../lib/surface-dom.ts";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertAlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog.tsx";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog.tsx";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.tsx";
 import { Button } from "./ui/button.tsx";
 import { XIcon } from "lucide-react";
@@ -34,7 +34,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const body = useRef<HTMLDivElement>(null), heading = useRef<HTMLHeadingElement>(null), footerElement = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = root;
-  useSurfaceViewport(viewportRef);
+  useSurfaceViewport(viewportRef, root);
   const elements = useRef({ title, body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true });
   useLayoutEffect(() => { elements.current = { title, body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true }; });
   useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
@@ -54,7 +54,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
   </Dialog>;
 }
 
-export function useSurfaceViewport(ref: RefObject<HTMLElement | null>) {
+export function useSurfaceViewport(ref: RefObject<HTMLElement | null>, element?: HTMLElement | null) {
   useEffect(() => {
     const viewport = window.visualViewport;
     const resize = () => {
@@ -75,5 +75,5 @@ export function useSurfaceViewport(ref: RefObject<HTMLElement | null>) {
       viewport?.removeEventListener("resize", resize);
       viewport?.removeEventListener("scroll", resize);
     };
-  }, [ref]);
+  }, [ref, element]);
 }
