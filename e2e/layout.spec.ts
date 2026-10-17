@@ -162,45 +162,70 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
 
 });
 
-test("보조 글자와 상태 표시의 대비가 검수 목표 이상이다", async ({ page }) => {
+test("보조 글자와 상태 표시의 대비가 검수 목표 이상이다", async ({ page }, info) => {
   await devLogin(page);
-  const ratios = await page.evaluate(() => {
-    const css = getComputedStyle(document.documentElement);
-    const color = (name: string): number[] => {
-      const value = css.getPropertyValue(name).trim();
-      return value.startsWith("#") ? [0, 2, 4].map(i => parseInt(value.slice(i + 1, i + 3), 16)).concat(1)
-        : [...value.matchAll(/[\d.]+/g)].map(match => Number(match[0]));
-    };
-    const blend = (front: number[], back: number[]) => front.slice(0, 3).map((channel, i) => channel * (front[3] ?? 1) + back[i] * (1 - (front[3] ?? 1))).concat(1);
-    // Both gradient accents at their strongest gives a conservative backdrop
-    // for transparent surfaces, rather than treating rgba text as hex.
-    const backdrop = blend([38, 198, 218, 0.1], blend([255, 138, 0, 0.14], color("--background")));
-    const panel = blend(color("--panel"), backdrop);
-    const resolved = (name: string) => name === "--background" ? backdrop : name === "--panel" ? panel : name === "--input-surface" ? blend(color(name), panel) : color(name);
-    const lum = (rgb: number[]) => {
-      const [r, g, b] = rgb.slice(0, 3).map(channel => channel / 255)
-        .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    };
-    const ratio = (a: string, b: string) => {
-      const [x, y] = [lum(resolved(a)), lum(resolved(b))].sort((p, q) => q - p);
-      return (x + 0.05) / (y + 0.05);
-    };
-    return {
-      "ink/panel": ratio("--ink", "--panel"),
-      "muted-ink/panel": ratio("--muted-ink", "--panel"),
-      "muted-ink/background": ratio("--muted-ink", "--background"),
-      "accent/panel": ratio("--accent", "--panel"),
-      "danger/panel": ratio("--danger", "--panel"),
-      "success/panel": ratio("--success", "--panel"),
-      "warning/panel": ratio("--warning", "--panel"),
-      "accent-ink/accent": ratio("--accent-ink", "--accent"),
-      "control-border/input-surface": ratio("--control-border", "--input-surface"),
-    };
-  });
-  for (const [pair, r] of Object.entries(ratios)) {
-    // 일반 글자 4.5:1, 입력 경계는 3:1(docs/design/guide.md 접근성)
-    const target = pair.startsWith("control-border") ? 3 : 4.5;
-    expect(r, `${pair} ${r.toFixed(2)}`).toBeGreaterThanOrEqual(target);
-  }
+  const results: { label: string; ratio: number; foreground: string; background: number[]; target: number }[] = [];
+  const check = async (node: import("@playwright/test").Locator, label: string, boundary = false) => {
+    await expect(node).toBeVisible();
+    await expect(node).toBeEnabled();
+    const measured = await node.evaluate((element, boundary) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true })!;
+      // The browser resolves CSS Color 4 (including OKLCH) to sRGB; do not parse CSS numbers as RGB.
+      const rgba = (paint: string) => {
+        if (!CSS.supports("color", paint)) throw new Error(`Unsupported computed paint: ${paint}`);
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = paint;
+        context.fillRect(0, 0, 1, 1);
+        const channels = Array.from(context.getImageData(0, 0, 1, 1).data);
+        return [...channels.slice(0, 3), channels[3] / 255];
+      };
+      const blend = (front: number[], back: number[]) => front.slice(0, 3).map((channel, i) => channel * front[3] + back[i] * (1 - front[3])).concat(1);
+      const background = (node: Element | null) => {
+        const ancestors: Element[] = [];
+        for (let current = node; current; current = current.parentElement) ancestors.unshift(current);
+        return ancestors.reduce((paint, ancestor) => {
+          const style = getComputedStyle(ancestor);
+          if (style.backgroundImage !== "none" || Number(style.opacity) !== 1) throw new Error("Contrast probe requires the actual flat, fully opaque surface; inspect layered paint separately");
+          return blend(rgba(style.backgroundColor), paint);
+        }, [255, 255, 255, 1]);
+      };
+      const style = getComputedStyle(element);
+      const inside = background(element), outside = background(element.parentElement);
+      const foreground = boundary ? style.borderTopColor : style.color;
+      const painted = blend(rgba(foreground), boundary && style.backgroundClip !== "border-box" ? outside : inside);
+      const luminance = (color: number[]) => color.slice(0, 3).map(channel => channel / 255)
+        .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+        .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+      const ratio = (a: number[], b: number[]) => {
+        const [light, dark] = [luminance(a), luminance(b)].sort((a, b) => b - a);
+        return (light + 0.05) / (dark + 0.05);
+      };
+      return { ratio: boundary ? Math.min(ratio(painted, inside), ratio(painted, outside)) : ratio(painted, inside), foreground, background: inside };
+    }, boundary);
+    const target = boundary ? 3 : 4.5;
+    results.push({ label, ...measured, target });
+    expect.soft(measured.ratio, `${label}: ${measured.ratio.toFixed(2)}:1 (target ${target}:1)`).toBeGreaterThanOrEqual(target);
+  };
+  await page.goto("/entities");
+  await check(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true }), "App primary text");
+  // Existing public samples render the same official components, including all validation/status states.
+  await page.goto("/design-samples/index.html?content=1");
+  const buttons = page.getByRole("region", { name: "버튼", exact: true });
+  const forms = page.getByRole("region", { name: "폼과 상태", exact: true });
+  await check(buttons.getByRole("button", { name: "저장", exact: true }), "Primary button text");
+  await check(buttons.getByRole("button", { name: "연결 해제 예시", exact: true }), "Destructive button text");
+  await check(forms.getByText("목록에서 알아볼 수 있는 이름을 입력하세요.", { exact: true }), "Field help text");
+  await check(forms.getByRole("textbox", { name: "읽기 전용", exact: true }), "Readonly input text");
+  // Disabled controls and decorative section dividers are excluded by the guide; enabled input identity is not.
+  const input = forms.getByRole("textbox", { name: "상품명 (필수)", exact: true });
+  await check(input, "Enabled input boundary", true);
+  await forms.getByRole("button", { name: "입력 확인", exact: true }).click();
+  await check(forms.getByText("상품명을 입력하세요.", { exact: true }), "Validation error text");
+  await check(input, "Invalid input boundary", true);
+  await input.fill("대비 검수 상품");
+  await forms.getByRole("button", { name: "입력 확인", exact: true }).click();
+  await check(forms.getByRole("status").getByText("입력 조건을 충족합니다.", { exact: true }), "Success status text");
+  await info.attach("computed-contrast", { body: JSON.stringify(results, null, 2), contentType: "application/json" });
 });
