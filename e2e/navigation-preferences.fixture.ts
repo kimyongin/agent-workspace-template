@@ -221,10 +221,11 @@ test("shortcut search retains its query while external metadata reports a draft 
     channel.postMessage(id);
     channel.close();
   }, account.id);
-  await expect(section.getByRole("alert")).toContainText("다른 탭");
+  await expect(section.getByRole("alert", { includeHidden: true })).toContainText("다른 탭");
   await expect(control).toHaveValue("상품");
   await page.getByRole("option", { name: "상품", exact: true }).click();
   await expect(section.getByRole("button", { name: "상품 추가", exact: true })).toBeEnabled();
+  await expect(section.getByRole("alert")).toContainText("다른 탭");
   expect(state.writes).toEqual([]);
 });
 

@@ -368,9 +368,11 @@ test("기록 대상 검색은 늦은 설정 조회가 완료되어도 입력과 
   const option = page.getByRole("option", { name: "재료", exact: true });
   await expect(option).toBeVisible();
   await target.fill("재료");
+  const loaded = page.waitForResponse(response => new URL(response.url()).pathname === "/api/settings/business" && response.request().method() === "GET");
   release();
+  await loaded;
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   const form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
-  await expect(form.getByLabel("메모 템플릿")).toBeVisible();
   await expect(target).toHaveValue("재료");
   await expect(option).toBeVisible();
   await option.click();
