@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Locator, type Page, type Request } from "@playwright/test";
 
 /** Visible overlay boundaries include the visually retained editor behind a modal confirmation. */
 export const executionDialog = (page: Page) => page.getByRole("dialog").filter({ has: page.getByRole("button", {
@@ -46,16 +46,32 @@ export async function closeDetail(page: Page, title: string) {
 
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
 export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장", waitForWrite = true) {
-  const final = page.getByRole("dialog").getByRole("button", {
-    name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/,
+  const final = executionDialog(page).getByRole("button", {
+    name: /^(등록|수정|중단|재개|복원|식별 정보 변경|연결|해제)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/,
   });
   const requested = scope.getByRole("button", { name: label === "삭제 확인" ? "삭제하고 기록" : label, exact: true });
-  if (await final.isVisible()) await final.click();
-  else if (await requested.isVisible()) {
-    await requested.click();
-    if ((label === "저장" || label === "추가" || label === "변경") && await final.isVisible()) await final.click();
-  } else await final.click();
-  if (waitForWrite) await expect(executionDialog(page).getByRole("button", { disabled: true })).toHaveCount(0);
+  let write: Request | undefined, settled = false;
+  const started = (request: Request) => {
+    const path = new URL(request.url()).pathname;
+    if (!write && /\/api\//.test(path) && !["GET", "HEAD", "OPTIONS"].includes(request.method()) && !/\/(search|prepare)$/.test(path)) write = request;
+  };
+  const finished = (request: Request) => { if (request === write) settled = true; };
+  page.on("request", started); page.on("requestfinished", finished); page.on("requestfailed", finished);
+  try {
+    if (await final.isVisible()) await final.click();
+    else if (await requested.isVisible()) {
+      await requested.click();
+      // Preparation can mount a confirmation asynchronously. Background role hiding is not a save result.
+      await expect.poll(async () => !!write || await final.isVisible()).toBe(true);
+      if (await final.isVisible()) await final.click();
+    } else await final.click();
+    if (waitForWrite) {
+      await expect.poll(() => !!write && settled).toBe(true);
+      await expect(executionDialog(page).getByRole("button", { disabled: true })).toHaveCount(0);
+    }
+  } finally {
+    page.off("request", started); page.off("requestfinished", finished); page.off("requestfailed", finished);
+  }
 }
 
 export async function discardEditor(page: Page) {
