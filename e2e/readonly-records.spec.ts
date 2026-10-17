@@ -51,18 +51,22 @@ test("읽기·검색·세 탭 이동·상세 닫기는 계정 기록 원문과 �
     await page.goto("/tasks");
     await expect(page.getByRole("heading", { name: "할 일", level: 1 })).toBeVisible();
     const navigation = page.getByRole("navigation", { name: "주 메뉴" });
-    const navigateBuiltin = async (path: string) => {
+    const navigateBuiltin = async (path: string, label: string) => {
       await openMainNavigation(page);
-      await navigation.locator(`a[href="${path}"]`).click();
+      const link = navigation.getByRole("link", { name: label, exact: true });
+      await expect(link).toHaveAttribute("href", path);
+      await expect(link).toHaveAccessibleName(label);
+      await expect(link).toBeVisible();
+      await link.click();
     };
     for (const [name, path] of [["전체 자료", "/entities"], ["할 일", "/tasks"], ["기록", "/records"]]) {
       const response = page.waitForResponse(response => response.request().method() === "GET" && new URL(response.url()).pathname.endsWith(path));
-      await navigateBuiltin(path);
+      await navigateBuiltin(path, name);
       const read = await response;
       expect(read.ok()).toBe(true);await read.finished();
       await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
     }
-    await navigateBuiltin("/records");
+    await navigateBuiltin("/records", "기록");
     await expect(page.getByLabel("검색 방식", { exact: true })).toHaveCount(0);
     const search = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/search"));
     await page.getByLabel("검색어", { exact: true }).fill(title);
