@@ -46,6 +46,17 @@ export function createAndLinkEntity(d: CreateAndLinkDeps, a: Actor, raw: unknown
       }
       const single = def.ends[i.side].cardinality === "one";
       if (!single && i.previous_other_id !== null) throw invalidInput("복수 관계는 기존 연결을 교체하지 않습니다");
+      const [source] = await s.relations.endpoints([i.origin_id], false);
+      if (!source) throw notFound();
+      if (source.entity_type_id !== def.ends[i.side].type_id) {
+        throw invalidInput("원점 자료 종류와 관계 방향이 맞지 않습니다");
+      }
+      if (single) {
+        const current = await s.relations.linkedIds(def.id, i.side, i.origin_id);
+        if (current.length > 1 || (current[0] ?? null) !== i.previous_other_id) {
+          throw conflict("기존 연결이 변경되었습니다. 입력을 유지하고 현재 관계를 확인하세요");
+        }
+      }
       await s.prepare(def, i);
       const [origin] = await s.relations.endpoints([i.origin_id], false);
       if (!origin) throw notFound();

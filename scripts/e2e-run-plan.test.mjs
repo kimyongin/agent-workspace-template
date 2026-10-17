@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { e2eRunPlan, fixtureConfigs } from "./e2e-run-plan.mjs";
 test("all E2E retains nineteen sequential scopes and actual override changes only first", () => {
   const actual = new URL(import.meta.url).pathname;
-  assert.equal(e2eRunPlan([]).length, 19);
+  assert.equal(e2eRunPlan([]).length, 20);
   assert.deepEqual(e2eRunPlan(["--actual-config", actual]), [actual, ...fixtureConfigs]);
   assert.deepEqual(e2eRunPlan([]).slice(1), fixtureConfigs);
 });

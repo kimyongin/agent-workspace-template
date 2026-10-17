@@ -155,7 +155,7 @@ export function CreateRelatedEntityForm(
           onSaved(result);
         } catch (e) {
           if (e instanceof ApiError) {
-            const nested = e.fields.some((f) => f.path.startsWith("entity."));
+            const nested = e.fields.some((f) => f.path === "entity" || f.path.startsWith("entity."));
             if (!nested && (e.code === "settings_changed" || e.code === "conflict")) setContextChanged(true);
             throw new ApiError(
               e.status,
