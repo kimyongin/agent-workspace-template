@@ -754,6 +754,9 @@ test("mobile direct visit: related previous restores its source without stacked 
 
 
 test("related previous: an explicit new source replaces the single return target; selecting tabs does not",async({page})=>{
+  const cpu = await page.context().newCDPSession(page);
+  await cpu.send("Emulation.setCPUThrottlingRate", {rate: 4});
+  try {
   const state=await fixture(page);
   state.rows.entities[1].tasks={count:1,items:[state.rows.tasks[0]]};
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`); await openTask(page);
@@ -763,9 +766,15 @@ test("related previous: an explicit new source replaces the single return target
   await page.getByRole("tab",{name:"등심",exact:true}).click();
   await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
   await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
+  await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
+  // Re-selecting an already selected visit remains a history no-op.
+  const currentVisit = await page.evaluate(() => ({length: history.length, state: history.state}));
+  await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
+  expect(await page.evaluate(() => ({length: history.length, state: history.state}))).toEqual(currentVisit);
   await panel(page).getByRole("button",{name:"이전: 버섯",exact:true}).click();
   await expect(page.getByRole("tab",{name:"버섯",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(page.getByRole("tab")).toHaveCount(3); expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+  } finally { await cpu.detach(); }
 });
 
 
