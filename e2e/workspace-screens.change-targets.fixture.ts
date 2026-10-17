@@ -47,11 +47,11 @@ for (const kind of ["entity", "task"] as const) {
         const entities = form(page).getByRole("region", { name: "연결된 자료 (2개)", exact: true }),
           tasks = connectedTarget(page, "task");
         await expect(entities).toHaveCount(1);
-        await expect(entities.locator("[data-slot='item']")).toHaveCount(2);
-        await expect(tasks.locator("[data-slot='item']")).toHaveCount(1);
+        await expect(entities.getByRole("listitem")).toHaveCount(2);
+        await expect(tasks.getByRole("listitem")).toHaveCount(1);
         await expect(form(page).getByRole("heading", { name: /^변경 대상/ })).toHaveCount(0);
         const changed = kind === "entity" ? entities : tasks;
-        await expect(changed.locator("[data-slot='item']").filter({ hasText: "당시 대상" })).toHaveCount(1);
+        await expect(changed.getByRole("listitem").filter({ hasText: "당시 대상" })).toHaveCount(1);
         await changed.getByRole("button", { name: "당시 대상", exact: true }).click();
         await expect(entities.getByRole("button", { name: "다른 연결 엔터티", exact: true })).toHaveAttribute(
           "aria-expanded",

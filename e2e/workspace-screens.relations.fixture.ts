@@ -25,7 +25,7 @@ for (const width of [320, 390, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
     const section = form(page).getByRole("region", { name: "기록 (2개)", exact: true }),
-      rows = section.locator("[data-slot='item']");
+      rows = section.getByRole("listitem");
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("상담 판단 정리");
     await expect(rows.last().getByRole("button", { name: title, exact: true })).toHaveCount(1);
@@ -307,7 +307,7 @@ for (const kind of ["tasks", "records"] as const) {
     const result = form(page).getByRole("group", { name: "자료 검색 결과" });
     await result.getByRole("button", { name: "검색 대상 연결", exact: true }).click();
     const selected = form(page).getByRole("list", { name: "선택한 자료", exact: true });
-    await expect(selected.locator("[data-slot='item']")).toHaveCount(1);
+    await expect(selected.getByRole("listitem")).toHaveCount(1);
     expect((await selected.boundingBox())!.y).toBeGreaterThan((await search.boundingBox())!.y);
     await expect(executionDialog(page)).toHaveCount(0);
     expect(state.writes).toHaveLength(0);

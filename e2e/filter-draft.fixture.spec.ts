@@ -125,15 +125,23 @@ test("history synchronizes optional drafts and property rows keep their responsi
   await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
-    await expect.poll(async () => {
-      const property = await page.getByLabel("조건 1 속성", { exact: true }).boundingBox();
-      const comparison = await page.getByLabel("조건 1 비교", { exact: true }).boundingBox();
-      const value = await page.getByLabel("조건 1 값", { exact: true }).boundingBox();
-      const remove = await page.getByRole("button", { name: "조건 1 제거", exact: true }).boundingBox();
-      if (!property || !comparison || !value || !remove) return false;
-      return Math.abs(property.y - comparison.y) < 2 && Math.abs(property.y - remove.y) < 2 &&
-        (width < 768 ? value.y > property.y + 30 : Math.abs(property.y - value.y) < 2);
-    }).toBe(true);
+    const property = page.getByLabel("조건 1 속성", { exact: true });
+    const comparison = page.getByLabel("조건 1 비교", { exact: true });
+    const value = page.getByLabel("조건 1 값", { exact: true });
+    const remove = page.getByRole("button", { name: "조건 1 제거", exact: true });
+    for (const control of [property, comparison, value, remove]) {
+      await expect(control).toBeVisible();
+      const box = (await control.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
+    const sequence = await property.evaluate((node) => {
+      const row = node.closest("div:has(> button[aria-label='조건 1 제거'])") ?? node.parentElement!.parentElement!;
+      return [...row.querySelectorAll("input,select,button")].map(control => control.getAttribute("aria-label"));
+    });
+    expect(sequence).toEqual(["조건 1 속성", "조건 1 비교", "조건 1 값", "조건 1 제거"]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (test.info().project.name.includes("desktop")) {
       await page.screenshot({ path: test.info().outputPath(`${width}.png`), fullPage: true });

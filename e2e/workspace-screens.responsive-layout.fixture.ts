@@ -121,7 +121,7 @@ for (const width of [390, 1440]) {
     await expect(page.locator(`[id="entity-${entityKey(1)}"]`)).toBeFocused();
     await go(page, "/tasks");
     expect(
-      await page.getByRole("region", { name: "할 일 목록", exact: true }).locator("[data-slot='item']")
+      await page.getByRole("region", { name: "할 일 목록", exact: true }).getByRole("listitem")
         .first().evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft)),
     ).toBeGreaterThanOrEqual(12);
     await page.screenshot({ path: info.outputPath(`tab-activity-${width}.png`) });
@@ -149,7 +149,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]] as const
     ) {
       await go(page, `/${kind}`);
-      const row = page.getByRole("region", { name: / 목록$/ }).locator("[data-slot='item']").first(),
+      const row = page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first(),
         toggle = row.getByRole("button", { name: title, exact: true });
       await expect(toggle).toBeVisible();
       await expect(row.getByRole("link")).toHaveCount(0);
@@ -179,7 +179,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(toggle).toHaveAttribute("aria-expanded", "false");
     }
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-    const row = form(page).getByRole("region", { name: "할 일 (1개)" }).locator("[data-slot='item']");
+    const row = form(page).getByRole("region", { name: "할 일 (1개)" }).getByRole("listitem");
     await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toHaveCount(0);
     await expect(row.getByRole("button", { name: "할 일 해제", exact: true })).toHaveCount(0);
     await row.getByRole("button", { name: "할 일 열기", exact: true }).click();
@@ -312,9 +312,9 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const styles: string[] = [];
     for (const path of [`/entities/${encodeURIComponent(entityKey(1))}`, `/tasks/${t.id}`, `/records/${r.id}`]) {
       await go(page, path);
-      const links = form(page).locator("[data-slot='item']");
+      const links = form(page).getByRole("listitem");
       await expect(links).toHaveCount(2);
-      const lastRows = form(page).locator("[data-slot='item-group'] > li:last-child [data-slot='item']");
+      const lastRows = form(page).locator("[data-slot='item-group'] > li:last-child");
       await expect(lastRows).toHaveCount(2);
       for (const row of await lastRows.all()) await expect(row).toBeVisible();
       const first = links.first();
@@ -370,7 +370,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]]
     ) {
       await go(page, "/" + kind);
-      const row = page.getByRole("region", { name: / 목록$/ }).locator("[data-slot='item']").first();
+      const row = page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first();
       await expect(row).toBeVisible();
       const box = (await row.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(44);

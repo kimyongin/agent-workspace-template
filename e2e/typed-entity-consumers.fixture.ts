@@ -1,3 +1,4 @@
+import { chooseSetting } from "./settings-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
@@ -161,20 +162,19 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
 });
 test("template insertion uses selected type labels and immutable property keys", async ({ page }) => {
   await page.goto("/settings/records");
-  await page.getByLabel("대상", { exact: true }).selectOption(
-    `type:${fixtureType.id}`,
-  );
+  await chooseSetting(page, page.getByLabel("대상", { exact: true }), fixtureType.label);
   const form = page.getByRole("form", { name: "기록 자동 완성" });
   await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
-  await form.getByLabel("액션", { exact: true }).selectOption("update");
-  await form.getByLabel("변수 삽입", { exact: true }).selectOption("엔터티.이후.prop_2");
+  await chooseSetting(page, form.getByLabel("액션", { exact: true }), "수정");
+  await chooseSetting(page, form.getByLabel("변수 삽입", { exact: true }), "수량 · 이후");
   const memo = form.getByLabel("메모 템플릿", { exact: true });
   await expect(memo).toContainText("수량 · 이후");
   await expect(memo).not.toContainText("prop_");
   await expect(memo.locator('[data-memo-token="$엔터티.이후.prop_2$"]')).toHaveText("수량 · 이후");
-  await expect(form.getByLabel("변수 삽입", { exact: true }).locator('option[value="엔터티.이후.prop_2"]')).toHaveText(
-    "수량 · 이후",
-  );
+  const variables = form.getByLabel("변수 삽입", { exact: true });
+  await variables.fill("수량 · 이후");
+  await expect(page.getByRole("option", { name: "수량 · 이후", exact: true })).toBeVisible();
+  await variables.press("Escape");
 });
 
 test("numeric filter rejects a precision-losing draft without applying or clearing its input", async ({ page }) => {
@@ -208,7 +208,7 @@ test("entity numeric draft rejects precision loss before preparing a record and 
   const input = form.getByLabel("수량", { exact: false });
   await input.fill("9007199254740993");
   await form.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(form.getByRole("alert")).toContainText("입력을 확인하세요");
+  await expect(form.getByRole("alert").filter({ hasText: "입력을 확인하세요" })).toContainText("입력을 확인하세요");
   await expect(input).toHaveAttribute("aria-invalid", "true");
   await expect(form).toContainText("정밀도");
   await expect(input).toHaveValue("9007199254740993");
@@ -243,7 +243,9 @@ test(
     await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
     await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
     const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
-    await expect(form.getByText("제목 · 읽기 전용: Auto", { exact: true })).toBeVisible();
+    const title = form.getByRole("term", { name: "제목 · 읽기 전용", exact: true });
+    await expect(title).toBeVisible();
+    await expect(title.locator("..").getByRole("definition")).toHaveText("Auto");
     await form.screenshot({ path: testInfo.outputPath("readonly-representative-default.png") });
     await form.getByRole("button", { name: "저장", exact: true }).click();
     await expect.poll(() => preparedInputs.length).toBe(1);
