@@ -481,11 +481,13 @@ test("clean settings navigation proceeds while initial record templates are stil
 
 test("type selection remains scoped while a returned list catalog is loading", async ({ page }) => {
   const requestedTypes: (string | null)[] = [];
+  const writes: string[] = [];
   page.on("request", request => {
     const url = new URL(request.url());
     if (url.pathname === "/api/entities") requestedTypes.push(url.searchParams.get("entity_type_id"));
+    if (url.pathname.startsWith("/api/") && request.method() !== "GET") writes.push(`${request.method()} ${url.pathname}`);
   });
-  let reading = false, release!: () => void, started!: () => void;
+  let release!: () => void, started!: () => void;
   const hold = new Promise<void>((resolve) => {
       release = resolve;
     }),
@@ -517,10 +519,9 @@ test("type selection remains scoped while a returned list catalog is loading", a
     (route) => route.fulfill({ json: entity }),
   );
   await page.route("**/api/entity-types{,?**}", async (route) => {
-    if (reading) {
-      started();
-      await hold;
-    }
+    // The retained base must still be pending; a later refresh may retain ready data.
+    started();
+    await hold;
     return route.fulfill({ json: { items: [materials, products], next_cursor: null } });
   });
   try {
@@ -529,7 +530,6 @@ test("type selection remains scoped while a returned list catalog is loading", a
       `/entities/${encodeURIComponent(entity.id)}?list=${encodeURIComponent(list)}`,
     );
     await expect(page.getByRole("dialog", { name: "재료", exact: true })).toBeVisible();
-    reading = true;
     await closeDetail(page, entity.title);
     await arrived;
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${materials.id}`));
@@ -543,6 +543,7 @@ test("type selection remains scoped while a returned list catalog is loading", a
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveAttribute("aria-busy", "false");
     await expect.poll(() => requestedTypes.length).toBeGreaterThan(0);
     expect(requestedTypes.every(type => type === materials.id)).toBe(true);
+    expect(writes).toEqual([]);
   } finally {
     release();
   }
@@ -769,7 +770,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     await reading;
     const name = form.getByRole("textbox", { name: "이름 (필수)", exact: true });
     await name.fill("保持する下書き");
-    await expect(form.getByLabel("태그", { exact: true })).toHaveText("保留タグ");
+    await expect(form.getByLabel("태그", { exact: true }).filter({ visible: true })).toHaveText("保留タグ");
     await expect(form.getByRole("button", { name: "태그 선택", exact: true })).toHaveCount(0);
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await expect(form.getByRole("status").filter({ hasText: "자료 종류·자료 번호 설정을 읽는 중…" })).toBeVisible();
@@ -779,7 +780,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     release();
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
     await expect(name).toHaveValue("保持する下書き");
-    await expect(form.getByLabel("태그", { exact: true })).toHaveText("保留タグ");
+    await expect(form.getByLabel("태그", { exact: true }).filter({ visible: true })).toHaveText("保留タグ");
     await form.getByRole("button", { name: "저장", exact: true }).click();
     const confirmation = executionDialog(page);
     await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeEnabled();
@@ -804,7 +805,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
       properties: { prop_1: "保持する下書き" },
     });
     expect(writes[0]).not.toHaveProperty("tag_ids");
-    await expect(detailDialog(page).getByLabel("태그", { exact: true })).toHaveText("保留タグ");
+    await expect(detailDialog(page).getByLabel("태그", { exact: true }).filter({ visible: true })).toHaveText("保留タグ");
   } finally {
     release();
   }
