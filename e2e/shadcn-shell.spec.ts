@@ -61,6 +61,56 @@ test("shell mobile: nested confirmation, Escape and discard preserve the correct
   expect(state.errors).toEqual([]);
 });
 
+test("shell mobile: simulated visual viewport keeps confirmation actions visible and cancellation preserves the draft", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto(`/tasks/${id(2)}`);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const body = page.getByRole("textbox", { name: /^본문/ });
+  await body.fill("키보드가 열린 동안에도 유지할 초안");
+  const save = page.getByRole("button", { name: "저장", exact: true });
+  await save.click();
+  const confirmation = page.getByRole("dialog", { name: "수정하시겠습니까?", exact: true });
+  await expect(confirmation.getByRole("textbox", { name: "기록 메모", exact: true })).toBeVisible();
+  // Simulate an on-screen keyboard's visual rectangle without shrinking the layout viewport.
+  const viewportSimulation = await page.evaluateHandle(() => {
+    const viewport = window.visualViewport!;
+    const descriptors = ["height", "offsetTop"].map(key => [key, Object.getOwnPropertyDescriptor(viewport, key)] as const);
+    Object.defineProperty(viewport, "height", { configurable: true, get: () => 300 });
+    Object.defineProperty(viewport, "offsetTop", { configurable: true, get: () => 70 });
+    viewport.dispatchEvent(new Event("resize"));
+    return { restore() {
+      for (const [key, descriptor] of descriptors) {
+        if (descriptor) Object.defineProperty(viewport, key, descriptor);
+        else Reflect.deleteProperty(viewport, key);
+      }
+      viewport.dispatchEvent(new Event("resize"));
+    } };
+  });
+  try {
+    expect(await page.evaluate(() => window.innerHeight)).toBe(800);
+    await expect.poll(() => confirmation.evaluate(root => {
+      const viewport = window.visualViewport!;
+      const top = viewport.offsetTop, bottom = top + viewport.height;
+      const elements = [root, ...root.querySelectorAll('[data-slot="dialog-footer"] button')];
+      return elements.length === 3 && elements.every(element => {
+        const rect = element.getBoundingClientRect();
+        return rect.top >= top - 1 && rect.bottom <= bottom + 1;
+      });
+    })).toBe(true);
+    await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeVisible();
+    await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(body).toHaveValue("키보드가 열린 동안에도 유지할 초안");
+    await expect(save).toBeFocused();
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  } finally {
+    await viewportSimulation.evaluate(simulation => simulation.restore());
+    await viewportSimulation.dispose();
+  }
+});
+
 test("shell mobile: official navigation opens, follows a route and restores trigger focus", async ({ page }, info) => {
   await fixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
