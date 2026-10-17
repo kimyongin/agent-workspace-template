@@ -1,3 +1,5 @@
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 import { recordLabels, type RecordResult } from "@contracts/record.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -57,8 +59,8 @@ function SnapshotValue(
         {value.map((item, index) =>
           item !== null && typeof item === "object"
             ? (
-              <div key={index} className="key-value-full">
-                <p className="label">항목 {index + 1}</p>
+              <div key={index} className="col-span-full min-w-0">
+                <p className="text-sm font-medium">항목 {index + 1}</p>
                 <SnapshotValue value={item} />
               </div>
             )
@@ -81,28 +83,20 @@ function SnapshotValue(
         ): entry is [string, string] => typeof entry[1] === "string"),
       )
       : undefined;
-    const entries = Object.entries(value).filter(([key]) =>
-      key !== "property_labels"
-    );
+    const entries = Object.entries(value).filter(([key]) => key !== "property_labels");
     return entries.length
       ? (
-        <div className="key-value-grid">
+        <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
           {entries.map(([key, item]) => {
-            const label = (labels && Object.hasOwn(labels, key)
-              ? labels[key]
-              : undefined) ||
-              (Object.hasOwn(snapshotLabels, key)
-                ? snapshotLabels[key]
-                : undefined) ||
+            const label = (labels && Object.hasOwn(labels, key) ? labels[key] : undefined) ||
+              (Object.hasOwn(snapshotLabels, key) ? snapshotLabels[key] : undefined) ||
               (/^prop_[0-9]+$/.test(key) ? `항목 ${key.slice(5)}` : key);
             const nested = item !== null && typeof item === "object" &&
-              (!Array.isArray(item) || item.some((value) =>
-                value !== null && typeof value === "object"
-              ));
+              (!Array.isArray(item) || item.some((value) => value !== null && typeof value === "object"));
             return nested
               ? (
-                <div key={key} className="key-value-full">
-                  <p className="label">{label}</p>
+                <div key={key} className="col-span-full min-w-0">
+                  <p className="text-sm font-medium">{label}</p>
                   <SnapshotValue
                     value={item}
                     labels={key === "properties" ? captured : undefined}
@@ -111,7 +105,7 @@ function SnapshotValue(
                 </div>
               )
               : (
-                <dl key={key} className="key-value-static">
+                <dl key={key} className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
                   <div>
                     <dt>{label}</dt>
                     <dd>
@@ -159,7 +153,12 @@ export function ChangeContext(
     } 「${change.target_title}」`
     : null;
   const pair = (label: string, value: ReactNode, full = false) => (
-    <dl className={`key-value-static${full ? " key-value-full" : ""}`}>
+    <dl
+      className={cn(
+        "min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere",
+        full && "col-span-full",
+      )}
+    >
       <div>
         <dt>{label}</dt>
         <dd>{value}</dd>
@@ -167,7 +166,7 @@ export function ChangeContext(
     </dl>
   );
   const properties = (
-    <div className="key-value-grid">
+    <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
       {pair("종류", recordKindNames[record.record_kind] ?? "기록")}
       {change && pair("출처", change.source === "http" ? "웹" : "에이전트")}
       {occurredAt ??
@@ -191,28 +190,28 @@ export function ChangeContext(
   );
   if (compact) return properties;
   return (
-    <div className="detail-section record-context">
+    <div className="flex min-w-0 flex-col gap-4">
       {properties}
       {change && (
         <>
           {(change.before !== null || change.after !== null) && (
-            <details className="workspace-additional">
-              <summary>변경 전후 값</summary>
-              <div className="change-snapshot">
-                <section>
-                  <h3 className="section-title">변경 전</h3>
-                  {change.before === null
-                    ? <p>없음</p>
-                    : <SnapshotValue value={change.before} />}
-                </section>
-                <section>
-                  <h3 className="section-title">변경 후</h3>
-                  {change.after === null
-                    ? <p>없음</p>
-                    : <SnapshotValue value={change.after} />}
-                </section>
-              </div>
-            </details>
+            <Accordion type="single" collapsible defaultValue="change">
+              <AccordionItem value="change">
+                <AccordionTrigger>변경 전후 값</AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2">
+                    <section>
+                      <h4 className="text-base font-semibold">변경 전</h4>
+                      {change.before === null ? <p>없음</p> : <SnapshotValue value={change.before} />}
+                    </section>
+                    <section>
+                      <h4 className="text-base font-semibold">변경 후</h4>
+                      {change.after === null ? <p>없음</p> : <SnapshotValue value={change.after} />}
+                    </section>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           )}
         </>
       )}

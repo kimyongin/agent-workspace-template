@@ -11,12 +11,16 @@ export function RecordDataFields({ record, body, occurredAt }: {
 }) {
   return (
     <>
-      <section className="detail-section record-content">
+      <section className="flex min-w-0 flex-col gap-4">
         {body
-          ? <div className="key-value-grid">{body}</div>
+          ? (
+            <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+              {body}
+            </div>
+          )
           : (
-            <dl className="key-value-grid">
-              <div className="key-value-full">
+            <dl className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+              <div className="col-span-full min-w-0">
                 <dt>본문</dt>
                 <dd>
                   {record.body ? <MarkdownContent text={record.body} /> : "—"}

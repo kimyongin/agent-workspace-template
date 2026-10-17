@@ -1,3 +1,8 @@
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { FieldGroup } from "@/components/ui/field";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -24,22 +29,12 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
   const value = draft ?? task!;
   const recurrence = task?.recurrence;
   const freq = draft?.freq ?? recurrence?.freq;
-  const pair = (label: string, content: ReactNode, full = false) =>
-    draft
-      ? (
-        <dl className={`key-value-static${full ? " key-value-full" : ""}`}>
-          <div>
-            <dt>{label}</dt>
-            <dd>{content}</dd>
-          </div>
-        </dl>
-      )
-      : (
-        <div className={full ? "key-value-full" : undefined}>
-          <dt>{label}</dt>
-          <dd>{content}</dd>
-        </div>
-      );
+  const pair = (label: string, content: ReactNode, full = false) => (
+    <dl className={cn("flex min-w-0 flex-col gap-1", full && "col-span-full")}>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 wrap-anywhere">{content}</dd>
+    </dl>
+  );
   const field = (
     label: string,
     key: "title" | "body" | "due_on" | "month_days" | "starts_on" | "timezone",
@@ -49,7 +44,6 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
     <Field
       pair
       fullWidth={full}
-      className={key === "title" ? "key-value-primary" : ""}
       label={label}
       required={key === "title" || key === "starts_on" || key === "timezone"}
       error={errors[key]}
@@ -57,9 +51,8 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
       {(p) =>
         key === "body"
           ? (
-            <textarea
+            <Textarea
               {...p}
-              className="input"
               rows={8}
               value={draft!.body}
               onChange={(e) => set!({ body: e.target.value })}
@@ -74,9 +67,8 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
             />
           )
           : (
-            <input
+            <Input
               {...p}
-              className="input"
               type={type}
               value={draft![key]}
               onChange={(e) => set!({ [key]: e.target.value })}
@@ -84,12 +76,10 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
           )}
     </Field>
   );
-  const Grid = draft ? "div" : "dl";
+  const Grid = draft ? FieldGroup : "div";
   return (
-    <Grid className="key-value-grid">
-      {draft
-        ? field("제목", "title", "text", true)
-        : pair("제목", <DetailTitle>{value.title}</DetailTitle>, true)}
+    <Grid className={draft ? undefined : "@container grid min-w-0 gap-4 @min-[36rem]:grid-cols-2"}>
+      {draft ? field("제목", "title", "text", true) : pair("제목", <DetailTitle>{value.title}</DetailTitle>, true)}
       {draft ? field("본문", "body", "text", true) : pair(
         "본문",
         value.body ? <MarkdownContent text={value.body} /> : "—",
@@ -98,33 +88,27 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
       {task && pair(taskLabels.status, <StatusBadge status={task.status} />)}
       {task && pair(taskLabels.kind, taskLabels[task.kind])}
       {value.kind === "once"
-        ? draft
-          ? field(taskLabels.due_on, "due_on", "date")
-          : pair(taskLabels.due_on, task!.due_on ?? "—")
+        ? draft ? field(taskLabels.due_on, "due_on", "date") : pair(taskLabels.due_on, task!.due_on ?? "—")
         : (
           <>
             {draft
               ? (
                 <Field pair label={taskLabels.recurrence}>
                   {(p) => (
-                    <div
+                    <ToggleGroup
                       id={p.id}
-                      role="radiogroup"
+                      type="single"
+                      variant="outline"
+                      value={freq}
                       aria-label={taskLabels.recurrence}
-                      className="chips"
+                      onValueChange={(value) => {
+                        if (value) set!({ freq: value as TaskDraft["freq"] });
+                      }}
                     >
-                      {(["daily", "weekly", "monthly"] as const).map((f) => (
-                        <label key={f} className="chip choice-chip">
-                          <input
-                            type="radio"
-                            name="task-frequency"
-                            checked={freq === f}
-                            onChange={() => set!({ freq: f })}
-                          />
-                          {taskLabels[f]}
-                        </label>
+                      {(["daily", "weekly", "monthly"] as const).map((value) => (
+                        <ToggleGroupItem key={value} value={value}>{taskLabels[value]}</ToggleGroupItem>
                       ))}
-                    </div>
+                    </ToggleGroup>
                   )}
                 </Field>
               )
@@ -133,29 +117,19 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
               ? (
                 <Field pair label={taskLabels.weekdays} error={errors.weekdays}>
                   {(p) => (
-                    <div
+                    <ToggleGroup
                       id={p.id}
-                      className="chips"
-                      role="group"
+                      type="multiple"
+                      variant="outline"
+                      className="flex-wrap"
+                      value={draft.weekdays.map(String)}
                       aria-label={taskLabels.weekdays}
+                      onValueChange={(values) => set!({ weekdays: values.map(Number) })}
                     >
                       {WEEKDAYS.map((name, i) => (
-                        <button
-                          key={name}
-                          type="button"
-                          className="chip"
-                          aria-pressed={draft.weekdays.includes(i + 1)}
-                          onClick={() =>
-                            set!((d) => ({
-                              weekdays: d.weekdays.includes(i + 1)
-                                ? d.weekdays.filter((n) => n !== i + 1)
-                                : [...d.weekdays, i + 1],
-                            }))}
-                        >
-                          {name}
-                        </button>
+                        <ToggleGroupItem key={name} value={String(i + 1)}>{name}</ToggleGroupItem>
                       ))}
-                    </div>
+                    </ToggleGroup>
                   )}
                 </Field>
               )
@@ -169,20 +143,15 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
             {freq === "monthly" &&
               (draft ? field(taskLabels.month_days, "month_days") : pair(
                 taskLabels.month_days,
-                recurrence?.freq === "monthly"
-                  ? recurrence.month_days.join(", ")
-                  : "—",
+                recurrence?.freq === "monthly" ? recurrence.month_days.join(", ") : "—",
               ))}
             {draft
               ? field(taskLabels.starts_on, "starts_on", "date")
               : pair(taskLabels.starts_on, recurrence?.starts_on ?? "—")}
-            {draft
-              ? field(taskLabels.timezone, "timezone")
-              : pair(taskLabels.timezone, task?.timezone ?? "—")}
+            {draft ? field(taskLabels.timezone, "timezone") : pair(taskLabels.timezone, task?.timezone ?? "—")}
             {freq === "monthly" && (
-              <p className="help key-value-full">
-                해당 달에 없는 날짜는 마지막 날로 옮깁니다. 같은 날로 겹치면
-                회차 하나입니다.
+              <p className="col-span-full text-sm text-muted-foreground">
+                해당 달에 없는 날짜는 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다.
               </p>
             )}
           </>
