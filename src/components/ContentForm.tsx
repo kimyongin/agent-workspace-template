@@ -1,3 +1,4 @@
+import { firstField } from "../lib/surface-dom.ts";
 // 할 일·기록에서 함께 쓰는 내용 입력과 저장 실패·미저장 보호.
 import { useRecordConfirmation, type RecordMemo, type ConfirmationValue } from "./RecordConfirmation.tsx";
 import type { PrepareRecordMemo, PreparedRecordMemo } from "@contracts/record-preparation.ts";
@@ -125,6 +126,6 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
   useLayoutEffect(() => {
     if (!active && Object.keys(errors).length) document.getElementById(formId)?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
   }, [errors,formId,active]);
-  useLayoutEffect(() => { if(surface?.slot && open) surface.slot.querySelector<HTMLElement>("input,textarea,select,button")?.focus(); }, [surface?.slot,open]);
+  useLayoutEffect(() => { if(surface?.slot && open) (firstField(surface.slot) ?? surface.slot.querySelector<HTMLElement>("input,textarea,select,button"))?.focus(); }, [surface?.slot,open]);
   return surface ? surface.slot && open ? createPortal(form, surface.slot) : null : form;
 }

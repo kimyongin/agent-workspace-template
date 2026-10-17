@@ -3,6 +3,7 @@ import { changeEntityListQuery } from "../lib/entity-list-url.ts";
 import {
   type Dispatch,
   type ReactNode,
+  type RefObject,
   type SetStateAction,
   useCallback,
   useEffect,
@@ -21,7 +22,7 @@ export function clearListPosition(params: URLSearchParams) {
   return params;
 }
 /** Debounce only text; concurrent filter changes survive through the latest URL. */
-export function TabSearch({ entity = false }: { entity?: boolean }) {
+export function TabSearch({ entity = false, inputRef }: { entity?: boolean; inputRef?: RefObject<HTMLInputElement | null> }) {
   const [params, originalSetParams] = useSearchParams(), location = useLocation(), navigate = useNavigate();
   const latestLocation = useRef(location);
   latestLocation.current = location;
@@ -67,7 +68,7 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
             </svg>
             <input
               {...props}
-              ref={input}
+              ref={node => { input.current = node; if (inputRef) inputRef.current = node; }}
               className="input"
               value={draft}
               maxLength={entity ? 100 : 200}

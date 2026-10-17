@@ -1,3 +1,4 @@
+import { restoreScroll, scrollTop } from "../../lib/surface-dom.ts";
 import { useContext, useEffect, useMemo, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { WorkspaceContext } from "../details/workspace-context.ts";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
@@ -22,8 +23,7 @@ export function useRestoreListPosition(kind:ActivityListKind,ready:boolean) {
       const focus=target??document.getElementById(kind+"-title");
       focus?.focus({preventScroll:true});
       const y=Number(params.get("scroll"));
-      const container=target?.closest<HTMLElement>(".has-detail-panel .workspace-list");
-      if(params.has("scroll")&&Number.isFinite(y)&&y>=0){if(container)container.scrollTop=y;else window.scrollTo(0,y);}
+      if(params.has("scroll")&&Number.isFinite(y)&&y>=0){restoreScroll(target,y);}
       const rect=focus?.getBoundingClientRect();
       if(rect&&(rect.top<0||rect.bottom>innerHeight))focus?.scrollIntoView({block:"center"});
       restored.current=key;
@@ -59,8 +59,7 @@ export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityLis
     return {to:listDetailVisit(kind,location,id,0).to,onClick:(event:MouseEvent<HTMLAnchorElement>)=>{
       if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
       event.preventDefault();
-      const container=event.currentTarget.closest<HTMLElement>(".has-detail-panel .workspace-list");
-      const visit=listDetailVisit(kind,location,id,container?.scrollTop??window.scrollY);
+      const visit=listDetailVisit(kind,location,id,scrollTop(event.currentTarget));
       if(workspace){workspace.open(visit.to,{...location,...visit.origin});return;}
       void Promise.resolve(navigate(visit.back,{replace:true,preventScrollReset:true})).then(()=>navigate(visit.to,{state:null}));
     }};

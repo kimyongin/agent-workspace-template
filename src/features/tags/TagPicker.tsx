@@ -1,3 +1,4 @@
+import { scrollOwner, shiftScroll, surfaceFor } from "../../lib/surface-dom.ts";
 import type { TagResult } from "@contracts/tag.ts";
 import { createContext, type ReactNode, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
@@ -34,7 +35,7 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
   useLayoutEffect(() => {
     const saved = position.current;
     if (!saved || !saved.target.isConnected) return;
-    window.scrollBy(0, saved.target.getBoundingClientRect().top - saved.y);
+    shiftScroll(saved.target, saved.target.getBoundingClientRect().top - saved.y);
     if (saved.focus) saved.target.focus({ preventScroll: true });
     if (tags) position.current = null;
   }, [tags, failed]);
@@ -42,11 +43,13 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
     position.current = null;
     if (preserveListLayout) {
       const active = document.activeElement as HTMLElement | null;
-      const row = active?.closest(".list-item");
-      const target = (row?.querySelector(".item-title[id]") ??
-        Array.from(document.querySelectorAll<HTMLElement>(".list-item .item-title[id]")).find((el) => {
+      const row = active?.closest<HTMLElement>("[data-list-row]");
+      const owner = scrollOwner(active);
+      const bounds = owner?.getBoundingClientRect();
+      const target = (row?.querySelector<HTMLElement>("[data-list-anchor][id]") ??
+        Array.from((owner ?? document).querySelectorAll<HTMLElement>("[data-list-anchor][id]")).find((el) => {
           const r = el.getBoundingClientRect();
-          return r.bottom > 0 && r.top < innerHeight;
+          return !surfaceFor(el) && r.bottom > (bounds?.top ?? 0) && r.top < (bounds?.bottom ?? innerHeight);
         })) as HTMLElement | undefined;
       if (target) position.current = { target, y: target.getBoundingClientRect().top, focus: !!row };
     }

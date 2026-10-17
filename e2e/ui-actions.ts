@@ -1,17 +1,17 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
-/** A desktop visit closes through its tab; narrow screens keep the native dialog close control. */
+/** Close the visible visit through its available desktop tab or mobile dismissal. */
 export async function closeDetail(page: Page, title: string) {
-  const dialog = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+  const dialog = page.getByRole("dialog").filter({ visible: true }).filter({ has: page.getByRole("button", { name: /^(편집|저장)$/, exact: true }) });
   await expect(dialog).toBeVisible();
   const tabClose = page.getByRole("button", { name: `${title} 탭 닫기`, exact: true });
-  if (await dialog.evaluate((el) => el.classList.contains("detail-docked"))) await tabClose.click();
+  if (await tabClose.isVisible()) await tabClose.click();
   else await dialog.getByRole("button", { name: "닫기", exact: true }).click();
 }
 
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
 export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장", waitForWrite = true) {
-  const final = page.locator("dialog.modal-action[open]").getByRole("button", {
+  const final = page.getByRole("dialog").getByRole("button", {
     name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/,
   });
   const requested = scope.getByRole("button", { name: label === "삭제 확인" ? "삭제하고 기록" : label, exact: true });
@@ -20,19 +20,19 @@ export async function saveOnce(page: Page, scope: Page | Locator = page, label =
     await requested.click();
     if ((label === "저장" || label === "추가" || label === "변경") && await final.isVisible()) await final.click();
   } else await final.click();
-  if (waitForWrite) await expect(page.locator("dialog.modal-action[open] .modal-foot button:disabled")).toHaveCount(0);
+  if (waitForWrite) await expect(page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/ }) }).getByRole("button", { disabled: true })).toHaveCount(0);
 }
 
 export async function discardEditor(page: Page) {
-  if (await page.locator("dialog.modal-action[open]").isVisible()) {
+  if (await page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/ }) }).isVisible()) {
     await page.keyboard.press("Escape");
-    await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+    await expect(page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/ }) })).toHaveCount(0);
   }
   await page.keyboard.press("Escape");
 }
 
 export async function fillChangeMemo(page: Page, scope: Page | Locator, value: string) {
-  const memo = page.locator("dialog.modal-action[open]").getByLabel("기록 메모", { exact: true });
+  const memo = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/ }) }).getByLabel("기록 메모", { exact: true });
   if (!await memo.isVisible()) await scope.getByRole("button", { name: /^저장$|^추가$/ }).click();
   await memo.fill(value);
 }
@@ -67,12 +67,12 @@ export async function beginTabAction(page: Page, label: string) {
 
 /** Enter editing through the viewer, keeping the dialog and navigation context. */
 export async function openDetailEditor(page: Page) {
-  await page.locator("dialog.modal:not(.modal-confirm)[open]:visible").getByRole("button", {
+  await page.getByRole("dialog").filter({ visible: true }).filter({ has: page.getByRole("button", { name: /^(편집|저장)$/, exact: true }) }).getByRole("button", {
     name: "편집",
     exact: true,
   }).click();
   await expect(
-    page.locator("dialog.modal:not(.modal-confirm)[open]:visible").getByRole("button", { name: "저장", exact: true }),
+    page.getByRole("dialog").filter({ visible: true }).filter({ has: page.getByRole("button", { name: /^(편집|저장)$/, exact: true }) }).getByRole("button", { name: "저장", exact: true }),
   ).toBeVisible();
 }
 

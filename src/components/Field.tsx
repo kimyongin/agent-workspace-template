@@ -10,7 +10,7 @@ interface FieldProps {
   required?: boolean;
   help?: string;
   error?: string;
-  children: (props: { id: string; "aria-describedby"?: string; "aria-invalid"?: boolean }) => ReactNode;
+  children: (props: { id: string; "data-field-control": ""; "aria-describedby"?: string; "aria-invalid"?: boolean }) => ReactNode;
 }
 
 export function Field(
@@ -31,14 +31,14 @@ export function Field(
       {pair
         ? (
           <div className="field-value">
-            {children({ id, "aria-describedby": describedBy, "aria-invalid": error ? true : undefined })}
+            {children({ id, "data-field-control": "", "aria-describedby": describedBy, "aria-invalid": error ? true : undefined })}
             {help && <p id={helpId} className="help" style={{ margin: 0 }}>{help}</p>}
             {error && <p id={errorId} className="error-text" style={{ margin: 0 }}>{error}</p>}
           </div>
         )
         : (
           <>
-            {children({ id, "aria-describedby": describedBy, "aria-invalid": error ? true : undefined })}
+            {children({ id, "data-field-control": "", "aria-describedby": describedBy, "aria-invalid": error ? true : undefined })}
             {help && <p id={helpId} className="help" style={{ margin: 0 }}>{help}</p>}
             {error && <p id={errorId} className="error-text" style={{ margin: 0 }}>{error}</p>}
           </>
