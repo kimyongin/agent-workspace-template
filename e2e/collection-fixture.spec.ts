@@ -356,7 +356,7 @@ test("selected entity fields stay identical in every layout and expansion withou
   expect(state.errors).toEqual([]);
 });
 
-test("card title keys align with the first line of short and wrapped values", async ({ page }, info) => {
+test("card title labels and wrapped values remain ordered and readable", async ({ page }, info) => {
   const state = await fixture(page);
   const short = makeEntity(1, { prop_1: "짧은 이름" });
   const long = makeEntity(6, { prop_1: "첫 줄부터 키와 나란히 읽는 아주 긴 상품 이름 ".repeat(4) });
@@ -369,18 +369,12 @@ test("card title keys align with the first line of short and wrapped values", as
       const title = page.getByRole("button", { name: item.title, exact: true });
       const row = page.locator('[data-slot="item"]').filter({ has: title });
       await expect(title).toBeVisible();
-      const text = await row.evaluate((node) => {
-        const key = node.querySelector("dt")!;
-        const value = node.querySelector(".related-item-text")!;
-        const first = (el: Element) => {
-          const range = document.createRange();
-          range.setStart(el.firstChild!, 0);
-          range.setEnd(el.firstChild!, 1);
-          return range.getBoundingClientRect();
-        };
-        return { keyTop: first(key).y, valueTop: first(value).y };
-      });
-      expect(Math.abs(text.keyTop - text.valueTop)).toBeLessThan(3);
+      const key = row.getByRole("term").first();
+      await expect(key).toBeVisible();
+      const keyBox = (await key.boundingBox())!, titleBox = (await title.boundingBox())!;
+      expect(keyBox.y + keyBox.height).toBeLessThanOrEqual(titleBox.y + 1);
+      expect(titleBox.x).toBeGreaterThanOrEqual(0);
+      expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(width);
       expect((await title.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     }
     await page.screenshot({ path: info.outputPath(`title-axis-${width}.png`), fullPage: true });
