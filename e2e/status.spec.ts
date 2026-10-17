@@ -116,7 +116,7 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트
         await expect(region.locator("time")).toHaveText(chosen.date);
         for (const [label, value] of Object.entries(metrics[i](chosen))) {
           const row = detail.getByRole("row").filter({
-            has: detail.getByRole("rowheader", { name: label, exact: true }),
+            has: page.getByRole("rowheader", { name: label, exact: true }),
           });
           await expect(row.getByRole("cell")).toHaveText(
             value.replace(/(\d+)건/, (_, n) => `${Number(n).toLocaleString("ko-KR")}건`),
