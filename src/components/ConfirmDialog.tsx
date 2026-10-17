@@ -62,7 +62,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
   return <PopupContainerContext.Provider value={root}><Dialog open={open} onOpenChange={next => { if (!next) cancel(); }}>
     <DialogContent ref={setRoot} aria-modal={true} showCloseButton={false} aria-describedby={undefined}
       className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
-      style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)" }}
+      style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
       onOpenAutoFocus={event => {
         origin.current = returnFocus ?? captureFocusOrigin(document.activeElement);
         const field = firstField(body.current);
