@@ -929,8 +929,17 @@ test(
       "보관 자료 (보관)",
     ]);
 
+    await page.screenshot({ path: info.outputPath("material-settings-toolbar.png"), fullPage: true });
     for (const width of [320, 390, 768]) {
       await page.setViewportSize({ width, height: 900 });
+      const relation = page.locator(".material-settings-toolbar").getByRole("link", {
+        name: "이 자료의 관계 설정",
+        exact: true,
+      });
+      await expect(relation).toHaveAttribute("href", `/settings/relations?type_id=${materials.id}`);
+      const relationBox = (await relation.boundingBox())!;
+      expect(relationBox.width).toBeGreaterThanOrEqual(44);
+      expect(relationBox.height).toBeGreaterThanOrEqual(44);
       const names = ["기본 정보", "식별자", "입력 항목", "변경 이력"];
       const boxes = [];
       for (const name of names) {
