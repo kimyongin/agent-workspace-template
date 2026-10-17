@@ -3,12 +3,12 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { RecordRelations } from "./RecordRelations.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
-import { ChangeContext, type WorkspaceRecord } from "./ChangeContext.tsx";
+import { type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
-import { MarkdownContent } from "../../components/MarkdownContent.tsx";
+import { RecordDataFields } from "./RecordDataFields.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
@@ -51,18 +51,20 @@ export function RecordDetailPage() {
 
       {message && <Notice kind="success">{message}</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
-      <ChangeContext record={record}/>
+      <RecordDataFields record={record}/>
       {loadError && <><Notice kind="error">{loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
       <TagConnections scope="record" target={record} readonly={record.record_kind === "change"} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
 
     </div>;
-  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="기록" description="기록 내용을 읽고 수정하며, 연결된 업무를 확인합니다." tabTitle={recordDisplayText(record.body)} onClose={()=>navigate(back)} busy={busy}>
+  return <DetailSurface onError={detail.failed} footer={<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="기록" description="기록 내용을 읽고 수정하며, 연결된 업무를 확인합니다." tabTitle={recordDisplayText(record.body)} onClose={()=>navigate(back)} busy={busy}>
 
-      <div className="detail-stack">{record.body&&<section className="detail-section record-content" aria-label="내용"><MarkdownContent text={record.body}/></section>}
+      <div className="detail-stack">
       {management}
       <div className="detail-relations"><RecordRelations record={record}/></div></div>
       {editor.active && editReady && (
         <RecordFormModal
+          record={record}
+          details={<div className="detail-relations"><RecordRelations readOnly record={record}/></div>}
           editing systemRecord={record.record_kind==="change"}
           title="기록 편집"
           submitLabel="저장"

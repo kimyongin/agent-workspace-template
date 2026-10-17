@@ -721,7 +721,7 @@ textarea.input {
 .modal-head .modal-icon { width: 44px; height: 44px; padding: 0; font-size: 1.5rem; text-decoration: none; display: inline-flex; justify-content: center; align-items: center; }
 .modal-foot { flex-wrap: wrap; }
 .modal-foot[hidden] { display: none; }
-.record-content .markdown { color: var(--ink); font-size: var(--text-body); line-height: 1.5rem; }
+.record-content .markdown { color: var(--ink); font-size: inherit; line-height: 1.5rem; }
 .record-context { display: grid; gap: var(--space-5); }
 
 
