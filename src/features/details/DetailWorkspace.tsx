@@ -34,7 +34,9 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   }, [desktopQuery]);
   const desktop = useSyncExternalStore(subscribeDesktop, () => desktopQuery.matches, () => false);
   const eligible = enabled && (workspaceBase(location.pathname) || !!detailIdentity(location.pathname));
-  const [started, setStarted] = useState(eligible && (desktop || materialSettingsBase(location.pathname)));
+  // Settings and other base pages keep one parent when a mobile screen grows into the split layout.
+  const retainedBase = workspaceBase(location.pathname) && !workspaceList(location.pathname);
+  const [started, setStarted] = useState(eligible && (desktop || retainedBase));
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [visible, setVisible] = useState(true);
@@ -75,7 +77,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     if (!eligible) { setTabs([]); setActive(null); setStarted(false); return; }
     // Do not reparent a mobile form while its native dialog owns an unfinished visit.
     if (!started) {
-      if ((!desktop && !materialSettingsBase(location.pathname)) || document.querySelector("dialog.modal[open]")) return;
+      if ((!desktop && !retainedBase) || document.querySelector("dialog.modal[open]")) return;
       setStarted(true);
     }
     const id = detailIdentity(location.pathname);
@@ -100,7 +102,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     setTabs(previous => previous.some(tab => tab.id === id)
       ? previous.map(tab => tab.id === id && href(tab.location) !== href(location) ? { ...tab, location } : tab)
       : [...previous, { id, location, title: kindLabels[id.split("/")[1]], returnTo: typeof location.state?.workspaceReturnTo === "string" && previous.some(value => value.id === location.state.workspaceReturnTo) ? location.state.workspaceReturnTo : undefined }]);
-  }, [location, eligible, desktop, started]);
+  }, [location, eligible, desktop, started, retainedBase]);
 
   // Related visits remember only their starting tab, never a growing history of cross-links.
   const returnTarget = (origin: Location, target: string | null) => {
@@ -193,8 +195,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     });
     return () => cancelAnimationFrame(frame);
   }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef, base.hash]);
-  // Material editors use this same retained parent on the first authenticated render and after startup commits.
-  if ((!started && !materialSettingsBase(location.pathname)) || !eligible) return children;
+  // Base editors use the same retained parent on the first authenticated render and after startup commits.
+  if ((!started && !retainedBase) || !eligible) return children;
   return <WorkspaceContext.Provider value={{ revision, navigationKey: location.key, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
     <div className="workspace-list" ref={listRef}>{render(base)}
       {desktop && !visible && tabs.length > 0 && <button className="btn workspace-reopen" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</button>}

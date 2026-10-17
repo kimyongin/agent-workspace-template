@@ -1138,3 +1138,18 @@ test("desktop: closing the last detail retains the dirty base setting without a 
   await expect(nickname).toHaveValue("마지막 상세를 닫아도 유지");
   await expect(page.getByRole("tab")).toHaveCount(0);
 });
+
+test("mobile settings: widening into the desktop workspace retains the original draft", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const state = await fixture(page);
+  await page.goto("/settings");
+  const nickname = page.getByLabel("닉네임", { exact: true });
+  await nickname.fill("화면 크기를 바꿔도 유지할 초안");
+  await page.screenshot({ path: info.outputPath("mobile-settings-draft.png") });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator(".workspace-list")).toBeVisible();
+  await expect(nickname).toHaveValue("화면 크기를 바꿔도 유지할 초안");
+  await page.setViewportSize({ width: 390, height: 900 });
+  await expect(nickname).toHaveValue("화면 크기를 바꿔도 유지할 초안");
+  expect(state.writes).toEqual([]);
+});
