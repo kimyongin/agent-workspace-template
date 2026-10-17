@@ -510,7 +510,7 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
   await expect(form.getByLabel("이름", { exact: false })).toHaveValue(title);
 });
 
-test("five settings workspaces retain real API selections and stay within the viewport", async ({ page }, info) => {
+test("seven settings workspaces retain real API selections and stay within the viewport", async ({ page }, info) => {
   await devLogin(page);
   for (
     const [path, title] of [
@@ -519,13 +519,28 @@ test("five settings workspaces retain real API selections and stay within the vi
       ["/settings/tags", "태그 설정"],
       ["/settings/records", "기록 설정"],
       ["/settings/issuers", "발급처 설정"],
+      ["/settings/relations", "자료 관계 설정"],
+      ["/settings/data-model", "자료 모델"],
     ]
   ) {
     await page.goto(path);
     await expect(page.getByRole("heading", { name: title, exact: true, level: 1 })).toBeVisible();
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
     const menu = page.getByRole("navigation", { name: "설정 메뉴", exact: true });
-    await expect(menu.getByRole("link")).toHaveCount(5);
+    const destinations = [
+      ["기본", "/settings"],
+      ["자료", "/settings/materials"],
+      ["자료 모델 가져오기·내보내기", "/settings/data-model"],
+      ["자료 관계", "/settings/relations"],
+      ["태그", "/settings/tags"],
+      ["기록", "/settings/records"],
+      ["발급처", "/settings/issuers"],
+    ] as const;
+    await expect(menu.getByRole("link")).toHaveCount(7);
+    await expect(menu.getByRole("link")).toHaveText(destinations.map(([label]) => label));
+    for (const [label, href] of destinations) {
+      await expect(menu.getByRole("link", { name: label, exact: true })).toHaveAttribute("href", href);
+    }
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).press("Escape");
     if (title === "자료 설정") {
       const identity = page.getByRole("region", { name: "식별자", exact: true });
