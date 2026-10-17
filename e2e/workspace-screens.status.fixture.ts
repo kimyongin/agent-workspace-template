@@ -11,7 +11,7 @@ function overview(): StatusOverview {
     entities: { total: 1234567, active: 1234567, deleted: 0 },
     tasks: { total: 9, open: 2, done: 3, active: 4, stopped: 0 },
     records: { total: 7, user: 2, result: 4, change: 1 },
-    indexing: { total: 7, indexed: 3, preparing: 2, attention: 1, excluded: 1 },
+    indexing: { total: 7, indexed: 3, preparing: 2, attention: 1, excluded: 1, waiting:{long_waiting:0,oldest_waiting_since:null,threshold_minutes:15} },
     daily: [0, 1, 2].map((n) => ({
       date: `2026-10-${14 + n}`,
       entities_created: n === 2 ? 1234567 : n,
