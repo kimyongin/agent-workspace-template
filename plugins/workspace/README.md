@@ -53,7 +53,7 @@ Git source로 등록한 marketplace만 `codex plugin marketplace upgrade workspa
 ```powershell
 node scripts/check-plugin.mjs
 node --test scripts/check-plugin.test.mjs
-node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.8.0.zip
+node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.9.0.zip
 ```
 
 명령은 저장소 루트에서 실행한다. ZIP과 옆의 `.json` 증거는 저장소 밖에 쓴다. 파일 순서·ZIP 시각을 고정해 같은 원본은 같은 SHA-256을 만든다. 증거에 버전, endpoint, 도구 목록, 서버 도구 원본 해시와 각 패키지 파일 해시가 들어간다. 서버 원본의 해시는 실제 운영 revision 확인을 대신하지 않는다. 운영에서 아직 배포하지 않은 도구는 연결된 서버에서 사용할 수 없다.
