@@ -35,7 +35,7 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await expect(page.getByRole("heading", { name: label, level: 1, exact: true })).toBeVisible();
     await page.getByRole("button", { name: `${label} 추가`, exact: true }).click();
     const form = page.getByRole("dialog", { name: `${label} 추가`, exact: true });
-    await expect(form.getByLabel("자료 종류", { exact: true })).toHaveValue(typeId!);
+    await expect(form.getByLabel("자료 종류", { exact: true })).toHaveValue(label);
     await form.getByLabel("이름", { exact: false }).fill(title);
     await expect(form.getByText("등록 시 자동 발급", { exact: true })).toBeVisible();
     await saveOnce(page, form);
