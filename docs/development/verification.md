@@ -124,6 +124,8 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 
 ### 격리 브라우저 검사의 실행 범위
 
+공통 모달·설정 화면을 독립 data-router에서 실행하는 fixture도 실제 앱과 같은 `NavigationProtection`을 라우트 안의 공통 부모에 둔다. 라우터 차단 지점은 하나이며 각 화면의 보호 요청을 등록한다.
+
 실제 계정·DB를 쓰는 `playwright.config.ts`는 worker 1개로 실행한다. 페이지/브라우저 context별로 Auth·API 응답과 자료를 격리한 설정은 `fullyParallel`과 worker 3개를 사용한다. 설정 사이의 실행은 계속 순차적이다. activity와 screens처럼 Vite 포트를 공유하는 설정을 동시에 시작하지 않는다.
 
 | 설정 | 소유하는 검사와 변이 |

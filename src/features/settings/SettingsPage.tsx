@@ -1,9 +1,9 @@
+import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { NavigationSettings } from "./NavigationSettingsPage.tsx";
 import { SettingsHeading } from "./SettingsHeading.tsx";
 import { Field } from "../../components/Field.tsx";
 import { TimezoneSelect } from "../../components/TimezoneSelect.tsx";
 import { useEffect, useRef, useState } from "react";
-import { useBlocker } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { ProfileDisplayRefreshError } from "../auth/profile-client.ts";
@@ -62,7 +62,7 @@ function AccountSettings() {
   }, [saved.icon, saved.nickname, saved.timezone, saved.desktopDisplayScale, saved.mobileDisplayScale]);
   const anyBusy = saving !== null || navigationState.busy;
   const anyDirty = dirty || navigationState.dirty;
-  const blocker = useBlocker(anyDirty || anyBusy);
+  const blocker = usePageNavigationBlocker(anyDirty, anyBusy);
   useEffect(() => {
     if (anyBusy && blocker.state === "blocked") blocker.reset();
   }, [anyBusy, blocker]);

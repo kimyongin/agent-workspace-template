@@ -1,3 +1,4 @@
+import { NavigationProtection } from "../lib/navigation-protection.tsx";
 import { DataModelSettings } from "../features/settings/DataModelSettings.tsx";
 import { RelationSettingsPage } from "../features/settings/RelationSettingsPage.tsx";
 import { PageHeading } from "../components/PageHeading.tsx";
@@ -63,9 +64,11 @@ function Layout() {
           key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}
           scope={session?.user.id ?? "signed-out"}
         >
-          <DetailWorkspace enabled={!!session} render={(location) => <WorkspaceRoutes location={location} />}>
-            <Outlet />
-          </DetailWorkspace>
+          <NavigationProtection>
+            <DetailWorkspace enabled={!!session} render={(location) => <WorkspaceRoutes location={location} />}>
+              <Outlet />
+            </DetailWorkspace>
+          </NavigationProtection>
         </DetailNavigationProvider>
       </main>
       {session && <Navigation brand={APP_NAME} navigationRef={navigation.ref} />}
@@ -86,6 +89,22 @@ const workspaceRoutes = [
   { path: "status", element: <StatusPage /> },
 ];
 
+const baseRoutes = [
+  ...workspaceRoutes,
+  { path: "tags", element: <TagsPage /> },
+  { path: "tags/:scope", element: <TagsPage /> },
+  { path: "tags/:scope/:id", element: <TagsPage /> },
+  { path: "guide", element: <GuidePage /> },
+  { path: "settings/navigation", element: <Navigate to="/settings#settings-navigation" replace /> },
+  { path: "settings/data-model", element: <DataModelSettings /> },
+  { path: "settings/relations", element: <RelationSettingsPage /> },
+  { path: "settings/issuers", element: <IssuerSettingsPage /> },
+  { path: "settings/records", element: <RecordSettingsPage /> },
+  { path: "settings", element: <SettingsPage /> },
+  { path: "settings/tags", element: <TagSettingsPage /> },
+  { path: "settings/entity-identity", element: <Navigate to="/settings/issuers" replace /> },
+];
+
 const materialSettingsRoutes = [
   "settings/entity-types",
   "settings/entity-types/:type_id",
@@ -101,7 +120,7 @@ const materialSettingsRoutes = [
 function WorkspaceRoutes({ location }: { location: Location }) {
   return (
     <Routes location={location}>
-      {workspaceRoutes.map((route) => <Route key={route.path} {...route} />)}
+      {baseRoutes.map((route) => <Route key={route.path} {...route} />)}
       {materialSettingsRoutes.map((path) => <Route key={path} path={path} element={<EntityTypeSettings />} />)}
     </Routes>
   );
@@ -118,28 +137,13 @@ export function App() {
           {/* 세션 해제 뒤 next=/logout으로 재로그인하는 루프를 만들지 않는다. */}
           <Route path="logout" element={<LogoutPage />} />
           <Route path="oauth/consent" element={guarded(<ConsentPage />)} />
-          {workspaceRoutes.map((route) => (
+          {baseRoutes.map((route) => (
             <Route
               key={route.path}
               path={route.path}
               element={guarded(route.element)}
             />
           ))}
-          <Route path="tags" element={guarded(<TagsPage />)} />
-          <Route path="tags/:scope" element={guarded(<TagsPage />)} />
-          <Route path="tags/:scope/:id" element={guarded(<TagsPage />)} />
-          <Route path="guide" element={guarded(<GuidePage />)} />
-          <Route path="settings/navigation" element={guarded(<Navigate to="/settings#settings-navigation" replace />)} />
-          <Route path="settings/data-model" element={guarded(<DataModelSettings />)} />
-          <Route path="settings/relations" element={guarded(<RelationSettingsPage />)} />
-          <Route path="settings/issuers" element={guarded(<IssuerSettingsPage />)} />
-          <Route path="settings/records" element={guarded(<RecordSettingsPage />)} />
-          <Route path="settings" element={guarded(<SettingsPage />)} />
-          <Route path="settings/tags" element={guarded(<TagSettingsPage />)} />
-          <Route
-            path="settings/entity-identity"
-            element={guarded(<Navigate to="/settings/issuers" replace />)}
-          />
           {materialSettingsRoutes.map((path) => (
             <Route key={path} path={path} element={guarded(<EntityTypeSettings />)} />
           ))}

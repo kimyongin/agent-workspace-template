@@ -1,5 +1,6 @@
+import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useBlocker } from "react-router";
+import { Link } from "react-router";
 import type { DataModelDocument, ModelChange, ModelReview } from "@contracts/data-model.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
@@ -305,7 +306,7 @@ export function DataModelSettings() {
     (removeKeys[item.ref]?.length !== item.removed_keys.length ||
       item.removed_keys.some((key) => !removeKeys[item.ref].includes(key)))
   );
-  const blocker = useBlocker(dirty || groupDirty || busy || uncertain || groupUncertain || reading || groupBusy);
+  const blocker = usePageNavigationBlocker(dirty || groupDirty, busy || uncertain || groupUncertain || reading || groupBusy);
   useEffect(() => {
     if ((busy || reading || groupBusy) && blocker.state === "blocked") blocker.reset();
   }, [busy, reading, groupBusy, blocker]);

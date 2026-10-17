@@ -254,6 +254,6 @@ test("재시도의 접수 응답은 작업 상세로 취급하지 않고 조회�
   await expect(page.getByRole("status")).toContainText("실패");
   await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("접수");
-  await expect(page.getByText(/작업 30의 수정·삭제·설정 게시/)).toBeVisible();
+  await expect(page.getByText(/작업 30의 수정·삭제·설정 적용/)).toBeVisible();
   await expect(page.getByRole("button", { name: "변환 취소", exact: true })).toBeVisible();
 });

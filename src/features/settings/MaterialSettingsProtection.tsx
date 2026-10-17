@@ -1,5 +1,5 @@
+import { useNavigationBlocker } from "../../lib/navigation-protection.tsx";
 import { useContext, useEffect, useId, useRef } from "react";
-import { useBlocker } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { detailIdentity, materialSettingsBase, WorkspaceContext } from "../details/workspace-context.ts";
 
@@ -38,7 +38,7 @@ function LocalProtection(
     allows: (path: string, search?:string) => boolean;
   },
 ) {
-  const blocker = useBlocker(({ nextLocation }) => dirty && !allows(nextLocation.pathname,nextLocation.search));
+  const blocker = useNavigationBlocker(({ nextLocation }) => (busy || dirty && !allows(nextLocation.pathname,nextLocation.search)), busy);
   useEffect(() => {
     if (busy && blocker.state === "blocked") blocker.reset();
   }, [busy, blocker]);

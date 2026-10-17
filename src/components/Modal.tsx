@@ -1,7 +1,7 @@
 // Native dialogs use showModal for mobile/confirmation and show for the docked desktop detail.
 // Escape·닫기는 같은 미저장 보호를 거치며 배경 클릭으로 초안을 버리지 않는다(docs/design/ui-patterns.md).
+import { useNavigationBlocker } from "../lib/navigation-protection.tsx";
 import { createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { useBlocker } from "react-router";
 import { createPortal } from "react-dom";
 import { ConfirmDialog, ConfirmationSurface, useSurfaceViewport } from "./ConfirmDialog.tsx";
 export { ConfirmDialog } from "./ConfirmDialog.tsx";
@@ -239,7 +239,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
 
 /** Standalone pending mutation guard; general surfaces already own their router guard. */
 function LocalModalRouteProtection({ shouldBlock, busy, discard }: { shouldBlock: () => boolean; busy: boolean; discard: () => void }) {
-  const blocker = useBlocker(shouldBlock);
+  const blocker = useNavigationBlocker(shouldBlock, busy);
   useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
   return <ConfirmDialog open={!busy && blocker.state === "blocked"} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기"
     onConfirm={() => { if (blocker.state === "blocked") { discard(); blocker.proceed(); } }}
@@ -248,7 +248,7 @@ function LocalModalRouteProtection({ shouldBlock, busy, discard }: { shouldBlock
 
 export function BusyNavigationGuard({pending}: {pending: RefObject<boolean>}) {
   const shouldBlock = useCallback(() => pending.current, [pending]);
-  const blocker = useBlocker(shouldBlock);
+  const blocker = useNavigationBlocker(shouldBlock, () => pending.current);
   useEffect(() => {
     if(blocker.state === "blocked") blocker.reset();
   }, [blocker]);

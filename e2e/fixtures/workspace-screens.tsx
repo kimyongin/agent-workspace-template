@@ -1,3 +1,4 @@
+import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 import { WriteOutcomeNotice } from "../../src/components/WriteOutcomeNotice.tsx";
 import { AuthProvider } from "../../src/features/auth/AuthProvider.tsx";
 import { useState } from "react";
@@ -17,7 +18,7 @@ import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 const target=new URLSearchParams(location.search).get("route")??"/entities";
 if(location.pathname.endsWith("workspace-screens.html"))history.replaceState(null,"",target);
-function FixtureLayout(){const [scope,setScope]=useState("account-a");return <main className="app-main"><WriteOutcomeNotice/><nav aria-label="Fixture routes"><button onClick={()=>setScope("account-b")}>계정 전환 fixture</button><Link to="/entities">엔터티 fixture</Link> · <Link to="/tasks">할 일 fixture</Link> · <Link to="/tasks?create=1&kind=recurring">작성 조건 변경 fixture</Link> · <Link to="/records">기록 fixture</Link> · <Link to="/tags/entity">엔터티 태그 fixture</Link> · <Link to="/tags/record">기록 태그 fixture</Link></nav><DetailNavigationProvider scope={scope}><Outlet/></DetailNavigationProvider></main>;}
+function FixtureLayout(){const [scope,setScope]=useState("account-a");return <main className="app-main"><WriteOutcomeNotice/><nav aria-label="Fixture routes"><button onClick={()=>setScope("account-b")}>계정 전환 fixture</button><Link to="/entities">엔터티 fixture</Link> · <Link to="/tasks">할 일 fixture</Link> · <Link to="/tasks?create=1&kind=recurring">작성 조건 변경 fixture</Link> · <Link to="/records">기록 fixture</Link> · <Link to="/tags/entity">엔터티 태그 fixture</Link> · <Link to="/tags/record">기록 태그 fixture</Link></nav><NavigationProtection><DetailNavigationProvider scope={scope}><Outlet/></DetailNavigationProvider></NavigationProtection></main>;}
 const router=createBrowserRouter([{element:<FixtureLayout/>,children:[
   {path:"/entities",element:<EntitiesPage/>},{path:"/entities/:id",element:<EntityDetailPage/>},
   {path:"/tasks",element:<TasksPage/>},{path:"/tasks/:id",element:<TaskDetailPage/>},

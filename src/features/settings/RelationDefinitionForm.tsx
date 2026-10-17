@@ -38,7 +38,7 @@ export function RelationDefinitionForm(
     form.current?.querySelector<HTMLSelectElement>("select")?.focus();
   }, []);
   useEffect(() => {
-    onState({ dirty: dirty || writing.uncertain, busy: writing.busy || reading });
+    onState({ dirty: dirty || writing.uncertain, busy: writing.busy || writing.uncertain || reading });
   }, [dirty, writing.uncertain, writing.busy, reading, onState]);
   useEffect(() => () => onState({ dirty: false, busy: false }), [onState]);
   const fail = (e: unknown) => {

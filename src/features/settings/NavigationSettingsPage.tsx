@@ -1,6 +1,7 @@
+import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { PageHeading } from "../../components/PageHeading.tsx";
 import { useEffect, useRef, useState } from "react";
-import { useBlocker, useLocation } from "react-router";
+import { useLocation } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { NavigationRowActions } from "./NavigationRowActions.tsx";
@@ -291,7 +292,7 @@ export function NavigationSettings(
 }
 
 function NavigationSettingsProtection({ dirty, busy }: { dirty: boolean; busy: boolean }) {
-  const blocker = useBlocker(dirty || busy);
+  const blocker = usePageNavigationBlocker(dirty, busy);
   useEffect(() => {
     if (busy && blocker.state === "blocked") blocker.reset();
   }, [busy, blocker]);

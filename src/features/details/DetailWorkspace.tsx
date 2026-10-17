@@ -1,6 +1,7 @@
+import { useNavigationBlocker, useNavigationBusy } from "../../lib/navigation-protection.tsx";
 import { entityListAnchor, detailListReturn } from "../../lib/entity-list-url.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
-import { useBlocker, useLocation, useNavigate, type Location, type NavigateOptions, type To } from "react-router";
+import { useLocation, useNavigate, type Location, type NavigateOptions, type To } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, workspaceBase, materialSettingsBase, type WorkspaceGuard } from "./workspace-context.ts";
 import { useWorkspaceResize } from "./useWorkspaceResize.ts";
@@ -33,7 +34,9 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   }, [desktopQuery]);
   const desktop = useSyncExternalStore(subscribeDesktop, () => desktopQuery.matches, () => false);
   const eligible = enabled && (workspaceBase(location.pathname) || !!detailIdentity(location.pathname));
-  const [started, setStarted] = useState(eligible && (desktop || materialSettingsBase(location.pathname)));
+  // Settings and other base pages keep one parent when a mobile screen grows into the split layout.
+  const retainedBase = workspaceBase(location.pathname) && !workspaceList(location.pathname);
+  const [started, setStarted] = useState(eligible && (desktop || retainedBase));
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [visible, setVisible] = useState(true);
@@ -50,7 +53,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     guards.current.set(key, guard);
     return () => { guards.current.delete(key); };
   }, []);
-  const anyBusy = useCallback(() => [...guards.current.values()].some(read => read().busy), []);
+  const navigationBusy = useNavigationBusy();
+  const anyBusy = useCallback(() => navigationBusy() || [...guards.current.values()].some(read => read().busy), [navigationBusy]);
   const saved = useCallback(() => setRevision(value => value + 1), []);
   // Replaced or closed TabContent removes its busy guard before the route transfer.
   useEffect(() => {
@@ -73,14 +77,15 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     if (!eligible) { setTabs([]); setActive(null); setStarted(false); return; }
     // Do not reparent a mobile form while its native dialog owns an unfinished visit.
     if (!started) {
-      if ((!desktop && !materialSettingsBase(location.pathname)) || document.querySelector("dialog.modal[open]")) return;
+      if ((!desktop && !retainedBase) || document.querySelector("dialog.modal[open]")) return;
       setStarted(true);
     }
     const id = detailIdentity(location.pathname);
     if (!id) {
       if (current.current.active && detailIdentity(openedLocation.current?.pathname ?? "")) {
         setRevision(value => value + 1);
-        setVisible(false);
+        // Desktop navigation changes the left pane, preserving the user's panel visibility.
+        if (!desktop) setVisible(false);
         tabFocus.current = "list";
       }
       openedLocation.current = location;
@@ -97,7 +102,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     setTabs(previous => previous.some(tab => tab.id === id)
       ? previous.map(tab => tab.id === id && href(tab.location) !== href(location) ? { ...tab, location } : tab)
       : [...previous, { id, location, title: kindLabels[id.split("/")[1]], returnTo: typeof location.state?.workspaceReturnTo === "string" && previous.some(value => value.id === location.state.workspaceReturnTo) ? location.state.workspaceReturnTo : undefined }]);
-  }, [location, eligible, desktop, started]);
+  }, [location, eligible, desktop, started, retainedBase]);
 
   // Related visits remember only their starting tab, never a growing history of cross-links.
   const returnTarget = (origin: Location, target: string | null) => {
@@ -190,8 +195,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     });
     return () => cancelAnimationFrame(frame);
   }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef, base.hash]);
-  // Material editors use this same retained parent on the first authenticated render and after startup commits.
-  if ((!started && !materialSettingsBase(location.pathname)) || !eligible) return children;
+  // Base editors use the same retained parent on the first authenticated render and after startup commits.
+  if ((!started && !retainedBase) || !eligible) return children;
   return <WorkspaceContext.Provider value={{ revision, navigationKey: location.key, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
     <div className="workspace-list" ref={listRef}>{render(base)}
       {desktop && !visible && tabs.length > 0 && <button className="btn workspace-reopen" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</button>}
@@ -244,11 +249,11 @@ function useWorkspaceScroll(enabled: boolean, split: boolean, base: Location) {
 
 function WorkspaceRouteProtection({ guards }: { guards: RefObject<Map<string, () => WorkspaceGuard>> }) {
   const blocked = useRef<WorkspaceGuard[]>([]);
-  const blocker = useBlocker(({ nextLocation }) => {
+  const blocker = useNavigationBlocker(({ nextLocation }) => {
     const staying = workspaceBase(nextLocation.pathname) || !!detailIdentity(nextLocation.pathname);
     blocked.current = [...guards.current.values()].map(read => read()).filter(guard => guard.busy || guard.dirty && (!staying || !guard.retained || guard.allows && !guard.allows(nextLocation.pathname,nextLocation.search)));
     return blocked.current.length > 0;
-  });
+  }, () => [...guards.current.values()].some(read => read().busy), 10);
   useEffect(() => { if (blocker.state === "blocked" && blocked.current.some(guard => guard.busy)) blocker.reset(); }, [blocker]);
   return <ConfirmDialog open={blocker.state === "blocked" && !blocked.current.some(guard => guard.busy)} title="변경을 버릴까요?" message="열린 화면의 저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기"
     onCancel={() => { if (blocker.state === "blocked") blocker.reset(); }}
