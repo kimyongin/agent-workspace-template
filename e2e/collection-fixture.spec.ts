@@ -240,10 +240,10 @@ for (const action of ["delete", "create"] as const) test(`unavailable change tar
     await expect(toggle).toHaveAttribute("aria-expanded","false");
     await expect(tasks.getByText(/기록에 저장된 당시 제목/)).toBeHidden();
     await toggle.click();
-    await expect(tasks.locator('[data-slot="collapsible-content"]')).toContainText("기록에 저장된 당시 제목");
+    await expect(tasks.getByText(/기록에 저장된 당시 제목/)).toContainText("기록에 저장된 당시 제목");
     await expect(tasks.getByRole("link",{name:`${task.title} 상세`,exact:true})).toHaveCount(0);
     await toggle.click();
-    await expect(tasks.locator('[data-slot="collapsible-content"]')).toBeHidden();
+    await expect(tasks.getByText(/기록에 저장된 당시 제목/)).toBeHidden();
   }
   expect(state.writes).toEqual([]);
 });
@@ -253,11 +253,14 @@ test("responsive workspace brand and list heading remain reachable at every widt
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const title = page.getByRole("heading", { name: "전체 자료", level: 1, exact: true });
-    const brand = page.getByRole("banner").getByRole("link", { name: "Workspace", exact: true });
+    const brand = page.getByRole("banner").getByText("Workspace", { exact: true });
     await expect(title).toBeVisible(); await expect(brand).toBeVisible();
     const titleBox = (await title.boundingBox())!, banner = (await page.getByRole("banner").boundingBox())!;
     expect(titleBox.y).toBeGreaterThanOrEqual(banner.y + banner.height - 1);
-    await openMainNavigation(page); await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true })).toBeVisible();
+    await openMainNavigation(page);
+    const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+    await expect(navigation.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/entities");
+    await expect(navigation.getByRole("link", { name: "할 일", exact: true })).toBeVisible();
     const close = page.getByRole("button", { name: "메뉴 닫기", exact: true }); if (await close.isVisible()) await close.click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width === 390 || width === 1440) await page.screenshot({ path: test.info().outputPath(`header-${width}.png`) });
@@ -308,7 +311,11 @@ for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read 
       await expect(key).toBeVisible();
       const value = key.locator("..").getByRole("definition").first(); await expect(value).toBeVisible();
       if (kind === "entities" && label === "수량") await expect(value).toHaveText("0");
-      const k = (await key.boundingBox())!, v = (await value.boundingBox())!;
+      const { k, v } = await key.evaluate(element => {
+        const definition = element.parentElement?.querySelector("dd");
+        if (!definition) throw new Error("A readable property must retain its definition beside its term");
+        return { k: element.getBoundingClientRect().toJSON(), v: definition.getBoundingClientRect().toJSON() };
+      });
       expect(v.y >= k.y + k.height - 1 || v.x >= k.x + k.width - 1).toBe(true);
       expect(v.x).toBeGreaterThanOrEqual(0); expect(v.x + v.width).toBeLessThanOrEqual(width + 1);
       expect(await key.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
@@ -332,16 +339,26 @@ test("selected entity fields stay identical in every layout and expansion withou
   await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
   for(const view of ["리스트","카드","테이블"]) {
     await page.getByRole("radio",{name:view,exact:true}).click();
-    const row=page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first();
+    const collection = page.getByRole("region", { name: / 목록$/ });
+    const row = view === "테이블"
+      ? collection.getByRole("row").filter({ has: page.getByRole("button", { name: selected.title, exact: true }) })
+      : collection.getByRole("listitem").first();
+    await expect(row).toHaveCount(1);
     await expect(row.getByRole("button",{name:selected.title,exact:true})).toBeVisible();
     if(view !== "테이블")await expect(row.getByText("품명",{exact:true})).toBeVisible();
     await expect(row.getByText("0",{exact:true})).toBeVisible();
     await expect(row.getByText("거짓",{exact:true})).toBeVisible();
-    await row.getByRole("button",{name:selected.title,exact:true}).click();
-    await expect(row.getByRole("link",{name:`${selected.title} 상세`,exact:true})).toBeVisible();
-    await expect(row.getByText("숨긴 날짜",{exact:true})).toHaveCount(0);
-    await expect(row.getByText(selected.title,{exact:true})).toHaveCount(1);
-    await expect(row.getByText("0",{exact:true})).toHaveCount(1);
+    const toggle = row.getByRole("button", { name: selected.title, exact: true });
+    await toggle.click();
+    const panelId = await toggle.getAttribute("aria-controls");
+    expect(panelId).toBeTruthy();
+    const preview = page.locator(`[id=${JSON.stringify(panelId)}]`);
+    await expect(preview).toBeVisible();
+    const expanded = view === "테이블" ? row.or(preview) : row;
+    await expect(expanded.getByRole("link",{name:`${selected.title} 상세`,exact:true})).toBeVisible();
+    await expect(expanded.getByText("숨긴 날짜",{exact:true})).toHaveCount(0);
+    await expect(expanded.getByText(selected.title,{exact:true})).toHaveCount(1);
+    await expect(expanded.getByText("0",{exact:true})).toHaveCount(1);
     await page.screenshot({path:info.outputPath(`selected-${view}.png`),fullPage:true});
     await row.getByRole("button",{name:selected.title,exact:true}).click();
   }

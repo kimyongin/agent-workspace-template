@@ -4,7 +4,7 @@ import { expect, type Locator, type Page, type Request } from "@playwright/test"
 export const executionDialog = (page: Page) => page.getByRole("dialog").filter({
   has: page.getByRole("heading", { name: /하시겠습니까\?$/ }),
 });
-export const detailDialog = (page: Page) => page.getByRole("dialog", { includeHidden: true }).filter({ visible: true }).filter({ hasNot: page.getByRole("heading", { name: /하시겠습니까\?$|^변경을 버릴까요\?$| 선택$/ }) });
+export const detailDialog = (page: Page) => page.getByRole("dialog", { includeHidden: true }).and(page.locator(':not([data-state="closed"])')).filter({ visible: true }).filter({ hasNot: page.getByRole("heading", { name: /하시겠습니까\?$|^변경을 버릴까요\?$| 선택$/ }) });
 export const openDialogs = (page: Page) => page.getByRole("dialog", { includeHidden: true }).or(page.getByRole("alertdialog", { includeHidden: true })).filter({ visible: true });
 export const baseWorkspace = (page: Page) => page.getByRole("region", { name: "기본 작업 영역", exact: true });
 

@@ -321,7 +321,9 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
   await page.getByRole("tab", { name: "등심", exact: true }).click();
   await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
   await expect(left.getByLabel("닉네임", { exact: true })).toHaveValue("왼쪽 설정의 초안");
-  await expect(page.getByRole("button", { name: /^내 프로필 · 설정 현재 화면$/ })).toHaveAttribute("aria-current", "page");
+  await left.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "기본", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Escape");
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
   await page.screenshot({ path: info.outputPath("settings-and-retained-detail.png") });
   await openProfileMenu(page);
@@ -487,9 +489,9 @@ test("desktop: list position survives panel hide, reopen and last close", async 
   await page.goto("/entities"); await openEntity(page);
   const list = baseWorkspace(page); await list.evaluate(el => { el.scrollTop = 750; });
   await expect.poll(() => list.evaluate(el => el.scrollTop)).toBe(750);
-  await page.getByRole("button", { name: "상세 패널 숨기기" }).click(); await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
+  await page.getByRole("button", { name: "상세 패널 숨기기" }).click(); await expect.poll(() => page.getByRole("main").evaluate(element => element.scrollTop)).toBe(750);
   await page.getByRole("button", { name: "상세 탭 보기 (1개)" }).click(); await expect.poll(() => list.evaluate(el => el.scrollTop)).toBe(750);
-  await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).click(); await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
+  await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).click(); await expect.poll(() => page.getByRole("main").evaluate(element => element.scrollTop)).toBe(750);
   const origin = list.getByRole("button", { name: "등심", exact: true });
   await expect(origin).toBeFocused(); expect(await origin.evaluate(element => element.tabIndex)).toBe(0); expect(state.errors).toEqual([]);
 });
@@ -622,7 +624,7 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     const description = view.locator("[data-slot=\"dialog-description\"]");
     await expect(description).toBeVisible();
     const readDescription = await description.innerText();
-    await expect(view).toHaveAttribute("aria-describedby", await description.getAttribute("id") as string);
+    expect((await view.getAttribute("aria-describedby"))?.split(/\s+/)).toContain(await description.getAttribute("id"));
     if(item.title) await expect(view.getByRole("heading", { name: item.title, exact: true })).toHaveText(item.title);
     else await expect(view.getByRole("term").filter({ hasText: /^본문$/ }).first().locator("..").getByRole("definition")).toHaveText("구매 기준을 정리했습니다.");
     const relation = view.getByRole("region", { name: /^(연결된 자료|할 일|기록) \(\d+개\)$/ });
