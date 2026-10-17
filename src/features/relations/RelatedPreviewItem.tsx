@@ -1,3 +1,4 @@
+import { shiftScroll } from "../../lib/surface-dom.ts";
 import {
   type ComponentProps,
   type ReactNode,
@@ -85,12 +86,11 @@ export function RelatedPreviewItem(
     const top = button.current?.getBoundingClientRect().top;
     selection.toggle(path);
     requestAnimationFrame(() => {
-      const target = button.current, body = target?.closest<HTMLElement>(".modal-body");
+      const target = button.current;
       if (!target?.isConnected || top === undefined) return;
       // Collapsing an earlier row must not move the newly activated title out of view.
       const shift = target.getBoundingClientRect().top - top;
-      if (body) body.scrollTop += shift;
-      else window.scrollBy(0, shift);
+      shiftScroll(target, shift);
     });
   };
   const viewable = !!item && !error;

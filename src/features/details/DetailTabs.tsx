@@ -31,7 +31,7 @@ export function DetailTabs({ tabs, active, enabled, isBusy, select, close, reord
     focus();
   };
   const placement = (event: DragEvent<HTMLDivElement>): Placement | null => {
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(".workspace-tab"));
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-tab-id]"));
     const next = items.find(item => event.clientX < item.getBoundingClientRect().left + item.getBoundingClientRect().width / 2);
     const target = next ?? items.at(-1);
     return target?.dataset.tabId ? { id: target.dataset.tabId, before: !!next } : null;

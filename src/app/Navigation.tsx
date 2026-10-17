@@ -1,3 +1,4 @@
+import { isInActiveSurface } from "../lib/surface-dom.ts";
 import { useNavigationPreview } from "../features/settings/navigation-preview.tsx";
 import { type Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -117,7 +118,7 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
-      if (event.target instanceof Element && event.target.closest("dialog[open]")) return;
+      if (event.target instanceof Element && isInActiveSurface(event.target)) return;
       if (!root.current?.contains(event.target as Node)) close(true);
     };
     document.addEventListener("pointerdown", outside);
@@ -167,7 +168,7 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
         }}
         ref={root}
         onBlur={(event) => {
-          if (event.relatedTarget instanceof Element && event.relatedTarget.closest("dialog[open]")) return;
+          if (event.relatedTarget instanceof Element && isInActiveSurface(event.relatedTarget)) return;
           if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
         }}
         onKeyDown={(event) => {

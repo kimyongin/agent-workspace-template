@@ -103,6 +103,7 @@ export function RelatedItem(
     ? (
       <button
         id={heading}
+        data-list-anchor={id ? "" : undefined}
         type="button"
         className="item-title related-toggle"
         aria-expanded={disclosure.expanded}
@@ -114,7 +115,7 @@ export function RelatedItem(
     )
     : to
     ? (
-      <DetailLink className="item-title" to={to} aria-label={title} restoreKey={restoreKey}>
+      <DetailLink data-list-anchor={id ? "" : undefined} id={id} className="item-title" to={to} aria-label={title} restoreKey={restoreKey}>
         <span className="related-item-text">{title}</span>
       </DetailLink>
     )
@@ -152,7 +153,7 @@ export function RelatedItem(
     </>
   );
   return (
-    <div className="related-item" data-expanded={disclosure?.expanded || undefined}>
+    <div data-list-row={id ? "" : undefined} className="related-item" data-expanded={disclosure?.expanded || undefined}>
       <div className="related-item-title" role={table ? "row" : undefined}>
         <div className="related-item-heading" role={table ? "cell" : undefined}>
           <dl className="key-value-static collection-title-data">

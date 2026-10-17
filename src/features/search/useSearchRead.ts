@@ -1,3 +1,4 @@
+import { restoreScroll } from "../../lib/surface-dom.ts";
 import { useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { SearchResult } from "@contracts/search.ts";
@@ -71,10 +72,8 @@ export function useSearchRead(params: URLSearchParams, retry: number) {
     }
     target.focus({ preventScroll: true });
     const y = Number(params.get("scroll"));
-    const container = target.closest<HTMLElement>(".has-detail-panel .workspace-list");
     if (params.has("scroll") && Number.isFinite(y) && y >= 0) {
-      if (container) container.scrollTop = y;
-      else window.scrollTo(0, y);
+      restoreScroll(target, y);
     }
     const rect = target.getBoundingClientRect();
     if (rect.top < 0 || rect.bottom > window.innerHeight) target.scrollIntoView({ block: "center" });

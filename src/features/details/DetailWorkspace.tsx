@@ -1,3 +1,4 @@
+import { activeSurface, registerScrollOwner } from "../../lib/surface-dom.ts";
 import { useNavigationBlocker, useNavigationBusy } from "../../lib/navigation-protection.tsx";
 import { entityListAnchor, detailListReturn } from "../../lib/entity-list-url.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
@@ -77,7 +78,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     if (!eligible) { setTabs([]); setActive(null); setStarted(false); return; }
     // Do not reparent a mobile form while its native dialog owns an unfinished visit.
     if (!started) {
-      if ((!desktop && !retainedBase) || document.querySelector("dialog.modal[open]")) return;
+      if ((!desktop && !retainedBase) || activeSurface(false)) return;
       setStarted(true);
     }
     const id = detailIdentity(location.pathname);
@@ -185,7 +186,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       try {
         const listAnchor = base.pathname === "/entities" ? entityListAnchor(base.hash) : base.hash;
         const candidate = listAnchor ? document.getElementById(decodeURIComponent(listAnchor.slice(1))) : null;
-        if (candidate && listRef.current?.contains(candidate) && candidate.matches(".item-title")) anchor = candidate;
+        if (candidate && listRef.current?.contains(candidate) && candidate.hasAttribute("data-list-anchor")) anchor = candidate;
       } catch { /* A malformed external fragment falls back to the list heading. */ }
       const button = tabFocus.current === "list" ? (materialSettingsBase(base.pathname) && baseFocus.current?.isConnected ? baseFocus.current : null) ?? anchor ?? listRef.current?.querySelector<HTMLElement>("h1") : document.getElementById(`tab-${active}`);
       if (tabFocus.current === "list" && !anchor) button?.setAttribute("tabindex", "-1");
@@ -227,6 +228,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
 /** Transfer the list position when its scroll owner changes between the page and split pane. */
 function useWorkspaceScroll(enabled: boolean, split: boolean, base: Location) {
   const element = useRef<HTMLDivElement>(null);
+  const ownsScroll = useRef(split); ownsScroll.current = split;
+  useLayoutEffect(() => element.current ? registerScrollOwner(element.current, () => ownsScroll.current) : undefined, [enabled]);
   const position = useRef({ pathname: base.pathname, top: Number(new URLSearchParams(base.search).get("scroll")) || window.scrollY, split });
   useLayoutEffect(() => {
     if (!enabled || !element.current) return;
