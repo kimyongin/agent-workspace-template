@@ -184,7 +184,7 @@ function AccountSettings() {
       </Field>
       <FieldSet className="col-span-full">
         <FieldLegend className="text-sm font-medium">프로필 아이콘</FieldLegend>
-        <RadioGroup aria-label="프로필 아이콘" value={draft.icon} onValueChange={id => { setDraft(value => ({...value, icon: id as AccountPreferences["icon"]})); clearMessage("profile"); }} className="grid max-h-56 grid-cols-[repeat(auto-fill,minmax(max(3.5rem,44px),1fr))] gap-2 overflow-auto p-1">
+        <RadioGroup aria-label="프로필 아이콘" value={draft.icon} onValueChange={id => { setDraft(value => ({...value, icon: id as AccountPreferences["icon"]})); clearMessage("profile"); }} className="grid max-h-56 grid-cols-[repeat(auto-fill,minmax(max(4.5rem,44px),1fr))] gap-2 overflow-auto p-1">
           {profileIcons.map(icon => <FieldLabel key={icon.id} htmlFor={`profile-icon-${icon.id}`} title={icon.label} className="flex min-h-[max(3.5rem,44px)] min-w-[max(2.75rem,44px)] cursor-pointer items-center justify-center gap-2 rounded-lg border border-input p-2 has-[[data-state=checked]]:border-ring has-[[data-state=checked]]:bg-accent">
             <RadioGroupItem id={`profile-icon-${icon.id}`} value={icon.id} aria-label={icon.label} />
             <ProfileIcon id={icon.id} />
