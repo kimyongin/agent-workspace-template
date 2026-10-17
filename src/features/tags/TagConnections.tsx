@@ -152,10 +152,10 @@ function TagConnectionDraft({ scope, target, onCancel, onSaved }: {
         <Button
           type="button"
           disabled={confirmation.busy || confirmation.active}
-          onClick={() =>
+          onClick={event =>
             scope === "record" || confirmation.uncertain
               ? void confirmation.write("save")
-              : void confirmation.begin("save")}
+              : void confirmation.begin("save", event.currentTarget)}
         >
           {confirmation.busy ? "처리 중…" : confirmation.uncertain ? "같은 내용 다시 시도" : "연결 적용"}
         </Button>

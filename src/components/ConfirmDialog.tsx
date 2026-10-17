@@ -9,10 +9,10 @@ import { XIcon } from "lucide-react";
 
 interface ConfirmProps {
   open: boolean; title: string; message: ReactNode; confirmLabel: string; danger?: boolean;
-  busy?: boolean; confirmDisabled?: boolean; onConfirm: () => void; onCancel: () => void;
+  busy?: boolean; confirmDisabled?: boolean; returnFocus?: FocusOrigin | null; onConfirm: () => void; onCancel: () => void;
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy = false, confirmDisabled = false, onConfirm, onCancel }: ConfirmProps) {
+export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy = false, confirmDisabled = false, returnFocus, onConfirm, onCancel }: ConfirmProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = root;
   useSurfaceViewport(viewportRef, root);
@@ -26,7 +26,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
     <AlertDialogContent ref={setRoot} aria-modal={true}
       className="flex w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
-      onOpenAutoFocus={() => { origin.current = navigationOrigin ?? captureFocusOrigin(document.activeElement); }}
+      onOpenAutoFocus={() => { origin.current = returnFocus ?? navigationOrigin ?? captureFocusOrigin(document.activeElement); }}
       onCloseAutoFocus={event => { event.preventDefault(); restoreFocusOrigin(origin.current); }}
       onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
       <AlertDialogHeader className="min-h-0 overflow-y-auto overscroll-contain p-4"><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
@@ -39,11 +39,11 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
 }
 
 /** Editable execution details use Dialog; simple discard choices use AlertDialog above. */
-export function ConfirmationSurface({ open, title, busy = false, onCancel, footer, children, closeButton = false }: {
-  open: boolean; title: string; busy?: boolean; onCancel: () => void; footer: ReactNode; children: ReactNode; closeButton?: boolean;
+export function ConfirmationSurface({ open, title, busy = false, onCancel, footer, children, closeButton = false, returnFocus }: {
+  open: boolean; title: string; busy?: boolean; onCancel: () => void; footer: ReactNode; children: ReactNode; closeButton?: boolean; returnFocus?: FocusOrigin | null;
 }) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
-  const origin = useRef<HTMLElement | null>(null);
+  const origin = useRef<FocusOrigin | null>(null);
   const body = useRef<HTMLDivElement>(null), heading = useRef<HTMLHeadingElement>(null), footerElement = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = root;
   useSurfaceViewport(viewportRef, root);
@@ -56,11 +56,11 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
       className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)" }}
       onOpenAutoFocus={event => {
-        origin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        origin.current = returnFocus ?? captureFocusOrigin(document.activeElement);
         const field = firstField(body.current);
         if (field) { event.preventDefault(); field.focus(); }
       }}
-      onCloseAutoFocus={event => { event.preventDefault(); if (origin.current?.isConnected) origin.current.focus(); }}
+      onCloseAutoFocus={event => { event.preventDefault(); restoreFocusOrigin(origin.current); }}
       onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}
       onEscapeKeyDown={event => { event.preventDefault(); event.stopPropagation(); cancel(); }}>
       <DialogHeader className="shrink-0 p-4"><div className="flex min-w-0 items-center gap-2"><DialogTitle ref={heading} className="min-w-0 flex-1 break-words">{title}</DialogTitle>

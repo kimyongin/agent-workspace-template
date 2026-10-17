@@ -3,6 +3,7 @@ import { Spinner } from "./ui/spinner.tsx";
 import { Textarea } from "./ui/textarea.tsx";
 import { Button } from "./ui/button.tsx";
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { captureFocusOrigin, type FocusOrigin } from "../lib/surface-dom.ts";
 import { SurfaceActionContext, SurfaceContext } from "./Modal.tsx";
 import { changeNoteErrors } from "./change-note.ts";
 import { ApiError } from "../lib/api-error.ts";
@@ -79,7 +80,9 @@ export function useRecordConfirmation(options: {
     setErrors(fields);
     setFailure(message);
   };
-  const begin = async (kind: ConfirmationKind) => {
+  const origin = useRef<FocusOrigin | null>(null);
+  const begin = async (kind: ConfirmationKind, invoker?: HTMLElement | null) => {
+    origin.current = captureFocusOrigin(invoker ?? document.activeElement);
     if (attempt.snapshot().busy || attempt.snapshot().uncertain) { setStage(kind); return; }
     setStage(kind);
     reject({}, null);
@@ -144,7 +147,7 @@ export function useRecordConfirmation(options: {
   useLayoutEffect(() => {
     if (!register || options.open === false || !stage || !description) return;
     register({
-      title: description.title, busy,
+      title: description.title, busy, returnFocus: origin.current,
       body: <RecordMemoFields note={note} tags={tags} onNote={value => { touched.current.note = true; setNote(value); }} onTags={value => { touched.current.tags = true; setTags(value); }}
         preparing={preparing}
         errors={errors} failure={failure} frozen={busy || uncertain || preparing} record={description.record}

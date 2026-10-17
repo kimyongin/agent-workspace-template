@@ -72,6 +72,7 @@ export function TagSettingsPage() {
         <ConfirmationSurface
           open
           title={action.title}
+          returnFocus={action.returnFocus}
           busy={action.busy}
           onCancel={action.onCancel}
           closeButton

@@ -2,11 +2,11 @@ import { PopupContainerContext } from "./ui/portal-container.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.tsx";
 import { Button } from "./ui/button.tsx";
 import { ArrowLeftIcon, XIcon } from "lucide-react";
-import { firstField, hasActiveConfirmation, registerSurface, surfaceFor } from "../lib/surface-dom.ts";
+import { captureFocusOrigin, type FocusOrigin, firstField, hasActiveConfirmation, registerSurface, surfaceFor } from "../lib/surface-dom.ts";
 // Official Dialog owns mobile modality; a stable portal host retains the same editor in the desktop panel.
 // Escape·닫기는 같은 미저장 보호를 거치며 배경 클릭으로 초안을 버리지 않는다(docs/design/ui-patterns.md).
 import { useNavigationBlocker } from "../lib/navigation-protection.tsx";
-import { createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createContext, type ReactNode, type RefObject, type MouseEvent, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ConfirmDialog, ConfirmationSurface, useSurfaceViewport } from "./ConfirmDialog.tsx";
 export { ConfirmDialog } from "./ConfirmDialog.tsx";
@@ -31,7 +31,7 @@ export interface ModalProps {
   dirty?: boolean;
   /** 저장 중에는 닫지 않는다. */
   busy?: boolean;
-  footer?: ReactNode | ((requestClose: () => void) => ReactNode);
+  footer?: ReactNode | ((requestClose: (event?: MouseEvent<HTMLElement>) => void) => ReactNode);
   children: ReactNode;
   ready?: boolean;
   navigationTitle?: string;
@@ -52,6 +52,7 @@ export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor
 export interface SurfaceProtection { dirty: boolean; busy: boolean; discard: () => void }
 
 export interface SurfaceAction {
+  returnFocus?: FocusOrigin | null;
   title: string;
   body: ReactNode;
   footer: ReactNode;
@@ -125,6 +126,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const discardDestination=useRef(onClose);
+  const discardOrigin = useRef<FocusOrigin | null>(null);
   const [action, setAction] = useState<SurfaceAction | null>(null);
   const actionRef = useRef<SurfaceAction | null>(null);
   const registerAction = useCallback((value: SurfaceAction | null) => { actionRef.current=value; setAction(value); }, []);
@@ -188,14 +190,14 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
     return () => { if (!tab && returnFocus.current instanceof HTMLElement && returnFocus.current.isConnected) returnFocus.current.focus(); };
   }, [active, !!tab]);
   useSurfaceViewport(viewportRef, mobileContent);
-  const requestLeave = (destination:()=>void) => {
+  const requestLeave = (destination:()=>void, invoker?: HTMLElement) => {
     if (busy || action?.busy) return;
     if (action) return action.onCancel();
-    if (dirty) {discardDestination.current=destination;setConfirmDiscard(true);}
+    if (dirty) {discardOrigin.current=captureFocusOrigin(invoker ?? document.activeElement);discardDestination.current=destination;setConfirmDiscard(true);}
     else destination();
   };
-  const requestClose=()=>requestLeave(onClose);
-  const requestCancelEdit=()=>requestLeave(onCancelEdit??onClose);
+  const requestClose=(event?: MouseEvent<HTMLElement>)=>requestLeave(onClose, event?.currentTarget);
+  const requestCancelEdit=(event?: MouseEvent<HTMLElement>)=>requestLeave(onCancelEdit??onClose, event?.currentTarget);
   useEffect(() => {
     if (!active || !dialogDocked) return;
     const escape = (event: KeyboardEvent) => {
@@ -215,7 +217,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   const contents = <>
     <DialogHeader className="shrink-0 p-4">
       <div className="flex min-w-0 items-start gap-2">
-        {previous && <Button type="button" variant="ghost" size="icon" aria-label={previous.label} disabled={busy} onClick={() => tab ? previous.back() : requestLeave(previous.back)}><ArrowLeftIcon /></Button>}
+        {previous && <Button type="button" variant="ghost" size="icon" aria-label={previous.label} disabled={busy} onClick={event => tab ? previous.back() : requestLeave(previous.back, event.currentTarget)}><ArrowLeftIcon /></Button>}
         <DialogTitle asChild>{headingLevel === 1 ? <h1 ref={headingRef} id={titleId} className="min-w-0 flex-1 break-words outline-none" tabIndex={-1}>{domain ?? title}</h1> : <h2 ref={headingRef} id={titleId} className="min-w-0 flex-1 break-words outline-none" tabIndex={-1}>{domain ?? title}</h2>}</DialogTitle>
         {!dialogDocked && <Button type="button" variant="ghost" size="icon" aria-label="닫기" onClick={requestClose} disabled={busy || action?.busy}><XIcon /></Button>}
       </div>
@@ -237,8 +239,8 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
       <div className="flex h-full min-h-0 flex-col" ref={node => { mobileSlot.current = node; if (!dialogDocked) attach(node); }} />
     </DialogContent>
     {createPortal(<PopupContainerContext.Provider value={host}>{contents}</PopupContainerContext.Provider>, host)}
-    {action && <ConfirmationSurface open title={action.title} busy={action.busy} onCancel={action.onCancel} closeButton footer={action.footer}>{action.body}</ConfirmationSurface>}
-    <ConfirmDialog open={confirmDiscard} busy={busy || action?.busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { setConfirmDiscard(false); discardDestination.current(); }} onCancel={() => setConfirmDiscard(false)} />
+    {action && <ConfirmationSurface open returnFocus={action.returnFocus} title={action.title} busy={action.busy} onCancel={action.onCancel} closeButton footer={action.footer}>{action.body}</ConfirmationSurface>}
+    <ConfirmDialog open={confirmDiscard} returnFocus={discardOrigin.current} busy={busy || action?.busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { setConfirmDiscard(false); discardDestination.current(); }} onCancel={() => setConfirmDiscard(false)} />
     {!workspace && <LocalModalRouteProtection shouldBlock={shouldBlock} busy={busy || !!action?.busy} discard={onRouteDiscard} />}
   </Dialog></SurfaceActionContext.Provider>;
 

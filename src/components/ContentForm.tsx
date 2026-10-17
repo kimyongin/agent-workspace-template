@@ -7,7 +7,7 @@ import { firstField } from "../lib/surface-dom.ts";
 import { useRecordConfirmation, type RecordMemo, type ConfirmationValue } from "./RecordConfirmation.tsx";
 import type { PrepareRecordMemo, PreparedRecordMemo } from "@contracts/record-preparation.ts";
 import { contentLabels } from "@contracts/common.ts";
-import { type FormEvent, type ReactNode, useCallback, useContext, useId, useLayoutEffect, useRef, useState } from "react";
+import { type FormEvent, type MouseEvent, type ReactNode, useCallback, useContext, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Field, Notice } from "./Field.tsx";
 import { ModalShell, SurfaceContext, type ModalProps } from "./Modal.tsx";
@@ -107,10 +107,10 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
     if (busy || active || submitDisabled) return;
     const local = callbacks.current.validate();
     if (local) return confirmation.reject(local, "입력을 확인하세요.");
-    if (mutation) confirmation.begin("save"); else await confirmation.write("save");
+    if (mutation) confirmation.begin("save", (e.nativeEvent as SubmitEvent).submitter); else await confirmation.write("save");
   };
-  const footer = (requestCancel:()=>void) => <>
-    {deletion && !uncertain && <Button variant="destructive" type="button" key="delete" className="sm:mr-auto" disabled={busy} onClick={()=>confirmation.begin("delete")}>삭제</Button>}
+  const footer = (requestCancel:(event?: MouseEvent<HTMLElement>)=>void) => <>
+    {deletion && !uncertain && <Button variant="destructive" type="button" key="delete" className="sm:mr-auto" disabled={busy} onClick={event=>confirmation.begin("delete", event.currentTarget)}>삭제</Button>}
     <Button variant="outline" key="cancel" type="button"  disabled={busy} onClick={requestCancel}>취소</Button>
     <Button variant="default" key="save" type="submit" form={formId}  disabled={busy || submitDisabled}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</Button>
   </>;
