@@ -21,13 +21,13 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
   useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
   return <AlertDialog open={open} onOpenChange={next => { if (!next && !busy) onCancel(); }}>
     <AlertDialogContent ref={setRoot} aria-modal={true}
-      className="flex w-[calc(100%-1rem)] flex-col overflow-hidden"
+      className="flex w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
       onOpenAutoFocus={() => { origin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }}
       onCloseAutoFocus={event => { event.preventDefault(); if (origin.current?.isConnected) origin.current.focus(); }}
       onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
-      <AlertDialogHeader className="min-h-0 overflow-y-auto overscroll-contain"><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
-      <AlertDialogFooter ref={footer} className="shrink-0">
+      <AlertDialogHeader className="min-h-0 overflow-y-auto overscroll-contain p-4"><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
+      <AlertDialogFooter ref={footer} className="m-0 shrink-0">
         <AlertDialogCancel className="h-auto min-h-11 whitespace-normal wrap-anywhere" disabled={busy} onClick={event => { event.preventDefault(); if (!busy) onCancel(); }}>취소</AlertDialogCancel>
         <AlertDialogAction className="h-auto min-h-11 whitespace-normal wrap-anywhere" variant={danger ? "destructive" : "default"} disabled={busy || confirmDisabled} onClick={event => { event.preventDefault(); if (!busy && !confirmDisabled) onConfirm(); }}>{busy ? "처리 중…" : confirmLabel}</AlertDialogAction>
       </AlertDialogFooter>
@@ -63,7 +63,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
       <DialogHeader className="shrink-0 p-4"><div className="flex min-w-0 items-center gap-2"><DialogTitle ref={heading} className="min-w-0 flex-1 break-words">{title}</DialogTitle>
         {closeButton && <Button type="button" variant="ghost" size="icon" aria-label="닫기" disabled={busy} onClick={cancel}><XIcon /></Button>}
       </div></DialogHeader>
-      <div ref={body} className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
+      <div ref={body} className="min-h-0 overflow-y-auto overscroll-contain p-4 px-4 pb-4">{children}</div>
       <DialogFooter ref={footerElement} className="m-0 shrink-0">{footer}</DialogFooter>
     </DialogContent>
   </Dialog>;

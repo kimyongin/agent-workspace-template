@@ -285,11 +285,11 @@ test("confirmation fits its content at the center with a dimmed backdrop", async
   await page.locator("#dialogs").getByRole("button", { name: "편집 모달 열기" }).click();
   const dialog = page.getByRole("dialog");
   expect((await dialog.boundingBox())!.height).toBeLessThanOrEqual(792);
-  await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeInViewport();
+  await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeInViewport({ ratio: 1 });
   await dialog.getByRole("button", { name: "저장", exact: true }).click();
   const confirmation = shortDialog(page);
   expect((await confirmation.boundingBox())!.height).toBeLessThanOrEqual(792);
-  await expect(confirmation.getByRole("button", { name: "저장", exact: true })).toBeInViewport();
+  await expect(confirmation.getByRole("button", { name: "저장", exact: true })).toBeInViewport({ ratio: 1 });
 
 });
 
@@ -391,7 +391,7 @@ test("tag modal preserves unknown and excluded selections and supports single re
     await page.setViewportSize({ width, height: 800 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const box = (await modal.boundingBox())!;
-    expect(box.x).toBeGreaterThan(0);
+    expect(box.x, JSON.stringify({ width, box, styles: await modal.evaluate(el => ({ maxWidth: getComputedStyle(el).maxWidth, width: getComputedStyle(el).width, left: getComputedStyle(el).left, translate: getComputedStyle(el).translate, classes: el.className })) })).toBeGreaterThan(0);
     expect(box.y).toBeGreaterThan(0);
     expect(Math.abs(box.x + box.width / 2 - width / 2)).toBeLessThan(2);
     expect((await modal.getByRole("button", { name: "선택 완료" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -399,7 +399,7 @@ test("tag modal preserves unknown and excluded selections and supports single re
   await page.setViewportSize({ width: 640, height: 800 });
   await page.evaluate(() => document.documentElement.style.zoom = "2");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await expect(modal.getByRole("button", { name: "선택 완료" })).toBeInViewport();
+  await expect(modal.getByRole("button", { name: "선택 완료" })).toBeInViewport({ ratio: 1 });
   await checkTag(choices.first(), false);
   await expect(choices.nth(10)).toBeEnabled();
   await page.evaluate(() => document.documentElement.style.zoom = "");
@@ -610,8 +610,8 @@ test("confirmation stays usable with reduced motion and enlarged text", async ({
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
   expect(bounds.y).toBeGreaterThanOrEqual(0);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(800);
-  await expect(dialog.getByRole("button", { name: "취소", exact: true })).toBeInViewport();
-  await expect(dialog.getByRole("button", { name: "예시 자료 삭제", exact: true })).toBeInViewport();
+  await expect(dialog.getByRole("button", { name: "취소", exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(dialog.getByRole("button", { name: "예시 자료 삭제", exact: true })).toBeInViewport({ ratio: 1 });
   await dialog.screenshot({ path: info.outputPath("confirmation-320-text200-reduced-motion.png") });
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
 });
