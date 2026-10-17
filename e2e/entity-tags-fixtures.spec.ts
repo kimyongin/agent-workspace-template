@@ -1,5 +1,7 @@
 import {
   entity as makeEntity,
+  task as makeTask,
+  record as makeRecord,
   fixtureIdentity,
   fixtureSchema,
   fixtureType,
@@ -545,4 +547,122 @@ test("#370 늦은 이전 사전 응답이 새 이름을 덮어쓰지 않는다",
   } finally {
     release();
   }
+});
+
+test("보기에서 태그 연결 초안을 취소하거나 독립 적용한다", async ({ page }) => {
+  let current = { ...makeEntity(1), id: `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000`, tag_ids: [] as string[] };
+  const writes: Record<string, unknown>[] = [];
+  await page.route("**/api/entities/**", async route => {
+    if (new URL(route.request().url()).pathname.endsWith("/links")) return route.fulfill({json:{items:[],next_cursor:null}});
+    if (route.request().method() === "PATCH") {
+      const input = route.request().postDataJSON(); writes.push(input);
+      current = { ...current, tag_ids: input.tag_ids ?? current.tag_ids, version: current.version + 1 };
+    }
+    await route.fulfill({ json: { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } });
+  });
+  await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
+  await page.goto(url);
+  await page.getByRole("link", { name: "자료 fixture", exact: true }).evaluate((el:HTMLAnchorElement) => el.click());
+  const region = page.getByRole("region", { name: "태그 연결" });
+  await region.getByRole("button", { name: "태그 연결", exact: true }).click();
+  await region.getByRole("button", { name: "태그 선택", exact: true }).click();
+  await page.getByRole("checkbox", { name: "첫 태그", exact: true }).check();
+  await page.getByRole("button", { name: "선택 완료", exact: true }).click();
+  expect(writes).toHaveLength(0);
+  await region.getByRole("button", { name: "연결 취소", exact: true }).click();
+  await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+  await region.getByRole("button", { name: "태그 연결", exact: true }).click();
+  await region.getByRole("button", { name: "태그 선택", exact: true }).click();
+  await page.getByRole("checkbox", { name: "첫 태그", exact: true }).check();
+  await page.getByRole("button", { name: "선택 완료", exact: true }).click();
+  await region.getByRole("button", { name: "연결 적용", exact: true }).click();
+  await page.locator("dialog.modal-action[open]").getByRole("button", { name: "연결하고 저장", exact: true }).click();
+  await expect(region.locator(".tag-read")).toContainText("첫 태그");
+  expect(writes).toHaveLength(1);
+  expect(writes[0]).toMatchObject({ tag_ids: [tags[0].id], expected_version: 1, schema_version: current.schema_version });
+  expect(writes[0]).not.toHaveProperty("properties");
+});
+
+for (const kind of ["entity", "task", "record"] as const) {
+  test(`${kind} 일반 편집은 태그를 읽기 전용으로 보존하고 부분 저장에서 생략한다`, async ({ page }) => {
+    const base = kind === "entity" ? makeEntity(1) : kind === "task" ? makeTask(2) : makeRecord(3);
+    const targetId = kind === "entity" ? `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000` : kind === "task" ? task.id : "30000000-0000-4000-8000-000000000000";
+    let current = { ...base, id: targetId, tag_ids: [tags[0].id] };
+    const writes: Record<string, unknown>[] = [];
+    await page.route("**/api/entity-types**", route => route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? {items:[fixtureType],next_cursor:null} : fixtureType}));
+    await page.route(`**/api/${kind === "entity" ? "entities" : kind + "s"}/**`, async route => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith("/links")) return route.fulfill({json:{items:[],next_cursor:null}});
+      if (route.request().method() === "PATCH") {
+        const input = route.request().postDataJSON(); writes.push(input);
+        current = {...current,...input,version:current.version+1};
+      }
+      await route.fulfill({json:current});
+    });
+    await page.route("**/api/records?**", route => route.fulfill({json:{items:[],next_cursor:null}}));
+    await page.goto(url);
+    await page.getByRole("link", {name:kind === "entity" ? "자료 fixture" : kind === "task" ? "할 일 fixture" : "기록 fixture",exact:true}).evaluate((el:HTMLAnchorElement)=>el.click());
+    await openDetailEditor(page);
+    const form = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+    await expect(form.getByRole("button", {name:"태그 선택",exact:true})).toHaveCount(0);
+    await expect(form.locator(".tag-connection-data .tag-read:visible")).toHaveText("첫 태그");
+    await (kind === "entity" ? form.getByRole("textbox", {name:/^제목/}) : form.getByRole("textbox", {name:/^본문/})).fill("본문 수정");
+    await saveOnce(page, form);
+    await expect(page.getByRole("button",{name:"편집",exact:true})).toBeVisible();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).not.toHaveProperty("tag_ids");
+    await expect(page.getByRole("region", {name:"태그 연결"}).locator(".tag-read")).toContainText("첫 태그");
+  });
+}
+
+test("기록 태그 연결 응답 불명은 같은 입력·버전·요청 키로만 재확인한다", async ({ page }) => {
+  const record = {...makeRecord(3),id:"30000000-0000-4000-8000-000000000000",tag_ids:[tags[0].id]};
+  const requests: {body:Record<string,unknown>;key:string|undefined}[] = [];
+  await page.route("**/api/records/**", async route => {
+    if(route.request().method()==="PATCH") {
+      requests.push({body:route.request().postDataJSON(),key:route.request().headers()["idempotency-key"]});
+      if(requests.length===1)return route.abort();
+      return route.fulfill({headers:{"Idempotency-Replayed":"true"},json:{...record,tag_ids:[],version:2}});
+    }
+    await route.fulfill({json:record});
+  });
+  await page.goto(url);
+  await page.getByRole("link",{name:"기록 fixture",exact:true}).evaluate((el:HTMLAnchorElement)=>el.click());
+  const region=page.getByRole("region",{name:"태그 연결"});
+  await region.getByRole("button",{name:"첫 태그 연결 해제",exact:true}).click();
+  await region.getByRole("button",{name:"연결 적용",exact:true}).click();
+  await expect(region.getByText(/저장 여부를 알 수 없습니다/)).toBeVisible();
+  await expect(region.getByRole("button",{name:"태그 선택",exact:true})).toBeDisabled();
+  await expect(region.getByRole("button",{name:"연결 취소",exact:true})).toBeDisabled();
+  await region.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();
+  await expect(region.getByText("연결된 태그 없음",{exact:true})).toBeVisible();
+  expect(requests).toHaveLength(2);
+  expect(requests[1]).toEqual(requests[0]);
+  expect(requests[0].key).toBeTruthy();
+  expect(requests[0].body).toEqual({tag_ids:[],expected_version:1});
+});
+
+test("기록 태그 연결 버전 충돌은 원문과 선택 초안을 보존한다", async ({ page }) => {
+  const record={...makeRecord(3),id:"30000000-0000-4000-8000-000000000000",tag_ids:[tags[0].id]};
+  let writes=0;
+  await page.route("**/api/records/**", route => {
+    if(route.request().method()==="PATCH") {writes++;return route.fulfill({status:409,json:{code:"conflict",message:"다른 변경이 저장되었습니다."}});}
+    return route.fulfill({json:record});
+  });
+  await page.goto(url);
+  await page.getByRole("link",{name:"기록 fixture",exact:true}).evaluate((el:HTMLAnchorElement)=>el.click());
+  const region=page.getByRole("region",{name:"태그 연결"});
+  await region.getByRole("button",{name:"태그 연결",exact:true}).click();
+  await region.getByRole("button",{name:"태그 선택",exact:true}).click();
+  await page.getByRole("checkbox",{name:"다른 태그",exact:true}).check();
+  await page.getByRole("button",{name:"선택 완료",exact:true}).click();
+  await region.getByRole("button",{name:"연결 적용",exact:true}).click();
+  await expect(region.getByText(/다른 변경이 저장되었습니다/)).toBeVisible();
+  await expect(region.getByRole("button",{name:"첫 태그 선택 해제",exact:true})).toBeVisible();
+  await expect(region.getByRole("button",{name:"다른 태그 선택 해제",exact:true})).toBeVisible();
+  expect(writes).toBe(1);
+  await region.getByRole("button",{name:"연결 취소",exact:true}).click();
+  await expect(region.locator(".tag-read")).toContainText("첫 태그");
+  await expect(page.locator(".record-content")).toContainText(record.body);
+  await expect(region.getByRole("button",{name:"태그 연결",exact:true})).toBeFocused();
 });

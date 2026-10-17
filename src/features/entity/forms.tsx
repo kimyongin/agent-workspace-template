@@ -16,6 +16,7 @@ import { Field } from "../../components/Field.tsx";
 import { BodyActionFace } from "../../components/BodyAction.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
+import { ReadonlyTags } from "../tags/TagConnections.tsx";
 import {
   fieldType,
   type PropertyDraft,
@@ -49,7 +50,7 @@ export function EntityForm({
   deletion?: DeletionOptions;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (value: EntityCreate & { tag_ids: string[] }, requestKey: () => string) => Promise<void>;
+  onSave: (value: EntityCreate, requestKey: () => string) => Promise<void>;
 }) {
   const [identitySettings, setIdentitySettings] = useState<EntityTypeIdentity | null>(null),
     [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
@@ -200,7 +201,7 @@ export function EntityForm({
       external_id: external || undefined,
       identity_version: !initial || archived ? settingsVersion.current : undefined,
       expected_version: archived?.version,
-      tag_ids: tags,
+      ...(!initial || initial.deleted_at ? { tag_ids: tags } : {}),
     };
   };
   const checkExisting = async () => {
@@ -379,7 +380,7 @@ export function EntityForm({
           const current = value();
           try {
             await onSave(
-              { ...current, ...prepared.current, tag_ids: tags, ...memo } as EntityCreate & { tag_ids: string[] },
+              { ...current, ...prepared.current, ...(!initial || initial.deleted_at ? { tag_ids: tags } : {}), ...memo } as EntityCreate,
               requestKey,
             );
           } catch (error) {
@@ -631,7 +632,7 @@ export function EntityForm({
                 : typeId && !schemaError && <p role="status">속성 정의를 불러오는 중…</p>}
             </section>
             <section className="detail-section form">
-              <TagPicker scope="entity" value={tags} error={errors.tag_ids} onChange={setTags} />
+              {initial ? <ReadonlyTags scope="entity" ids={initial.tag_ids} /> : <TagPicker scope="entity" value={tags} error={errors.tag_ids} onChange={setTags} />}
             </section>
             {relations}
             {details}

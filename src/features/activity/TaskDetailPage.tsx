@@ -7,33 +7,19 @@ import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
-import { taskLabels } from "@contracts/task.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
-import { MarkdownContent } from "../../components/MarkdownContent.tsx";
-import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
+import { TaskDataFields } from "./TaskDataFields.tsx";
+import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { addDays, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom } from "./forms.tsx";
-import { OccurrenceBadge, StatusBadge } from "./shared.tsx";
-import {TagNames} from "../tags/TagPicker.tsx";
+import { OccurrenceBadge } from "./shared.tsx";
+import { TagConnections } from "../tags/TagConnections.tsx";
 import {TaskEntityRelations} from "../entity/TaskEntityRelations.tsx";
-
-const WEEKDAY_NAMES = ["", "월", "화", "수", "목", "금", "토", "일"];
-
-function describeRecurrence(t: TaskResult): string {
-  const r = t.recurrence;
-  if (!r) return "—";
-  const rule = r.freq === "daily"
-    ? "매일"
-    : r.freq === "weekly"
-    ? `매주 ${r.weekdays.map((d) => WEEKDAY_NAMES[d]).join("·")}`
-    : `매월 ${r.month_days.join("·")}일`;
-  return `${rule}, ${r.starts_on}부터 (${t.timezone})`;
-}
 
 type Dialog = null | "complete" | "record" | "transition" | { occurrence: string };
 function requestedDialog(params: URLSearchParams): Dialog {
@@ -43,7 +29,7 @@ function requestedDialog(params: URLSearchParams): Dialog {
 }
 
 export function TaskDetailPage() {
-  const { formatDateTime, timezone } = useDisplayTime();
+  const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
   const back=useDetailOwnerReturn(`/tasks${query({kind:params.get("kind"),status:params.get("status"),tag_id:params.get("tag_id"),entity_id:params.get("entity_id")})}`);
@@ -126,47 +112,17 @@ export function TaskDetailPage() {
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
         {loadError && <><Notice kind="error">{relationSaved.current?"연결은 저장했습니다. 최신 내용을 불러오지 못했습니다.":message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
-        <DetailTitle>{task.title}</DetailTitle>
-        {task.body&&<MarkdownContent text={task.body}/>}
-        <dl className="props">
-          <div>
-            <dt>{taskLabels.status}</dt>
-            <dd><StatusBadge status={task.status} /></dd>
-          </div>
-          <div>
-            <dt>{taskLabels.kind}</dt>
-            <dd>{taskLabels[task.kind]}</dd>
-          </div>
-          {task.kind === "once"
-            ? task.due_on && (
-              <div>
-                <dt>{taskLabels.due_on}</dt>
-                <dd>{task.due_on}</dd>
-              </div>
-            )
-            : (
-              <div>
-                <dt>{taskLabels.recurrence}</dt>
-                <dd>{describeRecurrence(task)}{task.recurrence?.freq === "monthly" && <p className="help">해당 달에 없는 날짜는 그 달 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다.</p>}</dd>
-              </div>
-            )}
-          {task.completed_at && (
-            <div>
-              <dt>완료 시각</dt>
-              <dd>{formatDateTime(task.completed_at)}</dd>
-            </div>
-          )}
-        </dl>
-        <TagNames scope="task" compact ids={task.tag_ids}/>
+        <TaskDataFields task={task}/>
+        <TagConnections scope="task" target={task} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
         {task.kind==="once"&&task.status==="done"&&!task.result_record&&<p className="secondary">결과 기록이 삭제되었습니다.</p>}
       </section>
 
     </div>;
-  const occurrenceSection = <>{task.kind === "recurring" && (
-        <section className="detail-section" aria-labelledby="occ-title">
+  const occurrenceSection = (readOnly = false) => <>{task.kind === "recurring" && (
+        <section className="detail-section" aria-labelledby={readOnly ? "occ-edit-title" : "occ-title"}>
           <div className="panel-head">
-            <h2 id="occ-title" className="section-title">회차</h2>
-            {occurrences && (
+            <h2 id={readOnly ? "occ-edit-title" : "occ-title"} className="section-title">회차</h2>
+            {occurrences && !readOnly && (
               <div className="actions">
                 <BodyAction onClick={() => setRangeEnd(addDays(occurrences.items.at(-1)?.date ?? occurrences.today, -1))}>
                   이전 기간
@@ -191,7 +147,7 @@ export function TaskDetailPage() {
                     {o.record_ids.length>0&&<span className="secondary">기록 {o.record_ids.length}개</span>}
                   </div>
                   <OccurrenceBadge status={o.status} />
-                  {o.in_rule && o.status !== "upcoming" && (
+                  {!readOnly && o.in_rule && o.status !== "upcoming" && (
                     <BodyAction onClick={() => manage("occurrence", o.date)} aria-label={`${o.date} 회차 기록`}>
                       기록
                     </BodyAction>
@@ -210,13 +166,14 @@ export function TaskDetailPage() {
       <div className="detail-stack">{management}
       <div className="detail-relations"><TaskEntityRelations task={task} onSaved={(saved,before)=>{if(before)relationSaved.current=true;if(saved)detail.confirm(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
       <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<BodyAction icon="create" aria-label="기록 작성" onClick={()=>manage("record")}>작성</BodyAction>}/>
-      {occurrenceSection}</div></div>
+      {occurrenceSection()}</div></div>
       {editor.active && !dialog && editReady && (
         <TaskFormModal
           mode="edit"
           target={task}
           open
           initial={taskDraftFrom(task, timezone)}
+          details={<>{task.kind==="once"&&task.status==="done"&&!task.result_record&&<p className="secondary">결과 기록이 삭제되었습니다.</p>}<div className="detail-relations"><TaskEntityRelations readOnly task={task} onSaved={()=>{}}/><RelatedRecords readOnly taskId={task.id} revision={task.version+recordRefresh}/>{occurrenceSection(true)}</div></>}
           deletion={{preparation:()=>({model:"task",action:"delete",target_id:task.id,expected_version:task.version,input:{}}),message:<p style={{ margin: 0 }}>
             「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
           </p>,onConfirm:(reason,tags,requestKey) =>
