@@ -10,7 +10,6 @@ import { TagsPage } from "../../src/features/tags/TagsPage.tsx";
 import { TaskDetailPage } from "../../src/features/activity/TaskDetailPage.tsx";
 import { RecordDetailPage } from "../../src/features/activity/RecordDetailPage.tsx";
 import { EntityDetailPage } from "../../src/features/entity/EntityDetailPage.tsx";
-import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 const router = createBrowserRouter([{
   element: (
