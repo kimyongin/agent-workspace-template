@@ -103,7 +103,6 @@ function PropertyList(
           const open = expanded.includes(field.id);
           const bodyId = `sample-${field.id}-body`;
           const labelError = errors[`${field.id}.label`];
-          const labelErrorId = `sample-${field.id}-label-error`;
           const summary = (
             <span className="secondary">
               {[
@@ -117,22 +116,13 @@ function PropertyList(
             <li key={field.id}>
               <div className="related-item schema-field" data-property-id={field.id} data-expanded={open || undefined}>
                 <div className="schema-field-heading">
-                  <h3>
+                  <div className="item-title" role="heading" aria-level={3}>
                     {open
                       ? (
-                        <span className="schema-field-title">
-                          <input
-                            className="input"
-                            aria-label="항목 이름 (필수)"
-                            aria-required
-                            aria-invalid={!!labelError}
-                            aria-describedby={labelError ? labelErrorId : undefined}
-                            value={field.label}
-                            onChange={(event) => edit(field.id, { label: event.target.value })}
-                          />
-                          {labelError && <span id={labelErrorId} className="error-text">{labelError}</span>}
+                        <div className="schema-field-title">
+                          <Field pair fullWidth label="항목 이름" required error={labelError}>{props => <input {...props} className="input" required value={field.label} onChange={event => edit(field.id, { label: event.target.value })} />}</Field>
                           {summary}
-                        </span>
+                        </div>
                       )
                       : (
                         <button
@@ -153,7 +143,7 @@ function PropertyList(
                           {summary}
                         </button>
                       )}
-                  </h3>
+                  </div>
                   <div className="schema-order-actions">
                     <BodyAction
                       type="button"
@@ -184,9 +174,9 @@ function PropertyList(
                   >
                   </button>
                 </div>
-                <fieldset id={bodyId} hidden={!open} className="plain-fieldset">
+                <fieldset id={bodyId} hidden={!open} className="plain-fieldset key-value-grid">
                   <legend className="visually-hidden">{field.label || "새 항목"} 편집</legend>
-                  <Field label="데이터 타입">
+                  <Field pair label="데이터 타입">
                     {(props) => (
                       <select
                         {...props}
@@ -200,7 +190,7 @@ function PropertyList(
                     )}
                   </Field>
                   <div className="schema-representative-setting">
-                    <label className="schema-representative-choice">
+                    <label className="schema-representative-choice settings-choice-pair">
                       <input
                         type="radio"
                         name="sample-representative"
@@ -215,15 +205,15 @@ function PropertyList(
                   </div>
                   <details className="schema-advanced">
                     <summary className="secondary">추가 설정</summary>
-                    <div className="form">
-                      <label className="choice-control">
+                    <div className="key-value-grid">
+                      <label className="choice-control settings-choice-pair">
                         <input
                           type="checkbox"
                           checked={field.required}
                           onChange={(event) => edit(field.id, { required: event.target.checked })}
                         />필수 입력
                       </label>
-                      <label className="choice-control">
+                      <label className="choice-control settings-choice-pair">
                         <input
                           type="checkbox"
                           checked={field.listed}
@@ -231,7 +221,7 @@ function PropertyList(
                         />목록에 표시
                       </label>
                       {field.type === "text" && (
-                        <Field label="최대 길이" error={errors[`${field.id}.maxLength`]}>
+                        <Field pair label="최대 길이" error={errors[`${field.id}.maxLength`]}>
                           {(props) => (
                             <input
                               {...props}
@@ -407,7 +397,7 @@ export function MaterialWorkspaceSample() {
         title="기본 정보"
         state={{ dirty: typeName !== savedTypeName, busy: false }}
       >
-        <Field label="종류 이름">
+        <Field pair label="종류 이름">
           {(props) => (
             <input
               {...props}
@@ -478,15 +468,15 @@ export function MaterialWorkspaceSample() {
         summary="종류별 문구"
         state={{ dirty: template !== savedTemplate, busy: false }}
       >
-        <div className="form">
-          <Field label="액션">
+        <div className="key-value-grid">
+          <Field pair label="액션">
             {(props) => (
               <select {...props} className="input">
                 <option>수정</option>
               </select>
             )}
           </Field>
-          <Field label="변수 삽입">
+          <Field pair label="변수 삽입">
             {(props) => (
               <select
                 {...props}
@@ -502,7 +492,7 @@ export function MaterialWorkspaceSample() {
               </select>
             )}
           </Field>
-          <Field label="메모 템플릿" help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요.">
+          <Field pair fullWidth label="메모 템플릿" help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요.">
             {(props) => (
               <TemplateMemoEditor
                 {...props}
@@ -558,10 +548,10 @@ export function MaterialWorkspaceSample() {
                     >
                       <span className="schema-history-heading">
                         <span>입력 항목 변경</span>
-                        <time className="secondary" dateTime="2026-10-14T03:51:12Z">2026. 10. 14. 오후 12:51:12</time>
+                        <time className="secondary" dateTime="2026-10-14T03:51:12Z">시각 2026. 10. 14. 오후 12:51:12</time>
                       </span>
                       <span className="secondary schema-history-status">
-                        버전 {plan.version} ·{" "}
+                        상태 버전 {plan.version} ·{" "}
                         {plan.status === "applied" ? "적용됨" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}
                       </span>
                     </button>
@@ -570,11 +560,8 @@ export function MaterialWorkspaceSample() {
                     <PropertyDefinition fields={plan.after} />
                     <div className="schema-history-result">
                       <h4 className="section-title">변경 결과</h4>
-                      <p>
-                        버전 {plan.version - 1} → {plan.version} ·{" "}
-                        {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}
-                      </p>
-                      <ul>{changes(plan).map((change, index) => <li key={index}>{change}</li>)}</ul>
+                      <dl className="key-value-grid key-value-static"><div><dt>버전</dt><dd>{plan.version - 1} → {plan.version} · {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</dd></div></dl>
+                      <dl className="key-value-grid key-value-static">{changes(plan).map((change, index) => <div className="key-value-full" key={index}><dt>변경</dt><dd>{change}</dd></div>)}</dl>
                       <p className="secondary">
                         {plan.status === "applied"
                           ? "예시 입력 항목에 적용했습니다."
@@ -616,7 +603,7 @@ export function MaterialWorkspaceSample() {
         title={action?.kind === "discard" ? "변경안을 폐기할까요?" : "변경안을 적용할까요?"}
         message={action?.kind === "discard"
           ? "이 변경안을 더 이상 적용하지 않습니다. 입력 초안과 현재 버전은 유지됩니다."
-          : `예시 버전 ${action?.plan.version}의 입력 항목을 적용합니다.`}
+          : <><dl className="key-value-grid key-value-static"><div><dt>버전</dt><dd>{action?.plan.version}</dd></div></dl><p>예시 입력 항목을 적용합니다.</p></>}
         danger={action?.kind === "discard"}
         confirmLabel={action?.kind === "discard" ? "변경안 폐기" : "변경 적용"}
         onCancel={() => setAction(null)}

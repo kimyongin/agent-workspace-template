@@ -174,8 +174,8 @@ export function TaskDetailPage() {
           open
           initial={taskDraftFrom(task, timezone)}
           details={<>{task.kind==="once"&&task.status==="done"&&!task.result_record&&<p className="secondary">결과 기록이 삭제되었습니다.</p>}<div className="detail-relations"><TaskEntityRelations readOnly task={task} onSaved={()=>{}}/><RelatedRecords readOnly taskId={task.id} revision={task.version+recordRefresh}/>{occurrenceSection(true)}</div></>}
-          deletion={{preparation:()=>({model:"task",action:"delete",target_id:task.id,expected_version:task.version,input:{}}),message:<p style={{ margin: 0 }}>
-            「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
+          deletion={{target:task.title,preparation:()=>({model:"task",action:"delete",target_id:task.id,expected_version:task.version,input:{}}),message:<p style={{ margin: 0 }}>
+            이 할 일을 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
           </p>,onConfirm:(reason,tags,requestKey) =>
           run(async () => {
             await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason, change_tag_ids:tags}, undefined, requestKey());

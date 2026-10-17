@@ -1358,9 +1358,7 @@ export function SchemaEditor(
       <ConfirmDialog
         open={deleteKey !== null}
         title="항목을 삭제할까요?"
-        message={`‘${
-          deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"
-        }’을 삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제 자료는 변경되지 않습니다.`}
+        message={<><dl className="key-value-grid key-value-static"><div className="key-value-full"><dt>항목 이름</dt><dd>{deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"}</dd></div></dl><p>삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제 자료는 변경되지 않습니다.</p></>}
         confirmLabel="삭제 변경안 만들기"
         danger
         confirmDisabled={busy || uncertain || disabled || readBusy}

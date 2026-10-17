@@ -251,7 +251,7 @@ export function RelationDefinitionForm(
         open={confirm !== null}
         title={confirm === "delete" ? "연결 설정을 삭제할까요?" : "변경을 버릴까요?"}
         message={confirm === "delete"
-          ? "자료 연결이 있는 설정은 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요."
+          ? <><dl className="key-value-grid key-value-static"><div className="key-value-full"><dt>대상</dt><dd>{ends.map(end => end.label).join(" ↔ ")}</dd></div></dl><p>자료 연결이 있는 설정은 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요.</p></>
           : "저장하지 않은 연결 설정이 사라집니다."}
         confirmLabel={confirm === "delete" ? "삭제" : "버리기"}
         onConfirm={() => confirm === "delete" ? void remove() : onClose()}

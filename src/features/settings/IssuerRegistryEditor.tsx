@@ -358,7 +358,7 @@ export function IssuerRegistryEditor(
         open={confirmDelete}
         danger
         title={target.kind === "issuer" ? "번호 출처를 삭제할까요?" : "번호 종류를 삭제할까요?"}
-        message={`${baseline?.label ?? "항목"}을 영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.`}
+        message={<><dl className="key-value-grid key-value-static"><div className="key-value-full"><dt>대상</dt><dd>{baseline?.label ?? "항목"}</dd></div></dl><p>영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.</p></>}
         confirmLabel="삭제"
         busy={busy}
         onConfirm={() => void remove()}

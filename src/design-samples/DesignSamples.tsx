@@ -153,7 +153,7 @@ function SamplesContent() {
       <section id="tags" className="samples-topic" aria-labelledby="tags-title">
         <h2 id="tags-title" className="page-title">태그</h2>
         <p className="secondary">
-          선택한 태그만 표시하고 중앙 선택창에서 검색·체크합니다. 선택은 부모 초안에 반영됩니다.
+          기본 기록 태그와 필터의 초안 선택을 비교합니다. 기존 자료의 독립 태그 연결은 아래 모달과 확인 예시에서 조작합니다.
         </p>
         <TagSamples />
       </section>
@@ -166,7 +166,7 @@ function SamplesContent() {
       </section>
       <section id="dialogs" className="samples-topic" aria-labelledby="dialogs-title">
         <h2 id="dialogs-title" className="page-title">모달과 확인</h2>
-        <p className="secondary">편집과 실행 확인은 다른 단계입니다. 실패와 결과 미확정도 직접 확인할 수 있습니다.</p>
+        <p className="secondary">보기와 편집은 같은 전체 입력 항목을 유지합니다. 보기에서 태그만 연결하고, 편집에서는 같은 태그를 읽기 전용으로 확인합니다.</p>
         <ModalSamples />
       </section>
       <footer className="samples-content-footer secondary">
@@ -214,7 +214,7 @@ function ButtonSamples() {
           <div className="settings-fields">
             {options.map((value, index) => (
               <div className="schema-option-row" key={index}>
-                <Field label={`선택 항목 ${index + 1}`}>
+                <Field pair label={`선택 항목 ${index + 1}`}>
                   {(props) => (
                     <input
                       {...props}
@@ -305,7 +305,7 @@ function FormSamples() {
       }}
       noValidate
     >
-      <Field label="상품명" required help="목록에서 알아볼 수 있는 이름을 입력하세요." error={error}>
+      <Field pair label="상품명" required help="목록에서 알아볼 수 있는 이름을 입력하세요." error={error}>
         {(props) => (
           <input
             {...props}
@@ -320,7 +320,7 @@ function FormSamples() {
           />
         )}
       </Field>
-      <fieldset className="field plain-fieldset">
+      <fieldset className="field plain-fieldset settings-icon-pair key-value-full">
         <legend className="label">반복 주기</legend>
         <div className="chips">
           {["매일", "매주", "매월"].map((value) => (
@@ -336,18 +336,18 @@ function FormSamples() {
           ))}
         </div>
       </fieldset>
-      <Field label="시간대">
+      <Field pair label="시간대">
         {(props) => <TimezoneSelect {...props} value={zone} onChange={(event) => setZone(event.target.value)} />}
       </Field>
-      <div className="samples-form-pair">
-        <Field label="읽기 전용" help="내용을 읽고 복사할 수 있습니다.">
+      <div className="key-value-grid">
+        <Field pair label="읽기 전용" help="내용을 읽고 복사할 수 있습니다.">
           {(props) => <input {...props} className="input" readOnly value="상품 · 버전 2" />}
         </Field>
-        <Field label="비활성" help="현재 단계에서는 조작할 수 없습니다.">
+        <Field pair label="비활성" help="현재 단계에서는 조작할 수 없습니다.">
           {(props) => <input {...props} className="input" disabled value="처리 중" />}
         </Field>
       </div>
-      <dl className="props samples-values">
+      <dl className="key-value-grid key-value-static samples-values">
         <div>
           <dt>수량</dt>
           <dd>0</dd>

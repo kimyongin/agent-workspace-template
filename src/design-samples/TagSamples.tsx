@@ -15,7 +15,7 @@ export function TagSamples() {
   const [selected, setSelected] = useState<string[]>([]);
   return (
     <div className="samples-stack">
-      <Field label="태그 예시 상태">
+      <Field pair label="태그 예시 상태">
         {(props) => (
           <select
             {...props}

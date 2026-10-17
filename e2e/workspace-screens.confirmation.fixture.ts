@@ -66,6 +66,8 @@ for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"
     await expect(form(page).getByLabel("기록 메모")).toHaveCount(0);
     await form(page).getByRole("button", { name: kind === "tasks" ? "저장" : "저장", exact: true }).click();
     await expect(form(page).getByLabel("기록 메모")).toHaveValue("변경 초안 수정");
+    await expect(form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^대상$/ }) }).locator("dd")).toHaveText("변경 초안");
+    await expect(form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^작업$/ }) }).locator("dd")).toHaveText("수정");
     await expect(page.locator("dialog[open]")).toHaveCount(2);
     expect(state.writes).toHaveLength(0);
     const box = (await form(page).boundingBox())!;

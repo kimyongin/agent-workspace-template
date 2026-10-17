@@ -135,7 +135,7 @@ test("review captures a read-only definition; apply and discard preserve later d
   await workspace.getByRole("button", { name: "변경 검토", exact: true }).click();
   await history.getByRole("button", { name: "폐기", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "변경안 폐기" }).click();
-  await expect(history.getByText("버전 3 · 폐기됨", { exact: true })).toBeVisible();
+  await expect(history.getByText("상태 버전 3 · 폐기됨", { exact: true })).toBeVisible();
   await expect(item).toHaveValue("재고 수량 B");
   await workspace.getByRole("button", { name: /입력 항목 미저장/ }).click();
   await expect(workspace.getByRole("button", { name: "변경 검토", exact: true })).toBeHidden();
@@ -188,14 +188,14 @@ for (const outcome of ["success", "failure", "uncertain"]) {
       await dialog.getByRole("button", { name: outcome === "uncertain" ? "결과 확인" : "저장", exact: true }).click();
     }
     await expect(page.locator("dialog[open]")).toHaveCount(0);
-    await expect(samples.locator("dd")).toHaveText("머그컵");
+    await expect(samples.getByLabel("예시 상품 전체 정보").locator("dt").filter({hasText:/^상품명$/}).locator("+ dd")).toHaveText("머그컵");
     await expect(opener).toBeFocused();
     await samples.getByRole("button", { name: "예시 자료 삭제" }).click();
     dialog = page.locator("dialog.modal-confirm[open]");
     expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(448);
     await dialog.getByRole("button", { name: "취소", exact: true }).press("Escape");
     await expect(page.locator("dialog[open]")).toHaveCount(0);
-    await expect(samples.locator("dd")).toHaveText("머그컵");
+    await expect(samples.getByLabel("예시 상품 전체 정보").locator("dt").filter({hasText:/^상품명$/}).locator("+ dd")).toHaveText("머그컵");
   });
 }
 
@@ -551,4 +551,47 @@ test("filter tag headings remain readable at320px with enlarged text before and 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await tags.screenshot({ path: info.outputPath(`filter-tags-320-text200-${selected ? "selected" : "empty"}.png`) });
   }
+});
+
+test("보기와 편집은 전체 정보를 유지하고 태그 연결은 상품 편집 취소와 독립적이다", async ({ page }, info) => {
+  const writes: string[] = [];
+  page.on("request", request => { if (request.method() !== "GET") writes.push(request.url()); });
+  await page.goto(direct);
+  const view = page.locator("#dialogs .samples-read");
+  await expect(view.locator("dl[aria-label='예시 상품 전체 정보'] dt")).toHaveText(["상품명", "자료 번호", "수량", "판매 중", "메모", "태그"]);
+  await view.getByRole("button", { name: "태그 연결", exact: true }).click();
+  await view.getByRole("button", { name: "태그 선택", exact: true }).click();
+  const chooser = page.getByRole("dialog", { name: "자료 태그 선택", exact: true });
+  await chooser.getByRole("checkbox", { name: "중요", exact: true }).check();
+  await chooser.getByRole("button", { name: "선택 완료", exact: true }).click();
+  await view.getByRole("button", { name: "연결 적용", exact: true }).click();
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({width,height:900});
+    await view.scrollIntoViewIfNeeded();
+    await view.screenshot({path:info.outputPath(`sample-view-pairs-${width}.png`)});
+    await view.getByRole("button", {name:"편집 모달 열기",exact:true}).click();
+    const editor = page.getByRole("dialog", {name:"상품 편집",exact:true});
+    await expect(editor.getByLabel("상품명",{exact:false})).toHaveValue("유리컵");
+    await expect(editor.getByLabel("수량",{exact:true})).toHaveValue("0");
+    await expect(editor.getByLabel("판매 중",{exact:true})).toHaveValue("false");
+    await expect(editor.getByLabel("메모",{exact:true})).toContainText("같은 전체 정보");
+    await expect(editor.getByText("SAMPLE-001",{exact:true})).toBeVisible();
+    await expect(editor.getByText("중요",{exact:true})).toBeVisible();
+    await expect(editor.getByRole("button", {name:/태그/})).toHaveCount(0);
+    await page.screenshot({path:info.outputPath(`sample-edit-pairs-${width}.png`)});
+    await editor.getByLabel("상품명",{exact:false}).fill("저장하지 않을 변경");
+    await editor.getByRole("button",{name:"취소",exact:true}).click();
+    await page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true}).getByRole("button",{name:"변경 버리기",exact:true}).click();
+    await expect(view.getByText("중요",{exact:true})).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+  await page.goto("/design-samples/index.html");
+  await page.getByRole("button",{name:"모바일",exact:true}).click();
+  const frame = page.frameLocator("iframe");
+  await frame.locator("#dialogs").getByRole("button",{name:"편집 모달 열기",exact:true}).click();
+  await expect(frame.getByRole("dialog",{name:"상품 편집",exact:true})).toBeVisible();
+  await page.screenshot({path:info.outputPath("sample-narrow-preview.png")});
+  await frame.locator("html").evaluate(el => (el as HTMLElement).style.fontSize = "200%");
+  await page.screenshot({path:info.outputPath("sample-narrow-preview-text200.png")});
+  expect(writes).toEqual([]);
 });

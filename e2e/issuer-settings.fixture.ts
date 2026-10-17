@@ -681,7 +681,7 @@ test(
     await create.getByLabel("이름", { exact: false }).fill("테스트 상품");
     await page.screenshot({ path: info.outputPath("direct-register.png"), fullPage: true });
     await create.getByRole("button", { name: "저장", exact: true }).click();
-    const confirm = page.getByRole("dialog", { name: "‘테스트 상품’을 등록하시겠습니까?", exact: true });
+    const confirm = page.getByRole("dialog", { name: "등록하시겠습니까?", exact: true });
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button", { name: "등록하고 저장", exact: true }).click();
     await expect(create).toHaveCount(0);

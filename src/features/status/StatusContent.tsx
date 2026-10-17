@@ -34,7 +34,7 @@ function DailyChart(
     <div className="status-chart-area">
       <div className="status-chart-heading">
         <h3 className="section-title">{title}</h3>
-        <span className="meta">최근 {days.length}일</span>
+        <dl className="key-value-static status-chart-period"><div><dt>기간</dt><dd>최근 {days.length}일</dd></div></dl>
       </div>
       <div className="status-legend">
         {series.map((s) => (
@@ -116,9 +116,10 @@ function DailyChart(
         </div>
       )}
       {current && (
-        <p id={id} className="status-day-detail" aria-live="polite">
-          <strong>{current.date}</strong> · {series.map((s) => `${s.label} ${s.value(current)}건`).join(" · ")}
-        </p>
+        <dl id={id} className="status-day-detail key-value-grid key-value-static" aria-live="polite">
+          <div><dt>날짜</dt><dd><time dateTime={current.date}>{current.date}</time></dd></div>
+          {series.map(s => <div key={s.label}><dt>{s.label}</dt><dd>{s.value(current)}건</dd></div>)}
+        </dl>
       )}
     </div>
   );
@@ -126,14 +127,9 @@ function DailyChart(
 function Summary({ title, total, values }: { title: string; total: number; values: [string, number][] }) {
   return (
     <div className="status-summary">
-      <div className="status-total">
-        <h3 className="section-title">{title}</h3>
-        <strong>
-          {total.toLocaleString("ko-KR")}
-          <span className="meta">개</span>
-        </strong>
-      </div>
-      <dl>
+      <h3 className="section-title">{title}</h3>
+      <dl className="key-value-grid key-value-static">
+        <div className="status-total"><dt>합계</dt><dd>{total.toLocaleString("ko-KR")}개</dd></div>
         {values.map(([label, value]) => (
           <div key={label}>
             <dt>{label}</dt>
@@ -151,7 +147,7 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
       <section className="status-section" aria-labelledby="status-current-title">
         <div className="status-section-heading">
           <h2 className="status-section-title" id="status-current-title">현재 자료·최근 활동</h2>
-          <span className="meta">활동: 최근 {data.period.days}일 · {data.period.from}–{data.period.to}</span>
+          <dl className="key-value-static status-period"><div><dt>활동 기간</dt><dd>최근 {data.period.days}일 · {data.period.from}–{data.period.to}</dd></div></dl>
         </div>
         {entities.total + tasks.total + records.total === 0 && (
           <p className="secondary">아직 보관한 자료가 없습니다.</p>
@@ -187,9 +183,9 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
       <section className="status-section" aria-labelledby="status-index-title">
         <div className="status-section-heading">
           <h2 className="status-section-title" id="status-index-title">색인 현황</h2>
-          <span className="meta">전체 기록 {indexing.total.toLocaleString("ko-KR")}개 · 현재 상태</span>
+          <dl className="key-value-static status-period"><div><dt>전체 기록</dt><dd>{indexing.total.toLocaleString("ko-KR")}개 · 현재 상태</dd></div></dl>
         </div>
-        <dl className="status-index-counts">
+        <dl className="status-index-counts key-value-grid key-value-static">
           {[["완료", indexing.indexed], ["준비 중", indexing.preparing], ["확인 필요", indexing.attention], [
             "대상 제외",
             indexing.excluded,
@@ -201,16 +197,14 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
           ))}
         </dl>
         {!!indexing.waiting?.long_waiting && (
-          <p className="help" role="status">
-            준비 상태 갱신이 {indexing.waiting.threshold_minutes}분 이상 없는 기록{" "}
-            {indexing.waiting.long_waiting}개가 있습니다. 가장 오래된 갱신: {new Intl.DateTimeFormat("ko-KR", {
-              timeZone: data.timezone,
-              dateStyle: "medium",
-              timeStyle: "short",
-            }).format(new Date(indexing.waiting.oldest_waiting_since!))}{" "}
-            ({data.timezone}). 처리 실패로 확정된 상태는 아닙니다. 새로고침 후에도 계속되면 관리자에게 색인 서비스
-            점검을 요청하세요.
-          </p>
+          <div role="status">
+            <dl className="key-value-grid key-value-static">
+              <div><dt>갱신 지연 기준</dt><dd>{indexing.waiting.threshold_minutes}분</dd></div>
+              <div><dt>오래 갱신되지 않은 기록</dt><dd>{indexing.waiting.long_waiting}개</dd></div>
+              <div className="key-value-full"><dt>가장 오래된 갱신</dt><dd><time dateTime={indexing.waiting.oldest_waiting_since!}>{new Intl.DateTimeFormat("ko-KR", { timeZone: data.timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date(indexing.waiting.oldest_waiting_since!))}</time> ({data.timezone})</dd></div>
+            </dl>
+            <p className="help">준비 상태 갱신이 오래 지연되고 있습니다. 처리 실패로 확정된 상태는 아닙니다. 새로고침 후에도 계속되면 관리자에게 색인 서비스 점검을 요청하세요.</p>
+          </div>
         )}
         <DailyChart title="작성일별 현재 색인 상태" days={daily} series={indexSeries} stacked />
         <p className="help">

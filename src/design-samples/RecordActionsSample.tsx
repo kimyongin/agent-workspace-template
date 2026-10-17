@@ -28,7 +28,7 @@ export function RecordActionsSample() {
     <section className="settings-section" aria-label="액션별 저장 샘플">
       <h2 className="settings-section-title">기록 자동 완성</h2>
       <form
-        className="form"
+        className="key-value-grid"
         onSubmit={(event) => {
           event.preventDefault();
           if (!result.success) return;
@@ -36,7 +36,7 @@ export function RecordActionsSample() {
           setMessage("예시 변경을 저장했습니다.");
         }}
       >
-        <Field label="액션">
+        <Field pair label="액션">
           {(props) => (
             <select
               {...props}
@@ -53,7 +53,7 @@ export function RecordActionsSample() {
             </select>
           )}
         </Field>
-        <Field label="메모 템플릿" error={errors.find((error) => error.action === action)?.message}>
+        <Field pair fullWidth label="메모 템플릿" error={errors.find((error) => error.action === action)?.message}>
           {(props) => (
             <TemplateMemoEditor
               key={action}

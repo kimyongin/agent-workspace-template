@@ -77,16 +77,15 @@ export function ConsentPage() {
       {!details && !error && <p className="secondary" role="status">요청을 확인하는 중…</p>}
       {details && (
         <>
-          <p style={{ margin: 0 }}>
-            <strong>{name}</strong>이(가) 내 할 일과 기록을 조회하고 변경하려고 합니다.
-          </p>
+          <p style={{ margin: 0 }}>이 에이전트가 내 할 일과 기록을 조회하고 변경하려고 합니다.</p>
           <p className="help" style={{ margin: 0 }}>클라이언트 이름은 등록한 쪽이 정한 값이므로 돌아갈 주소와 함께 확인하세요.</p>
-          <dl className="props">
-            <div>
+          <dl className="key-value-grid key-value-static">
+            <div className="key-value-full"><dt>클라이언트</dt><dd>{name}</dd></div>
+            <div className="key-value-full">
               <dt>돌아갈 주소</dt>
               <dd>{details.redirect_uri ?? "—"}</dd>
             </div>
-            <div>
+            <div className="key-value-full">
               <dt>요청 범위</dt>
               <dd>{details.scope || "기본"}</dd>
             </div>

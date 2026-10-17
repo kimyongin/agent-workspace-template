@@ -81,8 +81,8 @@ export function IndexingIssues({ count, disabled = false }: { count: number; dis
                   <li key={issue.id}>
                     <details>
                       <summary>
-                        <strong>{issue.title || "제목 없는 기록"}</strong>
-                        <span>{indexingReasonLabels[issue.reason]}</span>
+                        <span className="key-value-pair"><span className="label">기록</span><strong className="status-issue-value">{issue.title || "제목 없는 기록"}</strong></span>
+                        <span className="key-value-pair"><span className="label">사유</span><span className="status-issue-value">{indexingReasonLabels[issue.reason]}</span></span>
                       </summary>
                       <p className="help">{indexingReasonExplanations[issue.reason]}</p>
                       {issue.chunks.unknown > 0 && (
@@ -90,15 +90,13 @@ export function IndexingIssues({ count, disabled = false }: { count: number; dis
                           응답을 확인하지 못한 구간이 있습니다. 실패나 성공으로 확정할 수 없습니다.
                         </p>
                       )}
-                      <p>
-                        현재 구간 전송 시도 {issue.attempts}회 · 본문 구간 {issue.chunks.succeeded}/{issue.chunks.total}
-                        {" "}
-                        완료
-                      </p>
-                      <p className="meta">
-                        준비 중 {issue.chunks.preparing} · 응답 확인 불가 {issue.chunks.unknown} · 확인된 실패{" "}
-                        {issue.chunks.failed}
-                      </p>
+                      <dl className="key-value-grid key-value-static">
+                        <div><dt>현재 구간 전송 시도</dt><dd>{issue.attempts}회</dd></div>
+                        <div><dt>본문 구간</dt><dd>{issue.chunks.succeeded}/{issue.chunks.total} 완료</dd></div>
+                        <div><dt>준비 중</dt><dd>{issue.chunks.preparing}</dd></div>
+                        <div><dt>응답 확인 불가</dt><dd>{issue.chunks.unknown}</dd></div>
+                        <div><dt>확인된 실패</dt><dd>{issue.chunks.failed}</dd></div>
+                      </dl>
                     </details>
                   </li>
                 ))}

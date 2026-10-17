@@ -45,7 +45,8 @@ test("색인 대기: 문제 목록이 비어도 오래 갱신되지 않은 준�
   });
   await page.goto("/status");
   const waiting = page.getByRole("status").filter({ hasText: "준비 상태 갱신" });
-  await expect(waiting).toContainText("15분 이상 없는 기록 23개");
+  await expect(waiting.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^갱신 지연 기준$/ }) }).locator("dd")).toHaveText("15분");
+  await expect(waiting.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^오래 갱신되지 않은 기록$/ }) }).locator("dd")).toHaveText("23개");
   await expect(waiting).toContainText("실패로 확정된 상태는 아닙니다");
   await expect(waiting).toContainText("관리자에게 색인 서비스 점검");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -69,8 +70,8 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
     const toggle = page.getByRole("button", { name: /^색인 문제/ });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     const response = await mcp.call("get_status", {});
-    await expect(page.getByText(`전체 기록 ${response.indexing.total.toLocaleString("ko-KR")}개 · 현재 상태`))
-      .toBeVisible();
+    await expect(page.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^전체 기록$/ }) }).locator("dd"))
+      .toHaveText(`${response.indexing.total.toLocaleString("ko-KR")}개 · 현재 상태`);
     await expect(page.getByText("집계 기준과 날짜별 값", { exact: true })).toHaveCount(0);
     const originalViewport = page.viewportSize()!;
     const refresh = page.getByRole("button", { name: "새로고침", exact: true });
@@ -83,11 +84,10 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
     const charts = page.getByRole("button", { name: /그래프: 막대를 누르거나 방향키로 날짜 선택/ });
     await expect(charts).toHaveCount(4);
     const metrics = [
-      (day: typeof response.daily[number]) => `등록 ${day.entities_created}건`,
-      (day: typeof response.daily[number]) => `생성 ${day.tasks_created}건 · 일회성 완료 ${day.once_completed}건`,
-      (day: typeof response.daily[number]) => `작성 ${day.records_created}건`,
-      (day: typeof response.daily[number]) =>
-        `완료 ${day.indexing.indexed}건 · 준비 중 ${day.indexing.preparing}건 · 확인 필요 ${day.indexing.attention}건 · 대상 제외 ${day.indexing.excluded}건`,
+      (day: typeof response.daily[number]) => ({ 등록: `${day.entities_created}건` }),
+      (day: typeof response.daily[number]) => ({ 생성: `${day.tasks_created}건`, "일회성 완료": `${day.once_completed}건` }),
+      (day: typeof response.daily[number]) => ({ 작성: `${day.records_created}건` }),
+      (day: typeof response.daily[number]) => ({ 완료: `${day.indexing.indexed}건`, "준비 중": `${day.indexing.preparing}건`, "확인 필요": `${day.indexing.attention}건`, "대상 제외": `${day.indexing.excluded}건` }),
     ];
     for (let i = 0; i < metrics.length; i++) {
       const chart = charts.nth(i);
@@ -99,7 +99,9 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
         if (isMobile) await page.touchscreen.tap(box.x + x, box.y + box.height / 2);
         else await chart.click({ position: { x, y: box.height / 2 } });
         const chosen = response.daily[dayIndex];
-        await expect(detail).toHaveText(`${chosen.date} · ${metrics[i](chosen)}`);
+        for (const [label, value] of Object.entries({ 날짜: chosen.date, ...metrics[i](chosen) })) {
+          await expect(detail.locator("div").filter({ has: page.locator("dt").filter({ hasText: new RegExp(`^${label}$`) }) }).locator("dd")).toHaveText(value);
+        }
       }
       await chart.focus();
       await page.keyboard.press("Home");
@@ -217,7 +219,8 @@ test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이
   await detail.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByText("실패나 성공으로 확정할 수 없습니다", { exact: false }).first()).toBeVisible();
-  await expect(page.getByText("현재 구간 전송 시도 5회 · 본문 구간 1/2 완료").first()).toBeVisible();
+  await expect(page.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^현재 구간 전송 시도$/ }) }).locator("dd").first()).toHaveText("5회");
+  await expect(page.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^본문 구간$/ }) }).locator("dd").first()).toHaveText("1/2 완료");
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await expect(page.locator(".status-issue-list > li")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "다음", exact: true })).toBeDisabled();

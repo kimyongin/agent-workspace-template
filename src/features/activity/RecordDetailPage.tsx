@@ -70,7 +70,7 @@ export function RecordDetailPage() {
           submitLabel="저장"
           open
           initial={recordDraftFrom(record, timezone)}
-          deletion={{message:<p style={{ margin: 0 }}>
+          deletion={{target:recordDisplayText(record.body),message:<p style={{ margin: 0 }}>
             이 기록을 삭제합니다. {record.record_kind==="change"?"대상의 업무 상태는 되돌리지 않습니다.":"일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
           </p>,onConfirm:async (reason,tags,requestKey) => {
           setBusy(true);
