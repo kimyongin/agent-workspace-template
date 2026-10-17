@@ -39,8 +39,22 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(
         page.getByRole("heading", { level: 1 }).filter({ visible: true }).first(),
       ).toBeVisible();
-      if (!["/search", "/guide"].includes(path)) {
+      if (["/entities", "/tasks", "/records"].includes(path)) {
         await expect(page.locator("[data-list-anchor]").first()).toBeVisible();
+      }
+      if (path.startsWith("/tags/")) {
+        const row = page.getByRole("listitem").filter({ has: page.getByRole("definition").filter({ hasText: /^같은 이름$/ }) });
+        await expect(row).toHaveCount(1);
+        const name = row.getByRole("definition").filter({ hasText: /^같은 이름$/ });
+        const label = row.getByRole("term").filter({ hasText: /^태그 이름$/ });
+        await expect(name).toBeVisible();
+        await expect(label).toBeVisible();
+        const title = await typography(name), secondary = await typography(label);
+        expect((await typography(page.getByRole("heading", { level: 1 }))).size).toBeGreaterThan(title.size);
+        expect(title.weight).toBeGreaterThanOrEqual(500);
+        expect(title.size).toBeGreaterThan(secondary.size);
+        expect(title.weight).toBeGreaterThan(secondary.weight);
+        expect(title.color).not.toBe(secondary.color);
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
       if (await page.locator("[data-list-anchor]").count()) {
