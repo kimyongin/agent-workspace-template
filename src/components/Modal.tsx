@@ -1,3 +1,4 @@
+import { WriteOutcomeNotice } from "./WriteOutcomeNotice.tsx";
 import { PopupContainerContext } from "./ui/portal-container.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.tsx";
 import { Button } from "./ui/button.tsx";
@@ -223,7 +224,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
       </div>
       {description && <DialogDescription id={`${titleId}-description`}>{description}</DialogDescription>}
     </DialogHeader>
-    <div ref={bodyRef} role="region" aria-label="상세 내용" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4" aria-busy={!ready || undefined} tabIndex={0}>{children}</div>
+    <div ref={bodyRef} role="region" aria-label="상세 내용" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4" aria-busy={!ready || undefined} tabIndex={0}>{!dialogDocked && active && <WriteOutcomeNotice />}{children}</div>
     {footer && <DialogFooter ref={footerRef} className="m-0 shrink-0 rounded-none">{typeof footer === "function" ? footer(requestCancelEdit) : footer}</DialogFooter>}
   </>;
   return <SurfaceActionContext.Provider value={registerAction}><Dialog open={open && active && !dialogDocked} onOpenChange={next => { if (!next) requestClose(); }}>
