@@ -3,7 +3,7 @@ import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { BodyActionFace } from "../../components/BodyAction.tsx";
 import { Field } from "../../components/Field.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
-import { IssuerEditModal, type RegistryEditTarget } from "./IssuerEditModal.tsx";
+import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
 import { issuerRegistry } from "./issuer-registry-api.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 export function IdentitySourceModal({
@@ -88,7 +88,7 @@ export function IdentitySourceModal({
   // Keep the connection draft in this component while its one auxiliary surface changes mode.
   if (editing) {
     return (
-      <IssuerEditModal
+      <IssuerRegistryEditor
         key={editing.kind === "issuer" ? "issuer:new" : `rule:${editing.source}`}
         target={editing}
         onClose={() => setEditing(null)}

@@ -1,4 +1,4 @@
-import { IssuerEditModal, type RegistryEditTarget } from "./IssuerEditModal.tsx";
+import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { typeIdentityUpdate } from "@contracts/entity-issuer.ts";
@@ -297,7 +297,7 @@ export function TypeIdentitySettings(
         </form>
       )}
       {registryEdit && (
-        <IssuerEditModal
+        <IssuerRegistryEditor
           target={registryEdit}
           onClose={() => setRegistryEdit(null)}
           onState={reportRegistry}

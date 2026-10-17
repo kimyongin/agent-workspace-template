@@ -20,7 +20,7 @@ const sections = [
     key: "numbers",
     to: "/settings/issuers",
     label: "번호 설정",
-    description: "어느 곳의 어떤 번호를 사용할지 정합니다.",
+    description: "번호 출처는 쿠팡·옥션처럼 구분하고, 번호 종류는 상품 번호·주문 번호처럼 용도를 나눕니다.",
   },
   {
     key: "exchange",
