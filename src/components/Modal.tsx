@@ -40,7 +40,7 @@ export interface SurfaceEditor {
   onRouteDiscard?: () => void;
   footer: ModalProps["footer"];
 }
-export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor: RefObject<SurfaceEditor | null>; busy: RefObject<boolean>; register: (editor: SurfaceEditor | null) => void; onError?: (error: unknown) => void; protect: (value: SurfaceProtection | null) => void} | null>(null);
+export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor: RefObject<SurfaceEditor | null>; busy: RefObject<boolean>; register: (editor: SurfaceEditor | null) => void; onError?: (error: unknown) => void; protection: RefObject<SurfaceProtection | null>; protect: (value: SurfaceProtection | null) => void} | null>(null);
 
 export interface SurfaceProtection { dirty: boolean; busy: boolean; discard: () => void }
 
@@ -63,11 +63,11 @@ export function DetailSurface({title, description, tabTitle = title, onClose, ch
   const [protection, setProtection] = useState<SurfaceProtection | null>(null);
   const protectionRef = useRef(protection);
   protectionRef.current = protection;
-  const protect = useCallback((value: SurfaceProtection | null) => setProtection(value), []);
+  const protect = useCallback((value: SurfaceProtection | null) => { protectionRef.current = value; setProtection(value); }, []);
   const [dismissing,setDismissing]=useState(false);
   const editorRef = useRef<SurfaceEditor | null>(null), busyRef = useRef(busy);
   const readFocus=useRef<HTMLElement|null>(null);
-  busyRef.current = busy || !!protection?.busy;
+  busyRef.current = busy;
   const register = useCallback((value: SurfaceEditor | null) => {
     if(value&&!readFocus.current)readFocus.current=document.activeElement as HTMLElement;
     editorRef.current=value; setEditor(value);
@@ -82,7 +82,7 @@ export function DetailSurface({title, description, tabTitle = title, onClose, ch
   };
   // Remove the editor before navigating, so its dirty guard cannot ask a second time.
   useEffect(()=>{if(dismissing&&!editor&&!protection){setDismissing(false);if(tab)tab.close();else onClose();}},[dismissing,editor,protection,onClose,tab]);
-  return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef, onError, protect}}>
+  return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef, onError, protection: protectionRef, protect}}>
     <ModalShell open title={editor?.title ?? title} description={editor ? editor.description : description} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard ?? (protection ? () => protectionRef.current?.discard() : undefined)} dirty={editor?.dirty || protection?.dirty} busy={busy || editor?.busy || protection?.busy}
       previous={tab?.previous ?? (editor ? null : previous)} footer={editor?.footer ?? (protection?.dirty ? <fieldset className="plain-fieldset actions" disabled>{footer}</fieldset> : footer)}>
@@ -129,13 +129,13 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   // The router keeps this callback; it reads the committed mode instead of a previous editor's boolean.
   const shouldBlock = useCallback(() => {
     const state=guard.current;
-    return state.open && (!!actionRef.current || (state.surface ? state.dirty || !!state.surface.editor.current?.dirty || !!state.surface.editor.current?.busy || state.surface.busy.current : state.dirty || state.busy));
+    return state.open && (!!actionRef.current || (state.surface ? !!state.surface.protection.current?.dirty || !!state.surface.protection.current?.busy || !!state.surface.editor.current?.dirty || !!state.surface.editor.current?.busy || state.surface.busy.current : state.dirty || state.busy));
   }, []);
   const readGuard = useRef<() => WorkspaceGuard>(() => ({ dirty: false, busy: false, retained: false, discard: () => {} }));
   readGuard.current = () => ({
-    dirty: !!actionRef.current || dirty || !!surface?.editor.current?.dirty,
+    dirty: !!actionRef.current || (surface ? !!surface.protection.current?.dirty || !!surface.editor.current?.dirty : dirty),
     // A removed surface editor must not retain its previous render's busy prop.
-    busy: !!actionRef.current?.busy || (surface ? !!surface.editor.current?.busy || surface.busy.current : busy),
+    busy: !!actionRef.current?.busy || (surface ? !!surface.protection.current?.busy || !!surface.editor.current?.busy || surface.busy.current : busy),
     retained: !!tab,
     discard: onRouteDiscard,
   });

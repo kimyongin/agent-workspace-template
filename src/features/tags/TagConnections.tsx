@@ -25,10 +25,11 @@ export function ReadonlyTags(
 }
 
 /** The chooser only changes this draft. A partial write owns its exact version and retry lifetime. */
-export function TagConnections({ scope, target, readonly = false, onSaved }: {
+export function TagConnections({ scope, target, readonly = false, onSaved, onDraftClosed }: {
   scope: TagScope;
   target: { id: string; version: number; tag_ids: string[]; schema_version?: number; title?: string };
   readonly?: boolean;
+  onDraftClosed?: () => void;
   onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
 }) {
   const trigger = useRef<HTMLElement>(null);
@@ -48,7 +49,7 @@ export function TagConnections({ scope, target, readonly = false, onSaved }: {
           <TagConnectionDraft
             scope={scope}
             target={editing}
-            onCancel={() => setEditing(null)}
+            onCancel={() => { setEditing(null); onDraftClosed?.(); }}
             onSaved={(saved) => {
               onSaved(saved);
               setEditing(null);

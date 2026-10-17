@@ -113,7 +113,7 @@ export function TaskDetailPage() {
         {actionError && <Notice kind="error">{actionError}</Notice>}
         {loadError && <><Notice kind="error">{relationSaved.current?"연결은 저장했습니다. 최신 내용을 불러오지 못했습니다.":message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
         <TaskDataFields task={task}/>
-        <TagConnections scope="task" target={task} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
+        <TagConnections onDraftClosed={detail.editClosed} scope="task" target={task} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
         {task.kind==="once"&&task.status==="done"&&!task.result_record&&<p className="secondary">결과 기록이 삭제되었습니다.</p>}
       </section>
 

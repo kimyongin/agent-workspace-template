@@ -162,7 +162,7 @@ export function EntityDetailPage() {
           }
         >
           {entity[kind].count > 0 && (
-            <CollectionList>
+            <CollectionList columns={["본문 대표 문구"]}>
               {entity[kind].items.map((item) => (
                 <li key={item.id}>
                   <RelatedRecordItem record={item} />
@@ -213,7 +213,7 @@ export function EntityDetailPage() {
                 </>
               }
             />
-            <TagConnections scope="entity" target={entity} readonly={!!entity.deleted_at} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
+            <TagConnections onDraftClosed={detail.editClosed} scope="entity" target={entity} readonly={!!entity.deleted_at} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
 
           </section>
           <div className="detail-relations">
@@ -235,7 +235,7 @@ export function EntityDetailPage() {
             {entity.deleted_at && (
               <>
                 <RelatedSection title="할 일" count={entity.tasks.count}>
-                  <CollectionList>
+                  <CollectionList columns={["제목"]}>
                     {entity.tasks.items.map((item) => (
                       <li key={item.id}>
                         <RelatedTaskItem id={item.id} occurrence={null} />
@@ -244,7 +244,7 @@ export function EntityDetailPage() {
                   </CollectionList>
                 </RelatedSection>
                 <RelatedSection title="기록" count={entity.records.count}>
-                  <CollectionList>
+                  <CollectionList columns={["본문 대표 문구"]}>
                     {entity.records.items.map((item) => (
                       <li key={item.id}>
                         <RelatedRecordItem record={item} />
@@ -318,7 +318,7 @@ export function EntityDetailPage() {
                   <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />
                   {([["tasks", "할 일"], ["records", "기록"]] as const).map(([kind, label]) => (
                     <RelatedSection key={kind} title={label} count={entity[kind].count} views={false}>
-                      <CollectionList>
+                      <CollectionList columns={[kind === "tasks" ? "제목" : "본문 대표 문구"]}>
                         {entity[kind].items.map((item) => (
                           <li key={item.id}>
                             <RelatedItem
