@@ -19,16 +19,26 @@ const recoveryLabels = {
 export function RecoveryAvailability({ job }: { job: EntitySchemaMigration }) {
   if (job.status !== "succeeded") return null;
   return (
-    <p className="secondary">
-      {job.recovery ? recoveryLabels[job.recovery.status] : "복구 가능 여부 확인 필요"}
-      {job.recovery?.reason && <>· {job.recovery.reason}</>}
-      {job.source_expires_at && (
-        <>
-          · 원본 보존 만료:{" "}
-          <time dateTime={job.source_expires_at}>{new Date(job.source_expires_at).toLocaleString()}</time>
-        </>
+    <dl className="key-value-grid key-value-static">
+      <div>
+        <dt>복구 상태</dt>
+        <dd>{job.recovery ? recoveryLabels[job.recovery.status] : "복구 가능 여부 확인 필요"}</dd>
+      </div>
+      {job.recovery?.reason && (
+        <div className="key-value-full">
+          <dt>사유</dt>
+          <dd>{job.recovery.reason}</dd>
+        </div>
       )}
-    </p>
+      {job.source_expires_at && (
+        <div>
+          <dt>원본 보존 만료</dt>
+          <dd>
+            <time dateTime={job.source_expires_at}>{new Date(job.source_expires_at).toLocaleString()}</time>
+          </dd>
+        </div>
+      )}
+    </dl>
   );
 }
 type RecoveryConflict = { path: string; message: string };
@@ -51,17 +61,19 @@ export function RecoveryConflictList({ conflicts }: { conflicts?: RecoveryConfli
   return (
     <section aria-label="복구 충돌 대상">
       <h3 className="section-title">확인이 필요한 변경</h3>
-      <ul>
+      <dl className="key-value-grid key-value-static">
         {conflicts.slice(0, 21).map((conflict, index) => {
           const id = conflictTarget(conflict.path);
           return (
-            <li key={`${conflict.path}-${index}`}>
-              {id ? <Link to={entityPath(id)}>{schemaEntityLabel(id)}</Link> : conflictLabel(conflict.path)}:{" "}
-              {conflict.message}
-            </li>
+            <div className="key-value-full" key={`${conflict.path}-${index}`}>
+              <dt>
+                {id ? <Link to={entityPath(id)}>{schemaEntityLabel(id)}</Link> : conflictLabel(conflict.path)}
+              </dt>
+              <dd>{conflict.message}</dd>
+            </div>
           );
         })}
-      </ul>
+      </dl>
       <p className="secondary">
         한 번에 최대 21개 사유를 표시합니다. 현재 자료와 연결을 확인한 뒤 보완하거나 새 변경안을 분석하세요.
       </p>
@@ -151,7 +163,8 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
       </p>
       {job.recovery?.status === "conflict" && (
         <p>
-          현재 자료·입력 항목·연결을 확인하고 직접 보완하거나 새 변경안을 분석하세요. 이후 변경을 자동으로 덮어쓰지 않습니다.
+          현재 자료·입력 항목·연결을 확인하고 직접 보완하거나 새 변경안을 분석하세요. 이후 변경을 자동으로 덮어쓰지
+          않습니다.
         </p>
       )}
       <RecoveryConflictList conflicts={job.recovery?.conflicts} />

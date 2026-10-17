@@ -314,11 +314,11 @@ function RecordTemplateForm({
           )}
           <fieldset
             disabled={busy || uncertain}
-            className="form plain-fieldset"
+            className="form plain-fieldset key-value-grid"
           >
-            <div className="field-row">
+            <>
               {!materialResource && !selectedModel && (
-                <Field label="대상">
+                <Field pair label="대상">
                   {(props) => (
                     <select
                       {...props}
@@ -341,7 +341,7 @@ function RecordTemplateForm({
                   )}
                 </Field>
               )}
-              <Field label="액션">
+              <Field pair label="액션">
                 {(props) => (
                   <select
                     {...props}
@@ -358,7 +358,7 @@ function RecordTemplateForm({
                   </select>
                 )}
               </Field>
-            </div>
+            </>
             {model === "entity" && (
               <>
                 {typeError && !materialResource && (
@@ -371,7 +371,7 @@ function RecordTemplateForm({
                 )}
               </>
             )}
-            <Field label="변수 삽입">
+            <Field pair label="변수 삽입">
               {(props) => (
                 <select
                   {...props}
@@ -390,6 +390,8 @@ function RecordTemplateForm({
               )}
             </Field>
             <Field
+              pair
+              fullWidth
               label="메모 템플릿"
               help={schemaUnavailable
                 ? undefined
@@ -434,12 +436,14 @@ function RecordTemplateForm({
               </div>
             )}
 
-            <TagPicker
-              label="기본 기록 태그"
-              scope="record"
-              value={value.tag_ids}
-              onChange={(tag_ids) => setValue({ tag_ids })}
-            />
+            <div className="settings-template-tags key-value-full">
+              <TagPicker
+                label="기본 기록 태그"
+                scope="record"
+                value={value.tag_ids}
+                onChange={(tag_ids) => setValue({ tag_ids })}
+              />
+            </div>
             {Object.entries(errors).filter(([key]) => key !== `${path}.memo`).map(([key, error]) => {
               const target = templateFieldTarget(key);
               const canOpen = target &&

@@ -1150,7 +1150,7 @@ test("conversion preview distinguishes numeric zero from text zero and puts chan
   });
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
   const preview = page.getByRole("region", { name: "변환 규칙과 영향 미리보기", exact: true });
-  await expect(preview.getByRole("article").first().locator(".props > div").first()).toContainText("가격");
+  await expect(preview.getByRole("article").first().locator("dl > div").first()).toContainText("가격");
   await expect(preview).toContainText("0 (정수)");
   await expect(preview).toContainText("0 (텍스트)");
   await expect(preview.getByLabel("가격 변환 방식", { exact: true })).toBeVisible();
@@ -1235,4 +1235,40 @@ test("an exact empty analysis offers direct definition apply without conversion 
   await history.getByRole("button", { name: "변경 적용", exact: true }).click();
   await expect(history).toContainText("적용됨");
   expect(applied).toBe(true);
+});
+
+test("입력 항목 이름과 조건은 가용 폭에서 키와 값의 정렬을 유지한다", async ({ page }, info) => {
+  await page.goto("/e2e/fixtures/schema-editor-read.html?display-example");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await page.getByRole("button", { name: "재료명 입력 항목 편집", exact: true }).click();
+  const name = page.getByLabel("항목 이름", { exact: true });
+  await name.fill("긴 입력 항목 이름과 초안 보존 확인");
+  for (const width of [320, 640, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const axes = await name.evaluate((input) => {
+      const label = document.querySelector(`label[for="${input.id}"]`)!.getBoundingClientRect();
+      const value = input.getBoundingClientRect();
+      return { left: value.left, keyRight: label.right, deltaY: Math.abs(value.top - label.top) };
+    });
+    expect(axes.keyRight).toBeLessThanOrEqual(axes.left);
+    expect(axes.deltaY).toBeLessThanOrEqual(1);
+    if (width === 320) {
+      const typeLeft =
+        (await page.getByRole("region", { name: "재료명 입력 항목", exact: true }).getByLabel("데이터 타입", {
+          exact: true,
+        }).boundingBox())!.x;
+      expect(axes.left).toBeCloseTo(typeLeft, 0);
+    }
+    await expect(name).toHaveValue("긴 입력 항목 이름과 초안 보존 확인");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`schema-pairs-${width}.png`), fullPage: true });
+  }
+  await page.locator(".schema-settings").evaluate((panel) => {
+    (panel as HTMLElement).style.maxWidth = "360px";
+  });
+  await page.screenshot({ path: info.outputPath("schema-pairs-narrow-parent.png"), fullPage: true });
+  await page.setViewportSize({ width: 320, height: 1000 });
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath("schema-pairs-200.png"), fullPage: true });
 });

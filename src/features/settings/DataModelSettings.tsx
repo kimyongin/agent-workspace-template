@@ -54,14 +54,17 @@ export function DataModelResult({ result }: { result: NonNullable<ModelChange["r
     <div>
       <p role="status">{result.changed === false ? "변경 없음. 검토 이력만 보존했습니다." : "적용 완료"}</p>
       {result.counts && (
-        <ul>
+        <dl className="key-value-grid key-value-static">
           {groups.map(([key, label]) => {
             const count = result.counts![key];
             return (
-              <li key={key}>{label}: 추가 {count.added}개 · 수정 {count.updated}개 · 변경 없음 {count.unchanged}개</li>
+              <div className="key-value-full" key={key}>
+                <dt>{label}</dt>
+                <dd>추가 {count.added}개 · 수정 {count.updated}개 · 변경 없음 {count.unchanged}개</dd>
+              </div>
             );
           })}
-        </ul>
+        </dl>
       )}
       <Link to="/settings/materials">자료 설정</Link> · <Link to="/settings/relations">연결 설정으로 이동</Link>
     </div>
@@ -80,29 +83,37 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
       <h3 className="section-title">{review.title}</h3>
       <details>
         <summary>파일과 현재 설정의 연결 정보</summary>
-        <dl className="props schema-definition-values">
+        <dl className="key-value-grid key-value-static schema-definition-values">
           {Object.entries(review.mapping.types).map(([source, target]) => (
-            <div key={`type:${source}`}>
-              <dt>자료 종류 · {review.items.find((i) => i.ref === source)?.label ?? source}</dt>
+            <div className="key-value-full" key={`type:${source}`}>
+              <dt>
+                자료 종류 · {review.items.find((i) =>
+                  i.ref === source
+                )?.label ?? source}
+              </dt>
               <dd>{review.items.find((i) => i.ref === source)?.source_type_id ?? source} → {target}</dd>
             </div>
           ))}
           {Object.entries(review.mapping.properties).flatMap(([type, properties]) =>
             Object.entries(properties).map(([source, target]) => (
-              <div key={`${type}:${source}`}>
-                <dt>입력 항목 · {review.items.find((i) => i.ref === type)?.label ?? type}</dt>
+              <div className="key-value-full" key={`${type}:${source}`}>
+                <dt>
+                  입력 항목 · {review.items.find((i) =>
+                    i.ref === type
+                  )?.label ?? type}
+                </dt>
                 <dd>{source} → {target}</dd>
               </div>
             ))
           )}
           {Object.entries(review.mapping.rules).map(([source, target]) => (
-            <div key={`rule:${source}`}>
+            <div className="key-value-full" key={`rule:${source}`}>
               <dt>번호 종류</dt>
               <dd>{source} → {target}</dd>
             </div>
           ))}
           {Object.entries(review.mapping.relations).map(([source, target]) => (
-            <div key={`relation:${source}`}>
+            <div className="key-value-full" key={`relation:${source}`}>
               <dt>연결 설정</dt>
               <dd>{source} → {target}</dd>
             </div>
@@ -146,17 +157,26 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
     >
       {item.message && <p>{item.message}</p>}
       {item.relation_impact && (
-        <p className="help">
-          현재 연결 {item.relation_impact.links}개 · 첫 번째 자료에 여러 개 연결{" "}
-          {item.relation_impact.left_many ? "있음" : "없음"} · 두 번째 자료에 여러 개 연결{" "}
-          {item.relation_impact.right_many ? "있음" : "없음"}
-        </p>
+        <dl className="key-value-grid key-value-static">
+          <div>
+            <dt>현재 연결</dt>
+            <dd>{item.relation_impact.links}개</dd>
+          </div>
+          <div>
+            <dt>첫 번째 자료에 여러 개 연결</dt>
+            <dd>{item.relation_impact.left_many ? "있음" : "없음"}</dd>
+          </div>
+          <div>
+            <dt>두 번째 자료에 여러 개 연결</dt>
+            <dd>{item.relation_impact.right_many ? "있음" : "없음"}</dd>
+          </div>
+        </dl>
       )}
       {item.schema && <SchemaDefinitionRead definition={{ schema: item.schema }} />}
       {item.identity && (
         <section aria-label="번호 설정 검토">
           <h3 className="section-title">번호 설정</h3>
-          <dl className="props schema-definition-values">
+          <dl className="key-value-grid key-value-static schema-definition-values">
             <div>
               <dt>번호 이름</dt>
               <dd>{item.identity.label}</dd>
@@ -175,7 +195,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
           {item.current_identity && (
             <details>
               <summary>현재 번호 설정</summary>
-              <dl className="props schema-definition-values">
+              <dl className="key-value-grid key-value-static schema-definition-values">
                 <div>
                   <dt>번호 이름</dt>
                   <dd>{item.current_identity.label}</dd>
@@ -196,10 +216,20 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
         </section>
       )}
       {(item.source_schema_version !== undefined || item.current_schema_version !== undefined) && (
-        <p className="help">
-          파일 원본 버전 {item.source_schema_version ?? "기록 없음"} · 현재 버전{" "}
-          {item.current_schema_version ?? "새 종류"} · 적용 버전 {item.target_schema_version ?? "유지"}
-        </p>
+        <dl className="key-value-grid key-value-static">
+          <div>
+            <dt>파일 원본 버전</dt>
+            <dd>{item.source_schema_version ?? "기록 없음"}</dd>
+          </div>
+          <div>
+            <dt>현재 버전</dt>
+            <dd>{item.current_schema_version ?? "새 종류"}</dd>
+          </div>
+          <div>
+            <dt>적용 버전</dt>
+            <dd>{item.target_schema_version ?? "유지"}</dd>
+          </div>
+        </dl>
       )}
       {item.source_is_stale && (
         <p className="help">
@@ -230,7 +260,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
         </div>
       )}
       {item.diff.length > 0 && (
-        <dl className="schema-change-list">
+        <dl className="schema-change-list key-value-grid key-value-static">
           {item.diff.map((d, i) => (
             <div key={i}>
               <dt>
@@ -306,7 +336,10 @@ export function DataModelSettings() {
     (removeKeys[item.ref]?.length !== item.removed_keys.length ||
       item.removed_keys.some((key) => !removeKeys[item.ref].includes(key)))
   );
-  const blocker = usePageNavigationBlocker(dirty || groupDirty, busy || uncertain || groupUncertain || reading || groupBusy);
+  const blocker = usePageNavigationBlocker(
+    dirty || groupDirty,
+    busy || uncertain || groupUncertain || reading || groupBusy,
+  );
   useEffect(() => {
     if ((busy || reading || groupBusy) && blocker.state === "blocked") blocker.reset();
   }, [busy, reading, groupBusy, blocker]);
@@ -571,8 +604,12 @@ export function DataModelSettings() {
           <p className="help">
             실제 자료와 개별 연결·기록은 포함하지 않습니다. 파일에 없는 현재 설정은 삭제하지 않습니다.
           </p>
-          <fieldset className="settings-fields" disabled={locked}>
-            <Field label="가져오는 방법" help="현재 자료 종류에 반영하거나, 새 자료 종류와 연결 설정을 만들 수 있습니다.">
+          <fieldset className="settings-fields key-value-grid" disabled={locked}>
+            <Field
+              pair
+              label="가져오는 방법"
+              help="현재 자료 종류에 반영하거나, 새 자료 종류와 연결 설정을 만들 수 있습니다."
+            >
               {(props) => (
                 <select
                   {...props}
@@ -588,7 +625,7 @@ export function DataModelSettings() {
                 </select>
               )}
             </Field>
-            <Field label="설정 파일" help="이 앱에서 내보낸 설정 파일(.json)을 선택하세요.">
+            <Field pair label="설정 파일" help="이 앱에서 내보낸 설정 파일(.json)을 선택하세요.">
               {(props) => (
                 <div className="schema-import-file">
                   <input
@@ -614,7 +651,12 @@ export function DataModelSettings() {
                 </div>
               )}
             </Field>
-            <Field label="설정 파일 내용" help="선택한 파일의 내용이 표시됩니다. 내용을 직접 붙여넣을 수도 있습니다.">
+            <Field
+              pair
+              fullWidth
+              label="설정 파일 내용"
+              help="선택한 파일의 내용이 표시됩니다. 내용을 직접 붙여넣을 수도 있습니다."
+            >
               {(props) => (
                 <textarea
                   {...props}
@@ -724,11 +766,16 @@ export function DataModelSettings() {
                   }
                 }}
               >
-                <p className="help">
-                  <time dateTime={change.created_at}>
-                    {new Date(change.created_at).toLocaleString("ko-KR")}
-                  </time>
-                </p>
+                <dl className="key-value-grid key-value-static">
+                  <div>
+                    <dt>시각</dt>
+                    <dd>
+                      <time dateTime={change.created_at}>
+                        {new Date(change.created_at).toLocaleString("ko-KR")}
+                      </time>
+                    </dd>
+                  </div>
+                </dl>
                 {detailState[change.id]?.loading && <p role="status">변경안 상세를 읽는 중…</p>}
                 {detailState[change.id]?.error && (
                   <div role="alert">

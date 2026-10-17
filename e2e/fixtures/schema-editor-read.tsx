@@ -5,6 +5,7 @@ import { BrowserRouter, Link, useLocation } from "react-router";
 import { SchemaEditor } from "../../src/features/settings/SchemaEditor.tsx";
 import { useSchemaChangeEditor } from "../../src/features/settings/schema-change-editor.ts";
 import { type EntityType, initialEntityDefinition } from "../../supabase/functions/_shared/contracts/entity-type.ts";
+import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 import "../../src/features/settings/settings.css";
 const type: EntityType = {
@@ -125,6 +126,10 @@ createRoot(document.getElementById("root")!).render(
       ? <ReviewActionsFixture />
       : new URLSearchParams(location.search).has("empty-inputs")
       ? <EmptyInputsFixture />
-      : <SchemaEditor type={type} definition={definition} onState={onState} onApplied={onApplied} />}
+      : (
+        <div className="panel settings">
+          <SchemaEditor type={type} definition={definition} onState={onState} onApplied={onApplied} />
+        </div>
+      )}
   </BrowserRouter>,
 );

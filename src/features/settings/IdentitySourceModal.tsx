@@ -123,7 +123,7 @@ export function IdentitySourceModal({
     >
       <div className="form">
         <div className="issuer-binding-choice">
-          <Field label="번호 출처">
+          <Field pair label="번호 출처">
             {(props) => (
               <select
                 {...props}
@@ -159,7 +159,7 @@ export function IdentitySourceModal({
                 ? <p role="status">번호 종류를 읽는 중…</p>
                 : eligible.length > 1
                 ? (
-                  <Field label="번호 종류">
+                  <Field pair label="번호 종류">
                     {(props) => (
                       <select
                         {...props}

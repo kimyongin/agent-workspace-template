@@ -60,64 +60,76 @@ function Literal(
   const nullable = Array.isArray(field.type) && field.type.includes("null");
   return (
     <>
-      <select
-        className="input"
-        aria-label="보완값 상태"
-        value={value === null ? "null" : "value"}
-        onChange={(e) =>
-          onChange(
-            e.target.value === "null"
-              ? null
-              : scalar === "boolean"
-              ? false
-              : scalar === "integer" || scalar === "number"
-              ? 0
-              : "",
-          )}
-      >
-        <option value="value">값 지정</option>
-        {nullable && <option value="null">명시적 값 없음</option>}
-      </select>
-      {value !== null && (scalar === "boolean"
-        ? (
+      <Field pair label="보완값 상태">
+        {(props) => (
           <select
+            {...props}
             className="input"
-            aria-label="보완값"
-            value={String(value)}
-            onChange={(e) => onChange(e.target.value === "true")}
-          >
-            <option value="false">거짓</option>
-            <option value="true">참</option>
-          </select>
-        )
-        : fieldChoices(field)
-        ? (
-          <select
-            className="input"
-            aria-label="보완값"
-            value={String(value)}
-            onChange={(e) => onChange(e.target.value)}
-          >
-            <option value="">선택하세요</option>
-            {fieldChoices(field)!.filter((v) => v !== null).map((code) => (
-              <option key={code!} value={code!}>{schemaOptionLabel(optionLabels, code!)}</option>
-            ))}
-          </select>
-        )
-        : (
-          <input
-            className="input"
-            aria-label="보완값"
-            value={String(value ?? "")}
-            type={field.format === "date" ? "date" : "text"}
-            inputMode={scalar === "number" || scalar === "integer" ? "decimal" : undefined}
-            step="any"
+            aria-label="보완값 상태"
+            value={value === null ? "null" : "value"}
             onChange={(e) =>
               onChange(
-                scalar === "number" || scalar === "integer" ? e.target.value : e.target.value,
+                e.target.value === "null"
+                  ? null
+                  : scalar === "boolean"
+                  ? false
+                  : scalar === "integer" || scalar === "number"
+                  ? 0
+                  : "",
               )}
-          />
-        ))}
+          >
+            <option value="value">값 지정</option>
+            {nullable && <option value="null">명시적 값 없음</option>}
+          </select>
+        )}
+      </Field>
+      {value !== null && (
+        <Field pair label="보완값">
+          {(props) => (scalar === "boolean"
+            ? (
+              <select
+                {...props}
+                className="input"
+                aria-label="보완값"
+                value={String(value)}
+                onChange={(e) => onChange(e.target.value === "true")}
+              >
+                <option value="false">거짓</option>
+                <option value="true">참</option>
+              </select>
+            )
+            : fieldChoices(field)
+            ? (
+              <select
+                {...props}
+                className="input"
+                aria-label="보완값"
+                value={String(value)}
+                onChange={(e) => onChange(e.target.value)}
+              >
+                <option value="">선택하세요</option>
+                {fieldChoices(field)!.filter((v) => v !== null).map((code) => (
+                  <option key={code!} value={code!}>{schemaOptionLabel(optionLabels, code!)}</option>
+                ))}
+              </select>
+            )
+            : (
+              <input
+                {...props}
+                className="input"
+                aria-label="보완값"
+                value={String(value ?? "")}
+                type={field.format === "date" ? "date" : "text"}
+                inputMode={scalar === "number" || scalar === "integer" ? "decimal" : undefined}
+                step="any"
+                onChange={(e) =>
+                  onChange(
+                    scalar === "number" || scalar === "integer" ? e.target.value : e.target.value,
+                  )}
+              />
+            ))}
+        </Field>
+      )}
     </>
   );
 }
@@ -214,8 +226,8 @@ export function ConversionEditor(
                   replacement = migration.rules.find((r) => r.key === key && r.op === "replace_failure"),
                   scalar = fieldType(f);
                 return (
-                  <section className="schema-field" key={key}>
-                    <Field label={f?.title ?? sourceField?.title ?? "삭제한 입력 항목"}>
+                  <section className="schema-field key-value-grid" key={key}>
+                    <Field pair label={f?.title ?? sourceField?.title ?? "삭제한 입력 항목"}>
                       {(p) => (
                         <select
                           {...p}
@@ -275,7 +287,7 @@ export function ConversionEditor(
                       const rule = op === "fill" ? fill : replacement;
                       return (
                         <section key={op}>
-                          <label className="choice-control">
+                          <label className="choice-control settings-choice-pair">
                             <input
                               type="checkbox"
                               checked={!!rule}
@@ -309,7 +321,7 @@ export function ConversionEditor(
                             />
                           )}
                           {rule?.op === "fill" && (
-                            <label className="choice-control">
+                            <label className="choice-control settings-choice-pair">
                               <input
                                 type="checkbox"
                                 checked={rule.include_null}
@@ -323,7 +335,7 @@ export function ConversionEditor(
                     })}
                     {r?.op === "map" && (
                       <>
-                        <label className="choice-control">
+                        <label className="choice-control settings-choice-pair">
                           <input
                             type="checkbox"
                             checked={r.identity}
@@ -331,7 +343,7 @@ export function ConversionEditor(
                           />{" "}
                           이미 허용된 코드는 유지
                         </label>
-                        <Field label="이전 코드">
+                        <Field pair label="이전 코드">
                           {(p) => (
                             <input
                               {...p}
@@ -346,7 +358,7 @@ export function ConversionEditor(
                           )}
                         </Field>
                         {Object.entries(r.mapping).map(([code, to]) => (
-                          <Field key={code} label={`${code} → 새 코드`}>
+                          <Field pair key={code} label={`${code} → 새 코드`}>
                             {(p) => (
                               <select
                                 {...p}
@@ -401,7 +413,7 @@ export function ConversionEditor(
                 {analysisRowTitle(row, plan.target, sourceDefinition)} ·{" "}
                 {row.errors.length ? "변환 실패" : row.changed ? "변경" : "무변경"}
               </h4>
-              <dl className="props">
+              <dl className="key-value-grid key-value-static">
                 {previewKeys(row).map((key) => (
                   <div key={key}>
                     <dt>

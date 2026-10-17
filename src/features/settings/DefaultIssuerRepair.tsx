@@ -87,7 +87,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
       {error && <p role="alert" className="error-text">{error}</p>}
       {!identity && !error && <p role="status">불러오는 중…</p>}
       {identity && (
-        <Field label={`${type.label} 기본 번호 출처`}>
+        <Field pair label={`${type.label} 기본 번호 출처`}>
           {(props) => (
             <select
               {...props}

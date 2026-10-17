@@ -26,6 +26,8 @@ const job = {
 
 it("완료 작업은 서버가 확인한 복구 가능 여부와 보존 기한을 함께 보여 준다", () => {
   const html = renderToStaticMarkup(<RecoveryAvailability job={job} />);
+  expect(html).toContain("<dt>복구 상태</dt><dd>복구안 생성 가능</dd>");
+  expect(html).toContain("<dt>원본 보존 만료</dt>");
   expect(html).toContain("복구안 생성 가능");
   expect(html).toMatch(/datetime="2026-11-10T12:00:00Z"/i);
   const expired = renderToStaticMarkup(
@@ -125,7 +127,7 @@ it("복구 충돌 목록은 자료 번호를 안전한 상세 링크로 제공�
   );
   expect(html).toContain('href="/entities/crm%3A00000000-0000-4000-8000-000000000001%3AVIP%2Fa.b"');
   expect(html).toContain(">crm · VIP/a.b</a>");
-  expect(html).toContain("연결·선택: 할 일의 선택이 변경되었습니다");
+  expect(html).toContain("<dt>연결·선택</dt><dd>할 일의 선택이 변경되었습니다</dd>");
   expect(html).not.toContain('href="/entities/removed"');
 });
 

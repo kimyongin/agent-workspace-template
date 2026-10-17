@@ -15,7 +15,7 @@ export function SchemaRepresentativeSetting({ draft, propertyKey, disabled, choo
     (field.minLength ?? 0) >= 1;
   return (
     <div className="schema-representative-setting">
-      <label className="schema-representative-choice">
+      <label className="schema-representative-choice settings-choice-pair">
         <input
           type="radio"
           name="schema-representative"

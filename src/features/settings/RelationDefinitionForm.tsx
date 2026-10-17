@@ -106,9 +106,9 @@ export function RelationDefinitionForm(
         {ends.map((end, n) => {
           const prefix = n === 0 ? "첫 번째" : "두 번째";
           return (
-            <div className="relation-definition-end" key={n}>
+            <div className="relation-definition-end key-value-grid" key={n}>
               <h3>{types.find((type) => type.id === end.type_id)?.label ?? `${prefix} 자료`}에서 보이는 연결</h3>
-              <Field label="자료 종류" required>
+              <Field pair label="자료 종류" required>
                 {(props) => (
                   <select
                     className="input"
@@ -124,7 +124,7 @@ export function RelationDefinitionForm(
                   </select>
                 )}
               </Field>
-              <Field label="연결 이름" required help="이 자료에서 상대를 부르는 이름입니다.">
+              <Field pair label="연결 이름" required help="이 자료에서 상대를 부르는 이름입니다.">
                 {(props) => (
                   <input
                     className="input"
@@ -136,7 +136,7 @@ export function RelationDefinitionForm(
                   />
                 )}
               </Field>
-              <Field label="연결 개수" help="몇 개까지 연결할 수 있는지 정합니다.">
+              <Field pair label="연결 개수" help="몇 개까지 연결할 수 있는지 정합니다.">
                 {(props) => (
                   <select
                     className="input"
@@ -155,14 +155,17 @@ export function RelationDefinitionForm(
         })}
       </fieldset>
       {baseline && (
-        <label className="check-label">
-          <input
-            type="checkbox"
-            checked={archived}
-            disabled={writing.busy || writing.uncertain || reading}
-            onChange={(e) => setArchived(e.target.checked)}
-          />보관<span className="secondary">기존 연결을 유지하고 새 연결을 중단합니다.</span>
-        </label>
+        <Field pair label="보관" help="기존 연결을 유지하고 새 연결을 중단합니다.">
+          {(props) => (
+            <input
+              {...props}
+              type="checkbox"
+              checked={archived}
+              disabled={writing.busy || writing.uncertain || reading}
+              onChange={(e) => setArchived(e.target.checked)}
+            />
+          )}
+        </Field>
       )}
       {error && (
         <div className="notice notice-error" role="alert">
