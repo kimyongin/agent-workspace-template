@@ -1,0 +1,36 @@
+{
+  "repository": "https://github.com/shadcn-ui/ui",
+  "revision": "d2fba50ee5b9113008b5bb908563527b7efd2f27",
+  "source": "skills/shadcn",
+  "license": "MIT",
+  "licenseFile": "docs/development/shadcn-skills-LICENSE",
+  "canonicalRoot": ".agents/skills/shadcn",
+  "claudeWrapper": ".claude/skills/shadcn/SKILL.md",
+  "localChanges": [
+    "Official skill directory preserved byte-for-byte.",
+    "Claude wrapper preserves upstream frontmatter and points to the canonical skill."
+  ],
+  "files": {
+    "SKILL.md": "93951e5e83f616a3e046491c00d770bd54c0a64164706cd1191822a233d27592",
+    "agents/openai.yml": "35db91b1eef58b2abe01da9b88577de5a44e233b740cd93d692ddeeadd2afe4d",
+    "assets/shadcn-small.png": "0ecc62d682727f68fc4937eed19960c706714fa084d44f63028d611ae02bf3d7",
+    "assets/shadcn.png": "7d60ad6fec4d89a0d44ba5a3c9283d2fea0047af5467f9227040e20d927d39b7",
+    "assets/showcase/color-pair.tsx": "6028f0b677912216822fdaf76ae6b8863c429916ed4a9626b73f4de4506f8ee4",
+    "assets/showcase/preview-states.css": "8d9e3cec24dd01b11c5ba12196d0376a131797d9ad247ea624e66eb8bbf61b0e",
+    "assets/showcase/state-matrix.tsx": "07794119fe05ff735358b3f8ca30a8297617ab64dfb3901dce4d89fe5f443458",
+    "cli.md": "a381e35bf36fe7bb851952c13707e01e82434fd7a4a4e53f6df26c6370838904",
+    "customization.md": "a19e81c78843df255e85755e52659268d793845add845b34ad8091f62bff3af9",
+    "design-system-page.md": "c541d661af159548744be3e27f79e7da710ab83f9afd448a4346f7ff1531d328",
+    "design-system.md": "9ed11e93e7e80e34c8795d5ba82e5420ca905e8e9949fef79cbe9239184fd06b",
+    "evals/evals.json": "e82c747326a5c21e37a1c962274d36b1bfebb3e6602ee368b98e2dba5db18369",
+    "mcp.md": "8d696b4e45b7d0e337367248513bd9acebe8f3bcfd7b748c775e5a337c8f38c8",
+    "registry.md": "4f239be36bd2b58e17047db1ca80ab7da00e15a8b73242e5e4d50d113c4caa05",
+    "rules/base-vs-radix.md": "2b2deb47d004285220c1fc6b38bb2edc2d0ccbcdafd031b0b189d5d8ed0d1ba8",
+    "rules/chat.md": "4b4610d487ddc9751f3cfe0c554a06560ac723fcc2460abad77a1d3c7c9a4b95",
+    "rules/composition.md": "f282df828d83a91132a846ddb62eea149a7c7c94822e9ca88cfddf85af01aa41",
+    "rules/forms.md": "29593e14381e34626f8e0e9c15c59f3394b92a0623af6a6ec94585400123853c",
+    "rules/icons.md": "d4a58266648872d9ee07d0c2368843a1cb88b8253b7f528dd7bda9d68b6c2535",
+    "rules/styling.md": "f88fbd72dff862805b786dc7d7e4c74c83030fc278c5b97c993e4e665001798c",
+    "scripts/showcase-coverage.mjs": "fb593e0806414d23b51354a46881f0b2873afc226bda0926a22f83cbd60af2fa"
+  }
+}

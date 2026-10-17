@@ -17,7 +17,7 @@ agent-workspace-template/
 ├─ CLAUDE.md                       # Claude Code 진입점, AGENTS.md를 가져옴
 ├─ .gitattributes · .editorconfig  # UTF-8·LF 강제
 ├─ GLOSSARY.md                     # 도메인 용어 정본
-├─ .agents/skills/<skill>/          # Matt Pocock 공식 27개 공유 정본
+├─ .agents/skills/<skill>/          # Matt Pocock 개발 방법·shadcn UI 기술의 공유 정본
 │  ├─ SKILL.md                     # 원본 작업 방법과 호출 정책
 │  ├─ agents/openai.yaml           # 원본 Codex 표시·호출 정보
 │  └─ <참조 자료·보조 파일>        # 원본의 상대 경로 유지
