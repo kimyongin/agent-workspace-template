@@ -1,4 +1,4 @@
-import { fixtureIdentity } from "./support/workspace-data.ts";
+import { fixtureIdentity, fixtureSchema } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
 import { entityKey } from "./support/workspace-data.ts";
 import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.ts";
@@ -1329,4 +1329,58 @@ test("record responsive parity: panel resize and 200% text enlargement keep the 
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:info.outputPath("record-panel-200-percent.png")});
   expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+});
+
+
+test("review: readonly entity representative keeps the full-width emphasized value in edit", async ({ page }, info) => {
+  const state = await fixture(page);
+  const schema = structuredClone(fixtureSchema);
+  schema.schema.properties.prop_1.readOnly = true;
+  await page.route("**/api/entity-types/*/schema**", (route) => route.fulfill({ json: schema }));
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await page.getByRole("separator", { name: "상세 패널 너비 조절" }).press("End");
+  const surface = panel(page);
+  const heading = surface.getByRole("heading", { name: "등심", exact: true });
+  await expect(heading).toBeVisible();
+  const readValue = (await heading.locator("..").boundingBox())!;
+  const readFont = await heading.evaluate((el) => getComputedStyle(el).fontSize);
+  await surface.getByRole("button", { name: "편집", exact: true }).click();
+  await expect(heading).toBeVisible();
+  const editValue = (await heading.locator("..").boundingBox())!;
+  expect(editValue.x).toBeCloseTo(readValue.x, 0);
+  expect(editValue.width).toBeCloseTo(readValue.width, 0);
+  expect(await heading.evaluate((el) => getComputedStyle(el).fontSize)).toBe(readFont);
+  await expect(surface.getByRole("textbox", { name: /^제목/ })).toHaveCount(0);
+  const nameKey = surface.locator("dt:visible", { hasText: /^제목/ }).first();
+  const source = surface.locator("dt:visible", { hasText: /^번호 출처$/ });
+  const nameBox = (await nameKey.boundingBox())!;
+  expect((await source.boundingBox())!.y).toBeGreaterThan(nameBox.y + nameBox.height);
+  await page.screenshot({ path: info.outputPath("readonly-representative-wide.png") });
+  expect(state.writes).toEqual([]);
+});
+
+test("review: captured entity labels retain their historical meaning in record edit", async ({ page }, info) => {
+  const state = await fixture(page);
+  state.rows.records[0].entity_context = [{
+    ...state.rows.records[0].entity_context[0],
+    type: { ...state.rows.entities[0].type, label: "당시 상품" },
+    schema_version: 7,
+  }];
+  await page.goto(`/records/${state.rows.records[0].id}`);
+  const surface = panel(page);
+  const linked = surface.getByRole("region", { name: "연결된 자료 (1개)", exact: true });
+  await linked.getByRole("button", { name: "등심", exact: true }).click();
+  await expect(linked.locator("dt", { hasText: /^당시 자료 종류$/ }).locator("../dd")).toContainText("당시 상품");
+  await expect(linked.locator("dt", { hasText: /^당시 입력 항목 버전$/ }).locator("../dd")).toHaveText("7");
+  await expect(linked.locator("dt", { hasText: /^자료 식별$/ }).locator("../dd")).toHaveText(entityKey(1));
+  await surface.getByRole("button", { name: "편집", exact: true }).click();
+  await expect(linked.locator("dt:visible", { hasText: /^당시 자료 종류$/ }).locator("../dd")).toContainText(
+    "당시 상품",
+  );
+  await expect(linked.locator("dt:visible", { hasText: /^당시 입력 항목 버전$/ }).locator("../dd")).toHaveText("7");
+  await expect(linked.locator("dt:visible", { hasText: /^자료 식별$/ }).locator("../dd")).toHaveText(entityKey(1));
+  await expect(linked.getByRole("button")).toHaveCount(0);
+  await linked.locator("dt:visible", { hasText: /^자료 식별$/ }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("record-captured-entity-edit.png") });
+  expect(state.writes).toEqual([]);
 });

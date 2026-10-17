@@ -153,7 +153,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
           x: box.x,
           keyX: key.x,
           width: box.width,
-          font: style.fontSize,
+          font: getComputedStyle(value.querySelector("h2, h3") ?? value).fontSize,
           padding: style.paddingLeft,
         };
       })
@@ -166,7 +166,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await expect(detail.getByRole("button", { name: /할 일 작성|기록 작성|연결 해제/ })).toHaveCount(0);
     await expect(detail.getByRole("region", { name: "할 일 (1개)", exact: true })).toContainText("할 일");
     const edit = await detail.locator(
-      ".key-value-grid > .field > label:visible, .key-value-grid > .key-value-static dt:visible",
+      ".key-value-grid > .field > label:visible, .key-value-grid > .key-value-static dt:visible, .tag-connection-data dt:visible",
     )
       .evaluateAll((nodes) =>
         nodes.map((node) => {
@@ -174,7 +174,13 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
           const value = node.tagName === "DT" ? node.nextElementSibling! : container.querySelector(".input")!;
           const box = value.getBoundingClientRect(), key = node.getBoundingClientRect();
           const style = getComputedStyle(value);
-          return { x: box.x, keyX: key.x, width: box.width, font: style.fontSize, padding: style.paddingLeft };
+          return {
+            x: box.x,
+            keyX: key.x,
+            width: box.width,
+            font: getComputedStyle(value.querySelector("h2, h3") ?? value).fontSize,
+            padding: style.paddingLeft,
+          };
         })
       );
     expect(edit).toHaveLength(read.length);

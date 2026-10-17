@@ -207,3 +207,14 @@ it("keeps archived and readonly properties as named static values in the complet
   expect(html).toMatch(/<dd[^>]*>거짓<\/dd>/);
   expect(html).not.toContain('disabled=""');
 });
+
+it("keeps a readonly representative as the emphasized named heading in edit", () => {
+  const definition = initialEntityDefinition("품명");
+  definition.schema.properties.prop_1.readOnly = true;
+  const html = renderToStaticMarkup(
+    <PropertyFields definition={definition} values={{ prop_1: "변경 불가 상품" }} onChange={() => {}} errors={{}} />,
+  );
+  expect(html).toMatch(/<h2[^>]*>변경 불가 상품<\/h2>/);
+  expect(html).toContain("읽기 전용");
+  expect(html).not.toContain("<input");
+});

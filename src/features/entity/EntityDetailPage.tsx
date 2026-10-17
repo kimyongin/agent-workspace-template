@@ -25,7 +25,7 @@ import { api, ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
 import "./entity.css";
-import { EntityTaskRelations } from "./TaskEntityRelations.tsx";
+import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams(),
@@ -62,6 +62,7 @@ export function EntityDetailPage() {
     load: (id, signal) => api("GET", entityPath(id), undefined, signal),
   });
   const { value: entity, editReady } = detail;
+  const taskRead = useEntityTaskRead(entity);
   const [actionError, setError] = useState<string | null>(null);
   useEffect(() => {
     if (detail.loading) setError(null);
@@ -115,6 +116,7 @@ export function EntityDetailPage() {
         </>
       )}
       <EntityTaskRelations
+        read={taskRead}
         entity={entity}
         onSaved={(saved, before) => {
           if (saved && before) {
@@ -213,8 +215,13 @@ export function EntityDetailPage() {
                 </>
               }
             />
-            <TagConnections onDraftClosed={detail.editClosed} scope="entity" target={entity} readonly={!!entity.deleted_at} onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)} />
-
+            <TagConnections
+              onDraftClosed={detail.editClosed}
+              scope="entity"
+              target={entity}
+              readonly={!!entity.deleted_at}
+              onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
+            />
           </section>
           <div className="detail-relations">
             <EntityTypedRelations
@@ -316,21 +323,16 @@ export function EntityDetailPage() {
               relations={
                 <div className="detail-relations">
                   <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />
-                  {([["tasks", "할 일"], ["records", "기록"]] as const).map(([kind, label]) => (
-                    <RelatedSection key={kind} title={label} count={entity[kind].count} views={false}>
-                      <CollectionList columns={[kind === "tasks" ? "제목" : "본문 대표 문구"]}>
-                        {entity[kind].items.map((item) => (
-                          <li key={item.id}>
-                            <RelatedItem
-                              title={kind === "tasks"
-                                ? (item as EntityDetail["tasks"]["items"][number]).title
-                                : recordDisplayText((item as EntityDetail["records"]["items"][number]).body)}
-                            />
-                          </li>
-                        ))}
-                      </CollectionList>
-                    </RelatedSection>
-                  ))}
+                  <EntityTaskRelations entity={entity} read={taskRead} readOnly />
+                  <RelatedSection title="기록" count={entity.records.count} views={false}>
+                    <CollectionList columns={["본문 대표 문구"]}>
+                      {entity.records.items.map((item) => (
+                        <li key={item.id}>
+                          <RelatedItem title={recordDisplayText(item.body)} />
+                        </li>
+                      ))}
+                    </CollectionList>
+                  </RelatedSection>
                 </div>
               }
               deletion={entity.deleted_at ? undefined : {
