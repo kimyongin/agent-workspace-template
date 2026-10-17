@@ -742,6 +742,33 @@ test("실행 취소는 다른 액션과 대상의 보존한 초안을 바꾸지 
   await expect(memo).toHaveAttribute("contenteditable", "true");
   await memo.press("ControlOrMeta+z");
   await expect(memo).toHaveText("수정 기준");
+  // Native transactions may group keystrokes differently; returning to the baseline is not a history boundary.
+  for (const value of ["수정 중간", "수정 기준", "수정 마지막"]) {
+    await memo.press("ControlOrMeta+a");
+    await memo.pressSequentially(value);
+    await memo.press("Tab");
+    await memo.click();
+  }
+  const traverse = async (key: string) => {
+    const values = [(await memo.textContent())!];
+    for (let step = 0; step < 64; step++) {
+      await memo.press(key);
+      const value = (await memo.textContent())!;
+      values.push(value);
+      await expect(memo).toBeFocused();
+      if (value === values.at(-2)) return values;
+    }
+    throw new Error("메모의 네이티브 기록 경계에 도달하지 못했습니다.");
+  };
+  const undo = await traverse("ControlOrMeta+z");
+  expect(undo.indexOf("수정 기준")).toBeGreaterThanOrEqual(0);
+  expect(undo.indexOf("수정 중간")).toBeGreaterThan(undo.indexOf("수정 기준"));
+  expect(undo.at(-1)).toBe("수정 기준");
+  const redo = await traverse("ControlOrMeta+Shift+z");
+  expect(redo).toContain("수정 중간");
+  expect(redo.at(-1)).toBe("수정 마지막");
+  await traverse("ControlOrMeta+z");
+  await expect(memo).toHaveText("수정 기준");
   await chooseSetting(page, form.getByLabel("액션", { exact: true }), "등록");
   await expect(memo).toHaveText("등록 초안");
   await chooseSetting(page, target, "상품");
