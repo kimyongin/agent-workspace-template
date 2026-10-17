@@ -39,8 +39,8 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
       onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
       <AlertDialogHeader className="min-h-0 overflow-y-auto overscroll-contain p-4"><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
       <AlertDialogFooter ref={footer} className="m-0 shrink-0">
-        <AlertDialogCancel className="h-auto min-h-11 whitespace-normal wrap-anywhere" disabled={busy} onClick={event => { event.preventDefault(); if (!busy) cancel(); }}>취소</AlertDialogCancel>
-        <AlertDialogAction className="h-auto min-h-11 whitespace-normal wrap-anywhere" variant={danger ? "destructive" : "default"} disabled={busy || confirmDisabled} onClick={event => { event.preventDefault(); if (!busy && !confirmDisabled) { accepted.current = true; onConfirm(); } }}>{busy ? "처리 중…" : confirmLabel}</AlertDialogAction>
+        <AlertDialogCancel className="h-auto min-h-[max(2.75rem,44px)] whitespace-normal wrap-anywhere" disabled={busy} onClick={event => { event.preventDefault(); if (!busy) cancel(); }}>취소</AlertDialogCancel>
+        <AlertDialogAction className="h-auto min-h-[max(2.75rem,44px)] whitespace-normal wrap-anywhere" variant={danger ? "destructive" : "default"} disabled={busy || confirmDisabled} onClick={event => { event.preventDefault(); if (!busy && !confirmDisabled) { accepted.current = true; onConfirm(); } }}>{busy ? "처리 중…" : confirmLabel}</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>;
@@ -71,10 +71,12 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
       onCloseAutoFocus={event => { event.preventDefault(); restoreFocusOrigin(origin.current); }}
       onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}
       onEscapeKeyDown={event => { event.preventDefault(); event.stopPropagation(); cancel(); }}>
-      <DialogHeader className="shrink-0 p-4"><div className="flex min-w-0 items-center gap-2"><DialogTitle ref={heading} className="min-w-0 flex-1 break-words">{title}</DialogTitle>
+      <div ref={body} className="min-h-0 overflow-y-auto overscroll-contain">
+      <DialogHeader className="p-4"><div className="flex min-w-0 items-center gap-2"><DialogTitle ref={heading} className="min-w-0 flex-1 break-words">{title}</DialogTitle>
         {closeButton && <Button type="button" variant="ghost" size="icon" aria-label="닫기" disabled={busy} onClick={cancel}><XIcon /></Button>}
       </div></DialogHeader>
-      <div ref={body} className="min-h-0 overflow-y-auto overscroll-contain p-4 px-4 pb-4">{children}</div>
+      <div className="p-4">{children}</div>
+      </div>
       <DialogFooter ref={footerElement} className="m-0 shrink-0">{footer}</DialogFooter>
     </DialogContent>
   </Dialog></PopupContainerContext.Provider>;
