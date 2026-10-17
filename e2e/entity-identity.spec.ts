@@ -1,3 +1,4 @@
+import { chooseSetting } from "./settings-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
 import postgres from "postgres";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
@@ -551,7 +552,7 @@ test("seven settings workspaces retain real API selections and stay within the v
       await expect(page.getByRole("region", { name: "기록 자동 완성", exact: true })).toHaveCount(0);
     }
     if (title === "기록 설정") {
-      await page.getByLabel("대상", { exact: true }).selectOption(`type:${fixtureType!.id}`);
+      await chooseSetting(page, page.getByLabel("대상", { exact: true }), fixtureType!.label);
       const template = page.getByRole("form", { name: "기록 자동 완성", exact: true });
       await expect(template).toBeVisible();
       await expect(template.getByLabel("액션", { exact: true })).toBeEnabled();

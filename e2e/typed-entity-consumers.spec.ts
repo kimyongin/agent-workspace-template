@@ -1,3 +1,4 @@
+import { chooseSetting } from "./settings-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
 import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
@@ -84,9 +85,9 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
     await expect(page.getByRole("button", { name: first.title, exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: second.title, exact: true })).toBeVisible();
     await page.goto("/settings/records");
-    await page.getByLabel("대상", { exact: true }).selectOption(`type:${type.id}`);
+    await chooseSetting(page, page.getByLabel("대상", { exact: true }), type.label);
     const template = page.getByRole("form", { name: "기록 자동 완성" });
-    await template.getByLabel("액션", { exact: true }).selectOption("update");
+    await chooseSetting(page, template.getByLabel("액션", { exact: true }), "수정");
     await template.getByLabel("메모 템플릿", { exact: true }).fill("値 $엔터티.이후.prop_2$ / $엔터티.이후.prop_4$");
     await template.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
     await expect(template.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toHaveText(

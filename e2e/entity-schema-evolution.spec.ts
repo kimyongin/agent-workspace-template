@@ -134,7 +134,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await expect(page.getByText("자료 이름", { exact: true })).toHaveCount(0);
     await expect(page.getByText("0", { exact: true })).toBeVisible();
     await page.goto(`/settings/entity-types/${typeId}/versions`);
-    const initialVersion = page.locator('[data-slot="item"]').filter({
+    const initialVersion = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
     });
     await initialVersion.getByRole("button", { name: /버전 2 · 적용됨$/ })
