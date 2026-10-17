@@ -200,6 +200,13 @@ test("shell desktop: tabs retain drafts and both official dividers resize by key
 });
 
 test("shell reflow: 200% text and zoom preserve a usable workspace at 1024 and 1440px", async ({ page }) => {
+  await page.addInitScript(() => {
+    const observed = window as unknown as { __shellResizeObserverErrors: string[] };
+    observed.__shellResizeObserverErrors = [];
+    window.addEventListener("error", event => {
+      if (event.message.includes("ResizeObserver loop")) observed.__shellResizeObserverErrors.push(event.message);
+    }, true);
+  });
   const state = await fixture(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/tasks/${id(2)}`);
@@ -218,7 +225,10 @@ test("shell reflow: 200% text and zoom preserve a usable workspace at 1024 and 1
       await expect(body).toBeInViewport();
     }
     await page.evaluate(() => { document.documentElement.style.fontSize = ""; document.documentElement.style.zoom = ""; });
+    // Native observer errors can arrive on the paint after zoom resets, beyond immediate value/viewport checks.
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   }
+  expect(await page.evaluate(() => (window as unknown as { __shellResizeObserverErrors: string[] }).__shellResizeObserverErrors)).toEqual([]);
   expect(state.writes).toEqual([]);
 });
 
