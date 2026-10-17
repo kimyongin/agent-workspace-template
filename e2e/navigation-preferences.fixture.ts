@@ -206,6 +206,28 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
   await page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
   await expectShortcuts(page, ["할 일", "기록"]);
 });
+test("shortcut search retains its query while external metadata reports a draft conflict", async ({ page, baseURL }) => {
+  const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks"), ref("records")] });
+  await page.goto("/settings/navigation");
+  const section = page.getByRole("region", { name: "메뉴 바로가기", exact: true });
+  await section.getByRole("button", { name: "기록 위로 이동", exact: true }).click();
+  const control = section.getByRole("combobox", { name: "추가할 메뉴", exact: true });
+  await chooseSetting(page, control, "재료");
+  await control.fill("상품");
+  await expect(page.getByRole("option", { name: "상품", exact: true })).toBeVisible();
+  state.setMetadata({ version: 1, refs: [ref("records")] });
+  await page.evaluate(id => {
+    const channel = new BroadcastChannel("workspace-decorative-profile");
+    channel.postMessage(id);
+    channel.close();
+  }, account.id);
+  await expect(section.getByRole("alert")).toContainText("다른 탭");
+  await expect(control).toHaveValue("상품");
+  await page.getByRole("option", { name: "상품", exact: true }).click();
+  await expect(section.getByRole("button", { name: "상품 추가", exact: true })).toBeEnabled();
+  expect(state.writes).toEqual([]);
+});
+
 test("external tab metadata preserves dirty preview until conflict is reviewed", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks"), ref("records")] });
   await page.goto("/settings/navigation");
