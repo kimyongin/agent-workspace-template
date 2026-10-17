@@ -85,7 +85,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       if(kind==="entity")await form.getByLabel("제목").fill(title);else{await form.getByLabel("본문").fill(title);}
       await chooseTag(page, form, name);await saveOnce(page,form);
       await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/(?:entities\/[^/?]+%3A|records\/)[0-9]{8}-[0-9A-Z]{8}(?:\?|$)/);
-      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open] dd.detail-title").getByText(title,{exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:"기록",level:1})).toBeVisible();const id=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
+      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:"기록",level:1})).toBeVisible();const id=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([tag.id]);
       const tagRegion=page.getByRole("region",{name:"태그 연결"});
       await tagRegion.getByRole("button",{name:`${name} 연결 해제`,exact:true}).click();
@@ -106,7 +106,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       await page.getByRole("button",{name:"닫기",exact:true}).click();await openTabFilters(page);await expect(page.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
-      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open] dd.detail-title").getByText(title,{exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
+      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
     }
   }finally{await mcp.close();}
 });

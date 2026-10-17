@@ -112,7 +112,7 @@ export function EntityLinks(
   if (!ids?.length) return null;
   return (
     <RelatedSection title="연결된 자료" count={ids.length}>
-      <CollectionList>
+      <CollectionList columns={["자료 이름"]}>
         {ids.map((id) => {
           return (
             <li key={id}>
@@ -132,11 +132,11 @@ export function EntityLinkItem({ id, context = [] }: { id: string; context?: Ent
       to={`/entities/${encodeURIComponent(id)}`}
       title={capture?.title ?? "연결된 자료"}
       metadata={
-        <span>
-          {capture?.type && <EntityTypeIcon id={capture.type.icon_id} />}{" "}
-          {capture?.type ? `${capture.type.label} · 속성 버전 ${capture.schema_version ?? "—"} · ` : ""}
-          {id}
-        </span>
+        <dl className="key-value-grid">
+          {capture?.type && <div><dt>당시 자료 종류</dt><dd><EntityTypeIcon id={capture.type.icon_id} /> {capture.type.label}</dd></div>}
+          {capture?.type && <div><dt>당시 입력 항목 버전</dt><dd>{capture.schema_version ?? "확인 필요"}</dd></div>}
+          <div className="key-value-full"><dt>자료 식별</dt><dd>{id}</dd></div>
+        </dl>
       }
       restoreKey={`linked-entity-${id}`}
     />

@@ -1,5 +1,5 @@
 // Actual App and routing; remote Auth/API are isolated, with no DB or real-account writes.
-import { entityKey } from "./support/workspace-data.ts";
+import { fixtureType, fixtureSchema, entityKey } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
 import {id,stamp,identity as base,entity as makeEntity,task as makeTask,record as makeRecord} from "./support/workspace-data.ts";
 import {installWorkspaceApi} from "./support/workspace-api.ts";
@@ -143,7 +143,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
         expect(target!.width).toBeGreaterThanOrEqual(44); expect(target!.height).toBeGreaterThanOrEqual(44);
       }
       if (view === "table") for (const cell of await page.locator(".collection-numeric").all()) {
-        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe("right");
+        expect(await cell.evaluate(el => getComputedStyle(el.querySelector(".collection-cell-value") ?? el).textAlign)).toBe("right");
         expect(await cell.evaluate(el => getComputedStyle(el).fontVariantNumeric)).toBe("tabular-nums");
       }
       await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
@@ -169,13 +169,22 @@ test("table rows and headers share the same columns across wrapper types and vie
     const geometry = await page.locator(".collection-table").evaluate(table => {
       const header = table.querySelector(".collection-table-head")!;
       const box = (el: Element) => ({ left: el.getBoundingClientRect().left, width: el.getBoundingClientRect().width });
-      return { head: box(header), columns: Array.from(header.children).map(box), rows: Array.from(table.querySelectorAll(".related-item-title")).map(row => ({ box: box(row), columns: Array.from(row.children).map(box) })) };
+      return { stacked: getComputedStyle(header).position === "absolute", head: box(header), columns: Array.from(header.children).map(box), rows: Array.from(table.querySelectorAll(".related-item-title")).map(row => ({ box: box(row), columns: Array.from(row.children).map(box), pairs: Array.from(row.querySelectorAll(".collection-title-data > div, .collection-table-cell")).map(pair => ({ key:box(pair.querySelector("dt, .collection-cell-key")!), value:box(pair.querySelector("dd, .collection-cell-value")!) })) })) };
     });
     for (const row of geometry.rows) {
-      expect(Math.abs(row.box.width - geometry.head.width)).toBeLessThan(1);
-      for (const [index, cell] of row.columns.entries()) {
-        expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
-        expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
+      if(geometry.stacked) {
+        expect(row.pairs).toHaveLength(geometry.columns.length);
+        for(const pair of row.pairs) {
+          expect(pair.value.left).toBeGreaterThan(pair.key.left + pair.key.width);
+          expect(Math.abs(pair.key.left-row.pairs[0].key.left)).toBeLessThan(1);
+          expect(Math.abs(pair.value.left-row.pairs[0].value.left)).toBeLessThan(1);
+        }
+      } else {
+        expect(Math.abs(row.box.width - geometry.head.width)).toBeLessThan(1);
+        for (const [index, cell] of row.columns.entries()) {
+          expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
+          expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
+        }
       }
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
@@ -184,7 +193,8 @@ test("table rows and headers share the same columns across wrapper types and vie
   const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
   await section.getByRole("radio", { name: "테이블", exact: true }).click();
   const widths = await section.evaluate(el => [el.querySelector(".collection-table-head")!.getBoundingClientRect().width, el.querySelector(".related-item-title")!.getBoundingClientRect().width]);
-  expect(Math.abs(widths[0] - widths[1])).toBeLessThan(1);
+  if(widths[0]>1)expect(Math.abs(widths[0] - widths[1])).toBeLessThan(1);
+  else await expect(section.locator(".collection-title-data dt")).toBeVisible();
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
@@ -331,4 +341,41 @@ for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read 
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }
   expect(state.writes).toEqual([]);
+});
+
+test("selected entity fields stay identical in every layout and expansion without repeating its name", async ({page}, info) => {
+  const state=await fixture(page);
+  const schema=structuredClone(fixtureSchema);
+  schema.schema.properties.prop_1.title="품명";
+  schema.schema.properties.prop_2["x-show-in-list"]=true;
+  schema.schema.properties.prop_3["x-show-in-list"]=false;
+  schema.schema.properties.prop_4={type:"boolean",title:"검사", "x-order":40,"x-show-in-list":true};
+  const selected={...entity,properties:{prop_1:"선택 자료",prop_2:0,prop_3:"숨긴 날짜",prop_4:false},display_properties:{prop_1:"선택 자료",prop_2:0,prop_4:false},title:"선택 자료"};
+  state.rows.entities.splice(0,state.rows.entities.length,selected);
+  await page.route("**/api/entity-types/*/schema{,?**}",route=>route.fulfill({json:schema}));
+  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  for(const view of ["리스트","카드","테이블"]) {
+    await page.getByRole("radio",{name:view,exact:true}).click();
+    const row=page.locator(".collection .related-item").first();
+    await expect(row.getByRole("button",{name:selected.title,exact:true})).toBeVisible();
+    if(view !== "테이블")await expect(row.getByText("품명",{exact:true})).toBeVisible();
+    await expect(row.getByText("0",{exact:true})).toBeVisible();
+    await expect(row.getByText("거짓",{exact:true})).toBeVisible();
+    await row.getByRole("button",{name:selected.title,exact:true}).click();
+    await expect(row.getByRole("link",{name:`${selected.title} 상세`,exact:true})).toBeVisible();
+    await expect(row.getByText("숨긴 날짜",{exact:true})).toHaveCount(0);
+    await expect(row.getByText(selected.title,{exact:true})).toHaveCount(1);
+    await expect(row.getByText("0",{exact:true})).toHaveCount(1);
+    await page.screenshot({path:info.outputPath(`selected-${view}.png`),fullPage:true});
+    await row.getByRole("button",{name:selected.title,exact:true}).click();
+  }
+  await page.goto(`/tasks/${task.id}`);
+  const related=page.getByRole("region",{name:"연결된 자료 (1개)",exact:true});
+  await related.getByRole("button",{name:entity.title,exact:true}).click();
+  await expect(related.getByText("품명",{exact:true})).toBeVisible();
+  await expect(related.getByText("숨긴 날짜",{exact:true})).toHaveCount(0);
+  await expect(related.getByText("0",{exact:true})).toBeVisible();
+  await expect(related.getByText("거짓",{exact:true})).toBeVisible();
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
 });

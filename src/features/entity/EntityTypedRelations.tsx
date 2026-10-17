@@ -231,7 +231,7 @@ export function EntityRelationSection(
             )
             : (
               <>
-                <CollectionList>
+                <CollectionList columns={["자료 이름"]}>
                   {state.page?.items.map((item) => (
                     <li key={item.id}>
                       {readOnly
@@ -239,11 +239,11 @@ export function EntityRelationSection(
                           <RelatedItem
                             title={item.title}
                             metadata={
-                              <>
-                                {item.type.label}
-                                {item.deleted_at ? " · 삭제됨" : ""}
-                                {item.type.archived ? " · 보관됨" : ""}
-                              </>
+                              <dl className="key-value-grid">
+                                <div><dt>자료 종류</dt><dd>{item.type.label}</dd></div>
+                                {item.deleted_at && <div><dt>상태</dt><dd>삭제됨</dd></div>}
+                                {item.type.archived && <div><dt>종류 상태</dt><dd>보관됨</dd></div>}
+                              </dl>
                             }
                           />
                         )
@@ -251,13 +251,7 @@ export function EntityRelationSection(
                           <RelatedPreviewItem
                             title={item.title}
                             to={entityPath(item.id)}
-                            metadata={
-                              <>
-                                {item.type.label}
-                                {item.deleted_at ? " · 삭제됨" : ""}
-                                {item.type.archived ? " · 보관됨" : ""}
-                              </>
-                            }
+                            metadata={item.type.archived ? <dl className="key-value-static"><div><dt>종류 상태</dt><dd>보관됨</dd></div></dl> : undefined}
                             action={
                               <BodyAction
                                 icon="unlink"

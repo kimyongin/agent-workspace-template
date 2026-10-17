@@ -5,10 +5,14 @@ import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { api } from "../../lib/api.ts";
 import { displayedProperty } from "./property-fields.tsx";
 import { Notice } from "../../components/Field.tsx";
+import { DetailTitle } from "../../components/Modal.tsx";
 export function EntityProperties(
-  { entity, identity, onReadyChange }: {
+  { entity, identity, onReadyChange, selection = "all", omitRepresentative = false, onRepresentativeLabel }: {
     entity: EntityValues;
     identity?: ReactNode;
+    selection?: "all" | "list";
+    omitRepresentative?: boolean;
+    onRepresentativeLabel?: (label: string) => void;
     onReadyChange?: (ready: boolean) => void;
   },
 ) {
@@ -23,6 +27,13 @@ export function EntityProperties(
     setFailed(false);
   }
   useLayoutEffect(() => onReadyChange?.(!!definition || failed), [definition, failed, onReadyChange]);
+  useLayoutEffect(() => {
+    if (definition) {
+      onRepresentativeLabel?.(
+        definition.schema.properties[schemaPresentation(definition).representative].title ?? "자료 이름",
+      );
+    }
+  }, [definition, onRepresentativeLabel]);
   useEffect(() => {
     const c = new AbortController();
     setDefinition(null);
@@ -51,31 +62,57 @@ export function EntityProperties(
   if (!definition) return <p role="status">속성 정의를 불러오는 중…</p>;
   return (
     <dl className="props key-value-grid">
-      {[
-        schemaPresentation(definition).representative,
-        ...schemaPresentation(definition).order.filter((key) => key !== schemaPresentation(definition).representative),
-      ].map((key, index) => (
-        <Fragment key={key}>
-          <div className={index === 0 ? "key-value-full" : undefined}>
-            <dt>
-              {definition.schema.properties[key].title ?? key}
-              {schemaPresentation(definition).archived.includes(key)
-                ? " · 보관"
-                : definition.schema.properties[key].readOnly
-                ? " · 읽기 전용"
-                : ""}
-            </dt>
-            <dd className={index === 0 ? "detail-title" : undefined}>
-              {displayedProperty(
-                definition.schema.properties[key],
-                entity.properties[key],
-                schemaPresentation(definition).option_labels[key],
-              )}
-            </dd>
-          </div>
-          {index === 0 && identity}
-        </Fragment>
-      ))}
+      {(selection === "list"
+        ? [
+          schemaPresentation(definition).representative,
+          ...schemaPresentation(definition).list_columns.filter((key) =>
+            key !== schemaPresentation(definition).representative
+          ),
+        ]
+        : [
+          schemaPresentation(definition).representative,
+          ...schemaPresentation(definition).order.filter((key) =>
+            key !== schemaPresentation(definition).representative
+          ),
+        ]).filter((key) => !omitRepresentative || key !== schemaPresentation(definition).representative).map((
+          key,
+          index,
+        ) => (
+          <Fragment key={key}>
+            <div
+              className={key === schemaPresentation(definition).representative
+                ? "key-value-full key-value-primary"
+                : undefined}
+            >
+              <dt>
+                {definition.schema.properties[key].title ?? key}
+                {schemaPresentation(definition).archived.includes(key)
+                  ? " · 보관"
+                  : definition.schema.properties[key].readOnly
+                  ? " · 읽기 전용"
+                  : ""}
+              </dt>
+              <dd>
+                {selection === "all" && key === schemaPresentation(definition).representative
+                  ? (
+                    <DetailTitle>
+                      {displayedProperty(
+                        definition.schema.properties[key],
+                        entity.properties[key],
+                        schemaPresentation(definition).option_labels[key],
+                      )}
+                    </DetailTitle>
+                  )
+                  : displayedProperty(
+                    definition.schema.properties[key],
+                    entity.properties[key],
+                    schemaPresentation(definition).option_labels[key],
+                  )}
+              </dd>
+            </div>
+            {index === 0 && identity}
+          </Fragment>
+        ))}
     </dl>
   );
 }
