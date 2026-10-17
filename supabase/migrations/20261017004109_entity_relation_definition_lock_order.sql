@@ -1,9 +1,10 @@
 -- BEFORE STATEMENT runs before PostgreSQL takes target row locks. Direct DML and
 -- service commands therefore share owner -> definition -> ordered kinds.
 create function app.lock_entity_relation_owner() returns trigger language plpgsql security invoker set search_path='' as $$
+declare actor_id uuid := nullif(nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub','')::uuid;
 begin
- if auth.uid() is not null then
-  perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text||':entity-relations',0));
+ if actor_id is not null then
+  perform pg_advisory_xact_lock(hashtextextended(actor_id::text||':entity-relations',0));
  end if;
  return null;
 end $$;
