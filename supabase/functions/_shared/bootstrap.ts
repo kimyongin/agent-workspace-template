@@ -107,3 +107,10 @@ let relationDefinitions: EntityRelationDefinitionDeps | undefined;
 export function entityRelationDefinitionDeps(): EntityRelationDefinitionDeps {
   return relationDefinitions ??= { uow: new SqlEntityRelationDefinitionUnitOfWork(database()) };
 }
+
+import { SqlEntityRelationLinkUnitOfWork } from "./adapters/supabase/entity-relation-link-store.ts";
+import type { EntityRelationLinkDeps } from "./core/entity-relations/links.ts";
+let relationLinks: EntityRelationLinkDeps | undefined;
+export function entityRelationLinkDeps(): EntityRelationLinkDeps {
+  return relationLinks ??= { uow: new SqlEntityRelationLinkUnitOfWork(database()) };
+}

@@ -1,3 +1,5 @@
+import { entityRelationLinkRoutes } from "./entity-relation-link-routes.ts";
+import type { EntityRelationLinkDeps } from "../../core/entity-relations/links.ts";
 import type { EntityRelationDefinitionDeps } from "../../core/entity-relations/application.ts";
 import { entityRelationDefinitionRoutes } from "./entity-relation-definition-routes.ts";
 import { entityIssuerRoutes } from "./entity-issuer-routes.ts";
@@ -48,6 +50,7 @@ export function createHttpApp(
   entityPairs?: EntityPairDeps,
   issuers?: EntityIssuerDeps,
   relationDefinitions?: EntityRelationDefinitionDeps,
+  relationLinks?: EntityRelationLinkDeps,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -86,6 +89,7 @@ export function createHttpApp(
   if (settings) app.route("/", settingsRoutes(settings));
   if (status) app.route("/", statusRoutes(status));
   if (entityPairs) app.route("/", entityPairRoutes(entityPairs));
+  if (relationLinks) app.route("/", entityRelationLinkRoutes(relationLinks));
   if (relationDefinitions) app.route("/", entityRelationDefinitionRoutes(relationDefinitions));
   if (issuers) app.route("/", entityIssuerRoutes(issuers));
   if (entityTypes) app.route("/", entityTypeRoutes(entityTypes));
