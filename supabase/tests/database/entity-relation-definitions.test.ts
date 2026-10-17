@@ -114,7 +114,7 @@ dbTest("in-use definition rejects kind changes, one shrink and deletion while ar
       cardinality: "many",
     }];
     const def = await createEntityRelationDefinition(d, requestActor(a.actor), { ends });
-    const values = [];
+    const values: Awaited<ReturnType<typeof createEntity>>[] = [];
     for (const title of ["원본", "상대1", "상대2"]) {
       values.push(
         await createEntity(entities, requestActor(a.actor), {
