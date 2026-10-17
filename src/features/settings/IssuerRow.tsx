@@ -1,55 +1,26 @@
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { ChevronDownIcon } from "lucide-react";
 import { type ReactNode, useId } from "react";
 
-/** Shared flat expandable row. Header actions have their own non-overlapping controls. */
-export function IssuerRow(
-  { label, summary, open, onToggle, action, disabled, children }: {
-    label: string;
-    summary?: string;
-    open: boolean;
-    onToggle: () => void;
-    action?: ReactNode;
-    disabled?: boolean;
-    children: ReactNode;
-  },
-) {
+/** A retained issuer editor; actions and disclosure remain independent controls. */
+export function IssuerRow({ label, summary, open, onToggle, action, disabled, children }: {
+  label: string; summary?: string; open: boolean; onToggle: () => void; action?: ReactNode; disabled?: boolean; children: ReactNode;
+}) {
   const id = useId();
-  const toggle = {
-    type: "button" as const,
-    "aria-expanded": open,
-    "aria-controls": id,
-    onClick: onToggle,
-    disabled,
-  };
-  return (
-    <section className="issuer-entry" data-open={open} aria-label={label}>
-      {action
-        ? (
-          <div className="issuer-entry-heading">
-            <h2 className="item-title">
-              {label}
-              {summary && <span className="secondary">{summary}</span>}
-            </h2>
-            {action}
-            <button
-              {...toggle}
-              className="issuer-source-toggle"
-              aria-label={label}
-            >
-              <span aria-hidden="true" />
-            </button>
-          </div>
-        )
-        : (
-          <h2 className="item-title">
-            <button {...toggle} className="material-section-toggle">
-              <span>{label}</span>
-              <span className="secondary">{summary}</span>
-            </button>
-          </h2>
-        )}
-      <div className="issuer-entry-content" id={id} hidden={!open}>
-        {children}
-      </div>
+  return <Collapsible open={open} onOpenChange={onToggle} disabled={disabled} asChild>
+    <section aria-label={label}>
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+          <CardTitle><h2 className="min-w-0 [overflow-wrap:anywhere]">{label}</h2></CardTitle>
+          {summary && <Badge variant="secondary">{summary}</Badge>}
+          {action}
+          <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="icon" aria-label={action ? label : [label, summary].filter(Boolean).join(" ")} aria-controls={id}><ChevronDownIcon /></Button></CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent forceMount hidden={!open} id={id}><CardContent className="flex min-w-0 flex-col gap-4">{children}</CardContent></CollapsibleContent>
+      </Card>
     </section>
-  );
+  </Collapsible>;
 }

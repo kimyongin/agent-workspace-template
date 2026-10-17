@@ -1,3 +1,6 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+import { Button } from "../../components/ui/button.tsx";
 import { materialSettingsPath } from "./material-settings-path.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -19,13 +22,13 @@ const recoveryLabels = {
 export function RecoveryAvailability({ job }: { job: EntitySchemaMigration }) {
   if (job.status !== "succeeded") return null;
   return (
-    <dl className="key-value-grid key-value-static">
+    <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
       <div>
         <dt>복구 상태</dt>
         <dd>{job.recovery ? recoveryLabels[job.recovery.status] : "복구 가능 여부 확인 필요"}</dd>
       </div>
       {job.recovery?.reason && (
-        <div className="key-value-full">
+        <div className="col-span-full">
           <dt>사유</dt>
           <dd>{job.recovery.reason}</dd>
         </div>
@@ -60,12 +63,12 @@ export function RecoveryConflictList({ conflicts }: { conflicts?: RecoveryConfli
   if (!conflicts?.length) return null;
   return (
     <section aria-label="복구 충돌 대상">
-      <h3 className="section-title">확인이 필요한 변경</h3>
-      <dl className="key-value-grid key-value-static">
+      <h3 className="text-base font-semibold">확인이 필요한 변경</h3>
+      <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
         {conflicts.slice(0, 21).map((conflict, index) => {
           const id = conflictTarget(conflict.path);
           return (
-            <div className="key-value-full" key={`${conflict.path}-${index}`}>
+            <div className="col-span-full" key={`${conflict.path}-${index}`}>
               <dt>
                 {id ? <Link to={entityPath(id)}>{schemaEntityLabel(id)}</Link> : conflictLabel(conflict.path)}
               </dt>
@@ -74,7 +77,7 @@ export function RecoveryConflictList({ conflicts }: { conflicts?: RecoveryConfli
           );
         })}
       </dl>
-      <p className="secondary">
+      <p className="text-sm text-muted-foreground">
         한 번에 최대 21개 사유를 표시합니다. 현재 자료와 연결을 확인한 뒤 보완하거나 새 변경안을 분석하세요.
       </p>
     </section>
@@ -153,11 +156,11 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
   };
   if (job.status !== "succeeded") return null;
   return (
-    <section className="schema-summary" aria-label="원본 복구">
-      <h2 className="section-title">원본 복구</h2>
+    <section className="min-w-0" aria-label="원본 복구">
+      <h2 className="text-base font-semibold">원본 복구</h2>
       <RecoveryAvailability job={job} />
       <p>보존된 원본으로 새 변경안을 만듭니다. 생성 후 영향 분석과 자료별 변경 전후 값을 검토하고 직접 실행하세요.</p>
-      <p className="secondary">
+      <p className="text-sm text-muted-foreground">
         현재 이름·아이콘과 과거 기록은 유지합니다. 이후 자료 수정·생성·삭제·입력 항목·연결 변경이 있으면 확인과 보완이
         필요합니다.
       </p>
@@ -174,15 +177,15 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
       {job.recovery?.status === "expired" && (
         <p>보존 기한이 지난 원본으로는 복구할 수 없습니다. 현재 자료에서 새 변경안을 준비하세요.</p>
       )}
-      {error && <p role="alert" className="error-text">{error}</p>}
-      <div className="schema-actions">
-        <button
-          className="btn btn-primary"
+      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="default"
+
           disabled={busy || disabled || (!uncertain && job.recovery?.status !== "available")}
           onClick={() => void create()}
         >
           {busy ? "복구안 생성 중…" : uncertain ? "같은 복구안 요청 다시 확인" : "원본 복구안 만들기"}
-        </button>
+        </Button>
         <Link to={materialSettingsPath(job.type_id, location.search)}>변경안·분석 확인</Link>
       </div>
     </section>

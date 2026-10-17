@@ -1,10 +1,11 @@
-import { BodyAction } from "../../components/BodyAction.tsx";
+import { Button } from "../../components/ui/button.tsx";
+
 import type { EntitySchemaVersion } from "@contracts/entity-type.ts";
 
 /** Export only the public document; the envelope is transport metadata. */
 export function SchemaExport({ definition, current = false }: { definition: EntitySchemaVersion; current?: boolean }) {
   return (
-    <BodyAction
+    <Button variant="ghost" type="button"
       onClick={() => {
         const blob = new Blob([JSON.stringify(definition.schema, null, 2) + "\n"], {
           type: "application/schema+json;charset=utf-8",
@@ -17,6 +18,6 @@ export function SchemaExport({ definition, current = false }: { definition: Enti
       }}
     >
       {current ? "현재 정의 JSON 내보내기" : `버전 ${definition.schema_version} JSON 내보내기`}
-    </BodyAction>
+    </Button>
   );
 }

@@ -1,3 +1,4 @@
+import { chooseSetting } from "./settings-actions.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect, type Page, test } from "@playwright/test";
 import { fulfillPreparation } from "./support/preparation-api.ts";
@@ -108,7 +109,7 @@ test("shortcut editing has its own section with compact rows, bounded selection 
   await page.getByLabel("닉네임", { exact: true }).fill("보존할 초안");
   await section.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(section.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
-  await select.selectOption({ label: "전체 자료" });
+  await chooseSetting(page, select, "전체 자료");
   await section.getByRole("button", { name: "전체 자료 추가", exact: true }).click();
   await expect(select).toHaveValue("");
   await expect(select).toBeDisabled();
@@ -120,7 +121,7 @@ test("shortcut editing has its own section with compact rows, bounded selection 
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    for (const button of await section.locator(".navigation-row-actions button").all()) {
+    for (const button of await section.getByRole("button", { name: / (위로 이동|아래로 이동|숨기기)$/ }).all()) {
       const box = (await button.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
@@ -172,7 +173,7 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
   await expect(page.getByRole("alert")).toContainText("선택한 메뉴를 유지");
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "자료", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
   await page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
@@ -253,7 +254,7 @@ test(
     await expect.poll(() => nav(page).locator(".bottom-nav-inner > a").count()).toBeLessThan(4);
     await expect(page.getByRole("combobox", { name: "추가할 메뉴", exact: true })).toBeDisabled();
     await page.getByRole("button", { name: "할 일 숨기기", exact: true }).click();
-    await page.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption({ label: "자료 10" });
+    await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), "자료 10");
     await expect(page.getByRole("button", { name: "자료 10 추가", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
     const search = page.getByLabel("자료 종류 검색", { exact: true });
@@ -282,7 +283,7 @@ test("profile identifies current location when its shortcut is hidden", async ({
 test("pending save prevents duplicate submission and departure until authoritative GET", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] });
   await page.goto("/settings/navigation");
-  await page.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption({ label: "기록" });
+  await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), "기록");
   await page.getByRole("button", { name: "기록 추가", exact: true }).click();
   let release!: () => void;
   const held = new Promise<void>((resolve) => {
