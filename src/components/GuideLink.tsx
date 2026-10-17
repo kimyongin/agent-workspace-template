@@ -1,6 +1,5 @@
 import { Link } from "react-router";
-import { BodyActionFace } from "./BodyAction.tsx";
-
+import { Button } from "./ui/button.tsx";
 export function GuideLink() {
-  return <Link className="body-action" to="/guide"><BodyActionFace>사용 가이드</BodyActionFace></Link>;
+  return <Button asChild variant="ghost"><Link to="/guide">사용 가이드</Link></Button>;
 }

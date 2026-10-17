@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { BodyAction } from "../components/BodyAction.tsx";
-import { CollectionList } from "../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../components/Collection.tsx";
 import { Field } from "../components/Field.tsx";
 import { RelatedItem } from "../components/RelatedItems.tsx";
 /** Presentation-only example: the app's real permission, version and atomic writes are integration-tested. */
@@ -88,14 +88,14 @@ export function TypedRelationsSample() {
           {["밀가루", "달걀", ...(more ? ["우유", "소금"] : [])].map((
             title,
           ) => (
-            <li key={title}>
+            <CollectionItem key={title}>
               <RelatedItem
                 title={title}
                 titleLabel="자료 이름"
                 metadata={<dl className="key-value-static"><div><dt>종류</dt><dd>재료</dd></div></dl>}
                 action={<BodyAction icon="unlink">해제</BodyAction>}
               />
-            </li>
+            </CollectionItem>
           ))}
         </CollectionList>
         {!more && (
