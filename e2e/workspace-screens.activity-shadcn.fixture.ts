@@ -106,3 +106,51 @@ test("할 일·달력·태그 설정은 좁은 화면과 개인 배율에서 사
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
+
+
+test("좁은 확대 달력은 주 끝과 시작으로 키보드 이동할 때 날짜 전체를 내부 스크롤에 드러낸다", async ({ page }, info) => {
+  const state = await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
+  await page.setViewportSize({ width: 320, height: 900 });
+  await go(page, "/records?view=calendar&calendar_month=2026-10&calendar_day=2026-10-04");
+  const calendar = page.getByRole("region", { name: "기록 달력", exact: true });
+  const sunday = calendar.getByRole("button", { name: /^2026-10-04, 불러온 기록/ });
+  const saturday = calendar.getByRole("button", { name: /^2026-10-10, 불러온 기록/ });
+  await expect(sunday).toBeVisible();
+  await page.evaluate(() => document.documentElement.style.setProperty("--display-scale", "1.5"));
+  await sunday.focus();
+  const viewport = calendar.locator('[data-slot="scroll-area-viewport"]').filter({ has: sunday });
+  await expect.poll(() => viewport.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
+  const assertFocusedDayVisible = async (day: typeof sunday, date: string) => {
+    await expect(day).toBeFocused();
+    await expect(day).toHaveAttribute("aria-pressed", "true");
+    await expect(page).toHaveURL(new RegExp(`calendar_day=${date}`));
+    await expect(page.getByRole("region", { name: `${date} 기록`, exact: true })).toBeVisible();
+    await expect.poll(() => day.evaluate(el => {
+      const clip = el.closest('[data-slot="scroll-area-viewport"]')!.getBoundingClientRect();
+      const box = el.getBoundingClientRect();
+      return box.left >= clip.left - 1 && box.right <= clip.right + 1 &&
+        box.top >= clip.top - 1 && box.bottom <= clip.bottom + 1;
+    })).toBe(true);
+  };
+  await sunday.press("End");
+  await assertFocusedDayVisible(saturday, "2026-10-10");
+  const scrolled = await viewport.evaluate(el => el.scrollLeft);
+  expect(scrolled).toBeGreaterThan(0);
+  const scrollbar = calendar.locator('[data-slot="scroll-area-scrollbar"][data-orientation="horizontal"]');
+  await expect(scrollbar).toBeVisible();
+  const thumb = scrollbar.locator('[data-slot="scroll-area-thumb"]');
+  await expect(thumb).toBeVisible();
+  const thumbBox = await thumb.boundingBox();
+  expect(thumbBox!.width).toBeGreaterThan(0);
+  expect(thumbBox!.height).toBeGreaterThan(0);
+  await saturday.press("Home");
+  await assertFocusedDayVisible(sunday, "2026-10-04");
+  await expect.poll(() => viewport.evaluate(el => el.scrollLeft)).toBeLessThanOrEqual(1);
+  await expect(calendar.getByRole("button", { name: "이전 달", exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(calendar.getByRole("button", { name: "다음 달", exact: true })).toBeInViewport({ ratio: 1 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+  await page.screenshot({ path: info.outputPath("calendar-keyboard-scroll-320-150.png"), fullPage: true });
+});
