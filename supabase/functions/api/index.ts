@@ -6,6 +6,7 @@ import {
   entityDeps,
   entityIssuerDeps,
   entityPairDeps,
+  entityRelationDefinitionDeps,
   entityTypeDeps,
   env,
   searchDeps,
@@ -29,6 +30,7 @@ const app = createHttpApp(
   entityTypeDeps(),
   entityPairDeps(),
   entityIssuerDeps(),
+  entityRelationDefinitionDeps(),
 );
 
 Deno.serve(app.fetch);

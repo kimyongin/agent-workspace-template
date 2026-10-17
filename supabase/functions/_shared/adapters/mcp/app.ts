@@ -1,3 +1,5 @@
+import type { EntityRelationDefinitionDeps } from "../../core/entity-relations/application.ts";
+import { entityRelationDefinitionTools } from "./entity-relation-definition-tools.ts";
 import { entityIssuerTools } from "./entity-issuer-tools.ts";
 import type { EntityIssuerDeps } from "../../core/entity-issuers/application.ts";
 import { entityPairTools } from "./entity-pair-tools.ts";
@@ -51,8 +53,10 @@ export function createMcpApp(
   entityTypes?: EntityTypeDeps,
   entityPairs?: EntityPairDeps,
   issuers?: EntityIssuerDeps,
+  relationDefinitions?: EntityRelationDefinitionDeps,
 ) {
   const tools = [
+    ...(relationDefinitions ? entityRelationDefinitionTools(relationDefinitions) : []),
     ...(issuers ? entityIssuerTools(issuers) : []),
     ...activityTools(deps),
     ...tagTools(tags),

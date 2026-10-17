@@ -6,6 +6,7 @@ import {
   entityDeps,
   entityIssuerDeps,
   entityPairDeps,
+  entityRelationDefinitionDeps,
   entityTypeDeps,
   env,
   searchDeps,
@@ -26,5 +27,6 @@ Deno.serve(
     entityTypeDeps(),
     entityPairDeps(),
     entityIssuerDeps(),
+    entityRelationDefinitionDeps(),
   ),
 );

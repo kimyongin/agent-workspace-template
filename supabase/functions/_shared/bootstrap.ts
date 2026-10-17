@@ -100,3 +100,10 @@ let issuers: EntityIssuerDeps | undefined;
 export function entityIssuerDeps(): EntityIssuerDeps {
   return issuers ??= { uow: new SqlEntityIssuerUnitOfWork(database()) };
 }
+
+import { SqlEntityRelationDefinitionUnitOfWork } from "./adapters/supabase/entity-relation-definition-store.ts";
+import type { EntityRelationDefinitionDeps } from "./core/entity-relations/application.ts";
+let relationDefinitions: EntityRelationDefinitionDeps | undefined;
+export function entityRelationDefinitionDeps(): EntityRelationDefinitionDeps {
+  return relationDefinitions ??= { uow: new SqlEntityRelationDefinitionUnitOfWork(database()) };
+}
