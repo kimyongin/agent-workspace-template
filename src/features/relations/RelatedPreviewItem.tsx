@@ -96,7 +96,7 @@ export function RelatedPreviewItem(
     });
   };
   const viewable = !!item && !error;
-  const viewProps = { className: "body-action", title: "상세", "aria-label": `${props.title} 상세` };
+  const viewProps = { title: "상세", "aria-label": `${props.title} 상세` };
   return (
     <RelatedItem
       {...props}

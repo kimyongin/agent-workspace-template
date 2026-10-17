@@ -41,7 +41,6 @@ import type { EditState } from "./schema-change-editor.ts";
 import { Field } from "../../components/Field.tsx";
 import { fieldInputPolicy } from "./field-input-policy.ts";
 import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
-import "../../components/related-items.css";
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { SchemaVersionRead } from "./SchemaVersionRead.tsx";
 import { SchemaChangeDiff, SchemaChangeRead } from "./SchemaChangeRead.tsx";
