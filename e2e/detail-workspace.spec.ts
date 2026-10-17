@@ -1016,7 +1016,7 @@ test("desktop: opened detail tabs stay visible while navigating to another list"
   await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "기록", exact: true }).click();
   await expect(page).toHaveURL(/\/records$/);
   await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible();
-  await expect(workspaceGroup(page)).toHaveClass(/has-detail-panel/);
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절", exact: true, includeHidden: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toBeVisible();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("목록 이동 후에도 유지");
@@ -1039,18 +1039,18 @@ test("desktop: a pending detail write remains protected while settings is the le
   await openTask(page);
   await openProfileMenu(page);
   await page.getByRole("menuitem", { name: "설정", exact: true }).click();
-  await expect(baseWorkspace(page).getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "기본 작업 영역", exact: true, includeHidden: true }).getByRole("heading", { name: "기본 설정", exact: true, includeHidden: true })).toBeVisible();
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   await panel(page).getByLabel("본문", { exact: true }).fill("설정 화면에서 상세 저장");
   await panel(page).getByRole("button", { name: "저장", exact: true }).click();
   await executionDialog(page).getByRole("button", { name: "수정하고 저장" }).click();
   await state.pending;
   try {
-    await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기록", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
-    for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true }).evaluate((el: HTMLButtonElement) => el.click());
-    await expect(baseWorkspace(page).getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
-    await expect(page.getByRole("tab")).toHaveCount(2);
-    await expect(workspaceGroup(page)).toHaveClass(/has-detail-panel/);
+    await page.getByRole("navigation", { name: "주 메뉴", includeHidden: true }).getByRole("link", { name: "기록", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+    for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true, includeHidden: true }).evaluate((el: HTMLButtonElement) => el.click());
+    await expect(page.getByRole("region", { name: "기본 작업 영역", exact: true, includeHidden: true }).getByRole("heading", { name: "기본 설정", exact: true, includeHidden: true })).toBeVisible();
+    await expect(page.getByRole("tab", { includeHidden: true })).toHaveCount(2);
+    await expect(page.getByRole("separator", { name: "상세 패널 너비 조절", exact: true, includeHidden: true })).toBeVisible();
   } finally { state.release(); }
   await expect(panel(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
   expect(state.errors).toEqual([]);
@@ -1081,7 +1081,7 @@ test("desktop: a pending base setting also prevents closing or hiding the retain
     await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기록", exact: true }).click();
     await expect(form).toHaveAttribute("aria-busy", "true");
     await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
-    await expect(workspaceGroup(page)).toHaveClass(/has-detail-panel/);
+    await expect(page.getByRole("separator", { name: "상세 패널 너비 조절", exact: true, includeHidden: true })).toBeVisible();
   } finally { release(); }
   await expect(form).toHaveAttribute("aria-busy", "false");
   await expect(form.getByLabel("닉네임", { exact: true })).toHaveValue("진행 중인 왼쪽 설정");
@@ -1101,7 +1101,7 @@ for (const screen of ["materials", "relations"] as const) test(`desktop: uncerta
   await page.getByRole("menuitem", { name: "설정", exact: true }).click();
   const left = baseWorkspace(page);
   await left.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await left.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
+  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
   if (screen === "materials") {
     await left.getByLabel("자료 종류 이름", { exact: true }).fill("미확정 종류");
     await left.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
@@ -1120,7 +1120,7 @@ for (const screen of ["materials", "relations"] as const) test(`desktop: uncerta
   await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "상세 패널 숨기기", exact: true }).evaluate((el: HTMLButtonElement) => el.click());
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기록", exact: true }).click();
-  await expect(workspaceGroup(page)).toHaveClass(/has-detail-panel/);
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절", exact: true, includeHidden: true })).toBeVisible();
   await expect(retry).toBeEnabled();
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   await retry.click();
