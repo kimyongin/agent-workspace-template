@@ -287,6 +287,7 @@ export function EntitiesPage() {
             all
             compact
             disabled={types === null}
+            catalogState={types === null ? typeError ? "unavailable" : "loading" : "ready"}
             onChange={(value) => set("entity_type_id", value)}
           />
           {!types && !typeError && <p role="status">자료 종류를 확인하는 중…</p>}

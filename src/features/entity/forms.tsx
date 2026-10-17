@@ -414,6 +414,7 @@ export function EntityForm({
                     types={types?.filter((type) => !type.archived) ?? []}
                     value={typeId}
                     disabled={!types || frozen}
+                    catalogState={types === null ? catalogError ? "unavailable" : "loading" : "ready"}
                     error={errors.entity_type_id}
                     onChange={(selected) => {
                       if (selected === typeId) {
