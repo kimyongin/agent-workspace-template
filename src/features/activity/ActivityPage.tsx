@@ -56,7 +56,7 @@ function ActivitySection(
   const preview = (item: ActivityItem) => {
     const time = "occurred_at" in item ? item.occurred_at : (item as SearchItem).at;
     const cells = kind === "tasks"
-      ? ["status" in item ? <StatusBadge status={item.status} /> : null, "due_on" in item ? item.due_on : null]
+      ? ["status" in item ? <StatusBadge status={item.status} /> : null, "status" in item ? taskLabels[item.kind as TaskResult["kind"]] : null, "due_on" in item ? item.due_on : null]
       : [
         "record_kind" in item && item.record_kind ? recordKindNames[item.record_kind] : null,
         <time dateTime={time} title={formatDateTime(time)}>
@@ -122,8 +122,8 @@ function ActivitySection(
                 <CollectionList
                   view={view === "calendar" ? "list" : view}
                   label="할 일 목록"
-                  columns={["할 일", "상태", "기한"]}
-                  numericColumns={[2]}
+                  columns={["제목", "상태", "종류", "기한"]}
+                  numericColumns={[3]}
                 >
                   {list.items.map((item) => <li key={item.id}>{preview(item)}</li>)}
                 </CollectionList>

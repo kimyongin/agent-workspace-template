@@ -12,6 +12,7 @@ import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { useSearchRead } from "./useSearchRead.ts";
 import { activityTags } from "../activity/activity-filters.ts";
+import "./search.css";
 const kinds = { task: "할 일", record: "기록" } as const;
 export function SearchPage() {
   const { formatDateTime } = useDisplayTime();
@@ -274,14 +275,17 @@ export function SearchPage() {
               return (
                 <li className="list-item" key={`${r.kind}:${r.id}`}>
                   <div className="list-item-main">
-                    <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>
-                      <span className={r.kind === "record" ? "record-preview" : undefined}>{r.title}</span>
-                    </Link>
-                    {r.snippet !== r.title && <span className="secondary record-snippet">{r.snippet}</span>}
-                    <div className="search-result-meta">
-                      <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span>
-                      <SearchMatch item={r} />
-                    </div>
+                    <dl className="key-value-grid">
+                      <div className="key-value-full"><dt>{r.kind === "record" ? "본문 대표 문구" : "제목"}</dt><dd>
+                        <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>
+                          <span className={r.kind === "record" ? "record-preview" : undefined}>{r.title}</span>
+                        </Link>
+                      </dd></div>
+                      {r.snippet !== r.title && <div className="key-value-full"><dt>일치 구간</dt><dd className="record-snippet">{r.snippet}</dd></div>}
+                      <div><dt>종류</dt><dd>{kinds[r.kind]}</dd></div>
+                      <div><dt>시각</dt><dd>{formatDateTime(r.at)}</dd></div>
+                    </dl>
+                    <SearchMatch item={r} />
                   </div>
                 </li>
               );

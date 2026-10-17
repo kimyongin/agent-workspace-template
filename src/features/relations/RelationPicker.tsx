@@ -117,19 +117,15 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
             <li key={id}>
               <RelatedItem
                 title={names.get(id) ?? label}
+                titleLabel={kind === "task" ? "제목" : "자료 이름"}
                 metadata={kind === "entity"
                   ? (
-                    <span>
-                      {types.get(id) && (
-                        <>
-                          <EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label}
-                          {identities.has(id) ? " · " : ""}
-                        </>
-                      )}
-                      {identities.get(id)}
-                      {pending.has(id) && <span role="status">· 확인 중…</span>}
-                      {failed.has(id) && <span>· 정보 확인 필요</span>}
-                    </span>
+                    <dl className="key-value-grid">
+                      {types.get(id) && <div><dt>자료 종류</dt><dd><EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label}</dd></div>}
+                      {identities.has(id) && <div><dt>자료 식별</dt><dd>{identities.get(id)}</dd></div>}
+                      {pending.has(id) && <div><dt>조회 상태</dt><dd role="status">확인 중…</dd></div>}
+                      {failed.has(id) && <div><dt>조회 상태</dt><dd>정보 확인 필요</dd></div>}
+                    </dl>
                   )
                   : undefined}
                 action={
