@@ -32,7 +32,6 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
         await tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) values(${user},${`demo:${typeId}:a`},'demo','a',${typeId},1,'{"prop_1":"original"}')`;
       }
       await tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) values(${owner},${entityB},'demo','b',${type},1,'{"prop_1":"original"}')`;
-      await tx`insert into app.entity_pairs(owner_id,entity_id,other_id) values(${owner},${entityA},${entityB})`;
       await tx`insert into app.tasks(owner_id,id,kind,title,body,status,entity_ids) values(${owner},${task},'once','approved task','demo','open',array[${entityA}])`;
       await tx`insert into app.tags(owner_id,id,name,scope) values(${owner},${tag},'approved tag','record')`;
       await tx`insert into app.records(owner_id,id,body) values(${owner},${record},'approved demo'),(${owner},${personal},'personal keep')`;
@@ -54,7 +53,6 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
     assert.equal(before.mode, 'dry-run');
     assert.deepEqual(before.blockers, []);
     assert.equal(before.counts['app.entities'], 2);
-    assert.equal(before.counts['app.entity_pairs'], 1);
     assert.equal(before.counts['private.passage_effects'], 1);
     assert.equal(before.counts['private.entity_schema_migration_rows'], 1);
     assert.equal(before.counts['private.entity_schema_analysis_rows'], 1);

@@ -8,7 +8,7 @@ export const cleanupTables = [
   'app.search_chunks', 'app.search_index_state', 'private.entity_schema_migration_rows',
   'private.entity_schema_analysis_rows', 'app.data_model_changes', 'app.entity_schema_migrations', 'app.entity_schema_analyses',
   'app.entity_relation_links', 'app.entity_relation_definitions',
-  'app.entity_schema_changes', 'app.entity_pairs', 'app.entity_tags', 'app.task_tags', 'app.record_tags',
+  'app.entity_schema_changes', 'app.entity_tags', 'app.task_tags', 'app.record_tags',
   'app.records', 'app.tasks', 'app.entities', 'app.tags',
   'app.entity_schema_versions', 'app.entity_types', 'app.user_business_settings',
 ];
@@ -82,8 +82,6 @@ export function planCleanup(manifest, inventory) {
     if ((ids.entities.has(r.entity_id) || contains([r.source_properties, r.properties, r.after, r.record_context], ids.entities)) && !selected[table].includes(r)) blockers.push({ table, id: r.entity_id, reason: 'unapproved_recovery_reference' });
   }
   for (const r of rows('app.entity_schema_migrations')) if (!jobs.has(r.id) && contains([r.source_references, r.committed_references, r.source_templates, r.target], new Set([...ids.entities, ...ids.entity_types, ...ids.tags, ...ids.records, ...ids.tasks]))) blockers.push({ table: 'app.entity_schema_migrations', id: r.id, reason: 'unapproved_recovery_reference' });
-  select('app.entity_pairs', r => ids.entities.has(r.entity_id) || ids.entities.has(r.other_id));
-  for (const r of selected['app.entity_pairs']) if (!ids.entities.has(r.entity_id) || !ids.entities.has(r.other_id)) blockers.push({ table: 'app.entity_pairs', id: `${r.entity_id}/${r.other_id}`, reason: 'unapproved_pair_endpoint' });
   for (const [table, key, root] of [['app.entity_tags', 'entity_id', 'entities'], ['app.task_tags', 'task_id', 'tasks'], ['app.record_tags', 'record_id', 'records']]) {
     select(table, r => ids[root].has(r[key]) || ids.tags.has(r.tag_id));
     for (const r of selected[table]) if (ids.tags.has(r.tag_id) && !ids[root].has(r[key])) blockers.push({ table, id: r[key], reason: 'unapproved_tag_usage' });

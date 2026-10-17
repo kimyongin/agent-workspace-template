@@ -64,6 +64,11 @@ test("defined-only upgrade preserves exact historical links, business context, a
     const [baseline] = await sql`select app.entity_schema_reference_baseline(${owner},${type}) as value`;
     assert.deepEqual(Object.keys(baseline.value).sort(), ["records", "tasks", "typed_links"]);
     assert.notDeepEqual(baseline.value, before.migrations[0].reference_baseline);
+    await sql`delete from app.entities where owner_id=${owner} and id in ('a','b')`;
+    assert.deepEqual(
+      await sql`select * from private.retired_entity_pairs where owner_id in (${owner},${other}) and entity_id='a' and other_id='b' order by owner_id`,
+      original,
+    );
     for (const role of ["app_user", "app_server", "app_worker", "anon", "authenticated", "service_role"]) {
       for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"]) {
         assert.equal(

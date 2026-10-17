@@ -31,9 +31,8 @@ test('unapproved live references and recovery originals block deletion instead o
     'app.records': [{ owner_id: owner, id: 'r1' }, { owner_id: owner, id: 'personal', entity_context: [{ id: 'demo:a' }] }],
     'app.entity_types': [{ owner_id: owner, id: type }],
     'private.entity_schema_migration_rows': [{ owner_id: owner, job_id: 'unapproved-job', entity_id: 'demo:a' }],
-    'app.entity_pairs': [{ owner_id: owner, entity_id: 'demo:a', other_id: 'demo:b' }],
   });
-  assert.deepEqual(report.blockers.map(r => r.reason), ['unapproved_type_member', 'unapproved_business_reference', 'unapproved_recovery_reference', 'unapproved_pair_endpoint']);
+  assert.deepEqual(report.blockers.map(r => r.reason), ['unapproved_type_member', 'unapproved_business_reference', 'unapproved_recovery_reference']);
 });
 test('only explicitly named legacy template action resets while identity and unrelated templates remain', () => {
   const settings = { entity: { create: { memo: '$엔터티.prop1$' }, update: { memo: 'keep' } }, task: { create: { memo: 'personal' } }, identity: { issuer: 'keep' } };

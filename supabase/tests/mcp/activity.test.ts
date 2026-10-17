@@ -15,7 +15,6 @@ import {
   schemaMigrationStart,
   schemaRecoveryCreate,
 } from "../../functions/_shared/contracts/entity-schema-migration.ts";
-import { entityReferenceId } from "../../functions/_shared/contracts/entity-identity.ts";
 import {
   schemaAnalysisRows,
   schemaChangeAction,

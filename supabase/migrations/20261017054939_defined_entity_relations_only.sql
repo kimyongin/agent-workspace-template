@@ -4,6 +4,15 @@ lock table app.entity_pairs in access exclusive mode;
 alter table app.entity_pairs set schema private;
 alter table private.entity_pairs rename to retired_entity_pairs;
 drop policy entity_pairs_owner on private.retired_entity_pairs;
+-- Historical IDs must survive normal administrative removal of current entities.
+-- The account ownership FK remains; only live endpoint cascade constraints retire.
+do $$
+declare constraint_name text;
+begin
+ for constraint_name in select conname from pg_constraint where conrelid='private.retired_entity_pairs'::regclass and contype='f' and confrelid='app.entities'::regclass loop
+  execute format('alter table private.retired_entity_pairs drop constraint %I',constraint_name);
+ end loop;
+end $$;
 revoke all on private.retired_entity_pairs from public,app_user,app_server,app_worker,anon,authenticated,service_role;
 comment on table private.retired_entity_pairs is 'Retired unconfigured relationship originals; administrative historical preservation only. Not part of the active entity graph.';
 
