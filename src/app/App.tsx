@@ -4,7 +4,8 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "../compone
 import { NavigationProtection } from "../lib/navigation-protection.tsx";
 import { DataModelSettings } from "../features/settings/DataModelSettings.tsx";
 import { RelationSettingsPage } from "../features/settings/RelationSettingsPage.tsx";
-import { PageHeading } from "../components/PageHeading.tsx";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "../components/ui/empty.tsx";
+import { Button } from "../components/ui/button.tsx";
 import { IssuerSettingsPage } from "../features/settings/IssuerSettingsPage.tsx";
 import { RecordSettingsPage } from "../features/settings/RecordSettingsPage.tsx";
 import { NavigationPreviewProvider } from "../features/settings/navigation-preview.tsx";
@@ -45,7 +46,6 @@ import { TagSettingsPage } from "../features/tags/TagSettingsPage.tsx";
 import { SearchPage } from "../features/search/SearchPage.tsx";
 import { EntitiesPage } from "../features/entity/EntitiesPage.tsx";
 import { EntityDetailPage } from "../features/entity/EntityDetailPage.tsx";
-import { BodyActionFace } from "../components/BodyAction.tsx";
 
 export const APP_NAME = "Workspace";
 const LazyStatusPage = lazy(() => import("../features/status/StatusPage.tsx").then(module => ({ default: module.StatusPage })));
@@ -154,7 +154,7 @@ export function App() {
           {materialSettingsRoutes.map((path) => (
             <Route key={path} path={path} element={guarded(<EntityTypeSettings />)} />
           ))}
-          <Route path="*" element={<section className="panel" aria-labelledby="not-found-title"><PageHeading title="페이지를 찾을 수 없습니다" id="not-found-title" description="주소를 확인하거나 할 일 화면으로 돌아가세요." /><Link className="body-action" to="/tasks"><BodyActionFace>할 일로 이동</BodyActionFace></Link></section>} />
+          <Route path="*" element={<Empty aria-labelledby="not-found-title"><EmptyHeader><EmptyTitle><h1 id="not-found-title">페이지를 찾을 수 없습니다</h1></EmptyTitle><EmptyDescription>주소를 확인하거나 할 일 화면으로 돌아가세요.</EmptyDescription></EmptyHeader><EmptyContent><Button asChild><Link to="/tasks">할 일로 이동</Link></Button></EmptyContent></Empty>} />
         </Route>,
       ),
       { basename: import.meta.env.BASE_URL.replace(/\/$/, "") },
