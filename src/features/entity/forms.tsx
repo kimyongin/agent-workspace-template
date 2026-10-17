@@ -640,7 +640,7 @@ export function EntityForm({
                 : typeId && !schemaError && <p role="status">속성 정의를 불러오는 중…</p>}
             </section>
             <section className="flex min-w-0 flex-col gap-5">
-              {initial ? <ReadonlyTags scope="entity" ids={initial.tag_ids} /> : <TagPicker scope="entity" value={tags} error={errors.tag_ids} onChange={setTags} />}
+              {initial ? <ReadonlyTags scope="entity" ids={initial.tag_ids} /> : <TagPicker disabled={frozen} scope="entity" value={tags} error={errors.tag_ids} onChange={setTags} />}
             </section>
             {relations}
             {details}

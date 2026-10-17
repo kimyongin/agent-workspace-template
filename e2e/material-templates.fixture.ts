@@ -190,7 +190,7 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
   await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/settings\/records$/);
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
 
@@ -203,17 +203,17 @@ test("태그 관리는 설정 링크 하나에서 같은 화면의 대상을 전
   await settingsFixture(page);
   await page.goto("/settings");
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await expect(page.getByRole("link", { name: "태그", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("menuitem", { name: "태그", exact: true })).toHaveCount(1);
   for (const name of ["자료 태그", "할 일 태그", "기록 태그"]) {
     await expect(page.getByRole("link", { name, exact: true })).toHaveCount(0);
   }
-  await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "태그", exact: true }).click();
+  await page.getByRole("menu", { name: "설정 메뉴" }).getByRole("menuitem", { name: "태그", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/tags$/);
   await expect(page.getByRole("heading", { name: "태그 설정", exact: true })).toBeVisible();
-  const target = page.getByLabel("관리 대상", { exact: true });
-  await expect(target.locator("option")).toHaveText(["자료", "할 일", "기록"]);
+  const target = page.getByRole("group", { name: "관리 대상", exact: true });
+  await expect(target.getByRole("button")).toHaveText(["자료", "할 일", "기록"]);
   for (const scope of ["task", "record", "entity"]) {
-    await target.selectOption(scope);
+    await target.getByRole("button", { name: ({ task: "할 일", record: "기록", entity: "자료" } as Record<string, string>)[scope], exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`\\/settings\\/tags\\?scope=${scope}$`));
     await expect(page.getByText("아직 태그가 없습니다.", { exact: true })).toBeVisible();
   }
@@ -224,13 +224,13 @@ test("통합 태그의 초안은 대상 전환 취소 시 보존하고 확인 �
   await page.goto("/settings/tags");
   const name = page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true });
   await name.fill("저장 전 초안");
-  await page.getByLabel("관리 대상", { exact: true }).selectOption("task");
-  await page.getByRole("dialog").getByRole("button", { name: "취소", exact: true }).click();
-  await expect(page.getByLabel("관리 대상", { exact: true })).toHaveValue("entity");
+  await page.getByRole("group", { name: "관리 대상", exact: true }).getByRole("button", { name: "할 일", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("group", { name: "관리 대상", exact: true }).getByRole("button", { name: "자료", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(name).toHaveValue("저장 전 초안");
-  await page.getByLabel("관리 대상", { exact: true }).selectOption("record");
+  await page.getByRole("group", { name: "관리 대상", exact: true }).getByRole("button", { name: "기록", exact: true }).click();
   await page.getByRole("button", { name: "변경 버리기", exact: true }).click();
-  await expect(page.getByLabel("관리 대상", { exact: true })).toHaveValue("record");
+  await expect(page.getByRole("group", { name: "관리 대상", exact: true }).getByRole("button", { name: "기록", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(name).toHaveValue("");
 });
 
@@ -261,11 +261,11 @@ test("통합 태그는 저장 중 전환을 막고 대상별 사전에 같은 �
   const name = page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true });
   await name.fill("공통 이름");
   await page.getByRole("button", { name: "추가", exact: true }).click();
-  await expect(page.getByLabel("관리 대상", { exact: true })).toBeDisabled();
+  for (const button of await page.getByRole("group", { name: "관리 대상", exact: true }).getByRole("button").all()) await expect(button).toBeDisabled();
   await expect.poll(() => !!release).toBe(true);
   release!();
   await expect(page.getByText("공통 이름", { exact: true })).toBeVisible();
-  await page.getByLabel("관리 대상", { exact: true }).selectOption("task");
+  await page.getByRole("group", { name: "관리 대상", exact: true }).getByRole("button", { name: "할 일", exact: true }).click();
   await expect(page.getByText("공통 이름", { exact: true })).toHaveCount(0);
   await name.fill("공통 이름");
   await page.getByRole("button", { name: "추가", exact: true }).click();
@@ -296,7 +296,7 @@ test("통합 태그는 접힌 섹션에도 조회 오류와 저장 미확정 상
   await page.getByRole("button", { name: "추가", exact: true }).click();
   await expect(section).toContainText("결과 확인 필요");
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/settings\/tags$/);
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
@@ -316,7 +316,7 @@ test("통합 태그는 삭제 실패 후 접혀도 오류와 기존 행을 유�
   );
   await page.goto("/settings/tags");
   await page.getByRole("button", { name: "삭제 실패 태그 삭제", exact: true }).click();
-  const confirmation = page.locator("dialog.modal-action[open]");
+  const confirmation = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "삭제하고 기록", exact: true }) });
   await confirmation.getByRole("button", { name: "삭제하고 기록", exact: true }).click();
   await expect(confirmation).toContainText("삭제 실패");
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();

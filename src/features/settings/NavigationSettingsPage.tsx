@@ -184,7 +184,7 @@ export function NavigationSettings(
               );
             })}
           </ol>
-          {refs.length === 0 && <p className="text-sm text-muted-foreground">내 프로필만 표시합니다.</p>}
+          {refs.length === 0 && <p className="text-sm text-muted-foreground">바로가기를 표시하지 않습니다.</p>}
           <div className="flex flex-wrap items-end gap-3">
             <Combobox items={available} value={selected ?? null} isItemEqualToValue={(a,b) => a.key === b.key} itemToStringLabel={entry => entry.label} onValueChange={entry => setCandidate(entry?.key ?? "")} disabled={busy || refs.length >= 4 || available.length === 0}>
               <ComboboxInput ref={addSelect} aria-label="추가할 메뉴" placeholder={refs.length >= 4 ? "최대 4개 선택" : available.length ? "메뉴 선택" : "추가할 메뉴 없음"} />

@@ -41,7 +41,6 @@ import type { EditState } from "./schema-change-editor.ts";
 import { Field } from "../../components/Field.tsx";
 import { fieldInputPolicy } from "./field-input-policy.ts";
 import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
-import "../../components/related-items.css";
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { SchemaVersionRead } from "./SchemaVersionRead.tsx";
 import { SchemaChangeDiff, SchemaChangeRead } from "./SchemaChangeRead.tsx";
@@ -1259,7 +1258,7 @@ export function SchemaEditor(
                                 : "정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요."}
                             </p>
                           )}
-                          <div className="flex flex-wrap items-center justify-end gap-2">
+                          <div role="group" aria-label="변경안 동작" className="flex flex-wrap items-center justify-end gap-2">
                             {(row.version ||
                                 ["applied", "cancelled"].includes(plan.status))
                               ? (
