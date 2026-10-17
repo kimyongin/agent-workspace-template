@@ -6,8 +6,8 @@ export async function chooseSetting(page: Page, control: Locator, label: string)
     await control.selectOption({ label });
     return;
   }
-  await control.click();
   const input = await control.evaluate(element => element instanceof HTMLInputElement);
+  await control.click();
   if (input) await control.fill(label);
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   await page.getByRole("option", { name: new RegExp(`^${escaped}(?: ·|$)`) }).click();

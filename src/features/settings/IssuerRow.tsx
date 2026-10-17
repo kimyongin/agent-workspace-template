@@ -17,7 +17,7 @@ export function IssuerRow({ label, summary, open, onToggle, action, disabled, ch
           <CardTitle><h2 className="min-w-0 [overflow-wrap:anywhere]">{label}</h2></CardTitle>
           {summary && <Badge variant="secondary">{summary}</Badge>}
           {action}
-          <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="icon" aria-label={label} aria-controls={id}><ChevronDownIcon /></Button></CollapsibleTrigger>
+          <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="icon" aria-label={action ? label : [label, summary].filter(Boolean).join(" ")} aria-controls={id}><ChevronDownIcon /></Button></CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent forceMount hidden={!open} id={id}><CardContent className="flex min-w-0 flex-col gap-4">{children}</CardContent></CollapsibleContent>
       </Card>

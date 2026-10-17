@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field as ChoiceField, FieldTitle } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Notice } from "../../components/Field.tsx";
@@ -214,13 +214,12 @@ function AccountSettings() {
         key: "desktopDisplayScale",
         label: "데스크톱 화면 배율",
       }] as const).map(({ key, label }) => (
-        <Field pair key={key} label={label}>
-          {(props) => (
-            <ToggleGroup type="single" value={String(draft[key])} disabled={saving !== null} onValueChange={value => { if(value) { setDraft(current => ({...current, [key]: displayScalePreference(value)})); clearMessage("display"); } }} id={props.id} aria-label={label} aria-describedby={props["aria-describedby"]} className="flex flex-wrap gap-1">
-              {displayScales.map(scale => <ToggleGroupItem key={scale} value={String(scale)}>{scale}%{scale === 100 ? " (기본)" : ""}</ToggleGroupItem>)}
-            </ToggleGroup>
-          )}
-        </Field>
+        <ChoiceField key={key} data-disabled={saving !== null}>
+          <FieldTitle id={`display-label-${key}`}>{label}</FieldTitle>
+          <ToggleGroup type="single" value={String(draft[key])} disabled={saving !== null} onValueChange={value => { if(value) { setDraft(current => ({...current, [key]: displayScalePreference(value)})); clearMessage("display"); } }} aria-labelledby={`display-label-${key}`} className="flex flex-wrap gap-1">
+            {displayScales.map(scale => <ToggleGroupItem key={scale} value={String(scale)}>{scale}%{scale === 100 ? " (기본)" : ""}</ToggleGroupItem>)}
+          </ToggleGroup>
+        </ChoiceField>
       ))}
     </div>
   );

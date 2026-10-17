@@ -175,7 +175,7 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
   );
   await page.getByRole("button", { name: "이름 입력 항목 편집", exact: true }).focus();
   await page.keyboard.press("Enter");
-  const title = page.locator(".schema-field-heading").getByLabel("항목 이름", { exact: true });
+  const title = page.locator("[data-slot=\"card-header\"]").getByLabel("항목 이름", { exact: true });
   await expect(title).toHaveCount(1);
   await expect(title).toBeFocused();
   await title.fill("남길 속성 입력");
@@ -410,7 +410,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
     .click();
   await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
-  await page.getByRole("region", { name: "자료 번호", exact: true }).locator(".material-section-toggle").click();
+  await page.getByRole("region", { name: "자료 번호", exact: true }).locator("button").click();
   const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
   await record.getByLabel("이름", { exact: false }).fill("남길 자료 번호 입력");
   complete = true;
@@ -981,9 +981,9 @@ test(
     const quantity = properties.getByRole("region", { name: "수량 입력 항목", exact: true });
     const layout = await quantity.evaluate((el) => {
       const row = el.getBoundingClientRect();
-      const header = el.querySelector(".schema-field-heading")!.getBoundingClientRect();
+      const header = el.querySelector("[data-slot=\"card-header\"]")!.getBoundingClientRect();
       const marker = getComputedStyle(el, "::before");
-      const buttons = [...el.querySelectorAll(".schema-order-actions button, .schema-field-disclosure")].map(
+      const buttons = [...el.querySelectorAll("[data-schema-order-actions] button, [data-schema-disclosure]")].map(
         (button) => ({
           x: button.getBoundingClientRect().x,
           right: button.getBoundingClientRect().right,
@@ -1020,7 +1020,7 @@ test(
     }));
     expect(footer).toEqual({ text: "14px", height: 44 });
     expect(
-      await quantity.locator(".schema-order-actions svg").first().evaluate((el) => el.getBoundingClientRect().width),
+      await quantity.locator("[data-schema-order-actions] svg").first().evaluate((el) => el.getBoundingClientRect().width),
     ).toBe(16);
     await quantity.getByText("추가 설정", { exact: true }).click();
     for (const label of await quantity.locator("label:has(input[type=checkbox])").all()) {
@@ -1034,7 +1034,7 @@ test(
       "rgb(255, 140, 150)",
     );
     await quantity.getByText("추가 설정", { exact: true }).click();
-    await page.getByRole("region", { name: "자료 번호", exact: true }).locator(".material-section-toggle").click();
+    await page.getByRole("region", { name: "자료 번호", exact: true }).locator("button").click();
     const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
     await expect(record).toBeVisible();
     const innerChrome = await record.evaluate((el) => {
@@ -1048,7 +1048,7 @@ test(
       path: info.outputPath("identity-settings-flat.png"),
       fullPage: true,
     });
-    await page.getByRole("region", { name: "자료 번호", exact: true }).locator(".material-section-toggle").click();
+    await page.getByRole("region", { name: "자료 번호", exact: true }).locator("button").click();
     await page.screenshot({
       path: info.outputPath("property-display-settings.png"),
       fullPage: true,
@@ -1069,7 +1069,7 @@ test(
       await expect(properties.getByRole("button", { name: /위로$/ }).first()).toBeVisible();
     }
     await properties.locator(
-      ".schema-field .material-section-toggle[aria-expanded=true]",
+      "[role=\"region\"][aria-label$=\" 입력 항목\"] button[aria-expanded=true]",
     ).focus();
     await page.keyboard.press("Enter");
     await expect(
@@ -1193,7 +1193,7 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
   await page.goto(
     `/settings/entity-types/${materials.id}?change_id=${planId}&job_id=${jobId}`,
   );
-  const row = page.locator(".schema-history-row").filter({
+  const row = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
     has: page.getByRole("button", { name: /값 변환 중 ·/ }),
   });
   await expect(row.getByRole("button", { name: "변환 취소", exact: true }))
@@ -1204,7 +1204,7 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
     .toHaveCount(0);
   await expect(page.getByRole("heading", { name: "값 변환 작업", exact: true }))
     .toHaveCount(0);
-  await expect(page.locator(".schema-history-row")).toHaveCount(2);
+  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
   await row.getByRole("button", { name: /값 변환 중 ·/ }).click();
   await expect(page.getByRole("button", { name: "변환 취소", exact: true })).toBeHidden();
   complete = true;
@@ -1212,7 +1212,7 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
   const applied = page.getByRole("button", { name: /버전 2 · 적용됨$/ });
   await expect(applied).toHaveCount(1);
   await expect(applied).toHaveAttribute("aria-expanded", "false");
-  await expect(page.locator(".schema-history-row")).toHaveCount(2);
+  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
   await expect(page.getByRole("button", { name: /^최초 생성/ })).toHaveCount(1);
   await applied.click();
   await expect(
@@ -1283,10 +1283,10 @@ test("적용 변경과 최초 생성은 한 목록에서 각 버전 정의와 �
   await page.goto(
     `/settings/entity-types/${materials.id}/versions?schema_version=1`,
   );
-  await expect(page.locator(".schema-history-row")).toHaveCount(2);
+  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
   await expect(page.getByRole("button", { name: /버전 2 · 적용됨$/ }))
     .toHaveCount(1);
-  const first = page.locator(".schema-history-row").filter({
+  const first = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
     has: page.getByRole("button", { name: /^최초 생성/ }),
   });
   await expect(first.getByRole("region", { name: "변경 결과", exact: true }))
@@ -1361,7 +1361,7 @@ test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는
   await expect(
     page.getByRole("alert").filter({ hasText: "변환 목록 조회 실패" }),
   ).toBeVisible();
-  await expect(page.locator(".schema-history-row")).toHaveCount(1);
+  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "변환 이력 다시 조회", exact: true }),
   ).toBeVisible();
@@ -1450,7 +1450,7 @@ test(
       styles.every((style) => JSON.stringify(style) === JSON.stringify(styles[0])),
     ).toBe(true);
     await page.getByRole("button", { name: /^변경 이력/ }).click();
-    const row = page.locator(".schema-history-row").filter({
+    const row = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
     });
     for (const width of [320, 390, 768]) {
@@ -1459,11 +1459,11 @@ test(
         await page.evaluate((value) => {
           document.documentElement.style.fontSize = value;
         }, scale);
-        const layout = await row.locator(".schema-history-toggle").evaluate((el) => {
-          const heading = el.querySelector(".schema-history-heading")!;
+        const layout = await row.locator("button[aria-controls^=\"schema-history-\"]").evaluate((el) => {
+          const heading = el.querySelector(":scope > span:first-child")!;
           const title = heading.firstElementChild!.getBoundingClientRect();
           const date = heading.querySelector("time")!.getBoundingClientRect();
-          const status = el.querySelector(".schema-history-status")!.getBoundingClientRect();
+          const status = el.querySelector(":scope > span:last-child")!.getBoundingClientRect();
           const button = el.getBoundingClientRect();
           return {
             display: getComputedStyle(el).display,
@@ -1593,7 +1593,7 @@ test("다른 완료 변경을 열면 버전과 해당 변환 작업을 함께 �
   await page.getByRole("button", { name: /버전 3 · 적용됨$/ }).click();
   await expect(page).toHaveURL(new RegExp(`job_id=${id(31)}`));
   await expect(page).toHaveURL(/schema_version=3/);
-  const row = page.locator(".schema-history-row").filter({
+  const row = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
     has: page.getByRole("button", { name: /버전 3 · 적용됨$/ }),
   });
   await expect(row.getByRole("region", { name: "값 변환 상세", exact: true })).toBeVisible();

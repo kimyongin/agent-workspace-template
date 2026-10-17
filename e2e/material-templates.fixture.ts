@@ -152,11 +152,10 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "200%";
   });
-  const resetAlignment = await form.locator(".record-template-defaults").evaluate((el) => {
-    const button = el.querySelector("button")!.getBoundingClientRect();
-    return Math.abs(button.right - el.getBoundingClientRect().right);
-  });
-  expect(resetAlignment).toBeLessThanOrEqual(1);
+  const resetBounds = await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).boundingBox();
+  expect(resetBounds!.width).toBeGreaterThanOrEqual(44);
+  expect(resetBounds!.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "";
   });
@@ -193,7 +192,7 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/settings\/records$/);
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
 
   await form.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
@@ -299,7 +298,7 @@ test("통합 태그는 접힌 섹션에도 조회 오류와 저장 미확정 상
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/settings\/tags$/);
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await section.click();
   await expect(section).toHaveAttribute("aria-expanded", "false");
@@ -339,7 +338,7 @@ test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 
   await save.click();
   const reload = form.getByRole("button", { name: "최신값 확인", exact: true });
   await expect(reload).toBeVisible();
-  expect(await reload.locator(".body-action-face").evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");
+  expect((await reload.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(
     await save.evaluate((el) => ({ font: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height })),
   ).toEqual({ font: "14px", height: 44 });
@@ -371,7 +370,7 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   await expect(form.getByLabel("메모 템플릿")).toHaveText("할 일 초안");
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await page.getByRole("menuitem", { name: "기본", exact: true }).click();
-  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
+  await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
     .click();
   await expect(form.getByLabel("메모 템플릿")).toHaveText("할 일 초안");
   await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();

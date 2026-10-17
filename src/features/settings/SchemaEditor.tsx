@@ -1,3 +1,4 @@
+import { RadioGroup } from "@/components/ui/radio-group";
 import { PlusIcon, RotateCcwIcon } from "lucide-react";
 import { ChevronDownIcon } from "lucide-react";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
@@ -331,6 +332,7 @@ export function SchemaEditor(
               disabled={lockedPlan || busy || uncertain || disabled || readBusy || startState.busy ||
                 startState.uncertain}
             >
+              <RadioGroup value={schemaPresentation(draft).representative} onValueChange={editor.chooseRepresentative} aria-label="자료 이름으로 사용할 항목">
               <CollectionList view="list" label="입력 항목 목록">
                 {schemaPresentation(draft).order.map((key, index) => {
                   const f = draft.schema.properties[key],
@@ -582,7 +584,6 @@ export function SchemaEditor(
                             draft={draft}
                             propertyKey={key}
                             disabled={Boolean(plan?.recovery)}
-                            chooseRepresentative={editor.chooseRepresentative}
                           />
                           <Collapsible
                             className="min-w-0 col-span-full"
@@ -866,6 +867,7 @@ export function SchemaEditor(
                   );
                 })}
               </CollectionList>
+              </RadioGroup>
             </FieldSet>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button variant="ghost"

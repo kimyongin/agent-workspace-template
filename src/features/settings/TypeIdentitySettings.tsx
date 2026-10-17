@@ -181,7 +181,7 @@ export function TypeIdentitySettings(
                 </Button>
               </AlertDescription></Alert>
             )}
-            <div className="flex min-w-0 flex-col gap-3">
+            <RadioGroup value={draft.default_source} onValueChange={code => update(v => ({...v, default_source:code}))} disabled={busy || uncertain || disabled} aria-label="기본 번호 출처" className="flex min-w-0 flex-col gap-3">
               {draft.sources.map((source) => {
                 const metadata = saved.sources.find((s) => s.code === source.code),
                   issuer = issuers.find((i) => i.code === source.code),
@@ -275,13 +275,13 @@ export function TypeIdentitySettings(
                         </div>
                       )}
                     </div>
-                    <RadioGroup value={draft.default_source} onValueChange={code => update(v => ({ ...v, default_source: code }))} disabled={busy || uncertain || !source.active || !available} aria-label={`${sourceName(source.code)} 기본 번호 출처 선택`}>
-                      <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3"><RadioGroupItem value={source.code} aria-label={`${sourceName(source.code)} 기본 번호 출처`} />기본</FieldLabel>
-                    </RadioGroup>
+
+                      <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3"><RadioGroupItem disabled={!source.active || !available} value={source.code} aria-label={`${sourceName(source.code)} 기본 번호 출처`} />기본</FieldLabel>
+
                   </div>
                 );
               })}
-            </div>
+            </RadioGroup>
             {!active.some((source) => source.code === draft.default_source) && (
               <p className="text-sm text-destructive">기본 번호 출처를 선택하세요.</p>
             )}

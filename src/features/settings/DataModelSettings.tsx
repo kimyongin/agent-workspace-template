@@ -640,7 +640,7 @@ export function DataModelSettings() {
                     ref={file}
                     type="file"
                     accept=".json,application/json"
-                    className="sr-only"
+                    className="hidden"
                     tabIndex={-1}
                     onChange={(e) => {
                       void readFile(e.target.files?.[0]);
