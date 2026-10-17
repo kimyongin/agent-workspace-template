@@ -107,13 +107,18 @@ dbTest(
       await assertRejects(() => getDataModelChange(deps, foreign.actor, saved.id));
       const child = read.group!.children[0];
       await assertRejects(
-        () =>
-          startEntitySchemaMigration(
+        async () =>
+          await startEntitySchemaMigration(
             { uow: new SqlEntityTypeUnitOfWork(sql) },
             requestActor(fixture.actor),
             child.change.type_id,
             child.change.id,
-            { expected_change_version: child.change.version, analysis_id: child.change.analysis!.id },
+            {
+              expected_change_version: child.change.version,
+              expected_schema_version: child.change.source_schema_version,
+              analysis_id: child.change.analysis!.id,
+              fingerprint: child.change.fingerprint,
+            },
           ),
         Error,
         "전체 모델",
