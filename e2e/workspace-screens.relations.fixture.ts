@@ -141,7 +141,7 @@ test("연결 범위 해제 뒤 늦은 scoped 페이지는 전체 행·cursor를 
   const held = state.holdRead({ kind: "tasks", page: 2, entityId: entityKey(1) });
   await go(page, `/tasks?entity_id=${encodeURIComponent(entityKey(1))}`);
   await openTabFilters(page);
-  await page.getByRole("region", { name: "할 일", exact: true }).getByRole("button", { name: "할 일 더 보기", exact: true }).click();
+  await page.getByRole("region", { name: "할 일 목록", exact: true }).getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await held.started;
   await page.getByRole("button", { name: "자료 범위 해제", exact: true }).click();
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
@@ -149,7 +149,7 @@ test("연결 범위 해제 뒤 늦은 scoped 페이지는 전체 행·cursor를 
   held.release();
   await held.finished;
   await expect(page.getByRole("region", { name: "할 일 목록", exact: true }).locator("[data-list-anchor]")).toHaveText(["전체 업무"]);
-  await expect(page.getByRole("region", { name: "할 일", exact: true }).getByText("오래된 범위 추가", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "할 일 목록", exact: true }).getByText("오래된 범위 추가", { exact: true })).toHaveCount(0);
   await expect(page).not.toHaveURL(/entity_id=|tasks_pages=/);
   expect(state.errors).toEqual([]);
 });

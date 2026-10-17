@@ -355,7 +355,7 @@ for (const kind of ["tasks"] as const) {
       });
     });
     await go(page, `/${kind}?q=old`);
-    const section = kind === "tasks" ? page.getByRole("region", { name: "할 일", exact: true }) : page.locator("main");
+    const section = page.getByRole("region", { name: "할 일 목록", exact: true });
     await section.getByRole("button", { name: kind === "tasks" ? "할 일 더 보기" : "더 보기", exact: true }).click();
     await pending;
     const canceled = page.waitForEvent(
@@ -403,7 +403,7 @@ test("검색 복원의 마지막 요청 페이지가 cursor를 반복하면 이�
     });
   });
   await go(page, "/tasks?q=검색&pages=2");
-  const section = page.getByRole("region", { name: "할 일", exact: true });
+  const section = page.getByRole("region", { name: "할 일 목록", exact: true });
   await expect(section.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
   await expect(section.getByRole("button", { name: "보존할 결과", exact: true })).toBeVisible();
   await expect(section.getByRole("button", { name: "거절할 결과", exact: true })).toHaveCount(0);
@@ -440,7 +440,7 @@ test("검색의 반복 cursor 실패는 기존 행·coverage를 보존하고 같
     });
   });
   await go(page, "/tasks?q=검색");
-  const section = page.getByRole("region", { name: "할 일", exact: true });
+  const section = page.getByRole("region", { name: "할 일 목록", exact: true });
   await expect(section.getByText(/색인 대기 1개/)).toBeVisible();
   await section.getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await expect(section.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
