@@ -21,7 +21,13 @@ for (const exit of ["close", "back"] as const) {
       if (exit === "back") await page.goBack();
       else await closeDetail(page, "기록");
       await expect(page).toHaveURL(/\/search\?/);
-      await expect(page.locator(".workspace-details")).toBeHidden();
+      if (exit === "back") {
+        await expect(page.locator(".workspace-details")).toBeVisible();
+        await expect(page.getByRole("tab")).toHaveCount(1);
+      } else {
+        await expect(page.locator(".workspace-details")).toBeHidden();
+        await expect(page.getByRole("tab")).toHaveCount(0);
+      }
       await expect(page.locator(".workspace-list .list .item-title")).toHaveCount(1 + n);
       await expect(search).toHaveValue("아직 제출하지 않은 검색어");
       await expect(link).toBeFocused();
