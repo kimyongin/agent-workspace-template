@@ -186,3 +186,24 @@ it("required means presence while nullable null and unconstrained empty strings 
   expect(propertyValues(definition, { prop_1: "이름", prop_2: null, prop_3: "  " }).prop_3).toBe("  ");
   expect(() => propertyValues(definition, { prop_1: " ", prop_2: null, prop_3: "" })).toThrow();
 });
+
+it("keeps archived and readonly properties as named static values in the complete form", () => {
+  const definition = initialEntityDefinition("품명");
+  definition.schema.properties.prop_2 = { "x-order": 20, type: "number", title: "입고량", readOnly: true };
+  definition.schema.properties.prop_3 = { "x-order": 30, type: "boolean", title: "판매 여부", deprecated: true };
+  const html = renderToStaticMarkup(
+    <PropertyFields
+      definition={definition}
+      values={{ prop_1: "상품", prop_2: "0", prop_3: false }}
+      onChange={() => {}}
+      errors={{}}
+    />,
+  );
+  expect(html).toContain("<dt>입고량");
+  expect(html).toContain("읽기 전용");
+  expect(html).toMatch(/<dd[^>]*>0<\/dd>/);
+  expect(html).toContain("<dt>판매 여부");
+  expect(html).toContain("보관");
+  expect(html).toMatch(/<dd[^>]*>거짓<\/dd>/);
+  expect(html).not.toContain('disabled=""');
+});
