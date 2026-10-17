@@ -156,7 +156,7 @@ export async function resolveModel(
 ): Promise<ModelPlan> {
   const source = snapshot.document,
     baseline = await definitionFingerprint(snapshot),
-    seed = await definitionFingerprint({ baseline, document, mode }),
+    seed = await definitionFingerprint({ namespace, baseline, document, mode }),
     target = structuredClone(document);
   const updateSeed = await definitionFingerprint(["data-model-update", namespace]);
   // Copy collisions receive a visible new label, never an implicit merge by name.

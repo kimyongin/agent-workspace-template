@@ -194,3 +194,11 @@ Deno.test("whole model review rejects changing a used relationship endpoint kind
   assertEquals(plan.review.items.find((i) => i.ref === `relation:${doc.relations[0].id}`)?.kind, "conflict");
   assertEquals(plan.review.can_apply, false);
 });
+
+Deno.test("identical empty-owner previews bind copy IDs and review fingerprints to their owner namespace", async () => {
+  const snapshot = { document: empty as DataModelDocument, types: {} };
+  const a = await resolveModel(snapshot, example(), "copy", actor.userId);
+  const b = await resolveModel(snapshot, example(), "copy", "10000000-0000-4000-8000-000000000002");
+  assertEquals(a.review.fingerprint === b.review.fingerprint, false);
+  assertEquals(a.review.mapping.types.ingredient === b.review.mapping.types.ingredient, false);
+});
