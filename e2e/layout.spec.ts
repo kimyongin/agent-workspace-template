@@ -249,17 +249,21 @@ test("보조 글자와 상태 표시의 대비가 검수 목표 이상이다", a
   // Disabled controls and decorative section dividers are excluded by the guide; enabled input identity is not.
   const input = forms.getByRole("textbox", { name: "상품명 (필수)", exact: true });
   await check(input, "Enabled input boundary", "boundary");
+  await forms.screenshot({ path: info.outputPath("contrast-enabled-unfocused.png") });
   const unfocusedShadow = await input.evaluate(element => getComputedStyle(element).boxShadow);
   await input.focus();
   await page.keyboard.press("Tab");
   await page.keyboard.press("Shift+Tab");
   await expect(input).toBeFocused();
   await check(input, "Keyboard focus ring", "focus", unfocusedShadow);
+  await forms.screenshot({ path: info.outputPath("contrast-keyboard-focused.png") });
   await forms.getByRole("button", { name: "입력 확인", exact: true }).click();
   await check(forms.getByText("상품명을 입력하세요.", { exact: true }), "Validation error text");
   await check(input, "Invalid input boundary", "boundary");
+  await forms.screenshot({ path: info.outputPath("contrast-invalid.png") });
   await input.fill("대비 검수 상품");
   await forms.getByRole("button", { name: "입력 확인", exact: true }).click();
   await check(forms.getByRole("status").getByText("입력 조건을 충족합니다.", { exact: true }), "Success status text");
+  await forms.screenshot({ path: info.outputPath("contrast-success.png") });
   await info.attach("computed-contrast", { body: JSON.stringify(results, null, 2), contentType: "application/json" });
 });
