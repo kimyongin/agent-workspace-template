@@ -1,7 +1,8 @@
-import { Link } from "react-router";
+import { useNavigate } from "react-router";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CardDescription } from "@/components/ui/card";
 import { PageHeading } from "../../components/PageHeading.tsx";
 import { SettingsMenu } from "./SettingsMenu.tsx";
-import "./settings.css";
 
 const sections = [
   {
@@ -34,19 +35,18 @@ export function MaterialSettingsHeading({ section, id }: {
   section: typeof sections[number]["key"];
   id?: string;
 }) {
+  const navigate = useNavigate();
   return (
     <>
       <PageHeading title="자료 설정" description="자료 종류·연결 방법·번호 설정을 함께 관리합니다." id={id}>
         <SettingsMenu />
       </PageHeading>
-      <nav className="material-settings-tabs" aria-label="자료 설정 항목">
-        {sections.map(({ key, to, label }) => (
-          <Link key={key} to={to} aria-current={section === key ? "page" : undefined}>{label}</Link>
-        ))}
-      </nav>
-      <p className="material-settings-description secondary">
-        {sections.find(({ key }) => key === section)?.description}
-      </p>
+      <Tabs value={section} activationMode="manual" onValueChange={key => { const target = sections.find(item => item.key === key); if(target) void navigate(target.to); }}>
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4" aria-label="자료 설정 항목">
+          {sections.map(({ key, label }) => <TabsTrigger key={key} value={key} aria-current={section === key ? "page" : undefined} className="min-h-11 whitespace-normal">{label}</TabsTrigger>)}
+        </TabsList>
+      </Tabs>
+      <CardDescription>{sections.find(({ key }) => key === section)?.description}</CardDescription>
     </>
   );
 }

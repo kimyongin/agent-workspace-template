@@ -15,11 +15,11 @@ export function SchemaDefinitionRead(
     ]),
   ];
   return (
-    <section aria-label="입력 항목 정의" className="schema-definition-read">
-      <h3 className="section-title">
-        입력 항목 <span className="secondary">읽기 전용</span>
+    <section aria-label="입력 항목 정의" className="flex min-w-0 flex-col gap-4">
+      <h3 className="text-base font-semibold">
+        입력 항목 <span className="text-sm text-muted-foreground">읽기 전용</span>
       </h3>
-      <dl className="key-value-grid key-value-static schema-definition-values">
+      <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
         <div>
           <dt>종류 이름</dt>
           <dd>{definition.schema.title ?? "당시 이름 기록 없음"}</dd>
@@ -43,14 +43,14 @@ export function SchemaDefinitionRead(
           </dd>
         </div>
         {definition.schema.description && (
-          <div className="key-value-full">
+          <div className="col-span-full">
             <dt>종류 설명</dt>
             <dd>{definition.schema.description}</dd>
           </div>
         )}
       </dl>
       {!definition.schema.title && (
-        <p className="help">이 과거 버전에는 당시 종류 이름·아이콘·보관 상태가 기록되지 않았습니다.</p>
+        <p className="text-sm text-muted-foreground">이 과거 버전에는 당시 종류 이름·아이콘·보관 상태가 기록되지 않았습니다.</p>
       )}
       {keys.map((key) => {
         const field = definition.schema.properties[key];
@@ -123,11 +123,11 @@ export function SchemaDefinitionRead(
             key={key}
             aria-label={`${field.title || "이름 없는 항목"} 정의`}
           >
-            <dl className="key-value-grid key-value-static schema-definition-values">
+            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
               {values.map(([label, value]) => (
                 <div
                   key={label}
-                  className={["설명", "입력 예시", "선택 항목"].includes(label) ? "key-value-full" : undefined}
+                  className={["설명", "입력 예시", "선택 항목"].includes(label) ? "col-span-full" : undefined}
                 >
                   <dt>{label}</dt>
                   <dd>{value}</dd>

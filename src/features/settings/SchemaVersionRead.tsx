@@ -1,5 +1,9 @@
+import { Button } from "../../components/ui/button.tsx";
+import { RotateCcwIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
 import { SchemaExport } from "./SchemaExport.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { useEffect, useRef, useState } from "react";
 import type { EntitySchemaVersion } from "@contracts/entity-type.ts";
 import { api } from "../../lib/api.ts";
@@ -58,23 +62,23 @@ export function SchemaVersionRead(
     return () => controller.abort();
   }, [typeId, version, open, retry]);
   return (
-    <div className="schema-version-read">
-      {error && <p role="alert" className="error-text">{error}</p>}
+    <div className="flex min-w-0 flex-col gap-4">
+      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {error && (
-        <BodyAction icon="reset" onClick={() => setRetry((n) => n + 1)}>
+        <Button variant="ghost" type="button"  onClick={() => setRetry((n) => n + 1)}><RotateCcwIcon data-icon="inline-start" />
           입력 항목 다시 조회
-        </BodyAction>
+        </Button>
       )}
-      {!value && !error && <p role="status">입력 항목 읽는 중…</p>}
+      {!value && !error && <Alert role="status"><AlertDescription>입력 항목 읽는 중…</AlertDescription></Alert>}
       {value && (
         <>
           <SchemaExport definition={value.target} />
           <SchemaDefinitionRead definition={value.target} />
-          <section aria-label="변경 결과" className="schema-history-result">
-            <h3 className="section-title">변경 결과</h3>
+          <section aria-label="변경 결과" className="flex min-w-0 flex-col gap-4">
+            <h3 className="text-base font-semibold">변경 결과</h3>
             {version === 1
               ? (
-                <dl className="key-value-grid key-value-static">
+                <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
                   <div>
                     <dt>버전</dt>
                     <dd>1 · 최초 생성</dd>
@@ -83,7 +87,7 @@ export function SchemaVersionRead(
               )
               : (
                 <>
-                  <dl className="key-value-grid key-value-static">
+                  <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
                     <div>
                       <dt>버전</dt>
                       <dd>{version - 1} → {version} · 적용 완료</dd>

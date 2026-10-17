@@ -33,15 +33,15 @@ export function SchemaVersionDiff(
     default: "생성 기본값",
   };
   return (
-    <section className="schema-version-diff" aria-label="버전 차이">
-      <dl className="key-value-grid key-value-static">
+    <section className="flex min-w-0 flex-col gap-4" aria-label="버전 차이">
+      <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
         {([["title", "종류 이름"], ["description", "종류 설명"], ["x-icon", "종류 아이콘"], [
           "deprecated",
           "종류 보관",
         ]] as const)
           .filter(([name]) => JSON.stringify(before.schema[name]) !== JSON.stringify(after.schema[name]))
           .map(([name, label]) => (
-            <div className={name === "description" ? "key-value-full" : undefined} key={name}>
+            <div className={name === "description" ? "col-span-full" : undefined} key={name}>
               <dt>{label}</dt>
               <dd>{schemaValueLabel(before.schema[name])} → {schemaValueLabel(after.schema[name])}</dd>
             </div>
@@ -54,7 +54,7 @@ export function SchemaVersionDiff(
         const prior = before.schema.properties[key], next = after.schema.properties[key];
         const label = next?.title ?? prior?.title ?? "이름 없는 입력 항목";
         return (
-          <dl className="key-value-grid key-value-static schema-version-field-diff" key={key}>
+          <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3" key={key}>
             <div>
               <dt>항목 이름</dt>
               <dd>{label}</dd>
@@ -78,7 +78,7 @@ export function SchemaVersionDiff(
               ).map(([name, title]) => (
                 <div
                   key={name}
-                  className={["description", "oneOf", "examples"].includes(name) ? "key-value-full" : undefined}
+                  className={["description", "oneOf", "examples"].includes(name) ? "col-span-full" : undefined}
                 >
                   <dt>{title}</dt>
                   <dd>

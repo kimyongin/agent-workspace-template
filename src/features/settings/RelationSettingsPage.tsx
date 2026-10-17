@@ -1,3 +1,8 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FieldSet } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Input } from "../../components/ui/input.tsx";
+import { Button } from "../../components/ui/button.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -5,12 +10,11 @@ import type { EntityRelationDefinition, EntityRelationDefinitionPage } from "@co
 import { api, query } from "../../lib/api.ts";
 import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
 import { RelationDefinitionForm } from "./RelationDefinitionForm.tsx";
-import "./settings.css";
 export function RelationSettingsPage() {
   const [params, setParams] = useSearchParams(), typeId = params.get("type_id") ?? "";
   const [q, setQ] = useState(""),
@@ -87,26 +91,26 @@ export function RelationSettingsPage() {
     />
   );
   return (
-    <section className="panel settings material-settings material-relation-settings" aria-label="연결 설정">
+    <section className="min-w-0 flex w-full flex-col gap-6 max-w-6xl" aria-label="연결 설정">
       <MaterialSettingsHeading section="relations" />
-      <fieldset disabled={edit !== null} className="relation-settings-filters">
+      <FieldSet disabled={edit !== null} className="flex min-w-0 flex-wrap gap-3 [&>div]:min-w-40 [&>div]:flex-1">
         <Field label="자료 종류 필터">
           {(props) => (
-            <select
-              className="input"
+            <NativeSelect
+
               {...props}
               value={typeId}
               onChange={(e) => setParams(e.target.value ? { type_id: e.target.value } : {})}
             >
-              <option value="">모든 자료 종류</option>
-              {types.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
+              <NativeSelectOption value="">모든 자료 종류</NativeSelectOption>
+              {types.map((t) => <NativeSelectOption key={t.id} value={t.id}>{t.label}</NativeSelectOption>)}
+            </NativeSelect>
           )}
         </Field>
         <Field label="연결 이름 또는 자료 종류 검색">
           {(props) => (
-            <input
-              className="input"
+            <Input
+
               {...props}
               type="search"
               value={q}
@@ -116,44 +120,44 @@ export function RelationSettingsPage() {
         </Field>
         <Field label="연결 설정 상태">
           {(props) => (
-            <select
-              className="input"
+            <NativeSelect
+
               {...props}
               value={archived}
               onChange={(e) => setArchived(e.target.value)}
             >
-              <option value="active">사용 중</option>
-              <option value="archived">보관</option>
-              <option value="all">전체</option>
-            </select>
+              <NativeSelectOption value="active">사용 중</NativeSelectOption>
+              <NativeSelectOption value="archived">보관</NativeSelectOption>
+              <NativeSelectOption value="all">전체</NativeSelectOption>
+            </NativeSelect>
           )}
         </Field>
-      </fieldset>
-      <div className="settings-inline-actions">
-        <button
-          className="body-action"
+      </FieldSet>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="outline"
+
           type="button"
           ref={add}
           disabled={edit !== null || !catalog.types}
           onClick={() => open("new")}
         >
           연결 설정 추가
-        </button>
+        </Button>
       </div>
       {catalog.error && (
-        <div role="alert" className="notice notice-error">
-          자료 종류를 읽지 못했습니다. <BodyAction onClick={catalog.retry}>다시 조회</BodyAction>
-        </div>
+        <Alert variant="destructive" role="alert"><AlertDescription>
+          자료 종류를 읽지 못했습니다. <Button variant="ghost" type="button" onClick={catalog.retry}>다시 조회</Button>
+        </AlertDescription></Alert>
       )}
-      {loading && <p role="status">불러오는 중…</p>}
+      {loading && <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert>}
       {error && (
-        <div className="notice notice-error" role="alert">
+        <Alert variant="destructive" role="alert"><AlertDescription>
           {error}
-          <BodyAction onClick={() => setRevision((n) => n + 1)}>다시 조회</BodyAction>
-        </div>
+          <Button variant="ghost" type="button" onClick={() => setRevision((n) => n + 1)}>다시 조회</Button>
+        </AlertDescription></Alert>
       )}
-      {message && <p role="status">{message}</p>}
-      <div className="issuer-registry-list">
+      {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
+      <div className="flex min-w-0 flex-col gap-4">
         {edit === "new" && <IssuerRow label="새 연결 설정" open onToggle={() => {}}>{editor()}</IssuerRow>}
         {page.items.map((row) => (
           <IssuerRow
@@ -172,10 +176,10 @@ export function RelationSettingsPage() {
         ))}
       </div>
       {!loading && !error && page.items.length === 0 && edit === null && (
-        <p className="secondary">조건에 맞는 연결 설정이 없습니다.</p>
+        <p className="text-sm text-muted-foreground">조건에 맞는 연결 설정이 없습니다.</p>
       )}
       {page.next_cursor && (
-        <BodyAction
+        <Button variant="ghost" type="button"
           disabled={loading || edit !== null}
           onClick={async () => {
             setLoading(true);
@@ -201,7 +205,7 @@ export function RelationSettingsPage() {
           }}
         >
           더 보기
-        </BodyAction>
+        </Button>
       )}
       <ConfirmDialog
         open={!formState.busy && blocked.state === "blocked"}

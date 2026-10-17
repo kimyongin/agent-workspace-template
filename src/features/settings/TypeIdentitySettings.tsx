@@ -1,8 +1,16 @@
+import { LinkIcon, PlusIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { FieldSet, FieldLabel } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "../../components/ui/button.tsx";
+import { Input } from "../../components/ui/input.tsx";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { typeIdentityUpdate } from "@contracts/entity-issuer.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { Field } from "../../components/Field.tsx";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
 import { issuerRegistry, typeIdentityPort } from "./issuer-registry-api.ts";
@@ -95,24 +103,24 @@ export function TypeIdentitySettings(
       description="상품 번호처럼 자료를 구분할 번호를 설정합니다."
       state={state}
     >
-      {error && <p role="alert" className="error-text">{error}</p>}
-      {message && <p role="status">{message}</p>}
+      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
       {!saved && (
         <>
-          {busy ? <p role="status">불러오는 중…</p> : (
-            <button
+          {busy ? <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert> : (
+            <Button variant="outline"
               type="button"
-              className="btn"
+
               onClick={() => void editor.resource.read()}
             >
               자료 번호 설정 다시 조회
-            </button>
+            </Button>
           )}
         </>
       )}
       {saved && (
         <form
-          className="form"
+          className="flex min-w-0 flex-col gap-5"
           aria-label="자료 번호 설정"
           onSubmit={(e) => {
             e.preventDefault();
@@ -120,60 +128,60 @@ export function TypeIdentitySettings(
           }}
         >
           {conflict && (
-            <div className="settings-inline-actions">
-              <button
-                className="btn"
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Button variant="outline"
+
                 type="button"
                 disabled={busy || uncertain}
                 onClick={() => void editor.resource.read()}
               >
                 최신 저장값 확인
-              </button>
+              </Button>
               {latestReady && (
                 <>
-                  <p className="secondary">
+                  <p className="text-sm text-muted-foreground">
                     최신 저장값: {saved.label} · 기본 번호 출처 {sourceName(saved.default_source)} ·{" "}
                     {saved.sources.filter((s) => s.active).map((s) => s.source_label).join(", ")}
                   </p>
-                  <button
+                  <Button variant="outline"
                     type="button"
-                    className="btn"
+
                     onClick={() => {
                       editor.resource.acceptLatest();
                       setInputError("");
                     }}
                   >
                     입력 유지하고 최신 버전 사용
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
           )}
-          <fieldset className="settings-fields key-value-grid" disabled={busy || uncertain || disabled}>
+          <FieldSet className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" disabled={busy || uncertain || disabled}>
             <Field pair label="이름" required help="자료에 표시할 번호 이름입니다. 예: 상품 번호·주문 번호">
               {(props) => (
-                <input
+                <Input
                   {...props}
-                  className="input"
+
                   required
                   value={draft.label}
                   onChange={(e) => update((v) => ({ ...v, label: e.target.value }))}
                 />
               )}
             </Field>
-            <div className="settings-source-heading">
-              <h3 className="label">사용할 번호 출처</h3>
-              <BodyAction icon="link" disabled={!!catalogError} onClick={() => setConnecting(true)}>연결</BodyAction>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-medium">사용할 번호 출처</h3>
+              <Button variant="ghost" type="button"  disabled={!!catalogError} onClick={() => setConnecting(true)}><LinkIcon data-icon="inline-start" />연결</Button>
             </div>
             {catalogError && (
-              <p className="error-text" role="alert">
+              <Alert variant="destructive" className="text-sm text-destructive" role="alert"><AlertDescription>
                 번호 출처·번호 종류를 읽지 못했습니다. {catalogError}{" "}
-                <button type="button" className="btn" onClick={() => setCatalogRevision((value) => value + 1)}>
+                <Button variant="outline" type="button"  onClick={() => setCatalogRevision((value) => value + 1)}>
                   번호 출처·번호 종류 다시 조회
-                </button>
-              </p>
+                </Button>
+              </AlertDescription></Alert>
             )}
-            <div className="issuer-binding-list">
+            <RadioGroup value={draft.default_source} onValueChange={code => update(v => ({...v, default_source:code}))} disabled={busy || uncertain || disabled} aria-label="기본 번호 출처" className="flex min-w-0 flex-col gap-3">
               {draft.sources.map((source) => {
                 const metadata = saved.sources.find((s) => s.code === source.code),
                   issuer = issuers.find((i) => i.code === source.code),
@@ -182,26 +190,26 @@ export function TypeIdentitySettings(
                   locked = metadata?.referenced || issuer?.system || source.code === "app",
                   available = isAvailable(source.code, source.rule_id);
                 return (
-                  <div key={source.code} className="issuer-binding-row">
-                    <label className="issuer-status-choice">
-                      <input
-                        type="checkbox"
+                  <div key={source.code} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-border py-3">
+                    <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                      <Checkbox
+
                         checked={source.active}
                         disabled={!available && !source.active}
-                        onChange={(e) =>
+                        onCheckedChange={(checked) =>
                           update((v) => ({
                             ...v,
                             sources: v.sources.map((s) =>
-                              s.code === source.code ? { ...s, active: e.target.checked } : s
+                              s.code === source.code ? { ...s, active: checked === true } : s
                             ),
                           }))}
                       />
                       {sourceName(source.code)}
-                    </label>
-                    <div className="issuer-binding-number">
+                    </FieldLabel>
+                    <div className="col-span-full">
                       {locked || options.length <= 1
                         ? (
-                          <dl className="key-value-static">
+                          <dl className="grid min-w-0 gap-3 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
                             <div>
                               <dt>번호 종류</dt>
                               <dd>
@@ -209,7 +217,7 @@ export function TypeIdentitySettings(
                                   ? "자동 발급"
                                   : rule?.label ?? metadata?.rule_label ?? "번호 종류"}
                                 {metadata?.referenced && (
-                                  <span className="secondary" aria-label="사용 중인 번호 종류 · 변경 불가">
+                                  <span className="text-sm text-muted-foreground" aria-label="사용 중인 번호 종류 · 변경 불가">
                                     · 변경 불가
                                   </span>
                                 )}
@@ -220,9 +228,9 @@ export function TypeIdentitySettings(
                         : (
                           <Field pair label="번호 종류">
                             {(props) => (
-                              <select
+                              <NativeSelect
                                 {...props}
-                                className="input"
+
                                 aria-label={`${sourceName(source.code)} 번호 종류`}
                                 value={source.rule_id}
                                 onChange={(e) =>
@@ -234,24 +242,24 @@ export function TypeIdentitySettings(
                                   }))}
                               >
                                 {options.map((r) => (
-                                  <option key={r.id} value={r.id}>{r.label}{r.active ? "" : " (중지)"}</option>
+                                  <NativeSelectOption key={r.id} value={r.id}>{r.label}{r.active ? "" : " (중지)"}</NativeSelectOption>
                                 ))}
-                              </select>
+                              </NativeSelect>
                             )}
                           </Field>
                         )}
-                      {!available && <span className="secondary">· 사용 중지</span>}
+                      {!available && <span className="text-sm text-muted-foreground">· 사용 중지</span>}
                       {issuer && !issuer.system && (
-                        <div className="settings-inline-actions">
-                          <BodyAction
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <Button variant="ghost" type="button"
                             aria-label={`${sourceName(source.code)} 편집`}
                             onClick={() => setRegistryEdit({ kind: "issuer", issuer })}
                           >
                             편집
-                          </BodyAction>
+                          </Button>
                           {!metadata?.referenced && (
-                            <BodyAction
-                              icon="create"
+                            <Button variant="ghost" type="button"
+
                               aria-label={`${sourceName(source.code)} 번호 종류 추가`}
                               disabled={!rules[source.code]}
                               onClick={() =>
@@ -260,36 +268,28 @@ export function TypeIdentitySettings(
                                   source: source.code,
                                   sourceLabel: sourceName(source.code),
                                 })}
-                            >
+                            ><PlusIcon data-icon="inline-start" />
                               번호 종류 추가
-                            </BodyAction>
+                            </Button>
                           )}
                         </div>
                       )}
                     </div>
-                    <label className="issuer-status-choice issuer-default-choice">
-                      <input
-                        type="radio"
-                        name={`default-source-${typeId}`}
-                        aria-label={`${sourceName(source.code)} 기본 번호 출처`}
-                        checked={source.active && available && draft.default_source === source.code}
-                        disabled={!source.active || !available}
-                        onChange={() => update((v) => ({ ...v, default_source: source.code }))}
-                      />
-                      기본
-                    </label>
+
+                      <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3"><RadioGroupItem disabled={!source.active || !available} value={source.code} aria-label={`${sourceName(source.code)} 기본 번호 출처`} />기본</FieldLabel>
+
                   </div>
                 );
               })}
-            </div>
+            </RadioGroup>
             {!active.some((source) => source.code === draft.default_source) && (
-              <p className="error-text">기본 번호 출처를 선택하세요.</p>
+              <p className="text-sm text-destructive">기본 번호 출처를 선택하세요.</p>
             )}
-          </fieldset>
-          <div className="settings-section-footer">
-            <div className="actions">
-              <button
-                className="btn"
+          </FieldSet>
+          <div className="flex flex-col gap-3 pt-4">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="outline"
+
                 type="button"
                 aria-label="변경 취소"
                 disabled={busy || uncertain || disabled || (!dirty && !conflict) || conflict && !latestReady}
@@ -300,14 +300,14 @@ export function TypeIdentitySettings(
                 }}
               >
                 취소
-              </button>
-              <button
-                className="btn btn-primary"
+              </Button>
+              <Button variant="default"
+
                 aria-label={busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "자료 번호 저장"}
                 disabled={busy || disabled || conflict || (!dirty && !uncertain)}
               >
                 {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "저장"}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
