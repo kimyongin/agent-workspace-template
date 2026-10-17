@@ -273,3 +273,86 @@ dbTest(
     }
   },
 );
+
+import { updateEntityRelationDefinition } from "../../functions/_shared/core/entity-relations/application.ts";
+dbTest(
+  "direct competing reverse single slots serialize and archived definitions preserve explicit unlink",
+  async () => {
+    const admin = connect(urls.admin), sql = connect(urls.direct, { max: 3 }), a = await fixtureOwner(admin);
+    const definitions = { uow: new SqlEntityRelationDefinitionUnitOfWork(sql) },
+      d = { uow: new SqlEntityRelationLinkUnitOfWork(sql) },
+      types = { uow: new SqlEntityTypeUnitOfWork(sql) },
+      entities = { uow: new SqlEntityUnitOfWork(sql) };
+    try {
+      const type = await createEntityType(types, requestActor(a.actor), { label: "주문" });
+      const def = await createEntityRelationDefinition(definitions, requestActor(a.actor), {
+        ends: [{ type_id: type.id, label: "연결", cardinality: "many" }, {
+          type_id: type.id,
+          label: "단일 원점",
+          cardinality: "one",
+        }],
+      });
+      const items: Awaited<ReturnType<typeof createEntity>>[] = [];
+      for (const title of ["원점1", "원점2", "상대", "다른 상대"]) {
+        items.push(
+          await createEntity(entities, requestActor(a.actor), {
+            entity_type_id: type.id,
+            schema_version: 1,
+            properties: { prop_1: title },
+          }),
+        );
+      }
+      const results = await Promise.allSettled(
+        items.slice(0, 2).map((origin) =>
+          asUser(
+            sql,
+            a.actor.userId,
+            (tx) =>
+              tx`insert into app.entity_relation_links(owner_id,definition_id,left_entity_id,right_entity_id) values(${a.actor.userId},${def.id},${origin.id},${
+                items[2].id
+              })`,
+          )
+        ),
+      );
+      assertEquals(results.filter((r) => r.status === "fulfilled").length, 1);
+      assertEquals((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason.code, "23505");
+      const reverse = await listEntityRelationLinks(d, a.actor, {
+        definition_id: def.id,
+        side: 1,
+        origin_id: items[2].id,
+      });
+      assertEquals(reverse.items.length, 1);
+      await updateEntityRelationDefinition(definitions, requestActor(a.actor), def.id, {
+        expected_version: 1,
+        archived: true,
+      });
+      assertEquals(
+        (await listEntityRelationLinks(d, a.actor, { definition_id: def.id, side: 1, origin_id: items[2].id })).items
+          .length,
+        1,
+      );
+      const input = {
+        definition_id: def.id,
+        side: 0,
+        origin_id: reverse.items[0].id,
+        other_id: items[3].id,
+        expected_definition_version: 2,
+        expected_version: 1,
+        expected_other_version: 1,
+      };
+      assertEquals(
+        (await assertRejects(() => connectEntityRelation(d, requestActor(a.actor), input), AppError)).code,
+        "conflict",
+      );
+      await unlinkEntityRelation(d, requestActor(a.actor), { ...input, other_id: items[2].id });
+      assertEquals(
+        (await listEntityRelationLinks(d, a.actor, { definition_id: def.id, side: 1, origin_id: items[2].id })).items,
+        [],
+      );
+    } finally {
+      await a.cleanup();
+      await sql.end();
+      await admin.end();
+    }
+  },
+);

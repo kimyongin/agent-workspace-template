@@ -139,6 +139,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 | schema-editor-read | 속성 변경안 공개 화면의 지연 조회·조회 실패·초안·저장 결과·복구안 desktop/mobile |
 | material-schema | 통합 자료 설정의 속성 행·검토·변환·작업·복구와 기존 직접 주소 desktop/mobile |
 | material-templates | 자료 종류별 고정 기본 문구·독립 저장·충돌·재시도·일반 설정 태그 진입/복귀 desktop/mobile |
+| typed-relations | 자료 상세의 단일 값·삭제 상대 교체·동일 요청 재확인·해제와 복수 101개 더 보기 desktop/mobile |
 | relation-settings | 별도 자료 관계 설정의 행 안 생성·편집·버전 충돌 초안 보존·보관 desktop/mobile |
 | issuer-settings | 발급처 목록·첫 번호 종류 추가·종류별 연결과 기본 선택·등록·중첩 확인·초안 충돌·설정 메뉴 desktop/mobile |
 | schema-job-history | 값 변환 작업 공개 목록의 20개 초과 이력·자동 갱신·겹친 응답·더 보기 재시도·종류 전환 desktop/mobile |
@@ -148,7 +149,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 
 페이지 읽기의 상한·취소·실패 규칙은 `paged-list.test.ts`에서 검증한다. `pagination-fixture.spec.ts`는 실제 앱에서 URL 복원·누적 행·재시도 cursor·초점·읽던 위치·필터 초기화를 확인한다. 대량 모의 목록 때문에 실제 로그인 검사를 반복하지 않는다. 실제 API의 로그인·저장·웹/MCP 왕복 검사는 기본 설정에 남긴다.
 
-전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 열일곱 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
+전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 열여덟 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
 
 자료 조회 영역의 배치는 `npm run test:e2e -- --config=e2e/query-layout.build.config.ts`로 정적 빌드에서도 확인한다. 개발 서버와 운영 빌드는 CSS chunk의 순서가 달라질 수 있으므로, 관련 조작끼리 같은 행에 있는지·서로 겹치지 않는지도 검사한다. 선택창 위/검색창 아래 같은 개별 위치와 전체 가로 넘침 검사만으로 완료하지 않는다. 검사는 `test-results/query-layout-dist`에 모의 공개 설정으로 빌드하며 운영 서비스에 접속하지 않는다.
 

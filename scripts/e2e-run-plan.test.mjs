@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { e2eRunPlan, fixtureConfigs } from "./e2e-run-plan.mjs";
-test("all E2E retains eighteen sequential scopes and actual override changes only first", () => {
+test("all E2E retains nineteen sequential scopes and actual override changes only first", () => {
   const actual = new URL(import.meta.url).pathname;
-  assert.equal(e2eRunPlan([]).length, 18);
+  assert.equal(e2eRunPlan([]).length, 19);
   assert.deepEqual(e2eRunPlan(["--actual-config", actual]), [actual, ...fixtureConfigs]);
   assert.deepEqual(e2eRunPlan([]).slice(1), fixtureConfigs);
 });
@@ -20,6 +20,7 @@ test("schema editor and job history public screens remain in the full browser ru
   assert.ok(plan.includes("e2e/material-schema.config.ts"));
   assert.ok(plan.includes("e2e/material-templates.config.ts"));
   assert.ok(plan.includes("e2e/relation-settings.config.ts"));
+  assert.ok(plan.includes("e2e/typed-relations.config.ts"));
   assert.ok(plan.includes("playwright.design-samples.config.ts"));
   assert.ok(plan.includes("e2e/query-layout.build.config.ts"));
   assert.equal(new Set(plan).size, plan.length);

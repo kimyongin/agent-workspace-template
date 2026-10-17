@@ -94,6 +94,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 자료 종류의 번호 라벨·지원 발급처·기본값 조회·설정 | `get_entity_type_identity`, `update_entity_type_identity` |
 | 발급처 목록·생성·이름 변경·사용 중지 | `list_entity_issuers`, `create_entity_issuer`, `update_entity_issuer`, `delete_entity_issuer` |
 | 발급처의 번호 규칙 조회·생성·라벨 변경·사용 중지 | `list_entity_identifier_rules`, `create_entity_identifier_rule`, `update_entity_identifier_rule`, `delete_entity_identifier_rule` |
+| 역할별 연결·상대 종류 후보 조회·연결·단일 교체·해제 | `list_entity_relation_links`, `list_entity_relation_candidates`, `connect_entity_relation`, `replace_entity_relation`, `unlink_entity_relation` |
 | 자료 관계 정의 조회·요청받은 추가·편집·보관·미사용 삭제 | `list_entity_relation_definitions`, `get_entity_relation_definition`, `create_entity_relation_definition`, `update_entity_relation_definition`, `delete_entity_relation_definition` |
 | 자료 종류·현재 이름·아이콘·보관 상태 조회 | `list_entity_types`, `get_entity_type`, `list_entity_type_icons` |
 | 요청받은 자료 종류 생성·이름·아이콘·보관 상태 변경 | `create_entity_type`, `update_entity_type` |

@@ -131,6 +131,8 @@ test(
     expect(writes.length).toBe(2);
     expect(writes[0]).toEqual(writes[1]);
     expect(writes[0].body.previous_other_id).toBe(old.id);
+    await single.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `/private/tmp/typed-relations-single-${info.project.name}.png`, fullPage: true });
     for (let n = 0; n < 5; n++) await multi.getByRole("button", { name: "더 보기", exact: true }).click();
     await expect(multi.getByRole("button", { name: "재료 101", exact: true })).toBeVisible();
     await expect(multi.locator(".related-items > li")).toHaveCount(101);
