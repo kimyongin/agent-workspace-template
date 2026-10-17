@@ -31,7 +31,7 @@ async function navigate(page: Page, name: string) {
 test("display scale: preview, cancel and approved leaving restore confirmed size without writes", async ({ page }) => {
   const state = await fixture(page); await page.goto("/settings");
   const scale = page.getByLabel("데스크톱 화면 배율", { exact: true });
-  await expect(scale.getByRole("radio", { name: "100%", exact: true })).toHaveAttribute("aria-checked", "true"); await expect.poll(() => rootSize(page)).toBe(16);
+  await expect(scale.getByRole("radio", { name: "100% (기본)", exact: true })).toHaveAttribute("aria-checked", "true"); await expect.poll(() => rootSize(page)).toBe(16);
   await scale.getByRole("radio", { name: "125%", exact: true }).click(); await expect.poll(() => rootSize(page)).toBe(20);
   await page.getByRole("form", { name: "화면 표시 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(16);
   await scale.getByRole("radio", { name: "150%", exact: true }).click(); await navigate(page, "할 일");
@@ -124,7 +124,7 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
 test("display scale: external profile updates preserve dirty preview and cancel to latest saved size", async ({ page }) => {
   const state = await fixture(page); await page.goto("/settings");
   const scale = page.getByLabel("데스크톱 화면 배율", { exact: true });
-  await expect(scale.getByRole("radio", { name: "100%", exact: true })).toHaveAttribute("aria-checked", "true");
+  await expect(scale.getByRole("radio", { name: "100% (기본)", exact: true })).toHaveAttribute("aria-checked", "true");
   const notify = () => page.evaluate(id => { const channel = new BroadcastChannel("workspace-decorative-profile"); channel.postMessage(id); channel.close(); }, id(100));
   state.metadata.workspace_display_scale = "125"; await notify();
   await expect(scale.getByRole("radio", { name: "125%", exact: true })).toHaveAttribute("aria-checked", "true"); await expect.poll(() => rootSize(page)).toBe(20);
@@ -190,7 +190,7 @@ test("display scale: mobile and desktop preview, save and cancel independently a
 test("display scale: existing saved scale is preserved for desktop; mobile-only saves leave it untouched", async ({ page }) => {
   const state = await fixture(page, "125"); Object.assign(state.metadata, { workspace_mobile_display_scale: undefined });
   await page.goto("/settings"); await expect.poll(() => rootSize(page)).toBe(20);
-  await expect(page.getByLabel("모바일 화면 배율", { exact: true }).getByRole("radio", { name: "100%", exact: true })).toBeChecked();
+  await expect(page.getByLabel("모바일 화면 배율", { exact: true }).getByRole("radio", { name: "100% (기본)", exact: true })).toBeChecked();
   await page.setViewportSize({ width: 390, height: 844 }); await expect.poll(() => rootSize(page)).toBe(16);
   await page.getByLabel("모바일 화면 배율", { exact: true }).getByRole("radio", { name: "150%", exact: true }).click();
   await page.getByRole("button",{name:"화면 표시 저장", exact: true }).click(); await expect(page.getByRole("form", { name: "화면 표시 설정" }).getByRole("status")).toContainText("저장했습니다");
