@@ -86,7 +86,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(changedLabel);
     await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
     const renamed = await mcp.call("get_entity_type", { type_id: typeId });
     expect(renamed.label).toBe(changedLabel);
     expect(renamed.icon_id).toBe("star");
@@ -94,7 +94,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     expect(renamed.schema_version).toBe(3);
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await history.getByRole("button", { name: /^변경 이력/ }).click();
-    const row = history.locator(".schema-history-row").filter({ hasText: "버전 1 · 적용됨" });
+    const row = history.locator('[data-slot="item"]').filter({ hasText: "버전 1 · 적용됨" });
     await expect(row).toHaveCount(1);
     await row.getByRole("button", { name: /^최초 생성/ }).click();
     await expect(page).toHaveURL(/schema_version=1/);
@@ -137,11 +137,11 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await page.getByRole("checkbox", { name: /자료 종류 보관/ }).check();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
     expect((await mcp.call("get_entity_type", { type_id: typeId })).archived).toBe(true);
     await page.getByRole("checkbox", { name: /자료 종류 보관/ }).uncheck();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
     expect((await mcp.call("get_entity_type", { type_id: typeId })).archived).toBe(false);
     await page.setViewportSize({ width: 320, height: 640 });
     await page.evaluate(() => {

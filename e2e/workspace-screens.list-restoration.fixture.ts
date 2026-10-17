@@ -60,7 +60,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(filters.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true })).toBeHidden();
       await expect(filters.getByRole("combobox")).toHaveCount(0);
       if (kind === "entities") await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
-      await expect(page.locator(".list .related-item").first()).toBeVisible();
+      await expect(page.locator(".list [data-slot='item']").first()).toBeVisible();
       const beforeReads = reads;
       await summary.focus();
       await summary.press("Enter");
@@ -301,11 +301,11 @@ for (const overLimit of [false, true]) {
     const appliedReads = requests.length;
     await page.getByRole("button", { name: "태그 선택", exact: true }).click();
     const picker = page.getByRole("dialog", { name: "할 일 태그 선택", exact: true });
-    if (!overLimit) for (const tag of tags.slice(0, 10)) await picker.getByRole("checkbox", { name: tag.name, exact: true }).check();
-    const eleventh = picker.getByRole("checkbox", { name: tags[10].name, exact: true });
+    if (!overLimit) for (const tag of tags.slice(0, 10)) await picker.getByRole("option", { name: tag.name, exact: true }).click();
+    const eleventh = picker.getByRole("option", { name: tags[10].name, exact: true });
     await expect(eleventh).toBeDisabled();
-    await expect(picker.getByRole("checkbox", { checked: true })).toHaveCount(10);
-    await picker.getByRole("checkbox", { name: tags[0].name, exact: true }).uncheck();
+    await expect(picker.getByRole("option", { checked: true })).toHaveCount(10);
+    await picker.getByRole("option", { name: tags[0].name, exact: true }).click();
     await expect(eleventh).toBeEnabled();
     await eleventh.check();
     await expect(eleventh).toBeChecked();

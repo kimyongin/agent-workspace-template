@@ -32,7 +32,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     ) {
       await go(page, path);
       await expect(
-        page.locator(path.startsWith("/tags") ? "dialog[open]:not(.modal-confirm) .dialog-title" : ".page-title"),
+        page.getByRole("heading", { level: 1 }).filter({ visible: true }).first(),
       ).toBeVisible();
       if (!["/search", "/guide"].includes(path)) {
         await expect(page.locator("[data-list-anchor]").first()).toBeVisible();
@@ -51,7 +51,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         }
       }
       if (path === "/tasks") {
-        const heading = page.locator(".related-item-title").first(),
+        const heading = page.locator("[data-slot='item-header'] dd").first(),
           title = heading.locator("[data-list-anchor]"),
           edit = heading.locator(".activity-item-actions a");
         const t = (await title.boundingBox())!;
@@ -86,7 +86,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       entity_context: [{ id: entityKey(1), title: "연결된 엔터티", source: "selection", captured_at: stamp }],
     });
     await page.reload();
-    const memo = form(page).locator(".record-content .markdown");
+    const memo = form(page).locator(".markdown");
     await expect(memo).toBeVisible();
     expect(await memo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(
       await form(page).locator("[data-slot=\"dialog-title\"]").evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
@@ -127,7 +127,7 @@ for (const width of [390, 1440]) {
     await expect(page.locator(`[id="entity-${entityKey(1)}"]`)).toBeFocused();
     await go(page, "/tasks");
     expect(
-      await page.getByRole("region", { name: "할 일 목록", exact: true }).locator(".collection-list .related-item")
+      await page.getByRole("region", { name: "할 일 목록", exact: true }).locator(".collection-list [data-slot='item']")
         .first().evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft)),
     ).toBeGreaterThanOrEqual(12);
     await page.screenshot({ path: info.outputPath(`tab-activity-${width}.png`) });
@@ -157,7 +157,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]] as const
     ) {
       await go(page, `/${kind}`);
-      const row = page.locator(".list .related-item").first(),
+      const row = page.locator(".list [data-slot='item']").first(),
         toggle = row.getByRole("button", { name: title, exact: true });
       await expect(toggle).toBeVisible();
       await expect(row.getByRole("link")).toHaveCount(0);
@@ -196,7 +196,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(toggle).toHaveAttribute("aria-expanded", "false");
     }
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-    const row = form(page).getByRole("region", { name: "할 일 (1개)" }).locator(".related-item");
+    const row = form(page).getByRole("region", { name: "할 일 (1개)" }).locator("[data-slot='item']");
     await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toHaveCount(0);
     await expect(row.getByRole("button", { name: "할 일 해제", exact: true })).toHaveCount(0);
     await row.getByRole("button", { name: "할 일 열기", exact: true }).click();
@@ -231,7 +231,7 @@ test("#203 320px·200% 펼친 연결 조작과 메인 목록이 넘치지 않음
   await form(page).getByRole("button", { name: "할 일", exact: true }).click();
   await expect(form(page).getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
   expect(await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
-  for (const button of await form(page).locator(".related-item-actions :is(button,a)").all()) {
+  for (const button of await form(page).locator("[data-slot='item-actions'] :is(button,a)").all()) {
     const rect = (await button.boundingBox())!;
     expect(rect.x).toBeGreaterThanOrEqual(0);
     expect(rect.x + rect.width).toBeLessThanOrEqual(320);
@@ -329,9 +329,9 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const styles: string[] = [];
     for (const path of [`/entities/${encodeURIComponent(entityKey(1))}`, `/tasks/${t.id}`, `/records/${r.id}`]) {
       await go(page, path);
-      const links = form(page).locator(".related-item");
+      const links = form(page).locator("[data-slot='item']");
       await expect(links).toHaveCount(2);
-      for (const last of await form(page).locator(".related-items > li:last-child .related-item").all()) {
+      for (const last of await form(page).locator("[data-slot='item-group'] > li:last-child [data-slot='item']").all()) {
         expect(
           await last.evaluate((el) => getComputedStyle(el).borderBottomWidth),
         ).toBe("0px");
@@ -389,7 +389,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]]
     ) {
       await go(page, "/" + kind);
-      const row = page.locator(".list .related-item").first();
+      const row = page.locator(".list [data-slot='item']").first();
       await expect(row).toBeVisible();
       const box = (await row.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(44);

@@ -527,7 +527,7 @@ test("seven settings workspaces retain real API selections and stay within the v
     await page.goto(path);
     await expect(page.getByRole("heading", { name: title, exact: true, level: 1 })).toBeVisible();
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    const menu = page.getByRole("navigation", { name: "설정 메뉴", exact: true });
+    const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
     const destinations = [
       ["기본", "/settings"],
       ["자료", "/settings/materials"],
@@ -540,7 +540,7 @@ test("seven settings workspaces retain real API selections and stay within the v
     await expect(menu.getByRole("link")).toHaveCount(7);
     await expect(menu.getByRole("link")).toHaveText(destinations.map(([label]) => label));
     for (const [label, href] of destinations) {
-      await expect(menu.getByRole("link", { name: label, exact: true })).toHaveAttribute("href", href);
+      await expect(menu.getByRole("menuitem", { name: label, exact: true })).toHaveAttribute("href", href);
     }
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).press("Escape");
     if (title === "자료 설정") {

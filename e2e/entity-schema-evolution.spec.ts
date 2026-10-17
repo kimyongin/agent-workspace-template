@@ -107,9 +107,9 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     expect(current.properties).not.toHaveProperty("prop_2");
     await oldForm.getByRole("button", { name: "저장", exact: true }).click();
     await expect(
-      oldPage.locator('[role="dialog"][aria-modal="true"]').getByRole("alert"),
+      executionDialog(oldPage).getByRole("alert"),
     ).toBeVisible();
-    await oldPage.locator('[role="dialog"][aria-modal="true"]').getByRole("button", {
+    await executionDialog(oldPage).getByRole("button", {
       name: "취소",
       exact: true,
     }).click();
@@ -125,16 +125,16 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     entityIds.push(created.id);
     expect(created.properties.prop_2).toBe(0);
     await page.goto(`/entities/${encodeURIComponent(existing.id)}`);
-    await expect(page.locator(".detail-title")).toHaveText(existing.title);
+    await expect(page.getByRole("heading", { name: existing.title, exact: true })).toHaveText(existing.title);
     await expect(page.getByText("자료 이름", { exact: true })).toHaveCount(0);
     await expect(page.getByText("수량", { exact: true })).toBeVisible();
     await expect(page.getByText("미입력", { exact: true })).toBeVisible();
     await page.goto(`/entities/${encodeURIComponent(created.id)}`);
-    await expect(page.locator(".detail-title")).toHaveText(created.title);
+    await expect(page.getByRole("heading", { name: created.title, exact: true })).toHaveText(created.title);
     await expect(page.getByText("자료 이름", { exact: true })).toHaveCount(0);
     await expect(page.getByText("0", { exact: true })).toBeVisible();
     await page.goto(`/settings/entity-types/${typeId}/versions`);
-    const initialVersion = page.locator(".schema-history-row").filter({
+    const initialVersion = page.locator('[data-slot="item"]').filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
     });
     await initialVersion.getByRole("button", { name: /버전 2 · 적용됨$/ })
