@@ -62,4 +62,4 @@ node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.8.0.zip
 
 공식 형식과 명령(2026-10-04 확인): [Codex 패키징](https://developers.openai.com/plugins/build/plugins), [Claude manifest](https://code.claude.com/docs/en/plugins-reference), [Claude marketplace](https://code.claude.com/docs/en/plugin-marketplaces).
 
-JSON Schema 내보내기는 `get_entity_schema`의 `schema` 문서를 사용한다. 가져오기는 `preview_entity_schema_import`로 원문·버전·차이·키 대응을 검토하고 `prepare_entity_schema_import`로 기존 종류 변경안 또는 명시적인 새 종류 복사를 준비한다. 웹의 파일·텍스트 입력도 같은 파서와 검증을 사용한다.
+전체 자료 종류·관계·번호 설정은 `export_data_model`로 한 파일에 내보낸다. `preview_data_model`로 원문과 update/copy 차이·대응을 검토하고 `prepare_data_model`로 전체 변경안을 저장한 뒤 `apply_data_model`로 함께 적용한다. `list_data_model_changes`/`get_data_model_change`로 이력·결과를 확인한다. 개별 종류의 `get_entity_schema`는 속성 편집용 읽기를 유지한다. 구 `prepare_entity_schema_import`는 보존된 완료 요청 조회만 허용한다. 현재 소스 후보이며 서버 배포·패키지 설치 완료를 뜻하지 않는다.

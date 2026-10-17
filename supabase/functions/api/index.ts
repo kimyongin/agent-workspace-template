@@ -4,6 +4,7 @@ import {
   activityDeps,
   businessSettingsDeps,
   createAndLinkDeps,
+  dataModelDeps,
   entityDeps,
   entityIssuerDeps,
   entityPairDeps,
@@ -34,6 +35,7 @@ const app = createHttpApp(
   entityIssuerDeps(),
   entityRelationDefinitionDeps(),
   entityRelationLinkDeps(),
+  dataModelDeps(),
   createAndLinkDeps(),
 );
 

@@ -1,5 +1,5 @@
 import { entitySchemaImportLimits } from "../../contracts/entity-schema-import.ts";
-import { prepareEntitySchemaImport, previewEntitySchemaImport } from "../../core/entity-types/schema-import.ts";
+import { replayEntitySchemaImport } from "../../core/entity-types/schema-import.ts";
 import {
   cancelEntitySchemaMigration,
   createEntitySchemaRecovery,
@@ -37,12 +37,8 @@ function number(value: string | undefined) {
 export function entityTypeRoutes(deps: EntityTypeDeps) {
   const app = new Hono<HttpEnv>();
   app.post(
-    "/entity-schema-import/preview",
-    async (c) => c.json(await previewEntitySchemaImport(deps, c.get("actor"), await importJson(c.req.raw))),
-  );
-  app.post(
     "/entity-schema-import/prepare",
-    async (c) => c.json(await prepareEntitySchemaImport(deps, c.get("actor"), await importJson(c.req.raw)), 201),
+    async (c) => c.json(await replayEntitySchemaImport(deps, c.get("actor"), await importJson(c.req.raw))),
   );
   app.get("/entity-type-icons", (c) => c.json({ items: entityTypeIcons }));
   app.get("/entity-types", (c) => {

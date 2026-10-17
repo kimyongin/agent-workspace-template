@@ -1,6 +1,3 @@
-import { SchemaImport } from "./SchemaImport.tsx";
-import type { EntitySchemaImportResult } from "@contracts/entity-schema-import.ts";
-import { materialSettingsPath } from "./material-settings-path.ts";
 import { TypeIdentitySettings } from "./TypeIdentitySettings.tsx";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
@@ -66,8 +63,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   );
   const [identityState, setIdentityState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const identityStateChange = useCallback((state: MaterialSectionState) => setIdentityState(state), []);
-  const [importState, setImportState] = useState<MaterialSectionState>({ dirty: false, busy: false });
-  const importStateChange = useCallback((state: MaterialSectionState) => setImportState(state), []);
   const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
   const schemaStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain: boolean }) => setSchemaState(state),
@@ -110,9 +105,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const protectedDraft = dirty || busy || uncertain || identityState.dirty || identityState.uncertain ||
     identityState.busy ||
     schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
-    jobState.uncertain || importState.dirty || importState.busy || !!importState.uncertain;
+    jobState.uncertain;
   const anyBusy = busy || identityState.busy || schemaState.busy ||
-    jobState.busy || importState.busy;
+    jobState.busy;
   useEffect(() => {
     const controller = new AbortController();
     setSelectedSchema(null);
@@ -174,7 +169,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   };
   const save = async () => {
     if (
-      busy || schemaState.busy || importState.busy || importState.uncertain || latestBusy || basicConflict ||
+      busy || schemaState.busy || latestBusy || basicConflict ||
       (!dirty && !uncertain)
     ) return;
     setError("");
@@ -344,7 +339,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             )}
             <fieldset
               className="settings-fields"
-              disabled={busy || uncertain || latestBusy || importState.busy || importState.uncertain}
+              disabled={busy || uncertain || latestBusy}
             >
               <Field label="자료 종류 이름">
                 {(props) => (
@@ -425,7 +420,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   <button
                     type="button"
                     className="btn"
-                    disabled={busy || uncertain || latestBusy || importState.busy || importState.uncertain}
+                    disabled={busy || uncertain || latestBusy}
                     onClick={() => void readLatestBasics()}
                   >
                     {latestBusy ? "최신 기본 정보 읽는 중…" : "최신 기본 정보 확인"}
@@ -440,7 +435,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                     : type_id
                     ? "기본 정보 저장"
                     : "자료 종류 만들기"}
-                  disabled={anyBusy || importState.uncertain || latestBusy || basicConflict || (!dirty && !uncertain)}
+                  disabled={anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
                 >
                   {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : type_id ? "저장" : "자료 종류 만들기"}
                 </button>
@@ -454,7 +449,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         <TypeIdentitySettings
           typeId={type_id}
           onState={identityStateChange}
-          disabled={busy || uncertain || importState.busy || importState.uncertain || schemaState.busy ||
+          disabled={busy || uncertain || schemaState.busy ||
             schemaState.uncertain || jobState.busy ||
             jobState.uncertain}
         />
@@ -475,39 +470,16 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           onMigrationApplied={definitions.migrationSucceeded}
           jobErrors={jobErrors}
           onJobState={jobStateChange}
-          jobDisabled={busy || uncertain || importState.busy || importState.uncertain || identityState.busy ||
+          jobDisabled={busy || uncertain || identityState.busy ||
             identityState.uncertain || schemaState.busy ||
             schemaState.uncertain}
           onApplied={definitions.published}
           onState={schemaStateChange}
-          disabled={busy || uncertain || importState.busy || importState.uncertain || identityState.busy ||
+          disabled={busy || uncertain || identityState.busy ||
             identityState.uncertain || jobState.busy ||
             jobState.uncertain}
         />
       )}
-      <SchemaImport
-        typeId={type_id}
-        type={type}
-        definition={schema}
-        disabled={busy || uncertain || identityState.busy || !!identityState.uncertain || schemaState.busy ||
-          schemaState.uncertain || jobState.busy || jobState.uncertain}
-        blockedByDraft={schemaState.dirty}
-        onState={importStateChange}
-        onPrepared={(result: EntitySchemaImportResult) => {
-          if (session && result.type) invalidateEntityTypeCatalog(session.user.id);
-          if (result.change && type_id) {
-            requestAnimationFrame(() =>
-              navigate(
-                materialSettingsPath(type_id, location.search, {
-                  change_id: result.change!.id,
-                  schema_version: null,
-                  job_id: null,
-                }),
-              )
-            );
-          }
-        }}
-      />
       <MaterialSettingsProtection
         dirty={protectedDraft}
         busy={anyBusy}

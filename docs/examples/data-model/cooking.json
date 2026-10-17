@@ -1,0 +1,195 @@
+{
+  "format": "workspace-data-model",
+  "format_version": 1,
+  "title": "요리 자료 모델",
+  "description": "재료·레시피·구성재료를 같은 범용 자료 모델로 관리합니다. 수량은 구성재료의 속성입니다.",
+  "entity_types": [
+    {
+      "ref": "ingredient",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "40000000-0000-4000-8000-000000000001",
+        "x-version": 1,
+        "title": "재료",
+        "x-icon": "leaf",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "이름",
+            "minLength": 1,
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "string",
+            "title": "단위",
+            "x-order": 20
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "자료 번호",
+        "default_source": "app",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          }
+        ]
+      }
+    },
+    {
+      "ref": "recipe",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "40000000-0000-4000-8000-000000000002",
+        "x-version": 1,
+        "title": "레시피",
+        "x-icon": "leaf",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "이름",
+            "minLength": 1,
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "integer",
+            "title": "조리 시간",
+            "x-order": 20
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "자료 번호",
+        "default_source": "app",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          }
+        ]
+      }
+    },
+    {
+      "ref": "recipe_item",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-type-id": "40000000-0000-4000-8000-000000000003",
+        "x-version": 1,
+        "title": "구성재료",
+        "x-icon": "leaf",
+        "deprecated": false,
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prop_1": {
+            "type": "string",
+            "title": "이름",
+            "minLength": 1,
+            "maxLength": 4096,
+            "x-order": 10,
+            "x-representative": true
+          },
+          "prop_2": {
+            "type": "number",
+            "title": "수량",
+            "x-order": 20
+          }
+        },
+        "required": [
+          "prop_1"
+        ]
+      },
+      "identity": {
+        "version": 1,
+        "label": "자료 번호",
+        "default_source": "app",
+        "sources": [
+          {
+            "code": "app",
+            "rule_id": "00000000-0000-4000-8000-000000000001",
+            "active": true
+          }
+        ]
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "50000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "archived": false,
+      "ends": [
+        {
+          "type_ref": "recipe",
+          "label": "구성재료",
+          "cardinality": "many"
+        },
+        {
+          "type_ref": "recipe_item",
+          "label": "레시피",
+          "cardinality": "one"
+        }
+      ]
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000002",
+      "version": 1,
+      "archived": false,
+      "ends": [
+        {
+          "type_ref": "ingredient",
+          "label": "사용된 구성재료",
+          "cardinality": "many"
+        },
+        {
+          "type_ref": "recipe_item",
+          "label": "재료",
+          "cardinality": "one"
+        }
+      ]
+    }
+  ],
+  "identity_definitions": {
+    "issuers": [
+      {
+        "code": "app",
+        "label": "앱",
+        "active": true,
+        "system": true,
+        "version": 1
+      }
+    ],
+    "rules": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "source": "app",
+        "label": "앱 자동 번호",
+        "meaning": "앱이 자료 등록 시 발급하는 내부 자료 번호",
+        "generation": "automatic",
+        "active": true,
+        "version": 1
+      }
+    ]
+  }
+}

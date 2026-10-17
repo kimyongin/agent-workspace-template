@@ -218,13 +218,13 @@ it("successful tag writes notify mounted dictionaries, including DELETE 204; rea
   }
 });
 
-it("schema import preview sends the original raw JSON as an authenticated read without a request key", async () => {
+it("data model preview sends the original raw JSON as an authenticated read without a request key", async () => {
   const document = '{"title":"first","title":"duplicate"}';
   const fetch = vi.fn().mockResolvedValue(new Response('{"changed":false}'));
   vi.stubGlobal("fetch", fetch);
   const controller = new AbortController();
   try {
-    expect(await api("POST", "/entity-schema-import/preview", { mode: "copy", document }, controller.signal)).toEqual({
+    expect(await api("POST", "/data-model/preview", { mode: "copy", document }, controller.signal)).toEqual({
       changed: false,
     });
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ mode: "copy", document });

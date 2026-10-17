@@ -10,17 +10,9 @@
 
 보관은 정의와 저장값을 유지한다. 필수 속성을 보관하려면 같은 최종 정의에서 필수를 직접 해제해야 한다. 대표 이름은 항상 활성·필수·nullable이 아닌 일반 텍스트이며 공백만인 이름을 허용하지 않는다. 임시 편집 순서가 아니라 최종 정의를 검사한다. 선택 코드의 null은 nullable 타입과 oneOf의 const 양쪽에서 허용해야 입력할 수 있다. 날짜는 0001~9999년의 실제 Gregorian 날짜다.
 
-## 단일 정의 문서와 가져오기
+## 단일 정의 문서와 전체 모델 가져오기
 
-Draft 2020-12 문서는 루트의 x-type-id·x-version·title·description·x-icon·deprecated와 속성별 표준 제약 및 평평한 x- annotation을 함께 저장한다. 선택지는 oneOf/const/title로 코드·라벨·순서를 보존한다. 정의 문서는 PostgreSQL JSONB 표현으로 최대 256 KiB, 자료 properties는 64 KiB다. 표준 readOnly/default/deprecated/examples/multipleOf의 앱 처리 규칙은 공유 validator가 소유한다. 상세 결정은 [ADR-0023](../adr/0023-single-schema-document.md)를 따른다.
-
-`entity_schema_versions`는 owner_id·schema·created_at과 문서에서 추출한 저장 생성 컬럼 type_id·schema_version만 가진다. 타입 테이블은 소유권·현재 포인터·발급 번호·작업 잠금·시각을 유지하며 이름·아이콘·보관과 독립 metadata 버전은 저장하지 않는다. 전환 전 역사에는 없었던 당시 종류 메타데이터를 만들지 않고 metadata_missing으로 알린다.
-
-파일과 붙여넣기는 원문 document를 같은 서버 파서로 처리한다. 원문은 UTF-8 2 MiB·깊이 16, 정규화 저장 정의는 256 KiB로 각각 제한하며 중복 키·미지원 키를 위치와 이유로 거부한다. preview는 조회이며 번호 예약·자료 변경을 하지 않는다. update는 같은 소유자의 x-type-id와 요청 type_id를 일치시키고 현재 expected_schema_version을 대조한다. 파일 x-version은 원본 버전이며 source_is_stale로 현재와의 차이를 알린다.
-
-prepare는 preview_fingerprint·현재 기대 버전·정확한 원문과 의도를 결속한다. update는 서버가 추가 속성 키를 예약한 일반 변경안의 요약을 반환한다. 전체 대상·편집·차이는 기존 GET 변경안 상세로 읽고 분석·호환 게시/값 변환으로 이어간다. 미리보기의 문서·차이와 변경안 전체를 준비 응답에 중복하지 않아 최대 문서도 기존 1 MiB 성공 요청 보관 한도에 들어간다. 현재 정의에서 사라진 키는 remove_keys로 명시 확인한다. 삭제·예약된 소스 번호를 새 속성으로 가져오려면 new_keys로 명시하고 새 번호 대응을 검토한다. 같은 요청 또는 기존 change_id/expected_change_version에 결속한 재준비는 예약 대응을 유지한다. copy는 서버가 새 ID·초기 버전·속성 키 및 required 대응을 한 트랜잭션에서 발급하며 원본 ID로 소유권을 만들지 않는다. 무변경 update는 changed=false와 change=null이며 새 게시·작업·성공 기록을 만들지 않는다.
-
-검증된 전환 전 역사 문서의 누락 메타데이터만 현재 루트 값으로 유지하며 이를 미리보기에서 알린다. 새 복사 또는 근거 없는 불완전 문서는 사용자가 필수 메타데이터를 보완해야 한다. 검토 후 경쟁은 파일·초안을 보존한 채 거부한다. 응답 불명에는 같은 request_key·문서·대상·기대 버전을 유지한다.
+종류별 불변 정본은 JSON Schema 2020-12 한 문서다. 종류 정보와 입력 항목은 같은 문서 버전에 게시하며 `prop_n` 키·분석·변환·복구 보장은 유지한다. 가져오기·내보내기 단위는 ADR-0024에 따라 [전체 자료 모델](data-model.md)로 바뀌었다. 자료 설정의 개별 가져오기나 종류별 API를 여러 번 호출해 전체 적용을 구성하지 않는다. 이전 완료 요청의 정확한 조회만 전환 기간 동안 보존한다.
 
 ## 정확한 정책과 분석
 

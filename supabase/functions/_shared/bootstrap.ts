@@ -115,6 +115,13 @@ export function entityRelationLinkDeps(): EntityRelationLinkDeps {
   return relationLinks ??= { uow: new SqlEntityRelationLinkUnitOfWork(database()) };
 }
 
+import { SqlDataModelUnitOfWork } from "./adapters/supabase/data-model-store.ts";
+import type { DataModelDeps } from "./core/data-model/application.ts";
+let model: DataModelDeps | undefined;
+export function dataModelDeps(): DataModelDeps {
+  return model ??= { uow: new SqlDataModelUnitOfWork(database()) };
+}
+
 import { SqlCreateAndLinkUnitOfWork } from "./adapters/supabase/create-and-link-store.ts";
 import type { CreateAndLinkDeps } from "./core/entity-relations/create-and-link.ts";
 let createAndLink: CreateAndLinkDeps | undefined;

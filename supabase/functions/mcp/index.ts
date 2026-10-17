@@ -4,6 +4,7 @@ import {
   activityDeps,
   businessSettingsDeps,
   createAndLinkDeps,
+  dataModelDeps,
   entityDeps,
   entityIssuerDeps,
   entityPairDeps,
@@ -31,6 +32,7 @@ Deno.serve(
     entityIssuerDeps(),
     entityRelationDefinitionDeps(),
     entityRelationLinkDeps(),
+    dataModelDeps(),
     createAndLinkDeps(),
   ),
 );
