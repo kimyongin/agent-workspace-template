@@ -125,7 +125,7 @@ createRoot(document.getElementById("root")!).render(
       : new URLSearchParams(location.search).has("empty-inputs")
       ? <EmptyInputsFixture />
       : (
-        <div className="panel settings">
+        <div>
           <SchemaEditor type={type} definition={definition} onState={onState} onApplied={onApplied} />
         </div>
       )}

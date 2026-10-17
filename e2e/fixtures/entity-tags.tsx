@@ -13,7 +13,7 @@ import { EntityDetailPage } from "../../src/features/entity/EntityDetailPage.tsx
 import "../../src/styles/app.css";
 const router = createBrowserRouter([{
   element: (
-    <NavigationProtection><main className="app-main">
+    <NavigationProtection><main>
       <Link to="/e2e/fixtures/entity-tags.html?fixture=other">다른 화면</Link>
       <Link to="/entities/app%3A00000000-0000-4000-8000-000000000900%3A10000000-0000-4000-8000-000000000000">
         자료 fixture
