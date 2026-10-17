@@ -82,3 +82,13 @@ test('explicit final type-action reset prunes only its now-empty type binding',(
  assert.deepEqual(report.blockers,[]);assert.deepEqual(report.updatedSettings,{entity_types:{[kept]:{update:{memo:'keep'}}},task:{create:{memo:'personal'}}});
  assert.equal(settings.entity_types[type].update.memo,'owned');
 });
+
+
+test('typed cleanup refuses unapproved definitions and unrelated link endpoints instead of widening scope',()=>{
+ const definition='00000000-0000-4000-8000-000000000007';
+ const inventory={'app.entities':[{owner_id:owner,id:'demo:a'}],'app.records':[{owner_id:owner,id:'r1'}],'app.entity_types':[{owner_id:owner,id:type}],
+ 'app.entity_relation_definitions':[{owner_id:owner,id:definition,left_type_id:type,right_type_id:type}],
+ 'app.entity_relation_links':[{owner_id:owner,definition_id:definition,left_entity_id:'demo:a',right_entity_id:'keep'}]};
+ const blocked=planCleanup(manifest,inventory);assert.deepEqual(blocked.blockers.map(b=>b.reason),['unapproved_relation_definition','unapproved_typed_endpoint']);
+ const explicit=planCleanup({...manifest,ids:{...manifest.ids,entity_relation_definitions:[definition]}},inventory);assert.deepEqual(explicit.blockers.map(b=>b.reason),['unapproved_typed_endpoint']);
+});
