@@ -83,7 +83,8 @@ export function displayedProperty(field: EntityField, value: unknown, labels: Re
   return Object.hasOwn(choices, String(value)) ? choices[String(value)] : String(value);
 }
 export function PropertyFields(
-  { definition, values, onChange, errors }: {
+  { definition, values, onChange, errors, part = "all" }: {
+    part?: "all" | "representative" | "remaining";
     definition: Pick<EntitySchemaVersion, "schema">;
     values: PropertyDraft;
     onChange: (values: PropertyDraft) => void;
@@ -98,7 +99,12 @@ export function PropertyFields(
   };
   return (
     <>
-      {schemaPresentation(definition).order.map((key) => {
+      {[
+        schemaPresentation(definition).representative,
+        ...schemaPresentation(definition).order.filter((key) => key !== schemaPresentation(definition).representative),
+      ].filter((key) =>
+        part === "all" || (part === "representative") === (key === schemaPresentation(definition).representative)
+      ).map((key) => {
         const field = definition.schema.properties[key],
           value = values[key],
           nullable = Array.isArray(field.type) && field.type.includes("null") &&
@@ -107,14 +113,26 @@ export function PropertyFields(
           archived = schemaPresentation(definition).archived.includes(key);
         if (archived || field.readOnly) {
           return (
-            <p key={key}>
-              {field.title ?? key} · {archived ? "사용 중지" : "읽기 전용"}:{" "}
-              {displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}
-            </p>
+            <dl key={key} className="key-value-static">
+              <div>
+                <dt>
+                  {field.title ?? key} <span className="secondary">· {archived ? "보관" : "읽기 전용"}</span>
+                </dt>
+                <dd>{displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}</dd>
+              </div>
+            </dl>
           );
         }
         return (
-          <Field key={key} label={field.title ?? key} required={required} error={errors[`properties.${key}`]}>
+          <Field
+            pair
+            fullWidth={key === schemaPresentation(definition).representative}
+            className={key === schemaPresentation(definition).representative ? "key-value-primary" : undefined}
+            key={key}
+            label={field.title ?? key}
+            required={required}
+            error={errors[`properties.${key}`]}
+          >
             {(props) => (
               <>
                 {fieldChoices(field) || fieldType(field) === "boolean"

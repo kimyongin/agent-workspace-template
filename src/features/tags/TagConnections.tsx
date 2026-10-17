@@ -9,7 +9,7 @@ import { TagNames, TagPicker, type TagScope } from "./TagPicker.tsx";
 
 export function ReadonlyTags({ ids, scope, onRemove }: { ids: string[]; scope: TagScope; onRemove?: (id: string) => void }) {
   return (
-    <dl className="props tag-connection-data">
+    <dl className="key-value-static tag-connection-data">
       <div>
         <dt>태그</dt>
         <dd>

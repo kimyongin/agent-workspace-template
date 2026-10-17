@@ -33,6 +33,7 @@ export function EntityForm({
   context,
   submitLabel = "저장",
   details,
+  relations,
   deletion,
   onClose,
   onRouteDiscard,
@@ -45,6 +46,7 @@ export function EntityForm({
   context?: ReactNode;
   submitLabel?: string;
   details?: ReactNode;
+  relations?: ReactNode;
   deletion?: DeletionOptions;
   onClose: () => void;
   onRouteDiscard?: () => void;
@@ -242,6 +244,15 @@ export function EntityForm({
   const dirty = source !== baseline.current.source || external !== baseline.current.external ||
     typeId !== baseline.current.typeId || JSON.stringify(properties) !== JSON.stringify(baseline.current.properties) ||
     JSON.stringify(tags) !== JSON.stringify(baseline.current.tags);
+  const changeProperties = (values: PropertyDraft) => {
+    lookup.current?.abort();
+    setReviewKeys((keys) => keys.filter((key) => values[key] === properties[key]));
+    setProperties(
+      !initial && !archived && definition
+        ? Object.fromEntries(Object.entries(values).filter(([key]) => !definition.schema.properties[key]?.readOnly))
+        : values,
+    );
+  };
   return (
     <>
       <FormModal
@@ -384,7 +395,7 @@ export function EntityForm({
         {(errors) => (
           <>
             {context}
-            <section className="detail-section form">
+            <section className="detail-section key-value-grid">
               {catalogError && (
                 <p className="error-text" role="alert">
                   자료 종류를 읽지 못했습니다.{" "}
@@ -474,32 +485,41 @@ export function EntityForm({
                   자료 번호 설정 다시 조회
                 </button>
               )}
+              {definition && (
+                <PropertyFields
+                  part="representative"
+                  definition={definition}
+                  values={effectiveProperties}
+                  errors={errors}
+                  onChange={changeProperties}
+                />
+              )}
               {(initial || archived)
                 ? (
-                  <Field label="번호 출처">
-                    {(p) => (
-                      <input
-                        {...p}
-                        className="input"
-                        value={identitySettings?.sources.find((item) => item.code === source)?.source_label ??
+                  <dl className="key-value-static">
+                    <div>
+                      <dt>번호 출처</dt>
+                      <dd>
+                        {identitySettings?.sources.find((item) => item.code === source)?.source_label ??
                           initial?.source_label ?? source}
-                        readOnly
-                      />
-                    )}
-                  </Field>
+                      </dd>
+                    </div>
+                  </dl>
                 )
                 : identitySettings?.sources.filter((item) => item.active).length === 1
-                ? identitySettings.sources.find((item) => item.active)?.code === "app" ? null : (
-                  <div className="field">
-                    <span className="label">번호 출처</span>
-                    <p className="fixed-field-value">
-                      {identitySettings.sources.find((item) => item.active)?.source_label}
-                    </p>
-                    {errors.source && <p className="error-text" role="alert">{errors.source}</p>}
-                  </div>
+                ? (
+                  <dl className="key-value-static">
+                    <div>
+                      <dt>번호 출처</dt>
+                      <dd>
+                        {identitySettings.sources.find((item) => item.active)?.source_label}
+                        {errors.source && <p className="error-text" role="alert">{errors.source}</p>}
+                      </dd>
+                    </div>
+                  </dl>
                 )
                 : (
-                  <Field label="번호 출처" required error={errors.source}>
+                  <Field pair label="번호 출처" required error={errors.source}>
                     {(p) => (
                       <select
                         {...p}
@@ -525,17 +545,29 @@ export function EntityForm({
                     )}
                   </Field>
                 )}
-              {!initial && !archived &&
-                  identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"
+              {initial || archived
                 ? (
-                  <div className="field">
-                    <span className="label">{identitySettings.label}</span>
-                    <p className="fixed-field-value">등록 시 자동 발급</p>
-                    {errors.external_id && <p className="error-text" role="alert">{errors.external_id}</p>}
-                  </div>
+                  <dl className="key-value-static">
+                    <div>
+                      <dt>자료 번호</dt>
+                      <dd className="entity-identity-value">{external}</dd>
+                    </div>
+                  </dl>
+                )
+                : identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"
+                ? (
+                  <dl className="key-value-static">
+                    <div>
+                      <dt>{identitySettings.label}</dt>
+                      <dd>
+                        등록 시 자동 발급
+                        {errors.external_id && <p className="error-text" role="alert">{errors.external_id}</p>}
+                      </dd>
+                    </div>
+                  </dl>
                 )
                 : (
-                  <Field label={identitySettings?.label ?? "번호"} error={errors.external_id}>
+                  <Field pair label={identitySettings?.label ?? "번호"} error={errors.external_id}>
                     {(p) => (
                       <input
                         {...p}
@@ -590,20 +622,11 @@ export function EntityForm({
               {definition
                 ? (
                   <PropertyFields
+                    part="remaining"
                     definition={definition}
                     values={effectiveProperties}
                     errors={errors}
-                    onChange={(values) => {
-                      lookup.current?.abort();
-                      setReviewKeys((keys) => keys.filter((key) => values[key] === properties[key]));
-                      setProperties(
-                        !initial && !archived
-                          ? Object.fromEntries(
-                            Object.entries(values).filter(([key]) => !definition.schema.properties[key]?.readOnly),
-                          )
-                          : values,
-                      );
-                    }}
+                    onChange={changeProperties}
                   />
                 )
                 : typeId && !schemaError && <p role="status">속성 정의를 불러오는 중…</p>}
@@ -611,6 +634,7 @@ export function EntityForm({
             <section className="detail-section form">
               {initial ? <ReadonlyTags scope="entity" ids={initial.tag_ids} /> : <TagPicker scope="entity" value={tags} error={errors.tag_ids} onChange={setTags} />}
             </section>
+            {relations}
             {details}
           </>
         )}

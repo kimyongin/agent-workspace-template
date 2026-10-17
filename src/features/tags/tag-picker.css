@@ -27,5 +27,5 @@
 .tag-connections { display: flex; flex-direction: column; gap: var(--space-2); align-items: stretch; }
 .tag-connections > .body-action { align-self: flex-start; }
 .tag-connections .tag-connection-data { margin: 0; }
-.tag-connection-data .tag-read { color: var(--ink); font-size: var(--text-body); line-height: 24px; }
+.tag-connection-data .tag-read { color: inherit; font: inherit; }
 .tag-connection-data .tag-read:has(button) { display: inline-flex; align-items: center; gap: var(--space-2); }

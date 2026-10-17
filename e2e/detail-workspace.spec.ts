@@ -1153,3 +1153,27 @@ test("mobile settings: widening into the desktop workspace retains the original 
   await expect(nickname).toHaveValue("화면 크기를 바꿔도 유지할 초안");
   expect(state.writes).toEqual([]);
 });
+
+
+test("desktop: entity pairs follow resized panel width and keep the same edit axis", async ({ page }, info) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  const separator = page.getByRole("separator", { name: "상세 패널 너비 조절" });
+  const detail = panel(page);
+  const source = detail.locator("dt:visible", { hasText: /^번호 출처$/ });
+  const number = detail.locator("dt:visible", { hasText: /^자료 번호$/ });
+  await separator.press("Home");
+  await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeLessThan(1);
+  await page.screenshot({ path: info.outputPath("entity-narrow-panel.png") });
+  await separator.press("End");
+  await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeGreaterThan(200);
+  const before = (await source.boundingBox())!.x;
+  await page.screenshot({ path: info.outputPath("entity-wide-panel.png") });
+  await detail.getByRole("button", { name: "편집", exact: true }).click();
+  await expect(detail.getByRole("textbox", { name: /^제목/ })).toBeEditable();
+  expect((await source.boundingBox())!.x).toBeCloseTo(before, 0);
+  await expect(detail.getByRole("region", { name: "할 일 (1개)" })).toContainText("등심 구매하기");
+  await expect(detail.getByRole("button", { name: "할 일 작성" })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("entity-wide-panel-edit.png") });
+});

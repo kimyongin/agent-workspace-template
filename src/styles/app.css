@@ -22,8 +22,8 @@
 .memo-text.markdown h1, .memo-text.markdown h2, .memo-text.markdown h3 { font-size: 1rem; line-height: 1.5rem; }
 .modal-foot .modal-delete { margin-right: auto; }
 .props > div { min-width: 0; }
-.detail-section .props { grid-template-columns: minmax(0,1fr); }
-.detail-section .props > div { display: grid; grid-template-columns: min(6rem,35%) minmax(0,1fr); gap: var(--space-4); align-items: baseline; }
+.detail-section .props:not(.key-value-grid) { grid-template-columns: minmax(0,1fr); }
+.detail-section .props:not(.key-value-grid) > div { display: grid; grid-template-columns: min(6rem,35%) minmax(0,1fr); gap: var(--space-4); align-items: baseline; }
 .detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
 .detail-section-head > .actions { margin-left: auto; }
 .detail-section-head .section-title { margin: 0; }
@@ -933,3 +933,52 @@ details[open] > summary::after { transform: rotate(135deg); }
 .choice-chip input { margin: 0; accent-color: var(--accent); flex-shrink: 0; }
 .choice-chip:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
 .choice-chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+
+/* Opt-in data pairs: the available container and rem-scaled minimum decide columns.
+   Use key-value-full for long body, tags and relation slots, without changing DOM order. */
+.key-value-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-3) var(--space-6);
+  container: field-data / inline-size;
+  min-width: 0;
+}
+.key-value-full { grid-column: 1 / -1; }
+.key-value-static { margin: 0; min-width: 0; }
+.key-value-grid > :is(div:has(> dt), .field), .key-value-static > div {
+  display: grid;
+  grid-template-columns: min(6rem, 32%) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  min-width: 0;
+}
+.key-value-grid > div:not(.field):not(:has(> dt)) { grid-column: 1 / -1; }
+.key-value-grid > :is(p, section, button, fieldset) { grid-column: 1 / -1; }
+.key-value-grid :is(dt, .label), .key-value-static dt {
+  color: var(--muted-ink);
+  font-size: var(--text-label);
+  font-weight: 400;
+  line-height: 1.375rem;
+  padding-block: 11px;
+  overflow-wrap: anywhere;
+}
+.key-value-grid dd, .key-value-static dd {
+  color: var(--ink);
+  margin: 0;
+  min-height: 44px;
+  padding: 10px var(--space-3);
+  border: 1px solid transparent;
+  font-size: var(--text-body);
+  line-height: 1.375rem;
+  overflow-wrap: anywhere;
+}
+.key-value-grid .field-value { display: grid; gap: var(--space-2); min-width: 0; }
+.key-value-grid :is(.input, dd) { min-width: 0; }
+.key-value-grid .detail-title { font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; }
+.key-value-grid .key-value-primary .input { font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; }
+
+@container field-data (width < 40rem) {
+  .key-value-grid :is(.input, dd), .key-value-static dd { font-size: 1rem; line-height: 1.5rem; }
+  .key-value-grid :is(.detail-title, .key-value-primary .input) { font-size: 1.25rem; line-height: 1.75rem; }
+}
