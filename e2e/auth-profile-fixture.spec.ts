@@ -6,8 +6,13 @@ const other = { ...user, id: "00000000-0000-0000-0000-000000000002", email: "oth
 const fixture = "/e2e/fixtures/auth-profile.html";
 
 async function closeNavigation(page: Page) {
-  const close = page.getByRole("button", { name: "메뉴 닫기", exact: true });
-  if (await close.isVisible()) await close.click();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true, includeHidden: true })).toHaveCount(0);
+  await expect(page.getByRole("menu", { includeHidden: true })).toHaveCount(0);
+  const menu = page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true });
+  if (await menu.isVisible()) {
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  }
 }
 
 function token(id: string) {
