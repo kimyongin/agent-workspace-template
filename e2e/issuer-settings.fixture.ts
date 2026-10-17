@@ -933,12 +933,18 @@ test(
       ).toBe(true);
       for (
         const control of await editor.locator(
-          "button, input:not([type=checkbox])",
+          "button:not([role=checkbox]), input:not([type=checkbox])",
         ).all()
       ) {
         const bounds = (await control.boundingBox())!;
         expect(bounds.height).toBeGreaterThanOrEqual(44);
       }
+      const checkbox = editor.getByRole("checkbox", { name: "사용", exact: true });
+      const label = checkbox.locator("xpath=ancestor::label[1]");
+      const target = (await label.boundingBox())!;
+      expect(target.width).toBeGreaterThanOrEqual(44);
+      expect(target.height).toBeGreaterThanOrEqual(44);
+      await expect(checkbox).toBeChecked();
     }
     await page.setViewportSize({
       width: info.project.name === "mobile" ? 320 : 1440,
