@@ -190,7 +190,6 @@ export function IdentitySourceModal({
             {issuer && !issuer.system && (
               <Button variant="outline"
                 type="button"
-                className={eligible.length > 1 ? "" : ""}
                 ref={ruleAdd}
                 disabled={rules === null}
                 onClick={() => {

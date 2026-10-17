@@ -351,7 +351,7 @@ test("issuer and rule creation dialogs return to an unchanged dirty type draft",
   const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await expect(page.locator('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')).toHaveCount(2);
   for (const button of await confirm.getByRole("button").all()) {
-    expect((await button.boundingBox())!.width).toBeGreaterThanOrEqual(44);
+    expect(await button.evaluate((node) => (node as HTMLElement).offsetWidth)).toBeGreaterThanOrEqual(44);
   }
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(create.getByLabel("이름")).toHaveValue("새 마켓");
@@ -495,6 +495,13 @@ test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 
     await page.setViewportSize({ width, height: 1000 });
     await expect(navigation).toBeVisible();
     await expect(navigation.getByRole("tab", { name: "일괄 설정", exact: true })).toBeVisible();
+    const bounds = await navigation.boundingBox();
+    for (const tab of await navigation.getByRole("tab").all()) {
+      const target = await tab.boundingBox();
+      expect(target!.height).toBeGreaterThanOrEqual(44);
+      expect(target!.y).toBeGreaterThanOrEqual(bounds!.y);
+      expect(target!.y + target!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height + 1);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
   await page.setViewportSize({ width: info.project.name === "mobile" ? 320 : 1440, height: 1000 });
@@ -561,6 +568,7 @@ test("settings menu destination remains mounted during discard confirmation and 
   await fixture(page, baseURL!);
   const form = await identityEditor(page);
   await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("보존할 번호");
+  const retainedName = await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).elementHandle();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true }),
     entry = menu.getByRole("menuitem", { name: "기록", exact: true });
@@ -574,7 +582,7 @@ test("settings menu destination remains mounted during discard confirmation and 
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(entry).toBeFocused();
   await expect(menu).toBeVisible();
-  await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue("보존할 번호");
+  expect(await retainedName!.inputValue()).toBe("보존할 번호");
   await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
   await entry.click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", {

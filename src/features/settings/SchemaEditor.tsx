@@ -1,6 +1,5 @@
 import { RadioGroup } from "@/components/ui/radio-group";
-import { PlusIcon, RotateCcwIcon } from "lucide-react";
-import { ChevronDownIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -422,17 +421,7 @@ export function SchemaEditor(
                               disabled={index === 0 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, -1)}
                             >
-                              <svg
-                                width="18"
-                                height="18"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                                aria-hidden="true"
-                              >
-                                <path d="m6 12 6-6 6 6M12 6v14" />
-                              </svg>
+                              <ArrowUpIcon />
                             </Button>
                             <Button variant="ghost"
                               type="button"
@@ -441,17 +430,7 @@ export function SchemaEditor(
                               disabled={index === schemaPresentation(draft).order.length - 1 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, 1)}
                             >
-                              <svg
-                                width="18"
-                                height="18"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                                aria-hidden="true"
-                              >
-                                <path d="m6 12 6 6 6-6M12 4v14" />
-                              </svg>
+                              <ArrowDownIcon />
                             </Button>
                           </div>
                           <Button size="icon" data-schema-disclosure variant="outline"
@@ -840,17 +819,7 @@ export function SchemaEditor(
                                   disabled={key === schemaPresentation(draft).representative}
                                   onClick={() => setDeleteKey(key)}
                                 >
-                                  <svg
-                                    width="18"
-                                    height="18"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    aria-hidden="true"
-                                  >
-                                    <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
-                                  </svg>항목 삭제
+                                  <Trash2Icon data-icon="inline-start" />항목 삭제
                                 </Button>
                               </div>
                               {key === schemaPresentation(draft).representative && (
