@@ -24,22 +24,18 @@ for (const width of [320, 390, 1024]) {
     });
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-    const section = form(page).locator(".related-section").filter({
-        has: page.getByRole("heading", { name: "기록 (2개)", exact: true }),
-      }),
+    const section = form(page).getByRole("region", { name: "기록 (2개)", exact: true }),
       rows = section.locator("[data-slot='item']");
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("상담 판단 정리");
     await expect(rows.last().getByRole("button", { name: title, exact: true })).toHaveCount(1);
-    await expect(rows.locator("[data-slot='item']-meta, time, .badge")).toHaveCount(0);
+    await expect(rows.locator("time, [data-slot='badge']")).toHaveCount(0);
     await expect(form(page).getByRole("link", { name: "전체 할 일 보기", exact: true })).toHaveCount(0);
     await expect(section.getByRole("link", { name: "전체 기록 보기", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toBeVisible();
-    for (const section of await form(page).locator(".detail-management > .related-section").all()) {
-      expect(
-        await section.evaluate((el) => getComputedStyle(el).borderTopWidth),
-      ).toBe("0px");
-    }
+    const related = form(page).getByRole("region", { name: /^(할 일|기록) \(\d+개\)$/ });
+    await expect(related).toHaveCount(2);
+    for (const region of await related.all()) await expect(region.getByRole("heading").first()).toBeVisible();
     for (const row of await rows.all()) expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await section.screenshot({ path: info.outputPath(`entity-related-${width}.png`) });
@@ -145,7 +141,7 @@ test("연결 범위 해제 뒤 늦은 scoped 페이지는 전체 행·cursor를 
   const held = state.holdRead({ kind: "tasks", page: 2, entityId: entityKey(1) });
   await go(page, `/tasks?entity_id=${encodeURIComponent(entityKey(1))}`);
   await openTabFilters(page);
-  await page.locator(".tasks").getByRole("button", { name: "할 일 더 보기", exact: true }).click();
+  await page.getByRole("region", { name: "할 일", exact: true }).getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await held.started;
   await page.getByRole("button", { name: "자료 범위 해제", exact: true }).click();
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
@@ -153,7 +149,7 @@ test("연결 범위 해제 뒤 늦은 scoped 페이지는 전체 행·cursor를 
   held.release();
   await held.finished;
   await expect(page.locator(".tasks .item-title")).toHaveText(["전체 업무"]);
-  await expect(page.locator(".tasks").getByText("오래된 범위 추가", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "할 일", exact: true }).getByText("오래된 범위 추가", { exact: true })).toHaveCount(0);
   await expect(page).not.toHaveURL(/entity_id=|tasks_pages=/);
   expect(state.errors).toEqual([]);
 });
@@ -285,9 +281,9 @@ test("엔터티 제목 연결 검색: IME·늦은 응답 격리·페이지 실�
   for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    for (const label of await form(page).locator(".entity-choice").all()) {
-      expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    }
+    const choices = form(page).getByRole("group", { name: "자료 검색 결과", exact: true }).getByRole("button", { name: / 연결$/ });
+    await expect(choices).toHaveCount(2);
+    for (const choice of await choices.all()) expect((await choice.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);

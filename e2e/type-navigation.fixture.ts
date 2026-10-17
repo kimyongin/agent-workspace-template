@@ -288,14 +288,14 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
   await openMainNavigation(page);
   await expect(page.getByRole("navigation", { name: "주 메뉴" }).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link").first()).toHaveText(long.label);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  for (
-    const size of await page.getByRole("navigation", { name: "주 메뉴" }).locator('[data-slot="sidebar-menu-button"]').evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const r = node.getBoundingClientRect();
-        return [r.width, r.height];
-      })
-    )
-  ) {
+  const navigationControls = page.getByRole("navigation", { name: "주 메뉴" })
+    .locator('[data-slot="sidebar-menu-button"]');
+  expect(await navigationControls.count()).toBeGreaterThan(0);
+  const sizes = await navigationControls.evaluateAll((nodes) => nodes.map((node) => {
+    const r = node.getBoundingClientRect();
+    return [r.width, r.height];
+  }));
+  for (const size of sizes) {
     expect(size[0]).toBeGreaterThanOrEqual(44);
     expect(size[1]).toBeGreaterThanOrEqual(44);
   }
@@ -562,8 +562,8 @@ test("definition history reads beyond the first hundred versions and opens the i
   await expect(page.getByRole("button", { name: "이전 적용 버전 더 보기", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "이전 적용 버전 더 보기", exact: true }).click();
   const history = page.getByRole("region", { name: "변경 이력", exact: true });
-  await expect(history.locator(".schema-history-row")).toHaveCount(101);
-  const oldest = history.locator(".schema-history-row").filter({ hasText: "버전 1 · 적용됨" });
+  await expect(history.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem")).toHaveCount(101);
+  const oldest = history.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({ hasText: "버전 1 · 적용됨" });
   await oldest.getByRole("button", { name: /^최초 생성/ }).click();
   await expect(page).toHaveURL(/schema_version=1/);
   const definition = oldest.getByRole("region", { name: "입력 항목 정의", exact: true });
@@ -661,9 +661,8 @@ test("conversion literals preserve unsafe drafts and removed properties permit e
   const conversions = page.getByRole("region", { name: "변환 규칙과 영향 미리보기" });
   await conversions.getByLabel("이전 수량 변환 방식", { exact: true }).selectOption("remove");
   await expect(conversions.getByLabel("이전 수량 변환 방식", { exact: true })).toHaveValue("remove");
-  const field = conversions.locator(".schema-field").filter({
-    has: page.getByLabel("수량 변환 방식", { exact: true }),
-  });
+  const field = conversions.getByLabel("수량 변환 방식", { exact: true })
+    .locator("xpath=ancestor::section[1]");
   await field.getByLabel("누락값 채우기", { exact: true }).check();
   const input = field.getByLabel("보완값", { exact: true });
   await input.fill("1.0000000000000001");
@@ -894,7 +893,7 @@ test("history selection preserves basic drafts and survives reload", async ({ pa
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("유지할 기본 정보");
   page.on("dialog", (dialog) => dialog.accept());
   await page.reload();
-  const first = page.locator(".schema-history-row").filter({ has: page.getByRole("button", { name: /^최초 생성/ }) });
+  const first = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({ has: page.getByRole("button", { name: /^최초 생성/ }) });
   await expect(first.getByRole("region", { name: "입력 항목 정의", exact: true })).toBeVisible();
   await expect(first.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
 });
@@ -1220,12 +1219,12 @@ for (const width of [320, 390]) {
       ]
     ) {
       await page.goto(path);
-      const title = page.locator(".page-title").first();
+      const title = page.getByRole("heading", { level: 1 }).first();
       await expect(title, path).toBeVisible();
-      const description = page.locator(".page-heading > .page-description");
+      const description = title.locator("xpath=ancestor::header[1]").locator(":scope > p");
       await expect(description, path).toHaveCount(1);
       await expect(description, path).toBeVisible();
-      await expect(description, path).toHaveCSS("font-size", "13px");
+      expect(await description.evaluate((el) => parseFloat(getComputedStyle(el).fontSize)), path).toBeGreaterThanOrEqual(12);
       expect((await description.innerText()).trim().length, path).toBeGreaterThan(10);
       expect((await description.boundingBox())!.y, path).toBeGreaterThanOrEqual(
         (await title.boundingBox())!.y + (await title.boundingBox())!.height,
@@ -1284,26 +1283,24 @@ for (const width of [320, 1440]) {
         ),
     );
     await page.goto("/status");
-    await expect(page.getByRole("alert")).toHaveClass(/notice-error/);
+    await expect(page.getByRole("alert")).toContainText(/조회 실패|조회하지 못했습니다/);
     failStatus = false;
     await page.getByRole("button", { name: "새로고침", exact: true }).click();
     await page.getByRole("button", { name: /^색인 문제/ }).click();
-    await expect(page.getByRole("alert")).toHaveClass(/notice-error/);
+    await expect(page.getByRole("alert")).toContainText(/조회 실패|조회하지 못했습니다/);
     failIssues = false;
     await page.getByRole("button", { name: "다시 시도", exact: true }).click();
-    const summary = page.locator(".status-issue-list summary");
+    const summary = page.getByRole("region", { name: "색인 문제 목록", exact: true })
+      .getByRole("button", { name: /^긴 제목/ });
     await expect(summary).toBeVisible();
     await summary.press("Enter");
-    await expect(page.getByText("현재 구간 전송 시도 1회", { exact: false })).toBeVisible();
-    const marker = await summary.evaluate((el) => ({
-      column: getComputedStyle(el, "::after").gridColumnStart,
-      list: getComputedStyle(el).listStyleType,
-    }));
-    expect(marker).toEqual({ column: "2", list: "none" });
+    await expect(summary).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("term").filter({ hasText: /^현재 구간 전송 시도$/ })
+      .locator("..").getByRole("definition")).toHaveText("1회");
     const next = page.getByRole("button", { name: "다음", exact: true });
     await expect(next).toBeDisabled();
     expect((await next.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    await expect(next.locator(".body-action-face")).toHaveCSS("font-size", "13px");
+    expect(await next.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }

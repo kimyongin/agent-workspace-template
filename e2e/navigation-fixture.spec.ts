@@ -277,8 +277,9 @@ test("#217 아이콘 선택은 가용 폭에서 조작 가능하고 프로필 �
     await page.setViewportSize({ width, height: 900 }); await page.goto("/settings");
     const grid = page.getByRole("radiogroup", { name: "프로필 아이콘", exact: true });
     await expect(grid).toBeVisible();
+    await expect(grid.getByRole("radio")).toHaveCount(20);
     const tiles = await grid.locator("label").evaluateAll(nodes => nodes.map(el => { const r = el.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height }; }));
-    expect(tiles.length).toBeGreaterThan(5); columns.push(tiles.filter(tile => Math.abs(tile.y - tiles[0].y) < 1).length);
+    expect(tiles).toHaveLength(20); columns.push(tiles.filter(tile => Math.abs(tile.y - tiles[0].y) < 1).length);
     for (const tile of tiles) { expect(tile.width).toBeGreaterThanOrEqual(44); expect(tile.height).toBeGreaterThanOrEqual(44); }
     await openProfile(page); const popup = profileMenu(page);
     for (const name of ["상태", "설정", "사용 가이드", "로그아웃"]) await expect(popup.getByRole("menuitem", { name, exact: true })).toHaveCount(1);

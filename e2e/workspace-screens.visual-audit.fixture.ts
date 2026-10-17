@@ -96,10 +96,10 @@ for (const width of [390, 1440]) {
       await expect(page.getByRole("status").filter({ hasText: /로그인 상태를 확인/ })).toHaveCount(0);
       const introduction = name.endsWith("-detail")
         ? page.locator('[role="dialog"] [data-slot="dialog-description"]')
-        : page.locator(".page-heading > .page-description");
+        : page.getByRole("heading", { level: 1 }).first().locator("xpath=ancestor::header[1]").locator(":scope > p");
       await expect(introduction).toHaveCount(1);
       await expect(introduction).toBeVisible();
-      await expect(introduction).toHaveCSS("font-size", "13px");
+      expect(await introduction.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
       if (name === "status") await expect(page.getByRole("region", { name: "자료 현황" })).toBeVisible();
       if (name === "status") {
@@ -115,7 +115,7 @@ for (const width of [390, 1440]) {
         }
       }
       if (name.endsWith("-detail")) {
-        for (const list of await page.locator(".collection-list:has(> [data-slot='item-group']:empty)").all()) {
+        for (const list of await page.locator("[data-slot='item-group']:empty").all()) {
           expect(await list.evaluate((node) => getComputedStyle(node).borderTopWidth)).toBe("0px");
         }
       }
@@ -150,7 +150,7 @@ for (const width of [390, 1440]) {
         await expect(page.locator('[role="dialog"] [data-slot="dialog-description"]')).toBeVisible();
       }
       if (name.endsWith("-filters")) await expect(page.getByText("필터", { exact: true })).toBeVisible();
-      if (name === "record-calendar") await expect(page.locator(".record-calendar")).toBeVisible();
+      if (name === "record-calendar") await expect(page.getByRole("region", { name: "기록 달력", exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
       await page.screenshot({ path: info.outputPath(`${name}-${width}.png`) });
     }

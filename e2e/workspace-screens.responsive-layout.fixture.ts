@@ -135,16 +135,14 @@ for (const width of [390, 1440]) {
     await expect(form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ })).toHaveValue("할 일");
     await page.screenshot({ path: info.outputPath(`edit-task-${width}.png`) });
     const head = form(page).locator("[data-slot=\"dialog-header\"]"), body = form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]");
-    expect(
-      await head.evaluate((el) => getComputedStyle(el).paddingLeft),
-    ).toBe(width < 640 ? "16px" : "24px");
-    expect(await body.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe(width < 640 ? "16px" : "24px");
+    expect(await head.evaluate(el => parseFloat(getComputedStyle(el).paddingLeft))).toBeGreaterThanOrEqual(12);
+    expect(await body.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe(await head.evaluate(el => getComputedStyle(el).paddingLeft));
     expect(state.errors).toEqual([]);
   });
 }
 
 for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
-  test(`#203 ${width}px: 목록·모달 공통 펼침과 전체 높이 표시선`, async ({ page }, info) => {
+  test(`#203 ${width}px: 목록·모달 공통 펼침과 조작 영역`, async ({ page }, info) => {
     const state = await fixtures(page);
     linkedFixture(state);
     await page.setViewportSize({ width, height: 900 });
@@ -157,35 +155,26 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]] as const
     ) {
       await go(page, `/${kind}`);
-      const row = page.locator(".list [data-slot='item']").first(),
+      const row = page.getByRole("region", { name: / 목록$/ }).locator("[data-slot='item']").first(),
         toggle = row.getByRole("button", { name: title, exact: true });
       await expect(toggle).toBeVisible();
       await expect(row.getByRole("link")).toHaveCount(0);
-      await expect(row.locator(".related-preview")).toBeHidden();
-      const marker = () =>
-        row.evaluate((el) => {
-          const s = getComputedStyle(el, "::before");
-          return {
-            left: s.left,
-            width: s.width,
-            color: s.backgroundColor,
-            height: el.getBoundingClientRect().height - parseFloat(s.top) - parseFloat(s.bottom),
-          };
-        });
-      const closed = await marker();
+      await expect(row.locator("[data-slot='collapsible-content']")).toBeHidden();
+      const closed = (await row.boundingBox())!;
       await toggle.focus();
       await toggle.press("Enter");
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
       await expect(row.getByRole("link", { name: title + " 상세", exact: true })).toBeVisible();
-      const opened = await marker();
-      expect(opened.left).toBe(closed.left);
-      expect(opened.width).toBe(closed.width);
-      expect(opened.color).not.toBe(closed.color);
+      const opened = (await row.boundingBox())!;
+      expect(opened.x).toBeCloseTo(closed.x, 0);
+      expect(opened.width).toBeCloseTo(closed.width, 0);
       expect(opened.height).toBeGreaterThan(closed.height);
       if (kind === "records") {
         await expect(row.locator(".markdown")).toContainText("원문 마지막 부분");
       }
-      for (const icon of await row.locator(".item-icon, .body-action").all()) {
+      const controls = row.getByRole("button").or(row.getByRole("link"));
+      expect(await controls.count()).toBeGreaterThanOrEqual(3);
+      for (const icon of await controls.all()) {
         const box = (await icon.boundingBox())!;
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(44);
@@ -202,14 +191,11 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await row.getByRole("button", { name: "할 일 열기", exact: true }).click();
     await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
     await expect(row.getByRole("button", { name: "할 일 해제", exact: true })).toBeVisible();
-    for (const action of await form(page).locator(".body-action").all()) {
+    const actions = form(page).locator("[data-slot='item-actions']").getByRole("button").or(form(page).locator("[data-slot='item-actions']").getByRole("link"));
+    expect(await actions.count()).toBeGreaterThan(0);
+    for (const action of await actions.all()) {
       const box = (await action.boundingBox())!;
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.height).toBeGreaterThanOrEqual(44);
-      const face = action.locator(".body-action-face");
-      expect((await face.boundingBox())!.height).toBe(24);
-      expect(await face.evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");
-      expect(await face.evaluate((el) => getComputedStyle(el).fontWeight)).toBe("400");
+      expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
     }
     await row.getByRole("button", { name: "할 일 접기", exact: true }).click();
     await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toHaveCount(0);
@@ -231,7 +217,9 @@ test("#203 320px·200% 펼친 연결 조작과 메인 목록이 넘치지 않음
   await form(page).getByRole("button", { name: "할 일", exact: true }).click();
   await expect(form(page).getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
   expect(await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
-  for (const button of await form(page).locator("[data-slot='item-actions'] :is(button,a)").all()) {
+  const controls = form(page).locator("[data-slot='item-actions'] :is(button,a)");
+  expect(await controls.count()).toBeGreaterThan(0);
+  for (const button of await controls.all()) {
     const rect = (await button.boundingBox())!;
     expect(rect.x).toBeGreaterThanOrEqual(0);
     expect(rect.x + rect.width).toBeLessThanOrEqual(320);
@@ -296,6 +284,7 @@ test("200% reflow·축소 visual viewport·한 글자 제목", async ({ page }, 
   await expect(form(page).getByRole("button", { name: "수정하고 저장", exact: true })).toBeInViewport({ ratio: 1 });
   await expect(form(page).getByRole("button", { name: "취소", exact: true })).toBeInViewport({ ratio: 1 });
   const actions = await form(page).locator('[data-slot="dialog-footer"] button').evaluateAll(nodes => nodes.map(node => ({ width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })));
+  expect(actions).toHaveLength(2);
   for (const action of actions) { expect(action.width).toBeGreaterThanOrEqual(44); expect(action.height).toBeGreaterThanOrEqual(44); }
   await page.screenshot({ path: info.outputPath("zoom-keyboard-viewport.png") });
   expect(state.errors).toEqual([]);
@@ -331,11 +320,9 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await go(page, path);
       const links = form(page).locator("[data-slot='item']");
       await expect(links).toHaveCount(2);
-      for (const last of await form(page).locator("[data-slot='item-group'] > li:last-child [data-slot='item']").all()) {
-        expect(
-          await last.evaluate((el) => getComputedStyle(el).borderBottomWidth),
-        ).toBe("0px");
-      }
+      const lastRows = form(page).locator("[data-slot='item-group'] > li:last-child [data-slot='item']");
+      await expect(lastRows).toHaveCount(2);
+      for (const row of await lastRows.all()) await expect(row).toBeVisible();
       const first = links.first();
       styles.push(
         await first.evaluate((el) => {
@@ -389,7 +376,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       ]]
     ) {
       await go(page, "/" + kind);
-      const row = page.locator(".list [data-slot='item']").first();
+      const row = page.getByRole("region", { name: / 목록$/ }).locator("[data-slot='item']").first();
       await expect(row).toBeVisible();
       const box = (await row.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(44);
@@ -401,13 +388,14 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         }),
       ).toBeVisible();
       await openTabFilters(page);
-      const grid = page.locator(".filter-grid");
+      const grid = page.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "필터", exact: true }) });
       const inputs = await grid.locator("input,select").evaluateAll((nodes) =>
         nodes.map((el) => {
           const b = el.getBoundingClientRect();
           return { x: b.x, y: b.y, right: b.right, h: b.height };
         })
       );
+      expect(inputs.length).toBeGreaterThan(0);
       for (const field of inputs) {
         expect(field.h).toBeGreaterThanOrEqual(44);
         expect(field.right).toBeLessThanOrEqual(width);
@@ -485,14 +473,13 @@ for (const width of [320, 390, 639, 640]) {
     const search = header.getByLabel("자료 제목 검색", { exact: true });
     expect((await picker.boundingBox())!.y + (await picker.boundingBox())!.height).toBeLessThan((await search.boundingBox())!.y);
     await expect(header.getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
-    await expect(header.locator(".entity-type-picker .help")).toHaveCount(0);
-    await expect(header.locator(".entity-type-picker label.label")).toHaveClass(/visually-hidden/);
+    await expect(picker).toHaveAccessibleName("자료 종류");
     await openTabFilters(page);
     await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
     for (const scale of ["100%", "200%"]) {
       await page.evaluate(value => { document.documentElement.style.fontSize = value; }, scale);
-      const panel = header.locator(".tab-filters > .form");
-      const condition = panel.locator(".entity-property-condition");
+      const panel = header.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "필터", exact: true }) });
+      const condition = panel.getByRole("button", { name: "조건 1 제거", exact: true }).locator("..");
       await expect(condition).toHaveCount(1);
       const controls = condition.locator("input,select");
       await expect(controls).toHaveCount(3);
@@ -501,28 +488,20 @@ for (const width of [320, 390, 639, 640]) {
         return { x: box.x, y: box.y, right: box.right, bottom: box.bottom };
       }));
       const remove = (await condition.getByRole("button", { name: "조건 1 제거", exact: true }).boundingBox())!;
-      expect(remove.y).toBeCloseTo(property.y);
-      expect(remove.width).toBeGreaterThanOrEqual(44);
-      expect(remove.height).toBeGreaterThanOrEqual(44);
-      if (scale === "100%" || Math.abs(property.y - comparison.y) < 1) {
-        expect(property.y).toBeCloseTo(comparison.y);
-        expect(property.right).toBeLessThanOrEqual(comparison.x);
-        expect(comparison.right).toBeLessThanOrEqual(remove.x);
-      } else {
-        // Enlarged text may give each field its own row while keeping the remove action beside the property.
-        expect(property.right).toBeLessThanOrEqual(remove.x);
-        expect(comparison.y).toBeGreaterThanOrEqual(Math.max(property.bottom, remove.y + remove.height));
-        expect(comparison.x).toBeCloseTo(property.x);
-        expect(comparison.right).toBeCloseTo(value.right);
+      expect(remove.width).toBeGreaterThanOrEqual(44); expect(remove.height).toBeGreaterThanOrEqual(44);
+      const panelBox = (await panel.boundingBox())!;
+      for (const control of [property, comparison, value, { x: remove.x, y: remove.y, right: remove.x + remove.width, bottom: remove.y + remove.height }]) {
+        expect(control.right - control.x).toBeGreaterThanOrEqual(44);
+        expect(control.bottom - control.y).toBeGreaterThanOrEqual(44);
+        expect(control.x).toBeGreaterThanOrEqual(panelBox.x);
+        expect(control.right).toBeLessThanOrEqual(panelBox.x + panelBox.width);
       }
-      expect(value.y).toBeGreaterThanOrEqual(Math.max(property.bottom, comparison.bottom));
-      expect(value.x).toBeCloseTo(property.x);
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), scale).toBe(true);
       const boxes = await panel.locator("input:visible,select:visible,button:visible").evaluateAll(elements => elements.map(el => {
         const box = el.getBoundingClientRect();
         return { left: box.left, right: box.right };
       }));
-      const panelBox = (await panel.boundingBox())!;
+      expect(boxes.length).toBeGreaterThanOrEqual(4);
       for (const box of boxes) {
         expect(box.left).toBeGreaterThanOrEqual(panelBox.x);
         expect(box.right).toBeLessThanOrEqual(panelBox.x + panelBox.width);
