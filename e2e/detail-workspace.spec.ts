@@ -41,6 +41,36 @@ async function openTask(page: Page) {
 }
 
 const tabNames = (page: Page) => page.getByRole("tab").allTextContents();
+
+for (const width of [390, 1100, 1440]) {
+  test(`상세 제목 ${width}px: 자동 초점은 유지하고 제목 테두리만 숨긴다`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await fixture(page);
+    await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+    const view = page.locator("dialog.modal[open]").first();
+    const title = view.locator(".dialog-title");
+    await expect(title).toBeFocused();
+    await expect(title).toHaveAttribute("tabindex", "-1");
+    await expect(title).toHaveCSS("outline-style", "none");
+    await page.screenshot({ path: info.outputPath(`title-focus-${width}.png`) });
+
+    await page.keyboard.press("Tab");
+    const edit = view.getByRole("button", { name: "편집", exact: true });
+    await edit.focus();
+    await expect(edit).toBeFocused();
+    await expect(edit).toHaveCSS("outline-style", "solid");
+    await expect(edit).toHaveCSS("outline-width", "2px");
+    await edit.press("Enter");
+    const input = view.getByLabel("제목", { exact: false });
+    await input.focus();
+    await expect(input).toBeFocused();
+    await expect(input).toHaveCSS("outline-style", "solid");
+    await expect(input).toHaveCSS("outline-width", "2px");
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  });
+}
+
 async function dragTab(page: Page, source: string, targetId: string, after = true) {
   const target = page.locator(`.workspace-tab[data-tab-id="${targetId}"]`);
   const box = (await target.boundingBox())!;
