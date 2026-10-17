@@ -1,4 +1,4 @@
-import { executionDialog } from "./ui-actions.ts";
+import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
 import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
@@ -125,15 +125,22 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     });
     entityIds.push(created.id);
     expect(created.properties.prop_2).toBe(0);
+    const assertCurrentProperties = async (title: string, quantity: string) => {
+      const viewer = detailDialog(page);
+      await expect(viewer.getByRole("heading", { name: title, exact: true })).toHaveText(title);
+      // The representative label now belongs to the same schema-driven definition list as other properties.
+      await expect(viewer.getByRole("term").filter({ hasText: /^이름$/ })).toHaveCount(0);
+      const representative = viewer.getByRole("term").filter({ hasText: /^자료 이름$/ });
+      await expect(representative).toHaveCount(1);
+      await expect(representative.locator("..").getByRole("definition")).toHaveText(title);
+      const count = viewer.getByRole("term").filter({ hasText: /^수량$/ });
+      await expect(count).toHaveCount(1);
+      await expect(count.locator("..").getByRole("definition")).toHaveText(quantity);
+    };
     await page.goto(`/entities/${encodeURIComponent(existing.id)}`);
-    await expect(page.getByRole("heading", { name: existing.title, exact: true })).toHaveText(existing.title);
-    await expect(page.getByText("자료 이름", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("수량", { exact: true })).toBeVisible();
-    await expect(page.getByText("미입력", { exact: true })).toBeVisible();
+    await assertCurrentProperties(existing.title, "미입력");
     await page.goto(`/entities/${encodeURIComponent(created.id)}`);
-    await expect(page.getByRole("heading", { name: created.title, exact: true })).toHaveText(created.title);
-    await expect(page.getByText("자료 이름", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("0", { exact: true })).toBeVisible();
+    await assertCurrentProperties(created.title, "0");
     await page.goto(`/settings/entity-types/${typeId}/versions`);
     const initialVersion = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
