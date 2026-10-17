@@ -67,6 +67,7 @@ test("읽기·검색·세 탭 이동·상세 닫기는 계정 기록 원문과 �
       await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
     }
     await navigateBuiltin("/records", "기록");
+    await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true })).toHaveCount(0);
     await expect(page.getByLabel("검색 방식", { exact: true })).toHaveCount(0);
     const search = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/search"));
     await page.getByLabel("검색어", { exact: true }).fill(title);
