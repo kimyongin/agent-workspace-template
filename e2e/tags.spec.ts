@@ -6,7 +6,7 @@ import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters, closeDetail } from "./ui-actions.ts";
 import {expect } from "@playwright/test";
 import { test, devLogin,mcpClient,mcpTokenViaConsent,unique } from "./support.ts";
-// Exercise native-dialog history; retained desktop tabs have a dedicated suite.
+// Exercise modal history; retained desktop tabs have a dedicated suite.
 test.beforeEach(async({page,isMobile})=>{if(!isMobile)await page.setViewportSize({width:1024,height:720});});
 
 test("서버 날짜 ID의 태그 단축 URL은 해당 태그 편집기를 연다",async({page})=>{
@@ -55,7 +55,7 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     await page.getByRole("menuitem",{name:"설정",exact:true}).click();
     await page.getByRole("button",{name:"설정 메뉴",exact:true}).click();
     await page.getByRole("menu",{name:"설정 메뉴",exact:true}).getByRole("menuitem",{name:"태그",exact:true}).click();
-    await page.getByLabel("관리 대상",{exact:true}).selectOption("record");
+    await page.getByRole("radiogroup", {name:"관리 대상",exact:true}).getByRole("radio", {name:"기록",exact:true}).click();
     await expect(page).toHaveURL(/settings\/tags\?scope=record$/);
     let arrived!:()=>void,finished!:()=>void,deletes=0;
     const waiting=new Promise<void>(resolve=>{arrived=resolve;}),done=new Promise<void>(resolve=>{finished=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
@@ -73,7 +73,7 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     await expect(page.getByRole("button",{name:`${tag.name} 삭제`,exact:true})).toHaveCount(0);
     expect(deletes).toBe(1);expect((await mcp.call("list_tags",{scope:"record",limit:100})).items.some((value:{id:string})=>value.id===tag.id)).toBe(false);
     await page.goBack();await expect(page).toHaveURL(/settings\/tags$/);
-    await expect(page.getByLabel("관리 대상",{exact:true})).toHaveValue("entity");
+    await expect(page.getByRole("radiogroup", {name:"관리 대상",exact:true}).getByRole("radio", {name:"자료",exact:true})).toBeChecked();
   }finally{release();await mcp.close();}
 });
 test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원문 보존",async({page})=>{
@@ -97,7 +97,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
       await openDetailEditor(page);const edit=page.getByRole("dialog",{name:kind==="entity"?/^검사 자료.* 편집$/:"기록 편집"});
       await expect(edit.getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
-      await expect(edit.getByText("연결된 태그 없음",{exact:true})).toBeVisible();
+      await expect(edit.getByRole("term").filter({hasText:/^태그$/}).locator("../dd")).toHaveText("연결된 태그 없음");
       await edit.getByRole("button",{name:"취소",exact:true}).click();
       const beforeRestore=await mcp.call(`get_${kind}`,{id});
       await mcp.call(`update_${kind}`,{id,expected_version:beforeRestore.version,tag_ids:[tag.id],...(kind==="entity"?{schema_version:beforeRestore.current_schema_version,change_note:"분류 복구"}:{})});
@@ -148,7 +148,7 @@ test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 
     await mcp.call("update_task",{id,expected_version:beforeRestore.version,tag_ids:[tag.id],change_note:"분류 복구"});
     await page.reload();await openDetailEditor(page);const edit=page.getByRole("dialog",{name:"할 일 편집"});
     await expect(edit.getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
-    await expect(edit.getByRole("term", { name: "태그", exact: true }).locator("..").getByRole("definition")).toHaveText(tag.name);
+    await expect(edit.getByRole("term").filter({hasText:/^태그$/}).locator("..").getByRole("definition")).toHaveText(tag.name);
     await edit.getByLabel("본문").fill("삭제 후에도 보존");await fillChangeMemo(page,edit,"원문 보존 확인");await saveOnce(page,edit);
     await expect(edit).not.toBeVisible();expect((await mcp.call("get_task",{id})).tag_ids).toEqual([tag.id]);
     const items=await mcp.call("list_tasks",{tag_id:tag.id});expect(items.items.map((t:{id:string})=>t.id)).toEqual([id]);
