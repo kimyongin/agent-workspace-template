@@ -425,6 +425,7 @@ function RecordTemplateForm({
 
             <div className="min-w-0 col-span-full">
               <TagPicker
+                disabled={busy || uncertain}
                 label="기본 기록 태그"
                 scope="record"
                 value={value.tag_ids}
