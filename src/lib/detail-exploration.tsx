@@ -119,7 +119,7 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
     searchOrigin?.set("scroll", String(window.scrollY));
     const origin = searchOrigin ? `/search?${searchOrigin}#${props.id}` : `${location.pathname}${location.search}${location.hash}`;
     const frame: Frame = { key: location.key, path: origin,
-      title: activeSurface(false)?.heading?.textContent ?? document.querySelector("h1")?.textContent ?? "이전 화면",
+      title: activeSurface(false)?.title ?? document.querySelector("h1")?.textContent ?? "이전 화면",
       scroll: body?.scrollTop ?? window.scrollY, focusKey: event.currentTarget.dataset.detailFocus ?? target };
     context?.frames.set(frame.key, frame);
     const trail=detailTrail(location.state,context?.scope),root=trail.find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
@@ -160,7 +160,7 @@ function useRestoreFrame(frames: Map<string, Frame>) {
       const scope = body ?? document;
       const target = [...scope.querySelectorAll<HTMLElement>("[data-detail-focus]")].find(link => link.dataset.detailFocus === frame.focusKey);
       const loading = surface?.ready === false;
-      if (done || loading || !target && !surface?.ready && !scope.querySelector("[data-list-anchor], [data-page-action], [role=alert]")) return;
+      if (done || loading || !target && !surface?.ready && !scope.querySelector("[data-list-anchor], [data-page-action], [data-page-ready], [role=alert]")) return;
       done = true;
       (target ?? (!body ? document.querySelector<HTMLElement>("[data-page-action]") : null) ?? surface?.heading ?? document.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: true });
       if (body) body.scrollTop = frame.scroll; else window.scrollTo(0, frame.scroll);
@@ -168,7 +168,7 @@ function useRestoreFrame(frames: Map<string, Frame>) {
     let animation = 0;
     const schedule = () => { cancelAnimationFrame(animation); animation = requestAnimationFrame(restore); };
     const observer = new MutationObserver(schedule);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-busy"] });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-busy", "data-page-ready"] });
     schedule();
     return () => { cancelAnimationFrame(animation); observer.disconnect(); };
   }, [location.key, frames]);

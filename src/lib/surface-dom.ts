@@ -1,5 +1,6 @@
 /** DOM ownership only. Owners retain open state, route guards and primitive lifecycles. */
 export interface SurfaceElements {
+  title: string;
   body: HTMLElement | null;
   heading: HTMLElement | null;
   footer: HTMLElement | null;
@@ -52,4 +53,10 @@ export function restoreScroll(node: Node | null, top: number) {
 export function shiftScroll(node: Node | null, delta: number) {
   const owner = scrollOwner(node);
   if (owner) owner.scrollTop += delta; else window.scrollBy(0, delta);
+}
+
+/** Field marks its actual control so custom select triggers participate in initial focus. */
+export function firstField(root: ParentNode | null): HTMLElement | null {
+  return root?.querySelector<HTMLElement>("[aria-invalid='true']:not(:disabled):not([aria-disabled='true'])")
+    ?? root?.querySelector<HTMLElement>("[data-field-control]:not(:disabled):not([aria-disabled='true'])") ?? null;
 }

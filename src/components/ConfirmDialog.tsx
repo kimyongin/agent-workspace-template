@@ -55,8 +55,8 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const body = useRef<HTMLDivElement>(null), heading = useRef<HTMLHeadingElement>(null), footerElement = useRef<HTMLDivElement>(null);
-  const elements = useRef({ body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true });
-  useLayoutEffect(() => { elements.current = { body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true }; });
+  const elements = useRef({ title, body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true });
+  useLayoutEffect(() => { elements.current = { title, body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true }; });
   useLayoutEffect(() => ref.current ? registerSurface(ref.current, () => elements.current) : undefined, [open]);
   useSurfaceViewport(ref);
   useEffect(() => {
