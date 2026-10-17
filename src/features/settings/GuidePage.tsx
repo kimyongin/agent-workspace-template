@@ -25,7 +25,10 @@ export function GuidePage() {
           <li>일회성 할 일을 실제로 수행했다면 상세의 ‘완료하고 기록’으로 결과와 완료를 함께 저장하세요.</li>
           <li>반복 할 일은 상세에서 수행한 날짜의 ‘회차 기록’으로 결과를 남기세요. 결과가 있는 그 날짜의 회차만 완료됩니다. 반복 업무가 자동 실행되거나 알림을 보내지는 않습니다.</li>
         </ul>
-        <div className="flex flex-wrap items-center justify-end gap-2"><Button asChild variant="ghost"><Link to="/tasks"><>할 일로 이동</></Link><Button asChild variant="ghost"></Button><Link to="/records"><>기록으로 이동</></Link></Button></div></li>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button asChild variant="ghost"><Link to="/tasks">할 일로 이동</Link></Button>
+          <Button asChild variant="ghost"><Link to="/records">기록으로 이동</Link></Button>
+        </div></li>
       <li className="flex flex-col gap-3"><h2 className="min-w-0 [overflow-wrap:anywhere]">제품 플러그인 연결하기</h2>
         <p>Claude와 Codex용 제품 플러그인은 MCP 연결 설정과 제품 스킬을 함께 제공합니다. MCP OAuth 로그인은 데이터 접근을 허용하고, 제품 스킬은 검색·읽기·저장 방법을 안내합니다. 로그인만으로 스킬 설치가 끝나는 것은 아닙니다.</p>
         <Collapsible><CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">설치·연결 정보</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden"><div className="flex min-w-0 flex-col gap-4">
