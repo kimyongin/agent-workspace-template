@@ -1,3 +1,6 @@
+import { cn } from "../../lib/utils.ts";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Input } from "../../components/ui/input.tsx";
 import { fieldChoiceLabels, fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { codePointLength, isoDate } from "@contracts/common.ts";
@@ -84,7 +87,8 @@ export function displayedProperty(field: EntityField, value: unknown, labels: Re
   return Object.hasOwn(choices, String(value)) ? choices[String(value)] : String(value);
 }
 export function PropertyFields(
-  { definition, values, onChange, errors, part = "all" }: {
+  { definition, values, onChange, errors, disabled = false, part = "all" }: {
+    disabled?: boolean;
     part?: "all" | "representative" | "remaining";
     definition: Pick<EntitySchemaVersion, "schema">;
     values: PropertyDraft;
@@ -116,13 +120,11 @@ export function PropertyFields(
           return (
             <dl
               key={key}
-              className={`key-value-static${
-                key === schemaPresentation(definition).representative ? " key-value-full" : ""
-              }`}
+              className={cn("min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere", key === schemaPresentation(definition).representative ? " col-span-full" : "")}
             >
               <div>
                 <dt>
-                  {field.title ?? key} <span className="secondary">· {archived ? "보관" : "읽기 전용"}</span>
+                  {field.title ?? key} <span className="text-sm text-muted-foreground">· {archived ? "보관" : "읽기 전용"}</span>
                 </dt>
                 <dd>
                   {key === schemaPresentation(definition).representative
@@ -141,7 +143,7 @@ export function PropertyFields(
           <Field
             pair
             fullWidth={key === schemaPresentation(definition).representative}
-            className={key === schemaPresentation(definition).representative ? "key-value-primary" : undefined}
+            className={cn(key === schemaPresentation(definition).representative ? "col-span-full" : undefined)}
             key={key}
             label={field.title ?? key}
             required={required}
@@ -151,9 +153,10 @@ export function PropertyFields(
               <>
                 {fieldChoices(field) || fieldType(field) === "boolean"
                   ? (
-                    <select
+                    <NativeSelect
                       {...props}
-                      className="input"
+                      disabled={disabled}
+
                       value={value === undefined ? "unset" : value === null ? "null" : `value:${String(value)}`}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -169,29 +172,30 @@ export function PropertyFields(
                         );
                       }}
                     >
-                      <option value="unset">미입력</option>
+                      <NativeSelectOption value="unset">미입력</NativeSelectOption>
                       {fieldType(field) === "boolean"
                         ? (
                           <>
-                            <option value="value:true">참</option>
-                            <option value="value:false">거짓</option>
-                            {nullable && <option value="null">값 없음</option>}
+                            <NativeSelectOption value="value:true">참</NativeSelectOption>
+                            <NativeSelectOption value="value:false">거짓</NativeSelectOption>
+                            {nullable && <NativeSelectOption value="null">값 없음</NativeSelectOption>}
                           </>
                         )
                         : field.oneOf?.map((option) => (
-                          <option
+                          <NativeSelectOption
                             key={option.const === null ? "null" : `value:${option.const}`}
                             value={option.const === null ? "null" : `value:${option.const}`}
                           >
                             {displayedProperty(field, option.const, schemaPresentation(definition).option_labels[key])}
-                          </option>
+                          </NativeSelectOption>
                         ))}
-                    </select>
+                    </NativeSelect>
                   )
                   : (
-                    <input
+                    <Input
                       {...props}
-                      className="input"
+                      disabled={disabled}
+
                       type={field.format === "date" ? "date" : "text"}
                       inputMode={["integer", "number"].includes(fieldType(field) ?? "") ? "decimal" : undefined}
                       value={typeof value === "string" ? value : ""}
@@ -205,11 +209,11 @@ export function PropertyFields(
                     />
                   )}
                 {!!field.examples?.length && (
-                  <p className="help">
+                  <p className="text-sm text-muted-foreground">
                     예: {field.examples.map((example) => displayedProperty(field, example)).join(", ")}
                   </p>
                 )}
-                {field.description && <p className="help">{field.description}</p>}
+                {field.description && <p className="text-sm text-muted-foreground">{field.description}</p>}
               </>
             )}
           </Field>

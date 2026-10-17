@@ -1,3 +1,4 @@
+import { Button } from "../../components/ui/button.tsx";
 import { useEffect, useState } from "react";
 import { entityReferenceId } from "@contracts/entity-identity.ts";
 import { api } from "../../lib/api.ts";
@@ -26,7 +27,7 @@ export function EntityScope({ id, onClear }: { id: string; onClear: () => void }
     return () => controller.abort();
   }, [id, valid, retry]);
   return (
-    <div className="entity-scope">
+    <div className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg bg-muted p-3 text-sm">
       <span role="status">
         {!valid
           ? "자료 범위 ID가 올바르지 않습니다."
@@ -37,9 +38,9 @@ export function EntityScope({ id, onClear }: { id: string; onClear: () => void }
           : "연결된 자료를 불러오는 중…"}
       </span>
       {valid && failed && (
-        <button type="button" className="btn" onClick={() => setRetry((n) => n + 1)}>자료 다시 조회</button>
+        <Button variant="outline" type="button"  onClick={() => setRetry((n) => n + 1)}>자료 다시 조회</Button>
       )}
-      <button type="button" className="scope-clear" aria-label="자료 범위 해제" onClick={onClear}>×</button>
+      <Button variant="outline" type="button" className="ml-auto" aria-label="자료 범위 해제" onClick={onClear}>×</Button>
     </div>
   );
 }

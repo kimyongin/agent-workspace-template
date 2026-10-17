@@ -1,122 +1,60 @@
+import { type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { registerSurface } from "../lib/surface-dom.ts";
-import { type ReactNode, type RefObject, useEffect, useId, useRef, useLayoutEffect } from "react";
-import { createPortal } from "react-dom";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog.tsx";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.tsx";
+import { Button } from "./ui/button.tsx";
+import { XIcon } from "lucide-react";
 
 interface ConfirmProps {
-  open: boolean;
-  title: string;
-  message: ReactNode;
-  confirmLabel: string;
-  danger?: boolean;
-  busy?: boolean;
-  confirmDisabled?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
+  open: boolean; title: string; message: ReactNode; confirmLabel: string; danger?: boolean;
+  busy?: boolean; confirmDisabled?: boolean; onConfirm: () => void; onCancel: () => void;
 }
 
-export function ConfirmDialog(
-  { open, title, message, confirmLabel, danger, busy, confirmDisabled = false, onConfirm, onCancel }: ConfirmProps,
-) {
-  return (
-    <ConfirmationSurface
-      open={open}
-      title={title}
-      busy={busy}
-      onCancel={onCancel}
-      footer={
-        <>
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>취소</button>
-          <button
-            type="button"
-            className={danger ? "btn btn-danger" : "btn btn-primary"}
-            onClick={onConfirm}
-            disabled={busy || confirmDisabled}
-          >
-            {busy ? "처리 중…" : confirmLabel}
-          </button>
-        </>
-      }
-    >
-      <div>{message}</div>
-    </ConfirmationSurface>
-  );
+export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy = false, confirmDisabled = false, onConfirm, onCancel }: ConfirmProps) {
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null), footer = useRef<HTMLDivElement>(null);
+  const elements = useRef({ title, body: root, heading: heading.current, footer: footer.current, active: open, modal: true, confirmation: true, ready: true });
+  useLayoutEffect(() => { elements.current = { title, body: root, heading: heading.current, footer: footer.current, active: open, modal: true, confirmation: true, ready: true }; });
+  useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
+  return <AlertDialog open={open} onOpenChange={next => { if (!next && !busy) onCancel(); }}>
+    <AlertDialogContent ref={setRoot} onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
+      <AlertDialogHeader><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
+      <AlertDialogFooter ref={footer}>
+        <AlertDialogCancel disabled={busy} onClick={event => { event.preventDefault(); if (!busy) onCancel(); }}>취소</AlertDialogCancel>
+        <AlertDialogAction variant={danger ? "destructive" : "default"} disabled={busy || confirmDisabled} onClick={event => { event.preventDefault(); if (!busy && !confirmDisabled) onConfirm(); }}>{busy ? "처리 중…" : confirmLabel}</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>;
 }
 
-/** A short native modal above the retained editing surface; only the top dialog is interactive. */
+/** Editable execution details use Dialog; simple discard choices use AlertDialog above. */
 export function ConfirmationSurface({ open, title, busy = false, onCancel, footer, children, closeButton = false }: {
-  open: boolean;
-  title: string;
-  busy?: boolean;
-  onCancel: () => void;
-  footer: ReactNode;
-  children: ReactNode;
-  closeButton?: boolean;
+  open: boolean; title: string; busy?: boolean; onCancel: () => void; footer: ReactNode; children: ReactNode; closeButton?: boolean;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const body = useRef<HTMLDivElement>(null), heading = useRef<HTMLHeadingElement>(null), footerElement = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = root;
+  useSurfaceViewport(viewportRef, root);
   const elements = useRef({ title, body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true });
   useLayoutEffect(() => { elements.current = { title, body: body.current, heading: heading.current, footer: footerElement.current, active: open, modal: true, confirmation: true, ready: true }; });
-  useLayoutEffect(() => ref.current ? registerSurface(ref.current, () => elements.current) : undefined, [open]);
-  useSurfaceViewport(ref);
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!open || !dialog) return;
-    const returnFocus = document.activeElement as HTMLElement | null;
-    dialog.showModal();
-    (dialog.querySelector<HTMLElement>("textarea:not(:disabled), input:not(:disabled)") ??
-      footerElement.current?.querySelector<HTMLElement>("button:not(:disabled)"))?.focus();
-    return () => {
-      dialog.close();
-      if (returnFocus?.isConnected) returnFocus.focus();
-    };
-  }, [open]);
-  const cancel = () => {
-    if (!busy) onCancel();
-  };
-  return createPortal(
-    <dialog
-      ref={ref}
-      className="modal modal-confirm modal-action"
-      aria-labelledby={titleId}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          cancel();
-        }
-      }}
-      onCancel={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        cancel();
-      }}
-    >
-      <div className="modal-inner">
-        <div className="modal-head">
-          <h2 ref={heading} id={titleId} className="dialog-title">{title}</h2>
-          {closeButton && (
-            <button
-              type="button"
-              className="btn btn-text modal-icon"
-              aria-label="닫기"
-              title="닫기"
-              disabled={busy}
-              onClick={cancel}
-            >
-              <span aria-hidden="true">×</span>
-            </button>
-          )}
-        </div>
-        <div ref={body} className="modal-body form">{children}</div>
-        <div ref={footerElement} className="modal-foot">{footer}</div>
-      </div>
-    </dialog>,
-    document.body,
-  );
+  useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
+  const cancel = () => { if (!busy) onCancel(); };
+  return <Dialog open={open} onOpenChange={next => { if (!next) cancel(); }}>
+    <DialogContent ref={setRoot} showCloseButton={false} aria-describedby={undefined}
+      className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+      style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)" }}
+      onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}
+      onEscapeKeyDown={event => { event.preventDefault(); event.stopPropagation(); cancel(); }}>
+      <DialogHeader className="shrink-0 p-4"><div className="flex min-w-0 items-center gap-2"><DialogTitle ref={heading} className="min-w-0 flex-1 break-words">{title}</DialogTitle>
+        {closeButton && <Button type="button" variant="ghost" size="icon" aria-label="닫기" disabled={busy} onClick={cancel}><XIcon /></Button>}
+      </div></DialogHeader>
+      <div ref={body} className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
+      <DialogFooter ref={footerElement} className="m-0 shrink-0">{footer}</DialogFooter>
+    </DialogContent>
+  </Dialog>;
 }
 
-export function useSurfaceViewport(ref: RefObject<HTMLElement | null>) {
+export function useSurfaceViewport(ref: RefObject<HTMLElement | null>, element?: HTMLElement | null) {
   useEffect(() => {
     const viewport = window.visualViewport;
     const resize = () => {
@@ -137,5 +75,5 @@ export function useSurfaceViewport(ref: RefObject<HTMLElement | null>) {
       viewport?.removeEventListener("resize", resize);
       viewport?.removeEventListener("scroll", resize);
     };
-  }, [ref]);
+  }, [ref, element]);
 }
