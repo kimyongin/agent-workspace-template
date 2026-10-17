@@ -1,3 +1,7 @@
+import { FieldGroup, FieldSet } from "./ui/field.tsx";
+import { Input } from "./ui/input.tsx";
+import { Textarea } from "./ui/textarea.tsx";
+import { Button } from "./ui/button.tsx";
 import { firstField } from "../lib/surface-dom.ts";
 // 할 일·기록에서 함께 쓰는 내용 입력과 저장 실패·미저장 보호.
 import { useRecordConfirmation, type RecordMemo, type ConfirmationValue } from "./RecordConfirmation.tsx";
@@ -20,16 +24,16 @@ export function TextFields(
 ) {
   return (
     <>
-      <section className="detail-section key-value-grid">
+      <FieldGroup>
       <Field pair label={contentLabels.title} required error={errors.title}>
-        {(p) => <input {...p} className="input" placeholder="대상과 행동 또는 결론" value={draft.title} onChange={(e) => set({ title: e.target.value })} />}
+        {(p) => <Input {...p}  placeholder="대상과 행동 또는 결론" value={draft.title} onChange={(e) => set({ title: e.target.value })} />}
       </Field>
       <Field pair fullWidth label={contentLabels.body} error={errors.body}>
         {(p) => (
-          <textarea {...p} className="input" rows={8} placeholder="상세 내용과 근거를 작성하세요 (마크다운)" value={draft.body} onChange={(e) => set({ body: e.target.value })} />
+          <Textarea {...p}  rows={8} placeholder="상세 내용과 근거를 작성하세요 (마크다운)" value={draft.body} onChange={(e) => set({ body: e.target.value })} />
         )}
       </Field>
-      </section>
+      </FieldGroup>
     </>
   );
 }
@@ -106,9 +110,9 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
     if (mutation) confirmation.begin("save"); else await confirmation.write("save");
   };
   const footer = (requestCancel:()=>void) => <>
-    {deletion && !uncertain && <button type="button" key="delete" className="btn btn-danger delete-trigger" disabled={busy} onClick={()=>confirmation.begin("delete")}>삭제</button>}
-    <button key="cancel" type="button" className="btn" disabled={busy} onClick={requestCancel}>취소</button>
-    <button key="save" type="submit" form={formId} className="btn btn-primary" disabled={busy || submitDisabled}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</button>
+    {deletion && !uncertain && <Button variant="destructive" type="button" key="delete" className="sm:mr-auto" disabled={busy} onClick={()=>confirmation.begin("delete")}>삭제</Button>}
+    <Button variant="outline" key="cancel" type="button"  disabled={busy} onClick={requestCancel}>취소</Button>
+    <Button variant="default" key="save" type="submit" form={formId}  disabled={busy || submitDisabled}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</Button>
   </>;
   const register = surface?.register;
   useLayoutEffect(() => {
@@ -119,9 +123,9 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
     else present?.(presentation);
     return () => { register?.(null); };
   }, [register,present,open,title,description,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
-  const form = <form id={formId} className="form" onSubmit={submit} noValidate>
+  const form = <form id={formId} className="flex min-w-0 flex-col gap-5" onSubmit={submit} noValidate>
     {failure && !active && <Notice kind="error">{failure}</Notice>}
-    <fieldset disabled={busy || uncertain || active} className="form plain-fieldset">{children(errors)}</fieldset>
+    <FieldSet disabled={busy || uncertain || active}><FieldGroup>{children(errors)}</FieldGroup></FieldSet>
   </form>;
   useLayoutEffect(() => {
     if (!active && Object.keys(errors).length) document.getElementById(formId)?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();

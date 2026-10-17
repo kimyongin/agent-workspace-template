@@ -8,7 +8,7 @@ import { api, query } from "../../lib/api.ts";
 import { DetailLink, useDetailViewState } from "../../lib/detail-exploration.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
-import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { FormModal } from "../../components/ContentForm.tsx";
@@ -233,7 +233,7 @@ export function EntityRelationSection(
               <>
                 <CollectionList columns={["자료 이름"]}>
                   {state.page?.items.map((item) => (
-                    <li key={item.id}>
+                    <CollectionItem key={item.id}>
                       {readOnly
                         ? (
                           <RelatedItem
@@ -264,7 +264,7 @@ export function EntityRelationSection(
                             }
                           />
                         )}
-                    </li>
+                    </CollectionItem>
                   ))}
                 </CollectionList>
                 {state.page?.next_cursor && (
