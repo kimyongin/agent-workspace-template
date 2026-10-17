@@ -61,7 +61,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     expect(change.status).toBe("needs_conversion");
     await page.goto("/settings/data-model");
     await page.getByRole("button", { name: new RegExp(target.title) }).click();
-    const group = page.getByRole("region", { name: "전체 모델 값 변환" });
+    const group = page.getByRole("region", { name: "기존 자료 값 변환" });
     await expect(group).toBeVisible();
     for (const t of target.entity_types) {
       const child = group.getByRole("region", { name: `${t.schema.title} 변환`, exact: true });
@@ -73,7 +73,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     const analysisResponse = page.waitForResponse((r) =>
       r.url().endsWith(`/data-model/changes/${change.id}/analyze`) && r.request().method() === "POST"
     );
-    await group.getByRole("button", { name: "전체 영향 분석", exact: true }).click();
+    await group.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
     expect((await (await analysisResponse).json()).status).toBe("analyzing");
     await expect.poll(async () => {
       await schemaAnalysisTick();
@@ -82,7 +82,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     const applyResponse = page.waitForResponse((r) =>
       r.url().endsWith(`/data-model/changes/${change.id}/apply`) && r.request().method() === "POST"
     );
-    await group.getByRole("button", { name: "검토한 전체 모델 적용", exact: true }).click();
+    await group.getByRole("button", { name: "검토한 설정 적용", exact: true }).click();
     const accepted = await (await applyResponse).json();
     expect(accepted.status).toBe("queued");
     expect((await mcp.call("get_data_model_change", { id: change.id })).group.children).toHaveLength(2);

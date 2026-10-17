@@ -159,12 +159,12 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
         current.current.onChange(value);
         setNotice(
           action === "analyze"
-            ? "전체 영향 분석을 접수했습니다."
+            ? "변경 영향 확인을 접수했습니다."
             : action === "apply"
-            ? "전체 변환 준비를 접수했습니다. 완료 전에는 현재 모델을 유지합니다."
+            ? "자료 값 변환을 요청했습니다. 완료 전에는 현재 설정을 유지합니다."
             : action === "cancel"
-            ? "전체 변경안 취소 결과를 확인했습니다."
-            : "같은 전체 변환 작업을 다시 접수했습니다.",
+            ? "변경 취소 결과를 확인했습니다."
+            : "같은 값 변환 작업을 다시 접수했습니다.",
         );
         void refresh();
       });
@@ -173,7 +173,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
     }
   };
   return (
-    <section aria-label="전체 모델 값 변환" className="settings-fields">
+    <section aria-label="기존 자료 값 변환" className="settings-fields">
       {notice && !["applied", "cancelled"].includes(change.status) && <p role="status">{notice}</p>}
       {error && <p role="alert" className="error-text">{error}</p>}
       {readError && (
@@ -190,7 +190,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
       {change.group?.failure_reason && <p role="alert" className="error-text">{change.group.failure_reason}</p>}
       {active && (
         <p className="help">
-          전체 작업 진행 중입니다. 변환 규칙은 변경할 수 없습니다. 화면을 다시 열어도 같은 작업을 조회합니다.
+          요청한 작업을 진행하고 있습니다. 처리 중에는 값 변환 방법을 수정할 수 없습니다. 화면을 다시 열어도 진행 상태를 확인할 수 있습니다.
         </p>
       )}
       <div className="issuer-registry-list">
@@ -216,7 +216,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
           </IssuerRow>
         ))}
       </div>
-      {dirty && <p role="status">변환 보완 입력이 미저장 상태입니다. 전체 영향 분석으로 저장하고 다시 검토하세요.</p>}
+      {dirty && <p role="status">수정한 값 변환 방법을 아직 저장하지 않았습니다. 변경 영향 확인을 눌러 저장하고 다시 확인하세요.</p>}
       <div className="actions schema-actions">
         {uncertain
           ? (
@@ -237,7 +237,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
                   disabled={locked || !children.length}
                   onClick={() => void perform("analyze")}
                 >
-                  {busy ? "접수 중…" : "전체 영향 분석"}
+                  {busy ? "접수 중…" : "변경 영향 확인"}
                 </button>
               )}
               {change.status === "ready" && (
@@ -246,7 +246,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
                   disabled={locked || dirty || !!change.group?.failed}
                   onClick={() => void perform("apply")}
                 >
-                  검토한 전체 모델 적용
+                  검토한 설정 적용
                 </button>
               )}
               {change.status === "failed" && change.group?.retryable && (
@@ -255,7 +255,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
                   disabled={locked || dirty}
                   onClick={() => void perform("retry")}
                 >
-                  전체 변환 다시 시도
+                  값 변환 다시 시도
                 </button>
               )}
               {!["applied", "cancelled", "committing"].includes(change.status) && (
@@ -264,7 +264,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
                   disabled={locked}
                   onClick={() => void perform("cancel")}
                 >
-                  전체 변경안 취소
+                  변경 취소
                 </button>
               )}
             </>

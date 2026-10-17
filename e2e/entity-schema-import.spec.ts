@@ -18,7 +18,7 @@ async function currentDocument(page: Page, typeId: string) {
   await page.goto("/settings/data-model");
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "전체 모델 내보내기", exact: true })
+    page.getByRole("button", { name: "설정 내보내기", exact: true })
       .click(),
   ]);
   const bundle = JSON.parse(await readFile((await download.path())!, "utf8"));
@@ -43,7 +43,7 @@ async function importModelFile(page: Page, document: DataModelDocument) {
     new URL(r.url()).pathname.endsWith("/data-model/changes")
   );
   await page.getByRole("button", {
-    name: "검토한 전체 변경안 저장",
+    name: "검토 내용 저장",
     exact: true,
   }).click();
   const response = await prepared;
@@ -53,7 +53,7 @@ async function importModelFile(page: Page, document: DataModelDocument) {
     r.request().method() === "POST" &&
     new URL(r.url()).pathname.endsWith(`/data-model/changes/${change.id}/apply`)
   );
-  await page.getByRole("button", { name: "전체 적용", exact: true }).click();
+  await page.getByRole("button", { name: "설정 적용", exact: true }).click();
   const result = await applied;
   expect(result.ok()).toBe(true);
   const value = await result.json();
