@@ -54,7 +54,6 @@ export const entityPropertySort = z.strictObject({ key: propertyKey, direction: 
 export const entityListQuery = z.strictObject({
   source: entitySourceCode.optional(),
   entity_type_id: z.string().uuid().optional(),
-  link_candidate_for: entityReferenceId.optional(),
   tag_id: id.optional(),
   ...pageInput,
   cursor: z.string().min(1).max(24576).optional(),

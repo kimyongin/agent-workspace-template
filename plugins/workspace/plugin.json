@@ -1,15 +1,15 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "workspace",
-  "version": "0.8.0",
-  "description": "Workspace의 최신 상태·관련 자료·통합 기록을 찾아 요청한 업무를 준비하고 수행합니다.",
+  "version": "0.9.0",
+  "description": "Workspace의 자료 모델과 관계·할 일·기록을 활용해 요청한 업무를 준비하고 수행합니다.",
   "author": { "name": "Workspace" },
   "extensions": {
     "com.openai": {
       "interface": {
         "displayName": "Workspace",
-        "shortDescription": "할 일·기록 관리",
-        "longDescription": "Workspace에서 현재 상태와 저장된 근거를 조회하고 요청한 업무 결과를 기록합니다.",
+        "shortDescription": "자료 모델·관계·할 일·기록 관리",
+        "longDescription": "Workspace에서 자료 모델과 관계를 구성하고, 현재 상태와 저장된 근거를 조회해 요청한 업무 결과를 기록합니다.",
         "category": "Productivity",
         "defaultPrompt": "Workspace에서 현재 할 일과 관련 자료를 확인해 주세요."
       }

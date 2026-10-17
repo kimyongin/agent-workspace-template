@@ -1,6 +1,6 @@
 {
   "name": "workspace",
-  "version": "0.8.0",
-  "description": "Workspace의 최신 상태·관련 자료·통합 기록을 찾아 요청한 업무를 준비하고 수행합니다.",
+  "version": "0.9.0",
+  "description": "Workspace의 자료 모델과 관계·할 일·기록을 활용해 요청한 업무를 준비하고 수행합니다.",
   "author": { "name": "Workspace" }
 }

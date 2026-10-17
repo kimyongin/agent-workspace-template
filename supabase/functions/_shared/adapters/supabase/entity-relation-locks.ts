@@ -1,10 +1,13 @@
 import type postgres from "postgres";
-import type { Actor } from "../../core/shared/actor.ts";
-import { compareEntityIds } from "../../contracts/entity-pairs.ts";
 import { loadEntityDefinition } from "./entity-values.ts";
 
-export async function lockEntityPairs(tx: postgres.TransactionSql, actor: Actor) {
-  await tx`select pg_advisory_xact_lock(hashtextextended(${`${actor.userId}:entity_pairs`},0))`;
+/** UTF-8 byte order equals Unicode scalar order; JS UTF-16 order does not. */
+export function compareEntityIds(a: string, b: string): number {
+  const left = Array.from(a, (c) => c.codePointAt(0)!), right = Array.from(b, (c) => c.codePointAt(0)!);
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    if (left[i] !== right[i]) return left[i] - right[i];
+  }
+  return left.length - right.length;
 }
 export async function lockEndpoints(tx: postgres.TransactionSql, ids: string[]) {
   const rows = await tx<

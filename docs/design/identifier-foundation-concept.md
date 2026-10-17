@@ -247,7 +247,7 @@ HTTP와 MCP가 동일한 핵심 유스케이스·식별자 검증을 사용한�
 
 공개 계약 이름과 필드는 공유 contracts·HTTP/MCP 진입점에서 확인한다. 발급처 `/entity-issuers`, 번호 규칙 `/entity-issuers/:code/rules`와 `/entity-identifier-rules/:rule_id`, 종류별 설정 `/entity-types/:type_id/identity`가 저장 책임을 나눈다. 전역 `entity_identity` 설정과 구 rekey 입력은 제거한다. 식별자 라벨/번호/발급처는 기존 공통 변수와 목록·필터·연결·기록·검색 표현에서 직접 사용할 수 있어야 한다. `properties`에 없는 번호를 동적 렌더러가 누락하지 않게 공통 식별 정보와 업무 속성을 함께 구성한다.
 
-테이블은 기존 `entities`, `entity_types`, `entity_pairs`와 schema/version 구조를 재사용한다. 발급처와 그 규칙의 재사용 정의, 종류별 지원 규칙 연결은 별도 설정 저장 책임으로 둔다. 이 정의를 매 자료 행이나 여러 설정 위치에 복제하지 않는다. 재사용 관계와 참조 제약이 필요하므로 설정용 정규화 테이블을 추천하되 최종 컬럼/인덱스 DDL은 구현 스펙에서 정한다.
+테이블은 기존 `entities`, `entity_types`, `entity_relation_links`와 schema/version 구조를 재사용한다. 발급처와 그 규칙의 재사용 정의, 종류별 지원 규칙 연결은 별도 설정 저장 책임으로 둔다. 이 정의를 매 자료 행이나 여러 설정 위치에 복제하지 않는다. 재사용 관계와 참조 제약이 필요하므로 설정용 정규화 테이블을 추천하되 최종 컬럼/인덱스 DDL은 구현 스펙에서 정한다.
 
 기본 식별자 하나를 일반 props에서 빼므로 JSON Schema primitive 지원을 구조화된 식별자 객체까지 일괄 확장할 필요가 없다. 실제 데이터 검증은 고정 식별 계약 + 종류별 버전 JSON Schema 검증으로 나눈다. 일반 속성 마이그레이션은 그대로 필요하고 식별자를 직접 바꾸지 않는다.
 

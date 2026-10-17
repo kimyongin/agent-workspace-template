@@ -2,15 +2,27 @@
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { createHash, randomBytes } from "node:crypto";
-import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import {
+  Client,
+  StreamableHTTPClientTransport,
+} from "@modelcontextprotocol/client";
 import { expect, type Page, test as baseTest } from "@playwright/test";
 import { parse } from "smol-toml";
-import { cleanupOwnedFixture, type FixtureScope } from "../scripts/actual-fixture-cleanup.mjs";
+import {
+  cleanupOwnedFixture,
+  type FixtureScope,
+  modelFixtureRoots,
+} from "../scripts/actual-fixture-cleanup.mjs";
 
 export const env = parseEnv(
   readFileSync(new URL("../.env.local", import.meta.url), "utf8"),
 );
-const SUPABASE = env.VITE_SUPABASE_URL;
+function requiredEnv(name: string): string {
+  const value = env[name];
+  if (!value) throw new Error(`E2E 환경 설정이 필요합니다: ${name}`);
+  return value;
+}
+const SUPABASE = requiredEnv("VITE_SUPABASE_URL");
 if (!/^http:\/\/(127\.0\.0\.1|localhost)/.test(SUPABASE)) {
   throw new Error("E2E는 로컬 Supabase에서만 실행합니다");
 }
@@ -25,7 +37,8 @@ const tokenOwners = new Map<string, string>();
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function tokenOwner(token: string) {
   try {
-    const owner = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
+    const owner =
+      JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
     return typeof owner === "string" && uuid.test(owner) ? owner : null;
   } catch {
     return null;
@@ -45,6 +58,8 @@ function ownerScope(owner: string) {
         entity_types: [],
         entity_issuers: [],
         entity_identifier_rules: [],
+        entity_relation_definitions: [],
+        data_model_changes: [],
       },
       requestKeys: [],
     };
@@ -75,6 +90,13 @@ function ownFixtureRequest(owner: string, key: unknown) {
     !scope.requestKeys.includes(key)
   ) scope.requestKeys.push(key);
 }
+function ownModelResult(owner: string, result: unknown, key?: string) {
+  for (const [root, ids] of Object.entries(modelFixtureRoots(result))) {
+    for (const id of ids) {
+      ownFixtureResult(owner, root as keyof FixtureScope["ids"], id, key);
+    }
+  }
+}
 /** Per-test ownership survives early MCP close and is released only after all UI work ends. */
 export const test = baseTest.extend<{ _ownedFixture: void }>({
   _ownedFixture: [async ({ context }, use, testInfo) => {
@@ -85,7 +107,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
       tokens: new Set(),
     };
     activeScope = scope;
-    const apiOrigin = new URL(env.VITE_API_URL).origin;
+    const apiOrigin = new URL(requiredEnv("VITE_API_URL")).origin;
     context.on("request", (request) => {
       if (new URL(request.url()).origin !== apiOrigin) return;
       const owner = tokenOwner(
@@ -103,9 +125,15 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
           ? "entity_issuers"
           : /\/api\/entity-issuers\/[^/]+\/rules$/.test(path)
           ? "entity_identifier_rules"
+          : path.endsWith("/api/data-model/changes")
+          ? "data_model_changes"
+          : path.endsWith("/api/entity-relation-definitions")
+          ? "entity_relation_definitions"
           : path.endsWith("/api/entity-types")
           ? "entity_types"
-          : (["entities", "tasks", "records", "tags"] as const).find((root) => path.endsWith(`/api/${root}`));
+          : (["entities", "tasks", "records", "tags"] as const).find((root) =>
+            path.endsWith(`/api/${root}`)
+          );
       const owner = tokenOwner(
         response.request().headers().authorization?.replace(/^Bearer /i, "") ??
           "",
@@ -115,6 +143,13 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
         try {
           if (!await response.serverAddr()) return;
           const result = await response.json();
+          if (root === "data_model_changes") {
+            ownModelResult(
+              owner,
+              result,
+              response.request().headers()["idempotency-key"],
+            );
+          }
           ownFixtureResult(
             owner,
             root,
@@ -153,9 +188,10 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
             api: { port: number };
             db: { port: number };
           };
-          const target = new URL(env.LOCAL_DB_URL);
+          const target = new URL(requiredEnv("LOCAL_DB_URL"));
           if (
-            new URL(env.VITE_SUPABASE_URL).port !== String(config.api.port) ||
+            new URL(requiredEnv("VITE_SUPABASE_URL")).port !==
+              String(config.api.port) ||
             Number(target.port) !== config.db.port
           ) {
             throw new Error(
@@ -172,7 +208,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
           for (const owner of scope.owners.values()) {
             reports.push(
               ...await cleanupOwnedFixture(
-                env.LOCAL_DB_URL,
+                requiredEnv("LOCAL_DB_URL"),
                 environment,
                 owner,
               ),
@@ -196,8 +232,10 @@ const REDIRECT = "http://127.0.0.1:55390/callback";
 
 export async function devLogin(page: Page, who: "A" | "B" = "A") {
   await page.goto("/login");
-  await page.getByLabel("이메일").fill(env[`DEV_USER_${who}_EMAIL`]);
-  await page.getByLabel("비밀번호").fill(env[`DEV_USER_${who}_PASSWORD`]);
+  await page.getByLabel("이메일").fill(requiredEnv(`DEV_USER_${who}_EMAIL`));
+  await page.getByLabel("비밀번호").fill(
+    requiredEnv(`DEV_USER_${who}_PASSWORD`),
+  );
   await page.getByRole("button", { name: "이메일로 로그인" }).click();
   await expect(page.getByRole("heading", { name: "할 일", level: 1 }))
     .toBeVisible();
@@ -313,7 +351,12 @@ export async function mcpClient(token: string) {
     async call(name: string, args: Record<string, unknown>) {
       const writing =
         /^(create_|update_|delete_|link_|unlink_|rename_|rekey_|complete_|stop_|resume_|analyze_|apply_|start_|cancel_|retry_|record_occurrence$)/
-          .test(name);
+          .test(name) ||
+        [
+          "prepare_data_model",
+          "connect_entity_relation",
+          "replace_entity_relation",
+        ].includes(name);
       if (writing && !("request_key" in args)) {
         args = { ...args, request_key: crypto.randomUUID() };
       }
@@ -332,6 +375,8 @@ export async function mcpClient(token: string) {
         create_entity_issuer: "entity_issuers",
         create_entity_identifier_rule: "entity_identifier_rules",
         create_entity_type: "entity_types",
+        create_entity_relation_definition: "entity_relation_definitions",
+        prepare_data_model: "data_model_changes",
         create_entity: "entities",
         create_task: "tasks",
         create_record: "records",
@@ -341,13 +386,23 @@ export async function mcpClient(token: string) {
           | "create_entity_issuer"
           | "create_entity_identifier_rule"
           | "create_entity_type"
+          | "create_entity_relation_definition"
+          | "prepare_data_model"
           | "create_entity"
           | "create_task"
           | "create_record"
           | "create_tag"
       ];
+      if (name === "prepare_data_model" && owner) {
+        ownModelResult(owner, result, String(args.request_key));
+      }
       if (root && owner) {
-        ownFixtureResult(owner, root, root === "entity_issuers" ? result.code : result.id, String(args.request_key));
+        ownFixtureResult(
+          owner,
+          root,
+          root === "entity_issuers" ? result.code : result.id,
+          String(args.request_key),
+        );
       }
       return result;
     },
@@ -355,4 +410,5 @@ export async function mcpClient(token: string) {
   };
 }
 
-export const unique = (label: string) => `${label} ${Date.now().toString(36)}${randomBytes(2).toString("hex")}`;
+export const unique = (label: string) =>
+  `${label} ${Date.now().toString(36)}${randomBytes(2).toString("hex")}`;

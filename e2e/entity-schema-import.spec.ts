@@ -1,60 +1,78 @@
 import { expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import type { DataModelDocument } from "../supabase/functions/_shared/contracts/data-model.ts";
+import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import type { EntitySchema } from "../supabase/functions/_shared/contracts/entity-type.ts";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
-import { schemaAnalysisTick } from "./entity-schema-support.ts";
+import {
+  devLogin,
+  mcpClient,
+  mcpTokenViaConsent,
+  test,
+  unique,
+} from "./support.ts";
 import { saveOnce } from "./ui-actions.ts";
 
 type Mcp = Awaited<ReturnType<typeof mcpClient>>;
 
-async function currentDocument(page: Page) {
-  const history = page.getByRole("region", { name: "변경 이력", exact: true });
-  const toggle = history.getByRole("heading", { level: 2, name: /^변경 이력/ }).getByRole("button");
-  if (await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
+async function currentDocument(page: Page, typeId: string) {
+  await page.goto("/settings/data-model");
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    history.getByRole("button", { name: "현재 정의 JSON 내보내기", exact: true }).click(),
+    page.getByRole("button", { name: "전체 모델 내보내기", exact: true })
+      .click(),
   ]);
-  return JSON.parse(await readFile((await download.path())!, "utf8")) as EntitySchema;
+  const bundle = JSON.parse(await readFile((await download.path())!, "utf8"));
+  return bundle.entity_types.find((t: { schema: EntitySchema }) =>
+    t.schema["x-type-id"] === typeId
+  ).schema as EntitySchema;
 }
-
-async function importAndPublish(page: Page, mcp: Mcp, typeId: string, document: EntitySchema) {
-  const section = page.getByRole("region", { name: "정의 가져오기", exact: true });
-  const toggle = section.getByRole("button", { name: /^정의 가져오기/ });
-  if (await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
-  await expect(section.getByLabel("가져오는 방법")).toHaveValue("update");
-  await section.getByLabel("JSON 파일", { exact: true }).setInputFiles({
-    name: "edited-schema.json",
+async function importModelFile(page: Page, document: DataModelDocument) {
+  await page.goto("/settings/data-model");
+  await page.getByLabel("가져오는 방법", { exact: true }).selectOption(
+    "update",
+  );
+  await page.getByLabel("JSON 파일", { exact: true }).setInputFiles({
+    name: "whole-model.json",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(document, null, 2) + "\n"),
   });
-  await section.getByRole("button", { name: "가져올 내용 검토", exact: true }).click();
-  const prepared = page.waitForResponse((response) =>
-    response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/entity-schema-import/prepare")
+  await page.getByRole("button", { name: "가져올 내용 검토", exact: true })
+    .click();
+  const prepared = page.waitForResponse((r) =>
+    r.request().method() === "POST" &&
+    new URL(r.url()).pathname.endsWith("/data-model/changes")
   );
-  await section.getByRole("button", { name: "검토한 정의로 변경안 만들기", exact: true }).click();
+  await page.getByRole("button", {
+    name: "검토한 전체 변경안 저장",
+    exact: true,
+  }).click();
   const response = await prepared;
   expect(response.ok()).toBe(true);
-  const result = await response.json();
-  expect(result.change).toMatchObject({ type_id: typeId, status: "draft" });
-  await expect(page).toHaveURL(new RegExp(`change_id=${result.change.id}`));
-  const history = page.getByRole("region", { name: "변경 이력", exact: true });
-  await history.getByRole("button", { name: "변경 검토", exact: true }).click();
-  await expect.poll(async () => {
-    await schemaAnalysisTick();
-    return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: result.change.id })).status;
-  }, { timeout: 60_000 }).toBe("ready");
-  await expect(history.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
-  await history.getByRole("button", { name: "변경 적용", exact: true }).click();
-  await expect.poll(
-    async () => (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: result.change.id })).status,
-    { timeout: 30_000 },
-  ).toBe("applied");
-  const published = await mcp.call("get_entity_schema", { type_id: typeId });
-  await expect(history.getByRole("heading", { level: 2, name: /^변경 이력/ }).getByRole("button")).toContainText(
-    `현재 버전 ${published.schema_version}`,
+  const change = await response.json();
+  const applied = page.waitForResponse((r) =>
+    r.request().method() === "POST" &&
+    new URL(r.url()).pathname.endsWith(`/data-model/changes/${change.id}/apply`)
   );
-  return published;
+  await page.getByRole("button", { name: "전체 적용", exact: true }).click();
+  const result = await applied;
+  expect(result.ok()).toBe(true);
+  const value = await result.json();
+  expect(value.status).toBe("applied");
+  return value;
+}
+async function importAndPublish(
+  page: Page,
+  mcp: Mcp,
+  typeId: string,
+  document: EntitySchema,
+) {
+  const model = await mcp.call("export_data_model", {}) as DataModelDocument;
+  model.entity_types.find((t) => t.schema["x-type-id"] === typeId)!.schema =
+    document;
+  const change = await importModelFile(page, model);
+  expect((await mcp.call("get_data_model_change", { id: change.id })).status)
+    .toBe("applied");
+  return mcp.call("get_entity_schema", { type_id: typeId });
 }
 
 test("JSON file export→edited import→normal publication→web create/read→MCP export preserves choices, defaults and archive restoration", async ({ page }) => {
@@ -68,8 +86,10 @@ test("JSON file export→edited import→normal publication→web create/read→
       representative_label: "상품명",
     });
     await page.goto(`/settings/entity-types/${type.id}`);
-    const exported = await currentDocument(page);
-    expect(exported).toEqual((await mcp.call("get_entity_schema", { type_id: type.id })).schema);
+    const exported = await currentDocument(page, type.id);
+    expect(exported).toEqual(
+      (await mcp.call("get_entity_schema", { type_id: type.id })).schema,
+    );
     const label = unique("가져온 상품");
     const edited: EntitySchema = structuredClone(exported);
     edited.title = label;
@@ -79,7 +99,10 @@ test("JSON file export→edited import→normal publication→web create/read→
       title: "판매 상태",
       "x-order": 20,
       "x-show-in-list": true,
-      oneOf: [{ const: "ready", title: "판매 중" }, { const: "closed", title: "판매 종료" }, {
+      oneOf: [{ const: "ready", title: "판매 중" }, {
+        const: "closed",
+        title: "판매 종료",
+      }, {
         const: null,
         title: "미입력",
       }],
@@ -103,57 +126,238 @@ test("JSON file export→edited import→normal publication→web create/read→
     };
     const published = await importAndPublish(page, mcp, type.id, edited);
     expect(published.schema_version).toBe(2);
-    expect(published.schema).toMatchObject({ "x-type-id": type.id, "x-version": 2, title: label, "x-icon": "package" });
+    expect(published.schema).toMatchObject({
+      "x-type-id": type.id,
+      "x-version": 2,
+      title: label,
+      "x-icon": "package",
+    });
     const propertyKey = (title: string) =>
       Object.entries(published.schema.properties).find(([, value]) =>
         (value as { title?: string }).title === title
       )![0];
-    const statusKey = propertyKey("판매 상태"), quantityKey = propertyKey("수량"), fixedKey = propertyKey("고정 번호");
-    expect([statusKey, quantityKey, fixedKey]).toEqual(["prop_2", "prop_3", "prop_4"]);
+    const statusKey = propertyKey("판매 상태"),
+      quantityKey = propertyKey("수량"),
+      fixedKey = propertyKey("고정 번호");
+    expect([statusKey, quantityKey, fixedKey]).toEqual([
+      "prop_8",
+      "prop_12",
+      "prop_16",
+    ]);
 
     await page.goto(`/entities?entity_type_id=${type.id}`);
-    await page.getByRole("button", { name: `${label} 추가`, exact: true }).click();
-    const form = page.getByRole("dialog", { name: `${label} 추가`, exact: true });
+    await page.getByRole("button", { name: `${label} 추가`, exact: true })
+      .click();
+    const form = page.getByRole("dialog", {
+      name: `${label} 추가`,
+      exact: true,
+    });
     const name = unique("파일 왕복 상품");
-    await form.getByRole("textbox", { name: "상품명 (필수)", exact: true }).fill(name);
+    await form.getByRole("textbox", { name: "상품명 (필수)", exact: true })
+      .fill(name);
     await expect(form.getByLabel("수량", { exact: true })).toHaveValue("0");
-    await expect(form.getByLabel("판매 상태", { exact: true })).toHaveValue("null");
+    await expect(form.getByLabel("판매 상태", { exact: true })).toHaveValue(
+      "null",
+    );
     await expect(form.getByLabel("고정 번호", { exact: true })).toHaveCount(0);
     await saveOnce(page, form);
     await expect(form).not.toBeVisible();
-    await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
-    const entityId = decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
+    await expect(page.getByRole("heading", { name, exact: true }))
+      .toBeVisible();
+    const entityId = decodeURIComponent(
+      new URL(page.url()).pathname.split("/").at(-1)!,
+    );
     const created = await mcp.call("get_entity", { id: entityId });
-    expect(created.properties).toEqual({ prop_1: name, [statusKey]: null, [quantityKey]: 0, [fixedKey]: "LOCKED" });
+    expect(created.properties).toEqual({
+      prop_1: name,
+      [statusKey]: null,
+      [quantityKey]: 0,
+      [fixedKey]: "LOCKED",
+    });
     await expect(page.getByText("LOCKED", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "편집", exact: true }).click();
-    const edit = page.getByRole("dialog", { name: `${label} 편집`, exact: true });
-    await edit.getByLabel("판매 상태", { exact: true }).selectOption("value:ready");
+    const edit = page.getByRole("dialog", {
+      name: `${label} 편집`,
+      exact: true,
+    });
+    await edit.getByLabel("판매 상태", { exact: true }).selectOption(
+      "value:ready",
+    );
     await saveOnce(page, edit);
     await expect(edit).not.toBeVisible();
     await expect(page.getByText("판매 중", { exact: true })).toBeVisible();
-    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({
-      ...created.properties,
-      [statusKey]: "ready",
-    });
+    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual(
+      {
+        ...created.properties,
+        [statusKey]: "ready",
+      },
+    );
 
     await page.goto(`/settings/entity-types/${type.id}`);
-    expect(await currentDocument(page)).toEqual(published.schema);
-    const archived = await importAndPublish(page, mcp, type.id, { ...published.schema, deprecated: true });
+    expect(await currentDocument(page, type.id)).toEqual(published.schema);
+    const archived = await importAndPublish(page, mcp, type.id, {
+      ...published.schema,
+      deprecated: true,
+    });
     expect(archived.schema).toMatchObject({ deprecated: true, "x-version": 3 });
     await page.goto(`/entities?entity_type_id=${type.id}`);
-    await expect(page.getByRole("button", { name: `${label} 추가`, exact: true })).toHaveCount(0);
-    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({
-      ...created.properties,
-      [statusKey]: "ready",
-    });
+    await expect(
+      page.getByRole("button", { name: `${label} 추가`, exact: true }),
+    ).toHaveCount(0);
+    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual(
+      {
+        ...created.properties,
+        [statusKey]: "ready",
+      },
+    );
     await page.goto(`/settings/entity-types/${type.id}`);
-    const restored = await importAndPublish(page, mcp, type.id, { ...archived.schema, deprecated: false });
-    expect(restored.schema).toMatchObject({ deprecated: false, "x-version": 4 });
+    const restored = await importAndPublish(page, mcp, type.id, {
+      ...archived.schema,
+      deprecated: false,
+    });
+    expect(restored.schema).toMatchObject({
+      deprecated: false,
+      "x-version": 4,
+    });
     expect(restored.schema.properties).toEqual(published.schema.properties);
-    expect(await currentDocument(page)).toEqual(restored.schema);
+    expect(await currentDocument(page, type.id)).toEqual(restored.schema);
     await page.goto(`/entities?entity_type_id=${type.id}`);
-    await expect(page.getByRole("button", { name: `${label} 추가`, exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `${label} 추가`, exact: true }),
+    ).toBeVisible();
+  } finally {
+    await mcp.close();
+  }
+});
+
+test("one whole-model file configures two new kinds and their typed relationship for actual web and MCP work", async ({ page }) => {
+  test.setTimeout(240_000);
+  await devLogin(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  try {
+    const productName = unique("파일 상품"), orderName = unique("파일 주문");
+    const current = await mcp.call(
+      "export_data_model",
+      {},
+    ) as DataModelDocument;
+    const source: DataModelDocument = {
+      format: "workspace-data-model",
+      format_version: 1,
+      title: unique("상품 주문 모델"),
+      entity_types: [
+        {
+          ref: "products",
+          schema: initialEntityDefinition("상품명", {
+            id: crypto.randomUUID(),
+            title: productName,
+            icon: "package",
+          }).schema,
+          identity: {
+            label: "번호",
+            default_source: "app",
+            version: 1,
+            sources: [{
+              code: "app",
+              rule_id: "00000000-0000-4000-8000-000000000001",
+              active: true,
+            }],
+          },
+        },
+        {
+          ref: "orders",
+          schema: initialEntityDefinition("주문명", {
+            id: crypto.randomUUID(),
+            title: orderName,
+            icon: "box",
+          }).schema,
+          identity: {
+            label: "번호",
+            default_source: "app",
+            version: 1,
+            sources: [{
+              code: "app",
+              rule_id: "00000000-0000-4000-8000-000000000001",
+              active: true,
+            }],
+          },
+        },
+      ],
+      relations: [{
+        id: crypto.randomUUID(),
+        version: 1,
+        archived: false,
+        ends: [{
+          type_ref: "products",
+          label: "등록 주문",
+          cardinality: "many",
+        }, { type_ref: "orders", label: "주문 상품", cardinality: "one" }],
+      }],
+      identity_definitions: {
+        issuers: current.identity_definitions.issuers.filter((i) =>
+          i.code === "app"
+        ),
+        rules: current.identity_definitions.rules.filter((r) =>
+          r.id === "00000000-0000-4000-8000-000000000001"
+        ),
+      },
+    };
+    const applied = await importModelFile(page, source);
+    const detail = await mcp.call("get_data_model_change", { id: applied.id });
+    const productType = detail.review.mapping.types.products,
+      orderType = detail.review.mapping.types.orders,
+      definition = detail.result.relation_ids[0];
+    expect(productType).not.toBe(orderType);
+    expect(detail.result.counts.types.added).toBe(2);
+    expect(detail.result.counts.relations.added).toBe(1);
+    await page.goto(`/entities?entity_type_id=${productType}`);
+    await page.getByRole("button", { name: `${productName} 추가`, exact: true })
+      .click();
+    const form = page.getByRole("dialog", {
+        name: `${productName} 추가`,
+        exact: true,
+      }),
+      title = unique("모델로 등록한 상품");
+    await form.getByRole("textbox", { name: "상품명 (필수)", exact: true })
+      .fill(title);
+    await saveOnce(page, form);
+    await expect(form).not.toBeVisible();
+    const productId = decodeURIComponent(
+      new URL(page.url()).pathname.split("/").at(-1)!,
+    );
+    const product = await mcp.call("get_entity", { id: productId });
+    expect(product.title).toBe(title);
+    const orderTitle = unique("모델로 등록한 주문"),
+      order = await mcp.call("create_entity", {
+        entity_type_id: orderType,
+        schema_version: 1,
+        properties: { prop_1: orderTitle },
+      });
+    await mcp.call("connect_entity_relation", {
+      definition_id: definition,
+      side: 1,
+      origin_id: order.id,
+      other_id: product.id,
+      expected_definition_version: 1,
+      expected_version: order.version,
+      expected_other_version: product.version,
+    });
+    expect(
+      (await mcp.call("list_entity_relation_links", {
+        definition_id: definition,
+        side: 0,
+        origin_id: product.id,
+      })).items.map((e: { id: string }) => e.id),
+    ).toEqual([order.id]);
+    await page.goto(`/entities/${encodeURIComponent(product.id)}`);
+    await expect(
+      page.getByLabel("등록 주문 관계", { exact: true }).filter({
+        visible: true,
+      }).getByRole("button", { name: orderTitle, exact: true }),
+    ).toBeVisible();
+    const before = await mcp.call("export_data_model", {});
+    const repeated = await importModelFile(page, source);
+    expect(repeated.result.changed).toBe(false);
+    expect(await mcp.call("export_data_model", {})).toEqual(before);
   } finally {
     await mcp.close();
   }

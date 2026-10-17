@@ -1,113 +1,67 @@
+import type { EntitySchema } from "../../functions/_shared/contracts/entity-type.ts";
+import type { DataModelDocument } from "../../functions/_shared/contracts/data-model.ts";
+import { requestIdentity } from "../../functions/_shared/core/shared/request.ts";
 import { initialEntityDefinition } from "../../functions/_shared/contracts/entity-type.ts";
-import { assert, assertEquals, assertNotEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { admin, call, httpTest, signIn } from "../http/_client.ts";
 import { claimsOf, connectMcp, mcpToken, tool } from "./_mcp.ts";
 
-httpTest("schema import HTTP/MCP: copy mapping, reviewed draft, stale source, no-op and ownership", async () => {
-  const token = await signIn("A"), other = await signIn("B"), client = await connectMcp(await mcpToken(token));
-  const ids: string[] = [];
-  try {
-    const source = (await call(token, "POST", "/entity-types", { label: "import source " + crypto.randomUUID() })).body;
-    ids.push(source.id);
-    const original = (await call(token, "GET", `/entity-types/${source.id}/schema`)).body.schema;
-    const copiedDocument = structuredClone(original);
-    copiedDocument.title = "import copy " + crypto.randomUUID();
-    copiedDocument.properties = { prop_9: copiedDocument.properties.prop_1 };
-    copiedDocument.required = ["prop_9"];
-    const copy = { mode: "copy", document: JSON.stringify(copiedDocument, null, 2) };
-    const preview = await call(token, "POST", "/entity-schema-import/preview", copy, null);
-    assertEquals(preview.status, 200);
-    assertEquals(preview.body.key_mapping, { prop_9: "prop_1" });
-    assertEquals(preview.body.schema.required, ["prop_1"]);
-    assertEquals(await tool(client, "preview_entity_schema_import", copy), preview.body);
-    const key = crypto.randomUUID(), preparedInput = { ...copy, preview_fingerprint: preview.body.preview_fingerprint };
-    const prepared = await call(token, "POST", "/entity-schema-import/prepare", preparedInput, key);
-    assertEquals(prepared.status, 201);
-    const created = prepared.body.type;
-    ids.push(created.id);
-    assertNotEquals(created.id, source.id);
-    assertEquals(created.schema_version, 1);
-    assertEquals(prepared.body.schema["x-type-id"], created.id);
-    assertEquals(prepared.body.schema["x-version"], 1);
-    assertEquals(prepared.body.schema.required, ["prop_1"]);
-    assertEquals(
-      await tool(client, "prepare_entity_schema_import", { ...preparedInput, request_key: key }),
-      prepared.body,
-    );
-    const exported = (await tool(client, "get_entity_schema", { type_id: created.id })).schema;
-    assertEquals(exported, prepared.body.schema);
-    const unchanged = {
-      mode: "update",
-      type_id: created.id,
-      expected_schema_version: 1,
-      document: JSON.stringify(exported),
-    };
-    const same = (await call(token, "POST", "/entity-schema-import/preview", unchanged, null)).body;
-    assertEquals(same.changed, false);
-    const noChange = await call(token, "POST", "/entity-schema-import/prepare", {
-      ...unchanged,
-      preview_fingerprint: same.preview_fingerprint,
-    });
-    assertEquals(noChange.status, 201);
-    assertEquals(noChange.body.changed, false);
-    assertEquals(noChange.body.change, null);
-    assertEquals((await call(token, "GET", `/entity-types/${created.id}/schemas`)).body.items.length, 1);
-    const edited = structuredClone(exported);
-    edited.properties.prop_1.title = "가져온 이름";
-    edited.properties.prop_27 = { type: ["integer", "null"], title: "수량", minimum: 0, multipleOf: 2, "x-order": 20 };
-    const update = { ...unchanged, document: JSON.stringify(edited) };
-    const review = (await call(token, "POST", "/entity-schema-import/preview", update, null)).body;
-    assertEquals(review.key_mapping.prop_27, "prop_2");
-    assertEquals(review.source_is_stale, false);
-    const writeKey = crypto.randomUUID();
-    const writeInput = { ...update, preview_fingerprint: review.preview_fingerprint };
-    const draft = await tool(client, "prepare_entity_schema_import", { ...writeInput, request_key: writeKey });
-    assert(draft.change.id);
-    assertEquals(draft.change.status, "draft");
-    const storedDraft =
-      (await call(token, "GET", `/entity-types/${created.id}/schema-changes/${draft.change.id}`)).body;
-    assertEquals(storedDraft.target.schema.properties.prop_2.multipleOf, 2);
-    assertEquals((await call(token, "POST", "/entity-schema-import/prepare", writeInput, writeKey)).body, draft);
-    assertEquals((await call(token, "GET", `/entity-types/${created.id}/schema`)).body.schema, exported);
-    assertEquals((await call(other, "POST", "/entity-schema-import/preview", unchanged, null)).status, 404);
-    assertEquals(
-      (await call(token, "POST", "/entity-schema-import/preview", { ...update, type_id: source.id }, null)).status,
-      400,
-    );
-    const renamed = await call(token, "PATCH", `/entity-types/${created.id}`, {
-      expected_schema_version: 1,
-      label: "new head " + crypto.randomUUID(),
-    });
-    assertEquals(renamed.status, 200);
-    assertEquals((await call(token, "POST", "/entity-schema-import/prepare", writeInput)).status, 409);
-    const oldSource = await call(token, "POST", "/entity-schema-import/preview", {
-      ...unchanged,
-      expected_schema_version: 2,
-    }, null);
-    assertEquals(oldSource.status, 200);
-    assertEquals(oldSource.body.source_schema_version, 1);
-    assertEquals(oldSource.body.current_schema_version, 2);
-    assertEquals(oldSource.body.source_is_stale, true);
-    assert(oldSource.body.changed);
-  } finally {
-    await client.close();
-    for (const id of ids.reverse()) await admin`delete from app.entity_types where id=${id}`;
-  }
-});
-
-httpTest("schema import rejects duplicate JSON keys and unsupported annotations without writes", async () => {
+function bundle(schema: EntitySchema): DataModelDocument {
+  return {
+    format: "workspace-data-model",
+    format_version: 1,
+    title: "import validation",
+    entity_types: [{
+      ref: "item",
+      schema,
+      identity: {
+        version: 1,
+        label: "번호",
+        default_source: "app",
+        sources: [{ code: "app", rule_id: "00000000-0000-4000-8000-000000000001", active: true }],
+      },
+    }],
+    relations: [],
+    identity_definitions: {
+      issuers: [{ code: "app", label: "앱", active: true, system: true, version: 1 }],
+      rules: [{
+        id: "00000000-0000-4000-8000-000000000001",
+        source: "app",
+        label: "자동 발급",
+        meaning: "앱이 발급한 자료 번호",
+        generation: "automatic",
+        active: true,
+        version: 1,
+      }],
+    },
+  };
+}
+// Full copy/update/replay/ownership parity continues in data-model.test.ts.
+httpTest("whole-model preview rejects duplicate keys and unsupported schema annotations without writes", async () => {
   const token = await signIn("A"), client = await connectMcp(await mcpToken(token));
   try {
-    const duplicate = { mode: "copy", document: '{"properties":{"prop_1":{"title":"a","title":"b"}}}' };
-    const http = await call(token, "POST", "/entity-schema-import/preview", duplicate, null);
+    const before = (await call(token, "GET", "/data-model/export")).body;
+    const schema =
+      initialEntityDefinition("이름", { id: crypto.randomUUID(), title: "Invalid import", icon: "box" }).schema;
+    const document = JSON.stringify(bundle(schema));
+    const duplicate = {
+      mode: "copy",
+      document: document.replace('"title":"Invalid import"', '"title":"first","title":"second"'),
+    };
+    const http = await call(token, "POST", "/data-model/preview", duplicate, null);
     assertEquals(http.status, 400);
     assertEquals(http.body.code, "invalid_input");
-    assert(http.body.fields?.length > 0);
-    const mcp = await tool(client, "preview_entity_schema_import", duplicate);
-    assertEquals(mcp.error.code, http.body.code);
-    assertEquals(mcp.error.fields, http.body.fields);
-    const unsupported = { mode: "copy", document: '{"$ref":"https://example.invalid/schema"}' };
-    assertEquals((await call(token, "POST", "/entity-schema-import/preview", unsupported, null)).status, 400);
+    assert(http.body.fields.length > 0);
+    const mcp = await tool(client, "preview_data_model", duplicate);
+    assertEquals(mcp.error, http.body);
+    const unsupported = {
+      mode: "copy",
+      document: JSON.stringify(bundle({ ...schema, $ref: "https://example.invalid/schema" } as EntitySchema)),
+    };
+    const rejected = await call(token, "POST", "/data-model/preview", unsupported, null);
+    assertEquals(rejected.status, 400);
+    assertEquals((await tool(client, "preview_data_model", unsupported)).error, rejected.body);
+    assertEquals((await call(token, "POST", "/entity-schema-import/preview", duplicate, null)).status, 404);
     assertEquals(
       (await call(token, "POST", "/entity-schema-import/prepare", {
         ...duplicate,
@@ -115,17 +69,56 @@ httpTest("schema import rejects duplicate JSON keys and unsupported annotations 
       })).status,
       400,
     );
+    assertEquals((await call(token, "GET", "/data-model/export")).body, before);
   } finally {
     await client.close();
   }
 });
+httpTest(
+  "retired import HTTP/MCP replays exact historical results and rejects changed, foreign or new requests",
+  async () => {
+    const token = await signIn("A"), other = await signIn("B"), client = await connectMcp(await mcpToken(token));
+    const owner = String(claimsOf(token).sub), key = crypto.randomUUID();
+    const raw = { mode: "copy", document: "{}", preview_fingerprint: "b".repeat(64), new_keys: [], remove_keys: [] };
+    const identity = await requestIdentity(
+      { userId: owner, request: { key } },
+      "entity-schema-import.prepare",
+      null,
+      raw,
+    );
+    const original = {
+      changed: true,
+      type: { id: crypto.randomUUID(), schema_version: 1 },
+      key_mapping: { prop_9: "prop_1" },
+      change: null,
+    };
+    try {
+      await admin`insert into private.request_results(owner_id,request_key,operation,fingerprint,result,completed_at) values(${owner},${key}::uuid,${identity.operation},${identity.fingerprint},${
+        admin.json(original)
+      },now())`;
+      const response = await call(token, "POST", "/entity-schema-import/prepare", raw, key);
+      assertEquals(response.status, 200);
+      assertEquals(response.body, original);
+      assertEquals(await tool(client, "prepare_entity_schema_import", { ...raw, request_key: key }), original);
+      assertEquals(
+        (await call(token, "POST", "/entity-schema-import/prepare", { ...raw, document: "[]" }, key)).status,
+        409,
+      );
+      assertEquals((await call(other, "POST", "/entity-schema-import/prepare", raw, key)).status, 400);
+      assertEquals((await call(token, "POST", "/entity-schema-import/prepare", raw, crypto.randomUUID())).status, 400);
+    } finally {
+      await client.close();
+      await admin`delete from private.request_results where owner_id=${owner} and request_key=${key}::uuid`;
+    }
+  },
+);
 
 httpTest(
   "readonly imported defaults: HTTP/MCP memo preparation returns writable input while resolving server defaults",
   async () => {
     const token = await signIn("A"), client = await connectMcp(await mcpToken(token));
     const owner = String(claimsOf(token).sub), run = crypto.randomUUID(), keys: string[] = [];
-    let typeId: string | undefined;
+    let typeId: string | undefined, modelChangeId: string | undefined;
     const key = () => {
       const value = crypto.randomUUID();
       keys.push(value);
@@ -140,16 +133,24 @@ httpTest(
       Object.assign(schema.properties.prop_1, { readOnly: true, default: "Auto" });
       schema.properties.prop_2 = { type: "string", "x-order": 20, readOnly: true, default: "LOCKED" };
       schema.properties.prop_3 = { type: "string", "x-order": 30 };
-      const copy = { mode: "copy", document: JSON.stringify(schema) };
-      const preview = await call(token, "POST", "/entity-schema-import/preview", copy, null);
+      const copy = { mode: "copy", document: JSON.stringify(bundle(schema)) };
+      const preview = await call(token, "POST", "/data-model/preview", copy, null);
       assertEquals(preview.status, 200);
-      const copied = await tool(client, "prepare_entity_schema_import", {
+      const prepared = await tool(client, "prepare_data_model", {
         ...copy,
-        preview_fingerprint: preview.body.preview_fingerprint,
+        preview_fingerprint: preview.body.fingerprint,
         request_key: key(),
       });
-      assert(copied.type?.id);
-      typeId = copied.type.id;
+      modelChangeId = prepared.id;
+      assert(modelChangeId);
+      const applied = await tool(client, "apply_data_model", {
+        id: prepared.id,
+        expected_version: prepared.version,
+        request_key: key(),
+      });
+      assertEquals(applied.status, "applied", JSON.stringify(applied));
+      typeId = applied.result.type_ids[0];
+      assert(typeId);
       for (const transport of ["http", "mcp"] as const) {
         const input = {
           model: "entity",
@@ -198,6 +199,9 @@ httpTest(
       assertEquals((await tool(client, "prepare_record_memo", bad)).error, rejected.body);
     } finally {
       await client.close();
+      if (modelChangeId) {
+        await admin`delete from app.data_model_changes where owner_id=${owner} and id=${modelChangeId}::uuid`;
+      }
       if (typeId) {
         await admin.begin(async (tx) => {
           const entities = await tx`select id from app.entities where owner_id=${owner} and entity_type_id=${typeId!}`;

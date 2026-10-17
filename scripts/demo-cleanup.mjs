@@ -6,12 +6,14 @@ import { pathToFileURL } from 'node:url';
 export const cleanupTables = [
   'private.passage_effects', 'pgmq.q_search_index', 'pgmq.a_search_index',
   'app.search_chunks', 'app.search_index_state', 'private.entity_schema_migration_rows',
-  'private.entity_schema_analysis_rows', 'app.entity_schema_migrations', 'app.entity_schema_analyses',
-  'app.entity_schema_changes', 'app.entity_pairs', 'app.entity_tags', 'app.task_tags', 'app.record_tags',
+  'private.entity_schema_analysis_rows', 'app.data_model_changes', 'app.entity_schema_migrations', 'app.entity_schema_analyses',
+  'app.entity_relation_links', 'app.entity_relation_definitions',
+  'app.entity_schema_changes', 'app.entity_tags', 'app.task_tags', 'app.record_tags',
   'app.records', 'app.tasks', 'app.entities', 'app.tags',
   'app.entity_schema_versions', 'app.entity_types', 'app.user_business_settings',
 ];
 const roots = ['entities', 'tasks', 'records', 'tags', 'entity_types'];
+const optionalRoots = ['entity_relation_definitions', 'data_model_changes'];
 const actions = ['create', 'update', 'delete', 'restore'];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const canonical = value => JSON.stringify(value, (_, v) => v && typeof v === 'object' && !Array.isArray(v)
@@ -21,16 +23,17 @@ export function validateManifest(m) {
   if (!m.environment || typeof m.environment.name !== 'string' || !m.environment.name.trim()
       || !m.environment.host || !Number.isInteger(m.environment.port) || m.environment.port < 1
       || m.environment.port > 65535 || !m.environment.database) throw new Error('explicit environment identity required');
-  if (!m.ids || Object.keys(m.ids).length !== roots.length || roots.some(k => !Array.isArray(m.ids[k])
+  if (!m.ids || Object.keys(m.ids).some(k => ![...roots,...optionalRoots].includes(k)) || roots.some(k => !Array.isArray(m.ids[k])
       || m.ids[k].some(id => typeof id !== 'string' || !id || id === '*' || id.length > (k === 'entities' ? 470 : 200))
       || new Set(m.ids[k]).size !== m.ids[k].length)) throw new Error('explicit ids arrays required for each supported root');
+  if (optionalRoots.some(k => m.ids[k] !== undefined && (!Array.isArray(m.ids[k]) || m.ids[k].some(id => !uuid.test(id)) || new Set(m.ids[k]).size !== m.ids[k].length))) throw new Error('explicit model ids required');
   if (m.ids.entity_types.some(id => !uuid.test(id))) throw new Error('type IDs must be UUIDs');
   if (!Array.isArray(m.reset_template_paths) || m.reset_template_paths.some(p => !Array.isArray(p)
       || !(p.length === 2 && p[0] === 'entity' && actions.includes(p[1])
         || p.length === 3 && p[0] === 'entity_types' && uuid.test(p[1]) && actions.includes(p[2])))) {
     throw new Error('only explicit entity record template action paths may be reset');
   }
-  if (!roots.some(k => m.ids[k].length) && !m.reset_template_paths.length) throw new Error('empty scope');
+  if (!roots.some(k => m.ids[k].length) && !optionalRoots.some(k => m.ids[k]?.length) && !m.reset_template_paths.length) throw new Error('empty scope');
   return m;
 }
 function removePaths(settings, paths) {
@@ -53,13 +56,16 @@ export function planCleanup(manifest, inventory) {
   const m = validateManifest(manifest), owner = m.owner_id;
   const rows = table => (inventory[table] ?? []).filter(r => table.startsWith('pgmq.')
     ? r.message?.owner_id === owner : r.owner_id === owner);
-  const ids = Object.fromEntries(roots.map(k => [k, new Set(m.ids[k])]));
+  const ids = Object.fromEntries([...roots,...optionalRoots].map(k => [k, new Set(m.ids[k] ?? [])]));
   const selected = {}, blockers = [];
   const select = (table, predicate) => selected[table] = rows(table).filter(predicate);
-  for (const root of roots) {
+  for (const root of [...roots,...optionalRoots]) {
     select(`app.${root}`, r => ids[root].has(r.id));
     for (const id of ids[root]) if (!selected[`app.${root}`].some(r => r.id === id)) blockers.push({ table: `app.${root}`, id, reason: 'missing_or_wrong_owner' });
   }
+  for(const r of rows('app.entity_relation_definitions')) if(!ids.entity_relation_definitions.has(r.id) && (ids.entity_types.has(r.left_type_id) || ids.entity_types.has(r.right_type_id))) blockers.push({table:'app.entity_relation_definitions',id:r.id,reason:'unapproved_relation_definition'});
+  select('app.entity_relation_links', r => ids.entity_relation_definitions.has(r.definition_id) || ids.entities.has(r.left_entity_id) || ids.entities.has(r.right_entity_id));
+  for(const r of selected['app.entity_relation_links']) if(!ids.entities.has(r.left_entity_id) || !ids.entities.has(r.right_entity_id)) blockers.push({table:'app.entity_relation_links',id:r.definition_id,reason:'unapproved_typed_endpoint'});
   for (const r of rows('app.entities')) if (ids.entity_types.has(r.entity_type_id) && !ids.entities.has(r.id)) blockers.push({ table: 'app.entities', id: r.id, reason: 'unapproved_type_member' });
   for (const r of rows('app.entities')) if (!ids.entities.has(r.id) && contains(r.properties, ids.entities)) blockers.push({ table: 'app.entities', id: r.id, reason: 'unapproved_entity_reference' });
   for (const table of ['app.tasks', 'app.records']) for (const r of rows(table)) {
@@ -76,8 +82,6 @@ export function planCleanup(manifest, inventory) {
     if ((ids.entities.has(r.entity_id) || contains([r.source_properties, r.properties, r.after, r.record_context], ids.entities)) && !selected[table].includes(r)) blockers.push({ table, id: r.entity_id, reason: 'unapproved_recovery_reference' });
   }
   for (const r of rows('app.entity_schema_migrations')) if (!jobs.has(r.id) && contains([r.source_references, r.committed_references, r.source_templates, r.target], new Set([...ids.entities, ...ids.entity_types, ...ids.tags, ...ids.records, ...ids.tasks]))) blockers.push({ table: 'app.entity_schema_migrations', id: r.id, reason: 'unapproved_recovery_reference' });
-  select('app.entity_pairs', r => ids.entities.has(r.entity_id) || ids.entities.has(r.other_id));
-  for (const r of selected['app.entity_pairs']) if (!ids.entities.has(r.entity_id) || !ids.entities.has(r.other_id)) blockers.push({ table: 'app.entity_pairs', id: `${r.entity_id}/${r.other_id}`, reason: 'unapproved_pair_endpoint' });
   for (const [table, key, root] of [['app.entity_tags', 'entity_id', 'entities'], ['app.task_tags', 'task_id', 'tasks'], ['app.record_tags', 'record_id', 'records']]) {
     select(table, r => ids[root].has(r[key]) || ids.tags.has(r.tag_id));
     for (const r of selected[table]) if (ids.tags.has(r.tag_id) && !ids[root].has(r[key])) blockers.push({ table, id: r[key], reason: 'unapproved_tag_usage' });
@@ -149,7 +153,7 @@ export async function runCleanup(sql, manifest, approvedDigest) {
     if (manifest.reset_template_paths.length) await tx`update app.user_business_settings set settings=${tx.json(report.updatedSettings)}, version=version+1, updated_at=now() where owner_id=${manifest.owner_id} and id='record_templates'`;
     const after = await inventoryFor(tx, manifest.owner_id);
     for (const [table, deleted] of Object.entries(report.selection)) {
-      const keys = table.startsWith('pgmq.') ? ['msg_id'] : table === 'private.passage_effects' ? ['id'] : ['owner_id', ...['id', 'entity_id', 'other_id', 'type_id', 'schema_version', 'job_id', 'analysis_id', 'record_id', 'task_id', 'tag_id', 'ordinal'].filter(k => deleted.some(r => k in r))];
+      const keys = table.startsWith('pgmq.') ? ['msg_id'] : table === 'private.passage_effects' ? ['id'] : ['owner_id', ...['id', 'entity_id', 'other_id', 'type_id', 'schema_version', 'job_id', 'analysis_id', 'record_id', 'task_id', 'tag_id', 'ordinal', 'definition_id', 'left_entity_id', 'right_entity_id'].filter(k => deleted.some(r => k in r))];
       if (deleted.some(r => after[table]?.some(s => keys.every(k => s[k] === r[k])))) throw new Error('residual cleanup reference');
     }
     return { mode: 'applied', ...report, residual_rows: 0 };

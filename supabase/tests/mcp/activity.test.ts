@@ -20,8 +20,6 @@ import {
   schemaMigrationStart,
   schemaRecoveryCreate,
 } from "../../functions/_shared/contracts/entity-schema-migration.ts";
-import { entityPairQuery, entityPairWrite } from "../../functions/_shared/contracts/entity-pairs.ts";
-import { entityReferenceId } from "../../functions/_shared/contracts/entity-identity.ts";
 import {
   schemaAnalysisRows,
   schemaChangeAction,
@@ -210,9 +208,6 @@ const EXPECTED_TOOLS = [
   "get_entity",
   "list_entities",
   "update_entity",
-  "list_entity_links",
-  "link_entities",
-  "unlink_entities",
   "list_entity_type_icons",
   "list_entity_types",
   "get_entity_type",
@@ -459,9 +454,6 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     update_entity_identifier_rule: identifierRuleUpdate.extend({ rule_id: z.string().uuid(), request_key: requestKey }),
     get_entity_type_identity: z.strictObject({ type_id: z.string().uuid() }),
     update_entity_type_identity: typeIdentityUpdate.safeExtend({ type_id: z.string().uuid(), request_key: requestKey }),
-    list_entity_links: entityPairQuery.extend({ id: entityReferenceId }),
-    link_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),
-    unlink_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),
     list_entity_type_icons: z.strictObject({}),
     list_entity_types: entityTypeList,
     get_entity_type: z.strictObject({ type_id: z.string().uuid() }),

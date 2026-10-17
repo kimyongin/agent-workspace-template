@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { assertEnvironment, runCleanup } from "./demo-cleanup.mjs";
 const roots = ["entities", "tasks", "records", "tags", "entity_types"];
+const modelRoots = ["entity_relation_definitions", "data_model_changes"];
+const businessRoots = [...roots, ...modelRoots];
 const registryRoots = ["entity_issuers", "entity_identifier_rules"];
-const allRoots = [...roots, ...registryRoots];
+const allRoots = [...businessRoots, ...registryRoots];
 const creations = {
   "entity.create": "entities",
   "task.create": "tasks",
@@ -11,10 +13,13 @@ const creations = {
   "entity-type.create": "entity_types",
   "issuer.create": "entity_issuers",
   "identifier-rule.create": "entity_identifier_rules",
+  "entity-relation-definition.create": "entity_relation_definitions",
+  "data-model.prepare": "data_model_changes",
 };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const selected = (items, ids) => items?.some((id) => ids.has(id));
-const contexts = (items, entities, types) => items?.some((item) => entities.has(item.id) || types.has(item.type?.id));
+const contexts = (items, entities, types) =>
+  items?.some((item) => entities.has(item.id) || types.has(item.type?.id));
 /** Structured references only: a title/body merely containing an ID never widens the scope. */
 function entityReferences(row, entities, types) {
   const metadata = row.change_metadata;
@@ -26,15 +31,48 @@ function entityReferences(row, entities, types) {
       (types.has(facts.entity_type_id) || selected(facts.entity_ids, entities))
     );
 }
+/** Compact prepare receipts distinguish new objects from existing update targets. */
+export function modelFixtureRoots(result) {
+  const ids = {
+    data_model_changes: [],
+    entity_types: [],
+    entity_relation_definitions: [],
+    entity_issuers: [],
+    entity_identifier_rules: [],
+  };
+  if (
+    typeof result?.id !== "string" || !result.review?.mapping ||
+    !Array.isArray(result.review.items)
+  ) return ids;
+  ids.data_model_changes.push(result.id);
+  for (const item of result.review.items) {
+    if (item.kind !== "new") continue;
+    const types = result.review.mapping.types ?? {};
+    if (Object.hasOwn(types, item.ref)) ids.entity_types.push(types[item.ref]);
+    else if (item.ref.startsWith("relation:")) {
+      ids.entity_relation_definitions.push(item.ref.slice(9));
+    } else if (item.ref.startsWith("issuer:") && item.ref !== "issuer:app") {
+      ids.entity_issuers.push(item.ref.slice(7));
+    } else if (
+      item.ref.startsWith("rule:") &&
+      item.ref !== "rule:00000000-0000-4000-8000-000000000001"
+    ) ids.entity_identifier_rules.push(item.ref.slice(5));
+  }
+  return ids;
+}
 export function fixtureManifest(owner, scope, inventory, environment) {
+  const manifestRoots = [
+    ...roots,
+    ...modelRoots.filter((root) => scope.ids[root] !== undefined),
+  ];
   const data = Object.fromEntries(
-    roots.map((root) => [
+    manifestRoots.map((root) => [
       root,
       (inventory[root] ?? []).filter((row) => row.owner_id === owner),
     ]),
   );
   const ids = Object.fromEntries(
-    roots.map((root) => [
+    manifestRoots.map((root) => [
       root,
       new Set(
         data[root].filter((row) => (scope.ids[root] ?? []).includes(row.id))
@@ -66,7 +104,9 @@ export function fixtureManifest(owner, scope, inventory, environment) {
     }
   }
   const paths = [],
-    settings = (inventory.settings ?? []).find((row) => row.owner_id === owner && row.id === "record_templates");
+    settings = (inventory.settings ?? []).find((row) =>
+      row.owner_id === owner && row.id === "record_templates"
+    );
   for (const id of introducedTypes) {
     for (const action of ["create", "update", "delete", "restore"]) {
       if (settings?.settings?.entity_types?.[id]?.[action] !== undefined) {
@@ -78,7 +118,9 @@ export function fixtureManifest(owner, scope, inventory, environment) {
     approval_id: randomUUID(),
     environment,
     owner_id: owner,
-    ids: Object.fromEntries(roots.map((root) => [root, [...ids[root]].sort()])),
+    ids: Object.fromEntries(
+      manifestRoots.map((root) => [root, [...ids[root]].sort()]),
+    ),
     reset_template_paths: paths,
   };
 }
@@ -87,16 +129,26 @@ export function registryFixturePlan(owner, scope, inventory) {
   const sources = new Set(scope.ids.entity_issuers ?? []),
     rules = new Set(scope.ids.entity_identifier_rules ?? []),
     types = new Set(scope.ids.entity_types ?? []);
-  const own = (table) => (inventory[table] ?? []).filter((row) => row.owner_id === owner);
+  const own = (table) =>
+    (inventory[table] ?? []).filter((row) => row.owner_id === owner);
   const issuers = own("entity_issuers").filter((row) => sources.has(row.code));
-  const selectedRules = own("entity_identifier_rules").filter((row) => rules.has(row.id));
+  const selectedRules = own("entity_identifier_rules").filter((row) =>
+    rules.has(row.id)
+  );
   const blockers = [];
-  for (const row of issuers) if (row.system || row.code === "app") blockers.push("system_issuer");
+  for (const row of issuers) {
+    if (row.system || row.code === "app") blockers.push("system_issuer");
+  }
   for (const row of own("entity_identifier_rules")) {
-    if (sources.has(row.source) && !rules.has(row.id)) blockers.push("untracked_issuer_rule");
+    if (sources.has(row.source) && !rules.has(row.id)) {
+      blockers.push("untracked_issuer_rule");
+    }
   }
   for (const row of own("entity_type_identity_sources")) {
-    if ((sources.has(row.code) || rules.has(row.rule_id)) && !types.has(row.type_id)) {
+    if (
+      (sources.has(row.code) || rules.has(row.rule_id)) &&
+      !types.has(row.type_id)
+    ) {
       blockers.push("unapproved_type_identity_reference");
     }
   }
@@ -105,12 +157,17 @@ export function registryFixturePlan(owner, scope, inventory) {
       blockers.push("unapproved_issuer_entity_reference");
     }
   }
-  return { issuers: issuers.map((row) => row.code), rules: selectedRules.map((row) => row.id), blockers };
+  return {
+    issuers: issuers.map((row) => row.code),
+    rules: selectedRules.map((row) => row.id),
+    blockers,
+  };
 }
 function receiptRelated(result, ids) {
   if (!result || typeof result !== "object") return false;
   const all = new Set(allRoots.flatMap((root) => ids[root] ?? []));
-  return all.has(result.id) || (ids.entity_issuers ?? []).includes(result.code) ||
+  return all.has(result.id) ||
+    (ids.entity_issuers ?? []).includes(result.code) ||
     ids.entity_types.includes(result.type_id) ||
     ids.entity_types.includes(result.entity_type_id) ||
     ids.entity_types.includes(result.type?.id);
@@ -118,7 +175,8 @@ function receiptRelated(result, ids) {
 /** Only explicit IDs introduced by this test and their structured dependent facts are eligible. */
 export async function cleanupOwnedFixture(databaseUrl, environment, scope) {
   if (
-    !allRoots.some((root) => scope.ids[root]?.length) && !scope.requestKeys.length
+    !allRoots.some((root) => scope.ids[root]?.length) &&
+    !scope.requestKeys.length
   ) return [];
   const connection = new URL(databaseUrl);
   if (!["127.0.0.1", "localhost"].includes(connection.hostname)) {
@@ -136,14 +194,23 @@ export async function cleanupOwnedFixture(databaseUrl, environment, scope) {
       throw new Error("explicit fixture owner required");
     }
     if (
-      registryRoots.some((root) => scope.ids[root] !== undefined && !Array.isArray(scope.ids[root])) ||
-      (scope.ids.entity_issuers ?? []).some((code) => !/^[a-z][a-z0-9_-]{0,31}$/.test(code)) ||
-      (scope.ids.entity_identifier_rules ?? []).some((id) => !uuid.test(id))
+      [...registryRoots, ...modelRoots].some((root) =>
+        scope.ids[root] !== undefined && !Array.isArray(scope.ids[root])
+      ) ||
+      (scope.ids.entity_issuers ?? []).some((code) =>
+        !/^[a-z][a-z0-9_-]{0,31}$/.test(code)
+      ) ||
+      [
+        ...(scope.ids.entity_identifier_rules ?? []),
+        ...modelRoots.flatMap((root) => scope.ids[root] ?? []),
+      ].some((id) => !uuid.test(id))
     ) throw new Error("explicit registry fixture scope required");
     const [lock] = await sql`select pg_try_advisory_lock(hashtextextended(${
       scope.ownerId + ":entity-identity-registry"
     },0)) as acquired`;
-    if (!lock.acquired) throw new Error("registry cleanup is busy; no cleanup applied");
+    if (!lock.acquired) {
+      throw new Error("registry cleanup is busy; no cleanup applied");
+    }
     const ids = Object.fromEntries(
         allRoots.map((root) => [root, new Set(scope.ids[root] ?? [])]),
       ),
@@ -152,13 +219,25 @@ export async function cleanupOwnedFixture(databaseUrl, environment, scope) {
       ? await sql`select owner_id,operation,result from private.request_results where owner_id=${scope.ownerId} and request_key=any(${scope.requestKeys}::uuid[])`
       : [];
     for (const row of receipts) {
+      if (row.operation === "data-model.prepare") {
+        for (
+          const [root, values] of Object.entries(modelFixtureRoots(row.result))
+        ) for (const id of values) ids[root].add(id);
+      }
       const root = creations[row.operation];
-      if (root && typeof (root === "entity_issuers" ? row.result?.code : row.result?.id) === "string") {
-        ids[root].add(root === "entity_issuers" ? row.result.code : row.result.id);
+      if (
+        root &&
+        typeof (root === "entity_issuers"
+            ? row.result?.code
+            : row.result?.id) === "string"
+      ) {
+        ids[root].add(
+          root === "entity_issuers" ? row.result.code : row.result.id,
+        );
         owners.add(row.owner_id);
       }
     }
-    for (const root of roots) {
+    for (const root of businessRoots) {
       if (!ids[root].size) continue;
       const rows = await sql`select owner_id from ${
         sql(`app.${root}`)
@@ -173,11 +252,15 @@ export async function cleanupOwnedFixture(databaseUrl, environment, scope) {
     const reports = [];
     for (const owner of owners) {
       const inventory = {};
-      for (const root of roots) {
-        inventory[root] = await sql`select * from ${sql(`app.${root}`)} where owner_id=${owner}`;
+      for (const root of businessRoots) {
+        inventory[root] = await sql`select * from ${
+          sql(`app.${root}`)
+        } where owner_id=${owner}`;
       }
       for (const table of [...registryRoots, "entity_type_identity_sources"]) {
-        inventory[table] = await sql`select * from ${sql(`app.${table}`)} where owner_id=${owner}`;
+        inventory[table] = await sql`select * from ${
+          sql(`app.${table}`)
+        } where owner_id=${owner}`;
       }
       const registry = registryFixturePlan(owner, introduced, inventory);
       if (registry.blockers.length) {
@@ -194,8 +277,9 @@ export async function cleanupOwnedFixture(databaseUrl, environment, scope) {
         environment,
       );
       if (
-        !roots.some((root) => manifest.ids[root].length) &&
-        !manifest.reset_template_paths.length && !registry.issuers.length && !registry.rules.length
+        !businessRoots.some((root) => manifest.ids[root]?.length) &&
+        !manifest.reset_template_paths.length && !registry.issuers.length &&
+        !registry.rules.length
       ) {
         // A test may already have removed its rows manually; only its exact issued receipts remain.
         if (scope.requestKeys.length) {
@@ -203,14 +287,18 @@ export async function cleanupOwnedFixture(databaseUrl, environment, scope) {
         }
         continue;
       }
-      const business = roots.some((root) => manifest.ids[root].length) || manifest.reset_template_paths.length;
+      const business = businessRoots.some((root) =>
+        manifest.ids[root]?.length
+      ) || manifest.reset_template_paths.length;
       const dry = business ? await runCleanup(sql, manifest) : { blockers: [] };
       if (dry.blockers.length) {
         throw new Error(
           `owned fixture cleanup has ${dry.blockers.length} unapproved references; no cleanup applied`,
         );
       }
-      const applied = business ? await runCleanup(sql, manifest, dry.digest) : { counts: {}, residual_rows: 0 };
+      const applied = business
+        ? await runCleanup(sql, manifest, dry.digest)
+        : { counts: {}, residual_rows: 0 };
       await sql.begin(async (tx) => {
         await tx`delete from app.entity_identifier_rules where owner_id=${owner} and id=any(${registry.rules}::uuid[])`;
         await tx`delete from app.entity_issuers where owner_id=${owner} and code=any(${registry.issuers}::text[])`;
@@ -226,7 +314,9 @@ export async function cleanupOwnedFixture(databaseUrl, environment, scope) {
         scope.requestKeys.includes(row.request_key) ||
         receiptRelated(row.result, {
           ...manifest.ids,
-          ...Object.fromEntries(registryRoots.map((root) => [root, introduced.ids[root]])),
+          ...Object.fromEntries(
+            registryRoots.map((root) => [root, introduced.ids[root]]),
+          ),
         })
       ).map((row) => row.request_key);
       if (keys.length) {
@@ -242,7 +332,9 @@ export async function cleanupOwnedFixture(databaseUrl, environment, scope) {
     }
     return reports;
   } finally {
-    await sql`select pg_advisory_unlock(hashtextextended(${scope.ownerId + ":entity-identity-registry"},0))`;
+    await sql`select pg_advisory_unlock(hashtextextended(${
+      scope.ownerId + ":entity-identity-registry"
+    },0))`;
     await sql.end();
   }
 }

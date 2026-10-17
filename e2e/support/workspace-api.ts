@@ -177,7 +177,7 @@ export async function installWorkspaceApi(
       let items = storage[kind];
       if (kind === "entities") {
         const typeId = url.searchParams.get("entity_type_id"), keyword = url.searchParams.get("keyword")?.toLowerCase();
-        items = items.filter((row) => !row.deleted_at && (!typeId || row.entity_type_id === typeId) && (!keyword || String(row.title).toLowerCase().includes(keyword)) && row.id !== url.searchParams.get("link_candidate_for"));
+        items = items.filter((row) => !row.deleted_at && (!typeId || row.entity_type_id === typeId) && (!keyword || String(row.title).toLowerCase().includes(keyword)));
       }
       if (kind === "tags") items = items.filter((r) => r.scope === (url.searchParams.get("scope") ?? "record"));
 

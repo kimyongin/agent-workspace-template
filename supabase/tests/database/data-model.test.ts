@@ -12,8 +12,6 @@ import {
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { createEntity } from "../../functions/_shared/core/entity/application.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
-import { replayEntitySchemaImport } from "../../functions/_shared/core/entity-types/schema-import.ts";
-import { requestIdentity } from "../../functions/_shared/core/shared/request.ts";
 import type { DataModelDocument } from "../../functions/_shared/contracts/data-model.ts";
 const admin = connect(urls.admin), sql = connect(urls.direct, { max: 2, prepare: false });
 const deps = { uow: new SqlDataModelUnitOfWork(sql) };
@@ -103,23 +101,6 @@ dbTest("whole model aborts a late identity violation without publishing earlier 
     );
     assertEquals(await exportDataModel(deps, a.actor), original);
     assertEquals((await getDataModelChange(deps, a.actor, change.id)).status, "ready");
-  } finally {
-    await a.cleanup();
-  }
-});
-dbTest("retired single-kind import replays exact stored receipts but refuses new requests", async () => {
-  const a = await fixtureOwner(admin);
-  try {
-    const d = { uow: new SqlEntityTypeUnitOfWork(sql) },
-      actor = requestActor(a.actor),
-      raw = { mode: "copy", document: "{}", preview_fingerprint: "b".repeat(64), new_keys: [], remove_keys: [] };
-    const identity = await requestIdentity(actor, "entity-schema-import.prepare", null, raw);
-    await asUser(sql, a.actor.userId, async (tx) => {
-      await tx`select app.begin_request(${identity.key}::uuid,${identity.operation},${identity.fingerprint})`;
-      await tx`select app.finish_request(${identity.key}::uuid,'{"changed":true,"historical":true}'::jsonb)`;
-    });
-    assertEquals((await replayEntitySchemaImport(d, actor, raw)).changed, true);
-    await assertRejects(() => replayEntitySchemaImport(d, requestActor(a.actor), raw), Error, "전체 자료 모델");
   } finally {
     await a.cleanup();
   }

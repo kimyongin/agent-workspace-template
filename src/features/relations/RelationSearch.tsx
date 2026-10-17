@@ -46,18 +46,16 @@ export function RelationSearchAction(
 }
 /** Current-title lookup, shared by the two directions of the same relationship. */
 export function RelationSearch(
-  { kind, excluded, onChoose, disabled, revision, draftMode = false, linkCandidateFor, entityTypeId, relationContext }:
-    {
-      kind: "entity" | "task";
-      excluded: (item: Candidate) => boolean;
-      onChoose: (item: Candidate) => void;
-      disabled: boolean;
-      revision?: number | EntityDetail["tasks"];
-      draftMode?: boolean;
-      linkCandidateFor?: string;
-      entityTypeId?: string;
-      relationContext?: RelationLocation;
-    },
+  { kind, excluded, onChoose, disabled, revision, draftMode = false, entityTypeId, relationContext }: {
+    kind: "entity" | "task";
+    excluded: (item: Candidate) => boolean;
+    onChoose: (item: Candidate) => void;
+    disabled: boolean;
+    revision?: number | EntityDetail["tasks"];
+    draftMode?: boolean;
+    entityTypeId?: string;
+    relationContext?: RelationLocation;
+  },
 ) {
   const label = kind === "entity" ? "자료" : "할 일";
   const [view, setView] = useDetailViewState(
@@ -87,7 +85,6 @@ export function RelationSearch(
                   keyword,
                   limit: 20,
                   cursor,
-                  link_candidate_for: linkCandidateFor,
                   entity_type_id: entityTypeId,
                 })
               }`,
@@ -116,7 +113,6 @@ export function RelationSearch(
     retry,
     kind,
     revision,
-    linkCandidateFor,
     entityTypeId,
     relationContext?.definition_id,
     relationContext?.side,

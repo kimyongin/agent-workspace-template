@@ -4,7 +4,7 @@ import type { EntitySummary } from "../../contracts/entity.ts";
 import type { EntityRelationLinkStore } from "../../core/entity-relations/links.ts";
 import { SqlEntityRelationDefinitionStore } from "./entity-relation-definition-store.ts";
 import { SqlEntityStore } from "./entity-store.ts";
-import { lockEndpoints } from "./entity-pair-locks.ts";
+import { lockEndpoints } from "./entity-relation-locks.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 export class SqlEntityRelationLinkStore extends SqlActorStore implements EntityRelationLinkStore {
   definition(id: string, lock: boolean) {

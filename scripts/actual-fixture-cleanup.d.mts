@@ -7,6 +7,8 @@ export type FixtureScope = {
     tags: string[];
     entity_types: string[];
     entity_issuers?: string[];
+    entity_relation_definitions?: string[];
+    data_model_changes?: string[];
     entity_identifier_rules?: string[];
   };
   requestKeys: string[];
@@ -32,3 +34,13 @@ export function cleanupOwnedFixture(
     }
   >
 >;
+
+export function modelFixtureRoots(
+  result: unknown,
+): {
+  data_model_changes: string[];
+  entity_types: string[];
+  entity_relation_definitions: string[];
+  entity_issuers: string[];
+  entity_identifier_rules: string[];
+};

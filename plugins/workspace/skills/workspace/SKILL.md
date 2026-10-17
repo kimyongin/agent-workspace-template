@@ -31,7 +31,6 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 기록 저장 성공과 의미 검색 준비는 별개다. 현황은 `get_status`, 확인이 필요한 기록은 `list_indexing_issues`로 조회한다. indexing.waiting의 long_waiting은 threshold_minutes 이상 준비 상태 갱신이 없는 기록 수이며 oldest_waiting_since는 가장 오래된 갱신 시각이다. 이는 실패나 원인 확정이 아니다. 문제 목록이 비어도 오래 대기하는 기록이 있으면 관리자에게 서비스 점검을 요청하고 키워드·원문 조회로 이어간다. 문제 목록은 최근 작성 순 최대 5개이며 `next_cursor`를 다음 요청의 `cursor`로 사용한다. 이유·전송 시도 수·본문 구간 진행을 설명하고 응답 확인 불가는 성공·실패로 확정하지 않는다. 사용자 조회는 외부 호출이나 원본 쓰기를 수행하지 않는다. 결과 불명 요청은 현재 자료와 기존 의도를 먼저 확인한다.
 
 
-자료 간 연결/해제는 `prepare_record_memo`의 준비 대상이 아니므로 확인한 양쪽 버전과 메모·태그를 실제 쓰기에 직접 유지한다. 자료 간 관계를 다룰 때 `list_entity_links`로 현재 연결을 읽고 `list_entities`의 `link_candidate_for`에 원점을 지정해 자기 자신·이미 연결된 자료·삭제/보관 대상을 제외한 후보를 찾는다. 자료 종류와 대표 이름을 확인한 뒤 `link_entities` 또는 `unlink_entities`에 양쪽 ID·`expected_version`·`expected_other_version`을 전달한다. 연결은 무방향이며 같은/다른 종류와 순환을 허용한다. 자료당 보존 연결 한도는 100개다. 삭제/보관된 이전 연결은 조회·해제할 수 있다. 역순 재시도는 ID와 버전을 함께 뒤집고 같은 메모·태그·`request_key`를 유지한다. `changed=false`는 새 연결 변경·기록이 생기지 않았다는 뜻이며 재현 결과의 버전은 당시 값이다.
 
 자료 종류를 지정한 목록은 도구 계약의 `filters`에 `prop_n`·operator·value 조건을, `sort`에 key/direction을 전달한다. `unset`은 value 없이 누락과 null을 찾는다. 다른 종류의 같은 prop_n은 의미가 다르므로 `get_entity_schema`에서 현재 정의를 읽는다. 자료 종류별 기록 템플릿 설정은 `record_templates.entity_types.<type_id>.<action>`에 저장하며 속성 변수는 `$엔터티.이후.prop_1$`처럼 고정 키를 사용한다. 표시 라벨을 변수 키로 바꾸지 않는다. 자료 종류별 memo가 null이거나 행동 설정이 없으면 고정 기본 문구를 사용하며 tag_ids는 독립적이다. 자료 공통 record_templates.entity 설정은 지원하지 않는다.
 
@@ -55,6 +54,8 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 자료 ID는 `발급처 코드:자료 종류 ID:원본 번호`다. 서버가 반환한 정본 ID를 참조에 그대로 사용한다. 번호의 대소문자·앞자리 0·구분자·Unicode를 바꾸지 않는다. 자료 종류의 불변 설정 ID를 사용하며 자료별 내부 UUID를 만들지 않는다. `get_entity_type_identity`로 해당 종류의 번호 라벨·기본 발급처·지원 규칙·발급 방식·`version`을 확인한다. 선택한 `source`와 `version`을 `identity_version`으로 저장 입력에 유지한다. `automatic` 방식은 `external_id` 생략 시 저장 트랜잭션에서 발급하고 `direct` 방식은 원본 문자열을 명시한다. `settings_changed`이면 초안을 보존하고 종류 설정을 다시 확인한 뒤 새 의도 키로 제출한다. 활성 중복은 덮어쓰지 않는다. 삭제된 조합은 정본 ID로 `get_entity`를 조회하여 보관값·`version`·`deleted_at`을 확인하고 명시 복원 의도와 현재 `expected_version`으로 등록한다. 발급처가 중지되어도 기존 자료의 읽기·속성 편집·복원은 유지된다. 자료 종류·발급처·번호는 등록 후 변경할 수 없다. 번호 정정은 올바른 번호로 새 자료를 만들며 기존 연결·기록을 자동 이관하지 않는다. `update_entity`에는 `schema_version`·`expected_version`과 업무 속성·태그만 전달한다. 복원은 기존 값·태그·연결을 되살리며 별도로 삭제한 할 일·기록은 되살리지 않는다.
 
+
+자료 사이에는 명시된 관계 정의만 사용한다. 먼저 `list_entity_relation_definitions`로 양끝 종류·역할·개수를 확인하고 해당 `definition_id`·`side`·`origin_id`로 현재 연결과 후보를 읽는다. 정의가 없으면 임의 연결하거나 정의를 자동 생성하지 않는다. 관계 설정 변경을 요청받은 경우에만 정의를 만든다. 연결·해제·단일 교체에는 최신 정의 버전과 양쪽 자료 버전·메모·태그·요청 키를 유지한다. 작성해서 연결은 `create_and_link_entity`로 한 번에 저장한다. 복수 관계의 전체 개수 제한은 없으며 페이지 커서로 모두 읽는다. 과거 정의 없는 연결 원본은 현재 관계로 자동 배정하지 않는다. 할 일·기록의 `entity_ids` 대상 지정은 이 관계 설정과 별개다.
 
 발급처 설정 변경을 요청받으면 해당 발급처·규칙 또는 종류 설정의 최신 `version`을 읽고 그 객체의 `expected_version`으로 저장한다. 종류마다 발급처 규칙 하나를 연결한다. 참조된 규칙의 의미와 연결은 유지하며 라벨 변경이나 새 등록 사용 중지만 수행한다. 기본 발급처를 중지하려면 영향을 받는 종류에서 다른 활성 기본값을 먼저 선택한다. 외부 플랫폼 API 가져오기·인증·동기화는 이 기반 도구의 기능이 아니다.
 
@@ -119,7 +120,6 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
 | 기록 본문 의미 검색·업무 제목/본문 키워드 조회 | `search` |
-| 연결된 자료 조회·추가·해제 | `list_entity_links`, `link_entities`, `unlink_entities` |
 | 자료 찾기·전체 값 읽기·만들기·고치기·지우기 | `list_entities`, `get_entity`, `create_entity`, `update_entity`, `delete_entity` |
 
 ## 기록 내용과 결과 보고

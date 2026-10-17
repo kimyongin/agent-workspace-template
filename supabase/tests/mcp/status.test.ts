@@ -12,9 +12,6 @@ httpTest("status: actual authenticated HTTP/OAuth MCP readonly parity, strict in
       const name of [
         "preview_data_model",
         "prepare_entity_schema_import",
-        "list_entity_links",
-        "link_entities",
-        "unlink_entities",
         "delete_entity_issuer",
         "delete_entity_identifier_rule",
       ]
