@@ -1,3 +1,4 @@
+begin;
 -- Durable whole-model coordination; the single-kind preparation material stays canonical.
 alter table app.data_model_changes drop constraint data_model_changes_status_check;
 alter table app.data_model_changes add constraint data_model_changes_status_check check(status in ('needs_conversion','analyzing','ready','queued','preparing','ready_to_commit','committing','failed','applied','cancelled'));
@@ -338,7 +339,10 @@ begin
  insert into app.entity_schema_versions(owner_id,schema) values(v_owner,(v_job.target->'schema')||jsonb_build_object('x-type-id',v_type_id,'x-version',v_next_schema));
  update app.entities e set properties=r.after,schema_version=v_next_schema,version=e.version+1,updated_at=now() from private.entity_schema_migration_rows r where r.job_id=p_id and r.owner_id=e.owner_id and r.entity_id=e.id and e.entity_type_id=v_type_id and e.version=r.source_version;
  get diagnostics v_count=row_count;
- if v_count<>v_job.total then raise exception 'migration source changed' using errcode='40001'; end if;
+ if v_count<>v_job.total then
+  if exists(select 1 from private.data_model_commit_context ctx where ctx.owner_id=v_owner and ctx.model_id=v_job.model_change_id and ctx.pid=pg_backend_pid() and ctx.txid=txid_current()) then raise exception 'schema_plan_stale' using errcode='P0001';end if;
+  raise exception 'migration source changed' using errcode='40001';
+ end if;
  update private.entity_schema_migration_rows set committed_version=source_version+1 where job_id=p_id;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',v_owner,'role','authenticated')::text,true);
  insert into app.records(owner_id,id,entity_ids,entity_context,body,record_kind,change_metadata)
@@ -533,3 +537,5 @@ begin
  end loop;
 end $$;
 revoke all on function private.cleanup_data_model_sources() from public,anon,authenticated,app_user,app_server,app_worker;
+
+commit;
