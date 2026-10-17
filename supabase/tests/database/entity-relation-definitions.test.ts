@@ -96,3 +96,83 @@ dbTest(
     }
   },
 );
+
+import { asUser } from "./_db.ts";
+import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
+import { createEntity } from "../../functions/_shared/core/entity/application.ts";
+dbTest("in-use definition rejects kind changes, one shrink and deletion while archiving preserves links", async () => {
+  const admin = connect(urls.admin), sql = connect(urls.direct), a = await fixtureOwner(admin);
+  const d = { uow: new SqlEntityRelationDefinitionUnitOfWork(sql) },
+    types = { uow: new SqlEntityTypeUnitOfWork(sql) },
+    entities = { uow: new SqlEntityUnitOfWork(sql) };
+  try {
+    const type = await createEntityType(types, requestActor(a.actor), { label: "상품" }),
+      other = await createEntityType(types, requestActor(a.actor), { label: "문의" });
+    const ends = [{ type_id: type.id, label: "묶음", cardinality: "many" }, {
+      type_id: type.id,
+      label: "구성",
+      cardinality: "many",
+    }];
+    const def = await createEntityRelationDefinition(d, requestActor(a.actor), { ends });
+    const values = [];
+    for (const title of ["원본", "상대1", "상대2"]) {
+      values.push(
+        await createEntity(entities, requestActor(a.actor), {
+          entity_type_id: type.id,
+          schema_version: 1,
+          source: "app",
+          identity_version: 1,
+          properties: { prop_1: title },
+        }),
+      );
+    }
+    await asUser(sql, a.actor.userId, async (tx) => {
+      for (const value of values.slice(1)) {
+        await tx`insert into app.entity_relation_links(owner_id,definition_id,left_entity_id,right_entity_id) values(${a.actor.userId},${def.id},${
+          values[0].id
+        },${value.id})`;
+      }
+    });
+    const single = [{ ...ends[0], cardinality: "one" }, ends[1]];
+    assertEquals(
+      (await assertRejects(
+        () => updateEntityRelationDefinition(d, requestActor(a.actor), def.id, { ends: single, expected_version: 1 }),
+        AppError,
+      )).code,
+      "invalid_input",
+    );
+    assertEquals(
+      (await assertRejects(() =>
+        updateEntityRelationDefinition(d, requestActor(a.actor), def.id, {
+          ends: [{ ...ends[0], type_id: other.id }, ends[1]],
+          expected_version: 1,
+        }), AppError)).code,
+      "invalid_input",
+    );
+    assertEquals(
+      (await assertRejects(
+        () => deleteEntityRelationDefinition(d, requestActor(a.actor), def.id, { expected_version: 1 }),
+        AppError,
+      )).code,
+      "invalid_input",
+    );
+    await assertRejects(() =>
+      asUser(
+        sql,
+        a.actor.userId,
+        (tx) =>
+          tx`update app.entity_relation_definitions set left_cardinality='one',version=version+1 where id=${def.id}`,
+      )
+    );
+    assertEquals(
+      (await updateEntityRelationDefinition(d, requestActor(a.actor), def.id, { archived: true, expected_version: 1 }))
+        .archived,
+      true,
+    );
+    assertEquals((await getEntityRelationDefinition(d, a.actor, def.id)).version, 2);
+  } finally {
+    await a.cleanup();
+    await sql.end();
+    await admin.end();
+  }
+});

@@ -111,6 +111,7 @@ export function RelationDefinitionForm(
               <Field label={`${prefix} 자료 종류`} required>
                 {(props) => (
                   <select
+                    className="input"
                     {...props}
                     value={end.type_id}
                     onChange={(e) => change(n, { type_id: e.target.value })}
@@ -125,6 +126,7 @@ export function RelationDefinitionForm(
               <Field label={`${prefix} 관계 이름`} required help="이 자료에서 상대를 부르는 이름">
                 {(props) => (
                   <input
+                    className="input"
                     {...props}
                     value={end.label}
                     maxLength={100}
@@ -135,6 +137,7 @@ export function RelationDefinitionForm(
               <Field label={`${prefix} 연결 개수`}>
                 {(props) => (
                   <select
+                    className="input"
                     {...props}
                     value={end.cardinality}
                     onChange={(e) => change(n, { cardinality: e.target.value as "one" | "many" })}
@@ -210,7 +213,7 @@ export function RelationDefinitionForm(
           </BodyAction>
         </div>
       )}
-      <div className="form-actions">
+      <div className="actions">
         {baseline && (
           <button
             className="btn btn-danger"

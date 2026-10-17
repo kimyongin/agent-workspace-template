@@ -94,6 +94,7 @@ export function RelationSettingsPage() {
         <Field label="자료 종류 필터">
           {(props) => (
             <select
+              className="input"
               {...props}
               value={typeId}
               onChange={(e) => setParams(e.target.value ? { type_id: e.target.value } : {})}
@@ -104,11 +105,20 @@ export function RelationSettingsPage() {
           )}
         </Field>
         <Field label="관계 이름 또는 자료 종류 검색">
-          {(props) => <input {...props} type="search" value={q} onChange={(e) => setQ(e.target.value)} />}
+          {(props) => (
+            <input
+              className="input"
+              {...props}
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          )}
         </Field>
         <Field label="관계 상태">
           {(props) => (
             <select
+              className="input"
               {...props}
               value={archived}
               onChange={(e) => setArchived(e.target.value)}
