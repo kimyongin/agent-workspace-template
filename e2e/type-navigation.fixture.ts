@@ -2,7 +2,7 @@ import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { fixtureIdentity } from "./support/workspace-data.ts";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
 import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
@@ -18,6 +18,10 @@ const type = (n: number, label: string, archived = false): EntityType => ({
   updated_at: "2026-10-12T00:00:00Z",
 });
 const materials = type(1, "재료"), products = type(2, "상품"), retired = type(3, "보관 자료", true);
+async function closeMainNavigation(page: Page) {
+  const close = page.getByRole("button", { name: "메뉴 닫기", exact: true });
+  if (await close.isVisible()) await close.click();
+}
 const user = {
   id: "00000000-0000-0000-0000-000000000001",
   aud: "authenticated",
@@ -169,12 +173,14 @@ test("모든 페이지의 자료 종류가 목록과 생성 폼 및 종류 설�
 });
 test("typed shortcut and profile access preserve canonical list filters and Back", async ({ page }) => {
   await page.goto(`/entities?entity_type_id=${materials.id}&keyword=한글&tag_id=tag&sort=title&pages=2`);
+  await openMainNavigation(page);
   const nav = page.getByRole("navigation", { name: "주 메뉴" });
   await expect(nav.locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link")).toHaveText(["재료", "상품", "할 일", "기록"]);
   await expect(nav.locator(`a[href='/entities?entity_type_id=${materials.id}']`)).toHaveAttribute(
     "aria-current",
     "page",
   );
+  await closeMainNavigation(page);
   await chooseEntityType(page, products.label);
   await expect(page).toHaveURL(new RegExp(`entity_type_id=${products.id}`));
   expect(new URL(page.url()).searchParams.get("keyword")).toBe("한글");
@@ -244,13 +250,17 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   await page.route("**/api/entity-types{,?**}", (route) => route.fulfill({ json: { items, next_cursor: null } }));
   await page.goto("/entities");
   const shortcuts = page.getByRole("navigation", { name: "주 메뉴" }).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link");
+  await openMainNavigation(page);
   await expect(shortcuts.first()).toHaveText("전체 자료");
+  await closeMainNavigation(page);
   await expect(page.getByText("아직 자료 종류가 없습니다.", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "자료 추가", exact: true })).toHaveCount(0);
   items = [materials];
   await page.reload();
+  await openMainNavigation(page);
   await expect(shortcuts.first()).toHaveText("재료");
   await expect(shortcuts.last()).toHaveText("기록");
+  await closeMainNavigation(page);
   items = [
     materials,
     products,
@@ -260,7 +270,9 @@ test("0, 1, and many active types expose fixed account and all business paths", 
     ),
   ];
   await page.reload();
+  await openMainNavigation(page);
   await expect(shortcuts).toHaveCount(4);
+  await closeMainNavigation(page);
   await chooseEntityType(page, items[9].label);
   await expect(page.getByRole("heading", { name: "추가 종류 7", level: 1 })).toBeVisible();
   await openMainNavigation(page);
@@ -360,7 +372,7 @@ test("type catalog failure and all archived types have distinct recovery paths",
     (route) => failing ? route.abort() : route.fulfill({ json: { items: [retired], next_cursor: null } }),
   );
   await page.goto("/entities");
-  await expect(page.getByRole("alert")).toContainText("자료 종류를 불러오지 못했습니다");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("자료 종류를 불러오지 못했습니다");
   await expect(page.getByText("아직 자료 종류가 없습니다.", { exact: true })).toHaveCount(0);
   failing = false;
   await page.getByRole("button", { name: "종류 다시 시도", exact: true }).click();
@@ -468,6 +480,11 @@ test("clean settings navigation proceeds while initial record templates are stil
 });
 
 test("type selection remains scoped while a returned list catalog is loading", async ({ page }) => {
+  const requestedTypes: (string | null)[] = [];
+  page.on("request", request => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/entities") requestedTypes.push(url.searchParams.get("entity_type_id"));
+  });
   let reading = false, release!: () => void, started!: () => void;
   const hold = new Promise<void>((resolve) => {
       release = resolve;
@@ -516,8 +533,16 @@ test("type selection remains scoped while a returned list catalog is loading", a
     await closeDetail(page, entity.title);
     await arrived;
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${materials.id}`));
-    await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.label);
+    expect(new URL(page.url()).searchParams.get("keyword")).toBe("복귀");
+    await expect(page.getByLabel("자료 종류", { exact: true })).toBeDisabled();
+    await expect(page.getByLabel("자료 종류", { exact: true })).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue("자료 종류를 불러오는 중…");
     await expect(page.getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
+    release();
+    await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.label);
+    await expect(page.getByLabel("자료 종류", { exact: true })).toHaveAttribute("aria-busy", "false");
+    await expect.poll(() => requestedTypes.length).toBeGreaterThan(0);
+    expect(requestedTypes.every(type => type === materials.id)).toBe(true);
   } finally {
     release();
   }
@@ -567,12 +592,12 @@ test("definition history reads beyond the first hundred versions and opens the i
   await oldest.getByRole("button", { name: /^최초 생성/ }).click();
   await expect(page).toHaveURL(/schema_version=1/);
   const definition = oldest.getByRole("region", { name: "입력 항목 정의", exact: true });
-  await expect(definition.getByRole("heading", { name: "최초 이름", exact: true })).toBeVisible();
+  await expect(definition.getByRole("term").filter({ hasText: /^종류 이름$/ }).locator("..").getByRole("definition")).toHaveText("최초 이름");
   const field = definition.getByRole("region", { name: "최초 이름 정의", exact: true });
-  await expect(field.locator("dl > div").filter({ has: page.getByText("자료 이름", { exact: true }) }).locator("dd"))
+  await expect(field.locator("dl > div").filter({ has: page.getByText("자료 이름으로 사용", { exact: true }) }).locator("dd"))
     .toHaveText("사용");
   await expect(definition.locator("input,select,textarea")).toHaveCount(0);
-  await expect(oldest.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
+  await expect(oldest.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
   expect(readVersions).toContain(101);
   expect(readVersions).toContain(1);
   expect(readVersions).not.toContain(0);
@@ -744,7 +769,8 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     await reading;
     const name = form.getByRole("textbox", { name: "이름 (필수)", exact: true });
     await name.fill("保持する下書き");
-    await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
+    await expect(form.getByLabel("태그", { exact: true })).toHaveText("保留タグ");
+    await expect(form.getByRole("button", { name: "태그 선택", exact: true })).toHaveCount(0);
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await expect(form.getByRole("status").filter({ hasText: "자료 종류·자료 번호 설정을 읽는 중…" })).toBeVisible();
     await name.press("Enter");
@@ -753,7 +779,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     release();
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
     await expect(name).toHaveValue("保持する下書き");
-    await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
+    await expect(form.getByLabel("태그", { exact: true })).toHaveText("保留タグ");
     await form.getByRole("button", { name: "저장", exact: true }).click();
     const confirmation = executionDialog(page);
     await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeEnabled();
@@ -766,9 +792,9 @@ test("entity edit preserves draft and tags while identity settings are delayed b
       input: {
         schema_version: 1,
         properties: { prop_1: "保持する下書き" },
-        tag_ids: ["00000000-0000-4000-8000-000000000010"],
       },
     });
+    expect(preparations[0].input).not.toHaveProperty("tag_ids");
     await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
     await expect(form).not.toBeVisible();
     expect(writes).toHaveLength(1);
@@ -776,8 +802,9 @@ test("entity edit preserves draft and tags while identity settings are delayed b
       expected_version: 1,
       schema_version: 1,
       properties: { prop_1: "保持する下書き" },
-      tag_ids: ["00000000-0000-4000-8000-000000000010"],
     });
+    expect(writes[0]).not.toHaveProperty("tag_ids");
+    await expect(detailDialog(page).getByLabel("태그", { exact: true })).toHaveText("保留タグ");
   } finally {
     release();
   }
@@ -895,7 +922,7 @@ test("history selection preserves basic drafts and survives reload", async ({ pa
   await page.reload();
   const first = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({ has: page.getByRole("button", { name: /^최초 생성/ }) });
   await expect(first.getByRole("region", { name: "입력 항목 정의", exact: true })).toBeVisible();
-  await expect(first.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
+  await expect(first.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
 });
 
 test(
