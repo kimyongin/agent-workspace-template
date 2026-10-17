@@ -738,6 +738,8 @@ test("실행 취소는 다른 액션과 대상의 보존한 초안을 바꾸지 
   await memo.fill("등록 초안");
   await chooseSetting(page, form.getByLabel("액션", { exact: true }), "수정");
   await memo.focus();
+  await expect(memo).toBeFocused();
+  await expect(memo).toHaveAttribute("contenteditable", "true");
   await memo.press("ControlOrMeta+z");
   await expect(memo).toHaveText("수정 기준");
   await chooseSetting(page, form.getByLabel("액션", { exact: true }), "등록");
