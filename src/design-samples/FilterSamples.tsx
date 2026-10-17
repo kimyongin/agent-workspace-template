@@ -112,7 +112,7 @@ export function FilterSamples() {
         <ul className="list">
           {rows.map((row) => (
             <li className="list-item" key={row.id}>
-              <span className="item-title">{row.prop_1}</span>
+              <dl className="key-value-grid key-value-static"><div><dt>이름</dt><dd>{row.prop_1}</dd></div></dl>
             </li>
           ))}
         </ul>

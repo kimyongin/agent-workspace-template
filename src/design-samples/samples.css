@@ -75,11 +75,6 @@
 .samples-status {
   margin: 0;
 }
-.samples-form-pair {
-  display: grid;
-  grid-template-columns: repeat(2,minmax(0,1fr));
-  gap: var(--space-4);
-}
 .samples-content-footer {
   margin-top: var(--space-8);
   border-top: 1px solid var(--line);
@@ -101,8 +96,5 @@
   }
   .samples-preview-space {
     padding-inline: var(--space-2);
-  }
-  .samples-form-pair {
-    grid-template-columns: minmax(0,1fr);
   }
 }

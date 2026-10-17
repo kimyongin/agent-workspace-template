@@ -3,11 +3,18 @@ import { createPortal } from "react-dom";
 import { BodyAction } from "../components/BodyAction.tsx";
 import { ConfirmationSurface, ConfirmDialog, useSurfaceViewport } from "../components/ConfirmDialog.tsx";
 import { Field, Notice } from "../components/Field.tsx";
+import { TagSelection } from "../features/tags/TagSelection.tsx";
+
+type SampleValues = { name: string; quantity: string; sale: boolean; memo: string };
+const initialValues: SampleValues = { name: "유리컵", quantity: "0", sale: false, memo: "길고 자세한 예시 메모입니다. 보기와 편집에서 같은 전체 정보를 확인합니다." };
+const sampleTags = [{ id: "important", name: "중요" }, { id: "reference", name: "참고" }];
 
 type Outcome = "success" | "failure" | "uncertain";
 
 export function ModalSamples() {
-  const [name, setName] = useState("유리컵");
+  const [values, setValues] = useState(initialValues);
+  const name = values.name;
+  const [tags, setTags] = useState<string[]>([]), [tagDraft, setTagDraft] = useState<string[] | null>(null);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -34,6 +41,7 @@ export function ModalSamples() {
   return (
     <div className="samples-stack">
       <Field
+        pair
         label="샘플 저장 결과"
         help="실패·결과 미확정은 첫 실행에서 발생하며, 다시 시도하거나 결과를 확인하면 완료됩니다."
       >
@@ -51,17 +59,26 @@ export function ModalSamples() {
         )}
       </Field>
       <div className="samples-read">
-        <dl className="props samples-values">
-          <div>
-            <dt>상품명</dt>
-            <dd>{deleted ? "삭제된 예시 자료" : name}</dd>
-          </div>
+        <dl className="key-value-grid key-value-static samples-values" aria-label="예시 상품 전체 정보">
+          <div><dt>상품명</dt><dd>{deleted ? "삭제된 예시 자료" : name}</dd></div>
+          <div><dt>자료 번호</dt><dd>SAMPLE-001</dd></div>
+          <div><dt>수량</dt><dd>{values.quantity}</dd></div>
+          <div><dt>판매 중</dt><dd>{values.sale ? "예" : "아니요"}</dd></div>
+          <div className="key-value-full"><dt>메모</dt><dd>{values.memo || "미입력"}</dd></div>
+          <div className="key-value-full"><dt>태그</dt><dd>
+            {tags.length ? <span className="chips">{sampleTags.filter(tag => tags.includes(tag.id)).map(tag => <span className="chip" key={tag.id}>{tag.name}</span>)}</span> : "연결된 태그 없음"}
+            <BodyAction icon="link" disabled={deleted} onClick={() => setTagDraft([...tags])}>태그 연결</BodyAction>
+          </dd></div>
         </dl>
+        {tagDraft !== null && <section aria-label="예시 자료 태그 연결" className="form">
+          <TagSelection label="자료 태그" tags={sampleTags} value={tagDraft} onChange={setTagDraft} />
+          <div className="actions"><button className="btn" onClick={() => setTagDraft(null)}>취소</button><button className="btn btn-primary" onClick={() => { setTags([...tagDraft]); setTagDraft(null); setMessage("예시 태그 연결만 적용했습니다. 상품 편집과는 별도 작업입니다."); }}>연결 적용</button></div>
+        </section>}
         <div className="actions schema-actions">
-          <button type="button" className="btn btn-danger" disabled={deleted} onClick={() => setDeleting(true)}>
+          <button type="button" className="btn btn-danger" disabled={deleted || tagDraft !== null} onClick={() => setDeleting(true)}>
             예시 자료 삭제
           </button>
-          <button type="button" className="btn" disabled={deleted} onClick={() => setEditing(true)}>
+          <button type="button" className="btn" disabled={deleted || tagDraft !== null} onClick={() => setEditing(true)}>
             편집 모달 열기
           </button>
         </div>
@@ -70,7 +87,9 @@ export function ModalSamples() {
         <BodyAction
           icon="reset"
           onClick={() => {
-            setName("유리컵");
+            setValues(initialValues);
+            setTags([]);
+            setTagDraft(null);
             setDeleted(false);
             setMessage("예시 자료를 되돌렸습니다.");
           }}
@@ -81,11 +100,12 @@ export function ModalSamples() {
       {message && <p role="status" className="secondary">{message}</p>}
       {editing && (
         <EditDialog
-          initial={name}
+          initial={values}
+          tags={tags}
           outcome={outcome}
           onClose={() => setEditing(false)}
           onSave={(value) => {
-            setName(value);
+            setValues(value);
             setEditing(false);
             setMessage("예시 자료를 저장했습니다.");
           }}
@@ -95,7 +115,7 @@ export function ModalSamples() {
         open={deleting}
         busy={busy}
         title="예시 자료를 삭제할까요?"
-        message={`‘${name}’ 예시 자료를 삭제합니다. 실제 앱의 자료에는 영향이 없습니다.`}
+        message={<><dl className="key-value-grid key-value-static"><div className="key-value-full"><dt>대상</dt><dd>{name}</dd></div></dl><p>예시 자료를 삭제합니다. 실제 앱의 자료에는 영향이 없습니다.</p></>}
         danger
         confirmLabel="예시 자료 삭제"
         onCancel={() => {
@@ -109,22 +129,24 @@ export function ModalSamples() {
 
 /** The sample owns draft/simulation state; native dialog and app classes provide the visual shell. */
 function EditDialog(
-  { initial, outcome, onClose, onSave }: {
-    initial: string;
+  { initial, tags, outcome, onClose, onSave }: {
+    initial: SampleValues;
+    tags: string[];
     outcome: Outcome;
     onClose: () => void;
-    onSave: (value: string) => void;
+    onSave: (value: SampleValues) => void;
   },
 ) {
   const [draft, setDraft] = useState(initial);
   const [note, setNote] = useState("상품명 변경");
+  const [recordTags, setRecordTags] = useState<string[]>([]);
   const [stage, setStage] = useState<"edit" | "review" | "discard">("edit");
   const [error, setError] = useState("");
   const [failure, setFailure] = useState("");
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const pending = useRef(false), attempted = useRef(false);
-  const snapshot = useRef<{ name: string; note: string } | null>(null);
+  const snapshot = useRef<{ values: SampleValues; note: string; recordTags: string[] } | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const entry = useRef<HTMLElement | null>(null);
@@ -146,12 +168,12 @@ function EditDialog(
       setStage("edit");
       return;
     }
-    if (draft !== initial) {
+    if (JSON.stringify(draft) !== JSON.stringify(initial)) {
       setStage("discard");
     } else onClose();
   };
   const review = () => {
-    if (!draft.trim()) {
+    if (!draft.name.trim()) {
       setError("상품명을 입력하세요.");
       dialog.current?.querySelector<HTMLInputElement>("input")?.focus();
       return;
@@ -162,7 +184,7 @@ function EditDialog(
   };
   const execute = () => {
     if (pending.current) return;
-    if (!uncertain) snapshot.current = { name: draft, note };
+    if (!uncertain) snapshot.current = { values: { ...draft }, note, recordTags: [...recordTags] };
     const submitted = snapshot.current!;
     const first = !attempted.current;
     attempted.current = true;
@@ -183,7 +205,7 @@ function EditDialog(
         );
         return;
       }
-      onSave(submitted.name);
+      onSave(submitted.values);
     }, 600);
   };
   return createPortal(
@@ -210,30 +232,35 @@ function EditDialog(
             >
               <span aria-hidden="true">×</span>
             </button>
-            <p id="sample-editor-description" className="page-description">상품 이름을 수정하고 저장·취소 동작을 확인합니다.</p>
+            <p id="sample-editor-description" className="page-description">같은 전체 정보를 유지하며 수정 가능한 값만 바꿉니다. 번호와 태그는 읽기 전용입니다.</p>
           </header>
           <div className="modal-body">
             <form
               id="sample-edit-form"
-              className="form"
+              className="key-value-grid"
               noValidate
               onSubmit={(event) => {
                 event.preventDefault();
                 review();
               }}
             >
-              <Field label="상품명" required error={error}>
+              <Field pair label="상품명" required error={error}>
                 {(props) => (
                   <input
                     {...props}
                     className="input"
                     required
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
+                    value={draft.name}
+                    onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                     disabled={uncertain}
                   />
                 )}
               </Field>
+              <dl className="key-value-static"><div><dt>자료 번호</dt><dd>SAMPLE-001</dd></div></dl>
+              <Field pair label="수량">{props => <input {...props} className="input" inputMode="decimal" value={draft.quantity} onChange={e => setDraft({ ...draft, quantity: e.target.value })} readOnly={uncertain} />}</Field>
+              <Field pair label="판매 중">{props => <select {...props} className="input" value={String(draft.sale)} onChange={e => setDraft({ ...draft, sale: e.target.value === "true" })} disabled={uncertain}><option value="false">아니요</option><option value="true">예</option></select>}</Field>
+              <Field pair fullWidth label="메모">{props => <textarea {...props} className="input" rows={3} value={draft.memo} onChange={e => setDraft({ ...draft, memo: e.target.value })} readOnly={uncertain} />}</Field>
+              <dl className="key-value-static key-value-full"><div><dt>태그</dt><dd>{tags.length ? <span className="chips">{sampleTags.filter(tag => tags.includes(tag.id)).map(tag => <span key={tag.id} className="chip">{tag.name}</span>)}</span> : "연결된 태그 없음"}</dd></div></dl>
               <p className="secondary">취소하면 같은 보기로 돌아갑니다. 변경한 입력은 폐기 확인을 거쳐 버립니다.</p>
             </form>
           </div>
@@ -277,13 +304,14 @@ function EditDialog(
             ? <p>저장하지 않은 상품명 변경을 버립니다. 취소하면 입력한 내용과 편집 위치를 유지합니다.</p>
             : (
               <div className="form">
-                <dl className="props samples-values">
-                  <div>
-                    <dt>상품명</dt>
-                    <dd>{initial} → {snapshot.current && uncertain ? snapshot.current.name : draft}</dd>
-                  </div>
+                <dl className="key-value-grid key-value-static samples-values">
+                  {([["name", "상품명"], ["quantity", "수량"], ["sale", "판매 중"], ["memo", "메모"]] as const).map(([key, label]) => {
+                    const after = snapshot.current && uncertain ? snapshot.current.values : draft;
+                    const text = (value: string | boolean) => typeof value === "boolean" ? value ? "예" : "아니요" : value || "미입력";
+                    return <div className={key === "memo" ? "key-value-full" : undefined} key={key}><dt>{label}</dt><dd>{text(initial[key])} → {text(after[key])}</dd></div>;
+                  })}
                 </dl>
-                <Field label="기록 메모">
+                <Field pair fullWidth label="기록 메모">
                   {(props) => (
                     <textarea
                       {...props}
@@ -295,6 +323,9 @@ function EditDialog(
                     />
                   )}
                 </Field>
+                <fieldset className="plain-fieldset" disabled={busy || uncertain}>
+                  <TagSelection label="기록 태그" tags={sampleTags} value={recordTags} onChange={setRecordTags} />
+                </fieldset>
                 {failure && <Notice kind="error">{failure}</Notice>}
                 {busy && (
                   <p className="secondary" role="status">{uncertain ? "같은 실행의 결과 확인 중…" : "예시 저장 중…"}</p>

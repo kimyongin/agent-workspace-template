@@ -9,19 +9,23 @@ import type { PrepareRecordMemo, PreparedRecordMemo } from "@contracts/record-pr
 import { api } from "../lib/api.ts";
 import { WorkspaceContext } from "../features/details/workspace-context.ts";
 
+export type ConfirmationValue = { label: string; value: ReactNode; fullWidth?: boolean };
+
 export interface RecordMemo { change_note?: string; change_tag_ids?: string[] }
-function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, message, record=true, excludeTag, preparing}: {
+function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, message, data, record=true, excludeTag, preparing}: {
   preparing?: boolean;
+  data?: ConfirmationValue[];
   note: string; tags: string[]; onNote: (value: string) => void; onTags: (value: string[]) => void;
   errors: Record<string,string>; failure?: string | null; frozen: boolean; message?: ReactNode; record?: boolean; excludeTag?: string;
 }) {
   return <div className="form">
-    {message && <div className="secondary action-explanation">{message}</div>}
+    {!!data?.length && <dl className="key-value-grid key-value-static">{data.map(({label,value,fullWidth}) => <div key={label} className={fullWidth ? "key-value-full" : undefined}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
+    {message && <div className="action-explanation">{message}</div>}
     {failure && <Notice kind="error">{failure}</Notice>}
     {record && preparing && <p role="status" className="secondary">기록 메모 준비 중…</p>}
-    {record && <fieldset disabled={frozen} className="form plain-fieldset">
-      <Field label="기록 메모" error={errors.change_note}>{p => <textarea {...p} className="input" rows={4} value={note} onChange={e=>onNote(e.target.value)} placeholder="변경 내용과 이유를 작성하세요"/>}</Field>
-      <TagPicker label="기록 태그" value={tags} error={errors.change_tag_ids} onChange={onTags} excludeId={excludeTag}/>
+    {record && <fieldset disabled={frozen} className="form plain-fieldset key-value-grid">
+      <Field pair fullWidth label="기록 메모" error={errors.change_note}>{p => <textarea {...p} className="input" rows={4} value={note} onChange={e=>onNote(e.target.value)} placeholder="변경 내용과 이유를 작성하세요"/>}</Field>
+      <div className="key-value-full"><TagPicker label="기록 태그" value={tags} error={errors.change_tag_ids} onChange={onTags} excludeId={excludeTag}/></div>
     </fieldset>}
   </div>;
 }
@@ -35,6 +39,7 @@ interface ConfirmationDescription {
   preparation?: () => PrepareRecordMemo | Promise<PrepareRecordMemo>;
   onPrepared?: (result:PreparedRecordMemo) => void;
   message?: ReactNode;
+  data?: ConfirmationValue[];
   record: boolean;
   danger?: boolean;
   excludeTag?: string;
@@ -139,7 +144,7 @@ export function useRecordConfirmation(options: {
       body: <RecordMemoFields note={note} tags={tags} onNote={value => { touched.current.note = true; setNote(value); }} onTags={value => { touched.current.tags = true; setTags(value); }}
         preparing={preparing}
         errors={errors} failure={failure} frozen={busy || uncertain || preparing} record={description.record}
-        message={description.message} excludeTag={description.excludeTag}/>,
+        data={description.data} message={description.message} excludeTag={description.excludeTag}/>,
       footer: <><button type="button" className="btn" disabled={busy} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</button>
         <button type="button" className={description.danger ? "btn btn-danger" : "btn btn-primary"} disabled={busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)} onClick={() => void write(stage)}>
           {busy ? description.pendingLabel ?? "처리 중…" : uncertain ? "같은 내용 다시 시도" : description.label}

@@ -296,9 +296,10 @@ export function EntityRelationSection(
           mutation={{
             target: `${mutation.origin.title} → ${mutation.definition.ends[side].label} → ${mutation.other.title}`,
             action: mutation.remove ? "해제" : single ? "수정" : "연결",
-            message: single && !mutation.remove
-              ? `기존: ${mutation.previous?.title ?? "연결 없음"} → 변경: ${mutation.other.title}`
-              : undefined,
+            data: single && !mutation.remove ? [
+              { label: "기존", value: mutation.previous?.title ?? "연결 없음", fullWidth: true },
+              { label: "변경", value: mutation.other.title, fullWidth: true },
+            ] : undefined,
           }}
           validate={() => null}
           onClose={() => setMutation(null)}

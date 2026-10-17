@@ -341,7 +341,8 @@ export function EntityDetailPage() {
                   expected_version: entity.version,
                   input: {},
                 }),
-                message: `${entity.title}을 삭제 상태로 보관합니다. 속성·태그·할 일/기록 연결과 원문은 보존합니다.`,
+                target: entity.title,
+                message: "이 자료를 삭제 상태로 보관합니다. 속성·태그·할 일/기록 연결과 원문은 보존합니다.",
                 onConfirm: async (reason, tags, requestKey) => {
                   setBusy(true);
                   try {

@@ -36,7 +36,7 @@ export function TypedRelationsSample() {
             )}
           </div>
         </div>
-        <p>{selected ? "주문 2026-001" : "연결된 자료가 없습니다."}</p>
+        <dl className="key-value-grid key-value-static"><div><dt>주문명</dt><dd>{selected ? "주문 2026-001" : "연결된 자료가 없습니다."}</dd></div></dl>
       </section>
       {writing && (
         <section
@@ -44,12 +44,13 @@ export function TypedRelationsSample() {
           aria-label="작성해서 연결 샘플"
         >
           <h4 className="section-title">작성 후 연결</h4>
-          <p>주문품목 → 소속 주문</p>
-          <p className="secondary">
-            기존 연결: 주문 2026-001. 저장하면 새로 작성한 자료로 교체합니다.
-          </p>
-          <Field label="번호">{() => <p>등록 시 자동 발급</p>}</Field>
-          <Field label="주문명" required>
+          <dl className="key-value-grid key-value-static">
+            <div><dt>연결 설정</dt><dd>주문품목 → 소속 주문</dd></div>
+            <div><dt>기존 연결</dt><dd>주문 2026-001</dd></div>
+            <div><dt>번호</dt><dd>등록 시 자동 발급</dd></div>
+          </dl>
+          <p className="secondary">저장하면 새로 작성한 자료로 교체합니다.</p>
+          <Field pair label="주문명" required>
             {(p) => (
               <input
                 {...p}
@@ -90,7 +91,8 @@ export function TypedRelationsSample() {
             <li key={title}>
               <RelatedItem
                 title={title}
-                metadata="재료"
+                titleLabel="자료 이름"
+                metadata={<dl className="key-value-static"><div><dt>종류</dt><dd>재료</dd></div></dl>}
                 action={<BodyAction icon="unlink">해제</BodyAction>}
               />
             </li>

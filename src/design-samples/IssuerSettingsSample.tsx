@@ -81,13 +81,11 @@ export function IssuerSettingsSample(
                 return (
                   <div className="issuer-number-entry" key={numberIndex}>
                     <div className="issuer-rule-row issuer-rule-summary">
-                      <div>
-                        <span className="item-title">{number.label}</span>
-                        <span className="secondary">
-                          {source.system ? "자동 생성" : "직접 입력"}
-                          {!number.active && " · 사용 중지"}
-                        </span>
-                      </div>
+                      {!expanded && <dl className="key-value-grid key-value-static issuer-number-values">
+                        <div><dt>번호 종류 이름</dt><dd>{number.label}</dd></div>
+                        <div><dt>입력 방식</dt><dd>{source.system ? "자동 생성" : "직접 입력"}</dd></div>
+                        <div><dt>사용</dt><dd>{number.active ? "사용 중" : "사용 중지"}</dd></div>
+                      </dl>}
                       {!source.system && (
                         <BodyAction
                           className="issuer-rule-toggle"
@@ -258,13 +256,14 @@ function SampleCreation({ source, created, initialLabel, onClose, onSave }: {
                 if (label.trim()) onSave(label.trim());
               }}
             >
-              {source && <p className="item-title">{source}</p>}
+              {source && <dl className="key-value-grid key-value-static"><div><dt>번호 출처</dt><dd>{source}</dd></div></dl>}
               {created && (
                 <p className="secondary" role="status">
                   번호 출처를 저장했습니다.
                 </p>
               )}
               <Field
+        pair
                 label={source ? "번호 종류 이름" : "번호 출처 이름"}
                 required
               >
@@ -331,8 +330,8 @@ function SampleNumberEditor(
         onSave(draft);
       }}
     >
-      <fieldset className="settings-fields">
-        <Field label="번호 종류 이름" required>
+      <fieldset className="settings-fields key-value-grid">
+        <Field pair label="번호 종류 이름" required>
           {(props) => (
             <input
               {...props}
@@ -344,11 +343,8 @@ function SampleNumberEditor(
             />
           )}
         </Field>
-        <div className="issuer-input-method">
-          <span className="label">입력 방식</span>
-          <span>직접 입력</span>
-        </div>
-        <label className="issuer-status-choice">
+        <dl className="key-value-static"><div><dt>입력 방식</dt><dd>직접 입력</dd></div></dl>
+        <label className="issuer-status-choice settings-choice-pair">
           <input
             type="checkbox"
             checked={draft.active}
@@ -381,7 +377,7 @@ function SampleNumberEditor(
       <ConfirmDialog
         open={!!confirm}
         title={confirm === "delete" ? "번호 종류를 삭제할까요?" : "변경을 버릴까요?"}
-        message={confirm === "delete" ? `${number.label}을 삭제합니다.` : "저장하지 않은 내용이 사라집니다."}
+        message={confirm === "delete" ? <><dl className="key-value-grid key-value-static"><div><dt>대상</dt><dd>{number.label}</dd></div></dl><p>예시 번호 종류를 삭제합니다.</p></> : "저장하지 않은 내용이 사라집니다."}
         confirmLabel={confirm === "delete" ? "삭제" : "변경 버리기"}
         danger={confirm === "delete"}
         onCancel={() => setConfirm(null)}

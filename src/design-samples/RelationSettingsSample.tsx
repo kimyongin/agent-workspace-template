@@ -66,9 +66,9 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
                 const change = (patch: Partial<typeof end>) =>
                   setEnds((value) => value.map((e, n) => n === index ? { ...e, ...patch } : e) as typeof value);
                 return (
-                  <div className="relation-definition-end" key={index}>
+                  <div className="relation-definition-end key-value-grid" key={index}>
                     <h3>{prefix} 방향</h3>
-                    <Field label={`${prefix} 자료 종류`} required>
+                    <Field pair label={`${prefix} 자료 종류`} required>
                       {(props) => (
                         <select
                           {...props}
@@ -80,7 +80,7 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
                         </select>
                       )}
                     </Field>
-                    <Field label={`${prefix} 관계 이름`} required help="이 자료에서 상대를 부르는 이름">
+                    <Field pair label={`${prefix} 관계 이름`} required help="이 자료에서 상대를 부르는 이름">
                       {(props) => (
                         <input
                           {...props}
@@ -91,7 +91,7 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
                         />
                       )}
                     </Field>
-                    <Field label={`${prefix} 연결 개수`}>
+                    <Field pair label={`${prefix} 연결 개수`}>
                       {(props) => (
                         <select
                           {...props}

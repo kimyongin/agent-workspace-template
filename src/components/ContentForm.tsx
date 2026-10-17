@@ -1,5 +1,5 @@
 // 할 일·기록에서 함께 쓰는 내용 입력과 저장 실패·미저장 보호.
-import { useRecordConfirmation, type RecordMemo } from "./RecordConfirmation.tsx";
+import { useRecordConfirmation, type RecordMemo, type ConfirmationValue } from "./RecordConfirmation.tsx";
 import type { PrepareRecordMemo, PreparedRecordMemo } from "@contracts/record-preparation.ts";
 import { contentLabels } from "@contracts/common.ts";
 import { type FormEvent, type ReactNode, useCallback, useContext, useId, useLayoutEffect, useRef, useState } from "react";
@@ -19,11 +19,11 @@ export function TextFields(
 ) {
   return (
     <>
-      <section className="detail-section form">
-      <Field label={contentLabels.title} required error={errors.title}>
+      <section className="detail-section key-value-grid">
+      <Field pair label={contentLabels.title} required error={errors.title}>
         {(p) => <input {...p} className="input" placeholder="대상과 행동 또는 결론" value={draft.title} onChange={(e) => set({ title: e.target.value })} />}
       </Field>
-      <Field label={contentLabels.body} error={errors.body}>
+      <Field pair fullWidth label={contentLabels.body} error={errors.body}>
         {(p) => (
           <textarea {...p} className="input" rows={8} placeholder="상세 내용과 근거를 작성하세요 (마크다운)" value={draft.body} onChange={(e) => set({ body: e.target.value })} />
         )}
@@ -49,7 +49,7 @@ interface FormModalProps {
   deletion?: DeletionOptions;
   preparation?: () => PrepareRecordMemo | Promise<PrepareRecordMemo>;
   onPrepared?: (result:PreparedRecordMemo) => void;
-  mutation?: { target: string; action: "등록" | "수정" | "중단" | "재개" | "연결" | "해제" | "복원" | "식별 정보 변경"; message?: ReactNode };
+  mutation?: { target: string; action: "등록" | "수정" | "중단" | "재개" | "연결" | "해제" | "복원" | "식별 정보 변경"; message?: ReactNode; data?: ConfirmationValue[] };
   confirmationOnly?: boolean;
 }
 interface Presentation { dirty: boolean; busy: boolean; footer: ModalProps["footer"] }
@@ -77,7 +77,7 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
       const current = callbacks.current;
       const action = kind === "delete" ? "삭제" : current.mutation?.action ?? "저장";
       return {
-        title: `‘${current.mutation?.target ?? title}’을 ${action}하시겠습니까?`,
+        title: `${action}하시겠습니까?`,
         label: kind === "delete" ? "삭제하고 기록" : `${action}하고 저장`,
         defaultNote: `${current.mutation?.target ?? title} ${kind === "delete" ? "삭제" : current.mutation?.action ?? "수정"}`,
         preparation: kind === "delete" ? current.deletion?.preparation : current.preparation,
@@ -85,6 +85,11 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
         danger: kind === "delete",
         record: kind === "delete" ? current.deletion?.note !== false : !!current.mutation,
         message: kind === "delete" ? current.deletion?.message : current.mutation?.message,
+        data: [
+          { label: "대상", value: kind === "delete" ? current.deletion?.target ?? current.mutation?.target ?? title : current.mutation?.target ?? title, fullWidth: true },
+          { label: "작업", value: action },
+          ...(kind === "delete" ? current.deletion?.data ?? [] : current.mutation?.data ?? []),
+        ],
         execute: kind === "delete"
           ? (requestKey, memo) => current.deletion!.onConfirm(memo.change_note ?? "", memo.change_tag_ids, requestKey)
           : current.onSubmit,

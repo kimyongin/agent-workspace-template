@@ -26,7 +26,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
   const [message, setMessage] = useState("");
   const menuDirty = JSON.stringify(menus) !== JSON.stringify(savedMenus);
   const field = (key: keyof typeof initial, label: string, choices?: string[]) => (
-    <Field label={label}>
+    <Field pair label={label}>
       {(props) =>
         key === "timezone"
           ? (
@@ -76,7 +76,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
           title: "화면 표시",
           keys: ["mobile", "desktop"],
           content: (
-            <div className="field-row">
+            <div className="key-value-grid">
               {field("mobile", "모바일 화면 배율", ["100", "110", "125", "150"])}
               {field("desktop", "데스크톱 화면 배율", ["100", "110", "125", "150"])}
             </div>

@@ -40,16 +40,18 @@ it("상태 화면은 네 그래프에서 날짜와 실제 값을 제공하며 �
   expect(html).toContain("일회성 완료");
   expect(html).toContain("작성일별 현재 색인 상태");
   expect(html).toContain("과거 대기량");
-  expect(html).toContain("준비 상태 갱신이 15분 이상 없는 기록 1개");
+  expect(html).toContain("<dt>갱신 지연 기준</dt><dd>15분</dd>");
+  expect(html).toContain("<dt>오래 갱신되지 않은 기록</dt><dd>1개</dd>");
   expect(html).toContain("실패로 확정된 상태는 아닙니다");
   expect(html).toContain("관리자에게 색인 서비스 점검");
   expect(html).not.toContain("집계 기준과 날짜별 값");
   expect(html).not.toContain('type="range"');
   expect(html).toContain("2026-10-11");
-  expect(html).toContain("등록 2건");
-  expect(html).toContain("생성 3건 · 일회성 완료 1건");
-  expect(html).toContain("작성 4건");
-  expect(html).toContain("완료 1건 · 준비 중 1건 · 확인 필요 1건 · 대상 제외 1건");
+  expect(html).toContain("<dt>합계</dt><dd>2개</dd>");
+  expect(html).toContain('<dt>날짜</dt><dd><time dateTime="2026-10-11">2026-10-11</time></dd>');
+  expect(html).toContain("<dt>등록</dt><dd>2건</dd>");
+  expect(html).toContain("<dt>일회성 완료</dt><dd>1건</dd>");
+  expect(html).toContain("<dt>대상 제외</dt><dd>1건</dd>");
 });
 
 it("색인 문제는 기본 접힘이며 펼치기 전에 문제 제목이나 페이지 조작을 렌더하지 않는다", () => {

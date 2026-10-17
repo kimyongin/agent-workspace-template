@@ -66,8 +66,15 @@ test("로그인·OAuth 동의의 긴 주소와 중요 안내는 320~1440px에서
     await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await expect(page.getByText("직접 시작한 연결이 아니거나 돌아갈 주소를 모르면 거부하세요.",{exact:false})).toBeVisible();
     for(const name of ["승인","거부"]){const box=(await page.getByRole("button",{name,exact:true}).boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);}
-    if(width===390||width===1440)await page.screenshot({path:info.outputPath(`consent-hierarchy-${width}.png`)});
+    if(width===320||width===390||width===1440)await page.screenshot({path:info.outputPath(`consent-hierarchy-${width}.png`)});
   }
+  const data = page.locator(".auth-panel dl");
+  await expect(data.locator("dt")).toHaveText(["클라이언트", "돌아갈 주소", "요청 범위"]);
+  await expect(data.locator("dd").first()).toHaveText("긴 에이전트 이름 ".repeat(8));
+  await page.setViewportSize({width:320,height:900});
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath("consent-pairs-320-text200.png"),fullPage:true});
   expect(f.decisions).toHaveLength(0);
 });
 async function changeRequest(page: Page, id: string) {

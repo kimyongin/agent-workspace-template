@@ -214,3 +214,38 @@ for (const width of [390, 1440]) {
     await page.screenshot({ path: info.outputPath(`login-${width}.png`) });
   });
 }
+
+test("상태의 실제 수치와 선택 날짜는 키–값으로 읽히며 폭·확대에서 그래프 선택을 유지한다", async ({ page }, info) => {
+  await fixtures(page);
+  const day = (date: string, amount: number) => ({ date, entities_created: amount, tasks_created: amount, once_completed: 0, records_created: amount, indexing: { indexed: amount, preparing: 0, attention: 0, excluded: 0 } });
+  await page.route("**/api/status", route => route.fulfill({ json: {
+    timezone: "Asia/Seoul", queried_at: stamp, period: { from: "2026-10-14", to: "2026-10-15", days: 2 },
+    entities: { total: 2, active: 2, deleted: 0 }, tasks: { total: 1, open: 1, done: 0, active: 0, stopped: 0 },
+    records: { total: 2, user: 2, result: 0, change: 0 }, indexing: { total: 2, indexed: 1, preparing: 0, attention: 1, excluded: 0, waiting: { long_waiting: 1, oldest_waiting_since: stamp, threshold_minutes: 15 } },
+    daily: [day("2026-10-14", 0), day("2026-10-15", 2)],
+  } }));
+  await go(page, "/status");
+  const graph = page.getByRole("button", { name: "일별 등록 그래프: 막대를 누르거나 방향키로 날짜 선택", exact: true });
+  await graph.press("Home");
+  const selection = graph.locator("..").locator(".status-day-detail");
+  await expect(selection.locator("dd")).toHaveText(["2026-10-14", "0건"]);
+  await graph.press("ArrowRight");
+  await expect(selection.locator("dd")).toHaveText(["2026-10-15", "2건"]);
+  await expect(page.getByRole("region", {name:"자료 현황",exact:true}).locator(".status-summary dd")).toHaveText(["2개", "2", "0"]);
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({width,height:1000});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    const pairs = await page.locator(".status-page dl > div").evaluateAll(rows => rows.map(row => {
+      const key = row.querySelector("dt")!.getBoundingClientRect(), value = row.querySelector("dd")!.getBoundingClientRect();
+      return { right:key.right, left:value.left, delta:Math.abs(key.top-value.top) };
+    }));
+    for (const pair of pairs) { expect(pair.right).toBeLessThanOrEqual(pair.left); expect(pair.delta).toBeLessThanOrEqual(1); }
+    await page.screenshot({path:info.outputPath(`status-pairs-${width}.png`),fullPage:true});
+  }
+  await page.locator(".status-page").evaluate(el => (el as HTMLElement).style.maxWidth = "360px");
+  await page.screenshot({path:info.outputPath("status-pairs-narrow-parent.png"),fullPage:true});
+  await page.setViewportSize({width:320,height:1000});
+  await page.evaluate(()=>document.documentElement.style.fontSize="200%");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath("status-pairs-320-text200.png"),fullPage:true});
+});
