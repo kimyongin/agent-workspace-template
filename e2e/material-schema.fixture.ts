@@ -969,7 +969,7 @@ test(
     await expect(
       properties.getByRole("button", { name: "변경 검토", exact: true }),
     ).toBeDisabled();
-    await expect(page.locator(".material-settings-current")).toHaveCount(0);
+    await expect(page.getByRole("list", { name: "입력 항목 목록", exact: true })).toHaveCount(1);
     await expect(properties.getByRole("list", { name: "입력 항목 목록", exact: true })).toBeVisible();
     const quantity = properties.getByRole("region", { name: "수량 입력 항목", exact: true });
     const layout = await quantity.evaluate((el) => {
