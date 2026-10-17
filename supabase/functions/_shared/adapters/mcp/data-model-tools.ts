@@ -24,20 +24,26 @@ export function dataModelTools(d: DataModelDeps): ToolDef[] {
         return analyzeDataModel(d, a, String(id), input);
       },
     }),
-    ...(["cancel", "retry"] as const).map((action) =>
-      keyedTool({
-        name: `${action}_data_model`,
-        description: action === "cancel"
-          ? "전체 모델 작업을 한 번에 취소합니다. 확정과 경쟁하면 현재 완료 상태를 확인합니다."
-          : "일시 실패한 같은 전체 모델 작업을 원본을 확인해 다시 접수합니다.",
-        input: dataModelAction.extend({ id: z.string().uuid() }),
-        readOnly: false,
-        handler: (i, a) => {
-          const { id, ...input } = i;
-          return changeDataModelGroup(d, a, String(id), input, action);
-        },
-      })
-    ),
+    keyedTool({
+      name: "cancel_data_model",
+      description: "전체 모델 작업을 한 번에 취소합니다. 확정과 경쟁하면 현재 완료 상태를 확인합니다.",
+      input: dataModelAction.extend({ id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { id, ...input } = i;
+        return changeDataModelGroup(d, a, String(id), input, "cancel");
+      },
+    }),
+    keyedTool({
+      name: "retry_data_model",
+      description: "일시 실패한 같은 전체 모델 작업을 원본을 확인해 다시 접수합니다.",
+      input: dataModelAction.extend({ id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { id, ...input } = i;
+        return changeDataModelGroup(d, a, String(id), input, "retry");
+      },
+    }),
     {
       name: "export_data_model",
       description:
