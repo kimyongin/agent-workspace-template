@@ -1,3 +1,14 @@
+import { ChevronDownIcon } from "lucide-react";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { FieldSet, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "../../components/ui/button.tsx";
+import { Input } from "../../components/ui/input.tsx";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Textarea } from "../../components/ui/textarea.tsx";
 import { SchemaExport } from "./SchemaExport.tsx";
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
@@ -245,14 +256,14 @@ export function SchemaEditor(
     requestAnimationFrame(() => {
       const element = fieldElements.current[key];
       const buttons = element?.querySelectorAll<HTMLButtonElement>(
-        ".schema-order-actions button",
+        "[data-schema-order-actions] button",
       );
       const same = buttons?.[offset < 0 ? 0 : 1];
       if (same && !same.matches(":disabled")) same.focus();
       else {(element?.querySelector<HTMLButtonElement>(
-          ".schema-order-actions button:not(:disabled)",
+          "[data-schema-order-actions] button:not(:disabled)",
         ) ??
-          element?.querySelector<HTMLButtonElement>(".schema-field-disclosure:not(:disabled)"))?.focus();}
+          element?.querySelector<HTMLButtonElement>("[data-schema-disclosure]:not(:disabled)"))?.focus();}
     });
   };
   const newEditing = async () => {
@@ -267,23 +278,23 @@ export function SchemaEditor(
     });
   };
   return (
-    <div className="schema-settings">
-      {error && <p role="alert" className="error-text">{error}</p>}
-      {message && <p role="status">{message}</p>}
-      <div className="schema-settings-grid">
+    <div className="flex min-w-0 flex-col gap-6">
+      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
+      <div className="grid min-w-0 gap-6">
         <section
-          className="schema-work-area settings-section material-settings-section"
+          className="flex min-w-0 flex-col gap-4"
           aria-label="입력 항목"
         >
-          <div className="schema-area-heading">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
             <h2
-              className="settings-section-title"
+              className="text-base font-semibold"
               id="schema-properties-title"
               ref={propertiesHeading}
               tabIndex={-1}
             >
-              <button
-                className="material-section-toggle"
+              <Button variant="outline"
+                className="h-auto min-h-11 w-full justify-between whitespace-normal text-left"
                 type="button"
                 aria-expanded={propertiesOpen}
                 aria-label="입력 항목"
@@ -296,7 +307,7 @@ export function SchemaEditor(
                 }}
               >
                 <span>입력 항목</span>
-                <span className="secondary">
+                <span className="text-sm text-muted-foreground">
                   {busy
                     ? "저장 중…"
                     : uncertain
@@ -305,17 +316,17 @@ export function SchemaEditor(
                     ? "수정 중"
                     : `${schemaPresentation(draft).order.length}개 항목`}
                 </span>
-              </button>
+              </Button>
             </h2>
           </div>
-          <p className="material-section-description secondary">
+          <p className="text-sm text-muted-foreground">
             상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다.
           </p>
-          <div hidden={!propertiesOpen} className="schema-input-content">
-            <fieldset
+          <div hidden={!propertiesOpen} className="min-w-0">
+            <FieldSet
               id="schema-property-inputs"
               hidden={!propertiesOpen}
-              className="settings-fields"
+              className="min-w-0"
               disabled={lockedPlan || busy || uncertain || disabled || readBusy || startState.busy ||
                 startState.uncertain}
             >
@@ -329,18 +340,18 @@ export function SchemaEditor(
                     );
                   const expanded = openFields.includes(key);
                   const fieldSummary = (
-                    <span className="secondary">
+                    <span className="text-sm text-muted-foreground">
                       {!expanded && <span>{fieldTypeLabel(f)}</span>}
-                      {draft.schema.required.includes(key) && <span className="schema-badge">필수</span>}
+                      {draft.schema.required.includes(key) && <Badge variant="secondary">필수</Badge>}
                       {key === schemaPresentation(draft).representative && (
-                        <span className="schema-badge">자료 이름</span>
+                        <Badge variant="secondary">자료 이름</Badge>
                       )}
                       {schemaPresentation(draft).archived.includes(key) && (
-                        <span className="schema-badge">사용 중지</span>
+                        <Badge variant="secondary">사용 중지</Badge>
                       )}
-                      {changedFields.includes(key) && <span className="schema-badge">변경됨</span>}
+                      {changedFields.includes(key) && <Badge variant="secondary">변경됨</Badge>}
                       {fieldError === key && (
-                        <span className="schema-badge error-text">
+                        <span className="text-sm text-destructive">
                           오류
                         </span>
                       )}
@@ -348,24 +359,24 @@ export function SchemaEditor(
                   );
                   return (
                     <CollectionItem key={key}>
-                      <section
-                        className="schema-field related-item"
+                      <Card role="region"
+                        className="min-w-0"
                         data-expanded={openFields.includes(key) || undefined}
                         aria-label={`${f.title || "새 항목"} 입력 항목`}
                         ref={(element) => {
                           fieldElements.current[key] = element;
                         }}
                       >
-                        <div className="schema-field-heading">
-                          <div className="item-title" role="heading" aria-level={3}>
+                        <CardHeader><div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <div className="min-w-0 [overflow-wrap:anywhere]" role="heading" aria-level={3}>
                             {expanded
                               ? (
-                                <div className="schema-field-title">
+                                <div className="flex min-w-0 flex-1 flex-col items-start gap-2 text-left">
                                   <Field pair fullWidth label="항목 이름">
                                     {(nameProps) => (
-                                      <input
+                                      <Input
                                         {...nameProps}
-                                        className="input"
+                                        
                                         maxLength={80}
                                         data-schema-setting="title"
                                         value={f.title ?? ""}
@@ -378,8 +389,8 @@ export function SchemaEditor(
                                 </div>
                               )
                               : (
-                                <button
-                                  className="schema-field-title related-toggle item-title"
+                                <Button variant="outline"
+                                  className="flex min-w-0 flex-1 flex-col items-start gap-2 text-left [overflow-wrap:anywhere]"
                                   type="button"
                                   aria-label={`${f.title || "새 항목"} 입력 항목 편집`}
                                   aria-expanded={expanded}
@@ -391,20 +402,20 @@ export function SchemaEditor(
                                       (element?.querySelector<HTMLInputElement>(
                                         'input[data-schema-setting="title"]:not(:disabled)',
                                       ) ?? element?.querySelector<HTMLButtonElement>(
-                                        ".schema-field-disclosure:not(:disabled)",
+                                        "[data-schema-disclosure]:not(:disabled)",
                                       ))?.focus({ preventScroll: true });
                                     });
                                   }}
                                 >
                                   <span>{f.title || "새 항목"}</span>
                                   {fieldSummary}
-                                </button>
+                                </Button>
                               )}
                           </div>
-                          <div className="schema-order-actions">
+                          <div data-schema-order-actions className="ml-auto flex shrink-0 gap-1">
                             <BodyAction
                               type="button"
-                              className="item-icon"
+                             
                               aria-label={`${f.title || "새 항목"} 위로`}
                               disabled={index === 0 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, -1)}
@@ -423,7 +434,7 @@ export function SchemaEditor(
                             </BodyAction>
                             <BodyAction
                               type="button"
-                              className="item-icon"
+                             
                               aria-label={`${f.title || "새 항목"} 아래로`}
                               disabled={index === schemaPresentation(draft).order.length - 1 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, 1)}
@@ -441,26 +452,26 @@ export function SchemaEditor(
                               </svg>
                             </BodyAction>
                           </div>
-                          <button
+                          <Button size="icon" data-schema-disclosure variant="outline"
                             type="button"
-                            className="material-section-toggle schema-field-disclosure"
+                            
                             aria-label={`${f.title || "새 항목"} 항목 ${openFields.includes(key) ? "접기" : "펼치기"}`}
                             aria-expanded={openFields.includes(key)}
                             aria-controls={`schema-field-${key}`}
                             onClick={toggleField}
-                          />
-                        </div>
-                        <fieldset
-                          className="settings-fields key-value-grid"
+                          ><ChevronDownIcon /></Button>
+                        </div></CardHeader><CardContent>
+                        <FieldSet
+                          className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
                           id={`schema-field-${key}`}
                           hidden={!openFields.includes(key)}
                           disabled={Boolean(plan?.recovery)}
                         >
                           <Field pair label="데이터 타입">
                             {(p) => (
-                              <select
+                              <NativeSelect
                                 {...p}
-                                className="input"
+                                
                                 data-schema-setting="type"
                                 value={fieldChoices(f) ? "select" : f.format === "date" ? "date" : scalar}
                                 onChange={(e) => {
@@ -488,28 +499,28 @@ export function SchemaEditor(
                                   );
                                 }}
                               >
-                                <option value="string">텍스트</option>
-                                <option value="integer">정수</option>
-                                <option value="number">숫자</option>
-                                <option value="date">날짜</option>
-                                <option value="boolean">참·거짓</option>
-                                <option value="select">단일 선택</option>
-                              </select>
+                                <NativeSelectOption value="string">텍스트</NativeSelectOption>
+                                <NativeSelectOption value="integer">정수</NativeSelectOption>
+                                <NativeSelectOption value="number">숫자</NativeSelectOption>
+                                <NativeSelectOption value="date">날짜</NativeSelectOption>
+                                <NativeSelectOption value="boolean">참·거짓</NativeSelectOption>
+                                <NativeSelectOption value="select">단일 선택</NativeSelectOption>
+                              </NativeSelect>
                             )}
                           </Field>
                           {fieldChoices(f) && (
-                            <div className="schema-options key-value-full">
-                              <h4 className="section-title">선택 항목</h4>
+                            <div className="flex min-w-0 flex-col gap-3 col-span-full">
+                              <h4 className="text-base font-semibold">선택 항목</h4>
                               {fieldChoices(f)!.filter((value) => value !== null).map((
                                 code,
                                 i,
                               ) => (
-                                <div className="schema-option-row" key={code!}>
+                                <div className="flex min-w-0 flex-wrap items-end gap-2 [&>div]:flex-1" key={code!}>
                                   <Field pair label={`선택 항목 ${i + 1}`}>
                                     {(props) => (
-                                      <input
+                                      <Input
                                         {...props}
-                                        className="input"
+                                        
                                         maxLength={80}
                                         value={optionLabel(
                                           schemaPresentation(draft).option_labels[key],
@@ -524,9 +535,9 @@ export function SchemaEditor(
                                       />
                                     )}
                                   </Field>
-                                  <button
+                                  <Button variant="outline"
                                     type="button"
-                                    className="btn btn-input"
+                                   
                                     aria-label={`선택 항목 ${i + 1} 제거`}
                                     disabled={fieldChoices(f)!.filter((value) => value !== null).length <= 1}
                                     onClick={() =>
@@ -536,7 +547,7 @@ export function SchemaEditor(
                                       })}
                                   >
                                     제거
-                                  </button>
+                                  </Button>
                                 </div>
                               ))}
                               <BodyAction
@@ -561,7 +572,7 @@ export function SchemaEditor(
                               >
                                 선택 항목 추가
                               </BodyAction>
-                              <p className="secondary">
+                              <p className="text-sm text-muted-foreground">
                                 선택 항목을 제거하면 기존 자료의 해당 값을 검토해야 합니다.
                               </p>
                             </div>
@@ -572,11 +583,10 @@ export function SchemaEditor(
                             disabled={Boolean(plan?.recovery)}
                             chooseRepresentative={editor.chooseRepresentative}
                           />
-                          <details
-                            className="schema-advanced key-value-full"
+                          <Collapsible
+                            className="min-w-0 col-span-full"
                             open={advancedFields.includes(key)}
-                            onToggle={(event) => {
-                              const open = event.currentTarget.open;
+                            onOpenChange={(open) => {
                               setAdvancedFields((keys) =>
                                 open
                                   ? keys.includes(key) ? keys : [...keys, key]
@@ -584,46 +594,46 @@ export function SchemaEditor(
                               );
                             }}
                           >
-                            <summary>추가 설정</summary>
-                            <div className="form key-value-grid">
-                              <label className="choice-control settings-choice-pair">
-                                <input
-                                  type="checkbox"
+                            <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">추가 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+                            <FieldGroup className="flex min-w-0 flex-col gap-5 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+                              <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                                <Checkbox
+                                  
                                   checked={draft.schema.required.includes(key)}
-                                  onChange={(e) => editFlag(key, "required", e.target.checked)}
+                                  onCheckedChange={(checked) => editFlag(key, "required", checked === true)}
                                 />{" "}
                                 필수 입력
-                              </label>
-                              <label className="choice-control settings-choice-pair">
-                                <input
-                                  type="checkbox"
+                              </FieldLabel>
+                              <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                                <Checkbox
+                                  
                                   aria-label={`${f.title || "새 항목"} 목록에 표시`}
                                   checked={schemaPresentation(draft).list_columns.includes(key)}
                                   disabled={schemaPresentation(draft).archived.includes(key)}
-                                  onChange={(event) =>
+                                  onCheckedChange={(checked) =>
                                     editFlag(
                                       key,
                                       "list_columns",
-                                      event.target.checked,
+                                      checked === true,
                                     )}
                                 />{" "}
                                 목록에 표시
-                              </label>
+                              </FieldLabel>
 
-                              <label className="choice-control settings-choice-pair">
-                                <input
-                                  type="checkbox"
+                              <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                                <Checkbox
+                                  
                                   checked={!!f.readOnly}
                                   aria-label={`${f.title || "새 항목"} 읽기 전용`}
-                                  onChange={(event) => editField(key, { ...f, readOnly: event.target.checked })}
+                                  onCheckedChange={(checked) => editField(key, { ...f, readOnly: checked === true })}
                                 />{" "}
                                 읽기 전용
-                              </label>
+                              </FieldLabel>
                               <Field pair fullWidth label="설명">
                                 {(p) => (
-                                  <textarea
+                                  <Textarea
                                     {...p}
-                                    className="input"
+                                    
                                     maxLength={1000}
                                     value={f.description ?? ""}
                                     onChange={(e) =>
@@ -639,14 +649,14 @@ export function SchemaEditor(
                                   const label = numericConditionNames[address.split(":")[1]];
                                   return (
                                     <div key={address}>
-                                      <p className="error-text">
+                                      <p className="text-sm text-destructive">
                                         현재 타입에서 사용할 수 없는 이전 조건 입력입니다. 입력을 확인하고 제거하세요.
                                       </p>
                                       <Field pair label={`이전 ${label} 입력`}>
                                         {(props) => (
-                                          <input
+                                          <Input
                                             {...props}
-                                            className="input"
+                                            
                                             value={raw}
                                             readOnly
                                           />
@@ -664,7 +674,7 @@ export function SchemaEditor(
                                 },
                               )}
                               {scalar === "string" && !f.format && (
-                                <div className="schema-constraints key-value-grid key-value-full">
+                                <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] col-span-full">
                                   {(["minLength", "maxLength"] as const).map((
                                     name,
                                   ) => (
@@ -674,9 +684,9 @@ export function SchemaEditor(
                                       label={name === "minLength" ? "최소 길이" : "최대 길이"}
                                     >
                                       {(p) => (
-                                        <input
+                                        <Input
                                           {...p}
-                                          className="input"
+                                          
                                           type="text"
                                           inputMode="decimal"
                                           min={0}
@@ -691,13 +701,13 @@ export function SchemaEditor(
                                 </div>
                               )}
                               {["integer", "number"].includes(scalar) && (
-                                <div className="schema-constraints key-value-grid key-value-full">
+                                <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] col-span-full">
                                   {(["minimum", "maximum", "multipleOf"] as const).map((name) => (
                                     <Field pair key={name} label={numericConditionNames[name]}>
                                       {(p) => (
-                                        <input
+                                        <Input
                                           {...p}
-                                          className="input"
+                                          
                                           type="text"
                                           inputMode="decimal"
                                           step="any"
@@ -712,9 +722,9 @@ export function SchemaEditor(
                               )}
                               <Field pair label="생성 기본값 (기존 자료에는 채우지 않음)">
                                 {(p) => (
-                                  <select
+                                  <NativeSelect
                                     {...p}
-                                    className="input"
+                                    
                                     value={f.default === undefined ||
                                         f.default === null
                                       ? "unset"
@@ -733,9 +743,9 @@ export function SchemaEditor(
                                           : fieldChoices(f)?.find((v) => v !== null) ?? "",
                                       })}
                                   >
-                                    <option value="unset">설정 안 함</option>
-                                    <option value="value">값 지정</option>
-                                  </select>
+                                    <NativeSelectOption value="unset">설정 안 함</NativeSelectOption>
+                                    <NativeSelectOption value="value">값 지정</NativeSelectOption>
+                                  </NativeSelect>
                                 )}
                               </Field>
                               {f.default !== undefined && f.default !== null && (
@@ -743,9 +753,9 @@ export function SchemaEditor(
                                   {(p) =>
                                     scalar === "boolean"
                                       ? (
-                                        <select
+                                        <NativeSelect
                                           {...p}
-                                          className="input"
+                                          
                                           value={String(f.default)}
                                           onChange={(e) =>
                                             editField(key, {
@@ -753,15 +763,15 @@ export function SchemaEditor(
                                               default: e.target.value === "true",
                                             })}
                                         >
-                                          <option value="false">거짓</option>
-                                          <option value="true">참</option>
-                                        </select>
+                                          <NativeSelectOption value="false">거짓</NativeSelectOption>
+                                          <NativeSelectOption value="true">참</NativeSelectOption>
+                                        </NativeSelect>
                                       )
                                       : fieldChoices(f)
                                       ? (
-                                        <select
+                                        <NativeSelect
                                           {...p}
-                                          className="input"
+                                          
                                           value={String(f.default)}
                                           onChange={(e) =>
                                             editField(key, {
@@ -772,19 +782,19 @@ export function SchemaEditor(
                                           {fieldChoices(f)!.filter((v) => v !== null).map((
                                             code,
                                           ) => (
-                                            <option key={code} value={code!}>
+                                            <NativeSelectOption key={code} value={code!}>
                                               {optionLabel(
                                                 schemaPresentation(draft).option_labels[key],
                                                 code!,
                                               )}
-                                            </option>
+                                            </NativeSelectOption>
                                           ))}
-                                        </select>
+                                        </NativeSelect>
                                       )
                                       : (
-                                        <input
+                                        <Input
                                           {...p}
-                                          className="input"
+                                          
                                           type={f.format === "date" ? "date" : "text"}
                                           inputMode={["integer", "number"].includes(
                                               scalar,
@@ -808,10 +818,10 @@ export function SchemaEditor(
                                       )}
                                 </Field>
                               )}
-                              <p className="secondary">
+                              <p className="text-sm text-muted-foreground">
                                 사용 중지는 기존 값을 유지합니다. 삭제는 검토·적용 후 반영됩니다.
                               </p>
-                              <div className="schema-actions">
+                              <div className="flex flex-wrap items-center justify-end gap-2">
                                 <BodyAction
                                   type="button"
                                   disabled={key === schemaPresentation(draft).representative}
@@ -843,20 +853,20 @@ export function SchemaEditor(
                                 </BodyAction>
                               </div>
                               {key === schemaPresentation(draft).representative && (
-                                <p className="secondary">
+                                <p className="text-sm text-muted-foreground">
                                   다른 항목을 자료 이름으로 선택한 뒤 사용 중지하거나 삭제하세요.
                                 </p>
                               )}
-                            </div>
-                          </details>
-                        </fieldset>
-                      </section>
+                            </FieldGroup>
+                          </CollapsibleContent></Collapsible>
+                        </FieldSet>
+                      </CardContent></Card>
                     </CollectionItem>
                   );
                 })}
               </CollectionList>
-            </fieldset>
-            <div className="schema-actions">
+            </FieldSet>
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <BodyAction
                 icon="create"
                 type="button"
@@ -871,31 +881,31 @@ export function SchemaEditor(
                 항목 추가
               </BodyAction>
             </div>
-            <p className="secondary">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
+            <p className="text-sm text-muted-foreground">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
             {actions.review.visible && (
-              <div className="settings-section-footer schema-review-actions">
+              <div className="flex flex-col gap-3 pt-4">
                 {(dirty || plan && plan.status !== "applied") && (
-                  <p className="secondary">
+                  <p className="text-sm text-muted-foreground">
                     {dirty
                       ? `변경 ${changeCount}개 · 검토 후 자료에 적용됩니다.`
                       : "저장한 변경안입니다. 아직 자료에 적용되지 않았습니다."}
                   </p>
                 )}
-                <div className="actions">
-                  <button
-                    className="btn"
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button variant="outline"
+                    
                     disabled={busy || uncertain || !dirty}
                     onClick={editor.cancelEditing}
                   >
                     변경 취소
-                  </button>
-                  <button
-                    className="btn btn-primary"
+                  </Button>
+                  <Button variant="default"
+                    
                     disabled={actions.review.disabled}
                     onClick={() => void actions.review.run()}
                   >
                     {busy ? "처리 중…" : uncertain ? "같은 요청 다시 확인" : "변경 검토"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -927,7 +937,7 @@ export function SchemaEditor(
         onOpenChange={setHistoryOpen}
       >
         <SchemaExport definition={definition} current />
-        <div className="schema-history-list">
+        <div className="flex min-w-0 flex-col gap-4">
           <CollectionList view="list" label="입력 항목 변경 이력">
             {historyRows.map((row) => {
               const c = row.change;
@@ -959,15 +969,15 @@ export function SchemaEditor(
               const title = row.version?.schema_version === 1 ? "최초 생성" : "입력 항목 변경";
               return (
                 <CollectionItem key={row.id}>
-                  <section
-                    className="schema-history-row related-item"
+                  <Card role="region"
+                    className="min-w-0"
                     data-expanded={isOpen || undefined}
                     key={row.id}
                     aria-label={`${title} ${new Date(row.createdAt).toLocaleString()}`}
                   >
-                    <button
+                    <CardHeader><Button variant="outline"
                       type="button"
-                      className="material-section-toggle related-toggle item-title schema-history-toggle"
+                      className="h-auto min-h-11 w-full justify-between whitespace-normal text-left min-w-0 [overflow-wrap:anywhere]"
                       aria-expanded={isOpen}
                       aria-controls={`schema-history-${row.id}`}
                       disabled={!isOpen && plan?.id !== row.changeId &&
@@ -1010,17 +1020,17 @@ export function SchemaEditor(
                         }
                       }}
                     >
-                      <span className="schema-history-heading">
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
                         <span>{title}</span>
-                        <time className="secondary" dateTime={row.createdAt}>
+                        <time className="text-sm text-muted-foreground" dateTime={row.createdAt}>
                           시각 {new Date(row.createdAt).toLocaleString()}
                         </time>
                       </span>
-                      <span className="secondary schema-history-status">상태 {status}</span>
-                    </button>
+                      <span className="text-sm text-muted-foreground shrink-0">상태 {status}</span>
+                    </Button></CardHeader><CardContent>
                     <div
                       id={`schema-history-${row.id}`}
-                      className="related-preview"
+                      className="flex min-w-0 flex-col gap-4 pt-4"
                       hidden={!isOpen}
                     >
                       {row.version && (
@@ -1048,7 +1058,7 @@ export function SchemaEditor(
                           />
                         )}
                       {row.jobs.length > 0 && (
-                        <div className="schema-job-visits">
+                        <div className="flex flex-col gap-4">
                           {row.jobs.length > 1 && (
                             <nav aria-label="이 변경의 값 변환 이력">
                               {row.jobs.map((job) => (
@@ -1085,13 +1095,13 @@ export function SchemaEditor(
                       {!row.version && plan && plan.id === row.changeId &&
                         !transforming && (
                         <section
-                          className="schema-summary"
+                          className="min-w-0"
                           aria-label="입력 항목 변경 요약"
                           data-change-version={plan.version}
                         >
-                          <h3 className="section-title" ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
+                          <h3 className="text-base font-semibold" ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
                           {restartedFrom && (
-                            <p role="status">최신 기준으로 만든 새 변경안입니다. 기존 변경안은 이력에 유지됩니다.</p>
+                            <Alert role="status"><AlertDescription>최신 기준으로 만든 새 변경안입니다. 기존 변경안은 이력에 유지됩니다.</AlertDescription></Alert>
                           )}
                           <p>버전 {plan.source_schema_version} → {plan.source_schema_version + 1}</p>
                           {!["applied", "cancelled"].includes(plan.status) && (
@@ -1130,7 +1140,7 @@ export function SchemaEditor(
                               >
                                 원본 작업 확인
                               </Link>
-                              <p className="secondary">
+                              <p className="text-sm text-muted-foreground">
                                 원본 보존 만료:{" "}
                                 <time
                                   dateTime={plan.recovery.source_expires_at}
@@ -1146,19 +1156,19 @@ export function SchemaEditor(
                             </section>
                           )}
                           {planSyncNeeded && (
-                            <p role="status">
+                            <Alert role="status"><AlertDescription>
                               {readBusy ? "최신 변경안 상태를 확인하는 중…" : "최신 변경안 상태를 다시 확인하세요."}
-                            </p>
+                            </AlertDescription></Alert>
                           )}
                           <SchemaChangeDiff
                             change={plan}
                             definition={definition}
                           />
                           {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
-                            <div
-                              className="schema-analysis-status"
+                            <Alert
+                             
                               role="status"
-                            >
+                            ><AlertDescription>
                               <strong>
                                 {{
                                   queued: "검토 접수",
@@ -1172,15 +1182,15 @@ export function SchemaEditor(
                                   .total}개 · 문제 {plan.analysis.failed}개
                               </p>
                               {dirty && (
-                                <p className="error-text">
+                                <p className="text-sm text-destructive">
                                   검토 이후 입력이 바뀌었습니다. 변경 검토를 다시 진행하세요.
                                 </p>
                               )}
-                            </div>
+                            </AlertDescription></Alert>
                           )}
                           {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
-                            <details className="schema-result-details">
-                              <summary>자료별 결과</summary>
+                            <Collapsible>
+                              <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">자료별 결과</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
                               <p>
                                 변경 {plan.analysis.changed}개 · 무변경 {plan.analysis.unchanged}개 · 값 제거{" "}
                                 {plan.analysis.removed}개 · 값 보완 {plan.analysis.replacements}개
@@ -1201,7 +1211,7 @@ export function SchemaEditor(
                                   </ul>
                                 </div>
                               ))}
-                            </details>
+                            </CollapsibleContent></Collapsible>
                           )}
                           {actions.conversionVisible
                             ? (
@@ -1235,9 +1245,9 @@ export function SchemaEditor(
                           )}
                           {!planSyncNeeded && plan.analysis?.status === "failed" &&
                             plan.status !== "cancelled" && (
-                            <p role="alert" className="error-text">
+                            <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>
                               분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.
-                            </p>
+                            </AlertDescription></Alert>
                           )}
                           {plan.status === "stale" && (
                             <p>
@@ -1246,7 +1256,7 @@ export function SchemaEditor(
                                 : "정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요."}
                             </p>
                           )}
-                          <div className="schema-actions">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                             {(row.version ||
                                 ["applied", "cancelled"].includes(plan.status))
                               ? (
@@ -1255,25 +1265,25 @@ export function SchemaEditor(
                                     definition.schema_version <=
                                       plan.source_schema_version &&
                                     (
-                                      <button
-                                        className="btn"
+                                      <Button variant="outline"
+                                        
                                         disabled={busy || uncertain || readBusy}
                                         onClick={() => void editor.refreshDefinition()}
                                       >
                                         최신 설정 다시 조회
-                                      </button>
+                                      </Button>
                                     )}
                                 </>
                               )
                               : (
                                 <>
-                                  <button
-                                    className="btn btn-danger"
+                                  <Button variant="destructive"
+                                    
                                     disabled={actions.discard.disabled}
                                     onClick={() => setDiscardConfirm(true)}
                                   >
                                     폐기
-                                  </button>
+                                  </Button>
                                   {primaryAction?.kind === "migration"
                                     ? (
                                       <MigrationStart
@@ -1283,13 +1293,13 @@ export function SchemaEditor(
                                       />
                                     )
                                     : primaryAction && (
-                                      <button
-                                        className="btn btn-primary"
+                                      <Button variant="default"
+                                        
                                         disabled={primaryAction.disabled}
                                         onClick={() => void primaryAction.run?.()}
                                       >
                                         {actionLabels[primaryAction.kind]}
-                                      </button>
+                                      </Button>
                                     )}
                                 </>
                               )}
@@ -1297,12 +1307,12 @@ export function SchemaEditor(
                         </section>
                       )}
                     </div>
-                  </section>
+                  </CardContent></Card>
                 </CollectionItem>
               );
             })}
           </CollectionList>
-          {historyRows.length === 0 && <p className="secondary">변경 이력이 없습니다.</p>}
+          {historyRows.length === 0 && <p className="text-sm text-muted-foreground">변경 이력이 없습니다.</p>}
           {editor.view.changesBefore && (
             <BodyAction
               disabled={readBusy || busy || uncertain}
@@ -1321,7 +1331,7 @@ export function SchemaEditor(
           >
             변경 이력 다시 조회
           </BodyAction>
-          {jobs.error && <p role="alert" className="error-text">{jobs.error}</p>}
+          {jobs.error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{jobs.error}</AlertDescription></Alert>}
           {jobs.before && (
             <BodyAction disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
               {jobs.moreBusy ? "이전 변환 이력 읽는 중…" : "이전 변환 이력 더 보기"}
@@ -1358,7 +1368,7 @@ export function SchemaEditor(
       <ConfirmDialog
         open={deleteKey !== null}
         title="항목을 삭제할까요?"
-        message={<><dl className="key-value-grid key-value-static"><div className="key-value-full"><dt>항목 이름</dt><dd>{deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"}</dd></div></dl><p>삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제 자료는 변경되지 않습니다.</p></>}
+        message={<><dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3"><div className="col-span-full"><dt>항목 이름</dt><dd>{deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"}</dd></div></dl><p>삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제 자료는 변경되지 않습니다.</p></>}
         confirmLabel="삭제 변경안 만들기"
         danger
         confirmDisabled={busy || uncertain || disabled || readBusy}
