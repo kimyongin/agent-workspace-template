@@ -38,7 +38,7 @@ test("general record selects two entities in web; MCP, both related views and de
       const capture = read.entity_context.find((value: { id: string }) => value.id === target.id);
       expect(capture?.type).toBeTruthy();
       expect(capture?.schema_version).toBeDefined();
-      const row = connected.getByRole("listitem").filter({ has: connected.getByText(target.title, { exact: true }) });
+      const row = connected.getByRole("listitem").filter({ has: page.getByText(target.title, { exact: true }) });
       await expect(row).toHaveCount(1);
       for (const [label, value] of [
         ["당시 자료 종류", capture.type.label],
