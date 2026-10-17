@@ -1,3 +1,5 @@
+import { RecordDataFields } from "./RecordDataFields.tsx";
+import type { RecordResult } from "@contracts/record.ts";
 import { TaskDataFields } from "./TaskDataFields.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
@@ -63,6 +65,7 @@ export function RecordFormModal(props: {
   taskEditable?: boolean;
   systemRecord?: boolean;
   editing?: boolean;
+  record?: RecordResult;
   onClose: () => void;
   onRouteDiscard?: () => void;
   onSave: (
@@ -111,60 +114,41 @@ export function RecordFormModal(props: {
         return props.onSave(props.systemRecord ? { body: parsed.body } : parsed, requestKey);
       }}
     >
-      {(errors) => (
-        <>
+      {(errors) => {
+        const body = <Field pair fullWidth label="본문" required error={errors.body}>
+          {p => <textarea {...p} className="input" rows={8}
+            placeholder="내용과 근거를 작성하세요 (마크다운)" value={draft.body}
+            onChange={e => setDraft(d => ({ ...d, body: e.target.value }))}/>}
+        </Field>;
+        const occurredAt = <Field pair label={recordLabels.occurred_at} error={errors.occurred_at}>
+          {p => <input {...p} className="input" type="datetime-local" value={draft.occurred_at}
+            onChange={e => setDraft(d => ({ ...d, occurred_at: e.target.value }))}/>}
+        </Field>;
+        return <>
           {props.intro}
-          <section className="detail-section form">
-            <Field label="본문" required error={errors.body}>
-              {(p) => (
-                <textarea
-                  {...p}
-                  className="input"
-                  rows={8}
-                  placeholder="내용과 근거를 작성하세요 (마크다운)"
-                  value={draft.body}
-                  onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
-                />
-              )}
-            </Field>
-          </section>
-          {!props.systemRecord && (
-            <section className="detail-section form">
-              {!props.editing && props.taskEditable !== false && props.entityEditable !== false && (
-                <RelationPicker
-                  kind="task"
-                  value={draft.task_id ? [draft.task_id] : []}
-                  error={errors.task_id}
-                  onChange={(ids) => setDraft((d) => ({ ...d, task_id: ids[0] }))}
-                />
-              )}
-              {!props.editing && props.entityEditable !== false && (
-                <EntityMultiPicker
-                  value={draft.entity_ids ?? []}
-                  context={draft.entity_context}
-                  error={errors.entity_ids}
-                  onChange={(entity_ids) => setDraft((d) => ({ ...d, entity_ids }))}
-                />
-              )}
-              <Field label={recordLabels.occurred_at} error={errors.occurred_at}>
-                {(p) => (
-                  <input
-                    {...p}
-                    className="input"
-                    type="datetime-local"
-                    value={draft.occurred_at}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, occurred_at: e.target.value }))}
-                  />
-                )}
-              </Field>
-            </section>
-          )}
+          {props.record
+            ? <RecordDataFields record={props.record} body={body}
+                occurredAt={props.systemRecord ? undefined : occurredAt}/>
+            : <section className="detail-section form key-value-grid">
+                {body}{!props.systemRecord && occurredAt}
+              </section>}
+          {!props.editing && !props.systemRecord && <section className="detail-section form">
+            {props.taskEditable !== false && props.entityEditable !== false && <RelationPicker
+              kind="task" value={draft.task_id ? [draft.task_id] : []} error={errors.task_id}
+              onChange={ids => setDraft(d => ({ ...d, task_id: ids[0] }))}/>}
+            {props.entityEditable !== false && <EntityMultiPicker value={draft.entity_ids ?? []}
+              context={draft.entity_context} error={errors.entity_ids}
+              onChange={entity_ids => setDraft(d => ({ ...d, entity_ids }))}/>}
+          </section>}
           <section className="detail-section">
-            {props.editing ? <ReadonlyTags scope="record" ids={props.initial.tag_ids} /> : <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={(tag_ids) => setDraft(d => ({ ...d, tag_ids }))} />}
+            {props.editing
+              ? <ReadonlyTags scope="record" ids={props.initial.tag_ids}/>
+              : <TagPicker value={draft.tag_ids} error={errors.tag_ids}
+                  onChange={tag_ids => setDraft(d => ({ ...d, tag_ids }))}/>}
           </section>
           {props.details}
-        </>
-      )}
+        </>;
+      }}
     </FormModal>
   );
 }

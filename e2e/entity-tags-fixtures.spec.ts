@@ -666,3 +666,147 @@ test("기록 태그 연결 버전 충돌은 원문과 선택 초안을 보존한
   await expect(page.locator(".record-content")).toContainText(record.body);
   await expect(region.getByRole("button",{name:"태그 연결",exact:true})).toBeFocused();
 });
+
+test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 연결을 다시 시작한다", async ({ page }) => {
+  let current = {
+    ...makeEntity(1),
+    id: `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000`,
+    tag_ids: [tags[0].id],
+  };
+  const writes: Record<string, unknown>[] = [];
+  await page.route(
+    "**/api/entity-types**",
+    (route) =>
+      route.fulfill({
+        json: new URL(route.request().url()).pathname.endsWith("/schema")
+          ? fixtureSchema
+          : new URL(route.request().url()).pathname.endsWith("/identity")
+          ? fixtureIdentity()
+          : { items: [fixtureType], next_cursor: null },
+      }),
+  );
+  await page.route("**/api/entities/**", async (route) => {
+    if (route.request().method() === "PATCH") {
+      const input = route.request().postDataJSON();
+      writes.push(input);
+      if (writes.length === 1) {
+        current = {
+          ...current,
+          title: "외부에서 바뀐 자료",
+          properties: { ...current.properties, prop_1: "외부에서 바뀐 자료" },
+          tag_ids: [tags[1].id],
+          version: 2,
+        };
+        return route.fulfill({ status: 409, json: { code: "conflict", message: "다른 변경이 저장되었습니다." } });
+      }
+      current = { ...current, tag_ids: input.tag_ids, version: 3 };
+    }
+    return route.fulfill({ json: current });
+  });
+  await page.goto(url);
+  await page.getByRole("link", { name: "자료 fixture", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  const region = page.getByRole("region", { name: "태그 연결" });
+  await region.getByRole("button", { name: "첫 태그 연결 해제", exact: true }).click();
+  await region.getByRole("button", { name: "연결 적용", exact: true }).click();
+  const action = page.locator("dialog.modal-action[open]");
+  await action.getByRole("button", { name: "연결하고 저장", exact: true }).click();
+  await expect(action).toContainText("다른 변경이 저장되었습니다.");
+  await action.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "외부에서 바뀐 자료", exact: true })).toHaveCount(0);
+  await expect(region.getByRole("button", { name: "첫 태그 선택 해제", exact: true })).toHaveCount(0);
+  await region.getByRole("button", { name: "연결 취소", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "외부에서 바뀐 자료", exact: true })).toBeVisible();
+  await expect(region.locator(".tag-read")).toContainText("다른 태그");
+  await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toBeFocused();
+  await region.getByRole("button", { name: "다른 태그 연결 해제", exact: true }).click();
+  await region.getByRole("button", { name: "연결 적용", exact: true }).click();
+  await action.getByRole("button", { name: "연결하고 저장", exact: true }).click();
+  await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+  expect(writes.map((input) => input.expected_version)).toEqual([1, 2]);
+  expect(current.properties.prop_1).toBe("외부에서 바뀐 자료");
+});
+
+test("태그 연결 초안은 닫기·뒤로가기·경로 이동 취소에서 선택과 초점을 지키고 승인한 경로만 이동한다", async ({ page }) => {
+  const record = { ...makeRecord(3), id: "30000000-0000-4000-8000-000000000000", tag_ids: [tags[0].id] };
+  await page.route("**/api/records/**", (route) => route.fulfill({ json: record }));
+  await page.goto(url);
+  await page.getByRole("link", { name: "기록 fixture", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  const region = page.getByRole("region", { name: "태그 연결" });
+  await region.getByRole("button", { name: "첫 태그 연결 해제", exact: true }).click();
+  const chooser = region.getByRole("button", { name: "태그 선택", exact: true });
+  const surface = page.locator("dialog.modal[open]:visible");
+  const close = surface.getByRole("button", { name: "닫기", exact: true });
+  const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  await close.click();
+  await expect(discard).toHaveCount(1);
+  await discard.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(close).toBeFocused();
+  await expect(region.getByRole("button", { name: "첫 태그 선택 해제", exact: true })).toHaveCount(0);
+  await chooser.focus();
+  await page.goBack();
+  await expect(discard).toHaveCount(1);
+  await discard.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page).toHaveURL(/\/records\/30000000/);
+  await expect(chooser).toBeFocused();
+  const destination = page.getByRole("link", { name: "다른 화면", exact: true });
+  await destination.evaluate((el: HTMLAnchorElement) => el.click());
+  await discard.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(chooser).toBeFocused();
+  await destination.evaluate((el: HTMLAnchorElement) => el.click());
+  await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await expect(page).toHaveURL(/entity-tags\.html\?fixture=other$/);
+  await expect(discard).toHaveCount(0);
+  await page.getByRole("link", { name: "기록 fixture", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  await expect(region.locator(".tag-read")).toContainText("첫 태그");
+  await expect(page.locator(".record-content")).toContainText(record.body);
+});
+
+test("태그 연결 처리 중과 응답 불명은 Escape·뒤로가기를 막고 같은 시도만 재확인한다", async ({ page }) => {
+  const record = { ...makeRecord(3), id: "30000000-0000-4000-8000-000000000000", tag_ids: [tags[0].id] };
+  let release = () => {}, arrived = () => {};
+  const started = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  const requests: { body: Record<string, unknown>; key: string | undefined }[] = [];
+  await page.route("**/api/records/**", async (route) => {
+    if (route.request().method() !== "PATCH") return route.fulfill({ json: record });
+    requests.push({ body: route.request().postDataJSON(), key: route.request().headers()["idempotency-key"] });
+    if (requests.length === 1) {
+      arrived();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return route.abort();
+    }
+    return route.fulfill({ json: { ...record, tag_ids: [], version: 2 } });
+  });
+  try {
+    await page.goto(url);
+    await page.getByRole("link", { name: "기록 fixture", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+    const region = page.getByRole("region", { name: "태그 연결" });
+    await region.getByRole("button", { name: "첫 태그 연결 해제", exact: true }).click();
+    await region.getByRole("button", { name: "연결 적용", exact: true }).click();
+    await started;
+    for (const phase of ["busy", "uncertain"]) {
+      await expect(region.getByRole("button", { name: "연결 취소", exact: true })).toBeDisabled();
+      await page.keyboard.press("Escape");
+      await page.goBack();
+      await expect(page).toHaveURL(/\/records\/30000000/);
+      await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+      await expect(region).toBeVisible();
+      if (phase === "busy") {
+        release();
+        await expect(region.getByText(/저장 여부를 알 수 없습니다/)).toBeVisible();
+      }
+    }
+    await region.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
+    await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toEqual(requests[0]);
+    await page.locator("dialog.modal[open]:visible").getByRole("button", { name: "닫기", exact: true }).click();
+    await expect(region).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+  } finally {
+    release();
+  }
+});
