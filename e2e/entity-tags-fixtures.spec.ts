@@ -56,6 +56,7 @@ async function settings(page: Page) {
 async function closeMainNavigation(page: Page) {
   const menu = page.getByRole("dialog", { name: "주 메뉴", exact: true });
   if (await menu.isVisible()) {
+    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true })).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
   }
