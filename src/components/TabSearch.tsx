@@ -108,7 +108,8 @@ export function resetTabFilters(params: URLSearchParams) {
 }
 /** URL owns disclosure state; optional conditions remain mounted while hidden. */
 export function TabFilters(
-  { active = false, attention = false, summary = [], children, dirty = false, onReset, onApply }: {
+  { active = false, attention = false, summary = [], children, dirty = false, onReset, onApply, applyRef }: {
+    applyRef?: RefObject<HTMLButtonElement | null>;
     active?: boolean;
     attention?: boolean;
     summary?: string[];
@@ -148,14 +149,15 @@ export function TabFilters(
         </p>
       )}
       <CollapsibleContent className="col-span-full" forceMount hidden={!open}>
-        <FilterPanel dirty={dirty} onReset={onReset} onApply={onApply}>{children}</FilterPanel>
+        <FilterPanel dirty={dirty} onReset={onReset} onApply={onApply} applyRef={applyRef}>{children}</FilterPanel>
       </CollapsibleContent>
     </Collapsible>
   );
 }
 
-export function FilterPanel({ children, dirty = false, onReset, onApply, id, hidden }: {
+export function FilterPanel({ children, dirty = false, onReset, onApply, id, hidden, applyRef }: {
   children: ReactNode;
+  applyRef?: RefObject<HTMLButtonElement | null>;
   dirty?: boolean;
   onReset: () => void;
   onApply: () => void;
@@ -179,7 +181,7 @@ export function FilterPanel({ children, dirty = false, onReset, onApply, id, hid
       </CardContent>
       <CardFooter className="flex-wrap justify-end gap-3">
         {dirty && <span className="mr-auto text-sm text-muted-foreground" role="status">변경사항 적용 대기</span>}
-        <Button type="button" onClick={onApply}>필터 적용</Button>
+        <Button ref={applyRef} type="button" onClick={onApply}>필터 적용</Button>
       </CardFooter>
     </Card>
   );

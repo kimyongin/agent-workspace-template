@@ -243,7 +243,7 @@ test(
     await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
     await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
     const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
-    const title = form.getByRole("term", { name: "제목 · 읽기 전용", exact: true });
+    const title = form.getByRole("term").filter({ hasText: /^제목 · 읽기 전용$/ });
     await expect(title).toBeVisible();
     await expect(title.locator("..").getByRole("definition")).toHaveText("Auto");
     await form.screenshot({ path: testInfo.outputPath("readonly-representative-default.png") });

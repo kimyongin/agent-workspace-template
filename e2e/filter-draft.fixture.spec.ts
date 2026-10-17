@@ -139,7 +139,7 @@ test("history synchronizes optional drafts and property rows keep their responsi
     }
     const sequence = await property.evaluate((node) => {
       const row = node.closest("div:has(> button[aria-label='조건 1 제거'])") ?? node.parentElement!.parentElement!;
-      return [...row.querySelectorAll("input,select,button")].map(control => control.getAttribute("aria-label"));
+      return [...row.querySelectorAll("input,select,button")].map(control => control.getAttribute("aria-label") ?? (control as HTMLInputElement).labels?.[0]?.textContent?.trim());
     });
     expect(sequence).toEqual(["조건 1 속성", "조건 1 비교", "조건 1 값", "조건 1 제거"]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
