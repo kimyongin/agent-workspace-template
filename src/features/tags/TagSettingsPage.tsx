@@ -18,7 +18,7 @@ export function TagSettingsPage() {
   const [state, setState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const [action, setAction] = useState<SurfaceAction | null>(null);
   const selector = useRef<HTMLSelectElement>(null);
-  const blocker = usePageNavigationBlocker(state.dirty, state.busy);
+  const blocker = usePageNavigationBlocker(state.dirty || !!state.uncertain, state.busy || !!state.uncertain);
   useEffect(() => {
     if (state.busy && blocker.state === "blocked") blocker.reset();
   }, [state.busy, blocker]);

@@ -1080,3 +1080,44 @@ test("desktop: a pending base setting also prevents closing or hiding the retain
   await expect(form).toHaveAttribute("aria-busy", "false");
   await expect(form.getByLabel("닉네임", { exact: true })).toHaveValue("진행 중인 왼쪽 설정");
 });
+
+for (const screen of ["materials", "relations"] as const) test(`desktop: uncertain ${screen} settings lock retained tabs and preserve identical retry`, async ({ page }) => {
+  await fixture(page);
+  const writes: Array<{ key?: string; body: unknown }> = [];
+  const endpoint = screen === "materials" ? "entity-types" : "entity-relation-definitions";
+  await page.route(`**/api/${endpoint}`, async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    writes.push({ key: route.request().headers()["idempotency-key"], body: route.request().postDataJSON() });
+    return route.abort();
+  });
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
+  await page.getByRole("link", { name: "설정", exact: true }).click();
+  const left = page.locator(".workspace-list");
+  await left.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+  await left.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+  if (screen === "materials") {
+    await left.getByLabel("자료 종류 이름", { exact: true }).fill("미확정 종류");
+    await left.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
+  } else {
+    await left.getByRole("link", { name: "연결 설정", exact: true }).click();
+    await left.getByRole("button", { name: "연결 설정 추가", exact: true }).click();
+    await left.getByLabel("첫 번째 자료 종류", { exact: true }).selectOption("00000000-0000-4000-8000-000000000900");
+    await left.getByLabel("두 번째 자료 종류", { exact: true }).selectOption("00000000-0000-4000-8000-000000000900");
+    await left.getByLabel("첫 번째 연결 이름", { exact: true }).fill("선행 자료");
+    await left.getByLabel("두 번째 연결 이름", { exact: true }).fill("후속 자료");
+    await left.getByRole("button", { name: "추가", exact: true }).click();
+  }
+  const retry = left.getByRole("button", { name: screen === "materials" ? "같은 요청 다시 확인" : "같은 저장 다시 확인", exact: true });
+  await expect(retry).toBeEnabled();
+  await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).evaluate((el: HTMLButtonElement) => el.click());
+  await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "상세 패널 숨기기", exact: true }).evaluate((el: HTMLButtonElement) => el.click());
+  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기록", exact: true }).click();
+  await expect(page.locator(".detail-workspace")).toHaveClass(/has-detail-panel/);
+  await expect(retry).toBeEnabled();
+  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await retry.click();
+  await expect.poll(() => writes.length).toBe(2);
+  expect(writes[0]).toEqual(writes[1]);
+});

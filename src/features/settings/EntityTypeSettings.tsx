@@ -108,6 +108,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     jobState.uncertain;
   const anyBusy = busy || identityState.busy || schemaState.busy ||
     jobState.busy;
+  const navigationLocked = anyBusy || uncertain || identityState.uncertain || schemaState.uncertain || jobState.uncertain;
   useEffect(() => {
     const controller = new AbortController();
     setSelectedSchema(null);
@@ -483,7 +484,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       )}
       <MaterialSettingsProtection
         dirty={protectedDraft}
-        busy={anyBusy}
+        busy={navigationLocked}
         typeId={type_id}
         jobId={selectedJob}
         protectJob={jobState.dirty || jobState.uncertain}

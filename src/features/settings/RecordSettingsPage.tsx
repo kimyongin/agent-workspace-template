@@ -16,7 +16,7 @@ export function RecordSettingsPage() {
   const [visited, setVisited] = useState(["task"]);
   const [states, setStates] = useState<Record<string, MaterialSectionState>>({});
   const report = useCallback((id: string, state: MaterialSectionState) => setStates(current => ({ ...current, [id]: state })), []);
-  const busy = Object.values(states).some(state => state.busy);
+  const busy = Object.values(states).some(state => state.busy || state.uncertain);
   const dirty = Object.values(states).some(state => state.dirty || state.uncertain);
   const blocker = usePageNavigationBlocker(dirty, busy);
   useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
