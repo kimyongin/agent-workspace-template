@@ -8,7 +8,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
     admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
-  const types: string[] = [], entities: string[] = [];
+  const types: string[] = [], entities: string[] = [], relations: string[] = [];
   try {
     const type = await mcp.call("create_entity_type", { label: unique("원본 복구"), icon_id: "leaf" }),
       peerType = await mcp.call("create_entity_type", { label: unique("연결 자료") });
@@ -30,6 +30,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
         { type_id: peerType.id, label: "복구 원점", cardinality: "many" },
       ],
     });
+    relations.push(relation.id);
     await mcp.call("connect_entity_relation", {
       definition_id: relation.id,
       side: 0,
@@ -188,10 +189,19 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     await expect(create).toBeDisabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
-    await mcp.close();
-    if (entities.length) await admin`delete from app.records where entity_ids&&${entities}::text[]`;
-    if (entities.length) await admin`delete from app.entities where id=any(${entities}::text[])`;
-    if (types.length) await admin`delete from app.entity_types where id=any(${types}::uuid[])`;
-    await admin.end();
+    try {
+      await admin.begin(async (tx) => {
+        if (entities.length) await tx`delete from app.records where entity_ids&&${entities}::text[]`;
+        if (relations.length) await tx`delete from app.entity_relation_definitions where id=any(${relations}::uuid[])`;
+        if (entities.length) await tx`delete from app.entities where id=any(${entities}::text[])`;
+        if (types.length) await tx`delete from app.entity_types where id=any(${types}::uuid[])`;
+      });
+    } finally {
+      try {
+        await mcp.close();
+      } finally {
+        await admin.end();
+      }
+    }
   }
 });
