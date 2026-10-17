@@ -195,6 +195,7 @@ for (const [width, scale] of [[1440, "100"], [1280, "125"], [390, "100"]] as con
   await related.getByRole("button", { name: "자료", exact: true }).click();
   const origin = related.getByRole("link", { name: "자료 상세", exact: true });
   await origin.click();
+  await expect(detail.getByRole("heading", { name: entity().type.label, exact: true })).toBeVisible();
   await detail.getByRole("button", { name: "편집", exact: true }).click();
   await detail.getByRole("button", { name: "취소", exact: true }).click();
   await detail.getByRole("button", { name: "이전: 할 일", exact: true }).click();

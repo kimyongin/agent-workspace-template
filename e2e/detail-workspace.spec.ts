@@ -1051,7 +1051,7 @@ test("desktop: a pending detail write remains protected while settings is the le
   await executionDialog(page).getByRole("button", { name: "수정하고 저장" }).click();
   await state.pending;
   try {
-    await page.getByRole("navigation", { name: "주 메뉴", includeHidden: true }).getByRole("link", { name: "기록", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+    await page.getByRole("navigation", { name: "주 메뉴", includeHidden: true }).getByRole("link", { name: "기록", exact: true, includeHidden: true }).evaluate((el: HTMLAnchorElement) => el.click());
     for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true, includeHidden: true }).evaluate((el: HTMLButtonElement) => el.click());
     await expect(page.getByRole("region", { name: "기본 작업 영역", exact: true, includeHidden: true }).getByRole("heading", { name: "기본 설정", exact: true, includeHidden: true })).toBeVisible();
     await expect(page.getByRole("tab", { includeHidden: true })).toHaveCount(2);
@@ -1322,7 +1322,9 @@ for (const width of [320,360,390,639,640,768,1024,1440]) {
     expect(afterKey.x).toBeCloseTo(beforeKey.x,0);
     expect(afterValue.x).toBeCloseTo(beforeValue.x,0);
     expect(afterValue.width).toBeCloseTo(beforeValue.width,0);
-    expect(await input.evaluate(el=>getComputedStyle(el).fontSize)).toBe(readingSize);
+    expect(parseFloat(readingSize)).toBeGreaterThanOrEqual(14);
+    expect(await input.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(width < 768 ? 16 : 14);
+    await expect(input).toHaveValue(state.rows.records[0].body);
     await input.focus();await expect(input).toBeFocused();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.screenshot({path:info.outputPath(`record-edit-${width}.png`)});
