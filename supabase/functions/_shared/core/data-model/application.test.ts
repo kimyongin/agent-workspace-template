@@ -169,3 +169,28 @@ Deno.test("whole model review surfaces existing typed link cardinality and endpo
   assertEquals(review.items.find((i) => i.ref === `relation:${doc.relations[0].id}`)?.kind, "conflict");
   assertEquals(review.can_apply, false);
 });
+
+Deno.test("whole model review rejects changing a used relationship endpoint kind before publication", async () => {
+  const doc = example(), other = structuredClone(doc.entity_types[0]);
+  other.ref = "other";
+  other.schema["x-type-id"] = "10000000-0000-4000-8000-000000000013";
+  other.schema.title = "다른 종류";
+  doc.entity_types.push(other);
+  const types = Object.fromEntries(
+    doc.entity_types.map((t) => [t.schema["x-type-id"], { next_property_number: 2, count: 0, locked: false }]),
+  );
+  const changed = structuredClone(doc);
+  changed.relations[0].ends[1].type_ref = "other";
+  const plan = await resolveModel(
+    {
+      document: doc,
+      types,
+      relation_usage: { [doc.relations[0].id]: { links: 1, left_many: false, right_many: false } },
+    },
+    changed,
+    "update",
+    actor.userId,
+  );
+  assertEquals(plan.review.items.find((i) => i.ref === `relation:${doc.relations[0].id}`)?.kind, "conflict");
+  assertEquals(plan.review.can_apply, false);
+});
