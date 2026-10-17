@@ -62,7 +62,9 @@ test("shell desktop: closing a detail returns long-list scrolling and append own
     }
     return true;
   })).toBe(true);
-  await more.click();
+  await more.focus();
+  await expect(more).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(main.locator("[data-list-anchor]")).toHaveCount(60);
   await expect(more).toBeFocused();
   expect(await main.evaluate(element => element.scrollTop)).toBe(top);
