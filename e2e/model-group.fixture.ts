@@ -323,16 +323,16 @@ test("변환 초안은 자료 설정 이동에서 보호하고 잘못된 숫자 
   await page.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
   expect(writes).toBe(0);
   await expect(page.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("1.0000000000000001");
-  await page.getByRole("navigation", { name: "자료 설정 항목", exact: true })
-    .getByRole("link", { name: "자료 종류", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible();
+  await page.getByRole("tablist", { name: "자료 설정 항목", exact: true })
+    .getByRole("tab", { name: "자료 종류", exact: true }).click();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("1.0000000000000001");
   await page.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(page.getByRole("button", { name: "재고 모델 취소됨", exact: true })).toBeVisible();
-  await page.getByRole("navigation", { name: "자료 설정 항목", exact: true })
-    .getByRole("link", { name: "자료 종류", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+  await page.getByRole("tablist", { name: "자료 설정 항목", exact: true })
+    .getByRole("tab", { name: "자료 종류", exact: true }).click();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
 });
 
 test("worker 준비 완료 상태는 규칙을 잠그고 GET 조회로 전체 확정을 기다린다", async ({ page }) => {
