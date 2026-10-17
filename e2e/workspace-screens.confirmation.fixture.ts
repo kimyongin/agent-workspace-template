@@ -275,10 +275,10 @@ test("#229 업무 확인의 서버 메모 오류는 해당 입력에 표시하�
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, n, label] of [["entities", 1, "자료 태그"], ["tasks", 2, "할 일 태그"], ["records", 3, "기록 태그"]] as const) {
-  test(`${kind}: tag clear stays outside choices, keeps the group name and only updates the draft`, async ({ page }) => {
+for (const [kind, label] of [["entities", "자료 태그"], ["tasks", "할 일 태그"], ["records", "기록 태그"]] as const) {
+  test(`${kind}: new registration tag clear stays outside choices, keeps the group name and only updates the draft`, async ({ page }) => {
     const state = await fixtures(page);
-    await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1&edit_from=view`);
+    await go(page, `/${kind}?create=1`);
     const picker = form(page).getByRole("group", { name: label, exact: true });
     const choice = picker.getByRole("button", { name: "같은 이름 선택 해제", exact: true });
     const clear = picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
@@ -298,13 +298,26 @@ for (const [kind, n, label] of [["entities", 1, "자료 태그"], ["tasks", 2, "
 
 test("failed tag lookup still permits clearing existing draft selections", async ({ page }) => {
   const state = await fixtures(page);
-  state.rows.records[0].tag_ids = [id(11)];
-  await page.route("**/api/tags**", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "fixture lookup failed", fields: [] } } }));
-  await go(page, `/records/${id(3)}?edit=1&edit_from=view`);
+  await go(page, "/records?create=1");
   const picker = form(page).getByRole("group", { name: "기록 태그", exact: true });
+  const choice = picker.getByRole("button", { name: "같은 이름 선택 해제", exact: true });
+  await chooseTag(page, picker, "같은 이름");
+  await expect(choice).toHaveCount(1);
+  let failedReads = 0;
+  await page.route("**/api/tags**", route => {
+    failedReads++;
+    return route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "fixture lookup failed", fields: [] } } });
+  });
+  // Returning to the window refreshes the dictionary while the new record's actual UI selection remains a draft.
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => failedReads).toBeGreaterThan(0);
   await expect(picker.getByRole("alert")).toContainText("기존 선택은 유지합니다");
+  await expect(picker).toHaveAccessibleName("기록 태그");
+  await expect(choice).toHaveCount(1);
+  await expect(picker.locator('[aria-label="선택한 태그"]').getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
   await picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true }).click();
   await expect(picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true })).toHaveCount(0);
+  await expect(choice).toHaveCount(0);
   await expect(picker.getByRole("button", { name: "태그 선택", exact: true })).toBeFocused();
   expect(state.writes).toHaveLength(0);
 });
