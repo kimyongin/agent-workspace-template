@@ -64,8 +64,10 @@ export class SqlEntityRelationDefinitionStore implements EntityRelationDefinitio
   async typesAvailable(ends: EntityRelationDefinition["ends"]) {
     await this.lockOwner();
     const ids = [...new Set(ends.map((e) => e.type_id))].sort();
-    const rows = await this
-      .tx`select t.id, coalesce((v.schema->>'deprecated')::boolean,false) as archived from app.entity_types t join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where t.id=any(${ids}::uuid[]) order by t.id for share of t`;
+    await this.tx`select id from app.entity_types where id=any(${ids}::uuid[]) order by id for share`;
+    const rows = await this.tx`select t.id,coalesce((v.schema->>'deprecated')::boolean,false) as archived
+      from app.entity_types t join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
+      where t.id=any(${ids}::uuid[]) order by t.id`;
     return rows.length === ids.length && rows.every((r) => !r.archived);
   }
   async hasLinks(id: string) {

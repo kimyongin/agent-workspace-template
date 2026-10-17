@@ -176,3 +176,58 @@ dbTest("in-use definition rejects kind changes, one shrink and deletion while ar
     await admin.end();
   }
 });
+
+import { updateEntityType } from "../../functions/_shared/core/entity-types/application.ts";
+dbTest(
+  "archived kind blocks direct definition insertion and relation restore while rename/archive remain available",
+  async () => {
+    const admin = connect(urls.admin), sql = connect(urls.direct), a = await fixtureOwner(admin);
+    const d = { uow: new SqlEntityRelationDefinitionUnitOfWork(sql) },
+      types = { uow: new SqlEntityTypeUnitOfWork(sql) };
+    try {
+      const type = await createEntityType(types, requestActor(a.actor), { label: "보관 종류" });
+      const ends = [{ type_id: type.id, label: "상위", cardinality: "one" }, {
+        type_id: type.id,
+        label: "하위",
+        cardinality: "many",
+      }];
+      const def = await createEntityRelationDefinition(d, requestActor(a.actor), { ends });
+      await updateEntityType(types, requestActor(a.actor), type.id, {
+        archived: true,
+        expected_schema_version: type.schema_version,
+      });
+      const archived = await updateEntityRelationDefinition(d, requestActor(a.actor), def.id, {
+        archived: true,
+        expected_version: 1,
+      });
+      assertEquals(archived.archived, true);
+      assertEquals(
+        (await assertRejects(
+          () =>
+            updateEntityRelationDefinition(d, requestActor(a.actor), def.id, { archived: false, expected_version: 2 }),
+          AppError,
+        )).code,
+        "invalid_input",
+      );
+      await assertRejects(() =>
+        asUser(
+          sql,
+          a.actor.userId,
+          (tx) =>
+            tx`insert into app.entity_relation_definitions(owner_id,left_type_id,left_label,left_cardinality,right_type_id,right_label,right_cardinality) values(${a.actor.userId},${type.id},'다른 상위','one',${type.id},'다른 하위','many')`,
+        )
+      );
+      await assertRejects(() =>
+        asUser(
+          sql,
+          a.actor.userId,
+          (tx) => tx`update app.entity_relation_definitions set archived=false,version=version+1 where id=${def.id}`,
+        )
+      );
+    } finally {
+      await a.cleanup();
+      await sql.end();
+      await admin.end();
+    }
+  },
+);
