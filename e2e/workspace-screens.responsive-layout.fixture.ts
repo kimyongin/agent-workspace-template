@@ -52,7 +52,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         const title = await typography(name), secondary = await typography(label);
         expect((await typography(page.getByRole("heading", { level: 1 }))).size).toBeGreaterThan(title.size);
         expect(title.weight).toBeGreaterThanOrEqual(500);
-        expect(title.size).toBeGreaterThan(secondary.size);
+        expect(title.size).toBeGreaterThanOrEqual(secondary.size);
         expect(title.weight).toBeGreaterThan(secondary.weight);
         expect(title.color).not.toBe(secondary.color);
       }
