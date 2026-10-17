@@ -255,7 +255,7 @@ function useFeasiblePanelMinimums(group: RefObject<HTMLDivElement | null>, handl
     const element = group.current;
     if (!enabled || !element) return;
     const measure = () => {
-      const available = element.getBoundingClientRect().width - (handle.current?.getBoundingClientRect().width ?? 0);
+      const available = element.clientWidth - (handle.current?.offsetWidth ?? 0);
       if (available <= 0) return;
       const rem = parseFloat(getComputedStyle(element.ownerDocument.documentElement).fontSize);
       const cap = 55 * rem > available ? available / 2 : Infinity;
@@ -263,10 +263,14 @@ function useFeasiblePanelMinimums(group: RefObject<HTMLDivElement | null>, handl
       setMinimums(previous => previous.list === next.list && previous.detail === next.detail ? previous : next);
     };
     measure();
-    const observer = new ResizeObserver(measure);
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
     observer.observe(element);
     if (handle.current) observer.observe(handle.current);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
   }, [group, handle, enabled]);
   return minimums;
 }

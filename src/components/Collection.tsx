@@ -17,7 +17,7 @@ export function ViewPicker({ label, value, onChange, calendar = false }: {
   label: string; value: CollectionView; onChange: (view: CollectionView) => void; calendar?: boolean;
 }) {
   const choices: CollectionView[] = calendar ? ["list", "cards", "table", "calendar"] : ["list", "cards", "table"];
-  return <ToggleGroup type="single" variant="outline" spacing={0} value={value}
+  return <ToggleGroup type="single" variant="outline" spacing={1} value={value} className="max-w-full flex-wrap"
     aria-label={`${label} 보기 방식`} onValueChange={next => { if (choices.includes(next as CollectionView)) onChange(next as CollectionView); }}>
     {choices.map(view => { const Icon = icons[view]; return <ToggleGroupItem key={view} value={view} aria-label={names[view]} title={names[view]}>
       <Icon /><span className="sr-only">{names[view]}</span>
@@ -39,11 +39,11 @@ export function CollectionHeading(
 ) {
   const expansion = useCollectionExpansion();
   const Icon = expansion?.allOpen ? ChevronsUpIcon : ChevronsDownIcon;
-  return <div className="flex flex-wrap items-center justify-between gap-3">
+  return <div className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-3">
     <h2 id={id} className="text-base font-semibold" aria-label={hideLabel && count !== undefined ? `${label} (${count}개${hasMore ? "+" : ""})` : undefined}>
       {hideLabel && count !== undefined ? `${count}개${hasMore ? "+" : ""}` : <>{label}{count === undefined ? "" : ` (${count}개${hasMore ? "+" : ""})`}</>}
     </h2>
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
       {expansion && <Button type="button" variant="ghost" size="icon" aria-label={`${label} ${expansion.allOpen ? "전체 닫기" : "전체 열기"}`}
         title={expansion.allOpen ? "전체 닫기" : "전체 열기"} aria-expanded={expansion.allOpen} onClick={expansion.toggle}><Icon /></Button>}
       <ViewPicker label={label} value={view} onChange={onChange} calendar={calendar} />
