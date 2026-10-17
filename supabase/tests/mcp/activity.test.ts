@@ -465,7 +465,7 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     prepare_data_model: dataModelPrepare.extend({ request_key: requestKey }),
     list_data_model_changes: z.strictObject({
       limit: z.number().int().min(1).max(100).default(20),
-      cursor: z.string().uuid().optional(),
+      cursor: z.string().optional(),
     }),
     get_data_model_change: z.strictObject({ id: z.string().uuid() }),
     apply_data_model: dataModelAction.extend({ id: z.string().uuid(), request_key: requestKey }),

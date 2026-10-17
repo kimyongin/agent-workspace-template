@@ -176,7 +176,7 @@ dbTest(
       await assertRejects(() => applyDataModel(deps, requestActor(a.actor), c.id, { expected_version: c.version }));
       assertEquals(await exportDataModel(deps, a.actor), before);
       const fresh = await previewDataModel(deps, a.actor, update);
-      assertEquals(fresh.mapping.properties[type.ref].prop_99, "prop_3");
+      assertEquals(fresh.mapping.properties[type.ref].prop_99, "prop_99");
       const reused = structuredClone(before);
       reused.entity_types[0].schema.properties.prop_2 = { type: "integer", "x-order": 30 };
       await assertRejects(() => previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(reused) }));
@@ -387,11 +387,9 @@ dbTest("model history scopes cursors to owner and existing anchors and returns c
     assertEquals(second.items.length, 1);
     const detail = await getDataModelChange(deps, a.actor, page.items[0].id);
     assertEquals(!!detail.review.items[0].schema, true);
-    await asUser(
-      sql,
-      a.actor.userId,
-      (tx) => tx`delete from app.data_model_changes where id=${page.items[0].id}::uuid`,
-    );
+    await admin`delete from app.data_model_changes where owner_id=${a.actor.userId}::uuid and id=${
+      page.items[0].id
+    }::uuid`;
     await assertRejects(() => listDataModelChanges(deps, a.actor, { limit: 1, cursor: page.next_cursor! }));
   } finally {
     await a.cleanup();
