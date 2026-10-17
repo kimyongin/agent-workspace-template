@@ -351,6 +351,33 @@ test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 
   await expect(form.getByLabel("메모 템플릿")).toBeVisible();
 });
 
+test("기록 대상 검색은 늦은 설정 조회가 완료되어도 입력과 선택 후보를 유지한다", async ({ page }) => {
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  let started!: () => void;
+  const requested = new Promise<void>(resolve => { started = resolve; });
+  await page.route("**/api/settings/business**", async route => {
+    started();
+    await pending;
+    await route.fulfill({ json: { settings: { record_templates: {} }, versions: { record_templates: 4 } } });
+  });
+  await page.goto("/settings/records");
+  await requested;
+  const target = page.getByRole("combobox", { name: "대상", exact: true });
+  await target.click();
+  const option = page.getByRole("option", { name: "재료", exact: true });
+  await expect(option).toBeVisible();
+  await target.fill("재료");
+  release();
+  const form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
+  await expect(form.getByLabel("메모 템플릿")).toBeVisible();
+  await expect(target).toHaveValue("재료");
+  await expect(option).toBeVisible();
+  await option.click();
+  await expect(target).toHaveValue("재료");
+  await expect(form.getByLabel("메모 템플릿")).toBeVisible();
+});
+
 test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장은 다른 입력을 유지한다", async ({ page }) => {
   const fixture = await settingsFixture(page);
   await page.goto("/settings/records");
