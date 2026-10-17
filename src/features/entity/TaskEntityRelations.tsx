@@ -159,14 +159,14 @@ export function TaskEntityRelations(
   { task, onSaved, readOnly = false }: { task: TaskResult; readOnly?: boolean; onSaved: (saved?: TaskResult, before?: TaskResult) => void },
 ) {
   if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={task.entity_ids.length}>
-    <CollectionList>{task.entity_ids.map(id => <li key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></li>)}</CollectionList>
+    <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <li key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></li>)}</CollectionList>
   </RelatedSection>;
   return (
     <RelationControls key={task.id} task={task} onSaved={onSaved}>
       {({ search, button, unlink }) => (
         <RelatedSection title="연결된 자료" count={task.entity_ids.length} action={button}>
           {search}
-          <CollectionList>
+          <CollectionList columns={["자료 이름"]}>
             {task.entity_ids.map((id) => {
               const item = {
                 id,
@@ -232,7 +232,7 @@ export function EntityTaskRelations(
           }
         >
           {search}
-          <CollectionList>
+          <CollectionList columns={["제목"]}>
             {items.map((item) => (
               <li key={item.id}>
                 <RelatedPreviewItem to={`/tasks/${item.id}`} title={item.title} action={unlink(item)} />

@@ -70,7 +70,16 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
     await expect(page).toHaveURL(new RegExp(`/${kind}/`));
     await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
     const createdPath = new URL(page.url()).pathname;
+    const tagRegion=form(page).getByRole("region",{name:"태그 연결",exact:true});
+    await tagRegion.getByRole("button",{name:"같은 이름 연결 해제",exact:true}).click();
+    await tagRegion.getByRole("button",{name:"연결 적용",exact:true}).click();
+    if(kind!=="records") await page.locator("dialog.modal-action[open]").getByRole("button",{name:"연결하고 저장",exact:true}).click();
+    await expect(tagRegion.getByRole("button",{name:"태그 연결",exact:true})).toBeVisible();
+    const tagWrite=state.writes.find(w=>w.method==="PATCH")!;
+    expect(tagWrite.body.tag_ids).toEqual([]);
+    expect(tagWrite.body).not.toHaveProperty("body");
     await compatibleEdit(page);
+    await expect(form(page).getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
     await expect(form(page)).toHaveCount(1);
     await expect(form(page).getByRole("button", { name: "저장", exact: true })).toBeVisible();
     if (kind === "entities") await form(page).getByLabel("수량", { exact: false }).fill("20");
@@ -83,13 +92,15 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
       await compatibleEdit(page);
     }
     await expect(form(page).getByRole("button", { name: "삭제", exact: true })).toBeVisible();
-    const patch = state.writes.find((w) => w.method === "PATCH")!;
+    const patch = state.writes.filter((w) => w.method === "PATCH").at(-1)!;
     if (kind === "records") {
       expect(patch.body).not.toHaveProperty("change_note");
       expect(patch.body.body).toBe("편집한 본문");
     } else expect(patch.body.change_note).toBe("실측 결과 반영");
-    expect(patch.body.expected_version).toBe(1);
-    expect(patch.body.tag_ids).toEqual([id(kind === "entities" ? 10 : kind === "tasks" ? 12 : 11)]);
+    expect(patch.body.expected_version).toBe(2);
+    expect(patch.body).not.toHaveProperty("tag_ids");
+    const created=state.rows[kind as "entities" | "tasks" | "records"].find(row=>row.id===decodeURIComponent(createdPath.split("/").at(-1)!));
+    expect(created?.tag_ids).toEqual([]);
     await form(page).getByRole("button", { name: "삭제", exact: true }).click();
     const confirm = page.locator("dialog.modal-action[open]");
     await confirm.getByLabel("기록 메모").fill("중복 자료 정리");
