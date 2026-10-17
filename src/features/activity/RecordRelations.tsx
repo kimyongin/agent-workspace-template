@@ -6,6 +6,7 @@ import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { useRelatedRead } from "../relations/useRelatedRead.ts";
 import type { Preview } from "../relations/PreviewContents.tsx";
 import { ApiError } from "../../lib/api.ts";
+import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { EntityLinkItem } from "../entity/EntityPicker.tsx";
 import { RelatedTaskItem } from "./RelatedTask.tsx";
 import { StatusBadge } from "./shared.tsx";
@@ -24,9 +25,7 @@ export function RecordRelations(
   return (
     <>
       {groups.map((group) => {
-        const change = record.change?.target_kind === group.kind
-          ? record.change
-          : null;
+        const change = record.change?.target_kind === group.kind ? record.change : null;
         const selected = group.kind === "entity"
           ? record.entity_ids
           : group.kind === "task" && record.task_id
@@ -45,17 +44,11 @@ export function RecordRelations(
           >
             <CollectionList
               columns={[
-                group.kind === "record"
-                  ? "본문 대표 문구"
-                  : group.kind === "task"
-                  ? "제목"
-                  : "자료 이름",
+                group.kind === "record" ? "본문 대표 문구" : group.kind === "task" ? "제목" : "자료 이름",
               ]}
             >
               {ids.map((id) => {
-                const capture = record.entity_context.find((item) =>
-                  item.id === id
-                );
+                const capture = record.entity_context.find((item) => item.id === id);
                 return (
                   <li key={id}>
                     {change?.target_id === id
@@ -76,21 +69,23 @@ export function RecordRelations(
                           <RelatedItem
                             title={capture?.title ?? "연결된 자료"}
                             metadata={
-                              <dl className="key-value-static">
+                              <dl className="key-value-grid">
                                 {capture?.type && (
                                   <>
                                     <div>
-                                      <dt>자료 종류</dt>
-                                      <dd>{capture.type.label}</dd>
+                                      <dt>당시 자료 종류</dt>
+                                      <dd>
+                                        <EntityTypeIcon id={capture.type.icon_id} /> {capture.type.label}
+                                      </dd>
                                     </div>
                                     <div>
-                                      <dt>속성 버전</dt>
-                                      <dd>{capture.schema_version ?? "—"}</dd>
+                                      <dt>당시 입력 항목 버전</dt>
+                                      <dd>{capture.schema_version ?? "확인 필요"}</dd>
                                     </div>
                                   </>
                                 )}
-                                <div>
-                                  <dt>자료 ID</dt>
+                                <div className="key-value-full">
+                                  <dt>자료 식별</dt>
                                   <dd>{id}</dd>
                                 </div>
                               </dl>
@@ -216,9 +211,7 @@ function ChangedRelation(
       to={path}
       restoreKey="change-target"
       title={change.target_title}
-      titleBadge={missing
-        ? <span className="badge">{deleted ? "삭제됨" : "조회 불가"}</span>
-        : undefined}
+      titleBadge={missing ? <span className="badge">{deleted ? "삭제됨" : "조회 불가"}</span> : undefined}
       metadata={occurrenceData}
       fallback={fallback}
     />

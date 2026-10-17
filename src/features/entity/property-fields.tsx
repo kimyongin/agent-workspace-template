@@ -4,6 +4,7 @@ import { codePointLength, isoDate } from "@contracts/common.ts";
 import { entityNumberDraft } from "@contracts/entity-number.ts";
 import type { EntityField, EntitySchemaVersion } from "@contracts/entity-type.ts";
 import type { EntityProperties } from "@contracts/entity.ts";
+import { DetailTitle } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
 export type PropertyDraft = Record<string, string | boolean | null>;
 export function fieldType(field: EntityField | undefined) {
@@ -113,12 +114,25 @@ export function PropertyFields(
           archived = schemaPresentation(definition).archived.includes(key);
         if (archived || field.readOnly) {
           return (
-            <dl key={key} className="key-value-static">
+            <dl
+              key={key}
+              className={`key-value-static${
+                key === schemaPresentation(definition).representative ? " key-value-full" : ""
+              }`}
+            >
               <div>
                 <dt>
                   {field.title ?? key} <span className="secondary">· {archived ? "보관" : "읽기 전용"}</span>
                 </dt>
-                <dd>{displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}</dd>
+                <dd>
+                  {key === schemaPresentation(definition).representative
+                    ? (
+                      <DetailTitle>
+                        {displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}
+                      </DetailTitle>
+                    )
+                    : displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}
+                </dd>
               </div>
             </dl>
           );

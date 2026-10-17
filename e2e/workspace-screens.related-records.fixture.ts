@@ -237,7 +237,7 @@ test("#191 할 일에서 일반 기록 작성: 귀속 미리 선택·변경·엔
   expect(state.errors).toEqual([]);
 });
 
-test("#227 엔터티 할 일: 5건 미리보기 뒤 첫 페이지·중복 제거·같은 cursor 재시도", async ({ page }) => {
+test("#227 엔터티 할 일: 5건 미리보기 뒤 첫 페이지·중복 제거·같은 cursor 재시도", async ({ page }, info) => {
   const state = await fixtures(page),
     rows = Array.from({ length: 25 }, (_, i) => ({ ...task(100 + i), title: `배치 업무 ${i}` }));
   const reads: (string | null)[] = [];
@@ -261,15 +261,25 @@ test("#227 엔터티 할 일: 5건 미리보기 뒤 첫 페이지·중복 제거
   const section = form(page).getByRole("heading", { name: "할 일 (25개)", exact: true }).locator(
     "xpath=ancestor::section[1]",
   );
-  await expect(section.locator(".related-item")).toHaveCount(5);
+  await expect(section.locator(".related-item:visible")).toHaveCount(5);
   expect(reads).toEqual([]);
   await section.getByRole("button", { name: "할 일 더 보기", exact: true }).click();
-  await expect(section.locator(".related-item")).toHaveCount(20);
+  await expect(section.locator(".related-item:visible")).toHaveCount(20);
+  await form(page).getByRole("button", { name: "편집", exact: true }).click();
+  await expect(form(page).getByRole("textbox", { name: /^제목/ })).toBeVisible();
+  await expect(section.locator(".related-item:visible")).toHaveCount(20);
+  await expect(section.getByRole("button", { name: /연결|작성|해제/ })).toHaveCount(0);
+  await expect(section.getByRole("button", { name: "할 일 더 보기", exact: true })).toBeVisible();
   await section.getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await expect(section.getByRole("alert")).toBeVisible();
-  await expect(section.locator(".related-item")).toHaveCount(20);
+  await expect(section.locator(".related-item:visible")).toHaveCount(20);
   await section.getByRole("button", { name: "할 일 다시 시도", exact: true }).click();
-  await expect(section.locator(".related-item")).toHaveCount(25);
+  await expect(section.locator(".related-item:visible")).toHaveCount(25);
+  await section.getByText("배치 업무 24", { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("readonly-tasks-late-page.png") });
+  await form(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  await expect(section.locator(".related-item:visible")).toHaveCount(25);
   expect(reads).toEqual([null, "next", "next"]);
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
