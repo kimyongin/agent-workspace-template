@@ -1,3 +1,4 @@
+import { TypedRelationsSample } from "./TypedRelationsSample.tsx";
 import { useState } from "react";
 import { BodyAction } from "../components/BodyAction.tsx";
 import { Field } from "../components/Field.tsx";
@@ -123,6 +124,7 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
           </form>
         </IssuerRow>
       </div>
+      <TypedRelationsSample />
     </section>
   );
 }
