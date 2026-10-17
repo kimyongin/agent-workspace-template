@@ -17,6 +17,8 @@ export async function openMainNavigation(page: Page) {
   if (await trigger.isVisible() && !await page.getByRole("navigation", { name: "주 메뉴", exact: true }).isVisible()) await trigger.click();
 }
 export async function openProfileMenu(page: Page) {
+  const menu = page.getByRole("menu").filter({ has: page.getByRole("menuitem", { name: "로그아웃", exact: true }) });
+  if (await menu.isVisible()) return;
   await openMainNavigation(page);
   const trigger = page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true });
   if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();

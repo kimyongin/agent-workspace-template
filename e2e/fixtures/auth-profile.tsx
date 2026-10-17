@@ -1,4 +1,4 @@
-import { SidebarProvider } from "../../src/components/ui/sidebar.tsx";
+import { SidebarProvider, SidebarTrigger } from "../../src/components/ui/sidebar.tsx";
 import { Button } from "../../src/components/ui/button.tsx";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 // 실제 provider·설정·SDK의 경쟁을 관찰한다. 인증 동작을 대체하지 않는다.
@@ -19,6 +19,7 @@ function Probe() {
     <SidebarProvider>
       <Navigation brand="Workspace" />
       <main className="min-w-0 flex-1 p-4">
+        <SidebarTrigger aria-label="주 메뉴 열기" className="lg:hidden" />
         <output data-testid="provider-account">{loading ? "loading" : session?.user.id ?? "signed-out"}</output>
         <output data-testid="provider-icon">{session?.user.user_metadata.workspace_avatar_id ?? "none"}</output>
         <output data-testid="display-timezone">{display.timezone}</output>

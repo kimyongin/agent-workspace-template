@@ -47,6 +47,7 @@ async function openNavigation(page: Page) {
   if (await trigger.isVisible() && !await profileButton(page).isVisible()) await trigger.click();
 }
 async function openProfile(page: Page) {
+  if (await profileMenu(page).isVisible()) return;
   await openNavigation(page);
   const profile = page.getByRole("button", { name:/^내 프로필(?: · .+)?$/, exact:true });
   if (await profile.getAttribute("aria-expanded") !== "true") await profile.click();
@@ -74,9 +75,10 @@ async function signIn(page: Page, id = user.id) {
 test("업무 메뉴와 프로필은 320~1440px와 200%에서 조작 가능하다", async ({ page }, info) => {
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 }); await page.goto("/settings");
-    await expect(page.getByRole("banner").getByRole("link", { name: "Workspace", exact: true })).toBeVisible();
+    await expect(page.getByRole("banner").getByText("Workspace", { exact: true })).toBeVisible();
     await openNavigation(page);
     const nav = page.getByRole("navigation", { name: "주 메뉴" });
+    await expect(nav.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/entities");
     for (const name of [fixtureType.label, "할 일", "기록"]) {
       const link = nav.getByRole("link", { name, exact: true }); await expect(link).toBeVisible();
       const box = (await link.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);

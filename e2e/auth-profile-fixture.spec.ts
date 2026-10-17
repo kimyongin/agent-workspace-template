@@ -1,9 +1,14 @@
-import { openProfileMenu } from "./ui-actions.ts";
+import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { expect, type Page, test } from "@playwright/test";
 
 const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { full_name: "기존 계정 이름", workspace_avatar_id: "person", provider_value: "preserved" } };
 const other = { ...user, id: "00000000-0000-0000-0000-000000000002", email: "other@example.test", user_metadata: { workspace_avatar_id: "leaf", provider_value: "other" } };
 const fixture = "/e2e/fixtures/auth-profile.html";
+
+async function closeNavigation(page: Page) {
+  const close = page.getByRole("button", { name: "메뉴 닫기", exact: true });
+  if (await close.isVisible()) await close.click();
+}
 
 function token(id: string) {
   const encode = (data: object) => Buffer.from(JSON.stringify(data)).toString("base64url");
@@ -257,8 +262,10 @@ test("계정 저장: 실패 초안·폐기 보호·기존 metadata·다른 탭·
   await page.goto(fixture);
   const setting = page.getByRole("form", {name:"날짜와 시각 설정"});
   await setting.getByLabel("표시 시간대").selectOption("America/New_York");
+  await openMainNavigation(page);
   await page.getByRole("link", {name:"기록",exact:true}).click();
   await page.getByRole("alertdialog", {name:"변경을 버릴까요?"}).getByRole("button",{name:"취소",exact:true}).click();
+  await closeNavigation(page);
   await expect(setting.getByLabel("표시 시간대")).toHaveValue("America/New_York");
   await setting.getByRole("button", {name:"날짜와 시각 저장",exact:true}).click();
   await expect(setting.getByRole("alert")).toContainText("입력한 설정을 유지");
@@ -309,7 +316,15 @@ for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크
   for (const box of await choices.locator("label").evaluateAll(nodes => nodes.map(node => { const r=node.getBoundingClientRect();return {w:r.width,h:r.height}; }))) { expect(box.w).toBeGreaterThanOrEqual(44);expect(box.h).toBeGreaterThanOrEqual(44); }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("radio", {name:"기본",exact:true}).focus();
-  for(let i=0;i<19;i++)await page.keyboard.press("ArrowRight");
+  await page.getByRole("radio", {name:"기본",exact:true}).press("Space");
+  await expect(page.getByRole("radio", {name:"기본",exact:true})).toBeChecked();
+  for(let i=1;i<20;i++) {
+    await page.keyboard.down("ArrowRight");
+    try {
+      await expect(choices.getByRole("radio").nth(i)).toBeFocused();
+      await expect(choices.getByRole("radio").nth(i)).toBeChecked();
+    } finally { await page.keyboard.up("ArrowRight"); }
+  }
   await expect(page.getByRole("radio",{name:"과녁",exact:true})).toBeChecked();
   if (overflows) expect(await choices.evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
   else expect(await choices.evaluate(node=>node.scrollTop)).toBe(0);
@@ -338,9 +353,10 @@ for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크
   await expect(otherTab.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
   await page.reload(); await expect(page.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
   await openProfileMenu(page);
-  const popup=page.locator('[role="menu"]');await expect(popup).toContainText("새 닉네임");await expect(popup).not.toContainText(user.email);await expect(page.getByRole("button", { name: "내 프로필", exact: true }).locator("[aria-hidden=true]").first()).toHaveText("🎯");
+  const popup=page.locator('[role="menu"]');await expect(popup).toContainText("새 닉네임");await expect(popup).not.toContainText(user.email);await expect(page.getByRole("button", { name: "내 프로필", exact: true, includeHidden: true }).locator("[aria-hidden=true]").first()).toHaveText("🎯");
   await page.screenshot({path:info.outputPath(`profile-popup-${width}.png`)});
   await page.keyboard.press("Escape");
+  await closeNavigation(page);
   await page.getByLabel("닉네임",{exact:true}).fill(" ");await page.getByRole("button",{name:"프로필 저장",exact:true}).click();await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("설정을 저장했습니다");
   expect(writes.at(-1)).toEqual({workspace_nickname:null});
   await openProfileMenu(page);await expect(popup).toContainText("기존 계정 이름");
