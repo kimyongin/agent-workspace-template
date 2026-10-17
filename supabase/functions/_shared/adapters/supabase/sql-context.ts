@@ -115,16 +115,22 @@ export async function runAsActor<T>(
   sql: postgres.Sql,
   actor: Actor,
   fn: (tx: postgres.TransactionSql) => Promise<T>,
+  isolation?: "repeatable read" | "repeatable read read only",
 ): Promise<T> {
   try {
-    return await sql.begin(async (tx) => {
+    const transaction = async (tx: postgres.TransactionSql) => {
       await tx`select set_config('request.jwt.claims', ${
         JSON.stringify({ sub: actor.userId, role: "authenticated" })
       }, true),
         set_config('lock_timeout', '5s', true), set_config('statement_timeout', '15s', true)`;
       await tx`set local role app_user`;
       return await fn(tx);
-    }) as T;
+    };
+    return await (isolation === "repeatable read"
+      ? sql.begin("isolation level repeatable read", transaction)
+      : isolation === "repeatable read read only"
+      ? sql.begin("isolation level repeatable read read only", transaction)
+      : sql.begin(transaction)) as T;
   } catch (e) {
     throw translate(e);
   }
