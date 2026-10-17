@@ -57,3 +57,32 @@ test("할 일 상세 뒤로 가기는 외부 추가와 원래 행 초점을 복�
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
+
+for (const width of [320, 1440]) {
+  test(`짧은 검색 제목 ${width}px: 44px 링크를 키보드로 열고 원래 결과로 복귀한다`, async ({ page }) => {
+    const state = await fixtures(page);
+    state.rows.records[0].body = "짧음";
+    await page.unroute("http://127.0.0.1:55580/**");
+    await page.setViewportSize({ width, height: 900 });
+    await go(page, "/search?q=짧음&kind=record&mode=keyword");
+    const link = page.getByRole("link", { name: "짧음", exact: true });
+    await expect(link).toBeVisible();
+    const bounds = (await link.boundingBox())!;
+    expect(bounds.width).toBeGreaterThanOrEqual(44);
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+    await page.getByRole("textbox", { name: /^검색어/ }).focus();
+    for (let step = 0; step < 20 && !await link.evaluate(node => node === document.activeElement); step++) {
+      await page.keyboard.press("Tab");
+    }
+    await expect(link).toBeFocused();
+    await link.press("Enter");
+    await expect(page).toHaveURL(/\/records\//);
+    await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+    await closeDetail(page, "기록");
+    await expect(page).toHaveURL(/\/search\?/);
+    expect(new URL(page.url()).searchParams.get("q")).toBe("짧음");
+    await expect(link).toBeFocused();
+    expect(state.writes).toHaveLength(0);
+    expect(state.errors).toEqual([]);
+  });
+}

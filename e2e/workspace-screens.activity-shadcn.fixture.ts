@@ -1,3 +1,4 @@
+import { saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { fixtures, go } from "./support/workspace-screens.ts";
 import { id } from "./support/workspace-data.ts";
@@ -61,6 +62,37 @@ test("할 일 반복 입력은 주기·요일 선택과 취소 후 초안을 유
   expect(state.writes).toHaveLength(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("task-recurring-mobile.png"), fullPage: true });
+});
+
+test("주간 할 일의 요일 오류는 실제 선택 버튼에 연결되고 키보드로 수정해 저장한다", async ({ page }) => {
+  const state = await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
+  await page.setViewportSize({ width: 390, height: 900 });
+  await go(page, "/tasks?create=1");
+  const editor = page.getByRole("dialog", { name: "할 일 추가", exact: true });
+  await editor.getByRole("textbox", { name: /^제목/ }).fill("화요일 조사");
+  await editor.getByRole("radio", { name: "반복", exact: true }).click();
+  await editor.getByRole("radio", { name: "매주", exact: true }).click();
+  await editor.getByLabel("시작일", { exact: false }).fill("2028-01-03");
+  await editor.getByRole("combobox", { name: "시간대", exact: false }).selectOption("UTC");
+  await editor.getByRole("button", { name: "추가", exact: true }).click();
+  const monday = editor.getByRole("button", { name: "월", exact: true });
+  await expect(monday).toHaveAttribute("aria-invalid", "true");
+  await expect(monday).toHaveAccessibleDescription("요일을 하나 이상 고르세요");
+  await expect(monday).toBeFocused();
+  expect(state.writes).toHaveLength(0);
+  await monday.press("ArrowRight");
+  const tuesday = editor.getByRole("button", { name: "화", exact: true });
+  await expect(tuesday).toBeFocused();
+  await tuesday.press("Space");
+  await expect(tuesday).toHaveAttribute("aria-pressed", "true");
+  await expect(monday).toHaveAttribute("aria-pressed", "false");
+  await saveOnce(page, editor, "추가");
+  expect(state.writes.find(write => write.path === "/api/tasks")?.body).toMatchObject({
+    title: "화요일 조사", kind: "recurring", timezone: "UTC",
+    recurrence: { freq: "weekly", weekdays: [2], starts_on: "2028-01-03" },
+  });
+  expect(state.errors).toEqual([]);
 });
 
 test("할 일·달력·태그 설정은 좁은 화면과 개인 배율에서 사용할 수 있다", async ({ page }, info) => {
