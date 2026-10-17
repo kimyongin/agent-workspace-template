@@ -1,3 +1,4 @@
+import { decodeCursor, paginate, scopeOf } from "../../core/shared/operations.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
@@ -27,19 +28,29 @@ export class SqlEntityRelationDefinitionStore implements EntityRelationDefinitio
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-relations"},0))`;
   }
   async list(input: Parameters<EntityRelationDefinitionStore["list"]>[0]) {
-    const rows = await this.tx`select * from app.entity_relation_definitions where (${
+    const scope = await scopeOf(this.actor, {
+      list: "entity-relation-definitions",
+      type_id: input.type_id,
+      q: input.q,
+      archived: input.archived,
+    });
+    const after = input.cursor ? decodeCursor(input.cursor, scope).id : null;
+    const rows = await this.tx`select d.* from app.entity_relation_definitions d
+      join app.entity_types lt on lt.owner_id=d.owner_id and lt.id=d.left_type_id
+      join app.entity_schema_versions lv on lv.owner_id=lt.owner_id and lv.type_id=lt.id and lv.schema_version=lt.schema_version
+      join app.entity_types rt on rt.owner_id=d.owner_id and rt.id=d.right_type_id
+      join app.entity_schema_versions rv on rv.owner_id=rt.owner_id and rv.type_id=rt.id and rv.schema_version=rt.schema_version
+      where (${input.type_id ?? null}::uuid is null or d.left_type_id=${
       input.type_id ?? null
-    }::uuid is null or left_type_id=${input.type_id ?? null}::uuid or right_type_id=${
-      input.type_id ?? null
-    }::uuid) and (${input.archived}='all' or archived=(${input.archived}='archived')) and (${
+    }::uuid or d.right_type_id=${input.type_id ?? null}::uuid)
+      and (${input.archived}='all' or d.archived=(${input.archived}='archived'))
+      and (${
       input.q ?? ""
-    }='' or strpos(lower(left_label||' '||right_label),lower(${input.q ?? ""}))>0) and (${
-      input.cursor ?? null
-    }::text is null or id::text>${input.cursor ?? null}) order by id limit ${input.limit + 1}`;
-    return {
-      items: rows.slice(0, input.limit).map(relationDefinitionRow),
-      next_cursor: rows.length > input.limit ? String(rows[input.limit - 1].id) : null,
-    };
+    }='' or strpos(lower(d.left_label||' '||d.right_label||' '||coalesce(lv.schema->>'title','')||' '||coalesce(rv.schema->>'title','')),lower(${
+      input.q ?? ""
+    }))>0)
+      and (${after}::text is null or d.id::text>${after}) order by d.id limit ${input.limit + 1}`;
+    return paginate(rows.map(relationDefinitionRow), input.limit, () => "1970-01-01T00:00:00.000Z", scope);
   }
   async get(id: string) {
     const [r] = await this.tx`select * from app.entity_relation_definitions where id=${id}::uuid`;
@@ -70,7 +81,7 @@ export class SqlEntityRelationDefinitionStore implements EntityRelationDefinitio
       ends[1].type_id
     }::uuid)) as wrong_kind, exists(select 1 from app.entity_relation_links where definition_id=${id}::uuid group by left_entity_id having count(*)>1) as left_many, exists(select 1 from app.entity_relation_links where definition_id=${id}::uuid group by right_entity_id having count(*)>1) as right_many`;
     if (r.wrong_kind || ends[0].cardinality === "one" && r.left_many || ends[1].cardinality === "one" && r.right_many) {
-      throw invalidInput("既存 연결과 맞지 않는 자료 종류·개수입니다. 연결을 먼저 정리하세요".replace("既存", "기존"));
+      throw invalidInput("기존 연결과 맞지 않는 자료 종류·개수입니다. 연결을 먼저 정리하세요");
     }
   }
   async create(ends: EntityRelationDefinition["ends"]) {

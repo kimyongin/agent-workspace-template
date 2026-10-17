@@ -449,6 +449,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           </form>
         </MaterialSettingsSection>
       )}
+      {!loading && type_id && <Link className="body-action" to={`/settings/relations?type_id=${encodeURIComponent(type_id)}`}>이 자료의 관계 설정</Link>}
       {!loading && type_id && type && (
         <TypeIdentitySettings
           typeId={type_id}

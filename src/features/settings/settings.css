@@ -250,3 +250,12 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-import-review .props { grid-template-columns: minmax(0,1fr); margin: 0; }
 .schema-import-review .props > div { display: grid; grid-template-columns: min(7rem,40%) minmax(0,1fr); gap: var(--space-3); align-items: baseline; }
 .schema-import-review .props dt, .schema-import-review .props dd { margin: 0; }
+
+.relation-settings-filters { border: 0; padding: 0; margin: 0 0 var(--space-4); display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.relation-settings-filters .field { flex: 1 1 10rem; min-width: 0; }
+.relation-definition-form { display: grid; gap: var(--space-4); }
+.relation-definition-ends { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-6); border: 0; padding: 0; margin: 0; min-width: 0; }
+.relation-definition-end { display: grid; gap: var(--space-3); min-width: 0; }
+.relation-definition-end h3 { margin: 0; font-size: var(--text-item); }
+.relation-definition-form .check-label { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
+@media (max-width: 640px) { .relation-definition-ends { grid-template-columns: minmax(0,1fr); } }
