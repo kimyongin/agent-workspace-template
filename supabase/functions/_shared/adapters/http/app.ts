@@ -8,8 +8,6 @@ import type { EntityRelationDefinitionDeps } from "../../core/entity-relations/a
 import { entityRelationDefinitionRoutes } from "./entity-relation-definition-routes.ts";
 import { entityIssuerRoutes } from "./entity-issuer-routes.ts";
 import type { EntityIssuerDeps } from "../../core/entity-issuers/application.ts";
-import { entityPairRoutes } from "./entity-pair-routes.ts";
-import type { EntityPairDeps } from "../../core/entity-pairs/application.ts";
 import { entityTypeRoutes } from "./entity-type-routes.ts";
 import type { EntityTypeDeps } from "../../core/entity-types/application.ts";
 import type { StatusDeps } from "../../core/status/application.ts";
@@ -51,7 +49,6 @@ export function createHttpApp(
   settings?: BusinessSettingsDeps,
   status?: StatusDeps,
   entityTypes?: EntityTypeDeps,
-  entityPairs?: EntityPairDeps,
   issuers?: EntityIssuerDeps,
   relationDefinitions?: EntityRelationDefinitionDeps,
   relationLinks?: EntityRelationLinkDeps,
@@ -94,7 +91,6 @@ export function createHttpApp(
   if (entities) app.route("/", entityRoutes(entities));
   if (settings) app.route("/", settingsRoutes(settings));
   if (status) app.route("/", statusRoutes(status));
-  if (entityPairs) app.route("/", entityPairRoutes(entityPairs));
   if (dataModel) app.route("/", dataModelRoutes(dataModel));
   if (createAndLink) app.route("/", createAndLinkRoutes(createAndLink));
   if (relationLinks) app.route("/", entityRelationLinkRoutes(relationLinks));

@@ -205,13 +205,6 @@ export function assertImmutableType(input: unknown) {
 }
 export function listEntities(d: EntityDeps, a: Actor, q: EntityQuery) {
   return d.uow.run(a, async (s) => {
-    if (q.link_candidate_for) {
-      const origin = await s.get(q.link_candidate_for);
-      if (!origin) throw notFound();
-      if (origin.deleted_at || origin.type.archived) {
-        throw conflict("삭제·보관된 자료에는 새 연결을 추가할 수 없습니다");
-      }
-    }
     const revisions = await s.listRevisions?.(q.entity_type_id) ?? [];
     const definition = q.entity_type_id ? await s.definition(q.entity_type_id) : null;
     validateEntityQuery(q, definition);

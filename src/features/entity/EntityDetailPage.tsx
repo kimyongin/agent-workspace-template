@@ -1,7 +1,6 @@
 import { CreateRelatedEntityForm } from "./CreateRelatedEntityForm.tsx";
 import { EntityTypedRelations } from "./EntityTypedRelations.tsx";
 import { detailModeLink } from "../../lib/entity-list-url.ts";
-import { EntityPairRelations } from "./EntityPairRelations.tsx";
 import { entityPath } from "@contracts/entity-identity.ts";
 import { useDetailResource } from "../details/useDetailResource.ts";
 import { CollectionList } from "../../components/Collection.tsx";
@@ -82,7 +81,9 @@ export function EntityDetailPage() {
     if (creating || !editReady || !returnCreateFocus.current) return;
     const frame = requestAnimationFrame(() => {
       if (returnCreateFocus.current === "relation") {
-        const button = Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] [aria-label$="작성해서 연결"]')).find((el) => el.dataset.relationCreate === relationCreateTarget.current);
+        const button = Array.from(
+          document.querySelectorAll<HTMLButtonElement>('dialog[open] [aria-label$="작성해서 연결"]'),
+        ).find((el) => el.dataset.relationCreate === relationCreateTarget.current);
         button?.focus();
         returnCreateFocus.current = null;
         return;
@@ -221,13 +222,6 @@ export function EntityDetailPage() {
                 p.set("relation_side", String(side));
                 navigate(detailModeLink(location.pathname, p, location.hash));
               }}
-              onSaved={(version) => {
-                detail.confirm((current) => current ? { ...current, version } : current);
-                if (!editor.active) void reload();
-              }}
-            />
-            <EntityPairRelations
-              entity={entity}
               onSaved={(version) => {
                 detail.confirm((current) => current ? { ...current, version } : current);
                 if (!editor.active) void reload();

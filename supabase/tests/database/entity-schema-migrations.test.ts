@@ -8,7 +8,7 @@ import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
-import { SqlEntityPairUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-pair-store.ts";
+import { changeConfiguredRelation, configuredRelationFixture, listConfiguredLinks } from "./_configured-relations.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import {
   createEntityType,
@@ -28,7 +28,6 @@ import {
   updateRecord,
   updateTask,
 } from "../../functions/_shared/core/activity/application.ts";
-import { changeEntityPair, listEntityLinks } from "../../functions/_shared/core/entity-pairs/application.ts";
 import {
   analyzeEntitySchemaChange,
   createEntitySchemaChange,
@@ -133,7 +132,7 @@ dbTest(
       b = await fixtureOwner(admin);
     const d = { uow: new SqlEntityTypeUnitOfWork(sql) },
       e = { uow: new SqlEntityUnitOfWork(sql) },
-      p = { uow: new SqlEntityPairUnitOfWork(sql) },
+      p = configuredRelationFixture(sql),
       activity = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date("2026-10-12T00:00:00Z") } };
     try {
       const type = await createEntityType(d, requestActor(a.actor), { label: "재료", icon_id: "leaf" }),
@@ -151,7 +150,7 @@ dbTest(
         y = await make(other.id, "다른 종류"),
         z = await make(other.id, "다른 연결");
       await deleteEntity(e, requestActor(a.actor), deleted.id, 1);
-      await changeEntityPair(p, requestActor(a.actor), x.id, {
+      await changeConfiguredRelation(p, requestActor(a.actor), x.id, {
         other_id: y.id,
         expected_version: 1,
         expected_other_version: 1,
@@ -225,7 +224,7 @@ dbTest(
       );
       for (const [left, right] of [[x.id, y.id], [y.id, x.id]]) {
         await code(() =>
-          changeEntityPair(p, requestActor(a.actor), left, {
+          changeConfiguredRelation(p, requestActor(a.actor), left, {
             other_id: right,
             expected_version: 3,
             expected_other_version: 2,
@@ -277,7 +276,7 @@ dbTest(
         expected_version: freeTask.version,
         body: "無関係ノート",
       });
-      await changeEntityPair(p, requestActor(a.actor), y.id, {
+      await changeConfiguredRelation(p, requestActor(a.actor), y.id, {
         other_id: z.id,
         expected_version: 2,
         expected_other_version: 1,
@@ -317,7 +316,7 @@ dbTest(
       assertEquals(delAfter.deleted_at, delBefore.deleted_at);
       assertEquals(delAfter.version, delBefore.version + 1);
       assertEquals(await getEntity(e, a.actor, y.id), yBefore);
-      assertEquals((await listEntityLinks(p, a.actor, x.id, { limit: 20 })).items.map((v) => v.id), [y.id]);
+      assertEquals((await listConfiguredLinks(p, a.actor, x.id, { limit: 20 })).items.map((v) => v.id), [y.id]);
       const old = await asUser(
         sql,
         a.actor.userId,

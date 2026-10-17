@@ -24,8 +24,17 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
         properties: { prop_1: "연결 유지" },
       });
     entities.push(entity.id, peer.id);
-    await mcp.call("link_entities", {
-      id: entity.id,
+    const relation = await mcp.call("create_entity_relation_definition", {
+      ends: [
+        { type_id: type.id, label: "복구 상대", cardinality: "many" },
+        { type_id: peerType.id, label: "복구 원점", cardinality: "many" },
+      ],
+    });
+    await mcp.call("connect_entity_relation", {
+      definition_id: relation.id,
+      side: 0,
+      origin_id: entity.id,
+      expected_definition_version: 1,
       other_id: peer.id,
       expected_version: 1,
       expected_other_version: 1,
@@ -142,10 +151,16 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     expect(restored.entity_type_id).toBe(type.id);
     expect(restored.schema_version).toBe(expectedRecoverySchemaVersion);
     expect(await mcp.call("get_entity", { id: peer.id })).toEqual(peerBefore);
-    expect((await mcp.call("list_entity_links", { id: entity.id })).items.map((r: { id: string }) => r.id)).toContain(
+    expect(
+      (await mcp.call("list_entity_relation_links", { definition_id: relation.id, side: 0, origin_id: entity.id }))
+        .items.map((r: { id: string }) => r.id),
+    ).toContain(
       peer.id,
     );
-    expect((await mcp.call("list_entity_links", { id: peer.id })).items.map((r: { id: string }) => r.id)).toContain(
+    expect(
+      (await mcp.call("list_entity_relation_links", { definition_id: relation.id, side: 1, origin_id: peer.id })).items
+        .map((r: { id: string }) => r.id),
+    ).toContain(
       entity.id,
     );
     expect((await mcp.call("get_entity_type", { type_id: type.id })).label).toBe(label);

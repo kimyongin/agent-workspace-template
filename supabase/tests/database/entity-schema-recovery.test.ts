@@ -5,7 +5,7 @@ import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
-import { SqlEntityPairUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-pair-store.ts";
+import { changeConfiguredRelation, configuredRelationFixture, listConfiguredLinks } from "./_configured-relations.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import {
   createEntityType,
@@ -26,7 +26,6 @@ import {
   updateRecord,
   updateTask,
 } from "../../functions/_shared/core/activity/application.ts";
-import { changeEntityPair, listEntityLinks } from "../../functions/_shared/core/entity-pairs/application.ts";
 import {
   analyzeEntitySchemaChange,
   applyEntitySchemaChange,
@@ -63,7 +62,7 @@ async function fixture() {
   });
   const d = { uow: new SqlEntityTypeUnitOfWork(sql) },
     e = { uow: new SqlEntityUnitOfWork(sql) },
-    p = { uow: new SqlEntityPairUnitOfWork(sql) },
+    p = configuredRelationFixture(sql),
     activity = {
       uow: new SqlUnitOfWork(sql),
       clock: { now: () => new Date("2026-10-12T00:00:00Z") },
@@ -205,7 +204,7 @@ async function fixture() {
         schema_version: 1,
         properties: { prop_1: "peer" },
       });
-    await changeEntityPair(p, actor(), x.id, {
+    await changeConfiguredRelation(p, actor(), x.id, {
       other_id: peer.id,
       expected_version: x.version,
       expected_other_version: peer.version,
@@ -216,7 +215,7 @@ async function fixture() {
       properties: { prop_1: "same" },
     });
     const current = await getEntity(e, a.actor, x.id);
-    await changeEntityPair(p, actor(), x.id, {
+    await changeConfiguredRelation(p, actor(), x.id, {
       other_id: same.id,
       expected_version: current.version,
       expected_other_version: same.version,
@@ -481,7 +480,7 @@ dbTest(
         (await getEntity(f.e, f.a.actor, o.deleted.id)).deleted_at !== null,
         true,
       );
-      const links = await listEntityLinks(f.p, f.a.actor, o.x.id, {
+      const links = await listConfiguredLinks(f.p, f.a.actor, o.x.id, {
         limit: 100,
       });
       assertEquals(
@@ -489,7 +488,7 @@ dbTest(
         [o.peer.id, o.same.id].sort(),
       );
       assert(
-        (await listEntityLinks(f.p, f.a.actor, o.peer.id, { limit: 100 })).items
+        (await listConfiguredLinks(f.p, f.a.actor, o.peer.id, { limit: 100 })).items
           .some((r) => r.id === o.x.id),
       );
       assertEquals(
@@ -582,7 +581,7 @@ dbTest(
         }
         if (action === "pair_same") {
           const same = await getEntity(f.e, f.a.actor, o.same.id);
-          await changeEntityPair(f.p, f.actor(), x.id, {
+          await changeConfiguredRelation(f.p, f.actor(), x.id, {
             other_id: same.id,
             expected_version: x.version,
             expected_other_version: same.version,
@@ -611,7 +610,7 @@ dbTest(
         }
         if (action === "pair") {
           const peer = await getEntity(f.e, f.a.actor, o.peer.id);
-          await changeEntityPair(f.p, f.actor(), peer.id, {
+          await changeConfiguredRelation(f.p, f.actor(), peer.id, {
             other_id: x.id,
             expected_version: peer.version,
             expected_other_version: x.version,

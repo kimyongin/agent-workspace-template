@@ -31,7 +31,6 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 기록 저장 성공과 의미 검색 준비는 별개다. 현황은 `get_status`, 확인이 필요한 기록은 `list_indexing_issues`로 조회한다. indexing.waiting의 long_waiting은 threshold_minutes 이상 준비 상태 갱신이 없는 기록 수이며 oldest_waiting_since는 가장 오래된 갱신 시각이다. 이는 실패나 원인 확정이 아니다. 문제 목록이 비어도 오래 대기하는 기록이 있으면 관리자에게 서비스 점검을 요청하고 키워드·원문 조회로 이어간다. 문제 목록은 최근 작성 순 최대 5개이며 `next_cursor`를 다음 요청의 `cursor`로 사용한다. 이유·전송 시도 수·본문 구간 진행을 설명하고 응답 확인 불가는 성공·실패로 확정하지 않는다. 사용자 조회는 외부 호출이나 원본 쓰기를 수행하지 않는다. 결과 불명 요청은 현재 자료와 기존 의도를 먼저 확인한다.
 
 
-자료 간 연결/해제는 `prepare_record_memo`의 준비 대상이 아니므로 확인한 양쪽 버전과 메모·태그를 실제 쓰기에 직접 유지한다. 자료 간 관계를 다룰 때 `list_entity_links`로 현재 연결을 읽고 `list_entities`의 `link_candidate_for`에 원점을 지정해 자기 자신·이미 연결된 자료·삭제/보관 대상을 제외한 후보를 찾는다. 자료 종류와 대표 이름을 확인한 뒤 `link_entities` 또는 `unlink_entities`에 양쪽 ID·`expected_version`·`expected_other_version`을 전달한다. 연결은 무방향이며 같은/다른 종류와 순환을 허용한다. 자료당 보존 연결 한도는 100개다. 삭제/보관된 이전 연결은 조회·해제할 수 있다. 역순 재시도는 ID와 버전을 함께 뒤집고 같은 메모·태그·`request_key`를 유지한다. `changed=false`는 새 연결 변경·기록이 생기지 않았다는 뜻이며 재현 결과의 버전은 당시 값이다.
 
 자료 종류를 지정한 목록은 도구 계약의 `filters`에 `prop_n`·operator·value 조건을, `sort`에 key/direction을 전달한다. `unset`은 value 없이 누락과 null을 찾는다. 다른 종류의 같은 prop_n은 의미가 다르므로 `get_entity_schema`에서 현재 정의를 읽는다. 자료 종류별 기록 템플릿 설정은 `record_templates.entity_types.<type_id>.<action>`에 저장하며 속성 변수는 `$엔터티.이후.prop_1$`처럼 고정 키를 사용한다. 표시 라벨을 변수 키로 바꾸지 않는다. 자료 종류별 memo가 null이거나 행동 설정이 없으면 고정 기본 문구를 사용하며 tag_ids는 독립적이다. 자료 공통 record_templates.entity 설정은 지원하지 않는다.
 
@@ -118,7 +117,6 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
 | 기록 본문 의미 검색·업무 제목/본문 키워드 조회 | `search` |
-| 연결된 자료 조회·추가·해제 | `list_entity_links`, `link_entities`, `unlink_entities` |
 | 자료 찾기·전체 값 읽기·만들기·고치기·지우기 | `list_entities`, `get_entity`, `create_entity`, `update_entity`, `delete_entity` |
 
 ## 기록 내용과 결과 보고
