@@ -1,7 +1,4 @@
-@layer legacy, theme, base, components, utilities;
 @import "tailwindcss";
-@import "./tokens.css" layer(legacy);
-@import "./legacy.css" layer(legacy);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";

@@ -72,7 +72,7 @@ export function FilterSamples() {
   return (
     <div className="grid min-w-0 gap-4">
       <div className="flex min-w-0 flex-wrap items-end gap-3">
-        <div className="tab-filters">
+        <div className="min-w-0">
           <FilterPanel
             dirty={dirty}
             onReset={() => {
