@@ -17,22 +17,30 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
   const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = root;
   useSurfaceViewport(viewportRef, root);
   const origin = useRef<FocusOrigin | null>(null);
+  const accepted = useRef(false);
+  const cancel = () => { accepted.current = false; onCancel(); };
   const navigationOrigin = useNavigationOrigin();
   const heading = useRef<HTMLHeadingElement>(null), footer = useRef<HTMLDivElement>(null);
   const elements = useRef({ title, body: root, heading: heading.current, footer: footer.current, active: open, modal: true, confirmation: true, ready: true });
   useLayoutEffect(() => { elements.current = { title, body: root, heading: heading.current, footer: footer.current, active: open, modal: true, confirmation: true, ready: true }; });
   useLayoutEffect(() => root ? registerSurface(root, () => elements.current) : undefined, [root, open]);
-  return <AlertDialog open={open} onOpenChange={next => { if (!next && !busy) onCancel(); }}>
+  return <AlertDialog open={open} onOpenChange={next => { if (!next && !busy) cancel(); }}>
     <AlertDialogContent ref={setRoot} aria-modal={true}
       className="flex w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0"
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
-      onOpenAutoFocus={() => { origin.current = returnFocus ?? navigationOrigin ?? captureFocusOrigin(document.activeElement); }}
-      onCloseAutoFocus={event => { event.preventDefault(); restoreFocusOrigin(origin.current); }}
+      onOpenAutoFocus={() => { accepted.current = false; origin.current = returnFocus ?? navigationOrigin ?? captureFocusOrigin(document.activeElement); }}
+      onCloseAutoFocus={event => {
+        event.preventDefault();
+        const destination = document.activeElement;
+        // A confirmed switch may already focus its newly mounted editor; cancellation returns to the invoker.
+        if (accepted.current && destination instanceof HTMLElement && destination.isConnected && destination !== document.body && destination !== document.documentElement && !root?.contains(destination) && !destination.matches(":disabled") && !destination.closest('[hidden],[inert],[aria-hidden=true],[role="menu"][data-state="closed"]')) return;
+        restoreFocusOrigin(origin.current);
+      }}
       onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
       <AlertDialogHeader className="min-h-0 overflow-y-auto overscroll-contain p-4"><AlertDialogTitle ref={heading}>{title}</AlertDialogTitle><AlertDialogDescription asChild><div>{message}</div></AlertDialogDescription></AlertDialogHeader>
       <AlertDialogFooter ref={footer} className="m-0 shrink-0">
-        <AlertDialogCancel className="h-auto min-h-11 whitespace-normal wrap-anywhere" disabled={busy} onClick={event => { event.preventDefault(); if (!busy) onCancel(); }}>취소</AlertDialogCancel>
-        <AlertDialogAction className="h-auto min-h-11 whitespace-normal wrap-anywhere" variant={danger ? "destructive" : "default"} disabled={busy || confirmDisabled} onClick={event => { event.preventDefault(); if (!busy && !confirmDisabled) onConfirm(); }}>{busy ? "처리 중…" : confirmLabel}</AlertDialogAction>
+        <AlertDialogCancel className="h-auto min-h-11 whitespace-normal wrap-anywhere" disabled={busy} onClick={event => { event.preventDefault(); if (!busy) cancel(); }}>취소</AlertDialogCancel>
+        <AlertDialogAction className="h-auto min-h-11 whitespace-normal wrap-anywhere" variant={danger ? "destructive" : "default"} disabled={busy || confirmDisabled} onClick={event => { event.preventDefault(); if (!busy && !confirmDisabled) { accepted.current = true; onConfirm(); } }}>{busy ? "처리 중…" : confirmLabel}</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>;
