@@ -160,7 +160,7 @@ for (const width of [390, 1440]) {
         await expect(page.getByRole("textbox").first()).toBeVisible();
         await expect(page.locator('[role="dialog"] [data-slot="dialog-description"]')).toBeVisible();
       }
-      if (name.endsWith("-filters")) await expect(page.getByText("필터", { exact: true })).toBeVisible();
+      if (name.endsWith("-filters")) await expect(page.getByRole("heading", { name: "필터", exact: true })).toBeVisible();
       if (name === "record-calendar") await expect(page.getByRole("region", { name: "기록 달력", exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
       await page.screenshot({ path: info.outputPath(`${name}-${width}.png`) });

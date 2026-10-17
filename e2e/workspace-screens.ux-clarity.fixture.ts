@@ -103,7 +103,7 @@ for (const width of [320, 1440]) {
       await expect(editor.getByRole("radio", { name: "매일", exact: true })).toHaveAttribute("aria-checked", "false");
       await editor.getByRole("radio", { name: "매월", exact: true }).click();
       const dates = editor.getByLabel("날짜", { exact: true });
-      await expect(dates).toHaveAttribute("inputmode", "text");
+      await expect(dates).toHaveJSProperty("type", "text");
       await dates.fill("");
       await editor.getByRole("button", { name: "추가", exact: true }).click();
       await expect(dates).toHaveAttribute("aria-invalid", "true");
