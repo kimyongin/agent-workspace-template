@@ -1,3 +1,4 @@
+import { chooseSetting } from "./settings-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
 import { scalarFixtureType } from "./entity-schema-support.ts";
 import { test, mcpClient, mcpTokenViaConsent } from "./support.ts";
@@ -23,7 +24,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
   try {
     await page.goto("/settings/records");
     const target = page.getByLabel("대상", { exact: true });
-    await target.selectOption(`type:${fixtureType.id}`);
+    await chooseSetting(page, target, fixtureType.label);
     let form = page.getByRole("form",{name:"기록 자동 완성"});
     await expect(form.getByLabel("메모 템플릿")).toBeVisible();
     await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
@@ -31,18 +32,18 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await form.getByRole("button",{name:"기록 자동 완성 저장"}).click();
     await expect(form).toContainText("닫는 구분자 $가 없습니다");
     await expect(form.getByLabel("메모 템플릿")).toHaveText("앞 $엔터티.이전.prop_2");
-    await form.getByLabel("액션",{exact:true}).selectOption("update");
+    await chooseSetting(page, form.getByLabel("액션", { exact: true }), "수정");
     await form.getByLabel("메모 템플릿").fill("앞 ");
-    await form.getByLabel("변수 삽입").selectOption("엔터티.이전.prop_2");
+    await chooseSetting(page, form.getByLabel("변수 삽입", { exact: true }), "수량 · 이전");
     await expect(form.getByLabel("메모 템플릿")).toHaveText("앞 수량 · 이전");
     await form.getByLabel("메모 템플릿").fill("$엔터티.이전.prop_2$ → $엔터티.이후.prop_2$");
     await expect(form.getByText("미리보기 예시 값 편집",{exact:true})).toHaveCount(0);
     await expect(form.getByLabel("기록 메모 예시",{exact:true})).toHaveCount(0);
     // Clear the invalid create slot before saving another action.
-    await form.getByLabel("액션",{exact:true}).selectOption("create");
+    await chooseSetting(page, form.getByLabel("액션", { exact: true }), "등록");
     await form.getByLabel("메모 템플릿").fill("");
     await form.getByRole("button",{name:"변경 취소",exact:true}).click();
-    await target.selectOption("task");
+    await chooseSetting(page, target, "할 일");
     form = page.getByRole("form",{name:"기록 자동 완성", exact: true});
     await form.getByLabel("메모 템플릿").fill("$대상$ 준비 $액션$");
     await chooseTag(page,form,tag.name);

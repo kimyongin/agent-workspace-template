@@ -139,14 +139,14 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
       fingerprint: recoveryReady.fingerprint,
     });
     await page.goto(`/settings/entity-types/${type.id}/migrations/${accepted.job_id}`);
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_migration", { job_id: accepted.job_id })).status;
     }, { timeout: 30_000 }).toBe("succeeded");
     await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
-    await expect(page.getByText(new RegExp(`^새 입력 항목 버전 ${expectedRecoverySchemaVersion} · `))).toBeVisible();
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("term", { name: "새 입력 항목 버전", exact: true }).locator("..").getByRole("definition")).toHaveText(String(expectedRecoverySchemaVersion));
     const restored = await mcp.call("get_entity", { id: entity.id });
     expect(restored.properties).toEqual({ prop_1: "001 원본" });
     expect(restored.entity_type_id).toBe(type.id);
@@ -170,7 +170,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     await expect(page.getByLabel("자료 종류 선택")).toHaveValue(type.id);
     await expect(page.getByLabel("자료 종류 선택").locator("option:checked")).toHaveText(label);
     await page.setViewportSize({ width: 320, height: 750 });
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toBeVisible();
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Expire only this test fixture after its successful GET; the actual write must report 410.
     await expect(create).toBeEnabled();

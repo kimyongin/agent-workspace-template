@@ -187,7 +187,7 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     });
     await page.goto(`/settings/entity-types/${type.id}/migrations?change_id=${change.id}`);
     await page.getByRole("button", { name: "폐기", exact: true }).click();
-    const confirm = page.getByRole("dialog", { name: "변경안을 폐기할까요?", exact: true });
+    const confirm = page.getByRole("alertdialog", { name: "변경안을 폐기할까요?", exact: true });
     await confirm.getByRole("button", { name: "취소", exact: true }).click();
     expect((await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: change.id })).status).toBe(
       "draft",

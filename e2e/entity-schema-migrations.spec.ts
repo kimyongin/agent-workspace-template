@@ -86,7 +86,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     expect(accepted.status).toBe("queued");
     const path = `/settings/entity-types/${type.id}/migrations/${accepted.job_id}`;
     await expect(page).toHaveURL(new RegExp(`job_id=${accepted.job_id}(?:&|$)`));
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     expect((await mcp.call("get_entity", { id: x.id })).properties).toEqual({ prop_1: "원본" });
     await page.getByRole("link", { name: "할 일", exact: true }).click();
     await page.goto(`/entities?entity_type_id=${other.id}`);
@@ -107,9 +107,9 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     await stopWorker(runner);
     runner = undefined;
     await page.goto(path);
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
     await page.reload();
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
     await expect(page.getByLabel("자료 종류 선택")).toHaveValue(type.id);
     const current = await mcp.call("get_entity", { id: x.id });
     expect(current.properties).toEqual({ prop_1: "원본", prop_2: 7 });
@@ -122,7 +122,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     const mcpJob = await mcp.call("get_entity_schema_migration", { job_id: accepted.job_id });
     expect(mcpJob.result.schema_version).toBe(2);
     await page.setViewportSize({ width: 320, height: 750 });
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toBeVisible();
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
     try {
@@ -188,9 +188,9 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
         fingerprint: ready.fingerprint,
       });
     await page.goto(`/settings/entity-types/${typeId}?job_id=${job.job_id}&change_id=${plan.id}`);
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     await page.getByRole("button", { name: "변환 취소", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("취소");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("취소");
     expect((await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status).toBe("cancelled");
     expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "原本" });
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
@@ -231,7 +231,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
     expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "原本" });
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
     await page.reload();
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("취소");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("취소");
   } finally {
     if (restartedJobId) {
       const remaining = await mcp.call("get_entity_schema_migration", { job_id: restartedJobId });
@@ -329,13 +329,13 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     expect(resumed).toMatchObject({ job_id: job.job_id, job_version: failed.version + 1, status: "queued" });
     const retryKey = resumedResponse.request().headers()["idempotency-key"];
     expect(retryKey).toBeTruthy();
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     expect((await mcp.call("get_entity", { id: entityId })).version).toBe(entity.version);
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status;
     }, { timeout: 30000 }).toBe("succeeded");
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
     const current = await mcp.call("get_entity", { id: entityId });
     expect(current.properties).toEqual({ prop_1: "보존 원본", prop_2: 7 });
     expect(current.version).toBe(entity.version + 1);
@@ -348,7 +348,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
       }),
     ).toEqual(resumed);
     await page.reload();
-    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
+    await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
   } finally {
     await worker.end();
     await mcp.close();

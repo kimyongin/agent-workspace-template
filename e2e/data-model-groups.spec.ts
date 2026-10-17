@@ -110,12 +110,12 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
       expect(current.properties.prop_2).toBe(index + 8);
     }
     await page.goto("/settings/data-model");
-    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toContainText("설정 적용 완료");
+    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toHaveAccessibleName(/설정 적용 완료/);
     await page.getByRole("button", { name: new RegExp(target.title) }).click();
     await expect(page.getByRole("region", { name: target.title, exact: true }).getByText("적용 완료", { exact: true }))
       .toBeVisible();
     await page.reload();
-    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toContainText("설정 적용 완료");
+    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toHaveAccessibleName(/설정 적용 완료/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
     await stopWorker(runner);
