@@ -63,7 +63,7 @@ function DailyChart({ title, days, series, stacked = false }: {
     }
   }
   return (
-    <div role="region" aria-label={title} className="flex min-w-0 flex-col gap-4">
+    <div role="region" aria-label={title} className="@container/daily flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-medium">{title}</h3>
         <span className="text-sm text-muted-foreground">최근 {days.length}일</span>
@@ -144,22 +144,24 @@ function DailyChart({ title, days, series, stacked = false }: {
                 />
               </ChartProvider>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="grid grid-cols-2 items-center gap-2 @min-[14rem]/daily:grid-cols-[auto_minmax(0,1fr)_auto]">
               <Button
                 variant="outline"
                 size="icon"
+                className="justify-self-start"
                 aria-label={`${title} 이전 날짜`}
                 disabled={index === 0}
                 onClick={() => select(index - 1)}
               >
                 <ChevronLeftIcon />
               </Button>
-              <p id={id} aria-live="polite" className="text-sm tabular-nums">
+              <p id={id} aria-live="polite" className="order-first col-span-2 text-center text-sm tabular-nums @min-[14rem]/daily:order-none @min-[14rem]/daily:col-span-1">
                 <time dateTime={current.date}>{current.date}</time>
               </p>
               <Button
                 variant="outline"
                 size="icon"
+                className="justify-self-end"
                 aria-label={`${title} 다음 날짜`}
                 disabled={index === days.length - 1}
                 onClick={() => select(index + 1)}

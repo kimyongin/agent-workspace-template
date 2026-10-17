@@ -146,6 +146,11 @@ test.describe("차트 직접 선택", () => {
                 expect(labelBounds.y + labelBounds.height).toBeLessThanOrEqual(graphBounds.y + graphBounds.height);
               }
               const previous = (await page.getByRole("button", { name: `${title} 이전 날짜`, exact: true }).boundingBox())!;
+              const next = (await page.getByRole("button", { name: `${title} 다음 날짜`, exact: true }).boundingBox())!;
+              const date = (await page.getByRole("region", { name: title, exact: true }).locator(`time[datetime="2026-10-16"]`).boundingBox())!;
+              expect(previous.y).toBeCloseTo(next.y, 1);
+              expect(previous.x).toBeLessThan(next.x);
+              expect(date.y + date.height).toBeLessThanOrEqual(previous.y);
               const tableBounds = (await values.boundingBox())!;
               expect(graphBounds.y + graphBounds.height).toBeLessThanOrEqual(previous.y);
               expect(previous.y + previous.height).toBeLessThanOrEqual(tableBounds.y);
