@@ -202,3 +202,49 @@ Deno.test("identical empty-owner previews bind copy IDs and review fingerprints 
   assertEquals(a.review.fingerprint === b.review.fingerprint, false);
   assertEquals(a.review.mapping.types.ingredient === b.review.mapping.types.ingredient, false);
 });
+
+Deno.test("referenced per-kind identity sources cannot be removed or rebound during whole-model review", async () => {
+  const source = example(), type = source.entity_types[0], ruleId = "20000000-0000-4000-8000-000000000001";
+  source.identity_definitions.issuers.push({
+    code: "seller",
+    label: "Seller",
+    active: true,
+    system: false,
+    version: 1,
+  });
+  source.identity_definitions.rules.push({
+    id: ruleId,
+    source: "seller",
+    label: "SKU",
+    meaning: "Seller SKU",
+    generation: "direct",
+    active: true,
+    version: 1,
+  });
+  type.identity.sources.push({ code: "seller", rule_id: ruleId, active: true });
+  const snapshot = {
+    document: source,
+    types: { [type.schema["x-type-id"]]: { next_property_number: 2, count: 1, locked: false } },
+    identity_usage: { [type.schema["x-type-id"]]: { seller: ruleId } },
+  };
+  for (const replacement of [false, true]) {
+    const target = structuredClone(source);
+    if (replacement) {
+      const other = {
+        ...source.identity_definitions.rules[1],
+        id: "20000000-0000-4000-8000-000000000002",
+        label: "Other SKU",
+      };
+      target.identity_definitions.rules.push(other);
+      target.entity_types[0].identity.sources[1].rule_id = other.id;
+    } else {target.entity_types[0].identity.sources = target.entity_types[0].identity.sources.filter((s) =>
+        s.code !== "seller"
+      );}
+    const review = (await resolveModel(snapshot, target, "update", actor.userId)).review;
+    assertEquals(review.items.find((i) => i.ref === type.ref)?.kind, "conflict");
+    assertEquals(review.can_apply, false);
+  }
+  const suspended = structuredClone(source);
+  suspended.entity_types[0].identity.sources[1].active = false;
+  assertEquals((await resolveModel(snapshot, suspended, "update", actor.userId)).review.can_apply, true);
+});

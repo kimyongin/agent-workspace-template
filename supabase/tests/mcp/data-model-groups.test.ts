@@ -24,6 +24,11 @@ httpTest(
       onnotice: () => {},
       connection: { statement_timeout: 15000 },
     });
+    const compact = (value: unknown) => {
+      assert(value !== null && typeof value === "object");
+      assertEquals(Object.hasOwn(value, "plan"), false);
+      assert(new TextEncoder().encode(JSON.stringify(value)).length < 100000);
+    };
     const keys: string[] = [], changes: string[] = [], typeIds: string[] = [], errors: unknown[] = [];
     const key = () => {
       const value = crypto.randomUUID();
@@ -40,6 +45,12 @@ httpTest(
       for (const t of initial.entity_types) {
         t.schema.title += ` ${crypto.randomUUID().slice(0, 8)}`;
         t.schema.properties.prop_2 = { type: "string", title: "수량", "x-order": 20 };
+        t.schema.properties.prop_3 = {
+          type: "string",
+          title: "참고 원문",
+          "x-order": 30,
+          examples: Array.from({ length: 45 }, () => "x".repeat(4096)),
+        };
       }
       const input = { mode: "copy", document: JSON.stringify(initial) },
         preview = await tool(client, "preview_data_model", input);
@@ -88,6 +99,7 @@ httpTest(
         remember(c.id);
         const input = { expected_version: c.version, conversions }, requestKey = key();
         const accepted = await tool(client, "analyze_data_model", { id: c.id, ...input, request_key: requestKey });
+        compact(accepted);
         assertEquals(accepted.status, "analyzing");
         const replay = await call(token, "POST", `/data-model/changes/${c.id}/analyze`, input, requestKey);
         assertEquals(replay.status, 200);
@@ -103,6 +115,15 @@ httpTest(
         }
         const ready = await tool(client, "get_data_model_change", { id: c.id });
         assertEquals(ready.status, "ready");
+        assert(new TextEncoder().encode(JSON.stringify(ready)).length > 1024 * 1024);
+        for (const child of ready.group.children) {
+          assertEquals(
+            child.source.schema.properties.prop_3.examples,
+            Array.from({ length: 45 }, () => "x".repeat(4096)),
+          );
+          assertEquals(child.change.target.schema.properties.prop_3.examples[0].length, 4096);
+        }
+        assertEquals(Object.hasOwn(ready, "plan"), false);
         return ready;
       };
       const cancelled = await analyzed(), cancelInput = { expected_version: cancelled.version }, cancelKey = key();
@@ -111,6 +132,7 @@ httpTest(
         ...cancelInput,
         request_key: cancelKey,
       });
+      compact(cancel);
       assertEquals(cancel.status, "cancelled");
       const cancelReplay = await call(
         token,
@@ -123,6 +145,7 @@ httpTest(
       assertEquals(await definitionFingerprint(cancelReplay.body), await definitionFingerprint(cancel));
       const ready = await analyzed(), applyInput = { expected_version: ready.version }, applyKey = key();
       const queued = await tool(client, "apply_data_model", { id: ready.id, ...applyInput, request_key: applyKey });
+      compact(queued);
       assertEquals(queued.status, "queued");
       assertEquals((await call(foreign, "GET", `/data-model/changes/${ready.id}`)).status, 404);
       const accepted = await call(token, "POST", `/data-model/changes/${ready.id}/apply`, applyInput, applyKey);
@@ -135,6 +158,7 @@ httpTest(
         retryInput = { expected_version: failed.version },
         retryKey = key();
       const retry = await tool(client, "retry_data_model", { id: ready.id, ...retryInput, request_key: retryKey });
+      compact(retry);
       assertEquals(retry.status, "queued");
       const retryReplay = await call(token, "POST", `/data-model/changes/${ready.id}/retry`, retryInput, retryKey);
       assertEquals(await definitionFingerprint(retryReplay.body), await definitionFingerprint(retry));

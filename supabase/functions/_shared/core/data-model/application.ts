@@ -20,6 +20,7 @@ export type ModelSnapshot = {
   document: DataModelDocument;
   types: Record<string, { next_property_number: number; count: number; locked: boolean }>;
   rule_usage?: Record<string, boolean>;
+  identity_usage?: Record<string, Record<string, string>>;
   relation_usage?: Record<string, { links: number; left_many: boolean; right_many: boolean }>;
 };
 export type ModelPlan = {
@@ -232,7 +233,13 @@ export async function resolveModel(
     validateEntityDefinition({ schema: t.schema });
     const diff = old ? schemaDefinitionDiff({ schema: old.schema }, { schema: t.schema }) : [];
     const identityChanged = !!old && canonical(withoutVersion(old.identity)) !== canonical(withoutVersion(t.identity));
-    const kind = !old
+    const immutableIdentityConflict = !!old &&
+      Object.entries(snapshot.identity_usage?.[old.schema["x-type-id"]] ?? {}).some(([code, ruleId]) =>
+        !t.identity.sources.some((s) => s.code === code && s.rule_id === ruleId)
+      );
+    const kind = immutableIdentityConflict
+      ? "conflict"
+      : !old
       ? "new"
       : diff.some((d) => d.kind === "migration_required") && snapshot.types[old.schema["x-type-id"]].count > 0
       ? "migration_required"
@@ -270,6 +277,9 @@ export async function resolveModel(
       current_schema: old?.schema,
       identity: t.identity,
       current_identity: old?.identity,
+      message: immutableIdentityConflict
+        ? "이미 자료 번호를 발급한 경로는 제거하거나 다른 번호 정의로 바꿀 수 없습니다"
+        : undefined,
     });
   }
   for (const r of target.relations) {

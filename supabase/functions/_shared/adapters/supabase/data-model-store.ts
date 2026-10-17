@@ -24,7 +24,11 @@ function changeRow(r: postgres.Row): ModelChange & { plan: ModelPlan } {
 }
 export function receiptChange(value: ModelChange): ModelChange {
   return {
-    ...value,
+    id: value.id,
+    version: value.version,
+    status: value.status,
+    result: value.result,
+    created_at: value.created_at,
     ...(value.group ? { group: { ...value.group, children: [] } } : {}),
     review: {
       ...value.review,
@@ -45,10 +49,14 @@ export class SqlDataModelStore implements DataModelStore {
       await tx`select t.id,t.next_property_number,t.schema_write_locked,v.schema,(select count(*)::int from app.entities e where e.entity_type_id=t.id) as count,app.entity_schema_membership(t.owner_id,t.id) as membership from app.entity_types t join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version order by t.id`;
     const types: ModelSnapshot["types"] = {};
     const entity_types: DataModelDocument["entity_types"] = [];
+    const identity_usage: NonNullable<ModelSnapshot["identity_usage"]> = {};
     for (const row of rows) {
       const i = (await issuers.getTypeIdentity(row.id))!;
       const rawSources =
-        await tx`select code,rule_id,active from app.entity_type_identity_sources where type_id=${row.id}::uuid order by code`;
+        await tx`select code,rule_id,active,referenced from app.entity_type_identity_sources where type_id=${row.id}::uuid order by code`;
+      identity_usage[row.id] = Object.fromEntries(
+        rawSources.filter((s) => s.referenced).map((s) => [String(s.code), String(s.rule_id)]),
+      );
       entity_types.push({
         ref: ref(row.id),
         schema: row.schema,
@@ -111,6 +119,7 @@ export class SqlDataModelStore implements DataModelStore {
     return {
       document,
       types,
+      identity_usage,
       relation_usage: Object.fromEntries(
         usage.map(
           (r) => [String(r.id), {

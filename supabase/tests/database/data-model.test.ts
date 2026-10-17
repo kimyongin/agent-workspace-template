@@ -88,14 +88,44 @@ dbTest("whole model aborts a late identity violation without publishing earlier 
     const original = await exportDataModel(deps, a.actor), changed = structuredClone(original);
     changed.entity_types[0].schema.description = "실패하면 게시되면 안 되는 변경";
     const target = changed.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
-    target.identity.default_source = "app";
-    target.identity.sources = target.identity.sources.filter((s) => s.code !== "seller");
+    const rejected = structuredClone(changed);
+    const rejectedType = rejected.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
+    rejectedType.identity.default_source = "app";
+    rejectedType.identity.sources = rejectedType.identity.sources.filter((s) => s.code !== "seller");
+    const removal = await previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(rejected) });
+    assertEquals(removal.can_apply, false);
+    assertEquals(removal.items.find((i) => i.ref === target.ref)?.kind, "conflict");
+    const replacement = structuredClone(changed);
+    const replacementType = replacement.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
+    const oldSource = replacementType.identity.sources.find((s) => s.code === "seller")!;
+    const newRule = {
+      ...replacement.identity_definitions.rules.find((r) => r.id === oldSource.rule_id)!,
+      id: crypto.randomUUID(),
+      label: "새 판매자 번호",
+    };
+    replacement.identity_definitions.rules.push(newRule);
+    oldSource.rule_id = newRule.id;
+    const rebound = await previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(replacement) });
+    assertEquals(rebound.can_apply, false);
+    assertEquals(rebound.items.find((i) => i.ref === target.ref)?.kind, "conflict");
     const input = { mode: "update" as const, document: JSON.stringify(changed) },
       review = await previewDataModel(deps, a.actor, input),
       change = await prepareDataModel(deps, requestActor(a.actor), {
         ...input,
         preview_fingerprint: review.fingerprint,
       });
+    assertEquals(review.can_apply, true);
+    // Late fault injection affects only this owned stored target, after a valid review.
+    // The final SQL guard must roll back any earlier compatible schema publication.
+    target.identity.default_source = "app";
+    target.identity.sources = target.identity.sources.filter((s) => s.code !== "seller");
+    const [stored] =
+      await admin`select plan->'target' as target from app.data_model_changes where owner_id=${a.actor.userId}::uuid and id=${change.id}::uuid`;
+    const frozen = stored.target as DataModelDocument;
+    frozen.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!.identity = target.identity;
+    await admin`update app.data_model_changes set plan=jsonb_set(plan,'{target}',${
+      admin.json(frozen)
+    }) where owner_id=${a.actor.userId}::uuid and id=${change.id}::uuid`;
     await assertRejects(() =>
       applyDataModel(deps, requestActor(a.actor), change.id, { expected_version: change.version })
     );
