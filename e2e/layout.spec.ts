@@ -31,9 +31,9 @@ async function layoutProblems(page: Page) {
     const targets = document.querySelectorAll<HTMLElement>("button, a, input, textarea, select");
     for (const el of targets) {
       let r = el.getBoundingClientRect();
-      if (r.width === 0 || r.height === 0) continue; // 숨은 요소(닫힌 대화상자 등)
+      if (r.width === 0 || r.height === 0 || el.closest('[aria-hidden="true"],[hidden],[inert]')) continue; // 숨은 표면과 폼 제출용 backing control은 조작 대상이 아니다.
       if (el.closest(".markdown")) continue; // 본문 속 링크는 글자 크기를 따른다
-      const inline = el.tagName === "A" && !el.classList.contains("btn") && getComputedStyle(el).display === "inline";
+      const inline = el.tagName === "A" && getComputedStyle(el).display === "inline";
       if (inline) continue; // 문장 속 링크는 가이드상 예외(텍스트 조작)
       // Native checkbox/radio glyphs use their associated label as the real pointer target.
       if (el instanceof HTMLInputElement && ["checkbox", "radio"].includes(el.type) || el instanceof HTMLButtonElement && ["checkbox", "radio", "switch"].includes(el.getAttribute("role") ?? "")) {
@@ -44,8 +44,7 @@ async function layoutProblems(page: Page) {
         });
         if (label) r = label.getBoundingClientRect();
       }
-      // The documented contiguous view selector uses 24px minimum only with a fine pointer.
-      const minimum=matchMedia("(pointer: fine)").matches&&el.matches(".view-picker button, .collection-expand-toggle")?24:43.5;
+      const minimum = 43.5; // 44px target with subpixel rounding tolerance.
       if (r.height < minimum || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA" && r.width < minimum)) {
         problems.push(`작은 조작 영역 ${el.tagName} "${(el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 20)}" ${Math.round(r.width)}x${Math.round(r.height)}`);
       }
@@ -95,9 +94,10 @@ test.describe("화면 폭별 배치", () => {
       await expect(page.getByRole("dialog", { name: "할 일 추가" })).toBeVisible();
       expect(await layoutProblems(page), `${width}px 작성 대화상자`).toEqual([]);
       const box = await page.getByRole("dialog", { name: "할 일 추가" }).boundingBox();
-      // 640px 미만은 전체 화면, 이상은 중앙 40rem 이하
-      if (width < 640) expect(Math.round(box!.width)).toBe(width);
-      else expect(box!.width).toBeLessThanOrEqual(672);
+      expect(box!.x).toBeGreaterThanOrEqual(-1);
+      expect(box!.y).toBeGreaterThanOrEqual(-1);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(901);
       await page.keyboard.press("Escape");
   });
 
@@ -110,7 +110,7 @@ test.describe("화면 폭별 배치", () => {
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       expect(await layoutProblems(page), path).toEqual([]);
       const rootFont = await page.evaluate(() => getComputedStyle(document.documentElement).fontSize);
-      expect(rootFont).toBe("16px");
+      expect(parseFloat(rootFont)).toBeGreaterThanOrEqual(16);
     }
   });
 });

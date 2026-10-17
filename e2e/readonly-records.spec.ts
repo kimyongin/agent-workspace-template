@@ -1,3 +1,4 @@
+import { detailDialog } from "./ui-actions.ts";
 import { openMainNavigation } from "./ui-actions.ts";
 import { openListDetail, closeDetail } from "./ui-actions.ts";
 import { createHash } from "node:crypto";
@@ -69,7 +70,7 @@ test("읽기·검색·세 탭 이동·상세 닫기는 계정 기록 원문과 �
     expect(searched.request().postDataJSON().mode).toBe("auto");
     expect((await searched.json()).items.some((item: { id: string }) => item.id === fixtureId)).toBe(true);
     await openListDetail(page,title);
-    await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible();
+    await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
     await closeDetail(page,title);
     await expect(page.getByRole("button", { name: title, exact: true })).toBeFocused();
     const after = await snapshot();
