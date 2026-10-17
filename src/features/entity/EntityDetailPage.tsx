@@ -1,3 +1,4 @@
+import { EntityTypedRelations } from "./EntityTypedRelations.tsx";
 import { detailModeLink } from "../../lib/entity-list-url.ts";
 import { EntityPairRelations } from "./EntityPairRelations.tsx";
 import { entityPath } from "@contracts/entity-identity.ts";
@@ -199,6 +200,7 @@ export function EntityDetailPage() {
             <TagNames scope="entity" compact ids={entity.tag_ids} />
           </section>
           <div className="detail-relations">
+            <EntityTypedRelations entity={entity} onSaved={(version)=>{detail.confirm(current=>current?{...current,version}:current);if(!editor.active)void reload();}} />
             <EntityPairRelations
               entity={entity}
               onSaved={(version) => {

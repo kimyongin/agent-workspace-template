@@ -33,7 +33,10 @@ export interface EntityRelationLinkStore extends ChangeStore {
   list(q: RelationLinkQuery, after: string | undefined, candidates: boolean): Promise<EntitySummary[]>;
 }
 export interface EntityRelationLinkDeps {
-  uow: { run<T>(actor: Actor, fn: (s: EntityRelationLinkStore) => Promise<T>): Promise<T> };
+  uow: {
+    run<T>(actor: Actor, fn: (s: EntityRelationLinkStore) => Promise<T>): Promise<T>;
+    read<T>(actor: Actor, fn: (s: EntityRelationLinkStore) => Promise<T>): Promise<T>;
+  };
 }
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   const result = schema.safeParse(raw);
@@ -176,7 +179,7 @@ export async function listEntityRelationLinks(d: EntityRelationLinkDeps, a: Acto
       throw invalidInput("다른 자료·관계·검색 조건의 커서입니다");
     }
   }
-  return d.uow.run(a, async (s) => {
+  return d.uow.read(a, async (s) => {
     const def = await s.definition(i.definition_id, false);
     if (!def) throw notFound();
     const [origin] = await s.endpoints([i.origin_id], false);

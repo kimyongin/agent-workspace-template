@@ -219,6 +219,8 @@ dbTest(
       const scope = { definition_id: def.id, side: 0, origin_id: origin.id };
       const page = await listEntityRelationLinks(d, a.actor, { ...scope, limit: 100 });
       assertEquals(page.items.length, 100);
+      const filtered = await listEntityRelationLinks(d, a.actor, { ...scope, q: "재료 100" });
+      assertEquals(filtered.items.map((e) => e.title), ["재료 100"]);
       const tail = await listEntityRelationLinks(d, a.actor, { ...scope, limit: 100, cursor: page.next_cursor });
       assertEquals(tail.items.length, 1);
       assertEquals(new Set([...page.items, ...tail.items].map((e) => e.id)).size, 101);

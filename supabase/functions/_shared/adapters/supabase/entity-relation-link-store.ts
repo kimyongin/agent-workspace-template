@@ -76,11 +76,14 @@ export class SqlEntityRelationLinkStore extends SqlActorStore implements EntityR
  and (${after ?? null}::text is null or e.id collate "C">${
         after ?? null
       } collate "C") order by e.id collate "C" limit ${q.limit + 1}`
-      : await t`select ${peer} as id from app.entity_relation_links l where l.definition_id=${q.definition_id}::uuid and ${own}=${q.origin_id} and (${
+      : await t`select e.id from app.entity_relation_links l join app.entities e on e.owner_id=l.owner_id and e.id=${peer}
+        join app.entity_types k on k.owner_id=e.owner_id and k.id=e.entity_type_id
+        join app.entity_schema_versions v on v.owner_id=k.owner_id and v.type_id=k.id and v.schema_version=k.schema_version
+        where l.definition_id=${q.definition_id}::uuid and ${own}=${q.origin_id}
+        and (${q.q}='' or strpos(lower(coalesce(e.properties->>(select key from jsonb_each(v.schema->'properties') where value->>'x-representative'='true' limit 1),'')),lower(${q.q}))>0 or strpos(lower(e.external_id),lower(${q.q}))>0)
+        and (${after ?? null}::text is null or e.id collate "C">${
         after ?? null
-      }::text is null or ${peer} collate "C">${after ?? null} collate "C") order by ${peer} collate "C" limit ${
-        q.limit + 1
-      }`;
+      } collate "C") order by e.id collate "C" limit ${q.limit + 1}`;
     const store = new SqlEntityStore(t, this.actor);
     const values = await Promise.all(ids.map((r) => store.get(String(r.id))));
     return values.filter((e) => e !== null).map((e) => {
@@ -92,6 +95,14 @@ export class SqlEntityRelationLinkStore extends SqlActorStore implements EntityR
 }
 export class SqlEntityRelationLinkUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
+  read<T>(actor: Actor, fn: (s: EntityRelationLinkStore) => Promise<T>) {
+    return runAsActor(
+      this.sql,
+      actor,
+      (tx) => fn(new SqlEntityRelationLinkStore(tx, actor)),
+      "repeatable read read only",
+    );
+  }
   run<T>(actor: Actor, fn: (s: EntityRelationLinkStore) => Promise<T>) {
     return runAsActor(this.sql, actor, (tx) => fn(new SqlEntityRelationLinkStore(tx, actor)));
   }

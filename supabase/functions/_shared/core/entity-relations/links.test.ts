@@ -7,6 +7,9 @@ Deno.test("typed relation rejects own entity without reaching storage", async ()
     connectEntityRelation(
       {
         uow: {
+          read() {
+            throw new Error("storage must not run");
+          },
           run() {
             throw new Error("storage must not run");
           },
