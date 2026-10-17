@@ -191,7 +191,7 @@ dbTest(
 );
 
 import { changeDataModelGroup } from "../../functions/_shared/core/data-model/groups.ts";
-async function queuedGroup() {
+async function queuedGroup(analyzeOnly = false) {
   const fixture = await fixtureOwner(admin);
   try {
     const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
@@ -235,6 +235,7 @@ async function queuedGroup() {
       expected_version: saved.version,
       conversions,
     });
+    if (analyzeOnly) return { fixture, id: saved.id, before, entities, entityDeps, ids, target };
     for (let step = 0; step < 10; step++) {
       const [result] = await worker`select app.claim_entity_schema_analysis() as batch`;
       if (!result.batch) break;
@@ -432,6 +433,30 @@ dbTest(
     } finally {
       await removed.fixture.cleanup();
       await retained.fixture.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "expired group analysis material returns its parent to review without expiring another owner's analysis",
+  async () => {
+    const expired = await queuedGroup(true), fresh = await queuedGroup(true);
+    try {
+      const freshBefore = await getDataModelChange(deps, fresh.fixture.actor, fresh.id);
+      await admin`update app.entity_schema_analyses set created_at=now()-interval '31 days' where owner_id=${expired.fixture.actor.userId}::uuid and change_id in(select change_id from app.data_model_children where owner_id=${expired.fixture.actor.userId}::uuid and model_id=${expired.id}::uuid)`;
+      await worker`select app.claim_entity_schema_migration()`;
+      const current = await getDataModelChange(deps, expired.fixture.actor, expired.id);
+      assertEquals(current.status, "needs_conversion");
+      assertEquals(current.review.can_apply, false);
+      assertEquals(current.group?.children.every((child) => child.change.analysis === null), true);
+      const [rows] =
+        await admin`select count(*)::int as count from private.entity_schema_analysis_rows r join app.data_model_children c on c.owner_id=r.owner_id and c.analysis_id=r.analysis_id where c.owner_id=${expired.fixture.actor.userId}::uuid and c.model_id=${expired.id}::uuid`;
+      assertEquals(rows.count, 0);
+      assertEquals(await getDataModelChange(deps, fresh.fixture.actor, fresh.id), freshBefore);
+      assertEquals(await exportDataModel(deps, expired.fixture.actor), expired.before);
+    } finally {
+      await expired.fixture.cleanup();
+      await fresh.fixture.cleanup();
     }
   },
 );
