@@ -7,7 +7,7 @@ import { NativeSelect, NativeSelectOption } from "../../components/ui/native-sel
 import { Button } from "../../components/ui/button.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { PageHeading } from "../../components/PageHeading.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 
@@ -45,14 +45,14 @@ export function NavigationSettings(
   const { setPreview } = useNavigationPreview();
   const location = useLocation();
   const catalog = useEntityTypes(location.key);
-  const types = catalog.types ?? [];
+  const types = useMemo(() => catalog.types ?? [], [catalog.types]);
   const dirty = !equal(draft, baseline);
-  const refs = draft?.refs ?? defaultNavigationRefs(types);
-  const choices = resolveNavigationRefs([
+  const refs = useMemo(() => draft?.refs ?? defaultNavigationRefs(types), [draft, types]);
+  const choices = useMemo(() => resolveNavigationRefs([
     ...["entities", "tasks", "records"].map((id) => ({ kind: "builtin", id } as NavigationRef)),
     ...types.map((type) => ({ kind: "type" as const, id: type.id })),
-  ], types);
-  const available = choices.filter((entry) => !refs.some((ref) => key(ref) === entry.key));
+  ], types), [types]);
+  const available = useMemo(() => choices.filter((entry) => !refs.some((ref) => key(ref) === entry.key)), [choices, refs]);
   const selected = available.find((entry) => entry.key === candidate);
   useEffect(() => {
     onStateChange?.({ dirty, busy });
