@@ -190,10 +190,22 @@ export function EntityRelationSection(
   const def = state.page?.definition ?? definition,
     single = def.ends[side].cardinality === "one",
     current = state.page?.items[0],
-    canWrite = def.ends.every(end => capability?.grants.some(grant => grant.target_kind === "entity_type" && grant.target_id === end.type_id && grant.access === "write")),
-    active = visible && !readOnly && canWrite && !entity.deleted_at && !entity.type.archived && !def.archived;
+    // An empty relation may be rebound while an uncertain attempt still owns its old endpoints.
+    requiredKinds = new Set([
+      ...definition.ends.map(end => end.type_id),
+      ...def.ends.map(end => end.type_id),
+      ...(mutation ? [mutation.origin.entity_type_id, mutation.other.entity_type_id,
+        ...(mutation.previous ? [mutation.previous.entity_type_id] : [])] : []),
+    ]),
+    canRead = visible && [...requiredKinds].every(typeId => capability?.grants.some(grant =>
+      grant.target_kind === "entity_type" && grant.target_id === typeId && (grant.access === "read" || grant.access === "write")
+    )),
+    canWrite = canRead && [...requiredKinds].every(typeId => capability?.grants.some(grant =>
+      grant.target_kind === "entity_type" && grant.target_id === typeId && grant.access === "write"
+    )),
+    active = canRead && !readOnly && canWrite && !entity.deleted_at && !entity.type.archived && !def.archived;
   const prepare = async (item: Candidate, remove: boolean) => {
-    if (!visible || !canWrite || preparing || surface?.editor.current) return;
+    if (!canRead || !canWrite || preparing || surface?.editor.current) return;
     const started = locationKey.current, c = new AbortController();
     preparation.current?.abort();
     preparation.current = c;
@@ -217,7 +229,7 @@ export function EntityRelationSection(
   };
   return (
     <>
-      <div ref={section} hidden={!visible} tabIndex={-1} aria-label={`${def.ends[side].label} 관계`}>
+      <div ref={section} hidden={!canRead} tabIndex={-1} aria-label={`${def.ends[side].label} 관계`}>
         <RelatedSection
           title={def.ends[side].label + (def.archived ? " · 보관" : "")}
           views={!single && !readOnly}
@@ -346,7 +358,7 @@ export function EntityRelationSection(
       {mutation && (
         <FormModal
           open
-          visible={visible}
+          visible={canRead}
           title={mutation.remove ? "관계 연결 해제" : single ? "관계 연결 교체" : "관계 자료 연결"}
           submitLabel="저장"
           submitDisabled={!canWrite}
