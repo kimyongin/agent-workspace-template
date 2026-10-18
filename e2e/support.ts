@@ -669,6 +669,8 @@ export async function ownedWorkspace(page: Page) {
     setTaskAccess: (access: "read" | "write" | "none") =>
       grant([{ target_kind: "tasks", target_id: "*", access }]),
     grantKind: async (typeId: string) => {
+      // A browser response body may still be registering its exact new mapping.
+      await Promise.all([...scope.responses]);
       if (!uuid.test(typeId) || !fixture.createdKinds.includes(typeId)) {
         throw new Error(
           "explicit publicly created fixture kind identity required",
