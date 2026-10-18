@@ -1,7 +1,7 @@
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import type { Workspace, WorkspaceSummary } from "@contracts/workspace.ts";
 import { DeletedWorkspaces, WorkspaceLifecycleDialog, type WorkspaceLifecycleIntent } from "./WorkspaceLifecycle.tsx";
 import { useApi } from "../../lib/api-context.tsx";
@@ -23,6 +23,28 @@ export function WorkspacesPage() {
     [creating, setCreating] = useState(false),
     [name, setName] = useState("");
   const [lifecycle, setLifecycle] = useState<WorkspaceLifecycleIntent | null>(null);
+  const [params] = useSearchParams(), requestedExit = params.get("leave");
+  const [entryError, setEntryError] = useState("");
+  useEffect(() => {
+    if (!requestedExit) return;
+    const controller = new AbortController();
+    void api<{ workspace: Workspace; membership_version: number }>(
+      "GET",
+      `/workspaces/${encodeURIComponent(requestedExit)}/membership`,
+      undefined,
+      controller.signal,
+    )
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setLifecycle({ workspace: value.workspace, action: "leave" });
+          setEntryError("");
+        }
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) setEntryError(writeErrorMessage(error));
+      });
+    return () => controller.abort();
+  }, [api, requestedExit]);
   const { attempt, busy, uncertain } = useWriteAttempt<
     { workspace: Workspace }
   >();
@@ -86,6 +108,11 @@ export function WorkspacesPage() {
           </Button>
         </Alert>
       )}
+      {entryError && (
+        <Alert variant="destructive">
+          <AlertDescription>{entryError}</AlertDescription>
+        </Alert>
+      )}
       {items === null
         ? (
           <p role="status" className="flex items-center gap-2">
@@ -134,6 +161,7 @@ export function WorkspacesPage() {
       <DeletedWorkspaces
         revision={revision}
         onRestore={(workspace) => setLifecycle({ workspace, action: "restore" })}
+        onLeave={(workspace) => setLifecycle({ workspace, action: "leave" })}
       />
       {lifecycle && (
         <WorkspaceLifecycleDialog
