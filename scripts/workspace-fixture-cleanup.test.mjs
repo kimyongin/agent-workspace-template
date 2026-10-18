@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { planWorkspaceCleanup } from "./workspace-fixture-cleanup.mjs";
+import { planWorkspaceCleanup, runWorkspaceCleanup } from "./workspace-fixture-cleanup.mjs";
 
 const workspace = "00000000-0000-4000-8000-000000000001";
 const actor = "00000000-0000-4000-8000-000000000002";
@@ -60,4 +60,17 @@ test("missing explicit run, store or workspace identity never produces an execut
     assert.throws(() => planWorkspaceCleanup(missing, inventory), /explicit/);
   }
   assert.throws(() => planWorkspaceCleanup({ ...manifest, environment: { ...manifest.environment, host: "example.com" } }, inventory), /loopback/);
+});
+
+test("account-scoped workspace creation receipts belong to their exact returned workspace", () => {
+  const changed = { ...inventory, "private.workspace_request_results": [
+    { workspace_id: null, result_workspace_id: workspace, request_key: "creation-key" },
+    { workspace_id: null, result_workspace_id: "00000000-0000-4000-8000-000000000009", request_key: "unrelated-key" },
+  ] };
+  assert.equal(planWorkspaceCleanup(manifest, changed).counts["private.workspace_request_results"], 1);
+});
+
+test("invalid approval is rejected before opening a database transaction", async () => {
+  const connection = { begin() { assert.fail("invalid approval must not open a transaction"); } };
+  await assert.rejects(runWorkspaceCleanup(connection, manifest, { workspace_id: workspace, digest: "wrong", effect_ids: [] }), /approval/);
 });
