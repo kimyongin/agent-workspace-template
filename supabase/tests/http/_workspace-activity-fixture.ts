@@ -8,7 +8,7 @@ interface OwnedState {
   runId: string;
   sourceRevision: string;
   projectId: string;
-  workspaces: { id?: string; name: string; creator: string; creationKey: string }[];
+  workspaces: { id?: string; name: string; creator: string; creationKey: string; memberIds: string[] }[];
   clients: Set<string>;
   tokens: string[];
   connections: Set<Client>;
@@ -108,6 +108,7 @@ export interface ActivityWorkspaceFixture {
   clientB?: Client;
   mcpTokenA?: string;
   mcpTokenB?: string;
+  registerMember(workspaceId: string, userId: string): void;
 }
 async function cleanup(owned: OwnedState) {
   const failures: unknown[] = [];
@@ -143,7 +144,7 @@ async function cleanup(owned: OwnedState) {
         project_id: owned.projectId,
         environment,
         workspace: { id: workspace.id, name: workspace.name, created_by: workspace.creator },
-        member_ids: [workspace.creator],
+        member_ids: workspace.memberIds,
         disposable_effect_ids: [],
       };
       const approval = await runWorkspaceCleanup(admin, manifest);
@@ -232,7 +233,12 @@ export async function withActivityWorkspace(
       const creator = String(claimsOf(session).sub),
         name = `activity515-owned-${label}-${crypto.randomUUID()}`;
       // Persist the exact unique creation intent before dispatch, including response-loss cleanup.
-      const intent: OwnedState["workspaces"][number] = { name, creator, creationKey: crypto.randomUUID() };
+      const intent: OwnedState["workspaces"][number] = {
+        name,
+        creator,
+        creationKey: crypto.randomUUID(),
+        memberIds: [creator],
+      };
       owned.workspaces.push(intent);
       console.info(
         JSON.stringify({
@@ -364,6 +370,18 @@ export async function withActivityWorkspace(
       workspaceA,
       workspaceB,
       schema: { entity_type_id: kind.body.id, schema_version: schemaVersion },
+      registerMember: (workspaceId, userId) => {
+        const ownedWorkspace = owned.workspaces.find((value) => value.id === workspaceId);
+        assert(ownedWorkspace, "member registration requires this run's exact owned workspace");
+        assert(
+          /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(userId),
+          "explicit fixture member identity required",
+        );
+        if (!ownedWorkspace.memberIds.includes(userId)) ownedWorkspace.memberIds.push(userId);
+        console.info(
+          JSON.stringify({ fixture_member: { run_id: owned.runId, workspace_id: workspaceId, user_id: userId } }),
+        );
+      },
     };
     if (options.mcp) {
       for (const [key, session] of [["clientA", A], ["clientB", B]] as const) {

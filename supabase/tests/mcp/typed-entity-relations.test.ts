@@ -76,7 +76,15 @@ activityWorkspaceSuite(
 activityWorkspaceSuite(
   "workspace relation real HTTP MCP share business metadata keyed writes and create replace",
   async (
-    { A: token, B: memberToken, workspaceA: workspace, workspaceB: foreignWorkspace, clientB: client, schema },
+    {
+      A: token,
+      B: memberToken,
+      workspaceA: workspace,
+      workspaceB: foreignWorkspace,
+      clientB: client,
+      schema,
+      registerMember,
+    },
   ) => {
     assert(client);
     const typeId = schema.entity_type_id;
@@ -101,6 +109,7 @@ activityWorkspaceSuite(
     // Admit only this real fixture session to the exact freshly owned workspace.
     // Public manager authorization then supplies its minimal business grant.
     await admin`insert into private.workspace_members(workspace_id,user_id) values(${workspace},${memberId})`;
+    registerMember(workspace, memberId);
     assertEquals(
       (await call(token, "PATCH", `/workspaces/${workspace}/members/${memberId}`, {
         expected_version: 1,
