@@ -1,11 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { e2eRunPlan, fixtureConfigs } from "./e2e-run-plan.mjs";
-test("all E2E retains actual plus twenty-one fixture scopes and actual override changes only first", () => {
+test("all E2E retains actual plus registered fixture scopes and actual override changes only first", () => {
   const actual = new URL(import.meta.url).pathname;
-  assert.equal(e2eRunPlan([]).length, 22);
+  assert.equal(e2eRunPlan([]).length, 25);
   assert.deepEqual(e2eRunPlan(["--actual-config", actual]), [actual, ...fixtureConfigs]);
   assert.deepEqual(e2eRunPlan([]).slice(1), fixtureConfigs);
+});
+
+test("workspace scope, lifecycle and settings access cannot disappear from the full run", () => {
+  const plan = e2eRunPlan([]);
+  for (const config of [
+    "e2e/workspace-scope.config.ts",
+    "e2e/workspace-lifecycle.config.ts",
+    "e2e/workspace-settings-access.config.ts",
+  ]) assert.ok(plan.includes(config), `${config} must run`);
 });
 test("actual config override requires exact named option and existing absolute file", () => {
   for (const args of [["relative.ts"], ["--actual-config", "relative.ts"], ["--other", new URL(import.meta.url).pathname], ["--actual-config", "/tmp/absent-351-test-config.mjs"]]) {
