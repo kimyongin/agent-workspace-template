@@ -12,6 +12,54 @@ const deps = { uow: new SqlWorkspaceUnitOfWork(sql) };
 const keyed = (actor: { userId: string }) => ({ ...actor, request: { key: crypto.randomUUID() } });
 
 dbTest(
+  "concurrent physical and soft Auth removals preserve one real administrator across shared workspaces",
+  async () => {
+    for (const kind of ["delete", "soft", "mixed"] as const) {
+      const users = [{ userId: crypto.randomUUID() }, { userId: crypto.randomUUID() }], roots: string[] = [];
+      for (const user of users) {
+        const email = `workspace517-${user.userId}@example.test`;
+        await admin`insert into auth.users(id,email) values(${user.userId},${email})`;
+        await admin`insert into auth.identities(id,user_id,provider,provider_id,identity_data) values(${crypto.randomUUID()},${user.userId},'google',${user.userId},${
+          admin.json({ sub: user.userId, email, email_verified: true })
+        })`;
+      }
+      try {
+        for (const name of ["공동 공간 1", "공동 공간 2"]) {
+          const workspace = (await createWorkspace(deps, keyed(users[0]), { name })).workspace;
+          roots.push(workspace.id);
+          const invitation = await workspaces.inviteWorkspaceMember(deps, keyed(users[0]), workspace.id, {
+            email: `workspace517-${users[1].userId}@example.test`,
+            grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+          });
+          await workspaces.acceptWorkspaceInvitation(deps, keyed(users[1]), invitation.invitation.id);
+        }
+        const results = await Promise.all(users.map((user, index) =>
+          outcome(
+            kind === "delete" || kind === "mixed" && index === 0
+              ? admin`delete from auth.users where id=${user.userId}`
+              : admin`update auth.users set banned_until=clock_timestamp()+interval '1 day' where id=${user.userId}`,
+          )
+        ));
+        assertEquals(
+          results.filter((result) => result === "ok").length,
+          1,
+        );
+        assertEquals(results.filter((result) => result === "23514 workspace_final_admin").length, 1);
+        const survivor = users[results.findIndex((result) => result !== "ok")];
+        for (const id of roots) {
+          assertEquals((await workspaces.workspaceDetails(deps, survivor, id)).can_manage, true);
+          const members = (await workspaces.listWorkspaceMembers(deps, survivor, id)).items;
+          assert(members.some((member) => member.user_id === survivor.userId));
+        }
+      } finally {
+        for (const id of roots) await admin`delete from app.workspaces where id=${id}`;
+        for (const user of users) await admin`delete from auth.users where id=${user.userId}`;
+      }
+    }
+  },
+);
+
+dbTest(
   "public lifecycle use cases reject nonmanagers, isolate actor receipts and recheck revoked authority",
   async () => {
     const users = Array.from({ length: 3 }, () => ({ userId: crypto.randomUUID() }));
