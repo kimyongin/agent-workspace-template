@@ -123,7 +123,10 @@ export function useRecordConfirmation(options: {
   };
   useEffect(() => { if (options.initial && options.open !== false) void begin(options.initial); if(options.open===false){setStage(null);setPreparing(false);} return () => { preparationRun.current++; }; }, [options.initial, options.open]);
   const cancel = () => {
-    if (attempt.snapshot().busy) return;
+    const state = attempt.snapshot();
+    // External cancellation can unmount the owner of the retained operation.
+    // Inner confirmation dismissal keeps that owner and may remain available.
+    if (state.busy || (state.uncertain && latest.current.onCancel)) return;
     if (latest.current.clearOnCancel) reject({}, null);
     if (latest.current.onCancel) latest.current.onCancel();
     else setStage(null);
@@ -150,15 +153,16 @@ export function useRecordConfirmation(options: {
     }
   };
   const description = stage ? options.describe(stage) : null;
+  const retaining = uncertain && !!options.onCancel;
   useLayoutEffect(() => {
     if (!register || options.open === false || !stage || !description) return;
     register({
-      title: description.title, busy, returnFocus: origin.current,
+      title: description.title, busy: busy || retaining, returnFocus: origin.current,
       body: <RecordMemoFields note={note} tags={tags} onNote={value => { touched.current.note = true; setNote(value); }} onTags={value => { touched.current.tags = true; setTags(value); }}
         preparing={preparing}
         errors={errors} failure={failure} frozen={!!options.disabled || busy || uncertain || preparing} record={description.record}
         data={description.data} message={description.message} excludeTag={description.excludeTag}/>,
-      footer: <><Button variant="outline" type="button"  disabled={busy} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</Button>
+      footer: <><Button variant="outline" type="button"  disabled={busy || retaining} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</Button>
         <Button variant={description.danger ? "destructive" : "default"} type="button" disabled={!!options.disabled || busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)} onClick={() => void write(stage)}>
           {busy ? description.pendingLabel ?? "처리 중…" : uncertain ? "같은 내용 다시 시도" : description.label}
         </Button></>,
@@ -166,7 +170,7 @@ export function useRecordConfirmation(options: {
     });
     return () => register(null);
   }, [register, options.open, stage, note, tags, errors, failure, busy, uncertain, preparing,
-    options.disabled, description?.title, description?.label, description?.record, description?.danger, description?.excludeTag]);
+    options.disabled, retaining, description?.title, description?.label, description?.record, description?.danger, description?.excludeTag]);
   return { active: stage !== null, dirty: !!stage || touched.current.note || touched.current.tags || !!tags.length || uncertain,
     busy, uncertain, errors, failure, begin, write, reject };
 }
