@@ -1,3 +1,4 @@
+import { tagConnectionSelection } from "../../contracts/tag-connection.ts";
 import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import type { EntityTypeIdentity } from "../../contracts/entity-issuer.ts";
 import { assertImmutableType } from "../entity/application.ts";
@@ -88,7 +89,8 @@ export function prepareBusinessRecord(
       }
       before = target.facts;
     }
-    let content = input.input;
+    const connectingTags = input.intent === "tag-connections";
+    let content: Record<string, unknown> = connectingTags ? tagConnectionSelection.parse(input.input) : input.input;
     if (input.model === "entity" && input.action === "update") assertImmutableType(content);
     let identity: EntityTypeIdentity | null = null;
     if (input.model === "entity" && ["create", "restore"].includes(input.action)) {
@@ -96,7 +98,7 @@ export function prepareBusinessRecord(
       if (!identity) throw notFound();
     }
     let prepared_input = content;
-    if (input.action === "update" || input.action === "restore") {
+    if (!connectingTags && (input.action === "update" || input.action === "restore")) {
       const schema = input.action === "restore" ? entityCreate : input.model === "task" ? taskUpdate : entityUpdate;
       const mutation = schema.safeParse({ ...content, expected_version: input.expected_version });
       if (!mutation.success) {
@@ -172,7 +174,7 @@ export function prepareBusinessRecord(
         d.clock.now(),
       );
     }
-    if (input.model === "entity" && input.action !== "delete") {
+    if (!connectingTags && input.model === "entity" && input.action !== "delete") {
       if (!store.definition) throw invalidInput("자료 종류 정의 저장소가 필요합니다");
       const typeId = String(content.entity_type_id ?? before?.entity_type_id ?? "");
       const definition = await requireDefinition(

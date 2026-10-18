@@ -364,8 +364,8 @@ Deno.test("saved tag connection prepares its memo without a content update input
   });
   assertEquals(result.prepared_input, { tag_ids: [tagId], expected_version: 2 });
   assertEquals(result.change_note, "태그 분류 변경");
-  const invalid = await assertRejects(() =>
-    prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+  const invalid = await assertRejects(async () =>
+    await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
       intent: "tag-connections",
       model: "task",
       action: "update",
