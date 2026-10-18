@@ -1,8 +1,7 @@
 import { expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
-import postgres from "postgres";
-import { env, ownedRuntime, workspacePath } from "./support.ts";
+import { env, ownedFixtureSeed, workspacePath } from "./support.ts";
 type FixtureClient = { workspaceId?: string; call(name: string, input: Record<string, unknown>): Promise<any> };
 type FixtureWorkspace = { id: string; grantKind(typeId: string): Promise<void> };
 /** Explicit actual internal worker consumption; callers own serial local API tests. */
@@ -119,13 +118,7 @@ export async function seedFixtureEntities(
   workspace: FixtureWorkspace,
   values: Record<string, unknown>[],
 ) {
-  ownedRuntime();
   const type = await scalarFixtureType(mcp, workspace);
-  const databaseUrl = env.LOCAL_DB_URL;
-  if (!databaseUrl) throw new Error("fixture seed requires LOCAL_DB_URL");
-  const target = new URL(databaseUrl);
-  if (!["127.0.0.1", "localhost"].includes(target.hostname)) throw new Error("fixture seed requires a local database");
-  const admin = postgres(databaseUrl, { max: 1, onnotice: () => {} });
   const prefix = "fixture_" + crypto.randomUUID();
   const rows = values.map((properties, index) => ({
     workspace_id: workspace.id,
@@ -136,8 +129,7 @@ export async function seedFixtureEntities(
     schema_version: type.schema_version,
     properties: { prop_2: 0, prop_3: null, prop_4: "a", ...properties },
   }));
-  try {
-    await admin.begin(async (tx) => {
+  await ownedFixtureSeed(workspace.id, [{target_kind:"entity_type",target_id:type.id,access:"write"}], async (tx) => {
       const owned = await tx`select id from app.entity_types where id=${type.id} and workspace_id=${workspace.id}`;
       expect(owned).toHaveLength(1);
       if (rows.length) {
@@ -150,9 +142,6 @@ export async function seedFixtureEntities(
           returning id`;
         expect(inserted).toHaveLength(rows.length);
       }
-    });
-    return rows.map((row) => row.id);
-  } finally {
-    await admin.end();
-  }
+  });
+  return rows.map((row) => row.id);
 }

@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import postgres from "postgres";
 import { workspacePath } from "../src/lib/workspace-route.tsx";
 import type { WorkspaceGrant } from "../supabase/functions/_shared/contracts/workspace.ts";
+import type { WorkspaceRequirement } from "../supabase/functions/_shared/core/workspaces/application.ts";
 export { workspacePath };
 import { parseEnv } from "node:util";
 import { createHash, randomBytes } from "node:crypto";
@@ -683,6 +684,29 @@ export async function ownedWorkspace(page: Page) {
       }]);
     },
   };
+}
+
+/** Bulk list preparation only. Public CRUD and authorization assertions use the real API/MCP. */
+export async function ownedFixtureSeed<T>(
+  workspaceId: string,
+  requirements: WorkspaceRequirement[],
+  prepare: (tx: postgres.TransactionSql) => Promise<T>,
+) {
+  ownedRuntime();
+  const fixture = activeScope?.workspaces.find((value) => value.id === workspaceId);
+  if (!fixture) throw new Error("bulk seed requires this run's exact owned workspace");
+  const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+  try {
+    return await admin.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claims',${JSON.stringify({ sub: fixture.actorId, role: "authenticated" })},true)`;
+      await tx`select app.lock_workspace(${fixture.id}::uuid,false)`;
+      await tx`select app.authorize_workspace(${JSON.stringify(requirements)}::jsonb)`;
+      await tx`select set_config('request.workspace_requirements',${JSON.stringify(requirements)},true)`;
+      return await prepare(tx);
+    });
+  } finally {
+    await admin.end();
+  }
 }
 
 const b64url = (b: Buffer) => b.toString("base64url");

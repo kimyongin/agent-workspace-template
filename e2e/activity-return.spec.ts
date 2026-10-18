@@ -1,11 +1,10 @@
 import { detailDialog, executionDialog } from "./ui-actions.ts";
-import postgres from "postgres";
 import { generateDataId } from "../supabase/functions/_shared/contracts/data-id.ts";
 import { createFixtureEntity } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, openListDetail, openTabFilters, chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { test, devLogin, env, ownFixtureResult, mcpClient, mcpTokenViaConsent, unique, requiredEnv } from "./support.ts";
+import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique, ownedFixtureSeed, ownedWorkspace, workspacePath} from "./support.ts";
 
 for (
   const [kind, path, label, editLabel] of [
@@ -17,32 +16,30 @@ for (
     // Native-dialog list restoration; retained desktop panels have their own workspace suite.
     if (!isMobile) await page.setViewportSize({width:1024,height:720});
     await devLogin(page);
+  const workspace = await ownedWorkspace(page);
     const token = await mcpTokenViaConsent(page);
-    const mcp = await mcpClient(token);
-    // This token came from the real consent grant. Limit direct fixture preparation
-    // to that authenticated owner; assertions still exercise public API CRUD.
-    const owner = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub as string;
-    expect(owner).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-    const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+    const mcp = await mcpClient(token, { workspaceId: workspace.id });
     const tag = await mcp.call("create_tag", { scope:kind, name: unique("활동 왕복").slice(0, 30) });
     const emptyTag = await mcp.call("create_tag", { scope:kind, name: unique("빈 활동 조건").slice(0, 30) });
-    const entity = await createFixtureEntity(mcp, { prop_1: unique("활동 문맥"), prop_2: 0 });
+    const entity = await createFixtureEntity(mcp, workspace, { prop_1: unique("활동 문맥"), prop_2: 0 });
     const title = unique(`${label} 복원 대상`);
+    const date = new Date().toISOString().slice(0, 10);
+    const parent = kind === "record" ? await mcp.call("create_task", {
+      kind: "recurring", title: unique("결과의 할 일"), body: "자료 연결과 결과 소속을 구분합니다.",
+      entity_ids: [entity.id], recurrence: { freq: "daily", starts_on: date }, timezone: "UTC",
+    }) : null;
     const create = async (title: string) => {
-      const item = await mcp.call(`create_${kind}`, {
-        ...(kind === "task" ? { kind: "once" } : {}),
-        ...(kind === "task" ? {title} : {}),
-        body: title,
-        tag_ids: [tag.id],
-        entity_ids: [entity.id],
-      });
-      return item;
+      const item = kind === "task"
+        ? await mcp.call("create_task", {kind:"once", title, body:title, entity_ids:[entity.id]})
+        : await mcp.call("record_occurrence", {task_id:parent!.id,date,body:title});
+      await mcp.call("set_tag_connections", {target_kind:kind,target_id:item.id,expected_version:item.version,tag_ids:[tag.id]});
+      return mcp.call(`get_${kind}`, {id:item.id});
     };
     const editLoadedDetail = async (detailPath: string, heading: string) => {
       const viewer = detailDialog(page);
       // Route and target rendering must agree before invoking an action from
       // the retained previous viewer during a related-detail transition.
-      await expect.poll(() => new URL(page.url()).pathname).toBe(detailPath);
+      await expect.poll(() => new URL(page.url()).pathname).toBe(workspacePath(workspace.id, detailPath));
       await expect(viewer.getByRole("heading", { name: heading, exact: true })).toBeVisible();
       const freshRead = page.waitForRequest(request => request.method() === "GET" && request.url() === `${env.VITE_API_URL}${detailPath}`);
       await viewer.getByRole("button", { name: "편집", exact: true }).click();
@@ -52,40 +49,39 @@ for (
       await expect(viewer.getByRole("button", { name: "저장", exact: true })).toBeVisible();
     };
     // Filler rows establish pagination only. Clone the API-created target's real
-    // context in one transaction and register exact IDs before any insert can finish.
+    // context in one guarded, explicitly scoped seed transaction.
     const seedPage = async (targetId: string, count: number, label: string) => {
       const ids = Array.from({ length: count }, () => generateDataId());
-      for (const id of ids) ownFixtureResult(owner, path, id);
       const prefix = unique(label);
-      await admin.begin(async sql => {
+      await ownedFixtureSeed(workspace.id, [{ target_kind: "tasks", target_id: "*", access: "write" }, ...(kind === "task" ? [{ target_kind: "entity_type" as const, target_id: entity.entity_type_id as string, access: "read" as const }] : [])], async sql => {
         const inserted = kind === "task"
           ? await sql`
-            insert into app.tasks (id,owner_id,kind,title,body,status,entity_ids,entity_context,created_at,updated_at)
-            select seed.id,source.owner_id,source.kind,${prefix} || ' ' || seed.n,
+            insert into app.tasks (id,workspace_id,kind,title,body,status,entity_ids,entity_context,created_at,updated_at)
+            select seed.id,source.workspace_id,source.kind,${prefix} || ' ' || seed.n,
               ${prefix} || ' ' || seed.n,source.status,source.entity_ids,source.entity_context,clock_timestamp(),clock_timestamp()
             from app.tasks source cross join unnest(${ids}::text[]) with ordinality seed(id,n)
-            where source.owner_id=${owner} and source.id=${targetId}
+            where source.workspace_id=${workspace.id} and source.id=${targetId}
             returning id`
           : await sql`
-            insert into app.records (id,owner_id,body,record_kind,entity_ids,entity_context,occurred_at,created_at,updated_at)
-            select seed.id,source.owner_id,${prefix} || ' ' || seed.n,source.record_kind,
-              source.entity_ids,source.entity_context,clock_timestamp(),clock_timestamp(),clock_timestamp()
+            insert into app.records (id,workspace_id,body,record_kind,task_id,entity_id,occurrence_on,occurred_at,created_at,updated_at)
+            select seed.id,source.workspace_id,${prefix} || ' ' || seed.n,source.record_kind,
+              source.task_id,source.entity_id,source.occurrence_on,clock_timestamp(),clock_timestamp(),clock_timestamp()
             from app.records source cross join unnest(${ids}::text[]) with ordinality seed(id,n)
-            where source.owner_id=${owner} and source.id=${targetId}
+            where source.workspace_id=${workspace.id} and source.id=${targetId}
             returning id`;
         expect(inserted).toHaveLength(count);
         if (kind === "task") await sql`
-          insert into app.task_tags (task_id,tag_id,owner_id)
-          select id,${tag.id},owner_id from app.tasks where owner_id=${owner} and id=any(${ids}::text[])`;
+          insert into app.task_tags (task_id,tag_id,workspace_id)
+          select id,${tag.id},workspace_id from app.tasks where workspace_id=${workspace.id} and id=any(${ids}::text[])`;
         else await sql`
-          insert into app.record_tags (record_id,tag_id,owner_id)
-          select id,${tag.id},owner_id from app.records where owner_id=${owner} and id=any(${ids}::text[])`;
+          insert into app.record_tags (record_id,tag_id,workspace_id)
+          select id,${tag.id},workspace_id from app.records where workspace_id=${workspace.id} and id=any(${ids}::text[])`;
       });
     };
     try {
       const target = await create(title);
       await seedPage(target.id, 41, "앞선 항목");
-      const listPath = `/${path}?tag_id=${tag.id}`;
+      const listPath = workspacePath(workspace.id, `/${path}?tag_id=${tag.id}${kind==="record"?"&record_kind=result":""}`);
       await page.goto(listPath);
       await expect(page.getByRole("region", { name: / 목록$/ }).locator("[data-list-anchor]")).toHaveCount(20);
       const requests: (string | null)[] = [];
@@ -164,11 +160,22 @@ for (
       await openListDetail(page,title);
       await expect(page.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
       const view=detailDialog(page);
-      const initialDetail=page.url(),entityToggle=view.getByRole("region",{name:/^연결된 자료/}).getByRole("button",{name:entity.title,exact:true});
-      await entityToggle.click();await expect(entityToggle).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(initialDetail);
-      const entityEdit=view.getByRole("link",{name:entity.title+" 상세",exact:true});await entityEdit.click();await editLoadedDetail(`/entities/${encodeURIComponent(entity.id)}`,entity.title);
-      await expect(view.getByLabel("제목",{exact:false})).toHaveValue(entity.title);await view.getByRole("button",{name:"취소",exact:true}).click();await view.getByRole("button",{name:/^이전:/}).click();
-      await expect(page).toHaveURL(initialDetail);await expect(entityEdit).toBeFocused();
+      const related = kind === "task" ? entity : parent!;
+      const relatedPath = kind === "task" ? `/entities/${encodeURIComponent(entity.id)}` : `/tasks/${parent!.id}`;
+      const initialDetail=page.url();
+      const relation=view.getByRole("region", {name:kind === "task" ? /^연결된 자료/ : /^할 일 \(/});
+      const relatedToggle=relation.getByRole("button", {name:related.title,exact:true});
+      await relatedToggle.click();
+      await expect(relatedToggle).toHaveAttribute("aria-expanded","true");
+      await expect(page).toHaveURL(initialDetail);
+      const relatedEdit=relation.getByRole("link", {name:related.title+" 상세",exact:true});
+      await relatedEdit.click();
+      await editLoadedDetail(relatedPath,related.title);
+      await expect(view.getByLabel("제목",{exact:false})).toHaveValue(related.title);
+      await view.getByRole("button",{name:"취소",exact:true}).click();
+      await view.getByRole("button",{name:/^이전:/}).click();
+      await expect(page).toHaveURL(initialDetail);
+      await expect(relatedEdit).toBeFocused();
       await editLoadedDetail(`/${path}/${target.id}`,kind === "record" ? "기록" : title);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
       await dialog.getByLabel("본문").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
       const discard=page.getByRole("alertdialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
@@ -209,13 +216,13 @@ for (
       expect(new URL(page.url()).hash).toBe("");
       expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
       expect(new URL(page.url()).searchParams.has("scroll")).toBe(false);
-      // An edited item that leaves the entity filter also restores a valid
-      // fallback focus, without widening the filter to include detached items.
+      // An independent tag unlink removes the saved target from this filter
+      // without changing its content or immutable record parent.
       const leaving = await create(unique("연결 조건 이탈"));
       await page.goto(listPath);
       const leavingLink = page.getByRole("button", { name: kind === "record" ? leaving.body : leaving.title, exact: true });
       await openListDetail(page,await leavingLink.innerText());
-      await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, tag_ids: [], ...(kind === "task" ? {change_note:"태그 해제"} : {}) });
+      await mcp.call("set_tag_connections", {target_kind:kind,target_id:leaving.id,expected_version:leaving.version,tag_ids:[]});
       await page.goBack();
       await expect(leavingLink).toHaveCount(0);
       await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
@@ -223,7 +230,6 @@ for (
     } finally {
       // The automatic owned fixture closes UI first and removes these exact IDs,
       // dependent change records and queue state after the business assertions.
-      await admin.end();
       await mcp.close();
     }
   });
