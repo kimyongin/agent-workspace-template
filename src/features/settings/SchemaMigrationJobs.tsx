@@ -259,6 +259,8 @@ export function SchemaMigrationJob(
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0);
   const { attempt, busy, uncertain } = useWriteAttempt();
+  const navigate = useNavigate(), location = useLocation();
+  const [accepted, setAccepted] = useState<SchemaMigrationAccepted | null>(null);
   const [recoveryState, setRecoveryState] = useState<MaterialSectionState>({
     dirty: false,
     busy: false,
@@ -274,6 +276,15 @@ export function SchemaMigrationJob(
   }, [busy, uncertain, error, publicationError, recoveryState, onState]);
   useLayoutEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
   const [pendingAction, setPendingAction] = useState<"cancel" | "retry">();
+  useEffect(() => {
+    // Navigate only after the exact write has settled and its busy protection has committed.
+    if (!accepted || busy || uncertain) return;
+    setAccepted(null);
+    void navigate(materialSettingsPath(type_id, location.search, {
+      job_id: accepted.job_id,
+      change_id: accepted.change_id,
+    }));
+  }, [accepted, busy, uncertain, navigate, type_id, location.search]);
   useEffect(() => {
     setJob(undefined);
   }, [job_id, type_id]);
@@ -331,16 +342,21 @@ export function SchemaMigrationJob(
           undefined,
           attempt.requestKey(),
         );
-        // Cancel returns the full job; retry returns an acceptance that needs the existing detail read.
+        // Cancel returns the full job; retry seals a new execution while preserving the failed job.
         if ("id" in confirmed) {
           changed.current?.(confirmed);
           setJob((current) =>
             current?.id === confirmed.id && current.version > confirmed.version ? current : confirmed
           );
+        } else {
+          if (confirmed.type_id !== type_id || confirmed.change_id !== job.change_id) {
+            throw new Error("이 자료 종류의 변경안 재시도 접수가 아닙니다");
+          }
+          setAccepted(confirmed);
         }
       });
       setPendingAction(undefined);
-      setRefresh((n) => n + 1);
+      if (action === "cancel") setRefresh((n) => n + 1);
     } catch (e) {
       setError(writeErrorMessage(e));
     }
