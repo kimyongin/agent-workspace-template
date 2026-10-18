@@ -1,0 +1,134 @@
+import { assert, assertEquals } from "@std/assert";
+import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
+import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
+import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
+import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
+import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
+import {
+  applyDataModel,
+  exportDataModel,
+  prepareDataModel,
+  previewDataModel,
+} from "../../functions/_shared/core/data-model/application.ts";
+import * as entities from "../../functions/_shared/core/entity/application.ts";
+import { indexBatch } from "../../functions/_shared/core/search/index-worker.ts";
+import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
+import { connect, dbTest, urls } from "./_db.ts";
+import {
+  businessRequest,
+  businessWorkspaceFixture,
+} from "./_workspace-business.ts";
+
+const admin = connect(urls.admin, { max: 1 });
+const user = connect(urls.pooler, { max: 3, prepare: false });
+const workerUrl = new URL(urls.pooler);
+workerUrl.username = "app_worker.pooler-dev";
+workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
+const worker = connect(workerUrl.href, { max: 3, prepare: false });
+const vector = Array.from({ length: 1024 }, (_, index) => index === 0 ? 1 : 0);
+
+dbTest(
+  "workspace entity search: published selected text alone reaches the scoped worker without truncation",
+  async () => {
+    const fixture = await businessWorkspaceFixture(admin, user);
+    try {
+      const kind = await fixture.createKind("선택 본문 검증");
+      await fixture.grantKind(fixture.manager, kind.id, "write");
+      await fixture.grantKind(fixture.member, kind.id, "write");
+      const model = { uow: new SqlDataModelUnitOfWork(user) };
+      const document = await exportDataModel(model, fixture.manager);
+      const definition = document.entity_types.find((item) =>
+        item.schema["x-type-id"] === kind.id
+      )!;
+      definition.schema.properties.prop_1["x-search-text"] = true;
+      definition.schema.properties.prop_1.title = "검색 제목";
+      definition.schema.properties.prop_2 = {
+        type: ["string", "null"],
+        title: "설명",
+        "x-order": 20,
+        default: null,
+        "x-search-text": true,
+      };
+      definition.schema.properties.prop_3 = {
+        type: ["string", "null"],
+        title: "선택하지 않은 메모",
+        "x-order": 30,
+        default: null,
+      };
+      const input = { mode: "update", document: JSON.stringify(document) };
+      const review = await previewDataModel(model, fixture.manager, input);
+      const change = await prepareDataModel(
+        model,
+        businessRequest(fixture.manager),
+        {
+          ...input,
+          preview_fingerprint: review.fingerprint,
+        },
+      );
+      assertEquals(
+        (await applyDataModel(
+          model,
+          businessRequest(fixture.manager),
+          change.id,
+          {
+            expected_version: change.version,
+          },
+        )).status,
+        "applied",
+      );
+      const longText = "긴 한국어😀문장 ".repeat(220) + "후반 근거 끝";
+      const original = await entities.createEntity(
+        { uow: new SqlEntityUnitOfWork(user) },
+        businessRequest(fixture.member),
+        entityCreate.parse({
+          entity_type_id: kind.id,
+          schema_version: 2,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: {
+            prop_1: "선택 자료",
+            prop_2: longText,
+            prop_3: "전송하지 않을 비밀",
+          },
+        }),
+      );
+      const sent: string[] = [];
+      const result = await indexBatch(
+        new SqlIndexQueue(worker),
+        new DurablePassageEmbedder(new SqlExternalEffectLedger(worker), {
+          send(text) {
+            sent.push(text);
+            return Promise.resolve({ state: "succeeded", vector });
+          },
+        }, "a".repeat(64)),
+        {
+          limit: 1,
+          workspace_id: fixture.workspaceId,
+          kind: "entity",
+          id: original.id,
+        },
+      );
+      assertEquals(result.indexed, 1);
+      assert(sent.length > 1);
+      assert(sent.some((text) => text.includes("검색 제목")));
+      assert(sent.some((text) => text.includes("선택 자료")));
+      assert(sent.some((text) => text.includes("설명")));
+      assert(sent.some((text) => text.endsWith("후반 근거 끝")));
+      assertEquals(
+        sent.some((text) =>
+          text.includes("전송하지 않을 비밀") ||
+          text.includes("선택하지 않은 메모")
+        ),
+        false,
+      );
+      const retained = await entities.getEntity(
+        { uow: new SqlEntityUnitOfWork(user) },
+        fixture.member,
+        original.id,
+      );
+      assertEquals(retained.properties, original.properties);
+    } finally {
+      await fixture.cleanup();
+    }
+  },
+);
