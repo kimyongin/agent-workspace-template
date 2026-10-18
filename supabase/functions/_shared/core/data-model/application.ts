@@ -398,7 +398,10 @@ export function exportDataModel(d: DataModelDeps, a: Actor) {
 }
 export function previewDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelInput, raw), document = parseModel(i.document);
-  return d.uow.run(a, async (s) => (await resolveModel(await s.snapshot(), document, i.mode, a.userId)).review, true);
+  return d.uow.run(a, async (s) => (await resolveModel(await s.snapshot(), document, i.mode, a.userId)).review, true, {
+    mode: "business",
+    requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+  });
 }
 export function prepareDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelPrepare, raw), document = parseModel(i.document);
