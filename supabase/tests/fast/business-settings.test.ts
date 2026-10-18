@@ -146,7 +146,6 @@ Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기
     entity_type_id,
     schema_version: 1,
     properties: { prop_1: "새 대상", prop_2: null, prop_3: null, prop_4: "a" },
-    tag_ids: [],
     expected_version: 2,
     change_note: "입력 기록",
     change_tag_ids: [],
