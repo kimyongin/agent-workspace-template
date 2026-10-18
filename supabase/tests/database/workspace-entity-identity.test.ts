@@ -105,7 +105,7 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
         () => entities.createEntity(deps, request, { ...input, external_id: "different" }),
         AppError,
       )).code,
-      "conflict",
+      "idempotency_key_reused",
     );
     assertEquals(
       (await assertRejects(() =>

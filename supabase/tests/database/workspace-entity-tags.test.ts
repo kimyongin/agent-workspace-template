@@ -6,10 +6,7 @@ import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 import { connect, dbTest, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.direct, { max: 5, prepare: false });
@@ -153,8 +150,7 @@ dbTest(
       await f.grantKind(f.manager, kind.id, "read");
       assertEquals(
         (await assertRejects(
-          async () =>
-            await tags.setTagConnections(tagDeps, linkedRequest, input),
+          async () => await tags.setTagConnections(tagDeps, linkedRequest, input),
           AppError,
         )).code,
         "forbidden",
@@ -532,11 +528,8 @@ dbTest(
           deleted: true,
         });
       }
-      const [receipt] =
-        await admin`select footprint from private.workspace_request_results
-      where workspace_id=${f.workspaceId} and request_key=${
-          request.request!.key
-        }`;
+      const [receipt] = await admin`select footprint from private.workspace_request_results
+      where workspace_id=${f.workspaceId} and request_key=${request.request!.key}`;
       assertEquals(
         receipt.footprint,
         [first.id, arriving.id].sort().map((target_id) => ({
