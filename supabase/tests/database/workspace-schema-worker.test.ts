@@ -65,13 +65,13 @@ dbTest("shared schema analysis captures the actual initiator and immutable works
         { target_kind: "entity_type", target_id: type.id, access: "write" },
       ],
     });
-    const entityId = crypto.randomUUID();
+    const externalId = crypto.randomUUID(), entityId = `app:${type.id}:${externalId}`;
     await runInWorkspace(sql, author, {
       mode: "business",
       requirements: [{ target_kind: "entity_type", target_id: type.id, access: "write" }],
     }, (tx) =>
       tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-      values(${workspaceId},${entityId},'app',${entityId},${type.id},1,'{"prop_1":"A가 작성한 공유 원본"}')`);
+      values(${workspaceId},${entityId},'app',${externalId},${type.id},1,'{"prop_1":"A가 작성한 공유 원본"}')`);
     const nextDraft = await changes.createEntitySchemaChange(typeDeps, key(executor), type.id, {
       expected_schema_version: 1,
       edits: [{ op: "set_metadata", description: "실제 공유 자료 분석" }],
