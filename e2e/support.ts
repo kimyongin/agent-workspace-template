@@ -41,6 +41,14 @@ type Scope = {
   responses: Set<Promise<void>>;
   tokens: Set<string>;
   workspaces: OwnedWorkspace[];
+  workspaceCreations: {
+    name: string;
+    actorId: string;
+    projectId: string;
+    creationKey: string;
+    phase: "pending" | "unknown" | "created";
+    workspaceId: string | null;
+  }[];
   actors: Set<string>;
   runId: string;
   persist: () => void;
@@ -132,6 +140,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
       responses: new Set(),
       tokens: new Set(),
       workspaces: [],
+      workspaceCreations: [],
       actors: new Set(),
       runId: crypto.randomUUID(),
       persist: () => {},
@@ -146,6 +155,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
             config_file: process.env.WORKSPACE_E2E_CONFIG ?? null,
             actor_ids: [...scope.actors],
             workspaces: scope.workspaces,
+            workspace_creations: scope.workspaceCreations,
           },
           null,
           2,
@@ -422,8 +432,12 @@ export async function ownedWorkspace(page: Page) {
     throw new Error("authenticated browser does not match the owned runtime");
   }
   const requestKeys: string[] = [];
-  const request = async (method: string, path: string, body?: unknown) => {
-    const key = crypto.randomUUID();
+  const request = async (
+    method: string,
+    path: string,
+    body?: unknown,
+    key: string = crypto.randomUUID(),
+  ) => {
     requestKeys.push(key);
     scope.persist();
     const response = await page.request.fetch(
@@ -441,10 +455,34 @@ export async function ownedWorkspace(page: Page) {
     return response.json();
   };
   const name = unique("owned activity fixture");
-  const created = await request("POST", "/workspaces", { name });
-  if (!uuid.test(created.workspace?.id)) {
-    throw new Error("workspace creation returned no identity");
+  const creation: Scope["workspaceCreations"][number] = {
+    name,
+    actorId: session.actorId,
+    projectId,
+    creationKey: crypto.randomUUID(),
+    phase: "pending",
+    workspaceId: null,
+  };
+  scope.workspaceCreations.push(creation);
+  scope.persist();
+  let created: { workspace: { id: string } };
+  try {
+    created = await request(
+      "POST",
+      "/workspaces",
+      { name },
+      creation.creationKey,
+    );
+    if (!uuid.test(created.workspace?.id)) {
+      throw new Error("workspace creation returned no identity");
+    }
+  } catch (error) {
+    creation.phase = "unknown";
+    scope.persist();
+    throw error;
   }
+  creation.workspaceId = created.workspace.id;
+  creation.phase = "created";
   const fixture: OwnedWorkspace = {
     id: created.workspace.id,
     name,
