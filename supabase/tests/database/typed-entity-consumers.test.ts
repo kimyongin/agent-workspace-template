@@ -1,7 +1,10 @@
 import { SqlEntityIssuerStore } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
+import type { WorkspaceActor } from "../../functions/_shared/core/workspaces/application.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { entityListQuery } from "../../functions/_shared/contracts/entity.ts";
@@ -21,7 +24,17 @@ const sql = connect(urls.pooler, {
 });
 const d = { uow: new SqlEntityUnitOfWork(sql) },
   settings = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
-async function typeFixture(owner: string, label: string, numeric = true) {
+// Administrative custom-schema/scale seeding is exact fixture setup, not RLS proof.
+function seedInWorkspace<T>(actor: WorkspaceActor, run: (tx: postgres.TransactionSql) => Promise<T>) {
+  return admin.begin(async (tx) => {
+    await tx`select set_config('request.jwt.claims',${
+      JSON.stringify({ sub: actor.userId, role: "authenticated" })
+    },true),
+      set_config('request.workspace_id',${actor.workspaceId},true)`;
+    return run(tx);
+  });
+}
+async function typeFixture(actor: WorkspaceActor, label: string, numeric = true) {
   const definition = initialEntityDefinition("이름");
   Object.assign(definition.schema.properties, {
     prop_2: { "x-order": 20, "x-show-in-list": true, type: numeric ? ["number", "null"] : "string", title: "값" },
@@ -29,176 +42,198 @@ async function typeFixture(owner: string, label: string, numeric = true) {
     prop_4: { "x-order": 40, "x-show-in-list": true, type: ["boolean", "null"], title: "승인" },
     prop_5: { "x-order": 50, deprecated: true, type: "string", title: "옛 메모" },
   });
-  return await admin.begin(async (tx) => {
+  return await seedInWorkspace(actor, async (tx) => {
     const [type] =
-      await tx`insert into app.entity_types(owner_id,next_property_number) values(${owner},6) returning id`;
+      await tx`insert into app.entity_types(workspace_id,next_property_number) values(${actor.workspaceId},6) returning id`;
     definition.schema["x-type-id"] = String(type.id);
     definition.schema.title = label;
-    await tx`insert into app.entity_schema_versions(owner_id,schema) values(${owner},${
+    await tx`insert into app.entity_schema_versions(workspace_id,schema) values(${actor.workspaceId},${
       tx.json(definition.schema as never)
     })`;
-    await new SqlEntityIssuerStore(tx, { userId: owner }).initializeTypeIdentity(type.id);
+    await new SqlEntityIssuerStore(tx, actor).initializeTypeIdentity(type.id);
     return { id: String(type.id), definition };
   });
 }
-dbTest("typed list: scalar AND, missing/null order, stable ID ties, owner/type/revision cursor isolation", async () => {
-  const owner = await fixtureOwner(admin), foreign = await fixtureOwner(admin);
-  try {
-    const type = await typeFixture(owner.actor.userId, "숫자 자료"),
-      text = await typeFixture(owner.actor.userId, "텍스트 자료", false),
-      other = await typeFixture(foreign.actor.userId, "타인 자료");
-    const values = [
-      {},
-      { prop_2: null, prop_3: null, prop_4: null },
-      { prop_2: 0, prop_3: "2024-02-29", prop_4: false },
-      { prop_2: 2, prop_3: "2025-01-01", prop_4: true },
-      { prop_2: 2, prop_3: "2025-01-01", prop_4: false },
-      { prop_2: 10, prop_3: "9999-12-31", prop_4: true },
-    ];
-    for (const [n, value] of values.entries()) {
-      await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) values(${owner.actor.userId},${
-        `app:${type.id}:order` + n
-      },'app',${"order" + n},${type.id},1,${admin.json({ prop_1: "行" + n, ...value })})`;
-    }
-    for (
-      const [ownerId, typeId, id, value] of [[owner.actor.userId, text.id, "text", "bad numeric cast"], [
-        foreign.actor.userId,
-        other.id,
-        "foreign",
-        2,
-      ]] as const
-    ) {
-      await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) values(${ownerId},${
-        `app:${typeId}:` + id
-      },'app',${id},${typeId},1,${admin.json({ prop_1: id, prop_2: value })})`;
-    }
-    let cursor = "";
-    for (const direction of ["asc", "desc"] as const) {
-      const query = entityListQuery.parse({ entity_type_id: type.id, sort: { key: "prop_2", direction }, limit: 1 });
-      let page = await listEntities(d, owner.actor, query);
-      cursor = page.next_cursor!;
-      const ids = page.items.map((row) => row.id);
-      while (page.next_cursor) {
-        page = await listEntities(d, owner.actor, { ...query, cursor: page.next_cursor });
-        ids.push(...page.items.map((row) => row.id));
+dbTest(
+  "typed list: scalar AND, missing/null order, stable ID ties, workspace/type/revision cursor isolation",
+  async () => {
+    const owner = await businessWorkspaceFixture(admin, sql), foreign = await businessWorkspaceFixture(admin, sql);
+    try {
+      const type = await typeFixture(owner.manager, "숫자 자료"),
+        text = await typeFixture(owner.manager, "텍스트 자료", false),
+        other = await typeFixture(foreign.manager, "타인 자료");
+      const second = await owner.addWorkspace("같은 실행자의 다른 공간");
+      const secondType = await typeFixture(second.manager, "다른 공간의 숫자 자료");
+      await owner.grantKind(owner.manager, type.id, "write");
+      await owner.grantKind(owner.manager, text.id, "write");
+      await foreign.grantKind(foreign.manager, other.id, "write");
+      await owner.grantKind(second.manager, secondType.id, "write");
+      const values = [
+        {},
+        { prop_2: null, prop_3: null, prop_4: null },
+        { prop_2: 0, prop_3: "2024-02-29", prop_4: false },
+        { prop_2: 2, prop_3: "2025-01-01", prop_4: true },
+        { prop_2: 2, prop_3: "2025-01-01", prop_4: false },
+        { prop_2: 10, prop_3: "9999-12-31", prop_4: true },
+      ];
+      for (const [n, value] of values.entries()) {
+        await seedInWorkspace(owner.manager, async (tx) => {
+          await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) values(${owner.workspaceId},${
+            `app:${type.id}:order` + n
+          },'app',${"order" + n},${type.id},1,${tx.json({ prop_1: "行" + n, ...value })})`;
+        });
       }
-      assertEquals(
-        ids,
-        direction === "asc"
-          ? [
-            `app:${type.id}:order0`,
-            `app:${type.id}:order1`,
-            `app:${type.id}:order2`,
-            `app:${type.id}:order3`,
-            `app:${type.id}:order4`,
-            `app:${type.id}:order5`,
-          ]
-          : [
-            `app:${type.id}:order5`,
-            `app:${type.id}:order4`,
-            `app:${type.id}:order3`,
-            `app:${type.id}:order2`,
-            `app:${type.id}:order1`,
-            `app:${type.id}:order0`,
-          ],
-      );
-    }
-    const query = entityListQuery.parse({
-      entity_type_id: type.id,
-      sort: { key: "prop_2", direction: "desc" },
-      limit: 1,
-    });
-    for (
-      const [actor, patch] of [[foreign.actor, {}], [owner.actor, { entity_type_id: text.id }], [owner.actor, {
-        filters: [{ key: "prop_4", operator: "eq", value: false }],
-      }]] as const
-    ) {
-      assertEquals(
-        (await assertRejects(
-          () => listEntities(d, actor, entityListQuery.parse({ ...query, ...patch, cursor })),
-          AppError,
-        )).code,
-        "invalid_input",
-      );
-    }
-    const filtered = await listEntities(
-      d,
-      owner.actor,
-      entityListQuery.parse({
+      for (
+        const [actor, typeId, id, value] of [[owner.manager, text.id, "text", "bad numeric cast"], [
+          foreign.manager,
+          other.id,
+          "foreign",
+          2,
+        ]] as const
+      ) {
+        await seedInWorkspace(actor, async (tx) => {
+          await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) values(${actor.workspaceId},${
+            `app:${typeId}:` + id
+          },'app',${id},${typeId},1,${tx.json({ prop_1: id, prop_2: value })})`;
+        });
+      }
+      let cursor = "";
+      for (const direction of ["asc", "desc"] as const) {
+        const query = entityListQuery.parse({ entity_type_id: type.id, sort: { key: "prop_2", direction }, limit: 1 });
+        let page = await listEntities(d, owner.manager, query);
+        cursor = page.next_cursor!;
+        const ids = page.items.map((row) => row.id);
+        while (page.next_cursor) {
+          page = await listEntities(d, owner.manager, { ...query, cursor: page.next_cursor });
+          ids.push(...page.items.map((row) => row.id));
+        }
+        assertEquals(
+          ids,
+          direction === "asc"
+            ? [
+              `app:${type.id}:order0`,
+              `app:${type.id}:order1`,
+              `app:${type.id}:order2`,
+              `app:${type.id}:order3`,
+              `app:${type.id}:order4`,
+              `app:${type.id}:order5`,
+            ]
+            : [
+              `app:${type.id}:order5`,
+              `app:${type.id}:order4`,
+              `app:${type.id}:order3`,
+              `app:${type.id}:order2`,
+              `app:${type.id}:order1`,
+              `app:${type.id}:order0`,
+            ],
+        );
+      }
+      const query = entityListQuery.parse({
         entity_type_id: type.id,
-        filters: [{ key: "prop_2", operator: "gte", value: 2 }, { key: "prop_2", operator: "lte", value: 2 }, {
-          key: "prop_4",
-          operator: "eq",
-          value: false,
-        }, { key: "prop_3", operator: "gte", value: "2024-02-29" }],
-        sort: "title",
-      }),
-    );
-    assertEquals(filtered.items.map((row) => row.id), [`app:${type.id}:order4`]);
-    assertEquals(
-      (await listEntities(
+        sort: { key: "prop_2", direction: "desc" },
+        limit: 1,
+      });
+      for (
+        const [actor, patch] of [[foreign.manager, { entity_type_id: other.id }], [second.manager, {
+          entity_type_id: secondType.id,
+        }], [
+          owner.manager,
+          { entity_type_id: text.id },
+        ], [owner.manager, {
+          filters: [{ key: "prop_4", operator: "eq", value: false }],
+        }]] as const
+      ) {
+        assertEquals(
+          (await assertRejects(
+            () => listEntities(d, actor, entityListQuery.parse({ ...query, ...patch, cursor })),
+            AppError,
+          )).code,
+          "invalid_input",
+        );
+      }
+      const filtered = await listEntities(
         d,
-        owner.actor,
+        owner.manager,
         entityListQuery.parse({
           entity_type_id: type.id,
-          filters: [{ key: "prop_2", operator: "unset" }],
+          filters: [{ key: "prop_2", operator: "gte", value: 2 }, { key: "prop_2", operator: "lte", value: 2 }, {
+            key: "prop_4",
+            operator: "eq",
+            value: false,
+          }, { key: "prop_3", operator: "gte", value: "2024-02-29" }],
           sort: "title",
         }),
-      )).items.map((row) => row.id),
-      [`app:${type.id}:order0`, `app:${type.id}:order1`],
-    );
-    for (const value of ["2", true, 1.0000001, 1e10]) {
-      await assertRejects(() =>
-        listEntities(
+      );
+      assertEquals(filtered.items.map((row) => row.id), [`app:${type.id}:order4`]);
+      assertEquals(
+        (await listEntities(
           d,
-          owner.actor,
-          entityListQuery.parse({ entity_type_id: type.id, filters: [{ key: "prop_2", operator: "eq", value }] }),
-        ), AppError);
-    }
-    await assertRejects(
-      () =>
-        listEntities(
-          d,
-          owner.actor,
+          owner.manager,
           entityListQuery.parse({
             entity_type_id: type.id,
-            filters: [{ key: "prop_3", operator: "eq", value: "2025-02-29" }],
+            filters: [{ key: "prop_2", operator: "unset" }],
+            sort: "title",
           }),
-        ),
-      AppError,
-    );
-    await admin.begin(async (tx) => {
-      await tx`insert into app.entity_schema_versions(owner_id,schema) select owner_id,schema||'{"x-version":2,"title":"새 이름"}'::jsonb from app.entity_schema_versions where type_id=${type.id} and schema_version=1`;
-      await tx`update app.entity_types set schema_version=2 where id=${type.id}`;
-    });
-    assertEquals(
-      (await assertRejects(() => listEntities(d, owner.actor, { ...query, cursor }), AppError)).code,
-      "invalid_input",
-    );
-  } finally {
-    await owner.cleanup();
-    await foreign.cleanup();
-  }
-});
+        )).items.map((row) => row.id),
+        [`app:${type.id}:order0`, `app:${type.id}:order1`],
+      );
+      for (const value of ["2", true, 1.0000001, 1e10]) {
+        await assertRejects(() =>
+          listEntities(
+            d,
+            owner.manager,
+            entityListQuery.parse({ entity_type_id: type.id, filters: [{ key: "prop_2", operator: "eq", value }] }),
+          ), AppError);
+      }
+      await assertRejects(
+        () =>
+          listEntities(
+            d,
+            owner.manager,
+            entityListQuery.parse({
+              entity_type_id: type.id,
+              filters: [{ key: "prop_3", operator: "eq", value: "2025-02-29" }],
+            }),
+          ),
+        AppError,
+      );
+      await seedInWorkspace(owner.manager, async (tx) => {
+        await tx`insert into app.entity_schema_versions(workspace_id,schema) select workspace_id,schema||'{"x-version":2,"title":"새 이름"}'::jsonb from app.entity_schema_versions where workspace_id=${owner.workspaceId} and type_id=${type.id} and schema_version=1`;
+        await tx`update app.entity_types set schema_version=2 where workspace_id=${owner.workspaceId} and id=${type.id}`;
+      });
+      assertEquals(
+        (await assertRejects(() => listEntities(d, owner.manager, { ...query, cursor }), AppError)).code,
+        "invalid_input",
+      );
+    } finally {
+      await owner.cleanup();
+      await foreign.cleanup();
+    }
+  },
+);
 dbTest(
-  "type templates: current-schema refs and owner binding; restore preview preserves omitted archived values",
+  "type templates: current-schema refs and workspace binding; restore preview preserves omitted archived values",
   async () => {
-    const owner = await fixtureOwner(admin), foreign = await fixtureOwner(admin);
+    const owner = await businessWorkspaceFixture(admin, sql), foreign = await businessWorkspaceFixture(admin, sql);
     try {
-      const type = await typeFixture(owner.actor.userId, "재료"),
-        other = await typeFixture(foreign.actor.userId, "타인");
+      const type = await typeFixture(owner.manager, "재료"),
+        other = await typeFixture(foreign.manager, "타인");
+      await owner.grantKind(owner.manager, type.id, "write");
+      await foreign.grantKind(foreign.manager, other.id, "write");
       const value = {
         entity_types: { [type.id]: { restore: { memo: "$엔터티.이후.prop_2$ / $엔터티.이후.prop_4$", tag_ids: [] } } },
       };
-      await updateBusinessSettings(settings, requestActor(owner.actor), {
+      await updateBusinessSettings(settings, requestActor(owner.manager), {
         id: "record_templates",
         expected_version: 0,
         value,
       });
-      await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties,deleted_at) values(${owner.actor.userId},${`app:${type.id}:restore`},'app','restore',${type.id},1,${
-        admin.json({ prop_1: "保管", prop_2: 0, prop_4: false, prop_5: "原文" })
-      },now())`;
-      const preview = await prepareBusinessRecord(settings, owner.actor, {
+      await seedInWorkspace(owner.manager, async (tx) => {
+        await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties,deleted_at) values(${owner.workspaceId},${`app:${type.id}:restore`},'app','restore',${type.id},1,${
+          tx.json({ prop_1: "保管", prop_2: 0, prop_4: false, prop_5: "原文" })
+        },now())`;
+      });
+      const preview = await prepareBusinessRecord(settings, owner.manager, {
         model: "entity",
         action: "restore",
         target_id: `app:${type.id}:restore`,
@@ -212,14 +247,14 @@ dbTest(
         },
       });
       assertEquals(preview.change_note, "0 / false");
-      assertEquals((await getEntity(d, owner.actor, `app:${type.id}:restore`)).properties.prop_5, "原文");
+      assertEquals((await getEntity(d, owner.manager, `app:${type.id}:restore`)).properties.prop_5, "原文");
       for (
         const next of [{ entity_types: { [other.id]: { create: { memo: "$대상$", tag_ids: [] } } } }, {
           entity_types: { [type.id]: { create: { memo: "$엔터티.이후.prop_5$", tag_ids: [] } } },
         }, { entity: { create: { memo: "$엔터티.이후.prop_2$", tag_ids: [] } } }]
       ) {
         await assertRejects(async () =>
-          await updateBusinessSettings(settings, requestActor(owner.actor), {
+          await updateBusinessSettings(settings, requestActor(owner.manager), {
             id: "record_templates",
             expected_version: 1,
             value: next,
@@ -232,15 +267,18 @@ dbTest(
   },
 );
 dbTest("typed list scale: 2000 rows use the actual bounded joined query plan", async () => {
-  const owner = await fixtureOwner(admin);
+  const owner = await businessWorkspaceFixture(admin, sql);
   try {
-    const type = await typeFixture(owner.actor.userId, "계획 검사");
-    await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${owner.actor.userId}::uuid,'app:'||${type.id}::text||':scale-'||n,'app','scale-'||n,${type.id}::uuid,1,jsonb_build_object('prop_1','자료 '||n,'prop_2',n,'prop_4',false) from generate_series(1,2000) n`;
+    const type = await typeFixture(owner.manager, "계획 검사");
+    await owner.grantKind(owner.manager, type.id, "write");
+    await seedInWorkspace(owner.manager, async (tx) => {
+      await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) select ${owner.workspaceId}::uuid,'app:'||${type.id}::text||':scale-'||n,'app','scale-'||n,${type.id}::uuid,1,jsonb_build_object('prop_1','자료 '||n,'prop_2',n,'prop_4',false) from generate_series(1,2000) n`;
+    });
     observed = null;
     const started = performance.now();
     const page = await listEntities(
       d,
-      owner.actor,
+      owner.manager,
       entityListQuery.parse({
         entity_type_id: type.id,
         filters: [{ key: "prop_2", operator: "gte", value: 1000 }],
@@ -255,11 +293,15 @@ dbTest("typed list scale: 2000 rows use the actual bounded joined query plan", a
     assert(page.next_cursor);
     const captured = observed as { query: string; parameters: postgres.ParameterOrJSON<never>[] } | null;
     assert(captured);
-    const rows = await asUser(
+    const rows = await runInWorkspace(
       sql,
-      owner.actor.userId,
+      owner.manager,
+      { mode: "business", requirements: [{ target_kind: "entity_type", target_id: type.id, access: "read" }] },
       (tx) => tx.unsafe("EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) " + captured.query, captured.parameters),
     );
+    const plan = rows[0]["QUERY PLAN"];
+    assertEquals(plan[0].Plan["Node Type"], "Limit");
+    assertEquals(plan[0].Plan["Actual Rows"], 101);
     console.log(
       "#350 actual 2000-row bounded list",
       JSON.stringify({ elapsed_ms: Math.round(elapsed), plan: rows[0]["QUERY PLAN"] }),
