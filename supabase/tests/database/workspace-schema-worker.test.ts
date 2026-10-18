@@ -242,7 +242,11 @@ async function twoKindPublicationFixture(injectLateFailure: boolean) {
       {
         id: "record_templates",
         expected_version: 0,
-        value: { entity: { update: { memo: "변환 기록", tag_ids: [tagId] } } },
+        value: {
+          entity_types: Object.fromEntries(
+            kinds.map((kind) => [kind.id, { update: { memo: "변환 기록", tag_ids: [tagId] } }]),
+          ),
+        },
       },
     );
     const before = await exportDataModel(modelDeps, executor), target = structuredClone(before);
