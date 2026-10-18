@@ -24,7 +24,7 @@ dbTest(
         ]
       ) {
         await admin`update auth.users set raw_user_meta_data=${
-          original.sqlNull ? null : admin.json(original.value)
+          original.sqlNull ? null : original.value === null ? admin`'null'::jsonb` : admin.json(original.value)
         }::jsonb where id=${actor}`;
         assertEquals(await read(), original);
         await admin`update auth.users set raw_user_meta_data=${admin.json(expected)} where id=${actor}`;
