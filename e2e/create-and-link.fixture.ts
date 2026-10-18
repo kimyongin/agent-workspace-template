@@ -261,7 +261,7 @@ test("open relation confirmation respects WRITE to READ refresh and retains the 
   await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
   let access = "write", membership = 1, rebound = false;
   const reboundTypeId = id(733);
-  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: { workspace: { id: fixtureWorkspaceId, name: "관계 권한 전환 공간", deleted_at: null }, can_manage: false, membership_version: membership, grants: [{ target_kind: "entity_type", target_id: reboundTypeId, access: "read" }, { target_kind: "entity_type", target_id: fixtureType.id, access: access === "none" ? "read" : access }, ...(access === "none" ? [] : [{ target_kind: "entity_type", target_id: peerTypeId, access }])] } }));
+  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: { workspace: { id: fixtureWorkspaceId, name: "관계 권한 전환 공간", deleted_at: null }, can_manage: false, membership_version: membership, grants: [{ target_kind: "entity_type", target_id: reboundTypeId, access: access === "write" ? "write" : "read" }, { target_kind: "entity_type", target_id: fixtureType.id, access: access === "none" ? "read" : access }, ...(access === "none" ? [] : [{ target_kind: "entity_type", target_id: peerTypeId, access }])] } }));
   const definition: EntityRelationDefinition = { id: id(731), version: 1, archived: false, ends: [{ type_id: fixtureType.id, label: "확인 연결", cardinality: "one" }, { type_id: peerTypeId, label: "확인 반대", cardinality: "many" }] };
   const reboundDefinition: EntityRelationDefinition = { ...definition, version: 2, ends: [definition.ends[0], { ...definition.ends[1], type_id: reboundTypeId }] };
   await page.route("**/api/entity-relation-definitions**", route => {
