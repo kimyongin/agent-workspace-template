@@ -43,7 +43,7 @@ export function MigrationStart(
   useLayoutEffect(() => () => onState?.({ busy: false, uncertain: false }), [onState]);
   const acceptedRef = useRef<SchemaMigrationAccepted | undefined>(undefined);
   const start = async () => {
-    if (!canWrite || disabled || busy) return;
+    if (!canWrite || busy || (!uncertain && disabled)) return;
     setError("");
 
     try {
@@ -87,7 +87,6 @@ export function MigrationStart(
   );
 }
 export function useMigrationHistory(typeId: string, selectedJob?: string) {
-  const { canWrite } = useSettingsAccess();
   const api = useApi();
   const [list, setList] = useState({
     typeId,

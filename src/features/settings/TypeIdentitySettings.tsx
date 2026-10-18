@@ -71,6 +71,7 @@ export function TypeIdentitySettings(
     onState(state);
   }, [state.dirty, state.busy, state.uncertain, state.error, onState]);
   const update = (fn: (value: typeof draft) => typeof draft) => {
+    if (!canWrite || disabled) return;
     setMessage("");
     setInputError("");
     editor.resource.edit(fn);

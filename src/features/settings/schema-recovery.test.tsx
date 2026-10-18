@@ -1,3 +1,4 @@
+import { WorkspaceCapabilitiesContext } from "../workspaces/workspace-context.tsx";
 import { expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
@@ -6,15 +7,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { WriteAttempt } from "../../lib/write-attempt.ts";
-vi.mock("../workspaces/workspace-context.tsx", () => ({ useWorkspaceCapabilities: () => ({ grants: [{ target_kind: "settings", target_id: "*", access: "write" }] }) }));
 vi.mock("../../lib/api.ts", () => ({ createScopedApi: () => vi.fn() }));
 import {
   RecoveryAvailability,
-  RecoveryChangeCreate,
+  RecoveryChangeCreate as RecoveryChangeCreateView,
   RecoveryConflictList,
   recoveryErrorMessage,
   submitRecoveryChange,
 } from "./SchemaRecovery.tsx";
+
+function RecoveryChangeCreate(props: Parameters<typeof RecoveryChangeCreateView>[0]) {
+  return <WorkspaceCapabilitiesContext.Provider value={{ workspace: { id: "space", name: "테스트 공간", deleted_at: null }, grants: [{ target_kind: "settings", target_id: "*", access: "write" }], can_manage: true, membership_version: 1 }}><RecoveryChangeCreateView {...props} /></WorkspaceCapabilitiesContext.Provider>;
+}
 
 const job = {
   id: "job-1",
