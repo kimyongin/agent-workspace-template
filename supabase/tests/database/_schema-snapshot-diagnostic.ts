@@ -86,7 +86,7 @@ export function explainSchemaSnapshot(sql: postgres.Sql): postgres.Sql {
                   const [strings, ...values] = parameters;
                   if (
                     intercepted || !Array.isArray(strings) ||
-                    !String(strings[0]).startsWith(
+                    !strings.join("").includes(
                       "insert into private.entity_schema_migration_rows(",
                     )
                   ) return Reflect.apply(query, receiver, parameters);
