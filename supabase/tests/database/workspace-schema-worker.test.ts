@@ -109,3 +109,166 @@ dbTest("shared schema analysis captures the actual initiator and immutable works
     for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
   }
 });
+
+import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
+import { SqlDataModelGroupStore } from "../../functions/_shared/adapters/supabase/data-model-group-store.ts";
+import {
+  applyDataModel,
+  exportDataModel,
+  getDataModelChange,
+  prepareDataModel,
+  previewDataModel,
+} from "../../functions/_shared/core/data-model/application.ts";
+import { analyzeDataModel } from "../../functions/_shared/core/data-model/groups.ts";
+import { prepareMigrationBatch } from "../../functions/_shared/core/entity-types/migration-preparation.ts";
+import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
+
+const modelDeps = { uow: new SqlDataModelUnitOfWork(sql, SqlDataModelGroupStore) };
+dbTest(
+  "shared two-kind durable conversion publishes one workspace and one immutable entity parent per record",
+  async () => {
+    const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
+    let workspaceId: string | undefined;
+    for (const actor of [a, b]) {
+      const email = `group513-${actor.userId}@example.test`;
+      await admin`insert into auth.users(id,email) values(${actor.userId},${email})`;
+      await admin`insert into auth.identities(id,user_id,provider,provider_id,identity_data)
+      values(${crypto.randomUUID()},${actor.userId},'google',${actor.userId},${
+        admin.json({ sub: actor.userId, email, email_verified: true })
+      })`;
+    }
+    try {
+      workspaceId =
+        (await workspaces.createWorkspace(workspaceDeps, key(a), { name: "공유 다중 종류 변환" })).workspace.id;
+      const author = { ...a, workspaceId }, executor = { ...b, workspaceId };
+      const kinds = [];
+      for (const label of ["첫 종류", "둘째 종류"]) {
+        kinds.push(
+          await types.createEntityType(typeDeps, key(author), { label }),
+        );
+      }
+      const grants = [
+        { target_kind: "settings", target_id: "*", access: "write" },
+        ...kinds.map((kind) => ({ target_kind: "entity_type", target_id: kind.id, access: "write" })),
+      ];
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, a.userId, {
+        expected_version: 1,
+        grants,
+      });
+      const invitation = await workspaces.inviteWorkspaceMember(workspaceDeps, key(a), workspaceId, {
+        email: `group513-${b.userId}@example.test`,
+        grants,
+      });
+      await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(b), invitation.invitation.id);
+      const entities: string[] = [];
+      for (const [index, kind] of kinds.entries()) {
+        const externalId = crypto.randomUUID(), id = `app:${kind.id}:${externalId}`;
+        entities.push(id);
+        await runInWorkspace(
+          sql,
+          author,
+          {
+            mode: "business",
+            requirements: [{ target_kind: "entity_type", target_id: kind.id, access: "write" }],
+          },
+          (tx) =>
+            tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
+        values(${author.workspaceId},${id},'app',${externalId},${kind.id},1,${
+              tx.json({ prop_1: String(12 + index) })
+            })`,
+        );
+      }
+      const before = await exportDataModel(modelDeps, executor), target = structuredClone(before);
+      for (const kind of target.entity_types) {
+        kind.schema.properties.prop_1.maxLength = 1;
+      }
+      const input = { mode: "update", document: JSON.stringify(target) };
+      const preview = await previewDataModel(modelDeps, executor, input);
+      const saved = await prepareDataModel(modelDeps, key(executor), {
+        ...input,
+        preview_fingerprint: preview.fingerprint,
+      });
+      assertEquals(saved.status, "needs_conversion");
+      const analyzed = await analyzeDataModel(modelDeps, key(executor), saved.id, {
+        expected_version: saved.version,
+        conversions: target.entity_types.map((kind) => ({
+          type_ref: kind.ref,
+          migration: {
+            rules: [],
+            overrides: [{
+              entity_id: entities[kinds.findIndex((k) => k.id === kind.schema["x-type-id"])],
+              key: "prop_1",
+              value: "X",
+            }],
+          },
+        })),
+      });
+      assertEquals(analyzed.status, "analyzing");
+      for (let step = 0; step < 2; step++) {
+        const [claim] = await worker`select app.claim_entity_schema_analysis() as batch`;
+        assertEquals(Boolean(claim.batch), true);
+        const batch = claim.batch, convert = compileMigration(batch.target, batch.migration, batch.recovery_keys);
+        const result = batch.rows.map((r: { entity_id: string; properties: Record<string, unknown> }) =>
+          convert(r.entity_id, r.properties)
+        );
+        const [completed] = await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
+          worker.json(result)
+        }) as accepted`;
+        assertEquals(completed.accepted, true);
+      }
+      const ready = await getDataModelChange(modelDeps, executor, saved.id);
+      assertEquals(ready.status, "ready");
+      assertEquals(
+        (await applyDataModel(modelDeps, key(executor), saved.id, { expected_version: ready.version })).status,
+        "queued",
+      );
+      for (let step = 0; step < 4; step++) {
+        const [claim] = await worker`select app.claim_data_model_conversion() as batch`;
+        assertEquals(Boolean(claim.batch), true);
+        const batch = claim.batch;
+        if (batch.status === "committing") {
+          const [result] =
+            await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`;
+          assertEquals(result.committed, true);
+          break;
+        }
+        const prepared = await prepareMigrationBatch(batch.child, new Date());
+        assertEquals(prepared.stale, false);
+        const [result] =
+          await worker`select app.stage_data_model_conversion(${batch.id},${batch.fence},${batch.child.id},${batch.child.fence},${
+            worker.json(prepared.results)
+          }) as accepted`;
+        assertEquals(result.accepted, true);
+        assertEquals(await exportDataModel(modelDeps, executor), before);
+      }
+      assertEquals((await getDataModelChange(modelDeps, executor, saved.id)).status, "applied");
+      await runInWorkspace(sql, executor, {
+        mode: "business",
+        requirements: kinds.map((kind) => ({ target_kind: "entity_type", target_id: kind.id, access: "read" })),
+      }, async (tx) => {
+        const values =
+          await tx`select id,properties,schema_version from app.entities where workspace_id=${executor.workspaceId} order by id`;
+        assertEquals(values.map((r) => ({ properties: r.properties, schema_version: Number(r.schema_version) })), [
+          { properties: { prop_1: "X" }, schema_version: 2 },
+          { properties: { prop_1: "X" }, schema_version: 2 },
+        ]);
+        const records =
+          await tx`select workspace_id,owner_id,entity_id,task_id,created_by from app.records where workspace_id=${executor.workspaceId}`;
+        assertEquals(records.length, 2);
+        assertEquals(
+          new Set(records.map((r) => r.entity_id)),
+          new Set(entities),
+        );
+        for (const row of records) {
+          assertEquals(row.workspace_id, workspaceId);
+          assertEquals(row.owner_id, null);
+          assertEquals(row.task_id, null);
+          assertEquals(row.created_by, b.userId);
+        }
+      });
+    } finally {
+      if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
+      for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
+    }
+  },
+);
