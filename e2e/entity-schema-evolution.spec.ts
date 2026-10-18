@@ -1,13 +1,12 @@
 import { businessRows, disclosureContent } from "./table-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import postgres from "postgres";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, ownedWorkspace, workspacePath} from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·이전 폼 충돌이 같은 정의를 사용한다", async ({ page, context }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
-  const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   let typeId: string | undefined;
   const entityIds: string[] = [];
   try {
@@ -15,6 +14,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
       label: unique("속성 편집"),
       representative_label: "이름",
     });
+    await workspace.grantKind(type.id);
     typeId = type.id;
     const existing = await mcp.call("create_entity", {
       entity_type_id: typeId,
@@ -32,7 +32,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await oldForm.getByLabel("이름", { exact: false }).fill(
       "충돌 뒤 유지할 초안",
     );
-    await page.goto(`/settings/entity-types/${typeId}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${typeId}`));
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
     await page.getByRole("region", { name: "이름 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true }).fill(
@@ -138,11 +138,11 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
       await expect(count).toHaveCount(1);
       await expect(count.locator("..").getByRole("definition")).toHaveText(quantity);
     };
-    await page.goto(`/entities/${encodeURIComponent(existing.id)}`);
+    await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(existing.id)}`));
     await assertCurrentProperties(existing.title, "미입력");
-    await page.goto(`/entities/${encodeURIComponent(created.id)}`);
+    await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(created.id)}`));
     await assertCurrentProperties(created.title, "0");
-    await page.goto(`/settings/entity-types/${typeId}/versions`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${typeId}/versions`));
     const initialVersion = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
     });
@@ -167,19 +167,16 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
       .toBe(true);
   } finally {
     await mcp.close();
-    if (entityIds.length) {
-      await admin`delete from app.entities where id=any(${entityIds}::text[])`;
-    }
-    if (typeId) await admin`delete from app.entity_types where id=${typeId}`;
-    await admin.end();
   }
 });
 
 test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자료와 정의를 유지한다", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const type = await mcp.call("create_entity_type", { label: unique("폐기 확인") });
+    await workspace.grantKind(type.id);
     const entity = await mcp.call("create_entity", {
       entity_type_id: type.id,
       schema_version: 1,
@@ -195,7 +192,7 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
         required: false,
       }],
     });
-    await page.goto(`/settings/entity-types/${type.id}/migrations?change_id=${change.id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}/migrations?change_id=${change.id}`));
     await page.getByRole("button", { name: "폐기", exact: true }).click();
     const confirm = page.getByRole("alertdialog", { name: "변경안을 폐기할까요?", exact: true });
     await confirm.getByRole("button", { name: "취소", exact: true }).click();

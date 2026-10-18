@@ -1,16 +1,16 @@
 import { businessRows, entryDetails } from "./table-actions.ts";
 import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import postgres from "postgres";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, ownedWorkspace, workspacePath} from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·MCP 결과·stale·모바일 초안 보존", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   let typeId: string | undefined, entityId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("변환 준비") });
+    await workspace.grantKind(type.id);
     typeId = type.id;
     const entity = await mcp.call("create_entity", {
       entity_type_id: typeId,
@@ -29,7 +29,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
         required: true,
       }],
     });
-    const path = `/settings/entity-types/${typeId}/migrations?change_id=${plan.id}`;
+    const path = workspacePath(workspace.id, `/settings/entity-types/${typeId}/migrations?change_id=${plan.id}`);
     await page.goto(path);
     await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     await page.reload();
@@ -107,21 +107,19 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       .toBe(true);
   } finally {
     await mcp.close();
-    if (entityId) await admin`delete from app.entities where id=${entityId}`;
-    if (typeId) await admin`delete from app.entity_types where id=${typeId}`;
-    await admin.end();
   }
 });
 
 test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰지 않는다", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   let typeId: string | undefined;
   const ids: string[] = [];
   let release = () => {};
   try {
     const type = await mcp.call("create_entity_type", { label: unique("페이지 경쟁") });
+    await workspace.grantKind(type.id);
     typeId = type.id;
     const bad = await mcp.call("create_entity", {
         entity_type_id: typeId,
@@ -170,7 +168,7 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
         }
       } else await route.continue();
     });
-    await page.goto(`/settings/entity-types/${typeId}/migrations?change_id=${plan.id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${typeId}/migrations?change_id=${plan.id}`));
     await expect.poll(() => intercepted).toBe(true);
     await page.getByLabel("실패한 자료만 보기").check();
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
@@ -195,8 +193,5 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
   } finally {
     release();
     await mcp.close();
-    if (ids.length) await admin`delete from app.entities where id=any(${ids}::text[])`;
-    if (typeId) await admin`delete from app.entity_types where id=${typeId}`;
-    await admin.end();
   }
 });
