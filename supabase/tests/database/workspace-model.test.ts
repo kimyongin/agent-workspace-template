@@ -192,15 +192,15 @@ dbTest(
         { target_kind: "settings", target_id: "*", access: "write" },
         { target_kind: "entity_type", target_id: left.id, access: "write" },
       ]);
-      const stripRequirements = await assertRejects(() =>
-        runInWorkspace(sql, reader, {
-          mode: "business",
-          requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
-        }, (tx) => tx`update app.data_model_changes
+      await runInWorkspace(sql, reader, {
+        mode: "business",
+        requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      }, async (tx) => {
+        const stripRequirements = await assertRejects(() => tx.savepoint((attempt) => attempt`update app.data_model_changes
           set plan=jsonb_set(plan,'{protected_permissions}','[]'::jsonb)
-          where workspace_id=${owned[0]}::uuid and id=${dataPlan.id}::uuid`)
-      );
-      assertEquals((stripRequirements as { code?: string }).code, "23514");
+          where workspace_id=${owned[0]}::uuid and id=${dataPlan.id}::uuid`));
+        assertEquals((stripRequirements as { code?: string }).code, "23514");
+      });
       await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
         expected_version: 3,
         grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
