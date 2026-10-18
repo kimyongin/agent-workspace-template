@@ -201,3 +201,140 @@ dbTest("workspace record producer hides existing and missing sources after kind 
     for (const id of seeded) await admin`delete from auth.users where id=${id}`;
   }
 });
+
+dbTest("workspace entity lists bind readable kinds and cursors while lifecycle retains one parent", async () => {
+  const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
+  const seeded: string[] = [], owned: string[] = [];
+  try {
+    for (const actor of [a, b]) {
+      const email = `list514-${actor.userId}@example.test`;
+      await admin`insert into auth.users(id,email) values(${actor.userId},${email})`;
+      seeded.push(actor.userId);
+      await admin`insert into auth.identities(id,user_id,provider,provider_id,identity_data) values(${crypto.randomUUID()},${actor.userId},'google',${actor.userId},${
+        admin.json({ sub: actor.userId, email, email_verified: true })
+      })`;
+    }
+    for (const name of ["자료 목록 공간", "다른 목록 공간"]) {
+      owned.push((await workspaces.createWorkspace(workspaceDeps, key(a), { name })).workspace.id);
+    }
+    const author = { ...a, workspaceId: owned[0] }, other = { ...a, workspaceId: owned[1] };
+    const visible = await types.createEntityType(typeDeps, key(author), { label: "보이는 자료" });
+    const hidden = await types.createEntityType(typeDeps, key(author), { label: "설정에만 보이는 새 종류" });
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], a.userId, {
+      expected_version: 1,
+      grants: [
+        { target_kind: "settings", target_id: "*", access: "write" },
+        { target_kind: "entity_type", target_id: visible.id, access: "write" },
+      ],
+    });
+    const invitation = await workspaces.inviteWorkspaceMember(workspaceDeps, key(a), owned[0], {
+      email: `list514-${b.userId}@example.test`,
+      grants: [{ target_kind: "entity_type", target_id: visible.id, access: "read" }],
+    });
+    await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(b), invitation.invitation.id);
+    const reader = { ...b, workspaceId: owned[0] };
+    const rows: Awaited<ReturnType<typeof entities.createEntity>>[] = [];
+    for (const title of ["가 공유", "나 공유"]) {
+      rows.push(
+        await entities.createEntity(
+          deps,
+          key(author),
+          entityCreate.parse({ entity_type_id: visible.id, schema_version: 1, properties: { prop_1: title } }),
+        ),
+      );
+    }
+    // Settings visibility must not turn the hidden kind into business authority,
+    // nor make the entire untyped list fail because that kind is discoverable.
+    assertEquals((await entities.listEntities(deps, author, entityListQuery.parse({}))).items.length, 2);
+    assertEquals(
+      (await assertRejects(
+        () => entities.listEntities(deps, author, entityListQuery.parse({ entity_type_id: hidden.id })),
+        AppError,
+      )).code,
+      "forbidden",
+    );
+    const query = entityListQuery.parse({
+      entity_type_id: visible.id,
+      sort: { key: "prop_1", direction: "asc" },
+      filters: [{ key: "prop_1", operator: "contains", value: "공유" }],
+      limit: 1,
+    });
+    const first = await entities.listEntities(deps, reader, query);
+    const second = await entities.listEntities(deps, reader, { ...query, cursor: first.next_cursor! });
+    assertEquals([...first.items, ...second.items].map((row) => row.title), ["가 공유", "나 공유"]);
+    assertEquals(second.next_cursor, null);
+    assertEquals(
+      (await assertRejects(() =>
+        entities.updateEntity(
+          deps,
+          key(reader),
+          rows[0].id,
+          entityUpdate.parse({ expected_version: 1, schema_version: 1, properties: { prop_1: "읽기만 가능" } }),
+        ), AppError)).code,
+      "forbidden",
+    );
+    // The same actor receives equivalent kinds in W2; a W1 cursor still refuses.
+    const otherKind = await types.createEntityType(typeDeps, key(other), { label: "보이는 자료" });
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[1], a.userId, {
+      expected_version: 1,
+      grants: [
+        { target_kind: "settings", target_id: "*", access: "write" },
+        { target_kind: "entity_type", target_id: otherKind.id, access: "write" },
+      ],
+    });
+    const ownFirst = await entities.listEntities(deps, author, entityListQuery.parse({ limit: 1 }));
+    assertEquals(
+      (await assertRejects(
+        () => entities.listEntities(deps, other, entityListQuery.parse({ limit: 1, cursor: ownFirst.next_cursor! })),
+        AppError,
+      )).code,
+      "invalid_input",
+    );
+    const deletedRequest = key(author);
+    await entities.deleteEntity(deps, deletedRequest, rows[0].id, 1);
+    assertEquals(await entities.deleteEntity(deps, deletedRequest, rows[0].id, 1), { deleted: true });
+    assertEquals(
+      (await entities.listEntities(deps, reader, entityListQuery.parse({ entity_type_id: visible.id }))).items.map(
+        (row) => row.id,
+      ),
+      [rows[1].id],
+    );
+    const deleted = await entities.getEntity(deps, reader, rows[0].id);
+    assertEquals(deleted.version, 2);
+    const restored = await entities.createEntity(
+      deps,
+      key(author),
+      entityCreate.parse({
+        entity_type_id: visible.id,
+        schema_version: 1,
+        source: rows[0].source,
+        external_id: rows[0].external_id,
+        expected_version: 2,
+        properties: { prop_1: "같은 자료 복원" },
+      }),
+    );
+    assertEquals([restored.id, restored.version], [rows[0].id, 3]);
+    const history = await entities.getEntity(deps, reader, rows[0].id);
+    assertEquals(history.records.count, 3);
+    const parents = await admin`select entity_id,task_id from app.records where workspace_id=${
+      owned[0]
+    } and entity_id=${rows[0].id}`;
+    assertEquals(parents.length, 3);
+    assertEquals(parents.every((parent) => parent.entity_id === rows[0].id && parent.task_id === null), true);
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], a.userId, {
+      expected_version: 2,
+      grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+    });
+    assertEquals(
+      (await assertRejects(() => entities.deleteEntity(deps, deletedRequest, rows[0].id, 1), AppError)).code,
+      "not_found",
+    );
+    assertEquals((await entities.listEntities(deps, author, entityListQuery.parse({}))).items, []);
+  } finally {
+    for (const id of owned) {
+      await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${id}`;
+      await admin`delete from app.workspaces where id=${id}`;
+    }
+    for (const id of seeded) await admin`delete from auth.users where id=${id}`;
+  }
+});
