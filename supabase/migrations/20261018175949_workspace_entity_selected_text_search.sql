@@ -378,9 +378,6 @@ create or replace function private.prune_record_effect_results() returns trigger
 begin
  delete from private.passage_effects where workspace_id=old.workspace_id and source_kind='record' and source_id=old.id and state in ('succeeded','failed');return old;
 end $$;
--- The internal owner-only diagnostic has no current caller and is not a public
--- issue row contract. Public status uses safe scoped summaries in the next slice.
-drop function app.record_passage_effect_status(text);
 drop function private.authorize_search_record(uuid,text,bigint,text);
 drop function private.search_record_execution_allows(app.search_index_state);
 revoke all on function private.entity_search_definition(jsonb),private.entity_search_input(uuid,text),private.enqueue_entity_search(uuid,text,boolean),private.entity_search_changed(),private.entity_search_schema_changed(),
