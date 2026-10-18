@@ -117,7 +117,7 @@ export async function getTask(deps: ActivityDeps, actor: Actor, id: string): Pro
 
 export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskListQuery): Promise<Page<TaskListItem>> {
   const { cursor, limit, ...filter } = query;
-  const scope = await scopeOf(actor, { list: "tasks", ...filter });
+  const scope = await scopeOf(actor, { list: "tasks", workspace_id: actor.workspaceId, ...filter });
   const after = cursor ? decodeCursor(cursor, scope) : undefined;
   const now = deps.clock.now();
 
@@ -391,7 +391,7 @@ export async function listRecords(
   query: RecordListQuery,
 ): Promise<Page<RecordResult>> {
   const { cursor, limit, ...filter } = query;
-  const scope = await scopeOf(actor, { list: "records", ...filter });
+  const scope = await scopeOf(actor, { list: "records", workspace_id: actor.workspaceId, ...filter });
   const after = cursor ? decodeCursor(cursor, scope) : undefined;
   return await deps.uow.run(actor, async (store) => {
     const rows = await store.listRecords({ ...filter, after, limit: limit + 1 });
