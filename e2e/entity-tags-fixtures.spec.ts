@@ -34,6 +34,15 @@ test.beforeEach(async ({ page, isMobile }) => {
   );
   await page.route("**/api/records/prepare", route => {
     const body=route.request().postDataJSON();
+    if (body.intent === "tag-connections") {
+      expect(body.action).toBe("update");
+      expect(["entity", "task"]).toContain(body.model);
+      expect(Object.keys(body.input)).toEqual(["tag_ids"]);
+      expect(body.target_id).toBeTruthy();
+      expect(body.expected_version).toBeGreaterThan(0);
+    } else if (body.model === "entity") {
+      expect(body.input).not.toHaveProperty("tag_ids");
+    }
     return route.fulfill({json:{change_note:body.change_note??"변경 기록",change_tag_ids:[],missing_tag_ids:[],settings_version:0,prepared_input:body.input??{}}});
   });
 });
@@ -578,7 +587,11 @@ test("#370 늦은 이전 사전 응답이 새 이름을 덮어쓰지 않는다",
   }
 });
 
-test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결한다", async ({ page }) => {
+test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결한다", async ({ page }, info) => {
+  const capture = async (name: string) => {
+    await expect.poll(() => page.evaluate(() => document.getAnimations().filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
+    await info.attach(name, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+  };
   let current = { ...makeEntity(301, { prop_1: "독립 태그 자료" }), tag_ids: [] as string[] };
   const creations: Record<string, unknown>[] = [], connections: Record<string, unknown>[] = [];
   await page.route("**/api/entity-types**", route => route.fulfill({
@@ -609,11 +622,14 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await expect(form.getByRole("button", { name: "태그 선택", exact: true })).toHaveCount(0);
   await form.getByLabel("제목").fill(current.title);
+  await capture("new-entity-without-tag-selector");
   await saveOnce(page, form);
   await expect(form).not.toBeVisible();
   expect(creations).toHaveLength(1);
   expect(creations[0]).not.toHaveProperty("tag_ids");
   const region = page.getByRole("region", { name: "태그 연결" });
+  await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+  await capture("saved-entity-before-tag-connection");
   await region.getByRole("button", { name: "태그 연결", exact: true }).click();
   await region.getByRole("button", { name: "태그 선택", exact: true }).click();
   await page.getByRole("option", { name: "첫 태그", exact: true }).click();
@@ -621,6 +637,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   await region.getByRole("button", { name: "연결 적용", exact: true }).click();
   await executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true }).click();
   await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
+  await capture("saved-entity-after-tag-connection");
   expect(connections).toHaveLength(1);
   expect(connections[0]).toMatchObject({ target_kind: "entity", target_id: current.id, expected_version: 1, tag_ids: [tags[0].id] });
   expect(connections[0]).not.toHaveProperty("schema_version");
@@ -630,9 +647,9 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
 test("보기에서 태그 연결 초안을 취소하거나 독립 적용한다", async ({ page }) => {
   let current = { ...makeEntity(1), id: `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000`, tag_ids: [] as string[] };
   const writes: Record<string, unknown>[] = [];
-  await page.route("**/api/entities/**", async route => {
+  await page.route(/\/api\/(?:entities\/.*|tag-connections)$/, async route => {
     if (new URL(route.request().url()).pathname.endsWith("/links")) return route.fulfill({json:{items:[],next_cursor:null}});
-    if (route.request().method() === "PATCH") {
+    if (route.request().method() === "POST") {
       const input = route.request().postDataJSON(); writes.push(input);
       current = { ...current, tag_ids: input.tag_ids ?? current.tag_ids, version: current.version + 1 };
     }
@@ -657,7 +674,7 @@ test("보기에서 태그 연결 초안을 취소하거나 독립 적용한다",
   await executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true }).click();
   await expect(region.getByText("첫 태그",{exact:true})).toBeVisible();
   expect(writes).toHaveLength(1);
-  expect(writes[0]).toMatchObject({ tag_ids: [tags[0].id], expected_version: 1, schema_version: current.schema_version });
+  expect(writes[0]).toMatchObject({ target_kind: "entity", target_id: current.id, tag_ids: [tags[0].id], expected_version: 1 });
   expect(writes[0]).not.toHaveProperty("properties");
 });
 
@@ -696,8 +713,8 @@ for (const kind of ["entity", "task", "record"] as const) {
 test("기록 태그 연결 응답 불명은 같은 입력·버전·요청 키로만 재확인한다", async ({ page }) => {
   const record = {...makeRecord(3),id:"30000000-0000-4000-8000-000000000000",tag_ids:[tags[0].id]};
   const requests: {body:Record<string,unknown>;key:string|undefined}[] = [];
-  await page.route("**/api/records/**", async route => {
-    if(route.request().method()==="PATCH") {
+  await page.route(/\/api\/(?:records\/.*|tag-connections)$/, async route => {
+    if(route.request().method()==="POST") {
       requests.push({body:route.request().postDataJSON(),key:route.request().headers()["idempotency-key"]});
       if(requests.length===1)return route.abort();
       return route.fulfill({headers:{"Idempotency-Replayed":"true"},json:{...record,tag_ids:[],version:2}});
@@ -717,14 +734,14 @@ test("기록 태그 연결 응답 불명은 같은 입력·버전·요청 키로
   expect(requests).toHaveLength(2);
   expect(requests[1]).toEqual(requests[0]);
   expect(requests[0].key).toBeTruthy();
-  expect(requests[0].body).toEqual({tag_ids:[],expected_version:1});
+  expect(requests[0].body).toEqual({target_kind:"record",target_id:record.id,tag_ids:[],expected_version:1});
 });
 
 test("기록 태그 연결 버전 충돌은 원문과 선택 초안을 보존한다", async ({ page }) => {
   const record={...makeRecord(3),id:"30000000-0000-4000-8000-000000000000",tag_ids:[tags[0].id]};
   let writes=0;
-  await page.route("**/api/records/**", route => {
-    if(route.request().method()==="PATCH") {writes++;return route.fulfill({status:409,json:{code:"conflict",message:"다른 변경이 저장되었습니다."}});}
+  await page.route(/\/api\/(?:records\/.*|tag-connections)$/, route => {
+    if(route.request().method()==="POST") {writes++;return route.fulfill({status:409,json:{code:"conflict",message:"다른 변경이 저장되었습니다."}});}
     return route.fulfill({json:record});
   });
   await page.goto(url);
@@ -763,8 +780,8 @@ test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 �
           : { items: [fixtureType], next_cursor: null },
       }),
   );
-  await page.route("**/api/entities/**", async (route) => {
-    if (route.request().method() === "PATCH") {
+  await page.route(/\/api\/(?:entities\/.*|tag-connections)$/, async (route) => {
+    if (route.request().method() === "POST") {
       const input = route.request().postDataJSON();
       writes.push(input);
       if (writes.length === 1) {
@@ -846,8 +863,8 @@ test("태그 연결 처리 중과 응답 불명은 Escape·뒤로가기를 막�
     arrived = resolve;
   });
   const requests: { body: Record<string, unknown>; key: string | undefined }[] = [];
-  await page.route("**/api/records/**", async (route) => {
-    if (route.request().method() !== "PATCH") return route.fulfill({ json: record });
+  await page.route(/\/api\/(?:records\/.*|tag-connections)$/, async (route) => {
+    if (route.request().method() !== "POST") return route.fulfill({ json: record });
     requests.push({ body: route.request().postDataJSON(), key: route.request().headers()["idempotency-key"] });
     if (requests.length === 1) {
       arrived();

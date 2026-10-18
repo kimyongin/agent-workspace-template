@@ -3,7 +3,6 @@ import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldSet } from "@/components/ui/field";
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { entityPath } from "@contracts/entity-identity.ts";
 
 import { Notice } from "../../components/Field.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
@@ -31,7 +30,7 @@ export function ReadonlyTags(
 /** The chooser only changes this draft. A partial write owns its exact version and retry lifetime. */
 export function TagConnections({ scope, target, readonly = false, onSaved, onDraftClosed }: {
   scope: TagScope;
-  target: { id: string; version: number; tag_ids: string[]; schema_version?: number; title?: string };
+  target: { id: string; version: number; tag_ids: string[]; title?: string };
   readonly?: boolean;
   onDraftClosed?: () => void;
   onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
@@ -97,18 +96,17 @@ export function TagConnections({ scope, target, readonly = false, onSaved, onDra
 
 function TagConnectionDraft({ scope, target, onCancel, onSaved }: {
   scope: TagScope;
-  target: { id: string; version: number; tag_ids: string[]; schema_version?: number };
+  target: { id: string; version: number; tag_ids: string[] };
   onCancel: () => void;
   onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
 }) {
   const api = useApi();
   const surface = useContext(SurfaceContext);
   const [draft, setDraft] = useState(target.tag_ids);
-  const path = scope === "entity" ? entityPath(target.id) : `/${scope}s/${target.id}`;
   const confirmation = useRecordConfirmation({
     closeOnSuccess: true,
     describe: () => {
-      const input = { tag_ids: [...draft], ...(scope === "entity" ? { schema_version: target.schema_version } : {}) };
+      const input = { tag_ids: [...draft] };
       const expected_version = target.version;
       return {
         title: "태그 연결을 적용하시겠습니까?",
@@ -117,12 +115,12 @@ function TagConnectionDraft({ scope, target, onCancel, onSaved }: {
         record: scope !== "record",
         preparation: scope === "record"
           ? undefined
-          : () => ({ model: scope, action: "update", target_id: target.id, expected_version, input }),
+          : () => ({ intent: "tag-connections", model: scope, action: "update", target_id: target.id, expected_version, input }),
         execute: async (requestKey, memo) => {
           const saved = await api<{ tag_ids: string[]; version: number; updated_at: string }>(
-            "PATCH",
-            path,
-            { ...input, expected_version, ...(scope === "record" ? {} : memo) },
+            "POST",
+            "/tag-connections",
+            { target_kind: scope, target_id: target.id, ...input, expected_version, ...(scope === "record" ? {} : memo) },
             undefined,
             requestKey(),
           );

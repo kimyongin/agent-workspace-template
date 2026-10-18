@@ -22,7 +22,6 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
 
 import { fieldErrors } from "../../lib/format.ts";
-import { TagPicker } from "../tags/TagPicker.tsx";
 import { ReadonlyTags } from "../tags/TagConnections.tsx";
 import {
   fieldType,
@@ -75,13 +74,11 @@ export function EntityForm({
     [identityStale, setIdentityStale] = useState(false);
   const [source, setSource] = useState(initial?.source ?? ""),
     [external, setExternal] = useState(initial?.external_id ?? ""),
-    [properties, setProperties] = useState<PropertyDraft>(propertyDraft(initial?.properties ?? {})),
-    [tags, setTags] = useState(initial?.tag_ids ?? []);
+    [properties, setProperties] = useState<PropertyDraft>(propertyDraft(initial?.properties ?? {}));
   const baseline = useRef({
     source: initial?.source ?? "",
     external: initial?.external_id ?? "",
     properties: propertyDraft(initial?.properties ?? {}),
-    tags: initial?.tag_ids ?? [],
     typeId: initial?.entity_type_id ?? initialTypeId ?? "",
   });
   const prepared = useRef<Record<string, unknown> | null>(null),
@@ -209,7 +206,6 @@ export function EntityForm({
       external_id: external || undefined,
       identity_version: !initial || archived ? settingsVersion.current : undefined,
       expected_version: archived?.version,
-      ...(!initial || initial.deleted_at ? { tag_ids: tags } : {}),
     };
   };
   const checkExisting = async () => {
@@ -237,7 +233,6 @@ export function EntityForm({
       }
       setArchived(stored);
       setProperties(propertyDraft(stored.properties));
-      setTags(stored.tag_ids);
       setIdentityMessage("보관한 자료를 불러왔습니다. 속성과 연결을 확인한 뒤 복원을 저장하세요.");
       return stored;
     } catch (e) {
@@ -250,8 +245,7 @@ export function EntityForm({
     }
   };
   const dirty = source !== baseline.current.source || external !== baseline.current.external ||
-    typeId !== baseline.current.typeId || JSON.stringify(properties) !== JSON.stringify(baseline.current.properties) ||
-    JSON.stringify(tags) !== JSON.stringify(baseline.current.tags);
+    typeId !== baseline.current.typeId || JSON.stringify(properties) !== JSON.stringify(baseline.current.properties);
   const changeProperties = (values: PropertyDraft) => {
     lookup.current?.abort();
     setReviewKeys((keys) => keys.filter((key) => values[key] === properties[key]));
@@ -293,7 +287,6 @@ export function EntityForm({
                 ),
               ),
               expected_version: existing.version,
-              tag_ids: existing.tag_ids,
             }
             : value();
           if (initial && !existing) {
@@ -388,7 +381,7 @@ export function EntityForm({
           const current = value();
           try {
             await onSave(
-              { ...current, ...prepared.current, ...(!initial || initial.deleted_at ? { tag_ids: tags } : {}), ...memo } as EntityCreate,
+              { ...current, ...prepared.current, ...memo } as EntityCreate,
               requestKey,
             );
           } catch (error) {
@@ -642,9 +635,11 @@ export function EntityForm({
                 )
                 : typeId && !schemaError && <p role="status">속성 정의를 불러오는 중…</p>}
             </section>
-            <section className="flex min-w-0 flex-col gap-5">
-              {initial ? <ReadonlyTags scope="entity" ids={initial.tag_ids} /> : <TagPicker disabled={frozen} scope="entity" value={tags} error={errors.tag_ids} onChange={setTags} />}
-            </section>
+            {(initial || archived) && (
+              <section className="flex min-w-0 flex-col gap-5">
+                <ReadonlyTags scope="entity" ids={(archived ?? initial)!.tag_ids} />
+              </section>
+            )}
             {relations}
             {details}
           </>
@@ -663,7 +658,6 @@ export function EntityForm({
           prepared.current = null;
           setTypeId(nextType!);
           setProperties({});
-          setTags([]);
           setExternal("");
           setSource("");
           setIdentityMessage("");
