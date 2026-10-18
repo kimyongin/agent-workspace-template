@@ -208,6 +208,7 @@ test(
       await expect(
         page.getByRole("textbox", { name: "자료 종류 이름", exact: true }),
       ).toHaveValue(label);
+      await expect(page.getByText("자료 종류를 읽는 중…", { exact: true })).toHaveCount(0);
       await page.screenshot({
         path: info.outputPath("actual-kind-created.png"),
         fullPage: true,
