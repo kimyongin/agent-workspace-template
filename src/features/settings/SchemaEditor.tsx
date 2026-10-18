@@ -1,4 +1,4 @@
-import { BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
+import { BusinessTable, BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 import { RadioGroup } from "@/components/ui/radio-group";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -366,7 +366,7 @@ export function SchemaEditor(
                           aria-label={`${f.title || "새 항목"} 항목 ${expanded ? "접기" : "펼치기"}`} aria-expanded={expanded} aria-controls={`schema-field-${key}`} onClick={toggleField}>
                           {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
                         </Button></BusinessDisclosureCell>
-                        <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-[max(2.75rem,44px)] max-w-full min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                        <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
                           aria-label={`${f.title || "새 항목"} 입력 항목 편집`} aria-expanded={expanded} aria-controls={`schema-field-${key}`}
                           onClick={() => {
                             toggleField();requestAnimationFrame(() => {
@@ -397,7 +397,7 @@ export function SchemaEditor(
                           </div>
 </BusinessCell>
                       </BusinessRow>
-                      <BusinessDetails hidden={!expanded} role="region" aria-label={`${f.title || "새 항목"} 입력 항목`}
+                      <BusinessDetails id={`schema-field-${key}`} hidden={!expanded} role="region" aria-label={`${f.title || "새 항목"} 입력 항목`}
                         ref={element => { fieldElements.current[key] = { ...fieldElements.current[key], body: element }; }}>
                                   <Field fullWidth label="항목 이름">
                                     {(nameProps) => (
@@ -414,7 +414,6 @@ export function SchemaEditor(
                                   </Field>
                         <FieldSet
                           className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
-                          id={`schema-field-${key}`}
                           hidden={!openFields.includes(key)}
                           disabled={Boolean(plan?.recovery)}
                         >
@@ -951,7 +950,7 @@ export function SchemaEditor(
                     <BusinessDisclosureCell><Button variant="ghost" size="icon" type="button" aria-label={`${title} ${new Date(row.createdAt).toLocaleString()} ${isOpen ? "접기" : "열기"}`} aria-expanded={isOpen} aria-controls={`schema-history-${row.id}`} disabled={historyDisabled} onClick={toggleHistory}>
                       {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
                     </Button></BusinessDisclosureCell>
-                    <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-[max(2.75rem,44px)] max-w-full min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                    <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
                       aria-label={`${title} 시각 ${new Date(row.createdAt).toLocaleString()} 상태 ${status}`} aria-expanded={isOpen} aria-controls={`schema-history-${row.id}`} disabled={historyDisabled} onClick={toggleHistory}>
                       {title}
                     </Button></h3></BusinessCell>
@@ -993,18 +992,16 @@ export function SchemaEditor(
                         <div className="flex flex-col gap-4">
                           {row.jobs.length > 1 && (
                             <nav aria-label="이 변경의 값 변환 이력">
-                              {row.jobs.map((job) => (
-                                <Link
-                                  key={job.id}
-                                  to={materialSettingsPath(
-                                    type.id,
-                                    location.search,
-                                    { job_id: job.id },
-                                  )}
-                                >
-                                  {new Date(job.created_at).toLocaleString()} · {migrationLabels[job.status]}
-                                </Link>
-                              ))}
+                              <BusinessTable label="변경별 값 변환 실행 목록" columns={["실행 시각", "상태"]} disclosureColumn={false}>
+                                {row.jobs.map(job => <BusinessRow key={job.id}>
+                                  <BusinessCell index={0}><Button asChild variant="link" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"><Link
+                                    to={materialSettingsPath(type.id, location.search, { job_id: job.id })}
+                                    aria-label={`${new Date(job.created_at).toLocaleString()} · ${migrationLabels[job.status]}`}>
+                                    <time dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time>
+                                  </Link></Button></BusinessCell>
+                                  <BusinessCell index={1}>{migrationLabels[job.status]}</BusinessCell>
+                                </BusinessRow>)}
+                              </BusinessTable>
                             </nav>
                           )}
                           {(isSelectedJob ||

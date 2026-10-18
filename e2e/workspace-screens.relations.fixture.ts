@@ -1,3 +1,4 @@
+import { businessRows } from "./table-actions.ts";
 import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
@@ -25,7 +26,7 @@ for (const width of [320, 390, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
     const section = form(page).getByRole("region", { name: "기록 (2개)", exact: true }),
-      rows = section.getByRole("listitem");
+      rows = businessRows(section.getByRole("table"));
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("상담 판단 정리");
     await expect(rows.last().getByRole("button", { name: title, exact: true })).toHaveCount(1);
@@ -308,8 +309,8 @@ for (const kind of ["tasks", "records"] as const) {
     await search.press("Enter");
     const result = form(page).getByRole("group", { name: "자료 검색 결과" });
     await result.getByRole("button", { name: "검색 대상 연결", exact: true }).click();
-    const selected = form(page).getByRole("list", { name: "선택한 자료", exact: true });
-    await expect(selected.getByRole("listitem")).toHaveCount(1);
+    const selected = form(page).getByRole("table", { name: "선택한 자료", exact: true });
+    await expect(businessRows(selected.getByRole("table"))).toHaveCount(1);
     expect((await selected.boundingBox())!.y).toBeGreaterThan((await search.boundingBox())!.y);
     await expect(executionDialog(page)).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
@@ -333,7 +334,7 @@ test("#185 빈 연결 개수만 표시·관계 카드 빈 공간은 이동하지
   });
   await page.reload();
   const link = form(page).getByRole("button", { name: "자료", exact: true }),
-    card = form(page).getByRole("listitem").filter({ has: page.getByRole("button", { name: "자료", exact: true }) });
+    card = businessRows(form(page).getByRole("table")).filter({ has: page.getByRole("button", { name: "자료", exact: true }) });
   await expect(card).toHaveCount(1);
   await card.click({ position: { x: 4, y: 4 } });
   await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));

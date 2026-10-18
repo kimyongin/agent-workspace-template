@@ -123,7 +123,7 @@ test("calendar uses display dates, keyboard month edges, partial pages and saved
   await expect(page).toHaveURL(/calendar_day=2026-10-08/);
   await expect(day).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "2026-10-01, 불러온 기록 20개", exact: true }).click();
-  await page.getByRole("radio", { name: "리스트", exact: true }).click();
+  await page.getByRole("radio", { name: "테이블", exact: true }).click();
   await page.getByRole("button", { name: "기록 0", exact: true }).click();
   await page.getByRole("radio", { name: "캘린더", exact: true }).click();
   await expect(day).toHaveAttribute("aria-pressed", "true");
@@ -147,7 +147,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
         expect(target!.width).toBeGreaterThanOrEqual(44); expect(target!.height).toBeGreaterThanOrEqual(44);
       }
       if (view === "table") for (const cell of await page.locator('[data-slot="table-cell"][class*="tabular-nums"]').all()) {
-        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe("right");
+        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe(width === 1440 ? "right" : "left");
         expect(await cell.evaluate(el => getComputedStyle(el).fontVariantNumeric)).toBe("tabular-nums");
       }
       await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
@@ -158,8 +158,8 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
   const modes = page.getByRole("radiogroup", { name: "할 일 보기 방식" });
   await modes.getByRole("radio", { name: "테이블" }).press("Home");
-  await expect(modes.getByRole("radio", { name: "리스트" })).toBeFocused();
-  const style = await modes.getByRole("radio", { name: "리스트" }).evaluate(el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; });
+  await expect(modes.getByRole("radio", { name: "테이블" })).toBeFocused();
+  const style = await modes.getByRole("radio", { name: "테이블" }).evaluate(el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; });
   expect(style.width).toBeGreaterThanOrEqual(44); expect(style.height).toBeGreaterThanOrEqual(44);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
@@ -170,17 +170,28 @@ test("table rows and headers share the same columns across wrapper types and vie
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 900 }); await page.goto(`/${kind}?view=table`);
     const table = page.getByRole("table").first();
-    await expect(table.getByRole("columnheader").first()).toBeVisible();
+    await expect(table.getByRole("columnheader").first()).toHaveCount(1);
     const geometry = await table.evaluate(table => {
-      const box = (el: Element) => ({ left: el.getBoundingClientRect().left, width: el.getBoundingClientRect().width });
-      return { columns: Array.from(table.querySelectorAll("thead th")).map(box), rows: Array.from(table.querySelectorAll("tbody tr")).filter(row => !row.querySelector("td[colspan]")).map(row => Array.from(row.children).map(box)) };
+      const box = (el: Element) => { const rect = el.getBoundingClientRect(); return { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width }; };
+      const headers = [...table.querySelectorAll<HTMLTableCellElement>("thead th")];
+      return { columns: headers.map(box), rows: [...table.querySelectorAll("tbody tr")].filter(row => !row.querySelector("td[colspan]")).map(row => ({ cells: [...row.children].map(box), labels: [...row.querySelectorAll<HTMLTableCellElement>(":scope > td")].slice(1).map((cell, index) => ({ actual: cell.headers, expected: headers[index + 1].id })) })) };
     });
     expect(geometry.rows.length).toBeGreaterThan(0);
     for (const row of geometry.rows) {
-      expect(row).toHaveLength(geometry.columns.length);
-      for (const [index, cell] of row.entries()) {
-        expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
-        expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
+      expect(row.cells).toHaveLength(geometry.columns.length);
+      for (const relation of row.labels) expect(relation.actual).toBe(relation.expected);
+      if (width === 1440) {
+        for (const [index, cell] of row.cells.entries()) {
+          expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
+          expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
+        }
+      } else {
+        const title = row.cells[1];
+        for (const [index, cell] of row.cells.slice(2).entries()) {
+          expect(Math.abs(cell.left - title.left)).toBeLessThan(1);
+          expect(Math.abs(cell.width - title.width)).toBeLessThan(1);
+          expect(cell.top).toBeGreaterThanOrEqual(row.cells[index + 1].bottom);
+        }
       }
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
@@ -189,8 +200,8 @@ test("table rows and headers share the same columns across wrapper types and vie
   const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
   await section.getByRole("radio", { name: "테이블", exact: true }).click();
   const table = section.getByRole("table");
-  await expect(table.getByRole("columnheader").first()).toBeVisible();
-  expect(await table.locator("thead tr").evaluate(el => Math.abs(el.getBoundingClientRect().width - el.closest("table")!.querySelector("tbody tr")!.getBoundingClientRect().width))).toBeLessThan(1);
+  await expect(table.getByRole("columnheader")).toHaveCount(2);
+  expect(await table.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
@@ -236,7 +247,7 @@ for (const action of ["delete", "create"] as const) test(`unavailable change tar
   const badge=action==="delete"?"삭제됨":"조회 불가";
   await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
   await expect(detail.getByRole("region",{name:"연결된 자료 (1개)"})).toBeVisible();
-  for(const view of ["리스트","카드","테이블"]){
+  for(const view of ["테이블","카드"]){
     await tasks.getByRole("radio",{name:view,exact:true}).click();
     await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
     const toggle=tasks.getByRole("button",{name:task.title,exact:true});
@@ -340,7 +351,7 @@ test("selected entity fields stay identical in every layout and expansion withou
   state.rows.entities.splice(0,state.rows.entities.length,selected);
   await page.route("**/api/entity-types/*/schema{,?**}",route=>route.fulfill({json:schema}));
   await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
-  for(const view of ["리스트","카드","테이블"]) {
+  for(const view of ["테이블","카드"]) {
     await page.getByRole("radio",{name:view,exact:true}).click();
     const collection = page.getByRole("region", { name: / 목록$/ });
     const row = view === "테이블"

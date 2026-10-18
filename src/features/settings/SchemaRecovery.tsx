@@ -1,3 +1,4 @@
+import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { Button } from "../../components/ui/button.tsx";
@@ -64,19 +65,19 @@ export function RecoveryConflictList({ conflicts }: { conflicts?: RecoveryConfli
   return (
     <section aria-label="복구 충돌 대상">
       <h3 className="text-base font-semibold">확인이 필요한 변경</h3>
-      <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+<BusinessTable label="복구 충돌 대상 목록" columns={["대상", "사유"]} disclosureColumn={false}>
         {conflicts.slice(0, 21).map((conflict, index) => {
           const id = conflictTarget(conflict.path);
           return (
-            <div className="col-span-full" key={`${conflict.path}-${index}`}>
-              <dt>
+            <BusinessRow key={`${conflict.path}-${index}`}>
+              <BusinessCell index={0}>
                 {id ? <Link to={entityPath(id)}>{schemaEntityLabel(id)}</Link> : conflictLabel(conflict.path)}
-              </dt>
-              <dd>{conflict.message}</dd>
-            </div>
+              </BusinessCell>
+              <BusinessCell index={1}>{conflict.message}</BusinessCell>
+            </BusinessRow>
           );
         })}
-      </dl>
+      </BusinessTable>
       <p className="text-sm text-muted-foreground">
         한 번에 최대 21개 사유를 표시합니다. 현재 자료와 연결을 확인한 뒤 보완하거나 새 변경안을 분석하세요.
       </p>

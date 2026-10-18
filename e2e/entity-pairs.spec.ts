@@ -1,3 +1,4 @@
+import { businessRows } from "./table-actions.ts";
 import { detailDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
@@ -59,7 +60,7 @@ test("정의한 관계만 표시하고 실제 101개 작성 연결을 더 보기
     for (const title of ["구성 001", "구성 101"]) {
       await expect(section.getByRole("button", { name: title, exact: true })).toBeVisible();
     }
-    await expect(section.getByRole("listitem")).toHaveCount(101);
+    await expect(businessRows(section.getByRole("table"))).toHaveCount(101);
     await page.screenshot({ path: info.outputPath("configured-relations-101.png"), fullPage: true });
   } finally {
     await mcp.close();

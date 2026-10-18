@@ -121,7 +121,7 @@ function PropertyList(
                 </BusinessDisclosureCell>
                 <BusinessCell index={0}>
                   <h3 className="min-w-0 wrap-anywhere">
-                    <Button variant="link" type="button" className="h-auto min-h-11 max-w-full min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                    <Button variant="link" type="button" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
                       aria-label={`${field.label || "새 항목"} ${[field.type === "text" ? "텍스트" : "숫자", field.required ? "필수" : null, field.representative ? "자료 이름" : null].filter(Boolean).join(" · ")}`}
                       aria-expanded={open} aria-controls={bodyId} onClick={() => {
                         toggle(field.id);
@@ -504,7 +504,7 @@ export function MaterialWorkspaceSample() {
                   <BusinessDisclosureCell><Button variant="ghost" type="button" size="icon" aria-label={`입력 항목 변경 ${plan.version} ${open ? "접기" : "열기"}`} aria-expanded={open} aria-controls={id} onClick={() => setExpanded(prior => open ? prior.filter(value => value !== plan.id) : [...prior, plan.id])}>
                     {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
                   </Button></BusinessDisclosureCell>
-                  <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-11 max-w-full min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                  <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
                     aria-label={`입력 항목 변경 시각 2026. 10. 14. 오후 12:51:12 상태 버전 ${plan.version} · ${plan.status === "applied" ? "적용됨" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}`}
                     aria-expanded={open} aria-controls={id} onClick={() => setExpanded(prior => open ? prior.filter(value => value !== plan.id) : [...prior, plan.id])}>입력 항목 변경</Button></h3></BusinessCell>
                   <BusinessCell index={1}><time dateTime="2026-10-14T03:51:12Z">2026. 10. 14. 오후 12:51:12</time></BusinessCell>

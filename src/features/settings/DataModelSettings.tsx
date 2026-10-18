@@ -194,13 +194,15 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
               <dt>기본 번호 출처</dt>
               <dd>{item.identity.default_source}</dd>
             </div>
-            {item.identity.sources.map((source) => (
-              <div key={source.code}>
-                <dt>{source.code}</dt>
-                <dd>{source.rule_id} · {source.active ? "사용" : "중지"}</dd>
-              </div>
-            ))}
+
           </dl>
+          <BusinessTable label="가져올 번호 출처 목록" columns={["번호 출처", "번호 종류", "사용"]} disclosureColumn={false}>
+            {item.identity.sources.map(source => <BusinessRow key={source.code}>
+              <BusinessCell index={0}>{source.code}</BusinessCell>
+              <BusinessCell index={1}>{source.rule_id}</BusinessCell>
+              <BusinessCell index={2}>{source.active ? "사용" : "중지"}</BusinessCell>
+            </BusinessRow>)}
+          </BusinessTable>
           {item.current_identity && (
             <Collapsible>
               <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">현재 번호 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
@@ -213,13 +215,15 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
                   <dt>기본 번호 출처</dt>
                   <dd>{item.current_identity.default_source}</dd>
                 </div>
-                {item.current_identity.sources.map((source) => (
-                  <div key={source.code}>
-                    <dt>{source.code}</dt>
-                    <dd>{source.rule_id} · {source.active ? "사용" : "중지"}</dd>
-                  </div>
-                ))}
+
               </dl>
+              <BusinessTable label="현재 번호 출처 목록" columns={["번호 출처", "번호 종류", "사용"]} disclosureColumn={false}>
+                {item.current_identity.sources.map(source => <BusinessRow key={source.code}>
+                  <BusinessCell index={0}>{source.code}</BusinessCell>
+                  <BusinessCell index={1}>{source.rule_id}</BusinessCell>
+                  <BusinessCell index={2}>{source.active ? "사용" : "중지"}</BusinessCell>
+                </BusinessRow>)}
+              </BusinessTable>
             </CollapsibleContent></Collapsible>
           )}
         </section>
@@ -269,15 +273,15 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
         </div>
       )}
       {item.diff.length > 0 && (
-        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+<BusinessTable label="모델 변경값 목록" columns={["설정", "변경 전후"]} disclosureColumn={false}>
           {item.diff.map((d, i) => (
-            <div key={i}>
-              <dt>
+            <BusinessRow key={i}>
+              <BusinessCell index={0}>
                 {item.schema
                   ? schemaDiffLabel(d.path, { schema: item.schema }, { schema: item.current_schema ?? item.schema })
                   : d.path}
-              </dt>
-              <dd>
+              </BusinessCell>
+              <BusinessCell index={1}>
                 {d.before_present
                   ? item.schema
                     ? schemaDiffValueLabel(d.path, d.before, { schema: item.current_schema ?? item.schema })
@@ -287,10 +291,10 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
                     ? schemaDiffValueLabel(d.path, d.after, { schema: item.schema })
                     : JSON.stringify(d.after)
                   : "설정 안 함"}
-              </dd>
-            </div>
+              </BusinessCell>
+            </BusinessRow>
           ))}
-        </dl>
+        </BusinessTable>
       )}
     </IssuerRow>
   );

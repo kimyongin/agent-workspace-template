@@ -506,6 +506,7 @@ test("single-choice and record-action samples preserve keyboard meaning and hidd
 test("filter sample keeps drafts until common apply and reuses the tag modal", async ({ page }, info) => {
   await page.goto("/design-samples/index.html?screen=filters");
   const list = page.getByRole("region", { name: "적용된 조건의 자료 목록", exact: true });
+  await expect(list.getByRole("table", { name: "필터 결과 예시", exact: true })).toBeVisible();
   await expect(list.getByRole("heading")).toHaveText("자료 · 3개");
   const apply = page.getByRole("button", { name: "필터 적용", exact: true });
   await apply.click();

@@ -1,3 +1,4 @@
+import { businessRows } from "./table-actions.ts";
 import { listHeader } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
@@ -60,7 +61,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(filters.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true })).toBeHidden();
       await expect(filters.getByRole("combobox")).toHaveCount(0);
       if (kind === "entities") await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
-      await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first()).toBeVisible();
+      await expect(businessRows(page.getByRole("region", { name: / 목록$/ }).getByRole("table")).first()).toBeVisible();
       const beforeReads = reads;
       await summary.focus();
       await summary.press("Enter");

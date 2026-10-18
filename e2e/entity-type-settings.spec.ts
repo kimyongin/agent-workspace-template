@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { entitySchemaPresentation } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
@@ -101,13 +102,13 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     expect(renamed.schema_version).toBe(3);
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await history.getByRole("button", { name: /^변경 이력/ }).click();
-    const row = history.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({ hasText: "버전 1 · 적용됨" });
+    const row = businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({ hasText: "버전 1 · 적용됨" });
     await expect(row).toHaveCount(1);
-    await row.getByRole("button", { name: /^최초 생성/ }).click();
+    await row.getByRole("button", { name: /^최초 생성 시각/ }).click();
     await expect(page).toHaveURL(/schema_version=1/);
     const assertPublishedDefinition = async () => {
       const definition = history.getByRole("region", { name: "입력 항목 정의", exact: true });
-      const field = definition.getByRole("region", { name: "대표 이름 정의", exact: true });
+      const field = definition.getByRole("row", { name: "대표 이름 정의", exact: true });
       await expect(field).toBeVisible();
       for (
         const [name, value] of [
@@ -119,11 +120,11 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
           ["최대 길이", "4096자"],
         ]
       ) {
-        await expect(field.locator("dl > div").filter({ has: page.getByText(name, { exact: true }) }).locator("dd"))
-          .toHaveText(value);
+        await expect((await valueCell(field, name)).getByText(value, { exact: true })).toBeVisible();
       }
       await expect(definition.locator("input,select,textarea")).toHaveCount(0);
-      await expect(row.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
+      const content = await disclosureContent(page, row.getByRole("button", { name: /^최초 생성 시각/ }));
+      await expect(content.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
       const published = await mcp.call("get_entity_schema", { type_id: typeId, schema_version: 1 });
       expect({
         type_id: published.type_id,
@@ -279,7 +280,7 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
     await expect(history.getByRole("button", { name: "변경 이력 다시 조회", exact: true })).toBeEnabled();
     const inputToggle = page.getByRole("button", { name: "입력 항목", exact: true });
     if (await inputToggle.getAttribute("aria-expanded") === "false") await inputToggle.click();
-    const renderedFields = page.getByRole("list", { name: "입력 항목 목록", exact: true }).getByRole("region");
+    const renderedFields = page.getByRole("table", { name: "입력 항목 목록", exact: true }).getByRole("region");
     await expect(renderedFields).toHaveCount(3);
     await expect(renderedFields.nth(0)).toHaveAttribute("aria-label", "상품명 입력 항목");
     await expect(renderedFields.nth(1)).toHaveAttribute("aria-label", "이름 입력 항목");

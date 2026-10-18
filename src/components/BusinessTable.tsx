@@ -99,7 +99,7 @@ export function BusinessTable({ columns, numericColumns = [], label, children, d
             <TableRow role="row">
               {disclosureColumn && <TableHead scope="col"><span className="sr-only">펼침</span></TableHead>}
               {columns.map((column, index) => (
-                <TableHead key={index} id={`${heading}-${index}`} scope="col" className={cn("whitespace-normal", numericColumns.includes(index) && "text-right")}>
+                <TableHead key={index} id={`${heading}-${index}`} scope="col" className={cn("whitespace-normal text-xs font-normal text-muted-foreground", numericColumns.includes(index) && "text-right")}>
                   {column}
                 </TableHead>
               ))}

@@ -327,6 +327,14 @@ test("type identity cancel and explicit conflict resolution preserve the local n
 });
 test("referenced rules are read only and stopping support does not delete the binding or change default silently", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!), form = await identityEditor(page);
+  const table = form.getByRole("table", { name: "사용할 번호 출처 목록", exact: true });
+  await expect(table).toBeVisible();
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(table.getByRole("checkbox", { name: "쿠팡", exact: true })).toBeVisible();
+    expect(await table.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  }
   await expect(form.getByLabel("쿠팡 번호 종류")).toHaveCount(0);
   await expect(form.getByLabel("사용 중인 번호 종류 · 변경 불가")).toBeVisible();
   await form.getByLabel("쿠팡", { exact: true }).uncheck();
@@ -444,6 +452,11 @@ test("default policy refusal preserves the draft and resolves affected types wit
   await expect(modal.getByRole("alert")).toContainText("기본 번호 출처를 먼저 변경하세요");
   await expect(modal.getByLabel("이름")).toHaveValue("내 쿠팡");
   await expect(modal.getByRole("button", { name: "최신 저장값 확인" })).toHaveCount(0);
+  const affected = modal.getByRole("table", { name: "기본 출처 변경이 필요한 자료 종류", exact: true });
+  await expect(affected).toBeVisible();
+  await expect(affected).toContainText("상품");
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(await affected.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   await modal.getByRole("button", { name: "상품 기본 번호 출처 변경", exact: true }).click();
   await expect(modal.getByLabel("상품 기본 번호 출처", { exact: true })).toBeFocused();
   await modal.getByLabel("상품 기본 번호 출처", { exact: true }).selectOption("app");

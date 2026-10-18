@@ -1,3 +1,4 @@
+import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, FieldSet, FieldLabel } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -229,6 +230,7 @@ export function IssuerRegistryEditor(
       </Button>
     </>
   );
+  const blockedChoices = blockedTypes.filter(type => type.type_id !== repairing?.type_id);
   const content = (
     <>
       <form
@@ -247,16 +249,12 @@ export function IssuerRegistryEditor(
         {error && <Alert variant="destructive" className="text-sm text-destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
         {blockedTypes.length > 0 && (
           <FieldGroup className="min-w-0">
-            {blockedTypes.filter((type) => type.type_id !== repairing?.type_id)
-              .map((type) => (
-                <Button variant="ghost" type="button"
-                  key={type.type_id}
-                  disabled={busy || uncertain}
-                  onClick={() => setRepairing(type)}
-                >
-                  {type.label} 기본 번호 출처 변경
-                </Button>
-              ))}
+            {blockedChoices.length > 0 && <BusinessTable label="기본 출처 변경이 필요한 자료 종류" columns={["자료 종류", "조작"]} disclosureColumn={false}>
+              {blockedChoices.map(type => <BusinessRow key={type.type_id}>
+                <BusinessCell index={0}>{type.label}</BusinessCell>
+                <BusinessCell index={1}><Button variant="ghost" type="button" aria-label={`${type.label} 기본 번호 출처 변경`} disabled={busy || uncertain} onClick={() => setRepairing(type)}>기본 번호 출처 변경</Button></BusinessCell>
+              </BusinessRow>)}
+            </BusinessTable>}
             {repairing && (
               <DefaultIssuerRepair
                 key={repairing.type_id}

@@ -8,7 +8,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Fragment } from "react";
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { BusinessTable, BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "../../components/BusinessTable.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
@@ -17,6 +19,7 @@ import { api } from "../../lib/api.ts";
 export function IndexingIssues({ count, disabled = false }: { count: number; disabled?: boolean }) {
   const id = useId();
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [page, setPage] = useState<IndexingIssuesPage | null>(null);
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
   const [position, setPosition] = useState(0);
@@ -94,18 +97,21 @@ export function IndexingIssues({ count, disabled = false }: { count: number; dis
                 </EmptyHeader>
               </Empty>
             )}
-            <Accordion type="multiple" className="min-w-0">
-              {page.items.map((issue) => (
-                <AccordionItem key={issue.id} value={issue.id}>
-                  <AccordionTrigger className="min-w-0">
-                    <span className="flex min-w-0 flex-wrap items-center gap-2 text-left">
-                      <span className="min-w-0 wrap-anywhere whitespace-pre-wrap">
-                        {issue.title || "제목 없는 기록"}
-                      </span>
-                      <Badge variant="secondary">{indexingReasonLabels[issue.reason]}</Badge>
-                    </span>
-                  </AccordionTrigger>
-                  <AccordionContent className="flex flex-col gap-3">
+            <BusinessTable label="색인 문제 항목" columns={["대상", "상태"]}>
+              {page.items.map((issue) => {
+                const isOpen = expanded.includes(issue.id);
+                const title = issue.title || "제목 없는 기록";
+                const panel = `${id}-${issue.id}`;
+                const toggleIssue = () => setExpanded(prior => isOpen ? prior.filter(value => value !== issue.id) : [...prior, issue.id]);
+                return <Fragment key={issue.id}>
+                  <BusinessRow>
+                    <BusinessDisclosureCell><Button variant="ghost" size="icon" type="button" aria-label={`${isOpen ? "접기" : "열기"}: ${title}`} aria-controls={panel} aria-expanded={isOpen} onClick={toggleIssue}>
+                      {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                    </Button></BusinessDisclosureCell>
+                    <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere" aria-label={`${title} ${indexingReasonLabels[issue.reason]}`} aria-controls={panel} aria-expanded={isOpen} onClick={toggleIssue}>{title}</Button></h3></BusinessCell>
+                    <BusinessCell index={1}><Badge variant="secondary" className="h-auto max-w-full whitespace-normal wrap-anywhere">{indexingReasonLabels[issue.reason]}</Badge></BusinessCell>
+                  </BusinessRow>
+                  <BusinessDetails hidden={!isOpen} id={panel}>
                     <p>{indexingReasonExplanations[issue.reason]}</p>
                     {issue.chunks.unknown > 0 && (
                       <Alert>
@@ -128,10 +134,11 @@ export function IndexingIssues({ count, disabled = false }: { count: number; dis
                         </div>
                       ))}
                     </dl>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+
+                  </BusinessDetails>
+                </Fragment>;
+              })}
+            </BusinessTable>
             <nav className="flex flex-wrap items-center justify-between gap-2" aria-label="색인 문제 페이지">
               <Button variant="outline" disabled={busy || position === 0} onClick={() => setPosition(position - 1)}>
                 이전

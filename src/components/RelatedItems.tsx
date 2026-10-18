@@ -106,10 +106,10 @@ export function RelatedItem(
   const layout = useItemLayout(), table = layout?.view === "table";
   const label = titleLabel ?? (layout?.columns[0] !== "내용" ? layout?.columns[0] : undefined) ??
     (to?.startsWith("/records/") ? "본문 대표 문구" : to?.startsWith("/tasks/") ? "제목" : "자료 이름");
-  const titleButton = <Button data-list-anchor={id ? "" : undefined} id={heading} type="button" variant="link" className="h-auto min-h-[max(2.75rem,44px)] min-w-0 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
+  const titleButton = <Button data-list-anchor={id ? "" : undefined} id={heading} type="button" variant="link" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
     aria-expanded={disclosure?.expanded} aria-controls={disclosure ? panel : undefined} onClick={table ? disclosure?.toggle : undefined}>{title}</Button>;
   const titleContent = disclosure ? (table ? titleButton : <CollapsibleTrigger asChild>{titleButton}</CollapsibleTrigger>)
-    : to ? <Button asChild variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"><DetailLink data-list-anchor={id ? "" : undefined} id={heading} to={to} aria-label={title} restoreKey={restoreKey}>{title}</DetailLink></Button>
+    : to ? <Button asChild variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"><DetailLink data-list-anchor={id ? "" : undefined} id={heading} to={to} aria-label={title} restoreKey={restoreKey}>{title}</DetailLink></Button>
     : <span id={heading} className="font-medium wrap-anywhere">{title}</span>;
   const Icon = disclosure?.expanded ? ChevronDownIcon : ChevronRightIcon;
   const toggle = disclosure && <Button type="button" variant="ghost" size="icon" aria-label={`${title} ${disclosure.expanded ? "접기" : "열기"}`}
@@ -131,10 +131,10 @@ export function RelatedItem(
       {metadataContent}{previewContent}{disclosure && action && <div className="flex flex-wrap items-center gap-2">{action}</div>}
     </BusinessDetails>}
   </>;
-  const item = <Item variant={layout?.view === "cards" ? "outline" : "default"} className="@container min-w-0 flex-col items-stretch">
+  const item = <Item variant="outline" className="@container min-w-0 flex-col flex-nowrap items-stretch">
     <ItemHeader className="flex-wrap items-start">{titleData}{actions}</ItemHeader>
     <ItemContent className="min-w-0">
-      {cells.length > 0 && <dl className="grid min-w-0 grid-cols-1 gap-3 @md:grid-cols-2">
+      {cells.length > 0 && <dl className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] gap-4">
         {(layout?.columns.slice(1) ?? cells.map(() => "값")).map((column, index) => <div key={column} className="min-w-0"><dt className="text-xs text-muted-foreground">{column}</dt><dd className="wrap-anywhere">{cells[index] ?? "—"}</dd></div>)}
       </dl>}
       {summary && cells.length === 0 && <div className="min-w-0 text-muted-foreground">{summary}</div>}

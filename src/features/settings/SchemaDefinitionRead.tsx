@@ -126,7 +126,7 @@ export function SchemaDefinitionRead(
         {rows.map((row) => (
           <BusinessRow key={row.key} aria-label={`${row.title} 정의`}>
             {columns.map((column, index) => (
-              <BusinessCell key={column} index={index}>{row.values.get(column) ?? "설정 안 함"}</BusinessCell>
+              <BusinessCell key={column} index={index}>{row.values.get(column) ?? (column === "사용 상태" ? "사용 중" : "설정 안 함")}</BusinessCell>
             ))}
           </BusinessRow>
         ))}

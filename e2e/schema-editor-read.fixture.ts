@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { revealSetting } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import type { EntitySchemaChange, SchemaEdit } from "../supabase/functions/_shared/contracts/entity-schema-change.ts";
@@ -406,7 +407,7 @@ test("속성 요약에서 열린 행의 입력을 검토하고 행 완료와 적
   await page.getByRole("button", { name: "입력 항목", exact: true })
     .click();
   await page.locator(
-    "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
+    "[role=\"row\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
   await expect(page.getByLabel("항목 이름", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: /^검토할 이름 항목 (?:펼치기|접기)$/, exact: true }).click();
@@ -423,7 +424,7 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("1.5");
   await page.locator(
-    "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
+    "[role=\"row\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
   await expect(page.getByRole("button", { name: "이름 항목 펼치기", exact: true })).toBeFocused();
   await expect(page.getByLabel("최대 길이", { exact: true })).toBeHidden();
@@ -436,9 +437,9 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("20");
   await page.locator(
-    "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
+    "[role=\"row\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
-  await expect(page.getByRole("region", { name: "이름 입력 항목", exact: true }).locator("[data-slot=\"card-header\"]"))
+  await expect(page.getByRole("row", { name: "이름 입력 항목", exact: true }))
     .toContainText("변경됨");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
@@ -465,7 +466,7 @@ test("서버가 거부한 속성은 검토 실패 뒤 해당 행을 열고 초�
   await revealSetting(page.getByLabel("최소 길이", { exact: true }));
   await page.getByLabel("최소 길이", { exact: true }).fill("2");
   await page.locator(
-    "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
+    "[role=\"row\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("대표 입력 항목 조건");
@@ -871,18 +872,19 @@ test("변경 이력 통합: 모두 접기·초안 유지·검토 자동 펼침·
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("수정한 이름");
   await input.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(input.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "false");
-  const row = history.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])");
+  const row = businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true }));
   await expect(row).toHaveCount(1);
-  await expect(row.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
-  await expect(row).toContainText("수정한 이름");
+  const content = await disclosureContent(page, row.getByRole("button", { name: /^입력 항목 변경 시각/ }));
+  await expect(content.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
+  await expect(content).toContainText("수정한 이름");
   await history.getByRole("button", { name: /^변경 이력/ }).first().click();
   await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toBeHidden();
   await history.getByRole("button", { name: /^변경 이력/ }).first().click();
-  await row.getByRole("button", { name: "폐기", exact: true }).click();
+  await content.getByRole("button", { name: "폐기", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경안을 폐기할까요?" }).getByRole("button", { name: "폐기", exact: true })
     .click();
   await expect(row).toContainText("폐기됨");
-  await expect(row.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
+  await expect(content.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
   expect(writes).toBe(1);
   await history.getByRole("button", { name: /^변경 이력/ }).first().click();
   await expect(page.getByRole("button", { name: "항목 편집", exact: true })).toBeHidden();
@@ -952,13 +954,13 @@ test("변경 이력 첫 페이지를 갱신해도 펼친 과거 변경과 다음
     });
   });
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(1);
+  await expect(businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true }))).toHaveCount(1);
   await page.getByRole("button", { name: "이전 변경안 더 보기", exact: true }).click();
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
+  await expect(businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true }))).toHaveCount(2);
   await page.getByRole("button", { name: "변경 이력 다시 조회", exact: true }).click();
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
+  await expect(businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true }))).toHaveCount(2);
   await page.getByRole("button", { name: "이전 변경안 더 보기", exact: true }).click();
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(3);
+  await expect(businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true }))).toHaveCount(3);
   expect(cursors.filter(Boolean)).toEqual(["b", "a"]);
 });
 
@@ -1002,7 +1004,7 @@ test("template-stale review creates a separate latest plan from the retained con
     "href",
     /change_id=latest/,
   );
-  await expect(history.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
+  await expect(businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true }))).toHaveCount(2);
   expect(creates).toHaveLength(1);
   expect(creates[0].migration).toEqual({
     rules: [{ op: "fill", key: "prop_1", value: "남길 보완값", include_null: false }],
