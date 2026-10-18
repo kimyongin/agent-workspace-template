@@ -211,6 +211,47 @@ test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인�
   await settings(page); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); expect(calls).toBe(1);
 });
 
+test("떠난 로그아웃의 늦은 성공은 보호 화면의 로그인 복귀 경로를 덮지 않는다", async ({ page }) => {
+  let release!: () => void, arrived!: () => void;
+  let calls = 0;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { arrived = resolve; });
+  await page.route("**/auth/v1/logout*", async route => {
+    calls++;
+    arrived();
+    await waiting;
+    await route.fulfill({ status: 204 });
+  });
+  await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
+  const original = fixtureWorkspacePath("/settings?logout_return=1#settings-profile");
+  await page.goto(original);
+  await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+  await requestLogout(page);
+  await started;
+  try {
+    await expect(page).toHaveURL(/\/logout$/);
+    await page.goBack();
+    await expect(page).toHaveURL(new URL(original, page.url()).href);
+    await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+    release();
+    await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
+    expect(await page.evaluate(async () => {
+      const path = "/src/lib/supabase.ts";
+      const { supabase } = await import(path);
+      const { data } = await supabase.auth.getSession();
+      return { actor: data.session?.user.id ?? null, stored: localStorage.getItem("sb-127-auth-token") };
+    })).toEqual({ actor: null, stored: null });
+    await expect(page).toHaveURL(new URL(`/login?next=${encodeURIComponent(original)}`, page.url()).href);
+    await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toHaveCount(0);
+    await signIn(page);
+    await expect(page).toHaveURL(new URL(original, page.url()).href);
+    await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+    expect(calls).toBe(1);
+  } finally {
+    release();
+  }
+});
+
 test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ page }) => {
   await page.goto(fixtureWorkspacePath("/guide"));
   await page.getByText("설치·연결 정보",{exact:true}).click();
