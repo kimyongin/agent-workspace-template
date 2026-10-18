@@ -70,7 +70,7 @@ for (
         assertEquals((await inWorkspace(sql, foreign, (tx) => tx`delete from app.tasks where id=${id}`)).count, 0);
         assertMatch(
           await outcome(rawWorkspace(sql, foreign, insertTask(a.workspaceId))),
-          /^23514 workspace_model_anchor_required/,
+          /^42501 workspace_denied/,
         );
       }
       assertEquals((await inWorkspace(sql, a, (tx) => tx`select id from app.tasks where id=${id}`)).length, 1);
