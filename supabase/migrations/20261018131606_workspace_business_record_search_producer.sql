@@ -13,14 +13,14 @@ begin
  -- workspace authority here never acquires another account after domain locks.
  perform app.authorize_workspace('[]'::jsonb);
  select r.entity_id,r.task_id into parent_entity,parent_task from app.records r where r.workspace_id=w and r.id=p_id;
- if not found then raise exception 'workspace_denied' using errcode='42501';end if;
+ if not found then raise exception 'search_source_missing' using errcode='23503';end if;
  if parent_entity is not null then
   select jsonb_build_array(jsonb_build_object('target_kind','entity_type','target_id',e.entity_type_id::text,'access','write'))
    into required from app.entities e where e.workspace_id=w and e.id=parent_entity;
  else
   required:='[{"target_kind":"tasks","target_id":"*","access":"write"}]'::jsonb;
  end if;
- if required is null then raise exception 'workspace_denied' using errcode='42501';end if;
+ if required is null then raise exception 'search_source_missing' using errcode='23503';end if;
  perform app.authorize_workspace(required);
  select r.* into parent from app.records r where r.workspace_id=w and r.id=p_id for update;
  actual_hash:=encode(extensions.digest(parent.body,'sha256'),'hex');
