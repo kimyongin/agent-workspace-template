@@ -209,5 +209,7 @@ test("business relation reader sees linked preview without settings or mutation 
   await expect(section.getByRole("button", { name: "변경", exact: true })).toHaveCount(0);
   await expect(section.getByRole("button", { name: "해제", exact: true })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => document.getAnimations().filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
-  await info.attach("business-relation-readonly-preview", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+  const capturePath = info.outputPath("business-relation-readonly-preview.png");
+  await page.screenshot({ path: capturePath, fullPage: true });
+  await info.attach("business-relation-readonly-preview", { path: capturePath, contentType: "image/png" });
 });
