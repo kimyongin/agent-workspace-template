@@ -130,8 +130,9 @@ test.beforeEach(async ({ page, baseURL }) => {
 
 test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 진행 조회로 완료한다", async ({ page }, info) => {
   let model = structuredClone(initial), analyses = 0, queuedReads = 0;
+  let releaseAnalysis: (() => void) | undefined;
   const writes: string[] = [];
-  await page.route("**/api/data-model/**", (route) => {
+  await page.route("**/api/data-model/**", async (route) => {
     const req = route.request(), path = new URL(req.url()).pathname;
     if (req.method() === "POST") {
       expect(req.headers()["idempotency-key"]).toBeTruthy();
@@ -142,6 +143,7 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
         expect(body.expected_version).toBe(model.version);
         expect(body.conversions[0].migration.rules).toEqual([{ op: "convert", key: "prop_2", to: "integer" }]);
         if (analyses === 2) {
+          await new Promise<void>((resolve) => { releaseAnalysis = resolve; });
           expect(body.conversions[0].migration.overrides).toEqual([{
             entity_id: "app:product-id:one",
             key: "prop_2",
@@ -205,8 +207,51 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
   await expect(page.getByText("정수 입력이 필요합니다", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "보완값 지정", exact: true }).click();
   await page.getByRole("textbox", { name: "보완값", exact: true }).fill("4");
+  const originalViewport = page.viewportSize()!;
+  for (const [width, zoom] of [[320, 1], [390, 1], [320, 2]] as const) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.evaluate((scale) => { document.documentElement.style.zoom = String(scale); }, zoom);
+    const outerTitle = page.getByRole("heading", { name: "재고 모델 값 변환 필요", exact: true });
+    const childTitle = page.getByRole("heading", { name: "상품 변환 대상 2개 · 실패 1개", exact: true });
+    await expect.poll(async () => {
+      const outer = await outerTitle.boundingBox(), child = await childTitle.boundingBox();
+      return outer && child ? Math.abs(child.x - outer.x) : Infinity;
+    }).toBeLessThanOrEqual(2);
+    const correction = page.getByRole("textbox", { name: "보완값", exact: true });
+    await expect(correction).toHaveValue("4");
+    const bounds = await correction.boundingBox(), outer = await outerTitle.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(outer).not.toBeNull();
+    expect(bounds!.width).toBeGreaterThanOrEqual(Math.max(44 * zoom, outer!.width - 32 * zoom));
+    expect(bounds!.height).toBeGreaterThanOrEqual(44 * zoom);
+    expect(await page.evaluate(() => [...document.querySelectorAll("table")].filter((table) =>
+      table.scrollWidth > table.clientWidth + 1).map((table) => ({
+        label: table.getAttribute("aria-label"), width: table.clientWidth, content: table.scrollWidth,
+      })))).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const correctionState = page.getByRole("combobox", { name: "보완값 상태", exact: true });
+    await expect(correctionState).toHaveText("값 지정");
+    await correctionState.focus();
+    await correctionState.press("Enter");
+    await expect(page.getByRole("option", { name: "값 지정", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(correctionState).toBeFocused();
+    await expect(correction).toHaveValue("4");
+    await correction.scrollIntoViewIfNeeded();
+    await page.getByRole("group", { name: "수량 직접 보완", exact: true }).screenshot({
+      path: info.outputPath(`group-correction-input-${width}-${zoom}.png`),
+    });
+    await page.screenshot({ path: info.outputPath(`group-correction-${width}-${zoom}.png`), fullPage: true });
+  }
+  await page.evaluate(() => { document.documentElement.style.zoom = ""; });
+  await page.setViewportSize(originalViewport);
   await page.screenshot({ path: info.outputPath("group-correction.png"), fullPage: true });
   await page.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
+  await expect.poll(() => Boolean(releaseAnalysis)).toBe(true);
+  await expect(page.getByRole("combobox", { name: "보완값 상태", exact: true })).toBeDisabled();
+  await expect(page.getByRole("textbox", { name: "보완값", exact: true })).toBeDisabled();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  releaseAnalysis!();
   await page.getByRole("button", { name: "검토한 설정 적용", exact: true }).click();
   await expect(page.getByText("요청한 작업을 진행하고 있습니다.", { exact: false })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();

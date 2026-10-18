@@ -20,6 +20,7 @@ const layouts = {
     label: "@max-[64rem]/business:block",
     disclosure: "@max-[64rem]/business:col-start-1 @max-[64rem]/business:row-start-1",
     details: "@max-[64rem]/business:pl-2",
+    nested: "@max-[64rem]/business:-ml-[calc(4rem+1px)]",
   },
   wide: {
     table: "@max-[128rem]/business:block",
@@ -37,6 +38,7 @@ const layouts = {
     label: "@max-[128rem]/business:block",
     disclosure: "@max-[128rem]/business:col-start-1 @max-[128rem]/business:row-start-1",
     details: "@max-[128rem]/business:pl-2",
+    nested: "@max-[128rem]/business:-ml-[calc(4rem+1px)]",
   },
   many: {
     table: "@max-[192rem]/business:block",
@@ -54,6 +56,7 @@ const layouts = {
     label: "@max-[192rem]/business:block",
     disclosure: "@max-[192rem]/business:col-start-1 @max-[192rem]/business:row-start-1",
     details: "@max-[192rem]/business:pl-2",
+    nested: "@max-[192rem]/business:-ml-[calc(4rem+1px)]",
   },
   extensive: {
     table: "@max-[512rem]/business:block",
@@ -71,10 +74,14 @@ const layouts = {
     label: "@max-[512rem]/business:block",
     disclosure: "@max-[512rem]/business:col-start-1 @max-[512rem]/business:row-start-1",
     details: "@max-[512rem]/business:pl-2",
+    nested: "@max-[512rem]/business:-ml-[calc(4rem+1px)]",
   },
 };
 type TableLayout = typeof layouts.regular;
 
+// Nested disclosures reuse the 3.5rem gutter, 0.5rem cell inset, and 1px border.
+// Repeated indentation would otherwise narrow editors at each level.
+const DetailsGutter = createContext(false);
 const TableColumns = createContext<{ columns: string[]; numeric: number[]; heading: string; disclosureColumn: boolean; style: TableLayout } | null>(null);
 
 /** One semantic table; narrow containers reflow the same cells without hiding values. */
@@ -86,28 +93,32 @@ export function BusinessTable({ columns, numericColumns = [], label, children, d
   disclosureColumn?: boolean;
 }) {
   const heading = useId();
+  const parent = useContext(TableColumns);
+  const sharesGutter = useContext(DetailsGutter) && disclosureColumn;
   const style = columns.length <= 7 ? layouts.regular : columns.length <= 12 ? layouts.wide : columns.length <= 20 ? layouts.many : layouts.extensive;
   return (
     <TableColumns.Provider value={{ columns, numeric: numericColumns, heading, disclosureColumn, style }}>
-      <div className="@container/business min-w-0 rounded-lg border [&>[data-slot=table-container]]:overflow-visible">
-        <Table role="table" aria-label={label} className={cn("table-fixed", style.table)}>
-          <colgroup className={style.colgroup}>
-            {disclosureColumn && <col className="w-14" />}
-            {columns.map((column, index) => <col key={index} className={index === 0 && columns.length > 1 ? "w-2/5" : undefined} />)}
-          </colgroup>
-          <TableHeader role="rowgroup" className={style.header}>
-            <TableRow role="row">
-              {disclosureColumn && <TableHead scope="col"><span className="sr-only">펼침</span></TableHead>}
-              {columns.map((column, index) => (
-                <TableHead key={index} id={`${heading}-${index}`} scope="col" className={cn("whitespace-normal text-xs font-normal text-muted-foreground", numericColumns.includes(index) && "text-right")}>
-                  {column}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody role="rowgroup" className={style.body}>{children}</TableBody>
-        </Table>
-      </div>
+      <DetailsGutter.Provider value={false}>
+        <div className={cn("@container/business min-w-0 rounded-lg border [&>[data-slot=table-container]]:overflow-visible", sharesGutter && parent?.style.nested)}>
+          <Table role="table" aria-label={label} className={cn("table-fixed", style.table)}>
+            <colgroup className={style.colgroup}>
+              {disclosureColumn && <col className="w-14" />}
+              {columns.map((column, index) => <col key={index} className={index === 0 && columns.length > 1 ? "w-2/5" : undefined} />)}
+            </colgroup>
+            <TableHeader role="rowgroup" className={style.header}>
+              <TableRow role="row">
+                {disclosureColumn && <TableHead scope="col"><span className="sr-only">펼침</span></TableHead>}
+                {columns.map((column, index) => (
+                  <TableHead key={index} id={`${heading}-${index}`} scope="col" className={cn("whitespace-normal text-xs font-normal text-muted-foreground", numericColumns.includes(index) && "text-right")}>
+                    {column}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody role="rowgroup" className={style.body}>{children}</TableBody>
+          </Table>
+        </div>
+      </DetailsGutter.Provider>
     </TableColumns.Provider>
   );
 }
@@ -148,7 +159,9 @@ export function BusinessDetails({ children, hidden, ...props }: React.ComponentP
   return (
     <BusinessRow hidden={hidden} className={hidden ? "hidden!" : undefined}>
       <TableCell role="cell" colSpan={(layout?.columns.length ?? 1) + (layout?.disclosureColumn === false ? 0 : 1)} className={cn("whitespace-normal @max-[16rem]/business:pr-0", style.details, layout?.disclosureColumn === false ? style.first : cn("pl-16", style.second))}>
-        <div {...props} className={cn("flex min-w-0 flex-col gap-4", props.className)}>{children}</div>
+        <DetailsGutter.Provider value={layout?.disclosureColumn !== false}>
+          <div {...props} className={cn("flex min-w-0 flex-col gap-4", props.className)}>{children}</div>
+        </DetailsGutter.Provider>
       </TableCell>
     </BusinessRow>
   );
