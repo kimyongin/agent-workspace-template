@@ -267,7 +267,7 @@ export function InvitationPage() {
   };
   return (
     <section className="mx-auto flex w-full max-w-xl flex-col gap-5 p-6">
-      <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold">공간 초대</h1>
+      <h1 className="text-2xl font-semibold">공간 초대</h1>
       <p>
         초대받은 이메일의 Google 계정으로 로그인한 뒤 참여하세요. 초대의 유효성과 계정을 서버에서 확인합니다.
       </p>
