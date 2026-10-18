@@ -102,7 +102,7 @@ export function SchemaAnalysisErrors({ change, definition }: {
     {change.analysis.errors.map(result => <BusinessRow key={result.entity_id}>
       <BusinessCell index={0}>{schemaEntityLabel(result.entity_id)}</BusinessCell>
       <BusinessCell index={1}>
-        <ul role="list" className="min-w-0 space-y-2 wrap-anywhere">
+        <ul role="list" className="flex min-w-0 flex-col gap-2 wrap-anywhere">
           {result.fields.map((field, index) => <li key={index}>
             {schemaDiffLabel(field.path, change.target, definition)}: {field.message}
           </li>)}
