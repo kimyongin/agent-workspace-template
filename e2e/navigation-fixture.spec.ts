@@ -200,7 +200,15 @@ test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인�
     await page.screenshot({ path: info.outputPath(`logout-failure-${width}.png`) });
   }
   fail = false; await page.getByRole("link", { name: "로그인으로 이동", exact: true }).click(); await expect(page).toHaveURL(/\/login$/); expect(calls).toBe(1);
-  await signIn(page); await expect(page).toHaveURL(/\/tasks$/); await settings(page); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); expect(calls).toBe(1);
+  await signIn(page);
+  await expect(page).toHaveURL(/\/workspaces$/);
+  const workspace = page.getByRole("table", { name: "공간 목록", exact: true }).getByRole("row").filter({ hasText: "테스트 공간" });
+  await expect(workspace).toHaveCount(1);
+  const enter = workspace.getByRole("link", { name: "열기", exact: true });
+  await expect(enter).toHaveAttribute("href", fixtureWorkspacePath(""));
+  await enter.click();
+  await expect(page).toHaveURL(new URL(fixtureWorkspacePath("/tasks"), page.url()).href);
+  await settings(page); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); expect(calls).toBe(1);
 });
 
 test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ page }) => {
