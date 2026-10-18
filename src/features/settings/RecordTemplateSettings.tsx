@@ -434,6 +434,7 @@ function RecordTemplateForm({
                 disabled={!canWrite || busy || uncertain}
                 label="기본 기록 태그"
                 scope="record"
+                purpose="record-template"
                 value={value.tag_ids}
                 onChange={(tag_ids) => setValue({ tag_ids })}
               />
@@ -462,7 +463,9 @@ function RecordTemplateForm({
               );
             })}
           </FieldSet>
-          <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>
+          <div role="status" aria-atomic="true">
+            {message && <Alert role={undefined}><AlertDescription>{message}</AlertDescription></Alert>}
+          </div>
           {conflict && (
             <Button variant="ghost"  type="button" onClick={() => void read()}><RotateCcwIcon data-icon="inline-start" />
               최신값 확인

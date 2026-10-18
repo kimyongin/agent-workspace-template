@@ -76,17 +76,33 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
     const [row] = await this.tx`select * from app.entity_identifier_rules where id=${id}::uuid for update`;
     return row ? rule(row) : null;
   }
-  async ruleUsage(id: string) {
-    const [row] = await this.tx`select
-      exists(select 1 from app.entity_type_identity_sources where rule_id=${id}::uuid and referenced) as referenced`;
+  async ruleUsage(id: string, inspectReferences = true) {
+    if (inspectReferences) {
+      await this.tx`select private.authorize_workspace_model_kinds(array(
+        select distinct type_id from app.entity_type_identity_sources
+        where workspace_id=${this.workspaceId}::uuid and rule_id=${id}::uuid))`;
+    }
+    const [row] = inspectReferences
+      ? await this.tx`select exists(select 1 from app.entity_type_identity_sources
+          where rule_id=${id}::uuid and referenced) as referenced`
+      : [{ referenced: false }];
     const [rule] = await this.tx`select source from app.entity_identifier_rules where id=${id}::uuid`;
     return {
       referenced: row.referenced as boolean,
       defaultTypes: rule ? await this.defaultTypes(rule.source, id) : [],
     };
   }
-  async lockTypeIdentity(typeId: string) {
+  async lockTypeIdentity(typeId: string, mutation?: Parameters<EntityIssuerStore["lockTypeIdentity"]>[1]) {
     await this.lockOwner();
+    if (mutation) {
+      const stored = await this.tx`select code,rule_id from app.entity_type_identity_sources
+        where workspace_id=${this.workspaceId}::uuid and type_id=${typeId}::uuid`;
+      if (stored.some((source) => !mutation.sources.some((next) =>
+        next.code === source.code && next.rule_id.toLowerCase() === source.rule_id.toLowerCase()
+      ))) {
+        await this.tx`select private.authorize_workspace_model_kinds(array[${typeId}::uuid])`;
+      }
+    }
     const [row] = await this.tx`select * from app.entity_type_identity where type_id=${typeId}::uuid for update`;
     if (!row) return null;
     await this.tx`select code from app.entity_type_identity_sources where type_id=${typeId}::uuid for update`;
