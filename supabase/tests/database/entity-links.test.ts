@@ -223,7 +223,7 @@ dbTest(
         }]
       ) {
         await assertRejects(async () =>
-          activity.updateRecord(
+          await activity.updateRecord(
             ad,
             requestActor(f.member),
             record.id,

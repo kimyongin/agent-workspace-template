@@ -66,7 +66,7 @@ await fixture.grant(otherWorkspace.member, [{
 }]);
 const A = fixture.member, B = otherWorkspace.member;
 const d = { uow: new SqlEntityUnitOfWork(sql) }, a = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
-async function create(name: string, actor = A, extra = {}) {
+function create(name: string, actor = A, extra = {}) {
   const selected = actor.workspaceId === A.workspaceId
     ? schema
     : actor.workspaceId === B.workspaceId

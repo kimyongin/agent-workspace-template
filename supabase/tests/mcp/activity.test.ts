@@ -299,7 +299,7 @@ Deno.test({
         io: "input",
       }) as JsonSchema;
     try {
-      async function completeFixtureTask(body: string) {
+      const completeFixtureTask = async (body: string) => {
         const task = await businessTool(mcpA, workspaceA, "create_task", {
           kind: "once",
           title: "수행 결과 원문",
@@ -317,7 +317,7 @@ Deno.test({
         );
         assert(typeof completed.record?.id === "string");
         return completed.record;
-      }
+      };
 
       await t.step(
         "할 일 수행 결과와 제목 검색은 HTTP/MCP에서 같고 다른 사용자의 연결은 거부한다",
