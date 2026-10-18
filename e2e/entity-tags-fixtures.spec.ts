@@ -1110,7 +1110,13 @@ for (const mode of ["create", "edit"] as const) {
       grants: access === "none" ? [] : [{ target_kind: "entity_type", target_id: fixtureType.id, access }],
     } }));
     let current = { ...makeEntity(361, { prop_1: "원래 자료" }), tag_ids: [] as string[] };
-    await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
+    await page.route("**/api/entity-types**", route => {
+      const path = new URL(route.request().url()).pathname;
+      if (access === "none") return route.fulfill(path.endsWith("/entity-types")
+        ? { json: { items: [], next_cursor: null } }
+        : { status: 404, json: { code: "not_found", message: "자료 종류를 찾을 수 없습니다." } });
+      return route.fulfill({ json: path.endsWith("/schema") ? fixtureSchema : path.endsWith("/identity") ? fixtureIdentity() : path.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType });
+    });
     const writes: { body: any; key?: string }[] = [];
     await page.route("**/api/entities**", route => {
       const request = route.request(), path = new URL(request.url()).pathname;
@@ -1122,6 +1128,9 @@ for (const mode of ["create", "edit"] as const) {
         }
         return route.fulfill({ json: current });
       }
+      if (access === "none") return route.fulfill(path.endsWith("/entities") || path.endsWith("/links")
+        ? { json: { items: [], next_cursor: null } }
+        : { status: 404, json: { code: "not_found", message: "자료를 찾을 수 없습니다." } });
       return route.fulfill({ json: path.endsWith("/links") ? { items: [], next_cursor: null } : path.endsWith("/entities") ? { items: [current], next_cursor: null } : { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } });
     });
     const refresh = async (next: string) => {

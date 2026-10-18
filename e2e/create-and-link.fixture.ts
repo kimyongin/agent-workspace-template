@@ -47,6 +47,18 @@ test(
     await page.route("**/auth/v1/user", (r) => r.fulfill({ json: user }));
     let access = "write", membership = 1;
     await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({json:{workspace:{id:fixtureWorkspaceId,name:"관계 쓰기 공간",deleted_at:null},can_manage:false,membership_version:membership,grants:access === "none" ? [] : [{target_kind:"entity_type",target_id:fixtureType.id,access},{target_kind:"tasks",target_id:"*",access:"read"}]}}));
+    await page.route("**/api/entity-types**", route => {
+      if (access !== "none") return route.fallback();
+      return route.fulfill(new URL(route.request().url()).pathname.endsWith("/entity-types")
+        ? { json: { items: [], next_cursor: null } }
+        : { status: 404, json: { code: "not_found", message: "자료 종류를 찾을 수 없습니다." } });
+    });
+    await page.route("**/api/entities**", route => {
+      if (access !== "none" || route.request().method() !== "GET") return route.fallback();
+      return route.fulfill(new URL(route.request().url()).pathname.endsWith("/entities")
+        ? { json: { items: [], next_cursor: null } }
+        : { status: 404, json: { code: "not_found", message: "자료를 찾을 수 없습니다." } });
+    });
     await page.route(
       "**/api/entity-relation-definitions**",
       (r) => r.fulfill({ json: { items: [definition], next_cursor: null } }),
