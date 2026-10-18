@@ -178,6 +178,12 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     assertRecoveryFresh(read.evidence, new Date(read.observed_at));
   }
   protected async row(typeId: string, id: string, lock = false) {
+    const [header] = await this
+      .tx`select requirements from app.workspace_schema_headers('change',${id}::uuid,${typeId}::uuid)`;
+    if (!header) throw notFound();
+    await this.authorizeSchemaPermissions(
+      (header.requirements as WorkspaceRequirement[]).map((r) => ({ ...r, access: "read" })),
+    );
     const [row] = await this
       .tx`select * from app.entity_schema_changes where type_id::text=${typeId} and id::text=${id} ${
       lock ? this.tx`for update` : this.tx``
@@ -343,6 +349,14 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   async listChanges(typeId: string, input: Parameters<SchemaChangeStore["listChanges"]>[1]) {
     const [t] = await this.tx`select id from app.entity_types where id::text=${typeId}`;
     if (!t) throw notFound();
+    const headers = await this.tx`select requirements from app.workspace_schema_headers('change',null,${typeId}::uuid,${
+      input.before ?? null
+    }::uuid,${input.limit + 1})`;
+    await this.authorizeSchemaPermissions(
+      headers.flatMap((r) =>
+        (r.requirements as WorkspaceRequirement[]).map((permission) => ({ ...permission, access: "read" as const }))
+      ),
+    );
     const rows = await this.tx`select * from app.entity_schema_changes where type_id=${typeId} and (${
       input.before ?? null
     }::uuid is null or id<${input.before ?? null}::uuid) order by id desc limit ${input.limit + 1}`;

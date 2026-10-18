@@ -28,8 +28,8 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     };
   }
   private async job(id: string, lock = false, intent: "read" | "write" = "read") {
-    const [identity] = await this.tx`select required_permissions from app.entity_schema_migrations
-      where workspace_id=${this.schemaWorkspaceId}::uuid and id::text=${id}`;
+    const [identity] = await this
+      .tx`select requirements as required_permissions from app.workspace_schema_headers('migration',${id}::uuid)`;
     if (!identity) throw notFound();
     await this.authorizeSchemaPermissions(
       (identity.required_permissions as WorkspaceRequirement[]).map((r) =>
@@ -209,11 +209,9 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     const prior = i.before ? await this.job(i.before) : null;
     if (prior && i.type_id && prior.type_id !== i.type_id) throw invalidInput("이 종류의 작업 목록 cursor가 아닙니다");
     const candidates = await this
-      .tx`select id,required_permissions from app.entity_schema_migrations where workspace_id=${this.schemaWorkspaceId}::uuid and (${
+      .tx`select id,requirements as required_permissions from app.workspace_schema_headers('migration',null,${
       i.type_id ?? null
-    }::uuid is null or type_id=${i.type_id ?? null}::uuid) ${
-      prior ? this.tx`and (created_at,id)<(${prior.created_at},${prior.id}::uuid)` : this.tx``
-    } order by created_at desc,id desc limit ${i.limit + 1}`;
+    }::uuid,${i.before ?? null}::uuid,${i.limit + 1})`;
     await this.authorizeSchemaPermissions(
       candidates.flatMap((r) =>
         (r.required_permissions as WorkspaceRequirement[]).map((permission) => ({

@@ -271,6 +271,52 @@ dbTest(
         (await applyDataModel(modelDeps, key(executor), saved.id, { expected_version: ready.version })).status,
         "queued",
       );
+      // Hold the captured account until the authorizer is demonstrably waiting.
+      // Privileged fixture substitution isolates the post-lock fence from retry API behavior.
+      const blocker = connect(urls.admin, { max: 1 });
+      const claimant = connect(urls.admin, { max: 1 });
+      let release!: () => void;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let locked!: () => void;
+      const lockReady = new Promise<void>((resolve) => {
+        locked = resolve;
+      });
+      let authorization: Promise<{ allowed: boolean }[]> | undefined;
+      const held = blocker.begin(async (tx) => {
+        await tx`select id from auth.users where id=${b.userId} for update`;
+        locked();
+        await released;
+      });
+      try {
+        await lockReady;
+        const [connection] = await claimant`select pg_backend_pid() as pid`;
+        authorization = claimant<
+          { allowed: boolean }[]
+        >`select private.authorize_schema_group(${workspaceId},${saved.id}) as allowed`;
+        // Start the lazy query before observing its database lock wait.
+        const pending = authorization.then((rows) => rows);
+        let waiting = false;
+        for (let attempt = 0; attempt < 100; attempt++) {
+          const [state] = await admin`select cardinality(pg_blocking_pids(${connection.pid}))>0 as blocked`;
+          if (state.blocked) {
+            waiting = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        assertEquals(waiting, true);
+        await admin`update app.data_model_changes set initiated_by=${a.userId} where workspace_id=${workspaceId} and id=${saved.id}`;
+        release();
+        assertEquals((await pending)[0].allowed, false);
+      } finally {
+        release();
+        await held;
+        if (authorization) await authorization;
+        await admin`update app.data_model_changes set initiated_by=${b.userId} where workspace_id=${workspaceId} and id=${saved.id}`;
+        await Promise.all([blocker.end(), claimant.end()]);
+      }
       for (let step = 0; step < 4; step++) {
         const [claim] = await worker`select app.claim_data_model_conversion() as batch`;
         assertEquals(Boolean(claim.batch), true);

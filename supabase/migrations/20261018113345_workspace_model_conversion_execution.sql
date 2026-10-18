@@ -204,7 +204,7 @@ begin
  return count_jobs>0 and count_jobs=(select count(*) from app.data_model_children where workspace_id=p_workspace and model_id=p_id);
 end $$;
 create function private.authorize_schema_group(p_workspace uuid,p_id uuid) returns boolean language plpgsql set search_path='' as $$
-declare executors uuid[];locked integer;
+declare executors uuid[];current_executors uuid[];locked integer;
 begin
  if not exists(select 1 from app.data_model_changes g where g.workspace_id=p_workspace and g.id=p_id and g.initiated_by is not null) then return false;end if;
  if exists(select 1 from app.data_model_children c join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
@@ -222,7 +222,14 @@ begin
  if not found then return false;end if;
  perform set_config('request.workspace_id',p_workspace::text,true);
  perform set_config('request.workspace_lock_mode','business',true);
- -- Fresh post-lock statement for each persisted executor and immutable job footprint.
+ -- Actors can be replaced by an explicit failed-attempt retry while this call
+ -- waits for an account lock. Re-read after W; never acquire a new account after W.
+ select array_agg(distinct executor order by executor) into current_executors from (
+  select j.initiated_by executor from app.data_model_children c join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
+   where c.workspace_id=p_workspace and c.model_id=p_id
+  union select g.initiated_by from app.data_model_changes g where g.workspace_id=p_workspace and g.id=p_id) accounts;
+ if current_executors is null or not (current_executors <@ executors) then return false;end if;
+ -- Fresh post-lock statement for the captured, still-current account set and immutable footprints.
  return private.schema_group_current(p_workspace,p_id);
 end $$;
 revoke all on function private.schema_job_current(uuid,uuid),private.authorize_schema_job(uuid,uuid),
@@ -421,3 +428,93 @@ begin
  return private.fail_data_model_group(v_owner,p_id,p_fence,p_reason,p_retryable and p_reason='migration_worker_failed');
 end $function$;
 
+
+-- Row-level protection covers retained task/peer contexts as well as store projections.
+create function app.workspace_schema_permissions_allow(p_permissions jsonb,p_history boolean) returns boolean
+ language plpgsql stable security definer set search_path='' as $$
+declare r jsonb;requirements jsonb:='[]';
+begin
+ if jsonb_typeof(p_permissions) is distinct from 'array' or p_history is null then return false;end if;
+ for r in select value from jsonb_array_elements(p_permissions) loop
+  if jsonb_typeof(r) is distinct from 'object' or r->>'target_kind' is null or r->>'target_id' is null
+    or r->>'access' is null or r->>'target_kind' not in ('entity_type','tasks','settings') or r->>'access' not in ('read','write') then return false;end if;
+  requirements:=requirements||jsonb_build_array(jsonb_set(r,'{access}',to_jsonb(case when p_history then 'read' else r->>'access' end)));
+ end loop;
+ return private.schema_permissions_allow(auth.uid(),app.current_workspace_id(),requirements);
+end $$;
+revoke all on function app.workspace_schema_permissions_allow(jsonb,boolean) from public,anon,authenticated,app_server,app_worker;
+grant execute on function app.workspace_schema_permissions_allow(jsonb,boolean) to app_user;
+drop policy workspace_schema_read on app.entity_schema_migrations;
+create policy workspace_schema_read on app.entity_schema_migrations for select to app_user
+ using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','read')
+  and app.workspace_allows('entity_type',type_id::text,'read') and app.workspace_schema_permissions_allow(required_permissions,true));
+drop policy workspace_schema_read on app.entity_schema_changes;
+create policy workspace_schema_read on app.entity_schema_changes for select to app_user
+ using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','read')
+  and (kind='compatible' and analysis_id is null and recovery_source_job_id is null
+    or (app.workspace_schema_permissions_allow(required_permissions,true)
+      and (analysis_id is null or exists(select 1 from app.entity_schema_analyses a where a.workspace_id=entity_schema_changes.workspace_id and a.id=entity_schema_changes.analysis_id))
+      and (recovery_source_job_id is null or exists(select 1 from app.entity_schema_migrations j where j.workspace_id=entity_schema_changes.workspace_id and j.id=entity_schema_changes.recovery_source_job_id)))));
+-- A permissive FOR ALL write policy also grants SELECT, so split its commands.
+drop policy workspace_schema_write on app.entity_schema_migrations;
+create policy workspace_schema_insert on app.entity_schema_migrations for insert to app_user
+ with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write'));
+create policy workspace_schema_update on app.entity_schema_migrations for update to app_user
+ using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write'))
+ with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write'));
+drop policy workspace_schema_write on app.entity_schema_changes;
+create policy workspace_schema_insert on app.entity_schema_changes for insert to app_user
+ with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write'));
+create policy workspace_schema_update on app.entity_schema_changes for update to app_user
+ using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write'))
+ with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write'));
+
+-- Descriptor-only preflight preserves explicit denial without releasing retained bodies.
+create function app.workspace_schema_headers(p_kind text,p_id uuid default null,p_type uuid default null,p_before uuid default null,p_limit integer default 101)
+ returns table(id uuid,requirements jsonb) language plpgsql security definer set search_path='' as $$
+begin
+ perform app.authorize_workspace('[{"target_kind":"settings","target_id":"*","access":"read"}]'::jsonb);
+ if p_limit not between 1 and 101 then raise exception 'invalid header limit' using errcode='22023';end if;
+ if p_kind='migration' then
+  return query select j.id,j.required_permissions from app.entity_schema_migrations j
+   where j.workspace_id=app.current_workspace_id() and (p_id is null or j.id=p_id) and (p_type is null or j.type_id=p_type)
+   and (p_before is null or (j.created_at,j.id)<(select b.created_at,b.id from app.entity_schema_migrations b where b.workspace_id=app.current_workspace_id() and b.id=p_before))
+   order by j.created_at desc,j.id desc limit p_limit;
+ elsif p_kind='change' then
+  return query select c.id,case when c.kind='compatible' and c.analysis_id is null and c.recovery_source_job_id is null then '[]'::jsonb else private.normalize_schema_permissions(c.required_permissions
+     ||coalesce((select a.required_permissions from app.entity_schema_analyses a where a.workspace_id=c.workspace_id and a.id=c.analysis_id),'[]'::jsonb)
+     ||coalesce((select j.required_permissions from app.entity_schema_migrations j where j.workspace_id=c.workspace_id and j.id=c.recovery_source_job_id),'[]'::jsonb)) end
+   from app.entity_schema_changes c where c.workspace_id=app.current_workspace_id() and (p_id is null or c.id=p_id)
+   and (p_type is null or c.type_id=p_type) and (p_before is null or c.id<p_before) order by c.id desc limit p_limit;
+ else raise exception 'invalid header kind' using errcode='22023';end if;
+end $$;
+revoke all on function app.workspace_schema_headers(text,uuid,uuid,uuid,integer) from public,anon,authenticated,app_server,app_worker;
+grant execute on function app.workspace_schema_headers(text,uuid,uuid,uuid,integer) to app_user;
+
+drop policy workspace_schema_write on app.entity_schema_analyses;
+create policy workspace_schema_insert on app.entity_schema_analyses for insert to app_user with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write'));
+create policy workspace_schema_update on app.entity_schema_analyses for update to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write')) with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write'));
+create policy workspace_schema_delete on app.entity_schema_analyses for delete to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write'));
+drop policy workspace_schema_read on app.entity_schema_analyses;
+create policy workspace_schema_read on app.entity_schema_analyses for select to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','read') and app.workspace_allows('entity_type',type_id::text,'read') and app.workspace_schema_permissions_allow(required_permissions,true));
+
+drop policy workspace_schema_write on private.entity_schema_analysis_rows;
+create policy workspace_schema_insert on private.entity_schema_analysis_rows for insert to app_user with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and exists(select 1 from app.entity_schema_analyses a where a.workspace_id=entity_schema_analysis_rows.workspace_id and a.id=entity_schema_analysis_rows.analysis_id and app.workspace_allows('entity_type',a.type_id::text,'write')));
+create policy workspace_schema_update on private.entity_schema_analysis_rows for update to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write') and exists(select 1 from app.entity_schema_analyses a where a.workspace_id=entity_schema_analysis_rows.workspace_id and a.id=entity_schema_analysis_rows.analysis_id and app.workspace_allows('entity_type',a.type_id::text,'write'))) with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and exists(select 1 from app.entity_schema_analyses a where a.workspace_id=entity_schema_analysis_rows.workspace_id and a.id=entity_schema_analysis_rows.analysis_id and app.workspace_allows('entity_type',a.type_id::text,'write')));
+create policy workspace_schema_delete on private.entity_schema_analysis_rows for delete to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write') and exists(select 1 from app.entity_schema_analyses a where a.workspace_id=entity_schema_analysis_rows.workspace_id and a.id=entity_schema_analysis_rows.analysis_id and app.workspace_allows('entity_type',a.type_id::text,'write')));
+drop policy workspace_schema_read on private.entity_schema_analysis_rows;
+create policy workspace_schema_read on private.entity_schema_analysis_rows for select to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','read') and exists(select 1 from app.entity_schema_analyses a where a.workspace_id=entity_schema_analysis_rows.workspace_id and a.id=entity_schema_analysis_rows.analysis_id));
+
+drop policy workspace_schema_write on private.entity_schema_migration_rows;
+create policy workspace_schema_insert on private.entity_schema_migration_rows for insert to app_user with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and exists(select 1 from app.entity_schema_migrations j where j.workspace_id=entity_schema_migration_rows.workspace_id and j.id=entity_schema_migration_rows.job_id and app.workspace_allows('entity_type',j.type_id::text,'write')));
+create policy workspace_schema_update on private.entity_schema_migration_rows for update to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write') and exists(select 1 from app.entity_schema_migrations j where j.workspace_id=entity_schema_migration_rows.workspace_id and j.id=entity_schema_migration_rows.job_id and app.workspace_allows('entity_type',j.type_id::text,'write'))) with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and exists(select 1 from app.entity_schema_migrations j where j.workspace_id=entity_schema_migration_rows.workspace_id and j.id=entity_schema_migration_rows.job_id and app.workspace_allows('entity_type',j.type_id::text,'write')));
+create policy workspace_schema_delete on private.entity_schema_migration_rows for delete to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write') and exists(select 1 from app.entity_schema_migrations j where j.workspace_id=entity_schema_migration_rows.workspace_id and j.id=entity_schema_migration_rows.job_id and app.workspace_allows('entity_type',j.type_id::text,'write')));
+drop policy workspace_schema_read on private.entity_schema_migration_rows;
+create policy workspace_schema_read on private.entity_schema_migration_rows for select to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','read') and exists(select 1 from app.entity_schema_migrations j where j.workspace_id=entity_schema_migration_rows.workspace_id and j.id=entity_schema_migration_rows.job_id));
+
+drop policy workspace_schema_write on app.data_model_children;
+create policy workspace_schema_insert on app.data_model_children for insert to app_user with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write'));
+create policy workspace_schema_update on app.data_model_children for update to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write')) with check(workspace_id=app.current_workspace_id() and owner_id is null and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write'));
+create policy workspace_schema_delete on app.data_model_children for delete to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','write') and app.workspace_allows('entity_type',type_id::text,'write'));
+drop policy workspace_schema_read on app.data_model_children;
+create policy workspace_schema_read on app.data_model_children for select to app_user using(workspace_id=app.current_workspace_id() and app.workspace_allows('settings','*','read') and app.workspace_allows('entity_type',type_id::text,'read') and exists(select 1 from app.data_model_changes g where g.workspace_id=data_model_children.workspace_id and g.id=data_model_children.model_id));
