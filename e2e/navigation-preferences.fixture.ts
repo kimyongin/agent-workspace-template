@@ -167,7 +167,7 @@ test("shortcut editing has its own section with compact rows, bounded selection 
 test("explicit empty configuration saves only navigation and survives reload; default can be restored", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
   await page.goto("/settings/navigation");
-  await expect(page.getByRole("table", { name: "선택한 바로가기" }).locator("li")).toHaveCount(4);
+  await expect(businessRows(page.getByRole("table", { name: "선택한 바로가기" }))).toHaveCount(4);
   for (const label of ["재료", "상품", "할 일", "기록"]) {
     await page.getByRole("button", { name: `${label} 숨기기`, exact: true }).click();
   }

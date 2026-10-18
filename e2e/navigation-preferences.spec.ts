@@ -1,3 +1,4 @@
+import { businessRows } from "./table-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
@@ -24,9 +25,9 @@ test("personal navigation partial save survives reload and login without changin
   let bodyFailed = false;
   try {
     await page.goto("/settings");
-    const list = page.getByRole("list", { name: "선택한 바로가기" });
+    const list = page.getByRole("table", { name: "선택한 바로가기" });
     await expect(list).toBeVisible();
-    while (await list.locator("li").count()) await list.getByRole("button", { name: /숨기기$/ }).first().click();
+    while (await businessRows(list).count()) await list.getByRole("button", { name: /숨기기$/ }).first().click();
     const save = page.getByRole("button", { name: "메뉴 바로가기 저장" });
     if (await save.isEnabled()) {
       await save.click();

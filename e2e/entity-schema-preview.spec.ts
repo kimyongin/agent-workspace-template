@@ -1,3 +1,4 @@
+import { businessRows, entryDetails } from "./table-actions.ts";
 import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
@@ -38,16 +39,15 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).analysis?.status;
     }, { timeout: 30000 }).toBe("succeeded");
-    const row = page.locator("article").filter({
-      has: page.getByRole("heading", {
-        name: `${entity.title} · ${entity.source} · ${entity.external_id} · 변환 실패`,
-        exact: true,
-      }),
+    const row = businessRows(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true })).filter({
+      has: page.getByRole("cell", { name: `${entity.title} · ${entity.source} · ${entity.external_id}`, exact: true }),
     });
+    await expect(row.getByText("변환 실패", { exact: true })).toBeVisible();
+    const correction = entryDetails(row);
     await expect(row).toBeVisible();
     await expect(row).toContainText("001");
-    await row.getByRole("button", { name: "보완값 지정", exact: true }).click();
-    await row.getByRole("textbox", { name: "보완값", exact: true }).fill("01");
+    await correction.getByRole("button", { name: "보완값 지정", exact: true }).click();
+    await correction.getByRole("textbox", { name: "보완값", exact: true }).fill("01");
     const beforeNavigation = page.url();
     await openMainNavigation(page);
     const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
@@ -58,7 +58,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(page).toHaveURL(beforeNavigation);
     await closeMainNavigation(page);
-    await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
+    await expect(correction.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
     const reviewed = page.waitForResponse((response) =>
       response.url().endsWith("/analyze") && response.request().method() === "POST" && response.status() === 202
     );
