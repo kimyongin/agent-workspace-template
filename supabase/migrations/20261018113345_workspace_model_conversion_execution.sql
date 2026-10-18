@@ -186,10 +186,15 @@ begin
  return private.schema_job_current(p_workspace,p_id);
 end $$;
 create function private.schema_group_current(p_workspace uuid,p_id uuid) returns boolean language plpgsql stable set search_path='' as $$
-declare generation bigint;j record;count_jobs integer:=0;
+declare generation bigint;coordinator uuid;permissions jsonb;j record;count_jobs integer:=0;
 begin
- select g.workspace_generation into generation from app.data_model_changes g where g.workspace_id=p_workspace and g.id=p_id;
- if not found or not exists(select 1 from app.workspaces w where w.id=p_workspace and w.deleted_at is null and w.lifecycle_generation=generation) then return false;end if;
+ select g.workspace_generation,g.initiated_by into generation,coordinator from app.data_model_changes g where g.workspace_id=p_workspace and g.id=p_id;
+ if not found or coordinator is null or not exists(select 1 from app.workspaces w where w.id=p_workspace and w.deleted_at is null and w.lifecycle_generation=generation)
+  or not private.workspace_allows(coordinator,p_workspace,'settings','*','write') then return false;end if;
+ select private.normalize_schema_permissions(coalesce(jsonb_agg(permission),'[]'::jsonb)) into permissions
+  from app.data_model_children c join app.entity_schema_migrations m on m.workspace_id=c.workspace_id and m.id=c.job_id
+   cross join lateral jsonb_array_elements(m.required_permissions) permission where c.workspace_id=p_workspace and c.model_id=p_id;
+ if not private.schema_permissions_allow(coordinator,p_workspace,permissions) then return false;end if;
  for j in select c.job_id from app.data_model_children c join app.entity_schema_migrations m
   on m.workspace_id=c.workspace_id and m.id=c.job_id and m.model_change_id=c.model_id and m.type_id=c.type_id and m.change_id=c.change_id
   where c.workspace_id=p_workspace and c.model_id=p_id loop
@@ -201,11 +206,13 @@ end $$;
 create function private.authorize_schema_group(p_workspace uuid,p_id uuid) returns boolean language plpgsql set search_path='' as $$
 declare executors uuid[];locked integer;
 begin
+ if not exists(select 1 from app.data_model_changes g where g.workspace_id=p_workspace and g.id=p_id and g.initiated_by is not null) then return false;end if;
  if exists(select 1 from app.data_model_children c join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
    where c.workspace_id=p_workspace and c.model_id=p_id and j.initiated_by is null) then return false;end if;
- select array_agg(distinct j.initiated_by order by j.initiated_by) into executors
-  from app.data_model_children c join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
-  where c.workspace_id=p_workspace and c.model_id=p_id;
+ select array_agg(distinct executor order by executor) into executors from (
+  select j.initiated_by executor from app.data_model_children c join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
+   where c.workspace_id=p_workspace and c.model_id=p_id
+  union select g.initiated_by from app.data_model_changes g where g.workspace_id=p_workspace and g.id=p_id) accounts;
  if coalesce(cardinality(executors),0)=0 then return false;end if;
  -- Every actual account first, in sorted order, then the shared workspace, then domain locks.
  perform 1 from auth.users where id=any(executors) order by id for share;

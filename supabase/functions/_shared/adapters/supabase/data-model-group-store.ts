@@ -10,12 +10,21 @@ import {
   assertSchemaApplication,
   assertSchemaApplicationBindings,
 } from "../../core/entity-types/schema-application.ts";
-import { AppError, invalidInput } from "../../core/shared/errors.ts";
+import { AppError, invalidInput, notFound } from "../../core/shared/errors.ts";
 import type { ModelChange, ModelGroupAnalyze } from "../../contracts/data-model.ts";
 import type { MigrationPlan } from "../../contracts/entity-schema-change.ts";
 import type { ModelPlan } from "../../core/data-model/application.ts";
 type GroupPlan = ModelPlan & { conversion_refs?: string[] };
 export class SqlDataModelGroupStore extends SqlDataModelStore {
+  private async assertCurrentGroup(id: string) {
+    const [row] = await this
+      .tx`select workspace_generation from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
+    if (!row) throw notFound();
+    const [epoch] = await this.tx`select app.workspace_generation() as generation`;
+    if (Number(row.workspace_generation) !== Number(epoch.generation)) {
+      throw new AppError("schema_plan_stale", "삭제 전 모델 작업은 실행할 수 없습니다. 새 변경안을 준비하세요");
+    }
+  }
   override async get(id: string, lock = false) {
     const c = await super.get(id, lock);
     if (!c) return null;
@@ -44,6 +53,7 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     return { ...c, group };
   }
   async analyzeGroup(id: string, input: ModelGroupAnalyze) {
+    await this.assertCurrentGroup(id);
     const c = (await this.get(id, true))!,
       plan = c.plan as GroupPlan,
       snapshot = await this.snapshot({ document: plan.target, mode: "update" });
@@ -118,6 +128,7 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     return receiptChange((await this.get(id))!);
   }
   async startGroup(id: string) {
+    await this.assertCurrentGroup(id);
     const c = (await this.get(id, true))!, plan = c.plan as GroupPlan;
     if (c.status !== "ready" || !plan.conversion_refs?.length) {
       throw invalidInput("전체 종류의 최신 성공 분석을 준비하세요");
@@ -185,6 +196,7 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     return receiptChange((await this.get(id))!);
   }
   async retryGroup(id: string) {
+    await this.assertCurrentGroup(id);
     const c = (await this.get(id, true))!;
     const [parent] = await this.tx`select source_expires_at,retryable from app.data_model_changes where id=${id}::uuid`;
     if (parent.source_expires_at && parent.source_expires_at <= new Date()) {
