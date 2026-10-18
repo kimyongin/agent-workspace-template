@@ -4,6 +4,61 @@ import { installWorkspaceApi } from "./support/workspace-api.ts";
 const workspaceId = "00000000-0000-4000-8000-000000000981";
 const actorId = "00000000-0000-4000-8000-000000000901";
 
+test("a known management revocation on focus disables a previously prepared lifecycle action", async ({ page }) => {
+  const user = {
+    id: actorId,
+    aud: "authenticated",
+    email: "fixture@example.test",
+    app_metadata: {},
+    user_metadata: {},
+  };
+  await page.addInitScript(
+    (user) =>
+      localStorage.setItem(
+        "sb-127-auth-token",
+        JSON.stringify({
+          user,
+          access_token: "isolated-lifecycle-token",
+          refresh_token: "isolated-lifecycle-refresh",
+          token_type: "bearer",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        }),
+      ),
+    user,
+  );
+  await page.route("**/auth/v1/user", (route) => route.fulfill({ json: user }));
+  await installWorkspaceApi(page, "http://127.0.0.1:55623", { entities: [], tags: [], records: [], tasks: [] });
+  let revoked = false, writes = 0;
+  const workspace = { id: workspaceId, name: "권한 변경 공간", deleted_at: null, lifecycle_generation: 1 };
+  await page.route(/\/api\/workspaces(?:\/|$)/, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== "GET") {
+      writes++;
+      return route.fulfill({ status: 403, json: { code: "forbidden", message: "공간 관리 권한이 없습니다." } });
+    }
+    if (path === "/api/workspaces") return route.fulfill({ json: { items: [{ ...workspace, can_manage: !revoked }] } });
+    if (path === "/api/workspaces/deleted") return route.fulfill({ json: { items: [] } });
+    if (path.endsWith("/lifecycle")) {
+      return route.fulfill(
+        revoked
+          ? { status: 403, json: { code: "forbidden", message: "공간 관리 권한이 없습니다." } }
+          : { json: { workspace } },
+      );
+    }
+    return route.fallback();
+  });
+  await page.goto("/workspaces");
+  await page.getByRole("button", { name: "삭제", exact: true }).click();
+  const confirmation = page.getByRole("alertdialog"),
+    action = confirmation.getByRole("button", { name: "공간 삭제", exact: true });
+  await expect(action).toBeEnabled();
+  revoked = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(confirmation.getByText("공간 관리 권한이 없습니다.", { exact: true })).toBeVisible();
+  await expect(action).toBeDisabled();
+  expect(writes).toBe(0);
+});
+
 test(
   "workspace deletion keeps its uncertain request through refresh and restoration uses the current generation",
   async ({ page }, info) => {
