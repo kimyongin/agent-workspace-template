@@ -1,3 +1,4 @@
+import { entityFixture } from "./_entity.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { WorkspaceGrant } from "../../functions/_shared/contracts/workspace.ts";
 import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
@@ -7,7 +8,7 @@ import { runInWorkspace } from "../../functions/_shared/adapters/supabase/worksp
 import { replayRetainedWorkspaceRequest } from "../../functions/_shared/adapters/supabase/workspace-request-ledger.ts";
 import { requestIdentity } from "../../functions/_shared/core/shared/request.ts";
 import * as workspaces from "../../functions/_shared/core/workspaces/application.ts";
-import { connect, dbTest, urls } from "./_db.ts";
+import { asUser, connect, dbTest, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 });
 const sql = connect(urls.direct, { max: 5, prepare: false });
 const deps = { uow: new SqlWorkspaceUnitOfWork(sql) };
@@ -394,6 +395,67 @@ dbTest("pooled connection clears actor and workspace after commit and rollback b
     assertEquals(await inspect(f.b, b.id), { role: "app_user", workspace: b.id, actor: f.b.userId });
   } finally {
     await reused.end();
+    await f.cleanup();
+  }
+});
+
+dbTest("scoped kind anchors reject direct owner-policy escapes and cross-workspace grant targets", async () => {
+  const f = await fixture();
+  try {
+    const first = await f.create(f.a), second = await f.create(f.a), foreign = await f.create(f.b);
+    const kind = await entityFixture(admin, f.a.userId);
+    await admin`update app.entity_types set workspace_id=${first.id} where id=${kind.entity_type_id}`;
+    const direct = async (id: string, fn: (tx: import("postgres").TransactionSql) => Promise<unknown>) =>
+      await asUser(sql, f.a.userId, async (tx) => {
+        await tx`select set_config('request.workspace_id',${id},true)`;
+        return await fn(tx);
+      });
+    const readable = await direct(
+      first.id,
+      (tx) => tx`select id from app.entity_types where id=${kind.entity_type_id}`,
+    ) as { id: string }[];
+    assertEquals(readable.length, 1);
+    const cross = await direct(
+      second.id,
+      (tx) => tx`select id from app.entity_types where id=${kind.entity_type_id}`,
+    ) as unknown[];
+    assertEquals(cross.length, 0);
+    const moved = await direct(
+      second.id,
+      (tx) => tx`update app.entity_types set workspace_id=${second.id} where id=${kind.entity_type_id} returning id`,
+    ) as unknown[];
+    assertEquals(moved.length, 0);
+    const injected = await outcome(
+      direct(
+        foreign.id,
+        (tx) =>
+          tx`insert into app.entity_types(owner_id,workspace_id) values(${f.a.userId},${foreign.id}) returning id`,
+      ),
+    );
+    assert(injected.startsWith("42501"));
+    await denied(
+      () =>
+        workspaces.updateWorkspaceMember(deps, key(f.a), second.id, f.a.userId, {
+          expected_version: 1,
+          grants: [settings, { target_kind: "entity_type", target_id: kind.entity_type_id, access: "read" }],
+        }),
+      "invalid_input",
+    );
+    const readPermission = await runInWorkspace(
+      sql,
+      { ...f.a, workspaceId: first.id },
+      { mode: "business", requirements: [] },
+      async (tx) =>
+        (await tx`select app.workspace_allows('entity_type',${kind.entity_type_id},'read') as allowed`)[0].allowed,
+    );
+    assertEquals(readPermission, false); // Settings-write can read minimal definitions but grants no material-data access.
+    await admin`update auth.users set raw_user_meta_data=${
+      admin.json({ full_name: "  표시 이름\n ", email: "never-expose@example.test" })
+    } where id=${f.a.userId}`;
+    const member = (await workspaces.listWorkspaceMembers(deps, f.a, first.id)).items[0];
+    assertEquals(member.display_name, "표시 이름");
+    assertEquals(JSON.stringify(member).includes("never-expose@example.test"), false);
+  } finally {
     await f.cleanup();
   }
 });

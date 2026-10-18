@@ -1,12 +1,12 @@
-import { assertEquals } from "@std/assert";
-import { admin, call, httpTest, signIn } from "./_client.ts";
-import { connectMcp, mcpToken, tool } from "../mcp/_mcp.ts";
+import { assert, assertEquals } from "@std/assert";
+import { admin, call, httpTest, signIn, SUPABASE_URL } from "./_client.ts";
+import { claimsOf, connectMcp, mcpGrant, tool } from "../mcp/_mcp.ts";
 
 httpTest(
   "actual authenticated HTTP and MCP share workspace creation, replay and current management denial",
   async () => {
     const a = await signIn("A"), b = await signIn("B");
-    const client = await connectMcp(await mcpToken(a));
+    const grant = await mcpGrant(a), client = await connectMcp(grant.access_token);
     const owned: string[] = [];
     try {
       const requestKey = crypto.randomUUID(), input = { name: `512 경계 ${crypto.randomUUID()}` };
@@ -44,6 +44,22 @@ httpTest(
       assertEquals((await tool(client, "get_workspace", { workspace_id: workspace.id })).error.code, "forbidden");
     } finally {
       await client.close();
+      const secret = Deno.env.get("LOCAL_SUPABASE_SECRET_KEY");
+      assert(secret, "owned local OAuth cleanup key is configured");
+      const removed = await fetch(
+        `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${encodeURIComponent(grant.client_id)}`,
+        {
+          method: "DELETE",
+          headers: { apikey: secret, authorization: `Bearer ${secret}` },
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      await removed.body?.cancel();
+      assert(removed.ok || removed.status === 404, "run-owned OAuth client cleanup succeeds");
+      const sessionIds = [claimsOf(a).session_id, claimsOf(b).session_id, claimsOf(grant.access_token).session_id]
+        .filter((id): id is string => typeof id === "string");
+      // Only sessions minted by this test's own login/grant are removed; baseline users survive.
+      if (sessionIds.length) await admin`delete from auth.sessions where id=any(${sessionIds}::uuid[])`;
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
     }
   },
