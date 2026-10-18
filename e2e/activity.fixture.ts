@@ -1,5 +1,5 @@
 import { businessRows, disclosureContent } from "./table-actions.ts";
-import { detailDialog } from "./ui-actions.ts";
+import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { entity as makeEntity, fixtureType, fixtureSchema, entityKey } from "./support/workspace-data.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import { openListEditor, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
@@ -340,7 +340,7 @@ for (const [routePath, createLabel] of [["/tasks","할 일 추가"]]) {
 }
 for (const kind of ["records","tasks"]) {
   test(`직접 편집 ${kind} 라우트 버리기는 목록 복귀 대신 요청한 상세 조건으로 이동한다`,async({page})=>{
-    const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),...(kind === "tasks" ? { kind: "once", entity_ids: [], entity_context: [], pauses: [], deleted_at: null } : {}),status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,change_note:"과거 메모"};
+    const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),...(kind === "tasks" ? { kind: "once", entity_ids: [], entity_context: [], pauses: [], deleted_at: null, created_by: null, created_by_name: null } : {}),status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,change_note:"과거 메모"};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/tags")?{items:[],next_cursor:null}:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=`+encodeURIComponent(`/${kind}/${id(1)}?edit=1`));
     const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
@@ -369,7 +369,7 @@ for(const kind of ["records","tasks"]){
   test(`${kind} 태그 사전 실패 재시도는 표시 행·읽던 위치·초점을 유지한다`,async({page})=>{
     let attempts=0,release:()=>void=()=>{};
     const held=new Promise<void>(resolve=>release=resolve);
-    const items=Array.from({length:20},(_,i)=>({...record(i+1),...(kind==="tasks"?{title:`기록 ${i+1}`} : {}),tag_ids:[id(99)],...(kind === "tasks" ? { kind: "once", entity_ids: [], entity_context: [], pauses: [], deleted_at: null } : {}),status:"open",due_on:null,recurrence:null,timezone:null,result_record:null}));
+    const items=Array.from({length:20},(_,i)=>({...record(i+1),...(kind==="tasks"?{title:`기록 ${i+1}`} : {}),tag_ids:[id(99)],...(kind === "tasks" ? { kind: "once", entity_ids: [], entity_context: [], pauses: [], deleted_at: null, created_by: null, created_by_name: null } : {}),status:"open",due_on:null,recurrence:null,timezone:null,result_record:null}));
     await page.route("http://127.0.0.1:55581/api/**",async route => {if(await fulfillPreparation(route))return;
       if(new URL(route.request().url()).pathname.endsWith("/tags")){
         if(!attempts++){await route.fulfill({status:503,json:{code:"internal",message:"태그 사전 실패"}});return;}
@@ -397,7 +397,7 @@ for(const kind of ["records","tasks"]){
 }
 for(const kind of ["records","tasks"]){
   test(`${kind} 한 글자 제목도 모든 폭에서44px 조작 영역을 유지한다`,async({page})=>{
-    const item={...record(1),...(kind!=="records"?{title:"함"}:{}),body:"함",...(kind === "tasks" ? { kind: "once", entity_ids: [], entity_context: [], pauses: [], deleted_at: null } : {}),status:"open",due_on:null,recurrence:null,timezone:null,result_record:null};
+    const item={...record(1),...(kind!=="records"?{title:"함"}:{}),body:"함",...(kind === "tasks" ? { kind: "once", entity_ids: [], entity_context: [], pauses: [], deleted_at: null, created_by: null, created_by_name: null } : {}),status:"open",due_on:null,recurrence:null,timezone:null,result_record:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/tags")?{items:[],next_cursor:null}:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
     const title=(page.getByRole("region",{name:kind==="records"?"기록 목록":"할 일 목록",exact:true})).getByRole("button",{name:"함",exact:true});
@@ -512,7 +512,7 @@ test("record date picker retains invalid and partial parent drafts while only tw
       writes.push(input);
       return route.fulfill({ json: { ...record(72), ...input } });
     }
-    if (new URL(route.request().url()).pathname.endsWith(`/tasks/${id(100)}`)) return route.fulfill({ json: { id: id(100), title: "수행할 일", body: "", kind: "once", status: "open", due_on: null, recurrence: null, timezone: null, entity_ids: [], entity_context: [], tag_ids: [], result_record: null, version: 1, deleted_at: null } });
+    if (new URL(route.request().url()).pathname.endsWith(`/tasks/${id(100)}`)) return route.fulfill({ json: { id: id(100), title: "수행할 일", body: "", kind: "once", status: "open", due_on: null, recurrence: null, timezone: null, entity_ids: [], entity_context: [], tag_ids: [], result_record: null, version: 1, pauses: [], created_by: null, created_by_name: null, deleted_at: null } });
     if (await fulfillPreparation(route)) return;
     return route.fulfill({ json: { items: [], next_cursor: null } });
   });
@@ -542,4 +542,63 @@ test("record date picker retains invalid and partial parent drafts while only tw
   await form.getByRole("button", { name: "완료하고 기록 저장", exact: true }).click();
   await expect.poll(() => writes.length).toBe(1);
   expect(writes[0]).not.toHaveProperty("occurred_at");
+});
+
+
+test("deleted task retains its content and result, and restore retries the exact admitted version and request", async ({ page }) => {
+  let task = { id: id(81), title: "복원할 할 일", body: "보관된 업무 본문", kind: "once", status: "done", due_on: null, recurrence: null, timezone: null, completed_at: "2026-10-03T16:00:00Z", result_record_id: id(82), result_record: { id: id(82), body: "보관된 수행 결과" }, entity_ids: [], entity_context: [], tag_ids: [], pauses: [], version: 5, deleted_at: "2026-10-04T00:00:00Z" as string | null, created_by: null, created_by_name: null, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" };
+  const writes: { key: string | undefined; body: Record<string, unknown> }[] = [];
+  await page.route("http://127.0.0.1:55581/api/**", async route => {
+    if (await fulfillPreparation(route)) return;
+    const request = route.request(), url = new URL(request.url());
+    if (url.pathname.endsWith(`/tasks/${task.id}/restore`)) {
+      writes.push({ key: request.headers()["idempotency-key"], body: request.postDataJSON() });
+      if (writes.length === 1) return route.abort("failed");
+      task = { ...task, deleted_at: null, version: 6 };
+      return route.fulfill({ json: task });
+    }
+    if (url.pathname.endsWith(`/tasks/${task.id}`)) return route.fulfill({ json: task });
+    if (url.pathname.endsWith("/records")) return route.fulfill({ json: { items: [{ ...record(82), task_id: task.id, body: "보관된 수행 결과" }], next_cursor: null } });
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
+  await page.goto("/e2e/fixtures/activity.html?route=" + encodeURIComponent(`/tasks/${task.id}`));
+  const surface = detailDialog(page);
+  await expect(surface).toContainText("보관된 업무 본문");
+  await expect(surface).toContainText("삭제됨");
+  await expect(surface.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
+  await expect(surface.getByRole("button", { name: "태그 연결", exact: true })).toHaveCount(0);
+  await expect(surface.getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
+  await expect(surface.getByRole("button", { name: "보관된 수행 결과", exact: true })).toBeVisible();
+  await surface.getByRole("button", { name: "복원", exact: true }).click();
+  const confirmation = executionDialog(page);
+  await confirmation.getByLabel("기록 메모", { exact: true }).fill("보관한 업무 재개");
+  await confirmation.getByRole("button", { name: "복원하고 저장", exact: true }).click();
+  await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeVisible();
+  await confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
+  await expect(surface.getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  expect(writes).toHaveLength(2);
+  expect(writes[1]).toEqual(writes[0]);
+  expect(writes[0].body.expected_version).toBe(5);
+  expect(writes[0].body.change_note).toBe("보관한 업무 재개");
+  expect(writes[0].key).toMatch(/^[0-9a-f-]{36}$/);
+  await expect(page).not.toHaveURL(/action=restore/);
+  await expect(surface.getByRole("button", { name: "보관된 수행 결과", exact: true })).toBeVisible();
+});
+
+test("deleted-only task lookup preserves its visibility filter with a keyword search", async ({ page }) => {
+  const reads: URL[] = [], searches: string[] = [];
+  await page.route("http://127.0.0.1:55581/api/**", async route => {
+    if (await fulfillPreparation(route)) return;
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/tasks")) reads.push(url);
+    if (url.pathname.endsWith("/search")) searches.push(url.pathname);
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
+  await page.goto("/e2e/fixtures/activity.html?route=" + encodeURIComponent("/tasks?deleted=only&q=보관"));
+  await expect.poll(() => reads.length).toBeGreaterThan(0);
+  expect(reads.at(-1)!.searchParams.get("deleted")).toBe("only");
+  expect(reads.at(-1)!.searchParams.get("keyword")).toBe("보관");
+  expect(searches).toEqual([]);
+  await openTabFilters(page);
+  await expect(page.getByLabel("삭제 상태", { exact: true })).toHaveValue("only");
 });
