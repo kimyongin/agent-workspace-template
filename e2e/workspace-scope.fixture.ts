@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
-import { task, type WorkspaceRows } from "./support/workspace-data.ts";
+import { fixtureType, task, type WorkspaceRows } from "./support/workspace-data.ts";
+import { openMainNavigation } from "./ui-actions.ts";
 const a = "00000000-0000-4000-8000-000000000981",
   b = "00000000-0000-4000-8000-000000000982";
 const actor = "00000000-0000-4000-8000-000000000901";
@@ -129,6 +130,81 @@ test("a held old-space list cannot replace the newly selected space", async ({ p
   held.release();
   await held.finished;
   await expect(page.getByText("space A task", { exact: true })).toHaveCount(0);
+});
+test("navigation follows the current space and grants despite a late old capability response", async ({ page }) => {
+  const api = await fixture(page);
+  const typeA = { ...fixtureType, label: "공간 A 자료" };
+  const typeB = { ...fixtureType, id: "00000000-0000-4000-8000-000000000902", label: "공간 B 자료" };
+  let holdA = false, readableB = true;
+  let release!: () => void, arrived!: () => void, finished!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { arrived = resolve; });
+  const settled = new Promise<void>(resolve => { finished = resolve; });
+  await page.route(/\/api\/entity-types(?:\?.*)?$/, route => {
+    const workspaceId = route.request().headers()["x-workspace-id"];
+    expect([a, b]).toContain(workspaceId);
+    return route.fulfill({ json: { items: [workspaceId === a ? typeA : typeB], next_cursor: null } });
+  });
+  await page.route(/\/api\/workspaces\/[0-9a-f-]{36}$/, async route => {
+    const workspaceId = new URL(route.request().url()).pathname.split("/").at(-1)!;
+    if (![a, b].includes(workspaceId) || route.request().method() !== "GET") return route.fallback();
+    const held = workspaceId === a && holdA;
+    if (held) { arrived(); await waiting; }
+    const type = workspaceId === a ? typeA : typeB;
+    try {
+      await route.fulfill({ json: {
+        workspace: { id: workspaceId, name: api.workspaces[workspaceId].name, deleted_at: null },
+        membership_version: workspaceId === b && !readableB ? 2 : 1,
+        can_manage: false,
+        grants: [
+          { target_kind: "tasks", target_id: "*", access: "write" },
+          { target_kind: "entity_type", target_id: type.id, access: workspaceId === b && !readableB ? "none" : "read" },
+        ],
+      } });
+    } catch (error) {
+      if (!held) throw error;
+    } finally {
+      if (held) finished();
+    }
+  });
+  const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  const link = (label: string) => navigation.getByRole("link", { name: label, exact: true });
+  try {
+    await page.goto(`/w/${a}/tasks`);
+    await expect(page.getByText("space A task", { exact: true }).first()).toBeVisible();
+    await openMainNavigation(page);
+    await expect(link(typeA.label)).toHaveAttribute("href", `/w/${a}/entities?entity_type_id=${typeA.id}`);
+    await expect(link(typeB.label)).toHaveCount(0);
+    holdA = true;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await started;
+    await choose(page, "공간 B");
+    await expect(page).toHaveURL(new RegExp(`/w/${b}/tasks$`));
+    await expect(page.getByText("space B task", { exact: true }).first()).toBeVisible();
+    await openMainNavigation(page);
+    await expect(link(typeB.label)).toHaveAttribute("href", `/w/${b}/entities?entity_type_id=${typeB.id}`);
+    await expect(link(typeA.label)).toHaveCount(0);
+    release();
+    await settled;
+    await expect(link(typeB.label)).toBeVisible();
+    await expect(link(typeA.label)).toHaveCount(0);
+    for (const readable of [false, true]) {
+      readableB = readable;
+      const response = page.waitForResponse(response => new URL(response.url()).pathname === `/api/workspaces/${b}`);
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await response;
+      if (readable) await expect(link(typeB.label)).toBeVisible();
+      else await expect(link(typeB.label)).toHaveCount(0);
+      await expect(link(typeA.label)).toHaveCount(0);
+      await expect(link("할 일")).toHaveAttribute("href", `/w/${b}/tasks`);
+      await expect(link("할 일")).toHaveAttribute("aria-current", "page");
+      await expect(page).toHaveURL(new RegExp(`/w/${b}/tasks$`));
+    }
+    expect(api.writes).toEqual([]);
+    expect(api.errors).toEqual([]);
+  } finally {
+    release();
+  }
 });
 test("workspace creation is explicit and its confirmed response selects the returned space", async ({ page }) => {
   const api = await fixture(page);
