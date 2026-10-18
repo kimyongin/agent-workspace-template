@@ -1,11 +1,11 @@
-import { requireWorkspaceActor } from "./workspace-context.ts";
+import { requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import type { WorkspaceEntry } from "../../core/workspaces/application.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { EntityIssuerStore } from "../../core/entity-issuers/application.ts";
 import type { EntityIssuer, EntityTypeIdentity, IdentifierRule } from "../../contracts/entity-issuer.ts";
 import { APP_IDENTIFIER_RULE_ID } from "../../contracts/entity-issuer.ts";
 import { AppError, notFound } from "../../core/shared/errors.ts";
-import { runAsActor } from "./sql-context.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 function issuer(row: postgres.Row): EntityIssuer {
@@ -194,7 +194,16 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
 }
 export class SqlEntityIssuerUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
-  run<T>(actor: Actor, fn: (s: EntityIssuerStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, actor, (tx) => fn(new SqlEntityIssuerStore(tx, actor)));
+  run<T>(
+    actor: Actor,
+    fn: (s: EntityIssuerStore) => Promise<T>,
+    entry: WorkspaceEntry = { mode: "business", requirements: [] },
+  ): Promise<T> {
+    return runInWorkspace(
+      this.sql,
+      requireWorkspaceActor(actor),
+      entry,
+      (tx) => fn(new SqlEntityIssuerStore(tx, actor)),
+    );
   }
 }
