@@ -1054,6 +1054,7 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
     await expect(chooser.getByRole("option", { name: "다른 태그", exact: true })).toBeDisabled();
     await page.keyboard.press("Escape");
     await expect(chooser).toHaveCount(0);
+    await expect(region).toBeFocused();
     await expect(picker).toBeDisabled();
     await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
     await expect(region.getByRole("button", { name: "연결 적용", exact: true })).toBeDisabled();

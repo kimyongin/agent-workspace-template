@@ -274,6 +274,10 @@ test("open relation confirmation respects WRITE to READ refresh and retains the 
     release();
     await expect(confirmation.getByText(/저장 여부를 알 수 없습니다/)).toBeVisible();
     await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
+    await expect(confirmation.getByRole("button", { name: "취소", exact: true })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(confirmation).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/w/${fixtureWorkspaceId}/entities/`));
     expect(writes).toHaveLength(1);
     await refresh("write");
     await confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
