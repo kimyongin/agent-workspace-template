@@ -2,6 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseEnv } from "node:util";
 import { randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import type { DataModelDocument } from "../supabase/functions/_shared/contracts/data-model.ts";
 import postgres from "postgres";
 import { parse } from "smol-toml";
 import { expect, type Page, test } from "@playwright/test";
@@ -208,7 +210,8 @@ test(
       await expect(
         page.getByRole("textbox", { name: "자료 종류 이름", exact: true }),
       ).toHaveValue(label);
-      await expect(page.getByText("자료 종류를 읽는 중…", { exact: true })).toHaveCount(0);
+      await expect(page.getByText("자료 종류를 읽는 중…", { exact: true }))
+        .toHaveCount(0);
       await page.screenshot({
         path: info.outputPath("actual-kind-created.png"),
         fullPage: true,
@@ -378,6 +381,510 @@ test(
       throw new AggregateError(
         errors,
         "actual model settings or exact owned cleanup failed",
+      );
+    }
+  },
+);
+
+// Actual durable UI seam. Entity/membership preparation is explicitly seed-only;
+// the model lifecycle is public HTTP plus genuine browser interaction.
+test(
+  "actual durable model UI: error repair, reconnect, retry, cancel and fresh publish",
+  async ({ page, browser, baseURL }, info) => {
+    const environment = isolatedEnvironment();
+    expect(new URL(baseURL!).origin).toBe(environment.web);
+    const run = randomUUID(), title = `실제 값 변환 ${run.slice(0, 8)}`;
+    const manifest = {
+      run,
+      project_id: environment.projectId,
+      source_revision: required(process.env, "WORKSPACE_E2E_SOURCE_REVISION"),
+      workspace_id: null as string | null,
+      workspace_name: `durable513-${run}`,
+      actor_ids: [] as string[],
+      session_ids: [] as string[],
+      request_keys: [] as string[],
+      type_ids: [] as string[],
+      entity_ids: [] as string[],
+      model_ids: [] as string[],
+      analysis_ids: [] as string[],
+      job_ids: [] as string[],
+      cleaned: false,
+    };
+    const persist = () => {
+      const file = info.outputPath("owned-durable-model-fixture.json");
+      mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+      writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n", {
+        mode: 0o600,
+      });
+    };
+    persist();
+    const admin = postgres(required(environment.values, "LOCAL_DB_URL"), {
+      max: 1,
+      onnotice: () => {},
+    });
+    const workerStep = (packet: Record<string, unknown>) => {
+      const file = info.outputPath("owned-worker-step.json");
+      writeFileSync(file, JSON.stringify(packet), { mode: 0o600 });
+      execFileSync(required(process.env, "WORKSPACE_E2E_DENO_BIN"), [
+        "run",
+        "--quiet",
+        "--config",
+        "supabase/functions/deno.json",
+        "--allow-read",
+        "--allow-env",
+        "--allow-net=127.0.0.1,localhost",
+        "e2e/workspace-model-worker.fixture.ts",
+        file,
+      ], {
+        cwd: resolve("."),
+        env: process.env,
+        stdio: "pipe",
+        timeout: 30_000,
+      });
+    };
+    const errors: unknown[] = [];
+    let actorPage: Page | undefined;
+    let actorContext:
+      | Awaited<ReturnType<typeof browser.newContext>>
+      | undefined;
+    const login = async (target: Page, who: "A" | "B") => {
+      await target.goto(`${environment.web}/login`);
+      await target.getByLabel("이메일", { exact: false }).fill(
+        required(environment.values, `DEV_USER_${who}_EMAIL`),
+      );
+      await target.getByLabel("비밀번호", { exact: false }).fill(
+        required(environment.values, `DEV_USER_${who}_PASSWORD`),
+      );
+      const response = target.waitForResponse((r) =>
+        new URL(r.url()).origin === environment.auth &&
+        new URL(r.url()).pathname === "/auth/v1/token" &&
+        r.request().method() === "POST"
+      );
+      await target.getByRole("button", { name: "이메일로 로그인", exact: true })
+        .click();
+      const result = await response;
+      expect(result.ok()).toBeTruthy();
+      const session = await result.json();
+      const claims = JSON.parse(
+        Buffer.from(session.access_token.split(".")[1], "base64url").toString(),
+      );
+      manifest.actor_ids.push(session.user.id);
+      manifest.session_ids.push(claims.session_id);
+      persist();
+      await expect(
+        target.getByRole("heading", { name: "내 공간", exact: true }),
+      ).toBeVisible();
+      return {
+        id: session.user.id as string,
+        token: session.access_token as string,
+      };
+    };
+    const api = async (
+      token: string,
+      method: string,
+      path: string,
+      body?: unknown,
+      workspace?: string,
+    ) => {
+      const key = randomUUID();
+      manifest.request_keys.push(key);
+      persist();
+      const response = await page.request.fetch(`${environment.api}${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "Idempotency-Key": key,
+          ...(workspace ? { "X-Workspace-Id": workspace } : {}),
+        },
+        data: body,
+      });
+      expect(response.ok()).toBeTruthy();
+      return await response.json();
+    };
+    const remember = (
+      change: {
+        id: string;
+        group?: {
+          children: {
+            change: { analysis?: { id: string } };
+            job?: { id: string };
+          }[];
+        };
+      },
+    ) => {
+      if (!manifest.model_ids.includes(change.id)) {
+        manifest.model_ids.push(change.id);
+      }
+      for (const child of change.group?.children ?? []) {
+        if (
+          child.change.analysis &&
+          !manifest.analysis_ids.includes(child.change.analysis.id)
+        ) manifest.analysis_ids.push(child.change.analysis.id);
+        if (child.job && !manifest.job_ids.includes(child.job.id)) {
+          manifest.job_ids.push(child.job.id);
+        }
+      }
+      persist();
+      return change;
+    };
+    try {
+      const [pending] = await admin`select
+      (select count(*) from app.entity_schema_analyses where status in ('queued','running')) +
+      (select count(*) from app.entity_schema_migrations where status in ('queued','preparing','ready_to_commit','committing')) as n`;
+      expect(Number(pending.n)).toBe(0);
+      const a = await login(page, "A");
+      actorContext = await browser.newContext({
+        viewport: page.viewportSize(),
+        isMobile: info.project.use.isMobile,
+        hasTouch: info.project.use.hasTouch,
+        deviceScaleFactor: info.project.use.deviceScaleFactor,
+        userAgent: info.project.use.userAgent,
+      });
+      actorPage = await actorContext.newPage();
+      const b = await login(actorPage, "B");
+      const workspace = await api(a.token, "POST", "/workspaces", {
+        name: manifest.workspace_name,
+      });
+      const w = workspace.workspace.id as string;
+      manifest.workspace_id = w;
+      persist();
+      const kind = await api(a.token, "POST", "/entity-types", {
+        label: `보완 자료 ${run.slice(0, 8)}`,
+      }, w);
+      manifest.type_ids.push(kind.id);
+      persist();
+      const grants = [{
+        target_kind: "settings",
+        target_id: "*",
+        access: "write",
+      }, { target_kind: "entity_type", target_id: kind.id, access: "write" }];
+      await api(a.token, "PATCH", `/workspaces/${w}/members/${a.id}`, {
+        expected_version: 1,
+        grants,
+      });
+      await admin`insert into private.workspace_members(workspace_id,user_id) values(${w},${b.id})`;
+      await api(a.token, "PATCH", `/workspaces/${w}/members/${b.id}`, {
+        expected_version: 1,
+        grants,
+      });
+      const external = randomUUID(), entityId = `app:${kind.id}:${external}`;
+      manifest.entity_ids.push(entityId);
+      persist();
+      workerStep({
+        operation: "seed",
+        workspace: w,
+        actor: a.id,
+        model: "",
+        analysisIds: [],
+        jobIds: [],
+        kindId: kind.id,
+        entityId,
+        external,
+      });
+      const document = await api(
+        b.token,
+        "GET",
+        "/data-model/export",
+        undefined,
+        w,
+      ) as DataModelDocument;
+      document.title = title;
+      document.entity_types[0].schema.properties.prop_1.maxLength = 1;
+      const prepare = async (target: DataModelDocument) => {
+        const input = { mode: "update", document: JSON.stringify(target) };
+        const preview = await api(
+          b.token,
+          "POST",
+          "/data-model/preview",
+          input,
+          w,
+        );
+        const saved = await api(b.token, "POST", "/data-model/changes", {
+          ...input,
+          preview_fingerprint: preview.fingerprint,
+        }, w);
+        remember(saved);
+        return saved;
+      };
+      const change = await prepare(document);
+      const read = async (id = change.id) => {
+        const value = await api(
+          b.token,
+          "GET",
+          `/data-model/changes/${id}`,
+          undefined,
+          w,
+        );
+        remember(value);
+        return value;
+      };
+      const internal = async (
+        operation: "analysis" | "fail" | "publish",
+        current: Awaited<ReturnType<typeof read>>,
+      ) => {
+        workerStep({
+          operation,
+          workspace: w,
+          actor: b.id,
+          model: current.id,
+          analysisIds: current.group.children.map((
+            c: { change: { analysis: { id: string } } },
+          ) => c.change.analysis.id),
+          jobIds: current.group.children.flatMap((
+            c: { job?: { id: string } },
+          ) => c.job ? [c.job.id] : []),
+        });
+      };
+      const open = async (currentTitle: string, state: string) => {
+        await actorPage!.goto(`${environment.web}/w/${w}/settings/data-model`);
+        await actorPage!.getByRole("button", {
+          name: `${currentTitle} ${state}`,
+          exact: true,
+        }).click();
+        await expect(
+          actorPage!.getByRole("region", {
+            name: "기존 자료 값 변환",
+            exact: true,
+          }),
+        ).toBeVisible();
+      };
+      const click = async (name: string, action: string) => {
+        const response = actorPage!.waitForResponse((r) =>
+          r.url() ===
+            `${environment.api}/data-model/changes/${change.id}/${action}` &&
+          r.request().method() === "POST"
+        );
+        await actorPage!.getByRole("button", { name, exact: true }).click();
+        const result = await response;
+        expect(result.ok()).toBeTruthy();
+        expect(result.request().headers()["x-workspace-id"]).toBe(w);
+        const key = result.request().headers()["idempotency-key"];
+        if (key) manifest.request_keys.push(key);
+        const value = await result.json();
+        remember(value);
+        return value;
+      };
+      await open(title, "값 변환 필요");
+      await click("변경 영향 확인", "analyze");
+      await expect(
+        actorPage.getByText("요청한 작업을 진행하고 있습니다.", {
+          exact: false,
+        }),
+      ).toBeVisible();
+      await internal("analysis", await read());
+      // The real polling response, rather than a forced UI refresh, reveals errors.
+      await expect(
+        actorPage.getByRole("button", {
+          name: `${title} 값 변환 필요`,
+          exact: true,
+        }),
+      ).toBeVisible();
+      const childRegion = actorPage.getByRole("region", {
+        name: `${kind.label} 변환`,
+        exact: true,
+      });
+      if (!await childRegion.isVisible()) {
+        await actorPage.getByRole("button", {
+          name: `${kind.label} 변환 열기`,
+          exact: true,
+        }).click();
+      }
+      await expect(
+        actorPage.getByRole("table", {
+          name: "자료 값 변환 결과 목록",
+          exact: true,
+        }),
+      ).toContainText("변환 실패");
+      await actorPage.getByRole("button", { name: "보완값 지정", exact: true })
+        .click();
+      const correction = actorPage.getByRole("textbox", {
+        name: "보완값",
+        exact: true,
+      });
+      await correction.fill("X");
+      await expect(correction).toHaveValue("X");
+      await correction.scrollIntoViewIfNeeded();
+      await actorPage.screenshot({
+        path: info.outputPath("actual-durable-error-repair.png"),
+        fullPage: true,
+      });
+      await click("변경 영향 확인", "analyze");
+      await internal("analysis", await read());
+      await expect(
+        actorPage.getByRole("button", {
+          name: "검토한 설정 적용",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      await click("검토한 설정 적용", "apply");
+      const queued = await read();
+      expect(queued.status).toBe("queued");
+      await actorPage.reload();
+      await actorPage.getByRole("button", {
+        name: `${title} 변환 준비 대기`,
+        exact: true,
+      }).click();
+      await expect(
+        actorPage.getByText("요청한 작업을 진행하고 있습니다.", {
+          exact: false,
+        }),
+      ).toBeVisible();
+      await actorPage.getByRole("region", {
+        name: "기존 자료 값 변환",
+        exact: true,
+      }).scrollIntoViewIfNeeded();
+      await actorPage.screenshot({
+        path: info.outputPath("actual-durable-reconnected.png"),
+        fullPage: true,
+      });
+      await internal("fail", queued);
+      await expect(
+        actorPage.getByRole("button", {
+          name: "값 변환 다시 시도",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      await click("값 변환 다시 시도", "retry");
+      const retried = await read();
+      expect(retried.group.children[0].job.id).not.toBe(
+        queued.group.children[0].job.id,
+      );
+      await click("변경 취소", "cancel");
+      await expect(
+        actorPage.getByRole("button", { name: `${title} 취소됨`, exact: true }),
+      ).toBeVisible();
+      await actorPage.getByRole("button", {
+        name: `${title} 취소됨`,
+        exact: true,
+      }).scrollIntoViewIfNeeded();
+      await actorPage.screenshot({
+        path: info.outputPath("actual-durable-retry-cancelled.png"),
+        fullPage: true,
+      });
+      // A new public full-model attempt reuses the valid correction, never revives
+      // the cancelled job. The final visible terminal state is an actual publish.
+      const freshDocument = structuredClone(document);
+      freshDocument.title = `${title} 새 적용`;
+      const fresh = await prepare(freshDocument);
+      await api(b.token, "POST", `/data-model/changes/${fresh.id}/analyze`, {
+        expected_version: fresh.version,
+        conversions: [{
+          type_ref: freshDocument.entity_types[0].ref,
+          migration: {
+            rules: [],
+            overrides: [{ entity_id: entityId, key: "prop_1", value: "X" }],
+          },
+        }],
+      }, w);
+      await internal("analysis", await read(fresh.id));
+      await open(freshDocument.title, "적용 준비됨");
+      const apply = actorPage.waitForResponse((r) =>
+        r.url().endsWith(`/data-model/changes/${fresh.id}/apply`) &&
+        r.request().method() === "POST"
+      );
+      await actorPage.getByRole("button", {
+        name: "검토한 설정 적용",
+        exact: true,
+      }).click();
+      expect((await apply).ok()).toBeTruthy();
+      await internal("publish", await read(fresh.id));
+      await expect(
+        actorPage.getByRole("button", {
+          name: `${freshDocument.title} 설정 적용 완료`,
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        actorPage.getByRole("region", {
+          name: freshDocument.title,
+          exact: true,
+        }).getByText("적용 완료", { exact: true }),
+      ).toBeVisible();
+      await actorPage.getByRole("button", {
+        name: `${freshDocument.title} 설정 적용 완료`,
+        exact: true,
+      }).scrollIntoViewIfNeeded();
+      await actorPage.screenshot({
+        path: info.outputPath("actual-durable-published.png"),
+        fullPage: true,
+      });
+      const exported = await api(
+        b.token,
+        "GET",
+        "/data-model/export",
+        undefined,
+        w,
+      ) as DataModelDocument;
+      expect(exported.entity_types[0].schema["x-version"]).toBe(2);
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      try {
+        await actorContext?.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        await admin.begin(async (tx) => {
+          const w = manifest.workspace_id;
+          if (!w) return;
+          const [root] =
+            await tx`select name,created_by from app.workspaces where id=${w} for update`;
+          expect(root).toEqual({
+            name: manifest.workspace_name,
+            created_by: manifest.actor_ids[0],
+          });
+          expect(
+            (await tx`select user_id from private.workspace_members where workspace_id=${w}`)
+              .every((row) => manifest.actor_ids.includes(row.user_id)),
+          ).toBeTruthy();
+          expect(
+            (await tx`select id from app.entity_types where workspace_id=${w}`)
+              .every((row) => manifest.type_ids.includes(row.id)),
+          ).toBeTruthy();
+          expect(
+            (await tx`select id from app.entities where workspace_id=${w}`)
+              .every((row) => manifest.entity_ids.includes(row.id)),
+          ).toBeTruthy();
+          expect(
+            (await tx`select id from app.data_model_changes where workspace_id=${w}`)
+              .every((row) => manifest.model_ids.includes(row.id)),
+          ).toBeTruthy();
+          await tx`delete from pgmq.q_search_index where message->>'workspace_id'=${w}`;
+          await tx`delete from pgmq.a_search_index where message->>'workspace_id'=${w}`;
+          await tx`delete from app.workspaces where id=${w}`;
+          expect(
+            await tx`select id from app.entity_schema_migrations where workspace_id=${w}`,
+          ).toHaveLength(0);
+          expect(
+            await tx`select msg_id from pgmq.q_search_index where message->>'workspace_id'=${w}`,
+          ).toHaveLength(0);
+          expect(
+            await tx`select msg_id from pgmq.a_search_index where message->>'workspace_id'=${w}`,
+          ).toHaveLength(0);
+        });
+        manifest.cleaned = true;
+        persist();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        if (manifest.session_ids.length) {
+          await admin`delete from auth.sessions where id=any(${manifest.session_ids}::uuid[])`;
+        }
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        await admin.end();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length) {
+      throw new AggregateError(
+        errors,
+        "actual durable model UI or exact owned cleanup failed",
       );
     }
   },
