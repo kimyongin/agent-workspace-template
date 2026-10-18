@@ -2,9 +2,9 @@ import { expect, type Page, test } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { fixtureSchema, fixtureType, id } from "./support/workspace-data.ts";
 const space = id(981), actor = id(901);
-async function setup(page: Page, initial: "none" | "read" | "write") {
+async function setup(page: Page, initial: "none" | "read" | "write", tagged = false) {
   let access = initial;
-  const reads: string[] = [], writes: string[] = [];
+  const reads: string[] = [], writes: string[] = [], tagReads: string[] = [];
   const user = { id: actor, aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: {} };
   await page.addInitScript(
     (user) =>
@@ -31,6 +31,33 @@ async function setup(page: Page, initial: "none" | "read" | "write") {
       return route.fulfill({ status: 403, json: { code: "forbidden", message: "읽기 전용" } });
     }
     reads.push(path);
+    if (tagged && path === "/tags") {
+      tagReads.push(request.url());
+      if (new URL(request.url()).searchParams.get("purpose") !== "record-template") {
+        return route.fulfill({ status: 403, json: { code: "forbidden", message: "설정용 태그 조회가 필요합니다" } });
+      }
+      return route.fulfill({
+        json: {
+          items: [{
+            id: id(990),
+            scope: "record",
+            name: "공유 설정 태그",
+            version: 1,
+            created_at: "2026-10-18T00:00:00Z",
+            updated_at: "2026-10-18T00:00:00Z",
+          }],
+          next_cursor: null,
+        },
+      });
+    }
+    if (tagged && path === "/settings/business") {
+      return route.fulfill({
+        json: {
+          versions: { record_templates: 1 },
+          settings: { record_templates: { task: { create: { memo: "$대상$ 작성", tag_ids: [id(990)] } } } },
+        },
+      });
+    }
     if (path === `/workspaces/${space}`) {
       return route.fulfill({
         json: {
@@ -73,6 +100,7 @@ async function setup(page: Page, initial: "none" | "read" | "write") {
   return {
     reads,
     writes,
+    tagReads,
     setAccess: (value: typeof access) => {
       access = value;
     },
@@ -200,3 +228,18 @@ test("unknown write followed by permission demotion can leave with draft confirm
   await expect(page).toHaveURL(new RegExp(`/w/${space}/settings/data-model$`));
   expect(fixture.writes).toHaveLength(1);
 });
+
+test(
+  "read-only templates display saved record tag metadata through the settings purpose",
+  async ({ page }, testInfo) => {
+    const fixture = await setup(page, "read", true);
+    await page.goto(`/w/${space}/settings/records`);
+    await expect(page.getByText("공유 설정 태그", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "태그 선택", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "공유 설정 태그 선택 해제", exact: true })).toBeDisabled();
+    expect(fixture.tagReads.length).toBeGreaterThan(0);
+    expect(fixture.tagReads.every((url) => new URL(url).searchParams.get("purpose") === "record-template")).toBe(true);
+    expect(fixture.writes).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath("settings-readonly-saved-tags.png"), fullPage: true });
+  },
+);
