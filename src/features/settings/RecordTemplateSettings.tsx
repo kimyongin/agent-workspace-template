@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { RotateCcwIcon, EyeIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -113,6 +114,7 @@ function RecordTemplateForm({
     >
   >;
 }) {
+  const { canWrite } = useSettingsAccess();
   const api = useApi();
   const requestScope = useRequestScope();
   const [variableQuery, setVariableQuery] = useState("");
@@ -288,7 +290,7 @@ function RecordTemplateForm({
           aria-busy={busy}
           onSubmit={async (event) => {
             event.preventDefault();
-            if (busy || conflict || !dirty || schemaUnavailable) return;
+            if (!canWrite || busy || conflict || !dirty || schemaUnavailable) return;
             if (!parse.success) {
               setFields(
                 Object.fromEntries(
@@ -314,7 +316,7 @@ function RecordTemplateForm({
                 "정리는 현재 설정 범위에만 적용합니다. 다른 종류나 모델의 오류는 해당 설정에서 정리하세요."}{" "}
               <Button variant="ghost"
                 type="button"
-                disabled={busy}
+                disabled={!canWrite || busy}
                 onClick={() => {
                   setDraft((current) =>
                     mapRecordTemplateTags(current, (ids) => ids.filter((id) => !missing.includes(id)))
@@ -326,7 +328,7 @@ function RecordTemplateForm({
             </Notice>
           )}
           <FieldSet
-            disabled={busy || uncertain}
+            disabled={!canWrite || busy || uncertain}
             className="flex min-w-0 flex-col gap-5 border-0 p-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
           >
             <>
@@ -339,7 +341,7 @@ function RecordTemplateForm({
                         if (!modelActions(next).includes(action)) {
                           setAction("create");
                         }
-                      }} disabled={busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
+                      }} disabled={!canWrite || busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                       {TEMPLATE_MODELS.filter((key) => key !== "entity").map((key) => (
                         <SelectItem key={key} value={key}>
                           {templateModelNames[key]}
@@ -351,7 +353,7 @@ function RecordTemplateForm({
               )}
               <Field label="액션">
                 {(props) => (
-                  <Select value={action} onValueChange={(value) => setAction(value as TemplateAction)} disabled={busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
+                  <Select value={action} onValueChange={(value) => setAction(value as TemplateAction)} disabled={!canWrite || busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                     {modelActions(model).map((key) => (
                       <SelectItem key={key} value={key}>
                         {templateActionNames[key]}
@@ -429,7 +431,7 @@ function RecordTemplateForm({
 
             <div className="min-w-0 col-span-full">
               <TagPicker
-                disabled={busy || uncertain}
+                disabled={!canWrite || busy || uncertain}
                 label="기본 기록 태그"
                 scope="record"
                 value={value.tag_ids}
@@ -476,7 +478,7 @@ function RecordTemplateForm({
               <Button variant="outline"
                 type="button"
 
-                disabled={busy || uncertain || (conflict ? !latestReady : !dirty)}
+                disabled={!canWrite || busy || uncertain || (conflict ? !latestReady : !dirty)}
                 aria-label={conflict ? "최신값으로 다시 편집" : "변경 취소"}
                 onClick={() => {
                   editor.resource.reset();
@@ -489,7 +491,7 @@ function RecordTemplateForm({
               <Button variant="default"
                 type="submit"
 
-                disabled={busy || !dirty || conflict || schemaUnavailable}
+                disabled={!canWrite || busy || !dirty || conflict || schemaUnavailable}
                 aria-label={busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 자동 완성 저장"}
               >
                 {busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}

@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { LinkIcon, PlusIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -26,6 +27,8 @@ export function TypeIdentitySettings(
     onState: (state: MaterialSectionState) => void;
   },
 ) {
+  const { canWrite } = useSettingsAccess();
+  disabled = disabled || !canWrite;
   const issuerRegistry = useIssuerRegistry();
   const typeIdentityPort = useTypeIdentityPort();
   const adapter = useMemo(() => typeIdentitySettingsAdapter(typeId, typeIdentityPort), [typeId]);
@@ -85,6 +88,7 @@ export function TypeIdentitySettings(
   };
   const active = draft.sources.filter((s) => s.active && isAvailable(s.code, s.rule_id));
   const save = async () => {
+    if (!canWrite || disabled) return;
     setMessage("");
     setInputError("");
     if (!saved) return;
@@ -174,7 +178,7 @@ export function TypeIdentitySettings(
             </Field>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-sm font-medium">사용할 번호 출처</h3>
-              <Button variant="ghost" type="button"  disabled={!!catalogError} onClick={() => setConnecting(true)}><LinkIcon data-icon="inline-start" />연결</Button>
+              <Button variant="ghost" type="button"  disabled={disabled || !!catalogError} onClick={() => setConnecting(true)}><LinkIcon data-icon="inline-start" />연결</Button>
             </div>
             {catalogError && (
               <Alert variant="destructive" className="text-sm text-destructive" role="alert"><AlertDescription>
@@ -253,7 +257,7 @@ export function TypeIdentitySettings(
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <Button variant="ghost" type="button"
                             aria-label={`${sourceName(source.code)} 편집`}
-                            onClick={() => setRegistryEdit({ kind: "issuer", issuer })}
+                            disabled={disabled} onClick={() => setRegistryEdit({ kind: "issuer", issuer })}
                           >
                             편집
                           </Button>
@@ -261,7 +265,7 @@ export function TypeIdentitySettings(
                             <Button variant="ghost" type="button"
 
                               aria-label={`${sourceName(source.code)} 번호 종류 추가`}
-                              disabled={!rules[source.code]}
+                              disabled={disabled || !rules[source.code]}
                               onClick={() =>
                                 setRegistryEdit({
                                   kind: "rule",

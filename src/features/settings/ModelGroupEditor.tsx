@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -52,6 +53,8 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
   onState: (id: string, state: ModelGroupState) => void;
   disabled: boolean;
 }) {
+  const { canWrite } = useSettingsAccess();
+  disabled = disabled || !canWrite;
   const api = useApi();
   const children = childrenFor(change);
   const [drafts, setDrafts] = useState<Record<string, MigrationPlan>>({});

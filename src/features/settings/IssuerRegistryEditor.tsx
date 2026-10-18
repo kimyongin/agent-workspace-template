@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, FieldSet, FieldLabel } from "@/components/ui/field";
@@ -37,6 +38,7 @@ export function IssuerRegistryEditor(
     onState?: (state: MaterialSectionState) => void;
   },
 ) {
+  const { canWrite } = useSettingsAccess();
   const issuerRegistry = useIssuerRegistry();
   const form = useRef<HTMLFormElement>(null);
   const formId = useId();
@@ -86,6 +88,7 @@ export function IssuerRegistryEditor(
     );
   };
   const remove = async () => {
+    if (!canWrite) return;
     if (!baseline || busy || reading || conflict || !onDeleted) return;
     setConfirmDelete(false);
     setError("");
@@ -132,6 +135,7 @@ export function IssuerRegistryEditor(
     [onState],
   );
   const save = async (confirmed = false) => {
+    if (!canWrite) return;
     if (busy || reading || conflict || (!dirty && !uncertain)) return;
     if (!label.trim()) {
       setError("이름을 입력하세요.");
@@ -195,7 +199,7 @@ export function IssuerRegistryEditor(
     <div className="flex flex-wrap items-center justify-between gap-3">
       <Button variant="destructive" type="button"
 
-        disabled={busy || reading || conflict || saving.uncertain ||
+        disabled={!canWrite || busy || reading || conflict || saving.uncertain ||
           repairState.uncertain}
         onClick={() => deleting.uncertain ? void remove() : setConfirmDelete(true)}
       >
@@ -217,7 +221,7 @@ export function IssuerRegistryEditor(
 
         type="submit"
         form={formId}
-        disabled={busy || reading || conflict || deleting.uncertain ||
+        disabled={!canWrite || busy || reading || conflict || deleting.uncertain ||
           repairState.uncertain ||
           (!dirty && !uncertain)}
       >
@@ -253,7 +257,7 @@ export function IssuerRegistryEditor(
             {blockedChoices.length > 0 && <BusinessTable label="기본 출처 변경이 필요한 자료 종류" columns={["자료 종류", "조작"]} disclosureColumn={false}>
               {blockedChoices.map(type => <BusinessRow key={type.type_id}>
                 <BusinessCell index={0}>{type.label}</BusinessCell>
-                <BusinessCell index={1}><Button variant="ghost" type="button" aria-label={`${type.label} 기본 번호 출처 변경`} disabled={busy || uncertain} onClick={() => setRepairing(type)}>기본 번호 출처 변경</Button></BusinessCell>
+                <BusinessCell index={1}><Button variant="ghost" type="button" aria-label={`${type.label} 기본 번호 출처 변경`} disabled={!canWrite || busy || uncertain} onClick={() => setRepairing(type)}>기본 번호 출처 변경</Button></BusinessCell>
               </BusinessRow>)}
             </BusinessTable>}
             {repairing && (
@@ -282,7 +286,7 @@ export function IssuerRegistryEditor(
             <Button variant="outline"
               type="button"
 
-              disabled={busy || uncertain || reading}
+              disabled={!canWrite || busy || uncertain || reading}
               onClick={() => void readLatest()}
             >
               {reading ? "확인 중…" : "최신 저장값 확인"}

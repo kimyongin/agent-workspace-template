@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 import { BusinessTable, BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 import { RadioGroup } from "@/components/ui/radio-group";
@@ -104,6 +105,9 @@ export function SchemaEditor(
     historyInitiallyOpen?: boolean;
   },
 ) {
+  const { canWrite } = useSettingsAccess();
+  disabled = disabled || !canWrite;
+  jobDisabled = jobDisabled || !canWrite;
   const location = useLocation(), navigate = useNavigate();
   const jobs = useMigrationHistory(type.id, selectedJob);
   const lockedPlan = jobs.items.some((job) =>

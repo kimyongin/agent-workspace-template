@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { WriteAttempt } from "../../lib/write-attempt.ts";
+vi.mock("../workspaces/workspace-context.tsx", () => ({ useWorkspaceCapabilities: () => ({ grants: [{ target_kind: "settings", target_id: "*", access: "write" }] }) }));
 vi.mock("../../lib/api.ts", () => ({ createScopedApi: () => vi.fn() }));
 import {
   RecoveryAvailability,

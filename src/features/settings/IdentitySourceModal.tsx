@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { PlusIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup } from "@/components/ui/field";
@@ -28,6 +29,7 @@ export function IdentitySourceModal({
   onRule: (rule: IdentifierRule) => void;
   onState: (state: MaterialSectionState) => void;
 }) {
+  const { canWrite } = useSettingsAccess();
   const issuerRegistry = useIssuerRegistry();
   const [source, setSource] = useState(""),
     [ruleId, setRuleId] = useState(""),
@@ -117,9 +119,10 @@ export function IdentitySourceModal({
           <Button variant="default"
 
             type="button"
-            disabled={!issuer?.active || !rule?.active || !!editing}
+            disabled={!canWrite || !issuer?.active || !rule?.active || !!editing}
             onClick={() => {
-              if (issuer && rule) onConnect(issuer, rule);
+                if (!canWrite) return;
+              if (canWrite && issuer && rule) onConnect(issuer, rule);
             }}
           >
             연결
@@ -150,6 +153,7 @@ export function IdentitySourceModal({
 
             ref={issuerAdd}
             onClick={() => {
+                if (!canWrite) return;
               returnTo.current = "issuer";
               setEditing({ kind: "issuer" });
             }}
@@ -194,6 +198,7 @@ export function IdentitySourceModal({
                 ref={ruleAdd}
                 disabled={rules === null}
                 onClick={() => {
+                if (!canWrite) return;
                   returnTo.current = "rule";
                   setEditing({ kind: "rule", source, sourceLabel: issuer.label });
                 }}

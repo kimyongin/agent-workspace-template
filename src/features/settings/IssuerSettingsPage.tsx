@@ -1,3 +1,4 @@
+import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
 import { BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { PlusIcon, RotateCcwIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
@@ -16,6 +17,10 @@ import { IssuerRow } from "./IssuerRow.tsx";
 import { useIssuerRegistry } from "./issuer-registry-api.ts";
 
 export function IssuerSettingsPage() {
+  return <WorkspaceSettingsBoundary><IssuerSettingsPageContent /></WorkspaceSettingsBoundary>;
+}
+function IssuerSettingsPageContent() {
+  const { canWrite } = useSettingsAccess();
   const issuerRegistry = useIssuerRegistry();
   const [issuers, setIssuers] = useState<EntityIssuer[] | null>(null),
     [selected, setSelected] = useState("");
@@ -96,6 +101,7 @@ export function IssuerSettingsPage() {
     }
   }, [editing]);
   const edit = (target: RegistryEditTarget) => {
+    if (!canWrite) return;
     const origin = document.activeElement as HTMLElement;
     request(() => {
       returnFocus.current = origin;
@@ -167,7 +173,7 @@ export function IssuerSettingsPage() {
             type="button"
 
             ref={addButton}
-            disabled={loading || locked}
+            disabled={!canWrite || loading || locked}
             onClick={() => edit({ kind: "issuer" })}
           >
             <><PlusIcon data-icon="inline-start" />번호 출처 추가</>
@@ -195,7 +201,7 @@ export function IssuerSettingsPage() {
             disabled={locked}
             action={issuer.system ? undefined : selected !== issuer.code ? <span /> : (
               <Button variant="ghost" type="button"
-                disabled={locked}
+                disabled={!canWrite || locked}
                 aria-label={`${issuer.label} 편집`}
                 onClick={() => edit({ kind: "issuer", issuer })}
               >
@@ -233,7 +239,7 @@ export function IssuerSettingsPage() {
                     const expanded = inline && editing.rule?.id === rule.id;
                     return <Fragment key={rule.id}>
                       <BusinessRow>
-                        <BusinessDisclosureCell>{!issuer.system && <Button variant="ghost" size="icon" type="button" aria-label={`${rule.label} 편집`} aria-expanded={expanded} aria-controls={`${ruleListId}-${rule.id}`} disabled={locked}
+                        <BusinessDisclosureCell>{!issuer.system && <Button variant="ghost" size="icon" type="button" aria-label={`${rule.label} 편집`} aria-expanded={expanded} aria-controls={`${ruleListId}-${rule.id}`} disabled={!canWrite || locked}
                           onClick={() => expanded ? request(() => setEditing(null)) : edit({kind:"rule",source:issuer.code,sourceLabel:issuer.label,rule})}>
                           {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
                         </Button>}</BusinessDisclosureCell>
@@ -249,7 +255,7 @@ export function IssuerSettingsPage() {
                   <div>
                     <Button variant="ghost" type="button"
 
-                      disabled={rules === null || !issuer.active || locked}
+                      disabled={!canWrite || rules === null || !issuer.active || locked}
                       onClick={() =>
                         edit({
                           kind: "rule",

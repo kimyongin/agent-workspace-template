@@ -1,3 +1,4 @@
+import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -27,9 +28,10 @@ import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 export function EntityTypeSettings() {
   const { type_id } = useParams();
-  return <EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} />;
+  return <WorkspaceSettingsBoundary><EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} /></WorkspaceSettingsBoundary>;
 }
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
+  const { canWrite } = useSettingsAccess();
   const api = useApi();
   const requestScope = useRequestScope();
   const { session } = useAuth();
@@ -181,7 +183,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   };
   const save = async () => {
     if (
-      busy || schemaState.busy || latestBusy || basicConflict ||
+      !canWrite || busy || schemaState.busy || latestBusy || basicConflict ||
       (!dirty && !uncertain)
     ) return;
     setError("");
@@ -292,7 +294,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               </NativeSelect>
             )}
           </Field>
-          {type_id && (
+          {type_id && canWrite && (
             <Button variant="outline" className="h-auto max-w-full whitespace-normal" asChild><Link
               to="/settings/entity-types"
               state={{ materialTypeFocus: true }}
@@ -307,6 +309,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           )}
         </div>
       )}
+      {!type_id && !canWrite && <Alert><AlertDescription>조회할 자료 종류를 선택하세요.</AlertDescription></Alert>}
       {loading && <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert>}
       {!catalog.types && !catalog.error && <Alert role="status"><AlertDescription>자료 종류를 읽는 중…</AlertDescription></Alert>}
       {catalog.error && (
@@ -324,7 +327,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         </Button>
       )}
       {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
-      {!loading && (!type_id || type) && (
+      {!loading && (type_id ? !!type : canWrite) && (
         <MaterialSettingsSection
           title={type_id ? "기본 정보" : "자료 종류 만들기"}
           description="자료 종류의 이름과 아이콘을 정합니다."
@@ -352,7 +355,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             )}
             <FieldSet
               className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
-              disabled={busy || uncertain || latestBusy}
+              disabled={!canWrite || busy || uncertain || latestBusy}
             >
               <Field label="자료 종류 이름">
                 {(props) => (
@@ -419,7 +422,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   <Button variant="outline"
                     type="button"
 
-                    disabled={busy || uncertain || latestBusy}
+                    disabled={!canWrite || busy || uncertain || latestBusy}
                     onClick={() => void readLatestBasics()}
                   >
                     {latestBusy ? "최신 기본 정보 읽는 중…" : "최신 기본 정보 확인"}
@@ -434,7 +437,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                     : type_id
                     ? "기본 정보 저장"
                     : "자료 종류 만들기"}
-                  disabled={anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
+                  disabled={!canWrite || anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
                 >
                   {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : type_id ? "저장" : "자료 종류 만들기"}
                 </Button>
@@ -447,7 +450,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         <TypeIdentitySettings
           typeId={type_id}
           onState={identityStateChange}
-          disabled={busy || uncertain || schemaState.busy ||
+          disabled={!canWrite || busy || uncertain || schemaState.busy ||
             schemaState.uncertain || jobState.busy ||
             jobState.uncertain}
         />
@@ -468,12 +471,12 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           onMigrationApplied={definitions.migrationSucceeded}
           jobErrors={jobErrors}
           onJobState={jobStateChange}
-          jobDisabled={busy || uncertain || identityState.busy ||
+          jobDisabled={!canWrite || busy || uncertain || identityState.busy ||
             identityState.uncertain || schemaState.busy ||
             schemaState.uncertain}
           onApplied={definitions.published}
           onState={schemaStateChange}
-          disabled={busy || uncertain || identityState.busy ||
+          disabled={!canWrite || busy || uncertain || identityState.busy ||
             identityState.uncertain || jobState.busy ||
             jobState.uncertain}
         />

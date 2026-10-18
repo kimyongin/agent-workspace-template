@@ -1,3 +1,4 @@
+import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
@@ -302,6 +303,10 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
 }
 
 export function DataModelSettings() {
+  return <WorkspaceSettingsBoundary><DataModelSettingsContent /></WorkspaceSettingsBoundary>;
+}
+function DataModelSettingsContent() {
+  const { canWrite } = useSettingsAccess();
   const api = useApi();
   const requestScope = useRequestScope();
   const { session } = useAuth();
@@ -456,6 +461,7 @@ export function DataModelSettings() {
     attempt.reset();
   };
   const preview = async () => {
+    if (!canWrite) return;
     if (locked || !document.trim()) return;
     const controller = new AbortController();
     readRequest.current = controller;
@@ -479,6 +485,7 @@ export function DataModelSettings() {
     }
   };
   const readFile = async (value?: File) => {
+    if (!canWrite) return;
     if (!value || locked) return;
     const current = ++sequence.current;
     setReading(true);
@@ -512,6 +519,7 @@ export function DataModelSettings() {
     setReview(null);
   };
   const prepare = async () => {
+    if (!canWrite) return;
     if (
       busy || reading || groupBusy || groupUncertain || groupDirty || !review ||
       !uncertain && missingRemovalConfirmation || uncertain && pendingAction !== "prepare"
@@ -540,6 +548,7 @@ export function DataModelSettings() {
     }
   };
   const apply = async (change: ModelChange) => {
+    if (!canWrite) return;
     if (busy || reading || groupBusy || groupUncertain || uncertain && pendingAction !== change.id) return;
     setPendingAction(change.id);
     setError("");
@@ -620,7 +629,7 @@ export function DataModelSettings() {
           <p className="text-sm text-muted-foreground">
             실제 자료와 개별 연결·기록은 포함하지 않습니다. 파일에 없는 현재 설정은 삭제하지 않습니다.
           </p>
-          <FieldSet className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" disabled={locked}>
+          <FieldSet className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" disabled={!canWrite || locked}>
             <Field
               label="가져오는 방법"
               help="현재 자료 종류에 반영하거나, 새 자료 종류와 연결 설정을 만들 수 있습니다."
@@ -686,7 +695,7 @@ export function DataModelSettings() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline"
 
-              disabled={locked || !document}
+              disabled={!canWrite || locked || !document}
               onClick={() => {
                 edit("");
                 setAccepted("");
@@ -697,7 +706,7 @@ export function DataModelSettings() {
             </Button>
             <Button variant="default"
 
-              disabled={locked || !document.trim()}
+              disabled={!canWrite || locked || !document.trim()}
               onClick={() => void preview()}
             >
               {reading ? "읽는 중…" : "가져올 내용 검토"}
@@ -721,7 +730,7 @@ export function DataModelSettings() {
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button variant="default"
 
-                  disabled={busy || reading || groupBusy || groupUncertain || groupDirty ||
+                  disabled={!canWrite || busy || reading || groupBusy || groupUncertain || groupDirty ||
                     uncertain && pendingAction !== "prepare" ||
                     review.items.some((i) => i.kind === "conflict") || !uncertain && missingRemovalConfirmation}
                   onClick={() => void prepare()}
@@ -805,7 +814,7 @@ export function DataModelSettings() {
                     change={change}
                     onChange={updateGroup}
                     onState={reportGroupState}
-                    disabled={busy || uncertain || reading ||
+                    disabled={!canWrite || busy || uncertain || reading ||
                       Object.entries(groupStates).some(([id, state]) =>
                         id !== change.id && (state.busy || state.uncertain)
                       )}
@@ -815,7 +824,7 @@ export function DataModelSettings() {
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     <Button variant="default"
 
-                      disabled={busy || reading || groupBusy || groupUncertain || detailState[change.id]?.loading ||
+                      disabled={!canWrite || busy || reading || groupBusy || groupUncertain || detailState[change.id]?.loading ||
                         !!detailState[change.id]?.error ||
                         uncertain && pendingAction !== change.id}
                       onClick={() => void apply(change)}

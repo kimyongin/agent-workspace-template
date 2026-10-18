@@ -1,3 +1,4 @@
+import { WorkspaceSettingsBoundary } from "./workspace-settings-access.tsx";
 import { useApi, useRequestScope, sameRequestScope } from "../../lib/api-context.tsx";
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
 
@@ -16,6 +17,9 @@ import { MemoHistoryBoundaryContext } from "./TemplateMemoEditor.tsx";
 type Target = { id: string; label: string; model: "entity" | "task"; typeId?: string };
 const taskTarget: Target = { id: "task", label: "할 일", model: "task" };
 export function RecordSettingsPage() {
+  return <WorkspaceSettingsBoundary><RecordSettingsPageContent /></WorkspaceSettingsBoundary>;
+}
+function RecordSettingsPageContent() {
   const catalog = useEntityTypes();
   const historyBoundary = useRef<HTMLElement | null>(null);
   const targets = useMemo<Target[]>(() => [...(catalog.types ?? []).map(type => ({ id: `type:${type.id}`, label: type.label, model: "entity" as const, typeId: type.id })), taskTarget], [catalog.types]);
