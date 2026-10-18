@@ -18,6 +18,7 @@ import {
   test as baseTest,
 } from "@playwright/test";
 import { parse } from "smol-toml";
+import { runWorkspaceCleanup } from "../scripts/workspace-fixture-cleanup.mjs";
 import {
   cleanupOwnedFixture,
   type FixtureScope,
@@ -69,6 +70,9 @@ type OwnedWorkspace = {
   requestKeys: string[];
   createdKinds: string[];
   grants: WorkspaceGrant[];
+  memberIds: string[];
+  disposableEffectIds: string[];
+  cleanup?: { manifest: unknown; approval: unknown; phase: "planned" | "applying" | "done"; result?: unknown };
   cleaned: boolean;
 };
 const pageSessions = new WeakMap<Page, { token: string; actorId: string }>();
@@ -295,25 +299,24 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
               if (workspace.projectId !== projectId) {
                 throw new Error("owned workspace project changed");
               }
-              await admin.begin(async (tx) => {
-                const [root] =
-                  await tx`select name,created_by from app.workspaces where id=${workspace.id} for update`;
-                expect(root).toEqual({
-                  name: workspace.name,
-                  created_by: workspace.actorId,
-                });
-                const members =
-                  await tx`select user_id from private.workspace_members where workspace_id=${workspace.id}`;
-                expect(members.map((member) => member.user_id)).toEqual([
-                  workspace.actorId,
-                ]);
-                await tx`delete from pgmq.q_search_index where message->>'workspace_id'=${workspace.id}`;
-                await tx`delete from pgmq.a_search_index where message->>'workspace_id'=${workspace.id}`;
-                await tx`delete from app.workspaces where id=${workspace.id}`;
-                expect(
-                  await tx`select id from app.workspaces where id=${workspace.id}`,
-                ).toHaveLength(0);
-              });
+              const target = new URL(requiredEnv("LOCAL_DB_URL"));
+              const manifest = {
+                run_id: scope.runId,
+                source_revision: process.env.WORKSPACE_E2E_SOURCE_REVISION,
+                project_id: projectId,
+                environment: { name: projectId, host: target.hostname, port: Number(target.port), database: decodeURIComponent(target.pathname.slice(1)) },
+                workspace: { id: workspace.id, name: workspace.name, created_by: workspace.actorId },
+                member_ids: workspace.memberIds,
+                disposable_effect_ids: workspace.disposableEffectIds,
+              };
+              const approval = await runWorkspaceCleanup(admin, manifest);
+              workspace.cleanup = { manifest, approval, phase: "planned" };
+              scope.persist();
+              expect(approval.blockers).toEqual([]);
+              workspace.cleanup.phase = "applying";
+              scope.persist();
+              workspace.cleanup.result = await runWorkspaceCleanup(admin, manifest, approval);
+              workspace.cleanup.phase = "done";
               workspace.cleaned = true;
               scope.persist();
             }
@@ -595,6 +598,8 @@ export async function ownedWorkspace(page: Page) {
     requestKeys,
     createdKinds: [],
     grants: [],
+    memberIds: [session.actorId],
+    disposableEffectIds: [],
     cleaned: false,
   };
   scope.workspaces.push(fixture);
@@ -628,6 +633,16 @@ export async function ownedWorkspace(page: Page) {
     .toBeVisible();
   return {
     id: fixture.id,
+    registerMember: (id: string) => {
+      if (!uuid.test(id)) throw new Error("explicit fixture member identity required");
+      if (!fixture.memberIds.includes(id)) fixture.memberIds.push(id);
+      scope.persist();
+    },
+    registerFakeEffects: (ids: string[]) => {
+      if (ids.some((id) => !uuid.test(id))) throw new Error("explicit fake effect identities required");
+      fixture.disposableEffectIds = [...new Set([...fixture.disposableEffectIds, ...ids])];
+      scope.persist();
+    },
     setTaskAccess: (access: "read" | "write" | "none") =>
       grant([{ target_kind: "tasks", target_id: "*", access }]),
     grantKind: async (typeId: string) => {
@@ -771,6 +786,7 @@ export async function mcpClient(
     }),
   );
   return {
+    workspaceId: scope?.workspaceId,
     async call(name: string, args: Record<string, unknown>) {
       if (scope) {
         if ("workspace_id" in args && args.workspace_id !== scope.workspaceId) {
