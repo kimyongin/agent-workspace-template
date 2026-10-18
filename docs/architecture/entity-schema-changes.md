@@ -91,7 +91,7 @@ create/PATCH는 `migration: {rules, overrides}`를 받는다. fingerprint에는 
 
 job 상태/목록의 `recovery.status`는 available/expired/unavailable/conflict와 safe reason, 현재 schema version을 반환한다. GET은 정리를 실행하지 않는다. 기간이 지난 원본은 물리 자료가 남아 있어도 `migration_source_expired`/410이다. 원본이나 확정 baseline이 없는 경우 unavailable이다. 완료 시점의 committed membership·pair·할 일 참고 연결·기록 고정 부모 baseline을 생성→분석→start에서 다시 검사하고 최종 commit은 정상 source membership·references gate를 다시 검사한다. 값/tag/생성/삭제/복원/식별/연결/선택 변경은 최대 20개 자료 이유와 연결 이유를 반환해 자동 덮어쓰기를 거부한다. 본문만 수정하거나 다른 종류 peer의 속성/schema를 바꾸는 경우는 원본 복구 대상에 넣지 않는다. 현재 schema가 달라진 경우 현재 버전으로 **새 복구안과 새 분석**을 요청해야 한다.
 
-복구 draft/분석은 원본의 30일 기한을 연장하지 않는다. 기한 안에 start로 접수한 활성 복구 job은 8 MiB 안에서 복사한 자기 원본·복구 값을 소유하므로 원본 cleanup 이후에도 정상 준비/commit을 마칠 수 있다. 활성 job 분석은 정리에서 제외한다. worker가 type→job/analysis 순서 잠금과 skip locked로 terminal 원본 최대 20개 및 30일 된 orphan/완료 분석 최대 20개를 정리한다. 새 요청에는 만료된 원본을 공개하지 않으며 account/type 삭제는 관련 자료를 함께 제거한다.
+복구 draft/분석은 원본의 30일 기한을 연장하지 않는다. 기한 안에 start로 접수한 활성 복구 job은 8 MiB 안에서 복사한 자기 원본·복구 값을 소유하므로 원본 cleanup 이후에도 정상 준비/commit을 마칠 수 있다. 활성 job 분석은 정리에서 제외한다. worker가 type→job/analysis 순서 잠금과 skip locked로 terminal 원본 최대 20개 및 30일 된 orphan/완료 분석 최대 20개를 정리한다. 새 요청에는 만료된 원본을 공개하지 않으며 종류의 물리 삭제는 해당 종류의 원본을 정리하지만, 작성자 계정 삭제만으로 공동 공간의 정의·자료·작업·복구 원본을 제거하지 않는다. 계정 삭제 후에는 현재 실행자의 소속·권한을 다시 확인하며 공간 삭제/복원의 수명 경계를 별도로 적용한다.
 
 웹 `/settings/entity-types/:type_id/migrations/:job_id`는 접수 후 페이지 이탈·직접 링크·새로고침·상태 조회·취소·재시도를 지원한다. GET/polling은 작업을 실행하지 않는다. 실행 인프라는 기존 opt-in 로컬 runner 또는 운영자가 별도로 설정하는 전용 worker 스케줄이다. 운영 Cron 활성화·배포는 이 구현의 실행 범위가 아니다.
 
@@ -100,7 +100,7 @@ job 상태/목록의 `recovery.status`는 available/expired/unavailable/conflict
 
 웹의 `property_filters` 주소 상태는 하나의 URL 모듈에서 읽고 생성한다. `/entities?`와 인코딩 query가 2,048바이트를 넘으면 조건 JSON은 `#property_filters=...&entity_type_id=...` fragment로 옮기며 짧은 조건은 기존 query 형식을 유지한다. fragment는 HTML/API HTTP 요청에 전송되지 않고 복사·직접 링크·새로고침·Back/Forward에서 브라우저가 복원한다. 자료 종류 ref는 query와 fragment에서 같아야 한다. query와 fragment 양쪽 조건, 중복 조건/타입/앵커, 잘못된 JSON·인코딩·알 수 없는 fragment 필드는 오류로 표시하며 전체 자료로 넓히지 않는다. 공통 검색 변경은 오류 입력을 보존하고 명시 조건 적용/초기화에서만 교정한다.
 
-긴 조건과 기존 자료 위치를 함께 보존할 때는 fragment의 `anchor=entity-...`를 사용하며 기존 `#entity-...` 주소도 읽는다. 상세의 `list` query에는 짧은 목록 주소만 넣고 긴 조건·앵커는 상세 fragment에 유지하여 상세 직접 링크에서도 다시 긴 request line을 만들지 않는다. 타입 전환·필터 초기화는 조건 fragment와 이전 위치를 제거하며 선택 타입·공통 검색의 기존 보존 규칙을 따른다. 서버 저장·Auth metadata·세션 전용 토큰을 사용하지 않는다. 소유자는 URL에서 지정하지 않으며 현재 인증과 타입 접근 검사가 기존 소유자 경계를 강제한다.
+긴 조건과 기존 자료 위치를 함께 보존할 때는 fragment의 `anchor=entity-...`를 사용하며 기존 `#entity-...` 주소도 읽는다. 상세의 `list` query에는 짧은 목록 주소만 넣고 긴 조건·앵커는 상세 fragment에 유지하여 상세 직접 링크에서도 다시 긴 request line을 만들지 않는다. 타입 전환·필터 초기화는 조건 fragment와 이전 위치를 제거하며 선택 타입·공통 검색의 기존 보존 규칙을 따른다. 서버 저장·Auth metadata·세션 전용 토큰을 사용하지 않는다. 소유자는 URL에서 지정하지 않으며 현재 인증·URL의 공간 문맥·자료 종류 읽기 권한 검사가 현재 공간과 보호된 종류의 경계를 강제한다.
 
 이미 저장된 과도한 query 주소가 HTML 서버에서 거절되면 JavaScript가 시작되지 않아 브라우저에서 자동 전환할 수 없다. 앱이 읽을 수 있는 기존 긴 query 주소는 같은 조건의 fragment 주소로 replace 정규화한다. 새 주소 생성과 정상화된 링크의 새로고침을 검증하며 운영 서버의 한도 변경은 별도 범위다.
 

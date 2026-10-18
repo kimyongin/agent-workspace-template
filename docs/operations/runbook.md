@@ -27,13 +27,13 @@
 
 ## 요청 성공 재현과 원장 보존
 
-HTTP 업무 쓰기는 UUID `Idempotency-Key`, MCP는 필수 UUID `request_key`를 사용한다. 같은 owner·키·정확한 입력에는 당시 성공 결과·버전을 재현하며 현재 인증·owner 존재를 매번 확인한다. 재현 횟수, `idempotency_key_reused`·`request_in_progress`·`result_expired` 수와 잠금 대기를 revision별로 관찰한다. 키와 작업 종류·결과 코드만으로 조사하고 본문·메모·토큰은 로그에 추가하지 않는다.
+HTTP 업무 쓰기는 UUID `Idempotency-Key`, MCP는 필수 UUID `request_key`를 사용한다. 같은 실행자·공간 범위·키·정확한 입력에는 당시 성공 결과·버전을 재현하며 현재 인증·공간 소속·현재 권한을 매번 확인한다. 공간 생성·초대 수락은 별도 계정 범위에서 정확한 결과 공간을 결속한다. 재현 횟수, `idempotency_key_reused`·`request_in_progress`·`result_expired` 수와 잠금 대기를 revision별로 관찰한다. 키와 작업 종류·결과 코드만으로 조사하고 본문·메모·토큰은 로그에 추가하지 않는다.
 
 응답 유실·5xx·커밋 불명에는 같은 키·대상·입력·expected_version을 유지한다. `request_in_progress`는 1초 뒤 같은 요청만 재시도한다. 키 또는 메모리의 정확한 입력을 잃었으면 현재 자료를 조회해 다음 의도를 확인한다. 다른 입력의 키 재사용과 만료 오류는 새 키 자동 반복으로 해결하지 않는다. 오래된 성공 재현으로 삭제된 자료를 복원하지 않는다.
 
-성공 결과는 최대 1 MiB(1,048,576 bytes)의 JSON으로 완료 시점부터 30일간 보관한다. 이 한도는 업무 설정 입력의 별도 128 KiB 한도와 다르다. 최대 길이 본문·100개 엔터티 참조와 문맥을 중복 반환하는 현재 생성/완료 형태를 수용한다. 크기가 무제한인 과거 중단 이력까지 모두 들어간다고 보장하지 않는다. 한도를 넘으면 안전한 `invalid_input`과 변경 미저장 안내로 업무·기록·큐·요청 원장을 전부 롤백한다. 원문/이력을 절단하거나 일부만 저장하지 않으며 원인과 영향 대상을 확인해 별도 보존 가능한 계약 전환을 검토한다. 완료 30일 이후에도 정리 지연으로 만료 행이 남아 있으면 같은 입력의 재시도는 410 `result_expired`를 반환한다. 행이 삭제된 뒤에는 같은 키가 신규 요청으로 실행될 수 있으므로 현재 업무 상태를 확인하고 자동 재전송하지 않는다. migration이 등록하는 `expire-request-results` Cron은 매일 03:17 DB 시간에 private cleanup을 실행해 만료된 행 전체를 삭제한다. 관리 권한으로 job 성공·미정리 만료 행 수·저장량을 확인하되 본문을 출력하지 않는다. 지연 복구에는 기존 `private.expire_request_results()`만 사용하며 공개 RPC나 사용자 원장 CRUD를 추가하지 않는다.
+성공 결과는 최대 1 MiB(1,048,576 bytes)의 JSON으로 완료 시점부터 30일간 보관한다. 이 한도는 업무 설정 입력의 별도 128 KiB 한도와 다르다. 최대 길이 본문과 할 일의 자료 연결 등 현재 생성/완료 응답을 수용한다. 크기가 무제한인 과거 중단 이력까지 모두 들어간다고 보장하지 않는다. 한도를 넘으면 안전한 `invalid_input`과 변경 미저장 안내로 업무·기록·큐·요청 원장을 전부 롤백한다. 원문/이력을 절단하거나 일부만 저장하지 않으며 원인과 영향 대상을 확인해 별도 보존 가능한 계약 전환을 검토한다. 완료 30일 이후에도 정리 지연으로 만료 행이 남아 있으면 같은 입력의 재시도는 410 `result_expired`를 반환한다. 행이 삭제된 뒤에는 같은 키가 신규 요청으로 실행될 수 있으므로 현재 업무 상태를 확인하고 자동 재전송하지 않는다. migration이 등록하는 `expire-request-results` Cron은 매일 03:17 DB 시간에 private cleanup을 실행해 만료된 행 전체를 삭제한다. 관리 권한으로 job 성공·미정리 만료 행 수·저장량을 확인하되 본문을 출력하지 않는다. 지연 복구에는 기존 `private.expire_request_results()`만 사용하며 공개 RPC나 사용자 원장 CRUD를 추가하지 않는다.
 
-요청 키·operation·revision·fingerprint·성공 결과는 완료 시점부터 30일간 함께 보관한다. 계정당 평생 요청 횟수 제한은 없다. 30일 후에는 중복 방지가 보장되지 않으며 정리 후 동일 키가 신규 요청으로 실행될 수 있다. 만료·응답 불명에는 현재 업무 상태를 확인하고 새 키로 자동 재전송하지 않는다. 계정 삭제는 요청 결과·effect·벡터를 FK cascade로 제거하며 삭제 owner의 잔여 토큰도 거절한다. 기존 업무 자료·참조·설정·과거 migration은 요청 정리 대상이 아니다. 서버 ID는 받는 테이블의 PK로 보호하며 별도 발급 원장은 보관하지 않는다([ADR-0019](../adr/0019-pk-based-data-id-generation.md)). 자동 ID 충돌이 64회 소진되면 업무 전체가 롤백되고 `unavailable`을 반환한다. 같은 요청 키로 재시도하며 명시 외부 식별자나 업무 unique 충돌을 ID 재발급으로 숨기지 않는다.
+요청 키·operation·revision·fingerprint·성공 결과는 완료 시점부터 30일간 함께 보관한다. 계정당 평생 요청 횟수 제한은 없다. 30일 후에는 중복 방지가 보장되지 않으며 정리 후 동일 키가 신규 요청으로 실행될 수 있다. 만료·응답 불명에는 현재 업무 상태를 확인하고 새 키로 자동 재전송하지 않는다. 계정 삭제는 해당 실행자의 세션·권한을 회수하고 잔여 토큰을 거절한다. 실행자에 귀속된 요청 결과는 계정 FK에 따라 제거되지만, 공동 공간의 업무 자료·작성자 표시·검색 벡터·외부 효과와 작업 이력은 계정 삭제만으로 제거하지 않는다. 공간 범위의 요청 결과와 계정 범위의 공간 생성/초대 수락 결과를 구분해 보존·만료를 판단한다. 기존 업무 자료·참조·설정·과거 migration은 요청 정리 대상이 아니다. 서버 ID는 받는 테이블의 PK로 보호하며 별도 발급 원장은 보관하지 않는다([ADR-0019](../adr/0019-pk-based-data-id-generation.md)). 자동 ID 충돌이 64회 소진되면 업무 전체가 롤백되고 `unavailable`을 반환한다. 같은 요청 키로 재시도하며 명시 외부 식별자나 업무 unique 충돌을 ID 재발급으로 숨기지 않는다.
 
 ## 비동기 작업 장애
 
@@ -108,7 +108,7 @@ select cron.unschedule('entity-schema-worker');
 
 ## 검색 worker 호출과 복구
 
-`POST /functions/v1/index-worker`는 사용자 HTTP/MCP 토큰 대신 `Authorization: Bearer <PROCESSING_TOKEN>`을 요구한다. 본문은 `{ "limit": 5 }`이며 최대 5개를 병렬 처리한다. 제한된 확인에는 `owner_id`·`kind`·`id`를 추가해 범위를 좁힌다. 범위를 생략하면 현재 보이는 전체 큐에서 읽으므로 비용 검증에는 반드시 시험 항목을 지정한다. 키/DB 미설정은 claim 전 503, 인증 실패는 401, 잘못된 입력은 400이다. 반환은 claimed·indexed·excluded·failed·retry·held·stale 개수이며 원문/비밀은 포함하지 않는다.
+`POST /functions/v1/index-worker`는 사용자 HTTP/MCP 토큰 대신 `Authorization: Bearer <PROCESSING_TOKEN>`을 요구한다. 본문은 `{ "limit": 5 }`이며 최대 5개를 병렬 처리한다. 제한된 확인에는 `workspace_id`·`kind`·`id`를 추가해 범위를 좁힌다. 범위를 생략하면 현재 보이는 전체 큐에서 읽으므로 비용 검증에는 반드시 시험 항목을 지정한다. 키/DB 미설정은 claim 전 503, 인증 실패는 401, 잘못된 입력은 400이다. 반환은 claimed·indexed·excluded·failed·retry·held·stale 개수이며 원문/비밀은 포함하지 않는다.
 
 서버 Secrets는 `WORKER_DB_URL`(app_worker의 트랜잭션 풀러), `PROCESSING_TOKEN`(32 byte 이상 무작위 값의 base64url), `PINECONE_API_KEY`, `PINECONE_ACCOUNT_SCOPE`다. account scope는 비밀이 아닌 안정적인 공급자 account/project 식별값으로, API key 교체 시에도 유지한다. 누락·공백·120자 초과면 worker는 claim 전에 설정 오류로 중단한다. 로컬 `setup:local`은 역할 비밀번호·내부 토큰을 생성/보존하고 풀러 준비 실패를 숨기지 않는다. 함수 env의 기존 Pinecone 키를 우선하며 기존 `.env.local` 실험 키가 있을 때만 초기 설정으로 복사한다. 함수 설정을 바꾸면 실행 중인 함수 서버를 다시 시작한다.
 
@@ -116,7 +116,7 @@ select cron.unschedule('entity-schema-worker');
 
 인증/구성 오류는 즉시 failed/configuration, 빈 본문은 excluded/invalid_input이며 input_limit 구간은 별도 자식으로 분할한다. 성공 형제 구간과 final apply 전 성공 결과는 재사용한다. 장애를 해결한 뒤 현재 소유자 문맥에서 app.enqueue_search_index(kind,id,current_hash,current_pipeline)을 호출해 재등록할 수 있지만 같은 원본 revision·본문 hash·pipeline·account scope의 성공 cache와 전송 상한은 유지한다. 소진된 작업은 실제 원본 수정 또는 검토한 pipeline 변경이라는 새 의도로 해결한다. 비용 상한을 우회하려고 임의 account scope를 변경하지 않는다. 큐를 비우거나 보관 메시지만 되돌리지 않는다.
 
-effect lease는 90초이며 만료만으로 외부 실패를 확정하지 않는다. 새 claim은 fence를 증가시키고 이전 fence 또는 만료 lease의 완료 저장을 거절한다. 원본 owner·revision·본문 hash·pipeline이 현재와 다르면 결과를 적용하지 않는다. 현재 Pinecone adapter는 동기 embed 호출만 사용한다. 공급자 작업 ID·비동기 접수·결과 조회·멱등 키 유효기간 계약은 두지 않으며 가상의 공급자 멱등 헤더를 보내지 않는다. unknown 재계산도 같은 구간의 기존 최대 5회 전송 안에서만 수행한다.
+effect lease는 90초이며 만료만으로 외부 실패를 확정하지 않는다. 새 claim은 fence를 증가시키고 이전 fence 또는 만료 lease의 완료 저장을 거절한다. 원본 공간·실행자·권한 footprint·공간 generation·revision·본문 hash·pipeline이 현재와 다르면 결과를 적용하지 않는다. 현재 Pinecone adapter는 동기 embed 호출만 사용한다. 공급자 작업 ID·비동기 접수·결과 조회·멱등 키 유효기간 계약은 두지 않으며 가상의 공급자 멱등 헤더를 보내지 않는다. unknown 재계산도 같은 구간의 기존 최대 5회 전송 안에서만 수행한다.
 
 `private.passage_effects` 하나에 원본 식별정보와 구간 결과·상태·전송 횟수·lease·fence·backoff를 보관한다. 기존 큐는 업무 트랜잭션의 작업 의도를 유지한다. 전진 migration은 기존 원장의 성공 벡터·불명/실행 중 상태와 횟수·시계를 그대로 이관하며 전송 예산을 초기화하지 않는다. pending/running/unknown effect는 TTL이나 원본 삭제 FK로 삭제하지 않는다. 현재 원본의 성공 구간 벡터는 재사용하며 수정·삭제·pipeline 교체는 최종 succeeded/failed 결과만 정리한다. 불명 작업의 증거는 남긴다. 안전한 사용자 조회는 HTTP `/status`·`/status/indexing/issues`와 대응 MCP `get_status`·`list_indexing_issues`다. 문제 목록은 최대 5개 기록의 제목·이유·시도 수·구간 진행 요약만 반환하며 private effect ID·벡터·공급자 응답·다른 owner·옛 revision을 노출하지 않는다. private 원장을 임의 수정해 lease·fence·횟수를 초기화하는 복구는 하지 않는다.
 

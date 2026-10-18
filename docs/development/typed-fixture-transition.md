@@ -4,11 +4,11 @@
 
 ## 현재 계약
 
-자료는 `entity_type_id`·현재 `schema_version`·`properties.prop_n`을 제출한다. 속성 키는 서버가 발급하며 종류별 정의를 읽어 의미·라벨·값·제약을 해석한다. `get_entity`는 전체 properties를, 목록·연결 후보는 title/type/display_properties summary를 반환한다. 편집은 현재 schema_version과 expected_version을 함께 제출하며 생략한 속성은 보존한다. 자료 종류·소유자·정의 버전 문맥을 다른 자료에 재사용하지 않는다.
+자료는 `entity_type_id`·현재 `schema_version`·`properties.prop_n`을 제출한다. 속성 키는 서버가 발급하며 종류별 정의를 읽어 의미·라벨·값·제약을 해석한다. `get_entity`는 전체 properties를, 목록·연결 후보는 title/type/display_properties summary를 반환한다. 편집은 현재 schema_version과 expected_version을 함께 제출하며 생략한 속성은 보존한다. 현재 공간·자료 종류·정의 버전·실행자의 현재 권한 문맥을 다른 공간이나 자료에 재사용하지 않는다. 작성자는 접근 권한의 대체 기준이 아니다.
 
 목록 URL은 `entity_type_id`와 JSON `property_filters`·`sort`를 쓰며 HTTP/MCP 입력은 `filters` 배열을 사용한다. 필터 초기화는 선택한 종류와 검색어를 보존한다. 종류를 바꾸면 속성 조건·정렬·페이지·cursor를 초기화한다. 정렬·조건 요약은 현재 정의의 라벨과 표시값을 사용한다.
 
-실제 E2E의 scalar fixture는 먼저 명시 종류를 만들고 호환 속성 변경안을 분석·게시한 뒤 자료를 저장한다. 브라우저 모의 adapter는 목록 summary와 단건 detail을 구분하고 properties 패치를 병합한 뒤 title/display_properties를 갱신한다. 새 task/record 선택 문맥은 type·schema_version을 함께 캡처한다. fixture의 이름 변경은 전체 값·목록 표시·제목을 함께 변경한다.
+실제 E2E의 scalar fixture는 먼저 명시 종류를 만들고 호환 속성 변경안을 분석·게시한 뒤 자료를 저장한다. 브라우저 모의 adapter는 목록 summary와 단건 detail을 구분하고 properties 패치를 병합한 뒤 title/display_properties를 갱신한다. 할 일의 자료 연결 문맥은 type·schema_version을 함께 캡처하며, 기록은 자료 또는 할 일 하나의 불변 부모를 유지한다. fixture의 이름 변경은 전체 값·목록 표시·제목을 함께 변경한다.
 
 ## 보존한 과거 표현
 
@@ -27,6 +27,6 @@
 
 ## 통합 검증과 운영 범위
 
-브라우저 등록은 실제 API 설정 하나와 fixture 설정 열 개다. [실행 기준](verification.md)에 등록된 순서로 직렬 실행하며 root가 할당한 실제 설정은 실행 인자의 `--actual-config`로 교체한다. 실제 DB·HTTP·OAuth MCP·브라우저 성공과 메모리 adapter·정적 패키지·문법·단위 검사 성공을 구별한다.
+브라우저 설정 목록은 `scripts/e2e-run-plan.mjs`를 정본으로 삼는다. [실행 기준](verification.md)에 등록된 순서로 직렬 실행하며 root가 할당한 실제 설정은 실행 인자의 `--actual-config`로 교체한다. 실제 DB·HTTP·OAuth MCP·브라우저 성공과 메모리 adapter·정적 패키지·문법·단위 검사 성공을 구별한다.
 
 [명시 데모 정리](../operations/demo-cleanup.md)는 환경·공간·승인 ID와 dryrun digest를 기준으로 수행한다. 복구 원본·색인·큐·관계의 의존성을 함께 검사하고 다른 자료로 범위를 확대하지 않는다. Auth/OAuth·개인 설정·무관 템플릿을 보존한다. 이 개발 티켓은 운영 배포·운영 자료 삭제·정기 worker 활성화의 실행 증거가 아니다.

@@ -115,7 +115,7 @@ npm exec -- deno fmt --no-config --line-width 120 --check src/components/Collect
 
 로컬 Supabase·함수 서버를 준비하고 Chromium을 설치한 뒤 `npm run test:e2e -- e2e/web-mcp.spec.ts --project=desktop`처럼 실행한다. 전체 브라우저 검사는 `npm run test:e2e:all`로 실제 API와 각 격리 화면 설정을 순서대로 실행한다. 설정별 소요 시간도 마지막 표에 표시한다. 로컬 통합 묶음 `npm run test:integration:local`은 실제 API E2E도 포함하며, 웹 단위·격리 화면 전체 검사를 대신하지 않는다. 실제 Pinecone 검사는 API 키가 있는 환경에서 `RUN_PINECONE_E2E=1`로 별도 실행한다.
 
-빈 계정의 첫 사용은 `e2e/empty-workspace-ux.spec.ts`가 검사한다. 전용 로컬 `DEV_USER_B` 계정에 자료 종류·자료·할 일·기록·발급처가 없는지 먼저 확인하고 `RUN_EMPTY_WORKSPACE_UX=1`로 worker 1개에서 실행한다. 검사는 자료를 초기화하지 않으며, 이 조건을 준비하지 않은 일반 실행에서는 생략한다.
+빈 공간의 첫 사용은 `e2e/empty-workspace-ux.spec.ts`가 매번 명시적으로 생성한 새 독점 공간에서 검사한다. 일반 실제 브라우저 검사에 포함되며 별도 opt-in이나 계정 전체가 비어 있다는 전제는 없다. 기존 계정의 Auth·개인 설정·다른 공간 자료를 보존하고, 검사 후에는 같은 실행이 만든 정확한 공간을 명시 manifest와 승인 digest로 정리한다.
 
 빠른 core·웹·어댑터 검사는 실제 DB·OAuth·브라우저 연결의 증거를 대신하지 않는다. 제품의 권한·일관성·웹/MCP 행동은 관련 [계약](../../supabase/functions/_shared/contracts/search.ts)과 실제 진입점의 테스트에서 확인한다. 제품 플러그인의 정적 패키지 검사는 실제 Claude·Codex 사용과 구분한다([과거 제품 행동 검증 도구와 현재 계약의 제한](../../experiments/plugin-behavior/README.md)).
 
