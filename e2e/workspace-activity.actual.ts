@@ -472,3 +472,122 @@ test(
     await snapshot(page, info, "task-current-write-restored");
   },
 );
+
+test(
+  "actual activity unknown response: explicit retry reuses the exact attempt without a second mutation",
+  async ({ page }, info) => {
+    const { workspace, read } = await setup(page);
+    const task = await createInBrowser(
+      page,
+      workspace.id,
+      "응답을 기다리는 점검 계획",
+    );
+    const before = await read.call("get_task", { id: task.id });
+    const beforeEvents = await read.call("list_records", {
+      task_id: task.id,
+      record_kind: "change",
+    });
+    await openDetailEditor(page);
+    await titleInput(page).fill("응답 유실 후 재시도할 제목");
+    await detailDialog(page).getByLabel("본문", { exact: false }).fill(
+      "동일 요청으로 보존할 본문",
+    );
+    await detailDialog(page).getByRole("button", { name: "저장", exact: true })
+      .click();
+    await expect(executionDialog(page)).toBeVisible();
+    await executionDialog(page).getByLabel("기록 메모", { exact: true }).fill(
+      "한 번만 남길 수정 메모",
+    );
+
+    const url = `${env.VITE_API_URL}/tasks/${task.id}`;
+    const attempts: {
+      key: string | undefined;
+      workspace: string | undefined;
+      body: string | null;
+    }[] = [];
+    let resolveDropped!: () => void, rejectDropped!: (error: unknown) => void;
+    const dropped = new Promise<void>((resolve, reject) => {
+      resolveDropped = resolve;
+      rejectDropped = reject;
+    });
+    await page.route(url, async (route) => {
+      const request = route.request();
+      if (request.method() !== "PATCH") return route.continue();
+      attempts.push({
+        key: request.headers()["idempotency-key"],
+        workspace: request.headers()["x-workspace-id"],
+        body: request.postData(),
+      });
+      if (attempts.length !== 1) return route.continue();
+      try {
+        // Commit the real UI request, then lose only its delivery to the browser.
+        // No synthetic successful response or MCP mutation stands in for storage.
+        const committed = await route.fetch({ maxRetries: 0, timeout: 15_000 });
+        expect(committed.ok()).toBeTruthy();
+        const saved = await committed.json();
+        expect(saved.version).toBe(before.version + 1);
+        await route.abort("failed");
+        resolveDropped();
+      } catch (error) {
+        rejectDropped(error);
+        await route.abort("failed");
+      }
+    });
+    await executionDialog(page).getByRole("button", {
+      name: "수정하고 저장",
+      exact: true,
+    }).click();
+    await dropped;
+    const retry = executionDialog(page).getByRole("button", {
+      name: "같은 내용 다시 시도",
+      exact: true,
+    });
+    await expect(retry).toBeEnabled();
+    await expect(executionDialog(page).getByLabel("기록 메모", { exact: true }))
+      .toBeDisabled();
+    await expect(executionDialog(page).getByLabel("기록 메모", { exact: true }))
+      .toHaveValue("한 번만 남길 수정 메모");
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0].workspace).toBe(workspace.id);
+    expect(attempts[0].key).toMatch(/^[0-9a-f-]{36}$/i);
+    const frozen = JSON.parse(attempts[0].body!);
+    expect(frozen.expected_version).toBe(before.version);
+    expect(frozen.title).toBe("응답 유실 후 재시도할 제목");
+    expect(frozen.body).toBe("동일 요청으로 보존할 본문");
+    expect(frozen.change_note).toBe("한 번만 남길 수정 메모");
+    const committedTask = await read.call("get_task", { id: task.id });
+    expect(committedTask.version).toBe(before.version + 1);
+    expect(committedTask.title).toBe(frozen.title);
+    const committedEvents = await read.call("list_records", {
+      task_id: task.id,
+      record_kind: "change",
+    });
+    expect(committedEvents.items).toHaveLength(beforeEvents.items.length + 1);
+    await snapshot(page, info, "task-unknown-response-frozen");
+
+    const replayed = writeResponse(page, "PATCH", `/tasks/${task.id}`);
+    await retry.click();
+    const response = await replayed;
+    const replay = await scopedWrite(response, workspace.id);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]).toEqual(attempts[0]);
+    expect(replay.version).toBe(committedTask.version);
+    expect(await read.call("get_task", { id: task.id })).toEqual(committedTask);
+    const finalEvents = await read.call("list_records", {
+      task_id: task.id,
+      record_kind: "change",
+    });
+    expect(finalEvents.items.map((record: { id: string }) => record.id).sort())
+      .toEqual(
+        committedEvents.items.map((record: { id: string }) => record.id).sort(),
+      );
+    await expect(executionDialog(page)).toHaveCount(0);
+    await expect(
+      detailDialog(page).getByRole("heading", {
+        name: frozen.title,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await snapshot(page, info, "task-unknown-response-recovered");
+  },
+);
