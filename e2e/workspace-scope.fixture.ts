@@ -300,107 +300,157 @@ test(
   },
 );
 
-test("an uncertain delivery retry cannot consume a member removal and keeps its original recovery", async ({ page }) => {
-  await fixture(page);
-  const invitationId = "00000000-0000-4000-8000-000000000990";
-  const other = "00000000-0000-4000-8000-000000000902";
-  const deliveries: { key: string | undefined; body: unknown }[] = [];
-  const removals: { key: string | undefined; body: unknown }[] = [];
-  let removed = false, deliveryStatus = "failed";
-  await page.route(
-    "**/api/workspaces/*/members",
-    (route) =>
-      route.fulfill({
-        json: {
-          items: [
-            {
-              user_id: actor,
-              display_name: "현재 관리자",
-              version: 1,
-              grants: [{
-                target_kind: "settings",
-                target_id: "*",
-                access: "write",
+test(
+  "an uncertain delivery retry cannot consume a member removal and keeps its original recovery",
+  async ({ page }, info) => {
+    await fixture(page);
+    const invitationId = "00000000-0000-4000-8000-000000000990";
+    const other = "00000000-0000-4000-8000-000000000902";
+    const deliveries: {
+      key: string | undefined;
+      body: unknown;
+      path: string;
+    }[] = [];
+    const removals: { key: string | undefined; body: unknown }[] = [];
+    let removed = false, deliveryStatus = "failed";
+    await page.route(
+      "**/api/workspaces/*/members",
+      (route) =>
+        route.fulfill({
+          json: {
+            items: [
+              {
+                user_id: actor,
+                display_name: "현재 관리자",
+                version: 1,
+                grants: [{
+                  target_kind: "settings",
+                  target_id: "*",
+                  access: "write",
+                }],
+              },
+              ...removed ? [] : [{
+                user_id: other,
+                display_name: "다른 참여자",
+                version: 1,
+                grants: [],
               }],
-            },
-            ...removed ? [] : [{
-              user_id: other,
-              display_name: "다른 참여자",
+            ],
+          },
+        }),
+    );
+    await page.route(
+      "**/api/workspaces/*/invitations",
+      (route) =>
+        route.fulfill({
+          json: {
+            items: [{
+              id: invitationId,
+              workspace_id: a,
               version: 1,
+              email: "retry@example.test",
               grants: [],
+              expires_at: "2099-01-01T00:00:00Z",
+              revoked_at: null,
+              accepted_at: null,
+              accepted_by: null,
+              delivery: { status: deliveryStatus },
+            }, {
+              id: "00000000-0000-4000-8000-000000000991",
+              workspace_id: a,
+              version: 1,
+              email: "other-invite@example.test",
+              grants: [],
+              expires_at: "2099-01-01T00:00:00Z",
+              revoked_at: null,
+              accepted_at: null,
+              accepted_by: null,
+              delivery: { status: "failed" },
             }],
-          ],
-        },
-      }),
-  );
-  await page.route(
-    "**/api/workspaces/*/invitations",
-    (route) =>
-      route.fulfill({
-        json: {
-          items: [{
-            id: invitationId,
-            workspace_id: a,
-            version: 1,
-            email: "retry@example.test",
-            grants: [],
-            expires_at: "2099-01-01T00:00:00Z",
-            revoked_at: null,
-            accepted_at: null,
-            accepted_by: null,
-            delivery: { status: deliveryStatus },
-          }],
-        },
-      }),
-  );
-  await page.route(
-    "**/api/workspaces/*/invitations/*/delivery",
-    async (route) => {
-      deliveries.push({
+          },
+        }),
+    );
+    await page.route(
+      "**/api/workspaces/*/invitations/*/delivery",
+      async (route) => {
+        deliveries.push({
+          key: route.request().headers()["idempotency-key"],
+          body: route.request().postDataJSON(),
+          path: new URL(route.request().url()).pathname,
+        });
+        if (deliveries.length === 1) {
+          deliveryStatus = "pending";
+          return route.abort("failed");
+        }
+        deliveryStatus = "pending";
+        return route.fulfill({ json: { delivery: { status: "pending" } } });
+      },
+    );
+    await page.route("**/api/workspaces/*/members/*", async (route) => {
+      expect(route.request().method()).toBe("DELETE");
+      removals.push({
         key: route.request().headers()["idempotency-key"],
         body: route.request().postDataJSON(),
       });
-      if (deliveries.length === 1) return route.abort("failed");
-      deliveryStatus = "pending";
-      return route.fulfill({ json: { delivery: { status: "pending" } } });
-    },
-  );
-  await page.route("**/api/workspaces/*/members/*", async (route) => {
-    expect(route.request().method()).toBe("DELETE");
-    removals.push({
-      key: route.request().headers()["idempotency-key"],
-      body: route.request().postDataJSON(),
+      removed = true;
+      return route.fulfill({ json: { removed: true } });
     });
-    removed = true;
-    return route.fulfill({ json: { removed: true } });
-  });
-  await page.goto(`/w/${a}/manage`);
-  await page.getByRole("button", { name: "이메일 전달 다시 요청", exact: true })
-    .click();
-  await expect(
-    page.getByText("저장 여부를 알 수 없습니다.", { exact: false }).first(),
-  ).toBeVisible();
-  const otherRow = page.getByRole("row").filter({ hasText: "다른 참여자" });
-  await otherRow.getByRole("button", { name: "제외", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", {
-    name: /^(확인|같은 요청 다시 확인)$/,
-  }).click();
-  await expect.poll(() => removals.length).toBe(1);
-  await expect(page).toHaveURL(new RegExp(`/w/${a}/manage$`));
-  await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  const recover = page.getByRole("button", {
-    name: "같은 이메일 전달 요청 다시 확인",
-    exact: true,
-  });
-  await expect(recover).toBeEnabled();
-  await recover.click();
-  await expect.poll(() => deliveries.length).toBe(2);
-  expect(deliveries[1]).toEqual(deliveries[0]);
-  expect(removals[0]).toEqual({
-    key: expect.stringMatching(/^[0-9a-f-]{36}$/),
-    body: { expected_version: 1 },
-  });
-  expect(removals[0].key).not.toBe(deliveries[0].key);
-  await expect(page.getByText("다른 참여자", { exact: true })).toHaveCount(0);
-  await expect(recover).toHaveCount(0);
-});
+    await page.goto(`/w/${a}/manage`);
+    await page.getByRole("row").filter({ hasText: "retry@example.test" })
+      .getByRole("button", { name: "이메일 전달 다시 요청", exact: true })
+      .click();
+    await expect(
+      page.getByText("저장 여부를 알 수 없습니다.", { exact: false }).first(),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "최신 상태 불러오기", exact: true })
+      .click();
+    await expect(
+      page.getByRole("row").filter({ hasText: "retry@example.test" }).getByText(
+        "이메일 전달 대기",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("row").filter({ hasText: "other-invite@example.test" })
+        .getByRole("button", { name: "이메일 전달 다시 요청", exact: true }),
+    ).toBeDisabled();
+    await page.screenshot({
+      path: info.outputPath("workspace-delivery-recovery-desktop.png"),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(() =>
+        document.documentElement.scrollWidth <= innerWidth
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: info.outputPath("workspace-delivery-recovery-mobile.png"),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1024, height: 800 });
+    const otherRow = page.getByRole("row").filter({ hasText: "다른 참여자" });
+    await otherRow.getByRole("button", { name: "제외", exact: true }).click();
+    await page.getByRole("alertdialog").getByRole("button", {
+      name: /^(확인|같은 요청 다시 확인)$/,
+    }).click();
+    await expect.poll(() => removals.length).toBe(1);
+    await expect(page).toHaveURL(new RegExp(`/w/${a}/manage$`));
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    const recover = page.getByRole("button", {
+      name: "같은 이메일 전달 요청 다시 확인",
+      exact: true,
+    });
+    await expect(recover).toBeEnabled();
+    await recover.click();
+    await expect.poll(() => deliveries.length).toBe(2);
+    expect(deliveries[1]).toEqual(deliveries[0]);
+    expect(removals[0]).toEqual({
+      key: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      body: { expected_version: 1 },
+    });
+    expect(removals[0].key).not.toBe(deliveries[0].key);
+    await expect(page.getByText("다른 참여자", { exact: true })).toHaveCount(0);
+    await expect(recover).toHaveCount(0);
+  },
+);

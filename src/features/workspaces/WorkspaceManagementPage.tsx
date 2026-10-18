@@ -106,7 +106,20 @@ export function WorkspaceManagementPage() {
     invitations.find((invitation) =>
       invitation.id === delivery?.path.split("/").at(-1)
     )?.delivery?.status ?? delivery?.status;
-  const { attempt, busy, uncertain } = useWriteAttempt();
+  const {
+    attempt: removalAttempt,
+    busy: removalBusy,
+    uncertain: removalUncertain,
+  } = useWriteAttempt();
+  const {
+    attempt: deliveryAttempt,
+    busy: deliveryBusy,
+    uncertain: deliveryUncertain,
+  } = useWriteAttempt();
+  const [pendingDelivery, setPendingDelivery] = useState<
+    WorkspaceInvitation | null
+  >(null);
+  const busy = removalBusy || deliveryBusy;
   usePageNavigationBlocker(false, busy);
   useEffect(() => {
     const controller = new AbortController();
@@ -148,33 +161,38 @@ export function WorkspaceManagementPage() {
     return () => window.removeEventListener("focus", refresh);
   }, []);
   const retryDelivery = async (invitation: WorkspaceInvitation) => {
+    if (busy || pendingDelivery && pendingDelivery.id !== invitation.id) return;
+    const selected = pendingDelivery ?? invitation;
+    setPendingDelivery(selected);
     try {
-      await attempt.run(() =>
+      await deliveryAttempt.run(() =>
         api(
           "POST",
-          `/workspaces/${workspaceId}/invitations/${invitation.id}/delivery`,
-          { expected_version: invitation.version },
+          `/workspaces/${workspaceId}/invitations/${selected.id}/delivery`,
+          { expected_version: selected.version },
           undefined,
-          attempt.requestKey(),
+          deliveryAttempt.requestKey(),
         )
       );
+      setPendingDelivery(null);
       setRevision((value) => value + 1);
     } catch (error) {
+      if (!deliveryAttempt.snapshot().uncertain) setPendingDelivery(null);
       setError(writeErrorMessage(error));
     }
   };
   const remove = async () => {
-    if (!removal) return;
+    if (!removal || busy) return;
     const selected = removal, base = `/workspaces/${workspaceId}`;
     try {
-      await attempt.run(() =>
+      await removalAttempt.run(() =>
         selected.kind === "leave"
           ? api(
             "POST",
             `${base}/leave`,
             { expected_version: selected.member.version },
             undefined,
-            attempt.requestKey(),
+            removalAttempt.requestKey(),
           )
           : selected.kind === "member"
           ? api(
@@ -182,14 +200,14 @@ export function WorkspaceManagementPage() {
             `${base}/members/${selected.member.user_id}`,
             { expected_version: selected.member.version },
             undefined,
-            attempt.requestKey(),
+            removalAttempt.requestKey(),
           )
           : api(
             "DELETE",
             `${base}/invitations/${selected.invitation.id}`,
             { expected_version: selected.invitation.version },
             undefined,
-            attempt.requestKey(),
+            removalAttempt.requestKey(),
           )
       );
       setRemoval(null);
@@ -248,6 +266,29 @@ export function WorkspaceManagementPage() {
           >
             최신 상태 불러오기
           </Button>
+        </Alert>
+      )}
+      {deliveryUncertain && pendingDelivery && (
+        <Alert>
+          <AlertDescription className="flex min-w-0 flex-col gap-3">
+            <p>
+              <span className="break-all">{pendingDelivery.email}</span>{" "}
+              이메일 전달 요청의 저장 여부를 확인하지 못했습니다. 같은 요청을
+              다시 확인하세요.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={busy}
+                className="max-w-full whitespace-normal"
+                onClick={() => {
+                  void retryDelivery(pendingDelivery);
+                }}
+              >
+                같은 이메일 전달 요청 다시 확인
+              </Button>
+            </div>
+          </AlertDescription>
         </Alert>
       )}
       {delivery && (
@@ -417,7 +458,9 @@ export function WorkspaceManagementPage() {
                               ) && (
                               <Button
                                 variant="outline"
-                                disabled={busy || uncertain}
+                                disabled={busy ||
+                                  deliveryUncertain &&
+                                    pendingDelivery?.id !== invitation.id}
                                 onClick={() => {
                                   void retryDelivery(invitation);
                                 }}
@@ -477,13 +520,13 @@ export function WorkspaceManagementPage() {
             {error && <span role="alert" className="block">{error}</span>}
           </>
         }
-        confirmLabel={uncertain ? "같은 요청 다시 확인" : "확인"}
+        confirmLabel={removalUncertain ? "같은 요청 다시 확인" : "확인"}
         onConfirm={() => {
           void remove();
         }}
         onCancel={() => {
           if (!busy) {
-            if (uncertain) attempt.startNewIntent();
+            if (removalUncertain) removalAttempt.startNewIntent();
             setRemoval(null);
           }
         }}
