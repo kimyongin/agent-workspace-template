@@ -226,7 +226,7 @@ test("조회 실패는 현재 변경안을 유지하고 목록 재선택과 편�
   if (await page.getByRole("button", { name: /^변경 이력/ }).first().getAttribute("aria-expanded") === "false") {
     await page.getByRole("button", { name: /^변경 이력/ }).first().click();
   }
-  await page.locator('button[aria-controls="schema-history-change-a"]').click();
+  await page.getByRole("button", { name: /^입력 항목 변경 시각/ }).and(page.locator('[aria-controls="schema-history-change-a"]')).click();
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
     "이전 이름",
   );
@@ -514,9 +514,7 @@ test("변환 미리보기는 속성 키처럼 생긴 저장 문자열도 원본 
   );
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-  await expect(page.getByRole("region", { name: "변환 규칙과 영향 미리보기" }).locator("dd")).toHaveText(
-    "원본 prop_0001 → 변환 prop_1",
-  );
+  await expect(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true }).getByText("원본 prop_0001 → 변환 prop_1", { exact: true })).toBeVisible();
 });
 
 test("입력 항목 안에서 대표·목록·순서 변경을 함께 취소하고 버튼도 섹션 안에 둔다", async ({ page }, info) => {
@@ -546,17 +544,18 @@ test("입력 항목 안에서 대표·목록·순서 변경을 함께 취소하�
   const unit = page.getByRole("region", { name: "단위 입력 항목", exact: true });
   await unit.getByText("추가 설정", { exact: true }).click();
   await unit.getByLabel("단위 목록에 표시").uncheck();
-  const move = quantity.getByRole("button", { name: "수량 위로", exact: true });
+  const quantityRow = businessRows(section.getByRole("table", { name: "입력 항목 목록", exact: true })).filter({ has: page.getByRole("button", { name: "수량 입력 항목 편집", exact: true }) });
+  const move = quantityRow.getByRole("button", { name: "수량 위로", exact: true });
   await move.focus();
   await page.keyboard.press("Enter");
-  await expect(quantity.getByRole("button", { name: "수량 아래로", exact: true })).toBeFocused();
-  await expect(quantity.getByRole("button", { name: /^수량 항목 (?:펼치기|접기)$/, exact: true })).toHaveAttribute(
+  await expect(quantityRow.getByRole("button", { name: "수량 아래로", exact: true })).toBeFocused();
+  await expect(quantityRow.getByRole("button", { name: /^수량 항목 (?:펼치기|접기)$/, exact: true })).toHaveAttribute(
     "aria-expanded",
     "true",
   );
   await expect(section.locator("[role=\"region\"][aria-label$=\" 입력 항목\"]").first().getByLabel("항목 이름", { exact: true })).toHaveValue("수량");
   await section.getByRole("button", { name: "변경 취소", exact: true }).click();
-  await expect(section.locator("[role=\"region\"][aria-label$=\" 입력 항목\"]").first()).toContainText("재료명");
+  await expect(businessRows(section.getByRole("table", { name: "입력 항목 목록", exact: true })).first().getByRole("button", { name: "재료명 입력 항목 편집", exact: true })).toBeVisible();
   await expect(unit.getByLabel("단위 목록에 표시")).toBeChecked();
   await expect(quantity.getByLabel("필수 입력")).not.toBeChecked();
   await expect(quantity.getByLabel("데이터 타입")).toHaveValue("number");
@@ -1152,7 +1151,7 @@ test("conversion preview distinguishes numeric zero from text zero and puts chan
   });
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
   const preview = page.getByRole("region", { name: "변환 규칙과 영향 미리보기", exact: true });
-  await expect(preview.getByRole("article").first().locator("dl > div").first()).toContainText("가격");
+  await expect(businessRows(preview.getByRole("table", { name: / 입력값 변경$/ })).first()).toContainText("가격");
   await expect(preview).toContainText("0 (정수)");
   await expect(preview).toContainText("0 (텍스트)");
   await expect(preview.getByLabel("가격 변환 방식", { exact: true })).toBeVisible();
@@ -1243,7 +1242,8 @@ test("입력 항목 이름과 조건은 좁은 폼에서도 라벨과 값을 읽
   await page.goto("/e2e/fixtures/schema-editor-read.html?display-example");
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: "재료명 입력 항목 편집", exact: true }).click();
-  const name = page.getByLabel("항목 이름", { exact: true });
+  const panel = await disclosureContent(page, page.getByRole("button", { name: "재료명 입력 항목 편집", exact: true }));
+  const name = panel.getByLabel("항목 이름", { exact: true });
   await name.fill("긴 입력 항목 이름과 초안 보존 확인");
   for (const width of [320, 640, 1440]) {
     await page.setViewportSize({ width, height: 1000 });

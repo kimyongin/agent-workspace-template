@@ -310,7 +310,7 @@ for (const kind of ["tasks", "records"] as const) {
     const result = form(page).getByRole("group", { name: "자료 검색 결과" });
     await result.getByRole("button", { name: "검색 대상 연결", exact: true }).click();
     const selected = form(page).getByRole("table", { name: "선택한 자료", exact: true });
-    await expect(businessRows(selected.getByRole("table"))).toHaveCount(1);
+    await expect(businessRows(selected)).toHaveCount(1);
     expect((await selected.boundingBox())!.y).toBeGreaterThan((await search.boundingBox())!.y);
     await expect(executionDialog(page)).toHaveCount(0);
     expect(state.writes).toHaveLength(0);

@@ -147,7 +147,7 @@ export function BusinessDetails({ children, hidden, ...props }: React.ComponentP
   const style = layout?.style ?? layouts.regular;
   return (
     <BusinessRow hidden={hidden} className={hidden ? "hidden!" : undefined}>
-      <TableCell role="cell" colSpan={(layout?.columns.length ?? 1) + (layout?.disclosureColumn === false ? 0 : 1)} className={cn("whitespace-normal", style.details, layout?.disclosureColumn === false ? style.first : cn("pl-16", style.second))}>
+      <TableCell role="cell" colSpan={(layout?.columns.length ?? 1) + (layout?.disclosureColumn === false ? 0 : 1)} className={cn("whitespace-normal @max-[16rem]/business:pr-0", style.details, layout?.disclosureColumn === false ? style.first : cn("pl-16", style.second))}>
         <div {...props} className={cn("flex min-w-0 flex-col gap-4", props.className)}>{children}</div>
       </TableCell>
     </BusinessRow>

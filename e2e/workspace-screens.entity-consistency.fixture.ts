@@ -199,7 +199,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     let editedPairs = 0;
     for (const label of labels) {
       const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const control = detail.getByLabel(new RegExp(`^${escaped}(?:\\s*\\(필수\\))?$`)).filter({ visible: true });
+      const control = detail.getByLabel(new RegExp(`^${escaped}(?:\\s*\\*?\\s*\\(필수\\))?$`)).filter({ visible: true });
       if (await control.count()) {
         await expect(control.first()).toBeVisible();
         const box = (await control.first().boundingBox())!;

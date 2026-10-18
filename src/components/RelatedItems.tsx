@@ -128,7 +128,7 @@ export function RelatedItem(
       {layout.columns.slice(1).map((column, index) => <BusinessCell key={index} index={index + 1}>{cells[index] ?? "—"}</BusinessCell>)}
     </BusinessRow>
     {(disclosure?.expanded || metadata && !disclosure) && <BusinessDetails id={panel} aria-labelledby={heading}>
-      {metadataContent}{previewContent}{disclosure && action && <div className="flex flex-wrap items-center gap-2">{action}</div>}
+      {disclosure && action && <div className="flex flex-wrap items-center gap-2 @max-[16rem]/business:[&_[data-slot=button]]:h-auto @max-[16rem]/business:[&_[data-slot=button]]:min-h-11 @max-[16rem]/business:[&_[data-slot=button]]:max-w-full @max-[16rem]/business:[&_[data-slot=button]]:flex-col @max-[16rem]/business:[&_[data-slot=button]]:px-1 @max-[16rem]/business:[&_[data-slot=button]]:py-2 @max-[16rem]/business:[&_[data-slot=button]]:whitespace-normal">{action}</div>}{metadataContent}{previewContent}
     </BusinessDetails>}
   </>;
   const item = <Item variant="outline" className="@container min-w-0 flex-col flex-nowrap items-stretch">

@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { openDialogs } from "./ui-actions.ts";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
@@ -73,13 +74,13 @@ test("account settings sample keeps independent drafts and clear row actions", a
   await display.getByRole("button", { name: "저장", exact: true }).click();
   await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
   await navigation.getByRole("button", { name: "기록 위로 이동", exact: true }).click();
-  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText([
+  await expect(businessRows(navigation.getByRole("table", { name: "선택한 바로가기" })).locator(":scope > td:first-child")).toHaveText([
     "상품",
     "기록",
     "할 일",
   ]);
   await navigation.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText([
+  await expect(businessRows(navigation.getByRole("table", { name: "선택한 바로가기" })).locator(":scope > td:first-child")).toHaveText([
     "상품",
     "할 일",
     "기록",
@@ -89,7 +90,7 @@ test("account settings sample keeps independent drafts and clear row actions", a
   await navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption("products");
   await navigation.getByRole("button", { name: "추가", exact: true }).click();
   await navigation.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText([
+  await expect(businessRows(navigation.getByRole("table", { name: "선택한 바로가기" })).locator(":scope > td:first-child")).toHaveText([
     "할 일",
     "기록",
     "상품",
@@ -461,12 +462,12 @@ test("tag modal preserves unknown and excluded selections and supports single re
 test("property choices and official disclosures share production touch targets", async ({ page }) => {
   await page.goto(direct);
   const workspace = page.locator("#workspace");
-  const row = workspace.locator('[data-property-id="prop_2"]');
-  const disclosure = row.getByRole("button", { name: /펼치기$/ });
-  if (await disclosure.count()) await disclosure.click();
-  const summary = row.getByRole("button", { name: "추가 설정", exact: true });
+  const disclosure = workspace.getByRole("button", { name: /^재고 수량 (접기|펼치기)$/ });
+  if (await disclosure.getAttribute("aria-expanded") === "false") await disclosure.click();
+  const panel = await disclosureContent(page, disclosure);
+  const summary = panel.getByRole("button", { name: "추가 설정", exact: true });
   await summary.click();
-  const input = row.getByRole("checkbox", { name: "필수 입력", exact: true });
+  const input = panel.getByRole("checkbox", { name: "필수 입력", exact: true });
   const label = input.locator("..");
   await expect(label).toBeVisible();
   expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);

@@ -175,6 +175,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       const row = businessRows(page.getByRole("region", { name: / 목록$/ }).getByRole("table")).first(),
         toggle = row.getByRole("button", { name: title, exact: true });
       await expect(toggle).toBeVisible();
+      await page.evaluate(() => document.fonts.ready.then(() => {}));
       await expect(row.getByRole("link")).toHaveCount(0);
       const preview = await disclosureContent(page, toggle);
       await expect(preview).toBeHidden();
@@ -248,6 +249,8 @@ test("#203 320px·200% 펼친 연결 조작과 메인 목록이 넘치지 않음
     const rect = (await button.boundingBox())!;
     expect(rect.x).toBeGreaterThanOrEqual(0);
     expect(rect.x + rect.width).toBeLessThanOrEqual(320);
+    expect(rect.width).toBeGreaterThanOrEqual(88);
+    expect(rect.height).toBeGreaterThanOrEqual(88);
   }
   await page.screenshot({ path: info.outputPath("expanded-zoom-200.png") });
   await go(page, "/tasks");

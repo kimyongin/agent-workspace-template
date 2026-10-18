@@ -127,7 +127,8 @@ it("복구 충돌 목록은 자료 번호를 안전한 상세 링크로 제공�
   );
   expect(html).toContain('href="/entities/crm%3A00000000-0000-4000-8000-000000000001%3AVIP%2Fa.b"');
   expect(html).toContain(">crm · VIP/a.b</a>");
-  expect(html).toContain("<dt>연결·선택</dt><dd>할 일의 선택이 변경되었습니다</dd>");
+  const selection = html.split(/<tr\b/).find(row => row.includes(">연결·선택</div>"));
+  expect(selection).toContain(">할 일의 선택이 변경되었습니다</div>");
   expect(html).not.toContain('href="/entities/removed"');
 });
 

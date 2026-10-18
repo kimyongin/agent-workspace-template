@@ -111,7 +111,10 @@ for (const width of [320, 1440]) {
     await expect(form(page).getByRole("link", { name: "할 일 편집", exact: true })).toHaveCount(0);
     const viewBox = (await view.boundingBox())!,
       chevronBox = (await form(page).getByRole("button", { name: "할 일 접기", exact: true }).boundingBox())!;
-    expect(viewBox.x + viewBox.width).toBeLessThanOrEqual(chevronBox.x);
+    const titleBox = (await toggle.boundingBox())!;
+    expect(chevronBox.x + chevronBox.width).toBeLessThanOrEqual(titleBox.x);
+    expect(viewBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
+    expect((await view.locator("..").boundingBox())!.x).toBeCloseTo(titleBox.x, 0);
     await view.click();
     await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
     await expect(openDialogs(page)).toHaveCount(1);
