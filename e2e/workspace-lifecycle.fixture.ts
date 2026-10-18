@@ -77,58 +77,84 @@ for (
   });
 }
 
-test("a manager can leave a deleted space using its current own membership version", async ({ page }) => {
-  const user = {
-    id: actorId,
-    aud: "authenticated",
-    email: "fixture@example.test",
-    app_metadata: {},
-    user_metadata: {},
-  };
-  await page.addInitScript(
-    (user) =>
-      localStorage.setItem(
-        "sb-127-auth-token",
-        JSON.stringify({
-          user,
-          access_token: "isolated-lifecycle-token",
-          refresh_token: "isolated-lifecycle-refresh",
-          token_type: "bearer",
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-        }),
-      ),
-    user,
+for (const loseResponse of [false, true]) {
+  test(
+    loseResponse
+      ? "an uncertain exit checks current membership without blindly resending"
+      : "a manager can leave a deleted space using its current own membership version",
+    async ({ page }) => {
+      const user = {
+        id: actorId,
+        aud: "authenticated",
+        email: "fixture@example.test",
+        app_metadata: {},
+        user_metadata: {},
+      };
+      await page.addInitScript(
+        (user) =>
+          localStorage.setItem(
+            "sb-127-auth-token",
+            JSON.stringify({
+              user,
+              access_token: "isolated-lifecycle-token",
+              refresh_token: "isolated-lifecycle-refresh",
+              token_type: "bearer",
+              expires_at: Math.floor(Date.now() / 1000) + 3600,
+            }),
+          ),
+        user,
+      );
+      await page.route("**/auth/v1/user", (route) => route.fulfill({ json: user }));
+      await installWorkspaceApi(page, "http://127.0.0.1:55623", { entities: [], tags: [], records: [], tasks: [] });
+      const workspace = {
+        id: workspaceId,
+        name: "삭제한 공동 공간",
+        deleted_at: "2026-10-18T10:00:00Z",
+        lifecycle_generation: 2,
+      };
+      let left = false;
+      const writes: unknown[] = [];
+      await page.route(/\/api\/workspaces(?:\/|$)/, (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (path.endsWith("/leave")) {
+          writes.push(route.request().postDataJSON());
+          left = true;
+          return loseResponse ? route.abort("failed") : route.fulfill({ json: { left: true } });
+        }
+        if (path === "/api/workspaces") return route.fulfill({ json: { items: [] } });
+        if (path === "/api/workspaces/deleted") return route.fulfill({ json: { items: left ? [] : [workspace] } });
+        if (path.endsWith("/membership")) {
+          return route.fulfill(
+            left
+              ? { status: 403, json: { code: "forbidden", message: "현재 참여를 확인할 수 없습니다." } }
+              : { json: { workspace, membership_version: 4 } },
+          );
+        }
+        return route.fallback();
+      });
+      await page.goto("/workspaces");
+      await page.getByRole("row").filter({ hasText: "삭제한 공동 공간" }).getByRole("button", {
+        name: "탈퇴",
+        exact: true,
+      })
+        .click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "공간 탈퇴", exact: true }).click();
+      if (loseResponse) {
+        const dialog = page.getByRole("alertdialog");
+        await expect(dialog.getByText("저장 여부를 알 수 없습니다.", { exact: false })).toBeVisible();
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await expect(dialog.getByText("현재 참여를 확인할 수 없습니다.", { exact: true })).toBeVisible();
+        await expect(dialog.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeDisabled();
+        await expect(dialog.getByText("이전 요청의 결과는 확인되지 않았습니다.", { exact: false })).toBeVisible();
+        expect(writes).toHaveLength(1);
+        await dialog.getByRole("button", { name: "취소", exact: true }).click();
+      }
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+      await expect(page.getByRole("table", { name: "삭제한 공간", exact: true })).toHaveCount(0);
+      expect(writes).toEqual([{ expected_version: 4 }]);
+    },
   );
-  await page.route("**/auth/v1/user", (route) => route.fulfill({ json: user }));
-  await installWorkspaceApi(page, "http://127.0.0.1:55623", { entities: [], tags: [], records: [], tasks: [] });
-  const workspace = {
-    id: workspaceId,
-    name: "삭제한 공동 공간",
-    deleted_at: "2026-10-18T10:00:00Z",
-    lifecycle_generation: 2,
-  };
-  let left = false;
-  const writes: unknown[] = [];
-  await page.route(/\/api\/workspaces(?:\/|$)/, (route) => {
-    const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/leave")) {
-      writes.push(route.request().postDataJSON());
-      left = true;
-      return route.fulfill({ json: { left: true } });
-    }
-    if (path === "/api/workspaces") return route.fulfill({ json: { items: [] } });
-    if (path === "/api/workspaces/deleted") return route.fulfill({ json: { items: left ? [] : [workspace] } });
-    if (path.endsWith("/membership")) return route.fulfill({ json: { workspace, membership_version: 4 } });
-    return route.fallback();
-  });
-  await page.goto("/workspaces");
-  await page.getByRole("row").filter({ hasText: "삭제한 공동 공간" }).getByRole("button", { name: "탈퇴", exact: true })
-    .click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "공간 탈퇴", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(page.getByRole("table", { name: "삭제한 공간", exact: true })).toHaveCount(0);
-  expect(writes).toEqual([{ expected_version: 4 }]);
-});
+}
 
 test("a known management revocation on focus disables a previously prepared lifecycle action", async ({ page }) => {
   const user = {
