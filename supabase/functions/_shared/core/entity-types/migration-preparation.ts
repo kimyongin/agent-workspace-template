@@ -11,7 +11,9 @@ import type { ChangeFacts, ChangeInput } from "../shared/changes.ts";
 import { canonical } from "./evolution.ts";
 export type MigrationWorkerBatch = {
   id: string;
-  owner_id: string;
+  workspace_id: string;
+  initiated_by: string;
+  workspace_generation: number;
   type_id: string;
   fence: number;
   status: string;

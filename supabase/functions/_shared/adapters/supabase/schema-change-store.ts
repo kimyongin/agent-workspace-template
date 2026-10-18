@@ -38,18 +38,18 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   protected get schemaWorkspaceId(): string {
     return requireWorkspaceActor(this.actor).workspaceId;
   }
-  protected async authorizeSchemaKinds(ids: string[], access: "read" | "write") {
-    const requirements: WorkspaceRequirement[] = [...new Set(ids)].sort().map((id) => ({
-      target_kind: "entity_type",
-      target_id: id,
-      access,
-    }));
+  protected async authorizeSchemaPermissions(requirements: WorkspaceRequirement[]) {
     if (!requirements.length) return;
     await authorizeWorkspace(this.tx, requirements);
     await this.tx`select set_config('request.workspace_requirements',
       (coalesce(nullif(current_setting('request.workspace_requirements',true),''),'[]')::jsonb || ${
       this.tx.json(requirements as never)
     }::jsonb)::text,true)`;
+  }
+  protected async authorizeSchemaKinds(ids: string[], access: "read" | "write") {
+    await this.authorizeSchemaPermissions(
+      [...new Set(ids)].sort().map((id) => ({ target_kind: "entity_type", target_id: id, access })),
+    );
   }
   protected async assertChangeAffiliation(id: string) {
     const [row] = await this.tx`select model_change_id from app.entity_schema_changes where id=${id}::uuid`;
@@ -190,7 +190,13 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     if (["applied", "cancelled"].includes(row.status)) throw conflict("완료된 변경은 수정할 수 없습니다");
   }
   protected async dto(row: postgres.Row): Promise<EntitySchemaChange> {
-    if (row.analysis_id) await this.authorizeSchemaKinds([row.type_id], "read");
+    if (row.analysis_id) {
+      await this.authorizeSchemaPermissions(
+        (row.required_permissions ?? [{ target_kind: "entity_type", target_id: row.type_id }]).map((
+          r: WorkspaceRequirement,
+        ) => ({ ...r, access: "read" })),
+      );
+    }
     let analysis: SchemaAnalysis | null = null;
     let status = row.status;
     if (row.analysis_id) {
@@ -457,13 +463,24 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   }
   async loadSchemaApplication(typeId: string, id: string, analysisId: string): Promise<SchemaApplicationContext> {
     await this.assertChangeAffiliation(id);
-    // Metadata writes and worker publication use the same owner -> type lock order.
+    await this.authorizeSchemaKinds([typeId], "write");
+    // Metadata writes and worker publication use the same workspace -> type lock order.
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.schemaWorkspaceId + ":entity-types"},0))`;
     const t = await loadSchemaType(this.tx, typeId, true);
     if (!t) throw notFound();
     const c = await this.row(typeId, id, true);
     const [a] = await this
       .tx`select * from app.entity_schema_analyses where id::text=${analysisId} and change_id=${id}`;
+    const [epoch] = await this.tx`select app.workspace_generation() as generation`;
+    if (
+      Number(c.workspace_generation) !== Number(epoch.generation) ||
+      (a && Number(a.workspace_generation) !== Number(epoch.generation))
+    ) {
+      throw new AppError(
+        "schema_plan_stale",
+        "삭제 전 변경안과 분석은 다시 실행할 수 없습니다. 새 변경안을 준비하세요",
+      );
+    }
     const [fresh] = await this
       .tx`select app.entity_schema_membership(${this.schemaWorkspaceId},${typeId}) as membership`;
     return {

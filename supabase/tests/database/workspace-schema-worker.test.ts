@@ -23,6 +23,7 @@ const key = (actor: Actor): Actor => ({ ...actor, request: { key: crypto.randomU
 dbTest("shared schema analysis captures the actual initiator and immutable workspace generation", async () => {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
+  let otherWorkspaceId: string | undefined;
   for (const actor of [a, b]) {
     const email = `worker513-${actor.userId}@example.test`;
     await admin`insert into auth.users(id,email) values(${actor.userId},${email})`;
@@ -59,6 +60,29 @@ dbTest("shared schema analysis captures the actual initiator and immutable works
     assertEquals(analysis.initiated_by, b.userId);
     assertEquals(Number(analysis.workspace_generation), Number(workspace.lifecycle_generation));
     assertEquals(accepted.status, "queued");
+    otherWorkspaceId =
+      (await workspaces.createWorkspace(workspaceDeps, key(a), { name: "다른 분석 공간" })).workspace.id;
+    const other = { ...a, workspaceId: otherWorkspaceId };
+    const otherType = await types.createEntityType(typeDeps, key(other), { label: "분석 대상" });
+    assertEquals(
+      (await assertRejects(() => changes.getEntitySchemaChange(typeDeps, other, type.id, draft.id), AppError)).code,
+      "not_found",
+    );
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), otherWorkspaceId, a.userId, {
+      expected_version: 1,
+      grants: [
+        { target_kind: "settings", target_id: "*", access: "write" },
+        { target_kind: "entity_type", target_id: otherType.id, access: "write" },
+      ],
+    });
+    assertEquals(
+      (await assertRejects(() =>
+        changes.analyzeEntitySchemaChange(typeDeps, key(other), otherType.id, draft.id, {
+          expected_change_version: draft.version,
+        }), AppError)).code,
+      "not_found",
+    );
+
     await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, a.userId, {
       expected_version: 1,
       grants: [
@@ -129,6 +153,7 @@ dbTest("shared schema analysis captures the actual initiator and immutable works
     await workspaces.restoreWorkspace(workspaceDeps, key(a), workspaceId, { expected_generation: 2 });
     assertEquals((await worker`select app.claim_entity_schema_analysis() as batch`)[0].batch, null);
   } finally {
+    if (otherWorkspaceId) await admin`delete from app.workspaces where id=${otherWorkspaceId}`;
     if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
     for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
   }

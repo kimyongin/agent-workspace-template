@@ -16,7 +16,9 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
   };
   const batch: MigrationWorkerBatch = {
     id: crypto.randomUUID(),
-    owner_id: crypto.randomUUID(),
+    workspace_id: crypto.randomUUID(),
+    initiated_by: crypto.randomUUID(),
+    workspace_generation: 1,
     type_id: crypto.randomUUID(),
     fence: 1,
     status: "preparing",

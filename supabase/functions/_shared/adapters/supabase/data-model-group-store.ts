@@ -156,7 +156,7 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
         .tx`update app.data_model_children set job_id=${job.job_id}::uuid where model_id=${id}::uuid and type_ref=${r.type_ref}`;
     }
     await this
-      .tx`update app.data_model_changes set status='queued',version=version+1,fence=fence+1,source_memberships=${
+      .tx`update app.data_model_changes set initiated_by=(app.workspace_author()->>'created_by')::uuid,status='queued',version=version+1,fence=fence+1,source_memberships=${
       this.tx.json(memberships)
     },source_templates=${
       this.tx.json(templates as never)

@@ -9,6 +9,7 @@ import {
   type RecoveryProposal,
 } from "../../core/entity-types/recovery-policy.ts";
 import type postgres from "postgres";
+import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import { SqlSchemaChangeStore } from "./schema-change-store.ts";
 import type { SchemaMigrationActionContext, SchemaMigrationStore } from "../../core/entity-types/schema-migrations.ts";
 import type { EntitySchemaMigration, SchemaMigrationAccepted } from "../../contracts/entity-schema-migration.ts";
@@ -26,8 +27,17 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
       status: "queued",
     };
   }
-  private async job(id: string, lock = false) {
-    const [r] = await this.tx`select * from app.entity_schema_migrations where id::text=${id} ${
+  private async job(id: string, lock = false, intent: "read" | "write" = "read") {
+    const [identity] = await this.tx`select required_permissions from app.entity_schema_migrations
+      where workspace_id=${this.schemaWorkspaceId}::uuid and id::text=${id}`;
+    if (!identity) throw notFound();
+    await this.authorizeSchemaPermissions(
+      (identity.required_permissions as WorkspaceRequirement[]).map((r) =>
+        intent === "read" ? ({ ...r, access: "read" }) : r
+      ),
+    );
+    const [r] = await this
+      .tx`select * from app.entity_schema_migrations where workspace_id=${this.schemaWorkspaceId}::uuid and id::text=${id} ${
       lock ? this.tx`for update` : this.tx``
     }`;
     if (!r) throw notFound();
@@ -70,7 +80,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     return assessRecovery(read.evidence, new Date(read.observed_at));
   }
   async loadRecovery(id: string): Promise<RecoveryContext> {
-    const identity = await this.job(id);
+    const identity = await this.job(id, false, "write");
     await this.authorizeSchemaKinds(identity.required_kind_ids ?? [identity.type_id], "write");
     const t = await loadSchemaType(this.tx, identity.type_id, true);
     if (!t) throw notFound();
@@ -111,11 +121,12 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
     const templates = effectiveEntityTemplates(settings?.settings, typeId);
     for (const template of Object.values(templates.entity!)) template!.tag_ids = [...template!.tag_ids].sort();
+    await this.tx`select app.workspace_entity_reference_permissions(${typeId}::uuid)`;
     const [refs] = await this
       .tx`select app.entity_schema_reference_baseline(${this.schemaWorkspaceId},${typeId}) as value`;
     const [time] = await this.tx`select clock_timestamp() as observed_at`;
     const [size] = await this
-      .tx`select coalesce(sum(octet_length(r.properties::text)+octet_length(r.after::text)+coalesce(octet_length(r.recovery_properties::text),0)+octet_length(jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where entity_id=e.id),'[]'::jsonb))::text)),0) as bytes from private.entity_schema_analysis_rows r join app.entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
+      .tx`select coalesce(sum(octet_length(r.properties::text)+octet_length(r.after::text)+coalesce(octet_length(r.recovery_properties::text),0)+octet_length(jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb))::text)),0) as bytes from private.entity_schema_analysis_rows r join app.entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
     const [metadata] = await this.tx`select octet_length(${this.tx.json(definition)}::jsonb::text)+octet_length(${
       this.tx.json(c.target)
     }::jsonb::text)+octet_length(${this.tx.json(refs.value)}::jsonb::text)+octet_length(${
@@ -126,21 +137,22 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
       if (totalBytes > 8388608) throw invalidInput("생성될 기록과 원본을 포함한 원자적 값 변환 준비 한도를 넘었습니다");
     };
     assertBudget();
-    const tags = await this.tx`select id from app.tags where scope='record'`;
+    const chosenTags = [...new Set(Object.values(templates.entity!).flatMap((template) => template!.tag_ids))];
+    const [tags] = await this.tx`select app.workspace_record_template_tag_ids(${chosenTags}::text[]) as ids`;
     const renderRecord = migrationRecordRenderer({
       type_id: typeId,
       source_schema_version: Number(t.schema_version),
       target: c.target,
       source_definition: { schema: definition.schema },
       templates,
-      available_tags: tags.map((tag) => String(tag.id)),
+      available_tags: tags.ids as string[],
       type: { id: t.id, label: t.label, icon_id: resolvedEntityTypeIcon(t.icon_id), archived: t.archived },
     }, time.observed_at);
     const encoder = new TextEncoder();
     let after: string | null = null, preparedCount = 0;
     while (true) {
       const rows: postgres.Row[] = await this
-        .tx`with candidates as (select r.entity_id,r.properties,r.after,r.recovery_properties,r.changed,e.source,e.external_id,coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where entity_id=e.id),'[]'::jsonb) as tag_ids,octet_length(r.properties::text)+octet_length(r.after::text)+coalesce(octet_length(r.recovery_properties::text),0)+octet_length(jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where entity_id=e.id),'[]'::jsonb))::text) as bytes from private.entity_schema_analysis_rows r join app.entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0 and (${after}::text is null or r.entity_id collate "C">${after}::text collate "C") order by r.entity_id collate "C" limit 50), bounded as (select *,sum(bytes) over (order by entity_id collate "C") as cumulative from candidates) select * from bounded where cumulative<=524288 order by entity_id collate "C"`;
+        .tx`with candidates as (select r.entity_id,r.properties,r.after,r.recovery_properties,r.changed,e.source,e.external_id,coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb) as tag_ids,octet_length(r.properties::text)+octet_length(r.after::text)+coalesce(octet_length(r.recovery_properties::text),0)+octet_length(jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb))::text) as bytes from private.entity_schema_analysis_rows r join app.entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0 and (${after}::text is null or r.entity_id collate "C">${after}::text collate "C") order by r.entity_id collate "C" limit 50), bounded as (select *,sum(bytes) over (order by entity_id collate "C") as cumulative from candidates) select * from bounded where cumulative<=524288 order by entity_id collate "C"`;
       if (!rows.length) break;
       for (const row of rows) {
         const record = renderRecord({
@@ -174,7 +186,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     }::uuid where ${c.recovery_source_job_id}::uuid is null or exists(select 1 from app.entity_schema_migrations source where source.id=${c.recovery_source_job_id} and source.source_expires_at>clock_timestamp()) returning *`;
     if (!j) throw new AppError("migration_source_expired", "복구 원본의 30일 보관 기간이 지났습니다");
     await this
-      .tx`insert into private.entity_schema_migration_rows(workspace_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed) select r.workspace_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where entity_id=e.id),'[]'::jsonb)),r.after,r.changed from private.entity_schema_analysis_rows r join app.entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
+      .tx`insert into private.entity_schema_migration_rows(workspace_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed) select r.workspace_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb)),r.after,r.changed from private.entity_schema_analysis_rows r join app.entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
     if (c.recovery_source_job_id) {
       await this
         .tx`update app.entity_schema_migrations set recovery_source_job_id=${c.recovery_source_job_id},recovery_keys=${
@@ -196,18 +208,33 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     }
     const prior = i.before ? await this.job(i.before) : null;
     if (prior && i.type_id && prior.type_id !== i.type_id) throw invalidInput("이 종류의 작업 목록 cursor가 아닙니다");
-    const rows = await this.tx`select * from app.entity_schema_migrations where (${
+    const candidates = await this
+      .tx`select id,required_permissions from app.entity_schema_migrations where workspace_id=${this.schemaWorkspaceId}::uuid and (${
       i.type_id ?? null
     }::uuid is null or type_id=${i.type_id ?? null}::uuid) ${
       prior ? this.tx`and (created_at,id)<(${prior.created_at},${prior.id}::uuid)` : this.tx``
     } order by created_at desc,id desc limit ${i.limit + 1}`;
+    await this.authorizeSchemaPermissions(
+      candidates.flatMap((r) =>
+        (r.required_permissions as WorkspaceRequirement[]).map((permission) => ({
+          ...permission,
+          access: "read" as const,
+        }))
+      ),
+    );
+    const rows = candidates.length
+      ? await this
+        .tx`select * from app.entity_schema_migrations where workspace_id=${this.schemaWorkspaceId}::uuid and id=any(${
+        candidates.map((r) => String(r.id))
+      }::uuid[]) order by created_at desc,id desc`
+      : [];
     return {
       items: await Promise.all(rows.slice(0, i.limit).map((r) => this.jobDto(r))),
       next_before: rows.length > i.limit ? String(rows[i.limit - 1].id) : null,
     };
   }
   async loadMigrationAction(id: string): Promise<SchemaMigrationActionContext> {
-    const identity = await this.job(id);
+    const identity = await this.job(id, false, "write");
     await this.authorizeSchemaKinds(identity.required_kind_ids ?? [identity.type_id], "write");
     if (identity.model_change_id && identity.model_change_id !== this.modelChangeId) {
       throw invalidInput("전체 모델 소속 작업은 자료 모델에서 함께 처리하세요");
@@ -245,7 +272,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     return this.jobDto(r);
   }
   async migrationReferencesFresh(id: string) {
-    const j = await this.job(id);
+    const j = await this.job(id, false, "write");
     const [refs] = await this.tx`select app.entity_schema_reference_baseline(${this.schemaWorkspaceId},${j.type_id})=${
       this.tx.json(j.source_references)
     }::jsonb as fresh`;
