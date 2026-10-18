@@ -141,7 +141,7 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
         source_label: i.source,
         created_at: "2026-10-09T00:00:00Z",
         updated_at: "2026-10-09T00:00:00Z",
-        tag_ids: i.tag_ids ?? [],
+        tag_ids: [],
         deleted_at: null,
         version: 1,
       };

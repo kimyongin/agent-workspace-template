@@ -1,7 +1,7 @@
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
-import { createTag, deleteTag, renameTag } from "../../functions/_shared/core/tags/application.ts";
+import { createTag, deleteTag, renameTag, setTagConnections } from "../../functions/_shared/core/tags/application.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type postgres from "postgres";
 import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
@@ -158,8 +158,9 @@ dbTest(
       const xBefore = await getEntity(e, a.actor, x.id), delBefore = await getEntity(e, a.actor, deleted.id);
       const tags = { uow: new SqlTagUnitOfWork(sql) };
       const attachedTag = await createTag(tags, requestActor(a.actor), { scope: "entity", name: "attached" });
-      await updateEntity(e, requestActor(a.actor), x.id, {
-        schema_version: 1,
+      await setTagConnections(tags, requestActor(a.actor), {
+        target_kind: "entity",
+        target_id: x.id,
         expected_version: xBefore.version,
         tag_ids: [attachedTag.id],
       });
