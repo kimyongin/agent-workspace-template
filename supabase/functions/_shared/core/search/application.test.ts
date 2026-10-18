@@ -106,3 +106,18 @@ Deno.test("selected entity text uses semantic query embedding and accepts its im
   assertEquals((await search(state.d, actor, query)).search_state, "ok");
   assertEquals(state.counts(), { calls: 1 });
 });
+
+Deno.test("entity result pagination preserves Unicode original references", async () => {
+  const entityId = "app:00000000-0000-4000-8000-000000000001:한글 원본";
+  const original = { ...item, kind: "entity" as const, id: entityId, path: "/entities/encoded", rank: 1 };
+  const store: SearchStore = {
+    coverage: () => Promise.resolve({ pending: 0, excluded: 0 }),
+    candidates: (_query, _vector, after) =>
+      Promise.resolve(after ? [original] : [original, { ...original, id: `${entityId}2` }]),
+    anchorPage: () => Promise.resolve(null),
+  };
+  const state: SearchDeps = { uow: { run: (_actor, read) => read(store) } };
+  const query = searchInput.parse({ query: "한글", kinds: ["entity"], mode: "keyword", limit: 1 });
+  const first = await search(state, actor, query);
+  assertEquals((await search(state, actor, { ...query, cursor: first.next_cursor! })).items[0].id, entityId);
+});
