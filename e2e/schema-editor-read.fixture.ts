@@ -1271,3 +1271,32 @@ test("입력 항목 이름과 조건은 좁은 폼에서도 라벨과 값을 읽
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("schema-pairs-200.png"), fullPage: true });
 });
+
+test("conversion correction date calendar changes only the retained literal draft", async ({ page }) => {
+  const current = plan("b");
+  current.change_kind = "migration_required";
+  current.target.schema.properties.prop_2 = { "x-order": 20, type: "string", format: "date", title: "확인 날짜" };
+  current.migration.rules = [{ op: "fill", key: "prop_2", value: "2024-02-29", include_null: false }];
+  await page.route(`**${base}/b`, (route) => route.fulfill({ json: current }));
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/") && request.method() !== "GET") writes.push(request.method());
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await page.getByRole("button", { name: /^확인 날짜 항목 펼치기$/, exact: true }).click();
+  const field = page.getByRole("region", { name: "변환 규칙과 영향 미리보기", exact: true });
+  const input = field.getByLabel("보완값", { exact: true });
+  await expect(input).toHaveValue("2024-02-29");
+  await field.getByRole("button", { name: "확인 날짜 보완값 달력 열기", exact: true }).click();
+  const calendar = page.getByRole("dialog", { name: "확인 날짜 보완값 달력", exact: true });
+  await calendar.getByRole("gridcell", { selected: true }).getByRole("button").press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(calendar).toHaveCount(0);
+  await expect(input).toHaveValue("2024-03-01");
+  await input.fill("0000-02-29");
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(field.getByText("올바른 날짜를 YYYY-MM-DD 형식으로 입력하세요.", { exact: true })).toBeVisible();
+  await expect(input).toHaveValue("0000-02-29");
+  expect(writes).toEqual([]);
+});

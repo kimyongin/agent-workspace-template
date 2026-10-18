@@ -1,5 +1,5 @@
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
+import { DateTimeInput, type DateTimeDraft } from "../../components/DateTimeInput.tsx";
 import { FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { RecordDataFields } from "./RecordDataFields.tsx";
@@ -20,6 +20,7 @@ import { Field } from "../../components/Field.tsx";
 import { FormModal, type TextDraft } from "../../components/ContentForm.tsx";
 import { browserTimezone, fieldErrors, fromLocalInput, todayIn, toLocalInput } from "../../lib/format.ts";
 import type { EntityContext } from "@contracts/entity-links.ts";
+import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 
 // ---------- 기록 폼(직접 작성·완료 결과·회차 기록·편집) ----------
 
@@ -29,19 +30,20 @@ export interface RecordDraft {
   entity_ids?: string[];
   entity_context?: EntityContext[];
   tag_ids: string[];
-  occurred_at: string; // datetime-local
+  occurred_at: DateTimeDraft;
   original_occurred_at?: string;
 }
 
-export const emptyRecord = (): RecordDraft => ({ body: "", occurred_at: "", tag_ids: [] });
+export const emptyRecord = (): RecordDraft => ({ body: "", occurred_at: { date: "", time: "" }, tag_ids: [] });
 
 export function recordDraftFrom(
   r: { body: string; occurred_at: string; tag_ids?: string[]; entity_ids?: string[]; entity_context?: EntityContext[] },
   timezone = browserTimezone(),
 ): RecordDraft {
+  const [date, time] = toLocalInput(r.occurred_at, timezone).split("T");
   return {
     body: r.body,
-    occurred_at: toLocalInput(r.occurred_at, timezone),
+    occurred_at: { date, time },
     original_occurred_at: r.occurred_at,
     tag_ids: r.tag_ids ?? [],
     entity_ids: r.entity_ids ?? [],
@@ -51,9 +53,13 @@ export function recordDraftFrom(
 
 /** The minute-only input must not truncate an untouched stored timestamp. */
 export function recordDraftTime(draft: RecordDraft, timezone = browserTimezone()): string | undefined {
-  return draft.original_occurred_at && draft.occurred_at === toLocalInput(draft.original_occurred_at, timezone)
+  const { date, time } = draft.occurred_at;
+  if (!date && !time) return undefined;
+  if (!isCivilDateInput(date)) return undefined;
+  const input = `${date}T${time}`;
+  return draft.original_occurred_at && input === toLocalInput(draft.original_occurred_at, timezone)
     ? draft.original_occurred_at
-    : fromLocalInput(draft.occurred_at, timezone);
+    : fromLocalInput(input, timezone);
 }
 
 export function RecordFormModal(props: {
@@ -104,7 +110,7 @@ export function RecordFormModal(props: {
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
-        if (draft.occurred_at && !recordDraftTime(draft, timezone)) {
+        if ((draft.occurred_at.date || draft.occurred_at.time) && !recordDraftTime(draft, timezone)) {
           return {
             occurred_at: "선택한 시간대에서 존재하지 않는 시각입니다. 다른 시각을 입력하세요.",
           };
@@ -134,11 +140,12 @@ export function RecordFormModal(props: {
         const occurredAt = (
           <Field label={recordLabels.occurred_at} error={errors.occurred_at}>
             {(p) => (
-              <Input
+              <DateTimeInput
                 {...p}
-                type="datetime-local"
+                label={recordLabels.occurred_at}
+                disabled={frozen}
                 value={draft.occurred_at}
-                onChange={(e) => setDraft((d) => ({ ...d, occurred_at: e.target.value }))}
+                onValueChange={(occurred_at) => setDraft((d) => ({ ...d, occurred_at }))}
               />
             )}
           </Field>
@@ -318,6 +325,10 @@ export function TaskFormModal(
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
+        const dateKey = draft.kind === "once" ? "due_on" : "starts_on";
+        if (draft[dateKey] && !isCivilDateInput(draft[dateKey])) {
+          return { [dateKey]: "실제로 존재하는 날짜를 YYYY-MM-DD 형식으로 입력하세요." };
+        }
         const input = taskInput(draft, "create");
         const r = (draft.kind === "once" ? taskCreate.options[0] : taskCreate.options[1]).safeParse(input);
         if (r.success) return null;
@@ -370,6 +381,7 @@ export function TaskFormModal(
               draft={draft}
               set={set}
               errors={errors}
+              disabled={frozen}
             />
           </FieldGroup>
           {props.mode === "create" && (

@@ -8,6 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select.tsx";
 import { Input } from "../../components/ui/input.tsx";
+import { DateInput } from "../../components/DateInput.tsx";
+import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { FilterPanel } from "../../components/TabSearch.tsx";
@@ -104,7 +106,8 @@ function Literal(
         )}
       </Field>
       {value !== null && (
-        <Field label="보완값">
+        <Field label="보완값" error={field.format === "date" && !isCivilDateInput(String(value ?? ""))
+          ? "올바른 날짜를 YYYY-MM-DD 형식으로 입력하세요." : undefined}>
           {(props) => (scalar === "boolean"
             ? (
               <NativeSelect
@@ -133,13 +136,24 @@ function Literal(
                 ))}
               </NativeSelect>
             )
+            : field.format === "date"
+            ? (
+              <DateInput
+                {...props}
+                aria-label="보완값"
+                label={`${field.title ?? "날짜"} 보완값`}
+                disabled={disabled}
+                value={String(value ?? "")}
+                onValueChange={onChange}
+              />
+            )
             : (
               <Input
                 {...props}
 
                 aria-label="보완값"
                 value={String(value ?? "")}
-                type={field.format === "date" ? "date" : "text"}
+                type="text"
                 inputMode={scalar === "number" || scalar === "integer" ? "decimal" : undefined}
                 step="any"
                 onChange={(e) =>

@@ -64,6 +64,13 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     const form = page.getByRole("dialog", { name: `${type.label} 편집`, exact: true });
     await expect(form.getByLabel("무게", { exact: true })).toHaveValue("1.25");
     await expect(form.getByLabel("검사", { exact: true })).toHaveValue("value:false");
+    await expect(form.getByLabel("확인 날짜", { exact: true })).toHaveValue("2024-02-29");
+    await form.getByRole("button", { name: "확인 날짜 달력 열기", exact: true }).click();
+    const calendar = page.getByRole("dialog", { name: "확인 날짜 달력", exact: true });
+    await calendar.getByRole("gridcell", { selected: true }).getByRole("button").press("ArrowRight");
+    await page.keyboard.press("Enter");
+    await expect(form.getByLabel("확인 날짜", { exact: true })).toHaveValue("2024-03-01");
+    expect((await mcp.call("get_entity", { id: entityId })).properties.prop_4).toBe("2024-02-29");
     const updatedTitle = unique("수정 대상");
     await form.getByLabel("이름", { exact: false }).fill(updatedTitle);
     await form.getByLabel("무게", { exact: true }).fill("0");
@@ -74,13 +81,14 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
       prop_1: updatedTitle,
       prop_2: 0,
       prop_3: 0,
-      prop_4: "2024-02-29",
+      prop_4: "2024-03-01",
       prop_5: true,
       prop_6: "b",
     });
     expect(saved.entity_type_id).toBe(typeId);
     await page.getByRole("button", { name: "편집", exact: true }).click();
     const stale = page.getByRole("dialog", { name: `${type.label} 편집`, exact: true });
+    await expect(stale.getByLabel("확인 날짜", { exact: true })).toHaveValue("2024-03-01");
     await stale.getByLabel("이름", { exact: false }).fill("실패해도 보존할 초안");
     const currentType = await mcp.call("get_entity_type", { type_id: typeId });
     const next = await mcp.call("create_entity_schema_change", {

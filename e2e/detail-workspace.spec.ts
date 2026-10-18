@@ -1343,7 +1343,10 @@ for (const width of [320, 1440]) for (const kind of ["user", "result", "change"]
       expect((await historicalKey.boundingBox())!.x).toBeCloseTo((await surface.locator("label:visible").filter({hasText:/^본문/}).boundingBox())!.x,0);
       await surface.locator("dt:visible").filter({hasText:"당시 메모"}).scrollIntoViewIfNeeded();
       await page.screenshot({path:info.outputPath(`record-change-${width}-history.png`)});
-    } else await expect(surface.getByLabel("수행 시각")).toBeVisible();
+    } else {
+      await expect(surface.getByRole("textbox", { name: "수행 시각 날짜", exact: true })).toBeVisible();
+      await expect(surface.getByLabel("수행 시각 시간", { exact: true })).toBeVisible();
+    }
     await page.screenshot({path:info.outputPath(`record-${kind}-${width}-edit.png`)});
     await surface.getByLabel("본문").fill("정정한 본문");
     await surface.getByRole("button",{name:"저장",exact:true}).click();

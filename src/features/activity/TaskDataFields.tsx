@@ -1,4 +1,5 @@
 import { Input } from "@/components/ui/input";
+import { DateInput } from "../../components/DateInput.tsx";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldGroup } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -17,13 +18,14 @@ import type { TaskDraft } from "./forms.tsx";
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 /** One field sequence for saved tasks and drafts; immutable context remains selectable text. */
-export function TaskDataFields({ task, draft, set, errors = {} }: {
+export function TaskDataFields({ task, draft, set, errors = {}, disabled = false }: {
   task?: TaskResult;
   draft?: TaskDraft;
   set?: (
     patch: Partial<TaskDraft> | ((draft: TaskDraft) => Partial<TaskDraft>),
   ) => void;
   errors?: Record<string, string>;
+  disabled?: boolean;
 }) {
   const { formatDateTime } = useDisplayTime();
   const value = draft ?? task!;
@@ -65,7 +67,15 @@ export function TaskDataFields({ task, draft, set, errors = {} }: {
               onChange={(e) => set!({ timezone: e.target.value })}
             />
           )
-          : (
+          : type === "date" ? (
+            <DateInput
+              {...p}
+              label={label}
+              value={draft![key]}
+              disabled={disabled}
+              onValueChange={(next) => set!({ [key]: next })}
+            />
+          ) : (
             <Input
               {...p}
               type={type}

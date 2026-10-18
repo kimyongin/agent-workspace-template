@@ -11,8 +11,8 @@ it("body-only result/general record edits preserve the stored seconds and millis
 it("an explicit user time change is saved; a new blank time still lets the server select now", () => {
   const draft = recordDraftFrom({ body: "", occurred_at: "2026-10-05T20:58:48.277Z" });
   const edited = "2026-10-06T12:30";
-  expect(recordDraftTime({ ...draft, occurred_at: edited })).toBe(fromLocalInput(edited));
-  expect(recordDraftTime({ ...draft, occurred_at: "" })).toBeUndefined();
+  expect(recordDraftTime({ ...draft, occurred_at: { date: "2026-10-06", time: "12:30" } })).toBe(fromLocalInput(edited));
+  expect(recordDraftTime({ ...draft, occurred_at: { date: "", time: "" } })).toBeUndefined();
 });
 
 it("record memo drafts retain multiple targets without any applied-principle editing input", () => {
