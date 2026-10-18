@@ -20,10 +20,16 @@ for(const kind of ["entity","task"] as const)test(`삭제된 ${kind}: 이전 변
     await mcp.call(`delete_${kind}`,{id:target!.id,expected_version:target!.version,change_note:"삭제 문맥 검증"});deleted=true;
     await page.goto(workspacePath(workspace.id, `/records/${historical.id}`));
     const detail=detailDialog(page);
-    await expect(detail).toContainText("조회 불가");
+    await expect(detail).toContainText(kind === "task" ? "삭제됨" : "조회 불가");
     await detail.getByRole("button",{name:title,exact:true}).click();
-    await expect(detail).toContainText("현재 항목을 조회할 수 없습니다.");
-    await expect(detail.getByRole("link",{name:"대상 원문 보기",exact:true})).toHaveCount(0);
+    if (kind === "task") {
+      // A retained task parent is still readable with tasks READ after soft deletion.
+      await expect(detail).toContainText("삭제 뒤 역사 확인");
+      await expect(detail.getByLabel(`${title} 상세`, { exact: true })).toBeVisible();
+    } else {
+      await expect(detail).toContainText("현재 항목을 조회할 수 없습니다.");
+      await expect(detail.getByLabel(`${title} 상세`, { exact: true })).toHaveCount(0);
+    }
     await expect(detail).toContainText(title);await expect(detail).toContainText("에이전트");
     expect((await mcp.call("get_record",{id:historical.id})).change).toEqual(metadata);
   }finally{

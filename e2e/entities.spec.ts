@@ -142,7 +142,7 @@ test("Entity 연결 활동 검색·목록과 상세 복귀·편집의 자료 연
     await expect(page.getByRole("link", { name: "전체 할 일 보기" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: task.title, exact: true })).toBeVisible();
     await page.goto(workspacePath(workspace.id, `/tasks?entity_id=${encodeURIComponent(id)}`));
-    expect(new URL(page.url()).pathname).toBe("/tasks");
+    expect(new URL(page.url()).pathname).toBe(workspacePath(workspace.id, "/tasks"));
     await expect(page.getByRole("button", { name: task.title, exact: true }))
       .toBeVisible();
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);

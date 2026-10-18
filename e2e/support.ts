@@ -592,7 +592,7 @@ export async function ownedFixtureSeed<T>(
     return await admin.begin(async (tx) => {
       await tx`select set_config('request.jwt.claims',${JSON.stringify({ sub: fixture.actorId, role: "authenticated" })},true)`;
       await tx`select app.lock_workspace(${fixture.id}::uuid,false)`;
-      await tx`select app.authorize_workspace(${JSON.stringify(requirements)}::jsonb)`;
+      await tx`select app.authorize_workspace(${tx.json(requirements)})`;
       await tx`select set_config('request.workspace_requirements',${JSON.stringify(requirements)},true)`;
       return await prepare(tx);
     });
