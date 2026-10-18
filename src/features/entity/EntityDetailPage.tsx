@@ -235,6 +235,7 @@ export function EntityDetailPage() {
               scope="entity"
               target={entity}
               readonly={!canWrite || !!entity.deleted_at}
+              visible={canRead}
               onSaved={(saved) => {
                 relationSaved.current = true;
                 detail.confirm((current) => current ? { ...current, ...saved } : current);

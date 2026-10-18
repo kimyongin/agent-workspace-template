@@ -28,10 +28,11 @@ export function ReadonlyTags(
 }
 
 /** The chooser only changes this draft. A partial write owns its exact version and retry lifetime. */
-export function TagConnections({ scope, target, readonly = false, onSaved, onDraftClosed }: {
+export function TagConnections({ scope, target, readonly = false, visible = true, onSaved, onDraftClosed }: {
   scope: TagScope;
   target: { id: string; version: number; tag_ids: string[]; title?: string };
   readonly?: boolean;
+  visible?: boolean;
   onDraftClosed?: () => void;
   onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
 }) {
@@ -47,13 +48,14 @@ export function TagConnections({ scope, target, readonly = false, onSaved, onDra
     wasEditing.current = !!editing;
   }, [editing]);
   return (
-    <section ref={trigger} tabIndex={-1} className="flex min-w-0 flex-col gap-3" aria-label="태그 연결">
+    <section ref={trigger} hidden={!visible} tabIndex={-1} className="flex min-w-0 flex-col gap-3" aria-label="태그 연결">
       {editing
         ? (
           <TagConnectionDraft
             scope={scope}
             target={editing}
             readonly={readonly}
+            visible={visible}
             onCancel={() => {
               setEditing(null);
               onDraftClosed?.();
@@ -96,10 +98,11 @@ export function TagConnections({ scope, target, readonly = false, onSaved, onDra
   );
 }
 
-function TagConnectionDraft({ scope, target, readonly, onCancel, onSaved }: {
+function TagConnectionDraft({ scope, target, readonly, visible, onCancel, onSaved }: {
   scope: TagScope;
   target: { id: string; version: number; tag_ids: string[] };
   readonly: boolean;
+  visible: boolean;
   onCancel: () => void;
   onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
 }) {
@@ -109,6 +112,7 @@ function TagConnectionDraft({ scope, target, readonly, onCancel, onSaved }: {
   const confirmation = useRecordConfirmation({
     closeOnSuccess: true,
     disabled: readonly,
+    visible,
     describe: () => {
       const input = { tag_ids: [...draft] };
       const expected_version = target.version;
@@ -147,6 +151,7 @@ function TagConnectionDraft({ scope, target, readonly, onCancel, onSaved }: {
         <TagPicker
           disabled={readonly || frozen || confirmation.active}
           scope={scope}
+          visible={visible}
           label="태그"
           value={draft}
           onChange={setDraft}

@@ -18,7 +18,7 @@ import { registerSurface } from "../../lib/surface-dom.ts";
 
 /** Selection belongs to the parent's draft; closing the chooser never saves it. */
 export function TagSelection(
-  { label, tags, value, onChange, error, status, excludeId, maxSelected = 10, disabled = false }: {
+  { label, tags, value, onChange, error, status, excludeId, maxSelected = 10, disabled = false, visible = true }: {
     label: string;
     tags: { id: string; name: string }[] | null;
     value: string[];
@@ -28,6 +28,7 @@ export function TagSelection(
     excludeId?: string;
     maxSelected?: number;
     disabled?: boolean;
+    visible?: boolean;
   },
 ) {
   const id = useId();
@@ -107,6 +108,7 @@ export function TagSelection(
       )}
       <TagPickerDialog
         open={open}
+        visible={visible}
         onOpenChange={setOpen}
         label={label}
         onClosed={focusTrigger}
@@ -123,7 +125,7 @@ export function TagSelection(
 }
 
 function TagPickerDialog(
-  { open, onOpenChange, label, onClosed, tags, value, onChange, status, excludeId, maxSelected, disabled }: {
+  { open, onOpenChange, label, onClosed, tags, value, onChange, status, excludeId, maxSelected, disabled, visible }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     label: string;
@@ -135,6 +137,7 @@ function TagPickerDialog(
     excludeId?: string;
     maxSelected: number;
     disabled: boolean;
+    visible: boolean;
   },
 ) {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
@@ -145,7 +148,7 @@ function TagPickerDialog(
     footer = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   useLayoutEffect(() => {
-    if (!open || !element) return;
+    if (!open || !visible || !element) return;
     setSearch("");
     return registerSurface(
       element,
@@ -160,13 +163,13 @@ function TagPickerDialog(
         ready: true,
       }),
     );
-  }, [open, label, element]);
+  }, [open, visible, label, element]);
   const choices = (tags ?? []).filter((tag) =>
     tag.id !== excludeId && tag.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
   );
   return (
     <Dialog
-      open={open}
+      open={open && visible}
       onOpenChange={(next) => {
         if (next && disabled) return;
         if (next) setSearch("");

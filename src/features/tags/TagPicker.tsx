@@ -103,7 +103,7 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
   return { scope, tags, failed, pending, retry: retryLookup };
 }
 export function TagPicker(
-  { value, onChange, error, scope = "record", label, excludeId, disabled = false, purpose }: {
+  { value, onChange, error, scope = "record", label, excludeId, disabled = false, visible = true, purpose }: {
     value: string[];
     onChange: (ids: string[]) => void;
     error?: string;
@@ -111,6 +111,7 @@ export function TagPicker(
     label?: string;
     excludeId?: string;
     disabled?: boolean;
+    visible?: boolean;
     purpose?: TagReadPurpose;
   },
 ) {
@@ -124,6 +125,7 @@ export function TagPicker(
       error={error}
       excludeId={excludeId}
       disabled={disabled}
+      visible={visible}
       status={failed
         ? (
           <>
