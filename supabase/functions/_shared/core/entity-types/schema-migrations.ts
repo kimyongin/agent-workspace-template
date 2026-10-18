@@ -64,7 +64,7 @@ export type SchemaMigrationActionContext = {
     | "source_expires_at"
   >;
   schema_write_locked: boolean;
-  generation_current: boolean;
+  execution_current: boolean;
   observed_at: string;
 };
 export type SchemaMigrationActionStore =
@@ -148,10 +148,10 @@ export function cancelEntitySchemaMigration(d: SchemaMigrationActionDeps, a: Act
   parse(z.string().uuid(), id);
   const i = parse(schemaMigrationAction, raw);
   return runWrite(writingActions(d), a, "entity-schema-migration.cancel", id, i, async (s) => {
-    const { job, generation_current } = await s.loadMigrationAction(id);
-    // A current commit winner remains final; an old epoch may only terminate.
+    const { job, execution_current } = await s.loadMigrationAction(id);
+    // Preserve an executable commit winner; a current writer may terminate stranded work.
     if (
-      ["succeeded", "failed", "cancelled"].includes(job.status) || (job.status === "committing" && generation_current)
+      ["succeeded", "failed", "cancelled"].includes(job.status) || (job.status === "committing" && execution_current)
     ) return s.getMigration(id);
     if (job.version !== i.expected_job_version) throw conflict("작업 상태가 변경되었습니다. 다시 조회하세요");
     return s.saveMigrationCancellation(job);
