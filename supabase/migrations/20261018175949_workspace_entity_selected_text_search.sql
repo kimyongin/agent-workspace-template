@@ -217,11 +217,11 @@ begin
   body:=private.entity_search_input(p_workspace,p_id)->>'body';
  end if;
  if p_kind='entity' and schema_revision is distinct from s.source_schema_version and not exists(
-  select 1 from app.entity_schema_versions before_schema join app.entity_schema_versions current_schema
-   on current_schema.workspace_id=before_schema.workspace_id and current_schema.type_id=before_schema.type_id
+  select 1 from app.entity_schema_versions before_schema join app.entity_schema_versions published_schema
+   on published_schema.workspace_id=before_schema.workspace_id and published_schema.type_id=before_schema.type_id
   where before_schema.workspace_id=p_workspace and before_schema.type_id=parent_kind and before_schema.schema_version=s.source_schema_version
-   and current_schema.schema_version=schema_revision
-   and private.entity_search_definition(before_schema.schema)=private.entity_search_definition(current_schema.schema)) then return false;end if;
+   and published_schema.schema_version=schema_revision
+   and private.entity_search_definition(before_schema.schema)=private.entity_search_definition(published_schema.schema)) then return false;end if;
  if body is null or revision is distinct from s.source_version
   or encode(extensions.digest(body,'sha256'),'hex') is distinct from s.input_hash then return false;end if;
  select * into s from app.search_index_state where workspace_id=p_workspace and kind=p_kind and id=p_id for update;
