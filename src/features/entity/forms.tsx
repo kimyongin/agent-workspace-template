@@ -1,3 +1,4 @@
+import { useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { cn } from "../../lib/utils.ts";
 import { FieldGroup } from "../../components/ui/field.tsx";
@@ -58,7 +59,7 @@ export function EntityForm({
   onRouteDiscard?: () => void;
   onSave: (value: EntityCreate, requestKey: () => string) => Promise<void>;
 }) {
-  const api = useApi();
+  const api = useApi(), canWriteType = useEntityWriteAccess();
   const [identitySettings, setIdentitySettings] = useState<EntityTypeIdentity | null>(null),
     [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
     [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
@@ -69,6 +70,8 @@ export function EntityForm({
     [identityReload, setIdentityReload] = useState(0),
     [nextType, setNextType] = useState<string | null>(null);
   const { types, error: catalogError, retry: retryCatalog } = useEntityTypes();
+  const canWrite = canWriteType(typeId);
+  const writableTypes = types?.filter((type) => !type.archived && canWriteType(type.id));
   const [archived, setArchived] = useState<EntityDetail | null>(initial?.deleted_at ? initial : null),
     [identityMessage, setIdentityMessage] = useState(""),
     [identityStale, setIdentityStale] = useState(false);
@@ -263,7 +266,7 @@ export function EntityForm({
         description="번호 출처와 번호를 확인하고, 자료의 입력 항목을 작성합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel={submitLabel}
-        submitDisabled={!!typeId &&
+        submitDisabled={!canWrite || !!typeId &&
           (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
           target: definition
@@ -277,6 +280,7 @@ export function EntityForm({
         onClose={onClose}
         onRouteDiscard={onRouteDiscard}
         preparation={async () => {
+          if (!canWrite) throw new ApiError(403, "forbidden", "이 자료 종류의 편집 권한이 필요합니다.");
           const existing = archived ?? await checkExisting(), target = existing ?? initial;
           const input = existing && !archived
             ? {
@@ -317,6 +321,7 @@ export function EntityForm({
           prepared.current = result.prepared_input;
         }}
         validate={() => {
+          if (!canWrite) return { entity_type_id: "이 자료 종류의 편집 권한이 필요합니다." };
           if (!initial && activeType?.archived) {
             return {
               entity_type_id: "보관된 자료 종류에는 새 자료를 추가할 수 없습니다",
@@ -378,6 +383,7 @@ export function EntityForm({
           return Object.keys(errors).length ? errors : parsed.success ? null : fieldErrors(parsed.error.issues);
         }}
         onSubmit={async (requestKey, memo) => {
+          if (!canWrite) throw new ApiError(403, "forbidden", "이 자료 종류의 편집 권한이 필요합니다.");
           const current = value();
           try {
             await onSave(
@@ -406,7 +412,7 @@ export function EntityForm({
               {!initial && !archived && !fixedType && (
                 <>
                   <EntityTypePicker
-                    types={types?.filter((type) => !type.archived) ?? []}
+                    types={writableTypes ?? []}
                     value={typeId}
                     disabled={!types || frozen}
                     catalogState={types === null ? catalogError ? "unavailable" : "loading" : "ready"}
@@ -446,7 +452,7 @@ export function EntityForm({
                   <Button variant="outline"
                     type="button"
 
-                    disabled={schemaReading || frozen}
+                    disabled={schemaReading || frozen || !canWrite}
                     onClick={() => void readDefinition()}
                   >
                     {schemaReading ? "현재 정의 확인 중…" : "속성 정의 다시 조회"}
@@ -489,7 +495,7 @@ export function EntityForm({
               )}
               {definition && (
                 <PropertyFields
-                  disabled={frozen}
+                  disabled={frozen || !canWrite}
                   part="representative"
                   definition={definition}
                   values={effectiveProperties}
@@ -528,7 +534,7 @@ export function EntityForm({
                         {...p}
 
                         value={source}
-                        disabled={frozen || !identitySettings || !!initial || !!archived}
+                        disabled={frozen || !canWrite || !identitySettings || !!initial || !!archived}
                         onChange={(e) => {
                           lookup.current?.abort();
                           setSource(e.target.value);
@@ -577,7 +583,7 @@ export function EntityForm({
 
                         value={external}
                         maxLength={200}
-                        disabled={frozen || !identitySettings}
+                        disabled={frozen || !canWrite || !identitySettings}
                         readOnly={!!initial || !!archived ||
                           identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"}
                         placeholder={identitySettings?.sources.find((item) => item.code === source)?.generation ===
@@ -597,7 +603,7 @@ export function EntityForm({
                 <Button variant="outline"
                   type="button"
 
-                  disabled={frozen || !identitySettings || !definition}
+                  disabled={frozen || !canWrite || !identitySettings || !definition}
                   onClick={() =>
                     void checkExisting().catch((e) => {
                       if (!(e instanceof DOMException && e.name === "AbortError")) {
@@ -625,7 +631,7 @@ export function EntityForm({
               {definition
                 ? (
                   <PropertyFields
-                  disabled={frozen}
+                  disabled={frozen || !canWrite}
                     part="remaining"
                     definition={definition}
                     values={effectiveProperties}

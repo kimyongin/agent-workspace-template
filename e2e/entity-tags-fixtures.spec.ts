@@ -47,13 +47,14 @@ test.beforeEach(async ({ page, isMobile }) => {
   });
 });
 // Feature-owned capability fixtures: settings authority never implies kind data access.
-async function entityCapabilities(page: Page, access: "read" | "write", settings = false) {
+async function entityCapabilities(page: Page, access: "read" | "write", settings = false, readTypeId?: string) {
   await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: {
     workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null },
     membership_version: 1,
     can_manage: settings,
     grants: [
       { target_kind: "entity_type", target_id: fixtureType.id, access },
+      ...(readTypeId ? [{ target_kind: "entity_type", target_id: readTypeId, access: "read" }] : []),
       ...(settings ? [{ target_kind: "settings", target_id: "*", access: "write" }] : []),
     ],
   } }));
@@ -977,3 +978,24 @@ for (const settings of [false, true]) {
     await expect(page.getByRole("textbox", { name: "제목", exact: false })).toHaveCount(0);
   });
 }
+
+
+test("전체 자료 작성의 종류 선택은 설정 WRITE와 별개로 종류 WRITE만 제공한다", async ({ page }) => {
+  const readable = { ...fixtureType, id: "00000000-0000-4000-8000-000000000901", label: "조회만 하는 자료" };
+  await entityCapabilities(page, "write", true, readable.id);
+  await page.route("**/api/entity-types**", route => route.fulfill({ json:
+    new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType, readable], next_cursor: null }
+      : new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema
+      : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : fixtureType,
+  }));
+  await page.goto("/e2e/fixtures/entity-tags-app.html");
+  await page.goto(`/w/${fixtureWorkspaceId}/entities`);
+  await page.getByRole("button", { name: "자료 추가", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "자료 추가", exact: true });
+  await expect(form).toBeVisible();
+  await form.getByRole("combobox", { name: "자료 종류", exact: true }).click();
+  await expect(page.getByRole("option", { name: fixtureType.label, exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: readable.label, exact: true })).toHaveCount(0);
+  await page.getByRole("option", { name: fixtureType.label, exact: true }).click();
+  await expect(page.getByRole("dialog", { name: `${fixtureType.label} 추가`, exact: true }).getByLabel("제목", { exact: false })).toBeEnabled();
+});

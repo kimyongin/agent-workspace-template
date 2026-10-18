@@ -1,3 +1,5 @@
+import { useSettingsAccess } from "../settings/workspace-settings-access.tsx";
+import { useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { EyeIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
@@ -50,7 +52,8 @@ import { GuideLink } from "../../components/GuideLink.tsx";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 
 export function EntitiesPage() {
-  const api = useApi();
+  const api = useApi(), canWriteType = useEntityWriteAccess();
+  const { canRead: canReadSettings } = useSettingsAccess();
   const searchInput = useRef<HTMLInputElement>(null);
   const create = useCreateMode();
   const [view, changeView] = useMainCollectionView();
@@ -181,7 +184,10 @@ export function EntitiesPage() {
   const key = query(filter),
     context = `${key}|${hash}|${urlFilters.error ?? ""}|${unsupported}|${schema?.schema_version ?? 0}`;
   const hasConditions = !!(filter.keyword || filter.tag_id || filter.filters || filter.sort !== "updated_at");
-  const creating = create.open;
+  const canCreate = selectedType
+    ? !selectedType.archived && canWriteType(selectedType.id)
+    : !!types?.some((type) => !type.archived && canWriteType(type.id));
+  const creating = create.open && canCreate;
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
     scope: `${context}|${
       typeError
@@ -368,9 +374,10 @@ export function EntitiesPage() {
               view={view}
               onChange={changeView}
             />
-            {!invalidType && !selectedType?.archived && types?.some((type) => !type.archived)
+            {!invalidType && canCreate
               ? <TabCreateButton label={`${selectedType?.label ?? "자료"} 추가`} onClick={create.begin} />
-              : types && !typeError && !invalidType && (
+              : canReadSettings && types && !typeError && !invalidType &&
+                (selectedType?.archived || !types.some((type) => !type.archived)) && (
                 <Button asChild variant="ghost">
                   <Link
                     className=""
