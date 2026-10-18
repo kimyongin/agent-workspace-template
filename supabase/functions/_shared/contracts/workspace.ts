@@ -36,6 +36,15 @@ export interface WorkspaceCapabilities {
   membership_version: number;
 }
 export const workspaceVersion = z.strictObject({ expected_version: z.number().int().positive() });
+export const workspaceLifecycleChange = z.strictObject({
+  expected_generation: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+});
+export interface WorkspaceLifecycle extends Workspace {
+  lifecycle_generation: number;
+}
+export interface WorkspaceSummary extends Workspace {
+  can_manage: boolean;
+}
 export interface WorkspaceMember {
   display_name: string | null;
   user_id: string;

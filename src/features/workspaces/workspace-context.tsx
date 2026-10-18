@@ -1,15 +1,10 @@
-import {
-  createContext,
-  type ReactNode,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 import type { WorkspaceCapabilities } from "@contracts/workspace.ts";
 import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { Alert, AlertDescription } from "../../components/ui/alert.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
+import { Link } from "react-router";
 export const WorkspaceCapabilitiesContext = createContext<WorkspaceCapabilities | null>(null);
 export const useWorkspaceCapabilities = () => useContext(WorkspaceCapabilitiesContext);
 /** A route is usable only after current membership is confirmed by the server. */
@@ -32,9 +27,7 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
       if (!controller.signal.aborted) {
         setValue(null);
         setError(
-          error instanceof Error
-            ? error.message
-            : "공간을 불러오지 못했습니다.",
+          error instanceof Error ? error.message : "공간을 불러오지 못했습니다.",
         );
       }
     });
@@ -55,6 +48,11 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
         >
           다시 시도
         </Button>
+        {workspaceId && (
+          <Button asChild variant="outline">
+            <Link to={`/workspaces?leave=${encodeURIComponent(workspaceId)}`}>참여 확인·탈퇴</Link>
+          </Button>
+        )}
       </Alert>
     );
   }

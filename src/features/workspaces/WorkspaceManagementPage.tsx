@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import type {
@@ -492,6 +493,17 @@ export function WorkspaceManagementPage() {
             </section>
           </>
         )}
+      {capability?.can_manage && (
+        <section className="flex flex-col items-start gap-3" aria-labelledby="workspace-lifecycle">
+          <h2 id="workspace-lifecycle" className="text-lg font-semibold">공간 삭제·복원</h2>
+          <p className="text-muted-foreground">
+            공동 데이터를 보존한 채 공간 접근을 중단하거나, 삭제한 공간을 복원할 수 있습니다.
+          </p>
+          <Button variant="outline" asChild>
+            <Link to="/workspaces">공간 목록 열기</Link>
+          </Button>
+        </section>
+      )}
       {edit && (
         <GrantEditor
           key={edit.kind === "member" ? edit.member.user_id : "invite"}

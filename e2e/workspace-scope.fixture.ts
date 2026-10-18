@@ -28,7 +28,7 @@ async function fixture(page: Page) {
     );
   }, user);
   await page.route("**/auth/v1/user", (route) => route.fulfill({ json: user }));
-  return installWorkspaceApi(
+  const api = await installWorkspaceApi(
     page,
     "http://127.0.0.1:55613",
     rows("space A task"),
@@ -39,6 +39,23 @@ async function fixture(page: Page) {
       },
     },
   );
+  await page.route(/\/api\/workspaces\/[0-9a-f-]{36}$/, (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").at(-1)!, space = api.workspaces[id];
+    if (route.request().method() !== "GET" || !space) return route.fallback();
+    return route.fulfill({
+      json: {
+        workspace: { id, name: space.name, deleted_at: null },
+        membership_version: 1,
+        can_manage: true,
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" }, {
+          target_kind: "tasks",
+          target_id: "*",
+          access: "write",
+        }],
+      },
+    });
+  });
+  return api;
 }
 async function choose(page: Page, name: string) {
   await page.getByRole("button", { name: "공간 선택", exact: true }).click();
@@ -117,6 +134,20 @@ test("workspace creation is explicit and its confirmed response selects the retu
   const api = await fixture(page);
   delete api.workspaces[a];
   delete api.workspaces[b];
+  await page.route(
+    `**/api/workspaces/${a}`,
+    (route) =>
+      route.request().method() === "GET"
+        ? route.fulfill({
+          json: {
+            workspace: { id: a, name: "새 공간", deleted_at: null },
+            membership_version: 1,
+            can_manage: true,
+            grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+          },
+        })
+        : route.fallback(),
+  );
   const creations: {
     key: string | undefined;
     body: unknown;
@@ -145,8 +176,8 @@ test("workspace creation is explicit and its confirmed response selects the retu
     "새 공간",
   );
   await page.getByRole("button", { name: "공간 만들기", exact: true }).click();
-  await expect(page.getByText("new workspace task", { exact: true }).first())
-    .toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/w/${a}/manage$`));
+  await expect(page.getByRole("heading", { name: "공간 관리", level: 1, exact: true })).toBeVisible();
   expect(creations).toEqual([{
     key: expect.stringMatching(/^[0-9a-f-]{36}$/),
     body: { name: "새 공간" },
@@ -284,9 +315,7 @@ test(
       }],
     });
     expect(
-      await page.evaluate(() =>
-        document.documentElement.scrollWidth <= innerWidth
-      ),
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBe(true);
     await page.screenshot({
       path: info.outputPath("workspace-management-mobile.png"),
@@ -420,9 +449,7 @@ test(
     });
     await page.setViewportSize({ width: 390, height: 844 });
     expect(
-      await page.evaluate(() =>
-        document.documentElement.scrollWidth <= innerWidth
-      ),
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBe(true);
     await page.screenshot({
       path: info.outputPath("workspace-delivery-recovery-mobile.png"),

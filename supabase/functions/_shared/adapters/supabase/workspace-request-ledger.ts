@@ -36,8 +36,9 @@ export async function executeWorkspaceRequest<T>(
   request: RequestIdentity,
   footprint: WorkspaceRequirement[],
   execute: () => Promise<T>,
-  account = false,
+  scope: "workspace" | "account" | "lifecycle" | "membership" = "workspace",
 ): Promise<T> {
+  const account = scope === "account", lifecycle = scope === "lifecycle";
   if (account) {
     const [target] =
       await tx`select app.account_workspace_request_target(${request.key}::uuid,${request.operation},${request.fingerprint}) as workspace_id`;
@@ -49,7 +50,11 @@ export async function executeWorkspaceRequest<T>(
       );
     }
   }
-  let [row] = account
+  let [row] = scope === "membership"
+    ? await tx`select app.begin_workspace_membership_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`
+    : lifecycle
+    ? await tx`select app.begin_workspace_lifecycle_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`
+    : account
     ? await tx`select app.begin_account_workspace_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`
     : await tx`select app.begin_workspace_request(${request.key}::uuid,${request.operation},${request.fingerprint},${
       tx.json(footprint as never)
@@ -67,7 +72,7 @@ export async function executeWorkspaceRequest<T>(
   if (receipt.found) return receipt.result as T;
   await tx`select set_config('lock_timeout','5s',true)`;
   const result = await execute();
-  const savedFootprint: WorkspaceRequirement[] = account && request.operation === "workspace.create"
+  const savedFootprint: WorkspaceRequirement[] = lifecycle || account && request.operation === "workspace.create"
     ? [{ target_kind: "settings", target_id: "*", access: "write" }]
     : footprint;
   const json = JSON.stringify(result ?? null);
