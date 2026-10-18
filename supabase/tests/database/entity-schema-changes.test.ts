@@ -2,16 +2,12 @@ import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/
 import { updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { assertEquals, assertRejects } from "@std/assert";
-import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
 import { businessWorkspaceFixture } from "./_workspace-business.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
-import {
-  createEntityType,
-  getEntitySchema,
-  getEntityType,
-} from "../../functions/_shared/core/entity-types/application.ts";
+import { getEntitySchema, getEntityType } from "../../functions/_shared/core/entity-types/application.ts";
 import {
   analyzeEntitySchemaChange,
   applyEntitySchemaChange,
@@ -47,7 +43,7 @@ async function consume(worker: postgres.Sql) {
   throw new Error("analysis batch budget exhausted");
 }
 dbTest(
-  "schema draft owner transaction: permanent reservations, async analysis, compatible display and stale writes",
+  "schema draft workspace transaction: permanent reservations, async analysis, compatible display and stale writes",
   async () => {
     const workerUrl = new URL(urls.admin);
     workerUrl.username = "app_worker";
@@ -421,7 +417,7 @@ dbTest(
 );
 
 dbTest(
-  "migration snapshot preview retains source, requires explicit failure fix and scopes sample ownership",
+  "migration snapshot preview retains source, requires explicit failure fix and scopes sample workspace access",
   async () => {
     const workerUrl = new URL(urls.admin);
     workerUrl.username = "app_worker";
@@ -513,12 +509,13 @@ dbTest(
     const worker = connect(workerUrl.href, { prepare: false, max: 1 }),
       admin = connect(urls.admin),
       sql = connect(urls.direct);
-    const a = await fixtureOwner(admin),
+    const a = await businessWorkspaceFixture(admin, sql),
       d = { uow: new SqlEntityTypeUnitOfWork(sql) },
       e = { uow: new SqlEntityUnitOfWork(sql) };
     try {
-      const type = await createEntityType(d, requestActor(a.actor), { label: "Persisted conversion" });
-      const add = await createEntitySchemaChange(d, requestActor(a.actor), type.id, {
+      const type = await a.createKind("Persisted conversion");
+      await a.grantKind(a.manager, type.id, "write");
+      const add = await createEntitySchemaChange(d, requestActor(a.manager), type.id, {
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
@@ -528,42 +525,42 @@ dbTest(
         }],
       });
       assertEquals(add.reservations, { quantity: "prop_2" });
-      const accepted = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, add.id, {
+      const accepted = await analyzeEntitySchemaChange(d, requestActor(a.manager), type.id, add.id, {
         expected_change_version: 1,
       });
       await consume(worker);
-      await applyEntitySchemaChange(d, requestActor(a.actor), type.id, add.id, {
+      await applyEntitySchemaChange(d, requestActor(a.manager), type.id, add.id, {
         expected_change_version: 1,
         analysis_id: accepted.analysis_id,
       });
-      const valid = await createEntity(e, requestActor(a.actor), {
+      const valid = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 2,
         properties: { prop_1: "valid", prop_2: "12" },
       });
-      const missing = await createEntity(e, requestActor(a.actor), {
+      const missing = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 2,
         properties: { prop_1: "missing" },
       });
-      const leading = await createEntity(e, requestActor(a.actor), {
+      const leading = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 2,
         properties: { prop_1: "identifier", prop_2: "001" },
       });
-      const nullable = await createEntity(e, requestActor(a.actor), {
+      const nullable = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 2,
         properties: { prop_1: "null", prop_2: null },
       });
-      const deleted = await createEntity(e, requestActor(a.actor), {
+      const deleted = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 2,
         properties: { prop_1: "deleted", prop_2: "7" },
       });
-      await deleteEntity(e, requestActor(a.actor), deleted.id, deleted.version);
+      await deleteEntity(e, requestActor(a.manager), deleted.id, deleted.version);
       const before = await Promise.all(
-        [valid, missing, leading, nullable, deleted].map((row) => getEntity(e, a.actor, row.id)),
+        [valid, missing, leading, nullable, deleted].map((row) => getEntity(e, a.manager, row.id)),
       );
       const input = {
         expected_schema_version: 2,
@@ -578,14 +575,14 @@ dbTest(
           overrides: [],
         },
       };
-      const plan = await createEntitySchemaChange(d, requestActor(a.actor), type.id, input);
+      const plan = await createEntitySchemaChange(d, requestActor(a.manager), type.id, input);
       assertEquals(plan.change_kind, "migration_required");
       assertEquals<unknown>(plan.migration.rules, input.migration.rules);
-      const first = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+      const first = await analyzeEntitySchemaChange(d, requestActor(a.manager), type.id, plan.id, {
         expected_change_version: 1,
       });
       await consume(worker);
-      const failed = await getEntitySchemaChange(d, a.actor, type.id, plan.id);
+      const failed = await getEntitySchemaChange(d, a.manager, type.id, plan.id);
       assertEquals([
         failed.analysis?.total,
         failed.analysis?.processed,
@@ -596,7 +593,9 @@ dbTest(
         failed.analysis?.replacements,
       ], [5, 5, 2, 3, 2, 0, 1]);
       assertEquals(failed.executable, false);
-      const page = await getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, { analysis_id: first.analysis_id });
+      const page = await getEntitySchemaAnalysisRows(d, a.manager, type.id, plan.id, {
+        analysis_id: first.analysis_id,
+      });
       assertEquals(page.items.length, 5);
       const rows = new Map(page.items.map((row) => [row.entity_id, row]));
       assertEquals(rows.get(valid.id)?.after, { prop_1: "valid", prop_2: 12 });
@@ -608,7 +607,7 @@ dbTest(
       assertEquals(rows.get(nullable.id)!.errors.length > 0, true);
       assertEquals(rows.get(deleted.id)?.after, { prop_1: "deleted", prop_2: 7 });
       assertEquals(rows.get(deleted.id)?.errors, []);
-      const fixed = await updateEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+      const fixed = await updateEntitySchemaChange(d, requestActor(a.manager), type.id, plan.id, {
         ...input,
         expected_change_version: 1,
         migration: {
@@ -623,15 +622,15 @@ dbTest(
       assertEquals(fixed.version, 2);
       assertEquals(fixed.analysis, null);
       await assertRejects(
-        () => getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, { analysis_id: first.analysis_id }),
+        () => getEntitySchemaAnalysisRows(d, a.manager, type.id, plan.id, { analysis_id: first.analysis_id }),
         AppError,
       );
-      const second = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+      const second = await analyzeEntitySchemaChange(d, requestActor(a.manager), type.id, plan.id, {
         expected_change_version: 2,
       });
       assertEquals(second.analysis_id === first.analysis_id, false);
       await consume(worker);
-      const ready = await getEntitySchemaChange(d, a.actor, type.id, plan.id);
+      const ready = await getEntitySchemaChange(d, a.manager, type.id, plan.id);
       assertEquals([
         ready.analysis?.total,
         ready.analysis?.processed,
@@ -641,7 +640,7 @@ dbTest(
         ready.analysis?.replacements,
       ], [5, 5, 0, 5, 0, 3]);
       assertEquals(ready.executable, true);
-      const fixedPage = await getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, {
+      const fixedPage = await getEntitySchemaAnalysisRows(d, a.manager, type.id, plan.id, {
         analysis_id: second.analysis_id,
       });
       assertEquals(fixedPage.items.find((row) => row.entity_id === leading.id)?.after, {
@@ -650,7 +649,7 @@ dbTest(
       });
       assertEquals(fixedPage.items.find((row) => row.entity_id === nullable.id)?.after, { prop_1: "null", prop_2: 0 });
       for (const source of before) {
-        const current = await getEntity(e, a.actor, source.id);
+        const current = await getEntity(e, a.manager, source.id);
         assertEquals([current.properties, current.version, current.schema_version, current.deleted_at], [
           source.properties,
           source.version,
@@ -659,7 +658,7 @@ dbTest(
         ]);
       }
       assertEquals(before.find((row) => row.id === deleted.id)?.deleted_at !== null, true);
-      assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema_version, 2);
+      assertEquals((await getEntitySchema(d, a.manager, { type_id: type.id })).schema_version, 2);
     } finally {
       await a.cleanup();
       await Promise.all([worker.end(), sql.end(), admin.end()]);
@@ -670,22 +669,23 @@ dbTest(
 dbTest("schema discard preserves data, rejects stale/applied/foreign requests and fences late analysis", async () => {
   const { discardEntitySchemaChange } = await import("../../functions/_shared/core/entity-types/schema-changes.ts");
   const admin = connect(urls.admin), sql = connect(urls.direct);
-  const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
+  const a = await businessWorkspaceFixture(admin, sql), b = await businessWorkspaceFixture(admin, sql);
   const d = { uow: new SqlEntityTypeUnitOfWork(sql) }, e = { uow: new SqlEntityUnitOfWork(sql) };
   const wu = new URL(urls.admin);
   wu.username = "app_worker";
   wu.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
   const worker = connect(wu.href, { max: 1 });
   try {
-    const t = await createEntityType(d, requestActor(a.actor), { label: "폐기 검사" });
-    const entity = await createEntity(e, requestActor(a.actor), {
+    const t = await a.createKind("폐기 검사");
+    await a.grantKind(a.manager, t.id, "write");
+    const entity = await createEntity(e, requestActor(a.manager), {
       entity_type_id: t.id,
       schema_version: 1,
       source: "app",
       external_id: crypto.randomUUID(),
       properties: { prop_1: "원본 유지" },
     });
-    const change = await createEntitySchemaChange(d, requestActor(a.actor), t.id, {
+    const change = await createEntitySchemaChange(d, requestActor(a.manager), t.id, {
       expected_schema_version: 1,
       edits: [{
         op: "update_property",
@@ -703,17 +703,17 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
       }],
     });
     await assertRejects(
-      () => discardEntitySchemaChange(d, requestActor(b.actor), t.id, change.id, { expected_change_version: 1 }),
+      () => discardEntitySchemaChange(d, requestActor(b.manager), t.id, change.id, { expected_change_version: 1 }),
       AppError,
     );
     await assertRejects(
-      () => discardEntitySchemaChange(d, requestActor(a.actor), t.id, change.id, { expected_change_version: 2 }),
+      () => discardEntitySchemaChange(d, requestActor(a.manager), t.id, change.id, { expected_change_version: 2 }),
       AppError,
       "버전",
     );
-    await analyzeEntitySchemaChange(d, requestActor(a.actor), t.id, change.id, { expected_change_version: 1 });
+    await analyzeEntitySchemaChange(d, requestActor(a.manager), t.id, change.id, { expected_change_version: 1 });
     const [claimed] = await worker`select app.claim_entity_schema_analysis() as batch`;
-    const actor = requestActor(a.actor);
+    const actor = requestActor(a.manager);
     const discarded = await discardEntitySchemaChange(d, actor, t.id, change.id, { expected_change_version: 1 });
     assertEquals(discarded.status, "cancelled");
     assertEquals(discarded.version, 2);
@@ -722,7 +722,7 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
       2,
     );
     assertEquals(
-      (await discardEntitySchemaChange(d, requestActor(a.actor), t.id, change.id, { expected_change_version: 1 }))
+      (await discardEntitySchemaChange(d, requestActor(a.manager), t.id, change.id, { expected_change_version: 1 }))
         .status,
       "cancelled",
     );
@@ -734,18 +734,18 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
       worker.json(results)
     }) as accepted`;
     assertEquals(late.accepted, false);
-    assertEquals((await getEntitySchemaChange(d, a.actor, t.id, change.id)).status, "cancelled");
-    assertEquals((await getEntity(e, a.actor, entity.id)).properties, { prop_1: "원본 유지" });
-    assertEquals((await getEntityType(d, a.actor, t.id)).schema_version, 1);
+    assertEquals((await getEntitySchemaChange(d, a.manager, t.id, change.id)).status, "cancelled");
+    assertEquals((await getEntity(e, a.manager, entity.id)).properties, { prop_1: "원본 유지" });
+    assertEquals((await getEntityType(d, a.manager, t.id)).schema_version, 1);
     await assertRejects(
       () =>
-        applyEntitySchemaChange(d, requestActor(a.actor), t.id, change.id, {
+        applyEntitySchemaChange(d, requestActor(a.manager), t.id, change.id, {
           expected_change_version: 2,
           analysis_id: batch.id,
         }),
       AppError,
     );
-    const publishable = await createEntitySchemaChange(d, requestActor(a.actor), t.id, {
+    const publishable = await createEntitySchemaChange(d, requestActor(a.manager), t.id, {
       expected_schema_version: 1,
       edits: [{
         op: "update_property",
@@ -762,19 +762,19 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
         required: true,
       }],
     });
-    await analyzeEntitySchemaChange(d, requestActor(a.actor), t.id, publishable.id, { expected_change_version: 1 });
+    await analyzeEntitySchemaChange(d, requestActor(a.manager), t.id, publishable.id, { expected_change_version: 1 });
     await consume(worker);
-    const reviewed = await getEntitySchemaChange(d, a.actor, t.id, publishable.id);
-    await applyEntitySchemaChange(d, requestActor(a.actor), t.id, reviewed.id, {
+    const reviewed = await getEntitySchemaChange(d, a.manager, t.id, publishable.id);
+    await applyEntitySchemaChange(d, requestActor(a.manager), t.id, reviewed.id, {
       expected_change_version: 1,
       analysis_id: reviewed.analysis!.id,
     });
     await assertRejects(
-      () => discardEntitySchemaChange(d, requestActor(a.actor), t.id, reviewed.id, { expected_change_version: 1 }),
+      () => discardEntitySchemaChange(d, requestActor(a.manager), t.id, reviewed.id, { expected_change_version: 1 }),
       AppError,
       "이미 적용",
     );
-    const migrating = await createEntitySchemaChange(d, requestActor(a.actor), t.id, {
+    const migrating = await createEntitySchemaChange(d, requestActor(a.manager), t.id, {
       expected_schema_version: 2,
       edits: [{
         op: "add_property",
@@ -784,26 +784,28 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
       }],
       migration: { rules: [{ op: "fill", key: "prop_2", value: false }], overrides: [] },
     });
-    await analyzeEntitySchemaChange(d, requestActor(a.actor), t.id, migrating.id, { expected_change_version: 1 });
+    await analyzeEntitySchemaChange(d, requestActor(a.manager), t.id, migrating.id, { expected_change_version: 1 });
     await consume(worker);
-    const prepared = await getEntitySchemaChange(d, a.actor, t.id, migrating.id);
+    const prepared = await getEntitySchemaChange(d, a.manager, t.id, migrating.id);
     const { startEntitySchemaMigration, cancelEntitySchemaMigration } = await import(
       "../../functions/_shared/core/entity-types/schema-migrations.ts"
     );
-    const job = await startEntitySchemaMigration(d, requestActor(a.actor), t.id, prepared.id, {
+    const job = await startEntitySchemaMigration(d, requestActor(a.manager), t.id, prepared.id, {
       expected_change_version: 1,
       expected_schema_version: 2,
       analysis_id: prepared.analysis!.id,
       fingerprint: prepared.fingerprint,
     });
     await assertRejects(
-      () => discardEntitySchemaChange(d, requestActor(a.actor), t.id, prepared.id, { expected_change_version: 1 }),
+      () => discardEntitySchemaChange(d, requestActor(a.manager), t.id, prepared.id, { expected_change_version: 1 }),
       AppError,
       "진행 중인",
     );
-    await cancelEntitySchemaMigration(d, requestActor(a.actor), job.job_id, { expected_job_version: job.job_version });
+    await cancelEntitySchemaMigration(d, requestActor(a.manager), job.job_id, {
+      expected_job_version: job.job_version,
+    });
     assertEquals(
-      (await discardEntitySchemaChange(d, requestActor(a.actor), t.id, prepared.id, { expected_change_version: 1 }))
+      (await discardEntitySchemaChange(d, requestActor(a.manager), t.id, prepared.id, { expected_change_version: 1 }))
         .status,
       "cancelled",
     );
