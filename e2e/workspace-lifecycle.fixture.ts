@@ -4,6 +4,73 @@ import { installWorkspaceApi } from "./support/workspace-api.ts";
 const workspaceId = "00000000-0000-4000-8000-000000000981";
 const actorId = "00000000-0000-4000-8000-000000000901";
 
+for (
+  const scenario of [
+    {
+      name: "creator management",
+      can_manage: true,
+      grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      path: "/manage",
+    },
+    {
+      name: "task reader",
+      can_manage: false,
+      grants: [{ target_kind: "tasks", target_id: "*", access: "read" }],
+      path: "/tasks",
+    },
+    {
+      name: "permitted material",
+      can_manage: false,
+      grants: [{ target_kind: "entity_type", target_id: "00000000-0000-4000-8000-000000000999", access: "read" }],
+      path: "/entities?entity_type_id=00000000-0000-4000-8000-000000000999",
+    },
+    { name: "no business access", can_manage: false, grants: [], path: "" },
+  ]
+) {
+  test(`workspace landing respects current capabilities for ${scenario.name}`, async ({ page }) => {
+    const user = {
+      id: actorId,
+      aud: "authenticated",
+      email: "fixture@example.test",
+      app_metadata: {},
+      user_metadata: {},
+    };
+    await page.addInitScript((user) =>
+      localStorage.setItem(
+        "sb-127-auth-token",
+        JSON.stringify({
+          user,
+          access_token: "isolated-lifecycle-token",
+          refresh_token: "isolated-lifecycle-refresh",
+          token_type: "bearer",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        }),
+      ), user);
+    await page.route("**/auth/v1/user", (route) => route.fulfill({ json: user }));
+    const rows = { entities: [], tags: [], records: [], tasks: [] };
+    const api = await installWorkspaceApi(page, "http://127.0.0.1:55623", rows, {
+      workspaces: { [workspaceId]: { name: "권한별 시작 공간", rows } },
+    });
+    await page.route(`**/api/workspaces/${workspaceId}`, (route) =>
+      route.fulfill({
+        json: {
+          workspace: { id: workspaceId, name: "권한별 시작 공간", deleted_at: null },
+          membership_version: 1,
+          grants: scenario.grants,
+          can_manage: scenario.can_manage,
+        },
+      }));
+    await page.goto(`/w/${workspaceId}`);
+    await expect(page).toHaveURL(`http://127.0.0.1:55622/w/${workspaceId}${scenario.path}`);
+    if (!scenario.path) {
+      await expect(page.getByRole("heading", { name: "열 수 있는 업무가 없습니다", exact: true })).toBeVisible();
+    }
+    if (scenario.name !== "task reader") {
+      expect(api.requests.filter((request) => request.path === "/api/tasks")).toHaveLength(0);
+    }
+  });
+}
+
 test("a manager can leave a deleted space using its current own membership version", async ({ page }) => {
   const user = {
     id: actorId,
