@@ -39,6 +39,18 @@ dbTest(
         });
         await workspaces.acceptWorkspaceInvitation(deps, keyed(user), invite.invitation.id);
       }
+      assertEquals(
+        (await workspaces.listWorkspaces(deps, a)).items.map((item) =>
+          (item as typeof item & { can_manage?: boolean }).can_manage
+        ),
+        [true],
+      );
+      assertEquals(
+        (await workspaces.listWorkspaces(deps, c)).items.map((item) =>
+          (item as typeof item & { can_manage?: boolean }).can_manage
+        ),
+        [false],
+      );
       await forbidden(() => workspaces.deleteWorkspace(deps, keyed(c), workspaceId, { expected_generation: 1 }));
       const request = keyed(a), input = { expected_generation: 1 };
       const deleted = await workspaces.deleteWorkspace(deps, request, workspaceId, input);
