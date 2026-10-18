@@ -1,50 +1,135 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/search-store.ts";
+import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
+import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
+import * as tags from "../../functions/_shared/core/tags/application.ts";
+import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
+import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
+import { taskCreate } from "../../functions/_shared/contracts/task.ts";
+import { recordListQuery } from "../../functions/_shared/contracts/record.ts";
 import { searchInput } from "../../functions/_shared/contracts/search.ts";
+import * as activity from "../../functions/_shared/core/activity/application.ts";
+import * as entities from "../../functions/_shared/core/entity/application.ts";
 import { search } from "../../functions/_shared/core/search/application.ts";
-import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
-const admin = connect(urls.admin, { max: 1 }),
-  sql = connect(urls.pooler, { prepare: false, max: 2 }),
-  d = { uow: new SqlSearchUnitOfWork(sql) };
+import { connect, dbTest, urls } from "./_db.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
+const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { prepare: false, max: 2 });
+const d = { uow: new SqlSearchUnitOfWork(sql) };
+const activityDeps = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
+
 dbTest(
-  "search actual SQL filters task kind/status, record kind, coverage/anchor/cursor",
+  "search actual SQL filters current task states and immutable record parents before coverage/anchor/cursor",
   async () => {
-    const f = await fixtureOwner(admin);
+    const f = await businessWorkspaceFixture(admin, sql);
     try {
-      const owner = f.actor.userId,
-        token = crypto.randomUUID(),
-        ids = Array.from({ length: 7 }, () => crypto.randomUUID());
-      await admin`insert into app.tasks(id,owner_id,kind,status,title,body) values(${
-        ids[0]
-      },${owner},'once','open',${token},'계획'),(${ids[1]},${owner},'once','done',${token},'완료')`;
-      await admin`insert into app.tasks(id,owner_id,kind,status,title,body,recurrence,timezone) values(${
-        ids[2]
-      },${owner},'recurring','active',${token},'반복','{"freq":"daily","starts_on":"2026-01-01"}','Asia/Seoul')`;
-      await admin`insert into app.records(id,owner_id,body,record_kind) values(${ids[5]},${owner},${token},'user'),(${
-        ids[6]
-      },${owner},${token},'change')`;
-      const q = (extra: object) => searchInput.parse({ query: token, mode: "keyword", ...extra });
+      await f.grant(f.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+      const token = crypto.randomUUID(), actor = f.member;
+      const kind = await f.createKind("검색 조건 자료");
+      await f.grantKind(actor, kind.id, "write");
+      const entityDeps = { uow: new SqlEntityUnitOfWork(sql) };
+      const entity = await entities.createEntity(
+        entityDeps,
+        businessRequest(actor),
+        entityCreate.parse({
+          entity_type_id: kind.id,
+          schema_version: 1,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "원본" },
+        }),
+      );
+      const open = await activity.createTask(
+        activityDeps,
+        businessRequest(actor),
+        taskCreate.parse({ kind: "once", title: token }),
+      );
+      const pending = await activity.createTask(
+        activityDeps,
+        businessRequest(actor),
+        taskCreate.parse({
+          kind: "once",
+          title: token,
+          entity_ids: [entity.id],
+        }),
+      );
+      const completed = await activity.completeTask(activityDeps, businessRequest(actor), pending.id, {
+        expected_version: pending.version,
+        body: token,
+      });
+      const recurring = await activity.createTask(
+        activityDeps,
+        businessRequest(actor),
+        taskCreate.parse({
+          kind: "recurring",
+          title: token,
+          recurrence: { freq: "daily", starts_on: "2026-01-01" },
+          timezone: "Asia/Seoul",
+        }),
+      );
+      await entities.updateEntity(
+        entityDeps,
+        businessRequest(actor),
+        entity.id,
+        entityUpdate.parse({
+          expected_version: entity.version,
+          schema_version: 1,
+          properties: { prop_1: "수정" },
+          change_note: token,
+        }),
+      );
+      const changes = await activity.listRecords(
+        activityDeps,
+        actor,
+        recordListQuery.parse({ entity_id: entity.id, record_kind: "change" }),
+      );
+      const change = changes.items.find((item) => item.body === token)!;
+      assert(change);
+      const tagDeps = { uow: new SqlTagUnitOfWork(sql) };
+      const tag =
+        (await tags.createTag(tagDeps, businessRequest(actor), { scope: "record", name: "조건 검증 원본" })).id;
+      for (const record of [completed.record, change]) {
+        await tags.setTagConnections(tagDeps, businessRequest(actor), {
+          target_kind: "record",
+          target_id: record.id,
+          expected_version: record.version,
+          tag_ids: [tag],
+        });
+      }
+      assertEquals(completed.record.entity_id, null);
+      assertEquals(change.task_id, null);
+      const q = (extra: { kinds?: readonly string[]; [key: string]: unknown }) =>
+        searchInput.parse({
+          query: token,
+          mode: "keyword",
+          ...(extra.kinds?.[0] === "record" ? { tag_id: tag } : {}),
+          ...extra,
+        });
       for (
         const [extra, expected] of [
-          [{ kinds: ["task"], task_kind: "recurring" }, [ids[2]]],
-          [{ kinds: ["task"], task_status: "done" }, [ids[1]]],
-          [{ kinds: ["record"], record_kind: "change" }, [ids[6]]],
+          [{ kinds: ["task"], task_kind: "recurring" }, [recurring.id]],
+          [{ kinds: ["task"], task_status: "done" }, [completed.task.id]],
+          [{ kinds: ["record"], record_kind: "change" }, [change.id]],
+          [{ kinds: ["record"], record_kind: "result" }, [completed.record.id]],
+          [{ kinds: ["record"], entity_id: entity.id }, [change.id]],
         ] as const
       ) {
-        const result = await search(d, f.actor, q(extra));
+        const result = await search(d, actor, q(extra));
         assertEquals(result.items.map((r) => r.id), [...expected]);
         assertEquals(result.semantic_coverage, { pending: extra.kinds[0] === "record" ? 1 : 0, excluded: 0 });
         assertEquals(
-          (await search(d, f.actor, q({ ...extra, anchor: { kind: "task", id: ids[0] } }))).anchor_page,
+          (await search(d, actor, q({ ...extra, anchor: { kind: "task", id: open.id } }))).anchor_page,
           null,
         );
       }
-      const page = await search(d, f.actor, q({ kinds: ["task"], task_kind: "once", limit: 1 }));
+      const page = await search(d, actor, q({ kinds: ["task"], task_kind: "once", limit: 1 }));
       assert(page.next_cursor);
       await assertRejects(() =>
-        search(d, f.actor, q({ kinds: ["task"], task_kind: "recurring", limit: 1, cursor: page.next_cursor }))
+        search(d, actor, q({ kinds: ["task"], task_kind: "recurring", limit: 1, cursor: page.next_cursor }))
       );
-      assertEquals((await search(d, f.actor, q({ kinds: ["record"], record_kind: "result" }))).items, []);
+      await f.grantKind(actor, kind.id, "none");
+      const readable = await search(d, actor, q({ kinds: ["record"] }));
+      assertEquals(readable.items.map((item) => item.id), [completed.record.id]);
+      assertEquals(readable.semantic_coverage, { pending: 1, excluded: 0 });
     } finally {
       await f.cleanup();
     }

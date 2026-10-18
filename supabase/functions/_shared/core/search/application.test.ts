@@ -83,3 +83,14 @@ Deno.test("current task searches use keyword lookup without embedding", async ()
   assertEquals(state.counts(), { calls: 0 });
   assertEquals(first.search_state, "ok");
 });
+
+Deno.test("search cursor belongs to the captured workspace even for the same account", async () => {
+  const state = deps(undefined);
+  const query = searchInput.parse({ query: "공유 질의", mode: "keyword", limit: 1 });
+  const first = await search(state.d, { ...actor, workspaceId: "00000000-0000-4000-8000-000000000001" }, query);
+  await assertRejects(() =>
+    search(state.d, { ...actor, workspaceId: "00000000-0000-4000-8000-000000000002" }, {
+      ...query,
+      cursor: first.next_cursor!,
+    }), AppError);
+});

@@ -1,3 +1,4 @@
+import { entityReferenceId } from "../_shared/contracts/entity-identity.ts";
 import { dataId } from "../_shared/contracts/data-id.ts";
 import { SqlExternalEffectLedger } from "../_shared/adapters/supabase/external-effect.ts";
 import { DurablePassageEmbedder, hashPassage } from "../_shared/core/search/passage-embedder.ts";
@@ -12,8 +13,8 @@ const input = z.strictObject({
   check_configuration: z.literal(true).optional(),
   limit: z.number().int().min(1).max(5).default(5),
   workspace_id: z.uuid().optional(),
-  kind: z.enum(["task", "record"]).optional(),
-  id: dataId.optional(),
+  kind: z.enum(["task", "record", "entity"]).optional(),
+  id: z.union([dataId, entityReferenceId]).optional(),
 });
 let sql: postgres.Sql | undefined;
 Deno.serve(async (request) => {

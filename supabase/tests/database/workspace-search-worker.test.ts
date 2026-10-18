@@ -106,6 +106,13 @@ dbTest(
     } finally {
       release.resolve();
       await running?.catch(() => {});
+      // Only this fixture's in-process fake sends are cleaned up; production
+      // uncertain effects remain retained by the worker protocol.
+      const ownedEffects =
+        await admin`select id from private.passage_effects where workspace_id=${fixture.workspaceId}`;
+      for (const effect of ownedEffects) {
+        await admin`delete from private.passage_effects where id=${effect.id}::uuid`;
+      }
       await fixture.cleanup();
     }
   },
