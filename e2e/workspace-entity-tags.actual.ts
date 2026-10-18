@@ -305,6 +305,8 @@ test(
       await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
       await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toHaveCount(0);
       await expect(detailDialog(bPage).getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
+      await expect(detailDialog(bPage).getByText("속성 정의를 불러오는 중…", { exact: true })).toHaveCount(0);
+      await expect(detailDialog(bPage).getByText(`${original} 수정`, { exact: true })).toBeVisible();
       await bPage.screenshot({ path: info.outputPath("actual-entity-readonly.png"), fullPage: true });
       expect(
         (await request(a.token, "PATCH", `/workspaces/${w}/members/${b.id}`, { expected_version: 3, grants: [] }))
