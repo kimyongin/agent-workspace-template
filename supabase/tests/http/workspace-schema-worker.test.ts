@@ -1,12 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { admin, API, call, httpTest, signIn, SUPABASE_URL } from "./_client.ts";
-import {
-  claimsOf,
-  connectMcp,
-  MCP_URL,
-  registerClient,
-  tool,
-} from "../mcp/_mcp.ts";
+import { claimsOf, connectMcp, MCP_URL, registerClient, tool } from "../mcp/_mcp.ts";
 import { connect, urls } from "../database/_db.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import type { DataModelDocument } from "../../functions/_shared/contracts/data-model.ts";
@@ -245,8 +239,7 @@ httpTest(
         "not_found",
       );
       const protectedChild = progress.group.children.find(
-        (child: { change: { type_id: string } }) =>
-          child.change.type_id === kinds[1],
+        (child: { change: { type_id: string } }) => child.change.type_id === kinds[1],
       );
       assert(protectedChild);
       const rowArgs = {
@@ -347,8 +340,7 @@ httpTest(
       };
       const completeAnalyses = async (ids: string[]) => {
         for (let step = 0; step < 2; step++) {
-          const [claim] =
-            await worker!`select app.claim_entity_schema_analysis() as batch`;
+          const [claim] = await worker!`select app.claim_entity_schema_analysis() as batch`;
           const batch = claim.batch;
           assert(batch, "one source row per affected kind is claimed");
           assert(
@@ -513,8 +505,7 @@ httpTest(
         })).error.code,
         "not_found",
       );
-      const [claimed] =
-        await worker`select app.claim_data_model_conversion() as batch`;
+      const [claimed] = await worker`select app.claim_data_model_conversion() as batch`;
       const batch = claimed.batch;
       assertEquals(batch.id, prepared.id);
       assertEquals(batch.child.workspace_id, w.id);
@@ -568,8 +559,7 @@ httpTest(
       // Two one-row children, followed by the group's atomic commit claim.
       let committed = false;
       for (let step = 0; step < 3; step++) {
-        const [next] =
-          await worker`select app.claim_data_model_conversion() as batch`;
+        const [next] = await worker`select app.claim_data_model_conversion() as batch`;
         assert(next.batch);
         assertEquals(next.batch.id, prepared.id);
         if (next.batch.status === "committing") {
@@ -637,11 +627,9 @@ httpTest(
       try {
         await admin.begin(async (tx) => {
           for (const workspace of owned) {
-            const [root] =
-              await tx`select name,created_by from app.workspaces where id=${workspace.id} for update`;
+            const [root] = await tx`select name,created_by from app.workspaces where id=${workspace.id} for update`;
             assertEquals(root, { name: workspace.name, created_by: aId });
-            const members =
-              await tx`select user_id from private.workspace_members where workspace_id=${workspace.id}`;
+            const members = await tx`select user_id from private.workspace_members where workspace_id=${workspace.id}`;
             assert(
               members.every((m) => m.user_id === aId || m.user_id === bId),
               "refuse unknown members",
@@ -681,9 +669,7 @@ httpTest(
           const secret = Deno.env.get("LOCAL_SUPABASE_SECRET_KEY");
           assert(secret);
           const removed = await fetch(
-            `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${
-              encodeURIComponent(auth.clientId)
-            }`,
+            `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${encodeURIComponent(auth.clientId)}`,
             {
               method: "DELETE",
               headers: { apikey: secret, authorization: `Bearer ${secret}` },

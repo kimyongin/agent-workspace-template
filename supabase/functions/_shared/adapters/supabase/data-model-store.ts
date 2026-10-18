@@ -51,7 +51,7 @@ export class SqlDataModelStore implements DataModelStore {
   executeRequest<T>(r: RequestIdentity, fn: () => Promise<T>) {
     return executeSqlRequest(this.tx, this.actor, r, fn);
   }
-  protected async authorizeKinds(ids: string[], access: "read" | "write") {
+  protected authorizeKinds(ids: string[], access: "read" | "write") {
     return this.authorizePermissions(
       [...new Set(ids)].sort().map((id) => ({ target_kind: "entity_type", target_id: id, access })),
     );

@@ -798,17 +798,16 @@ test(
       expect(cancelledDetail.group.children[0].job.status).toBe("cancelled");
       await expect(actorPage.getByText("변경안 상세를 읽는 중…", { exact: true }))
         .toHaveCount(0);
-      await expect(actorPage.getByRole("row", {
+      const cancelledChild = actorPage.getByRole("row", {
         name: `${kind.label} 변환`,
         exact: true,
-      })).toBeVisible();
+      });
+      await expect(cancelledChild).toBeVisible();
+      await expect(cancelledChild).toContainText("취소 · 처리 0/1개");
       await expect(
         actorPage.getByRole("button", { name: `${title} 취소됨`, exact: true }),
       ).toBeVisible();
-      await actorPage.getByRole("button", {
-        name: `${title} 취소됨`,
-        exact: true,
-      }).scrollIntoViewIfNeeded();
+      await cancelledChild.scrollIntoViewIfNeeded();
       await actorPage.screenshot({
         path: info.outputPath("actual-durable-retry-cancelled.png"),
         fullPage: true,

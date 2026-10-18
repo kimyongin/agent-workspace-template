@@ -117,17 +117,22 @@ dbTest(
       });
       assertEquals(prepared.status, "ready");
       await runInWorkspace(sql, reader, {
-        mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+        mode: "business",
+        requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
       }, async (tx) => {
-        for (const path of [
-          ["target", "entity_types", "0", "schema", "title"],
-          ["source", "entity_types", "0", "schema", "title"],
-          ["review", "mapping", "types", exported.entity_types[0].ref],
-        ]) {
-          const poisoned = await assertRejects(() => tx.savepoint((attempt) =>
-            attempt`update app.data_model_changes set plan=jsonb_set(plan,${path}::text[],to_jsonb('준비 후 위조'::text))
+        for (
+          const path of [
+            ["target", "entity_types", "0", "schema", "title"],
+            ["source", "entity_types", "0", "schema", "title"],
+            ["review", "mapping", "types", exported.entity_types[0].ref],
+          ]
+        ) {
+          const poisoned = await assertRejects(() =>
+            tx.savepoint((attempt) =>
+              attempt`update app.data_model_changes set plan=jsonb_set(plan,${path}::text[],to_jsonb('준비 후 위조'::text))
               where workspace_id=${owned[0]}::uuid and id=${prepared.id}::uuid`
-          ));
+            )
+          );
           assertEquals((poisoned as { code?: string }).code, "23514");
           assertEquals((poisoned as Error).message, "model_plan_semantics_immutable");
         }
@@ -212,9 +217,13 @@ dbTest(
         mode: "business",
         requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
       }, async (tx) => {
-        const stripRequirements = await assertRejects(() => tx.savepoint((attempt) => attempt`update app.data_model_changes
+        const stripRequirements = await assertRejects(() =>
+          tx.savepoint((attempt) =>
+            attempt`update app.data_model_changes
           set plan=jsonb_set(plan,'{protected_permissions}','[]'::jsonb)
-          where workspace_id=${owned[0]}::uuid and id=${dataPlan.id}::uuid`));
+          where workspace_id=${owned[0]}::uuid and id=${dataPlan.id}::uuid`
+          )
+        );
         assertEquals((stripRequirements as { code?: string }).code, "23514");
         assertEquals((stripRequirements as Error).message, "model_plan_permissions_immutable");
       });
@@ -417,72 +426,122 @@ dbTest(
       const kind = await types.createEntityType(typeDeps, key(manager), { label: "번호 설정" });
       await issuers.createEntityIssuer(issuerDeps, key(manager), { code: "custom", label: "외부" });
       const customRule = await issuers.createIdentifierRule(issuerDeps, key(manager), "custom", {
-        label: "번호", meaning: "원래 의미",
+        label: "번호",
+        meaning: "원래 의미",
       });
       const originalIdentity = await issuers.getEntityTypeIdentity(issuerDeps, manager, kind.id);
       const configuredIdentity = await issuers.updateEntityTypeIdentity(issuerDeps, key(manager), kind.id, {
         expected_version: originalIdentity.version,
-        label: "외부 번호", default_source: "app",
-        sources: [...originalIdentity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })),
-          { code: "custom", rule_id: customRule.id, active: true }],
+        label: "외부 번호",
+        default_source: "app",
+        sources: [...originalIdentity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })), {
+          code: "custom",
+          rule_id: customRule.id,
+          active: true,
+        }],
       });
       const renamedRule = await issuers.updateIdentifierRule(issuerDeps, key(manager), customRule.id, {
-        expected_version: customRule.version, label: "번호 이름 변경",
+        expected_version: customRule.version,
+        label: "번호 이름 변경",
       });
       await runInWorkspace(sql, manager, {
-        mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+        mode: "business",
+        requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
       }, async (tx) => {
-        const directMeaning = await assertRejects(() => tx.savepoint((attempt) =>
-          attempt`update app.entity_identifier_rules set meaning='SQL 우회',version=version+1
+        const directMeaning = await assertRejects(() =>
+          tx.savepoint((attempt) =>
+            attempt`update app.entity_identifier_rules set meaning='SQL 우회',version=version+1
             where workspace_id=${owned[0]}::uuid and id=${customRule.id}::uuid`
-        ));
+          )
+        );
         assertEquals((directMeaning as { code?: string }).code, "42501");
         assertEquals((directMeaning as Error).message, "workspace_denied");
-        const directRemoval = await assertRejects(() => tx.savepoint((attempt) =>
-          attempt`delete from app.entity_type_identity_sources
+        const directRemoval = await assertRejects(() =>
+          tx.savepoint((attempt) =>
+            attempt`delete from app.entity_type_identity_sources
             where workspace_id=${owned[0]}::uuid and type_id=${kind.id}::uuid and code='custom'`
-        ));
+          )
+        );
         assertEquals((directRemoval as { code?: string }).code, "42501");
         assertEquals((directRemoval as Error).message, "workspace_denied");
       });
-      const deniedMeaning = await assertRejects(() => issuers.updateIdentifierRule(
-        issuerDeps, key(manager), customRule.id,
-        { expected_version: renamedRule.version, meaning: "변경된 의미" },
-      ), AppError);
+      const deniedMeaning = await assertRejects(() =>
+        issuers.updateIdentifierRule(
+          issuerDeps,
+          key(manager),
+          customRule.id,
+          { expected_version: renamedRule.version, meaning: "변경된 의미" },
+        ), AppError);
       assertEquals(deniedMeaning.code, "forbidden");
       const currentIdentity = await issuers.getEntityTypeIdentity(issuerDeps, manager, kind.id);
-      const deniedRemoval = await assertRejects(() => issuers.updateEntityTypeIdentity(
-        issuerDeps, key(manager), kind.id,
-        { expected_version: currentIdentity.version, label: configuredIdentity.label, default_source: "app",
-          sources: currentIdentity.sources.filter((s) => s.code !== "custom").map(({ code, rule_id, active }) => ({ code, rule_id, active })) },
-      ), AppError);
+      const deniedRemoval = await assertRejects(() =>
+        issuers.updateEntityTypeIdentity(
+          issuerDeps,
+          key(manager),
+          kind.id,
+          {
+            expected_version: currentIdentity.version,
+            label: configuredIdentity.label,
+            default_source: "app",
+            sources: currentIdentity.sources.filter((s) => s.code !== "custom").map(({ code, rule_id, active }) => ({
+              code,
+              rule_id,
+              active,
+            })),
+          },
+        ), AppError);
       assertEquals(deniedRemoval.code, "forbidden");
       await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
         expected_version: 1,
-        grants: [{ target_kind: "settings", target_id: "*", access: "write" },
-          { target_kind: "entity_type", target_id: kind.id, access: "write" }],
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" }, {
+          target_kind: "entity_type",
+          target_id: kind.id,
+          access: "write",
+        }],
       });
-      const meaningRequest = key(manager), meaningInput = {
-        expected_version: renamedRule.version, meaning: "변경된 의미",
-      };
+      const meaningRequest = key(manager),
+        meaningInput = {
+          expected_version: renamedRule.version,
+          meaning: "변경된 의미",
+        };
       const changedRule = await issuers.updateIdentifierRule(issuerDeps, meaningRequest, customRule.id, meaningInput);
       assertEquals(changedRule.meaning, meaningInput.meaning);
-      const meaningIdentity = await requestIdentity(meaningRequest, "identifier-rule.update", customRule.id, meaningInput);
+      const meaningIdentity = await requestIdentity(
+        meaningRequest,
+        "identifier-rule.update",
+        customRule.id,
+        meaningInput,
+      );
       const [meaningReceipt] = await admin`select footprint from private.workspace_request_results
-        where workspace_id=${owned[0]}::uuid and executor_id=${b.userId}::uuid and request_key=${meaningIdentity.key}::uuid`;
+        where workspace_id=${
+        owned[0]
+      }::uuid and executor_id=${b.userId}::uuid and request_key=${meaningIdentity.key}::uuid`;
       assertEquals(meaningReceipt.footprint, [
         { target_kind: "settings", target_id: "*", access: "write" },
         { target_kind: "entity_type", target_id: kind.id, access: "write" },
       ]);
       await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
-        expected_version: 2, grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+        expected_version: 2,
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
       });
-      assertEquals((await assertRejects(() => issuers.updateIdentifierRule(
-        issuerDeps, meaningRequest, customRule.id, meaningInput,
-      ), AppError)).code, "forbidden");
-      assertEquals((await assertRejects(() => runInWorkspace(sql, manager, {
-        mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
-      }, (tx) => replayRetainedSqlRequest(tx, meaningRequest, meaningIdentity)), AppError)).code, "forbidden");
+      assertEquals(
+        (await assertRejects(() =>
+          issuers.updateIdentifierRule(
+            issuerDeps,
+            meaningRequest,
+            customRule.id,
+            meaningInput,
+          ), AppError)).code,
+        "forbidden",
+      );
+      assertEquals(
+        (await assertRejects(() =>
+          runInWorkspace(sql, manager, {
+            mode: "business",
+            requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+          }, (tx) => replayRetainedSqlRequest(tx, meaningRequest, meaningIdentity)), AppError)).code,
+        "forbidden",
+      );
       await workspaces.updateWorkspaceMember(workspaceDeps, key(b), owned[0], a.userId, {
         expected_version: 1,
         grants: [{ target_kind: "settings", target_id: "*", access: "read" }],

@@ -12,6 +12,7 @@ import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { ConversionEditor } from "./ConversionEditor.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
 import { migrationNumericValues } from "./numeric-drafts.ts";
+import { migrationLabels } from "./schema-migration-status.ts";
 
 type GroupChild = NonNullable<ModelChange["group"]>["children"][number];
 type GroupChange = ModelChange;
@@ -229,9 +230,10 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
           <IssuerRow
             key={child.type_ref}
             label={`${change.review.items.find((item) => item.ref === child.type_ref)?.label ?? "자료"} 변환`}
-            summary={child.change.analysis
-              ? `대상 ${child.change.analysis.total}개 · 실패 ${child.change.analysis.failed}개`
-              : "분석 전"}
+            summary={[
+              child.job && `${migrationLabels[child.job.status]} · 처리 ${child.job.processed}/${child.job.total}개`,
+              child.change.analysis && `대상 ${child.change.analysis.total}개 · 실패 ${child.change.analysis.failed}개`,
+            ].filter(Boolean).join(" · ") || "분석 전"}
             open={open === child.type_ref}
             onToggle={() => setOpen(open === child.type_ref ? null : child.type_ref)}
           >

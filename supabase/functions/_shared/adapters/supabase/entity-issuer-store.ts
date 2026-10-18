@@ -97,9 +97,13 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
     if (mutation) {
       const stored = await this.tx`select code,rule_id from app.entity_type_identity_sources
         where workspace_id=${this.workspaceId}::uuid and type_id=${typeId}::uuid`;
-      if (stored.some((source) => !mutation.sources.some((next) =>
-        next.code === source.code && next.rule_id.toLowerCase() === source.rule_id.toLowerCase()
-      ))) {
+      if (
+        stored.some((source) =>
+          !mutation.sources.some((next) =>
+            next.code === source.code && next.rule_id.toLowerCase() === source.rule_id.toLowerCase()
+          )
+        )
+      ) {
         await this.tx`select private.authorize_workspace_model_kinds(array[${typeId}::uuid])`;
       }
     }

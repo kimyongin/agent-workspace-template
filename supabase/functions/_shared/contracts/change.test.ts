@@ -11,8 +11,15 @@ Deno.test("change metadata retains one typed historical target without adding re
     source: "selection",
   } as const;
   const metadata = {
-    event_id: "00000000-0000-4000-8000-000000000002", target_kind: "entity", target_id: snapshot.id,
-    target_title: snapshot.title, action: "update", source: "http", before: null, after: null, path: null,
+    event_id: "00000000-0000-4000-8000-000000000002",
+    target_kind: "entity",
+    target_id: snapshot.id,
+    target_title: snapshot.title,
+    action: "update",
+    source: "http",
+    before: null,
+    after: null,
+    path: null,
   } as const;
   const parsed = changeMetadata.parse({ ...metadata, target_snapshot: snapshot });
   assertEquals((parsed as unknown as { target_snapshot?: unknown }).target_snapshot, snapshot);
