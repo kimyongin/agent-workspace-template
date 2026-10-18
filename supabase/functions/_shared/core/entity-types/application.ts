@@ -109,7 +109,7 @@ export function listEntitySchemaVersions(d: EntityTypeDeps, actor: Actor, raw: u
   return d.uow.run(actor, async (store) => {
     if (!await store.get(input.type_id)) throw notFound();
     return store.history(input);
-  });
+  }, { mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "read" }] });
 }
 
 /** Storage adapters acquire locks before applying these shared business decisions. */

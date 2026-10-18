@@ -76,7 +76,8 @@ begin
   end loop;
   read_predicate:=case
    when name='entity_types' then 'app.workspace_allows(''entity_type'',id::text,''read'')'
-   when name in ('entity_schema_versions','entity_type_identity','entity_type_identity_sources') then 'app.workspace_allows(''entity_type'',type_id::text,''read'')'
+   when name='entity_schema_versions' then 'app.workspace_allows(''entity_type'',type_id::text,''read'') and schema_version=(select t.schema_version from app.entity_types t where t.workspace_id=entity_schema_versions.workspace_id and t.id=entity_schema_versions.type_id)'
+   when name in ('entity_type_identity','entity_type_identity_sources') then 'app.workspace_allows(''entity_type'',type_id::text,''read'')'
    when name='entity_issuers' then 'exists(select 1 from app.entity_type_identity_sources s where s.workspace_id=entity_issuers.workspace_id and s.code=entity_issuers.code and app.workspace_allows(''entity_type'',s.type_id::text,''read''))'
    else 'exists(select 1 from app.entity_type_identity_sources s where s.workspace_id=entity_identifier_rules.workspace_id and s.rule_id=entity_identifier_rules.id and app.workspace_allows(''entity_type'',s.type_id::text,''read''))' end;
   execute format('create policy workspace_definition_read on app.%I for select to app_user using(workspace_id=app.current_workspace_id() and (app.workspace_allows(''settings'',''*'',''read'') or %s))',name,read_predicate);
