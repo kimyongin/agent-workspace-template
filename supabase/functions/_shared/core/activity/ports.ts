@@ -113,7 +113,12 @@ export interface ActivityStore extends ChangeStore, RequestStore {
 
 export interface UnitOfWork {
   /** Actor 문맥으로 트랜잭션을 연다. fn이 실패하면 모두 롤백한다. */
-  run<T>(actor: Actor, fn: (store: ActivityStore) => Promise<T>): Promise<T>;
+  run<T>(actor: Actor, fn: (store: ActivityStore) => Promise<T>, entry?: ActivityEntry): Promise<T>;
+}
+
+export interface ActivityEntry {
+  access: "read" | "write";
+  recordId?: string;
 }
 
 export interface Clock {

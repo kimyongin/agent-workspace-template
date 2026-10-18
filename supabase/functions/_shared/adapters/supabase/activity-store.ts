@@ -4,6 +4,7 @@ import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { NewTask, Task } from "../../core/activity/domain.ts";
 import type {
+  ActivityEntry,
   ActivityRecord,
   ActivityStore,
   NewRecord,
@@ -13,7 +14,8 @@ import type {
   UnitOfWork,
 } from "../../core/activity/ports.ts";
 import type { Actor } from "../../core/shared/actor.ts";
-import { runAsActor, SqlActorStore } from "./sql-context.ts";
+import { SqlActorStore } from "./sql-context.ts";
+import { requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
 import { AppError } from "../../core/shared/errors.ts";
 import { hasAnyTag, hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
 
@@ -131,7 +133,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const selection = await this.entityLinks.taskSelection(task.entity_ids ?? []);
     const values = {
-      owner_id: this.actor.userId,
+      workspace_id: requireWorkspaceActor(this.actor).workspaceId,
       kind: task.kind,
       ...pick(tx, task, TASK_WRITABLE),
       ...selection,
@@ -281,7 +283,16 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 export class SqlUnitOfWork implements UnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
 
-  run<T>(actor: Actor, fn: (store: ActivityStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, actor, (tx) => fn(new SqlActivityStore(tx, actor)));
+  run<T>(a: Actor, fn: (store: ActivityStore) => Promise<T>, entry?: ActivityEntry): Promise<T> {
+    const actor = requireWorkspaceActor(a);
+    const requirements = entry?.access === "write"
+      ? [{ target_kind: "tasks" as const, target_id: "*", access: "write" as const }]
+      : [];
+    return runInWorkspace(
+      this.sql,
+      actor,
+      { mode: "business", requirements },
+      (tx) => fn(new SqlActivityStore(tx, actor)),
+    );
   }
 }

@@ -27,7 +27,7 @@ import {
   todayOf,
   updateTask as decideUpdate,
 } from "./domain.ts";
-import type { ActivityRecord, ActivityStore, Clock, UnitOfWork } from "./ports.ts";
+import type { ActivityEntry, ActivityRecord, ActivityStore, Clock, UnitOfWork } from "./ports.ts";
 import { listOccurrences as computeOccurrences } from "./recurrence.ts";
 
 export interface ActivityDeps {
@@ -36,6 +36,10 @@ export interface ActivityDeps {
 }
 
 export type { Page } from "../shared/operations.ts";
+
+function activityWork(deps: ActivityDeps, entry: ActivityEntry): UnitOfWork {
+  return { run: (actor, fn) => deps.uow.run(actor, fn, entry) };
+}
 
 function toTaskResult(task: Task): TaskResult {
   return {
@@ -82,7 +86,7 @@ async function requireRecord(
 // ---------- 할 일 ----------
 
 export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCreate): Promise<TaskResult> {
-  return await runWrite(deps.uow, actor, "task.create", null, input, async (store) => {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.create", null, input, async (store) => {
     const task = await store.insertTask(newTask(input));
 
     await store.appendChange({
@@ -163,7 +167,7 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
 }
 
 export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, patch: TaskUpdate): Promise<TaskResult> {
-  return await runWrite(deps.uow, actor, "task.update", id, patch, async (store) => {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.update", id, patch, async (store) => {
     const task = await requireTask(store, id, true, patch.entity_ids, patch.entity_ids !== undefined);
     const changes = decideUpdate(task, patch);
     if (!changed(task, changes)) return toTaskResult(task);
