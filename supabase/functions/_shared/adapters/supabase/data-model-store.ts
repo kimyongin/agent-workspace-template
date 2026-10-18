@@ -149,13 +149,14 @@ export class SqlDataModelStore implements DataModelStore {
     return receiptChange(value);
   }
   async get(id: string, lock = false) {
-    const [r] = await this.tx`select * from app.data_model_changes where id=${id}::uuid ${
+    const [r] = await this
+      .tx`select * from app.data_model_changes where workspace_id=${this.workspaceId} and id=${id}::uuid ${
       lock ? this.tx`for update` : this.tx``
     }`;
     return r ? changeRow(r) : null;
   }
   async list(limit: number, cursor?: string) {
-    const scope = await scopeOf(this.actor, { list: "data-model-changes" });
+    const scope = await scopeOf(this.actor, { workspace_id: this.workspaceId, list: "data-model-changes" });
     const after = cursor ? decodeCursor(cursor, scope).id : null;
     if (after) {
       if (!z.string().uuid().safeParse(after).success) throw invalidInput("유효하지 않은 cursor입니다");
