@@ -97,7 +97,7 @@ dbTest(
         requestActor(actor),
         taskTag.id,
         taskTag.version,
-        undefined,
+        "計画分類の削除",
       );
       await assertRejects(() =>
         t.deleteTag(
@@ -105,7 +105,7 @@ dbTest(
           requestActor(actor),
           taskTag.id,
           taskTag.version,
-          undefined,
+          "計画分類の削除",
         )
       );
       assertEquals(await count(), 5);
@@ -134,7 +134,7 @@ dbTest(
       assertEquals(await count(), 6);
       assertEquals((await e.getEntity(ed, actor, entity.id)).tag_ids, []);
       const [entityChange] =
-        await admin`select change_metadata,body from app.records where workspace_id=${f.workspaceId} and change_metadata->>'target_id'=${entity.id} and change_metadata->>'action'='update' order by id desc limit 1`;
+        await admin`select change_metadata,body from app.records where workspace_id=${f.workspaceId} and change_metadata->>'target_id'=${entity.id} and change_metadata->>'action'='update' and body='対象分類の削除' order by id desc limit 1`;
       assertEquals([
         entityChange.change_metadata.before,
         entityChange.change_metadata.after,
@@ -229,7 +229,7 @@ dbTest(
           requestActor(actor),
           taskTag.id,
           taskTag.version,
-          undefined,
+          "計画分類の削除",
         )
       );
       assertEquals(await a.getTask(ad, actor, task.id), beforeTask);
@@ -247,7 +247,7 @@ dbTest(
         requestActor(actor),
         taskTag.id,
         taskTag.version,
-        undefined,
+        "計画分類の削除",
       );
       await assertRejects(() =>
         t.deleteTag(
@@ -255,7 +255,7 @@ dbTest(
           requestActor(actor),
           taskTag.id,
           taskTag.version,
-          undefined,
+          "計画分類の削除",
         )
       );
       assertEquals(
