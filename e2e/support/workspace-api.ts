@@ -1,3 +1,5 @@
+import { taskComplete } from "../../supabase/functions/_shared/contracts/task.ts";
+import { occurrenceRecordCreate, recordUpdate } from "../../supabase/functions/_shared/contracts/record.ts";
 import { fixtureWorkspaceId } from "./workspace-scope.ts";
 import { entitySummary } from "../../supabase/functions/_shared/contracts/entity.ts";
 import { entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
@@ -227,6 +229,13 @@ export async function installWorkspaceApi(
         items: kind === "entities" ? items.slice(offset, offset + size).map((row) => entitySummary.parse(row)) : items.slice(offset, offset + size),
         next_cursor: items.length > offset + size ? String(offset + size) : null,
       });
+    }
+    if (kind === "records" && method === "PATCH" && !recordUpdate.safeParse(body).success) {
+      return reply({ code: "invalid_input", message: "기록 수정 계약을 확인하세요." }, 400);
+    }
+    if (kind === "tasks" && method === "POST" && (action === "complete" || action === "occurrences" && parts[4] === "records")) {
+      const input = action === "complete" ? taskComplete.safeParse(body) : occurrenceRecordCreate.safeParse(body);
+      if (!input.success) return reply({ code: "invalid_input", message: "수행 결과 계약을 확인하세요." }, 400);
     }
     writes.push({ workspaceId,
       method,
