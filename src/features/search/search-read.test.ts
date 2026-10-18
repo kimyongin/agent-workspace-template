@@ -93,3 +93,10 @@ test("권한 재확인은 이전 결과와 커서를 즉시 숨기고 거부 응
   expect(read.snapshot().page).toBeNull();
   expect(read.snapshot().error).toBeTruthy();
 });
+
+test("entity anchors preserve encoded immutable references and reject entity IDs under record kind", () => {
+  const entity = "app:00000000-0000-4000-8000-000000000001:내부-자료";
+  expect(searchAnchor(`#${encodeURIComponent(`search-entity-${entity}`)}`)).toEqual({ kind: "entity", id: entity });
+  expect(searchAnchor(`#search-record-${entity}`)).toBeUndefined();
+  expect(searchAnchor("#search-entity-invalid")).toBeUndefined();
+});

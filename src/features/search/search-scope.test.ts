@@ -16,3 +16,12 @@ test("retired saved search conditions fail rather than silently changing scope",
 test("invalid record filters are rejected before a search request", () => {
   expect(() => workspaceSearchScope(new URLSearchParams("q=근거&record_kind=unknown"))).toThrow();
 });
+
+test("entity search URLs retain entity tags, selected source and keyword mode", () => {
+  const entity = `app:${first}:내부-자료`;
+  const input = workspaceSearchScope(new URLSearchParams({ q: "선택 본문", kind: "entity", tag_ids: second, entity_id: entity, mode: "keyword" }));
+  expect(input.kinds).toEqual(["entity"]);
+  expect(input.tag_ids).toEqual([second]);
+  expect(input.entity_id).toBe(entity);
+  expect(input.mode).toBe("keyword");
+});
