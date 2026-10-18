@@ -810,6 +810,7 @@ dbTest(
         (await getEntity(f.e, f.a.actor, o.x.id)).properties.prop_4,
         false,
       );
+      await f.worker`select app.prune_entity_schema_sources()`;
       const [clean] = await f
         .admin`select count(*)::int as count from private.entity_schema_migration_rows where job_id=${o.job.job_id}`;
       assertEquals(clean.count, 0);
@@ -824,10 +825,31 @@ dbTest(
       await code(() => f.recovery(other.job.job_id), "conflict");
       await f
         .admin`update app.entity_schema_analyses set created_at=now()-interval '31 days' where workspace_id=${f.a.workspaceId}`;
-      await f.worker`select app.claim_entity_schema_migration()`;
+      const protectedRows = await f
+        .admin`select r.analysis_id,r.entity_id from private.entity_schema_analysis_rows r
+        where r.workspace_id=${f.a.workspaceId} and exists(select 1 from app.entity_schema_migrations j
+          where j.workspace_id=r.workspace_id and j.analysis_id=r.analysis_id
+           and (j.status in ('queued','preparing','ready_to_commit','committing') or j.source_expires_at>clock_timestamp())) order by r.analysis_id,r.entity_id`;
+      assert(
+        protectedRows.length > 0,
+        "live accepted jobs retain their sealed analysis source",
+      );
+      await f.worker`select app.prune_entity_schema_sources()`;
       const [rows] = await f
-        .admin`select count(*)::int as count from private.entity_schema_analysis_rows r join app.entity_schema_analyses a on a.id=r.analysis_id where a.workspace_id=${f.a.workspaceId} and a.created_at<=now()-interval '30 days'`;
+        .admin`select count(*)::int as count from private.entity_schema_analysis_rows r
+        join app.entity_schema_analyses a on a.id=r.analysis_id and a.workspace_id=r.workspace_id
+        where a.workspace_id=${f.a.workspaceId} and a.created_at<=now()-interval '30 days'
+        and not exists(select 1 from app.entity_schema_migrations j where j.workspace_id=r.workspace_id and j.analysis_id=r.analysis_id
+          and (j.status in ('queued','preparing','ready_to_commit','committing') or j.source_expires_at>clock_timestamp()))`;
       assertEquals(rows.count, 0);
+      assertEquals(
+        await f
+          .admin`select r.analysis_id,r.entity_id from private.entity_schema_analysis_rows r
+        where r.workspace_id=${f.a.workspaceId} and exists(select 1 from app.entity_schema_migrations j
+          where j.workspace_id=r.workspace_id and j.analysis_id=r.analysis_id
+           and (j.status in ('queued','preparing','ready_to_commit','committing') or j.source_expires_at>clock_timestamp())) order by r.analysis_id,r.entity_id`,
+        protectedRows,
+      );
       await f.a.cleanup();
       const [deleted] = await f
         .admin`select (select count(*) from private.entity_schema_migration_rows where workspace_id=${f.a.workspaceId})::int as sources,(select count(*) from private.entity_schema_analysis_rows where workspace_id=${f.a.workspaceId})::int as analyses`;
@@ -858,8 +880,15 @@ dbTest(
         f.worker.json(staged.results)
       })`;
       // Privileged fixture injection proves the final RPC gate, beyond the ordinary public write lock.
-      await f
-        .admin`update app.tasks set entity_ids='{}',entity_context='[]' where workspace_id=${f.a.workspaceId} and id=${o.task.id}`;
+      await f.admin.begin(async (tx) => {
+        await tx`select set_config('request.jwt.claims',${
+          JSON.stringify({ sub: f.a.actor.userId, role: "authenticated" })
+        },true),
+          set_config('request.workspace_id',${f.a.workspaceId},true)`;
+        await tx`select app.lock_workspace_account()`;
+        await tx`select app.lock_workspace(${f.a.workspaceId},false)`;
+        await tx`update app.tasks set entity_ids='{}',entity_context='[]' where workspace_id=${f.a.workspaceId} and id=${o.task.id}`;
+      });
       const [final] = await f
         .worker`select app.claim_entity_schema_migration() as batch`;
       const [result] = await f
@@ -934,6 +963,7 @@ dbTest(
           .status,
         "succeeded",
       );
+      await f.worker`select app.prune_entity_schema_sources()`;
       const [source] = await f
         .admin`select count(*)::int as count from private.entity_schema_migration_rows where job_id=${o.job.job_id}`;
       assertEquals(source.count, 0);
@@ -1130,7 +1160,7 @@ dbTest(
             await tx`select id from app.entity_types where id=${o.type.id} for update`;
             await tx`update app.entity_types set schema_write_locked=true where id=${o.type.id}`;
           } else {
-            await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.actor.userId}:record_templates`},0))`;
+            await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.workspaceId}:record_templates`},0))`;
           }
           await tx`update app.entity_schema_migrations set source_expires_at=clock_timestamp()+interval '1 second' where id=${o.job.job_id}`;
           // Commit expiry before template waits; type-lock case publishes it on release.
@@ -1150,7 +1180,7 @@ dbTest(
           const taken = new Promise<void>((resolve) => signal = resolve),
             wait = new Promise<void>((resolve) => unlockTemplate = resolve);
           secondLocked = f.admin.begin(async (tx) => {
-            await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.actor.userId}:record_templates`},0))`;
+            await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.workspaceId}:record_templates`},0))`;
             signal();
             await wait;
           });
