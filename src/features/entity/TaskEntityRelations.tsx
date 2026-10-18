@@ -39,10 +39,10 @@ function RelationControls({
   onSaved: (saved?: TaskResult, before?: TaskResult) => void;
 }) {
   const api = useApi();
-  const { canWrite } = useTaskAccess();
+  const { canRead, canWrite } = useTaskAccess();
   const [owner] = useState(() => api);
   const canReadType = useEntityReadAccess();
-  const active = owner === api && visible;
+  const active = owner === api && visible && canRead;
   const authority = useRef({ active, canWrite, canReadType });
   authority.current = { active, canWrite, canReadType };
   const surface = useContext(SurfaceContext);
