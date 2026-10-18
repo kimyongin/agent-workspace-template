@@ -118,15 +118,17 @@ export function EntityTypedRelations(
           readOnly={readOnly}
           visible={readable(definition)}
           onMutationChange={retainMutation}
+          ownerApi={api}
         />
       ))}
     </>
   );
 }
 export function EntityRelationSection(
-  { entity, definition, side, onSaved, onCreate, readOnly = false, visible = true, onMutationChange }: {
+  { entity, definition, side, onSaved, onCreate, readOnly = false, visible = true, onMutationChange, ownerApi }: {
     readOnly?: boolean;
     visible?: boolean;
+    ownerApi?: ReturnType<typeof useApi>;
     onMutationChange?: (definition: EntityRelationDefinition | null, side: 0 | 1, api: ReturnType<typeof useApi>, originId: string, definitionId: string) => void;
     entity: EntityDetail;
     definition: EntityRelationDefinition;
@@ -205,7 +207,7 @@ export function EntityRelationSection(
         api<LinkPage>("GET", `${base}/links`, undefined, c.signal),
       ]);
       if (!c.signal.aborted && started === locationKey.current && !surface?.editor.current) {
-        setMutation({ api, origin, other, previous: page.items[0] ?? null, definition: latest, remove });
+        setMutation({ api: ownerApi ?? api, origin, other, previous: page.items[0] ?? null, definition: latest, remove });
       }
     } catch (e) {
       if (!c.signal.aborted) setError(e instanceof Error ? e.message : "최신 자료를 읽지 못했습니다");
