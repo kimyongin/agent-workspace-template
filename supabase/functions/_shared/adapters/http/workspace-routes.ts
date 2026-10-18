@@ -20,11 +20,16 @@ import {
   workspaceDetails,
   workspaceGrantTargets,
   workspaceLifecycleDetails,
+  workspaceMembershipDetails,
 } from "../../core/workspaces/application.ts";
 export function workspaceRoutes(deps: WorkspaceDeps) {
   const app = new Hono<HttpEnv>();
   app.get("/workspaces", async (c) => c.json(await listWorkspaces(deps, c.get("actor"))));
   app.get("/workspaces/deleted", async (c) => c.json(await listDeletedWorkspaces(deps, c.get("actor"))));
+  app.get(
+    "/workspaces/:id/membership",
+    async (c) => c.json(await workspaceMembershipDetails(deps, c.get("actor"), c.req.param("id"))),
+  );
   app.get(
     "/workspaces/:id/lifecycle",
     async (c) => c.json(await workspaceLifecycleDetails(deps, c.get("actor"), c.req.param("id"))),

@@ -26,11 +26,20 @@ import {
   workspaceDetails,
   workspaceGrantTargets,
   workspaceLifecycleDetails,
+  workspaceMembershipDetails,
 } from "../../core/workspaces/application.ts";
 import { keyedTool, type ToolDef } from "./tools.ts";
 export function workspaceTools(deps: WorkspaceDeps): ToolDef[] {
   const scope = { workspace_id: workspaceId };
   const tools: ToolDef[] = [
+    {
+      name: "get_workspace_membership",
+      description:
+        "참여자가 현재 자신의 참여 버전과 공간의 최소 식별 정보를 확인합니다. 삭제 공간의 탈퇴를 지원하며 업무 데이터나 다른 참여자 권한을 공개하지 않습니다.",
+      input: z.strictObject(scope),
+      readOnly: true,
+      handler: (i, a) => workspaceMembershipDetails(deps, a, i.workspace_id),
+    },
     {
       name: "list_deleted_workspaces",
       description: "현재 유효한 관리자만 자신이 복원할 수 있는 삭제 공간의 최소 목록을 조회합니다.",

@@ -36,9 +36,9 @@ export async function executeWorkspaceRequest<T>(
   request: RequestIdentity,
   footprint: WorkspaceRequirement[],
   execute: () => Promise<T>,
-  account = false,
-  lifecycle = false,
+  scope: "workspace" | "account" | "lifecycle" | "membership" = "workspace",
 ): Promise<T> {
+  const account = scope === "account", lifecycle = scope === "lifecycle";
   if (account) {
     const [target] =
       await tx`select app.account_workspace_request_target(${request.key}::uuid,${request.operation},${request.fingerprint}) as workspace_id`;
@@ -50,7 +50,9 @@ export async function executeWorkspaceRequest<T>(
       );
     }
   }
-  let [row] = lifecycle
+  let [row] = scope === "membership"
+    ? await tx`select app.begin_workspace_membership_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`
+    : lifecycle
     ? await tx`select app.begin_workspace_lifecycle_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`
     : account
     ? await tx`select app.begin_account_workspace_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`

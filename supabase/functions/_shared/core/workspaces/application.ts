@@ -35,6 +35,7 @@ export interface WorkspaceStore {
   list(): Promise<{ items: WorkspaceSummary[] }>;
   deleted(): Promise<{ items: WorkspaceLifecycle[] }>;
   lifecycleDetails(): Promise<{ workspace: WorkspaceLifecycle }>;
+  membershipDetails(): Promise<{ workspace: Workspace; membership_version: number }>;
   setDeleted(generation: number, deleted: boolean): Promise<{ workspace: WorkspaceLifecycle }>;
   details(): Promise<WorkspaceCapabilities>;
   grantTargets(): Promise<{ items: { id: string; label: string }[] }>;
@@ -63,6 +64,7 @@ export interface WorkspaceDeps {
     workspace<T>(actor: WorkspaceActor, entry: WorkspaceEntry, fn: (store: WorkspaceStore) => Promise<T>): Promise<T>;
     invitation<T>(actor: Actor, invitationId: string, fn: (store: WorkspaceStore) => Promise<T>): Promise<T>;
     lifecycle<T>(actor: WorkspaceActor, fn: (store: WorkspaceStore) => Promise<T>): Promise<T>;
+    membership<T>(actor: WorkspaceActor, fn: (store: WorkspaceStore) => Promise<T>): Promise<T>;
   };
 }
 function parsed<T>(schema: { safeParse(v: unknown): { success: boolean; data?: T } }, value: unknown): T {
@@ -95,6 +97,9 @@ export function listDeletedWorkspaces(deps: WorkspaceDeps, actor: Actor) {
 }
 export function workspaceLifecycleDetails(deps: WorkspaceDeps, actor: Actor, id: unknown) {
   return deps.uow.lifecycle(workspaceActor(actor, id), (s) => s.lifecycleDetails());
+}
+export function workspaceMembershipDetails(deps: WorkspaceDeps, actor: Actor, id: unknown) {
+  return deps.uow.membership(workspaceActor(actor, id), (store) => store.membershipDetails());
 }
 function changeWorkspaceLifecycle(deps: WorkspaceDeps, actor: Actor, id: unknown, input: unknown, deleted: boolean) {
   requireRequestKey(actor);
@@ -167,9 +172,8 @@ export function removeWorkspaceMember(deps: WorkspaceDeps, actor: Actor, id: unk
 export function leaveWorkspace(deps: WorkspaceDeps, actor: Actor, id: unknown, input: unknown) {
   requireRequestKey(actor);
   const scoped = workspaceActor(actor, id), value = parsed(workspaceVersion, input);
-  return deps.uow.workspace(
+  return deps.uow.membership(
     scoped,
-    { mode: "control", requirements: [] },
     (s) => write(s, scoped, "workspace.leave", scoped.userId, value, () => s.leave(value.expected_version)),
   );
 }

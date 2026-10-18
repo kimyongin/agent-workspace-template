@@ -16,25 +16,19 @@ export class SqlWorkspaceStore implements WorkspaceStore {
     private tx: postgres.TransactionSql,
     private actor: Actor,
     private requirements: WorkspaceRequirement[],
-    private account = false,
-    private lifecycle = false,
+    private scope: "workspace" | "account" | "lifecycle" | "membership" = "workspace",
   ) {}
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
-    return executeWorkspaceRequest(
-      this.tx,
-      this.actor,
-      request,
-      this.requirements,
-      execute,
-      this.account,
-      this.lifecycle,
-    );
+    return executeWorkspaceRequest(this.tx, this.actor, request, this.requirements, execute, this.scope);
   }
   async deleted() {
     return (await this.tx`select app.deleted_workspaces() as result`)[0].result;
   }
   async lifecycleDetails() {
     return (await this.tx`select app.workspace_lifecycle_details() as result`)[0].result;
+  }
+  async membershipDetails() {
+    return (await this.tx`select app.workspace_membership_details() as result`)[0].result;
   }
   async setDeleted(generation: number, deleted: boolean) {
     return (await this.tx`select app.workspace_set_deleted(${generation},${deleted}) as result`)[0].result;
@@ -108,11 +102,18 @@ export class SqlWorkspaceUnitOfWork {
     return workspaceAccount(this.sql, actor, async (tx) => {
       await lockWorkspace(tx, actor.workspaceId, "control");
       await tx`select app.authorize_workspace_lifecycle()`;
-      return fn(new SqlWorkspaceStore(tx, actor, [], false, true));
+      return fn(new SqlWorkspaceStore(tx, actor, [], "lifecycle"));
+    });
+  }
+  membership<T>(actor: WorkspaceActor, fn: (store: WorkspaceStore) => Promise<T>): Promise<T> {
+    return workspaceAccount(this.sql, actor, async (tx) => {
+      await lockWorkspace(tx, actor.workspaceId, "control");
+      await tx`select app.authorize_workspace_membership()`;
+      return fn(new SqlWorkspaceStore(tx, actor, [], "membership"));
     });
   }
   account<T>(actor: Actor, fn: (store: WorkspaceStore) => Promise<T>): Promise<T> {
-    return workspaceAccount(this.sql, actor, (tx) => fn(new SqlWorkspaceStore(tx, actor, [], true)));
+    return workspaceAccount(this.sql, actor, (tx) => fn(new SqlWorkspaceStore(tx, actor, [], "account")));
   }
   workspace<T>(actor: WorkspaceActor, entry: WorkspaceEntry, fn: (store: WorkspaceStore) => Promise<T>): Promise<T> {
     return runInWorkspace(this.sql, actor, entry, (tx) => fn(new SqlWorkspaceStore(tx, actor, entry.requirements)));
@@ -121,7 +122,7 @@ export class SqlWorkspaceUnitOfWork {
     return workspaceAccount(this.sql, actor, async (tx) => {
       const [r] = await tx`select app.workspace_invitation_target(${invitationId}::uuid) as workspace_id`;
       await lockWorkspace(tx, r.workspace_id, "control");
-      return await fn(new SqlWorkspaceStore(tx, actor, [], true));
+      return await fn(new SqlWorkspaceStore(tx, actor, [], "account"));
     });
   }
 }
