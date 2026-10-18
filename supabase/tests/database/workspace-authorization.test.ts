@@ -449,6 +449,14 @@ dbTest("scoped kind anchors reject direct owner-policy escapes and cross-workspa
         (await tx`select app.workspace_allows('entity_type',${kind.entity_type_id},'read') as allowed`)[0].allowed,
     );
     assertEquals(readPermission, false); // Settings-write can read minimal definitions but grants no material-data access.
+    await workspaces.updateWorkspaceMember(deps, key(f.a), first.id, f.a.userId, {
+      expected_version: 1,
+      grants: [settings, { target_kind: "entity_type", target_id: kind.entity_type_id, access: "read" }],
+    });
+    await runInWorkspace(sql, { ...f.a, workspaceId: first.id }, {
+      mode: "business",
+      requirements: [{ target_kind: "entity_type", target_id: kind.entity_type_id, access: "read" }],
+    }, () => Promise.resolve());
     await admin`update auth.users set raw_user_meta_data=${
       admin.json({ full_name: "  표시 이름\n ", email: "never-expose@example.test" })
     } where id=${f.a.userId}`;
