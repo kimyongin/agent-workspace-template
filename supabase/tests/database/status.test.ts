@@ -21,10 +21,7 @@ import { DurablePassageEmbedder } from "../../functions/_shared/core/search/pass
 import type { ProviderOutcome } from "../../functions/_shared/core/search/external-effect.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { connect, dbTest, urls } from "./_db.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 
 const admin = connect(urls.admin, { max: 1 });
 const user = connect(urls.pooler, { max: 3, prepare: false });
@@ -118,9 +115,7 @@ function client(actor: ScopedActor, queriedAt = at) {
 }
 async function issues(c: ReturnType<typeof client>, cursor?: string) {
   const response = await c.app.request(
-    `/status/indexing/issues${
-      cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""
-    }`,
+    `/status/indexing/issues${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
   );
   assertEquals(response.status, 200);
   const page = await response.json();
@@ -159,6 +154,7 @@ dbTest(
         once_completed: 0,
         records_created: 0,
         indexing: { indexed: 0, preparing: 0, attention: 0, excluded: 0 },
+        entity_indexing: { indexed: 0, preparing: 0, attention: 0, excluded: 0 },
       });
       const kind = await f.createKind("상태 자료");
       await f.grantKind(f.member, kind.id, "write");
@@ -242,6 +238,7 @@ dbTest(
         once_completed: 1,
         records_created: 1,
         indexing: { indexed: 0, preparing: 1, attention: 0, excluded: 0 },
+        entity_indexing: { indexed: 0, preparing: 0, attention: 0, excluded: 1 },
       });
       assertEquals(await c.tools[0].handler({}, c.actor), overview);
       assertEquals(
@@ -270,9 +267,7 @@ dbTest(
         result: 0,
         change: 3,
       });
-      await assertRejects(() =>
-        activity.getRecord(deps, f.member, done.record.id)
-      );
+      await assertRejects(() => activity.getRecord(deps, f.member, done.record.id));
       await f.grant(f.member, [{
         target_kind: "tasks",
         target_id: "*",
@@ -419,9 +414,7 @@ dbTest(
               {
                 send: (text) =>
                   Promise.resolve(
-                    text.length > 5
-                      ? { state: "failed", reason: "input_limit" }
-                      : { state: "succeeded", vector },
+                    text.length > 5 ? { state: "failed", reason: "input_limit" } : { state: "succeeded", vector },
                   ),
               },
               "a".repeat(64),
@@ -438,12 +431,11 @@ dbTest(
           await admin`update private.passage_effects set state='running',reason=null,result=null,lease_until='2026-10-10T15:01:30Z'
           where workspace_id=${f.workspaceId} and source_kind='record' and source_id=${record.id} and state='succeeded'`;
         } else {
-          const outcome: ProviderOutcome =
-            name === "indexed" || name === "excluded"
-              ? { state: "succeeded", vector }
-              : name === "transient" || name === "configuration"
-              ? { state: "failed", reason: name }
-              : { state: "unknown", reason: "provider_unknown" };
+          const outcome: ProviderOutcome = name === "indexed" || name === "excluded"
+            ? { state: "succeeded", vector }
+            : name === "transient" || name === "configuration"
+            ? { state: "failed", reason: name }
+            : { state: "unknown", reason: "provider_unknown" };
           const batch = await index(f.member, record.id, outcome);
           if (name === "indexed") assertEquals(batch.indexed, 1);
         }
@@ -507,9 +499,7 @@ dbTest(
       );
       assertEquals(problems.next_cursor, null);
       assertEquals(
-        problems.items.find((item: { id: string }) =>
-          item.id === records.unknown.id
-        ).chunks,
+        problems.items.find((item: { id: string }) => item.id === records.unknown.id).chunks,
         { total: 1, succeeded: 0, preparing: 0, unknown: 1, failed: 0 },
       );
       assertEquals(await c.tools[0].handler({}, c.actor), overview);
@@ -601,9 +591,7 @@ dbTest(
       const foreign = client(other.member);
       assertEquals(
         (await foreign.app.request(
-          `/status/indexing/issues?cursor=${
-            encodeURIComponent(first.next_cursor)
-          }`,
+          `/status/indexing/issues?cursor=${encodeURIComponent(first.next_cursor)}`,
         )).status,
         400,
       );
@@ -623,8 +611,7 @@ dbTest(
       await admin`update app.records set created_at='2026-10-11T00:00:00Z' where workspace_id=${f.workspaceId} and id=${emoji.id}`;
       await admin`update app.search_index_state set state='failed',reason='configuration' where workspace_id=${f.workspaceId} and kind='record' and id=${emoji.id}`;
       assertEquals((await issues(c)).items[0].title, "😀".repeat(100));
-      const getter =
-        await admin`select to_regprocedure('app.record_passage_effect_status(text)') as name`;
+      const getter = await admin`select to_regprocedure('app.record_passage_effect_status(text)') as name`;
       assertEquals(getter[0].name, null);
       const grants =
         await admin`select has_function_privilege('app_user','app.status_indexing_issues(text,timestamptz,timestamptz,text)','EXECUTE') as own,

@@ -24,7 +24,7 @@ function deps(embedder: SearchDeps["embedder"]) {
       Promise.resolve(
         after ? [{ ...item, rank: 1 }] : [{ ...item, rank: 1 }, { ...item, id: crypto.randomUUID(), rank: 1 }],
       ),
-    coverage: () => Promise.resolve({ pending: 0, excluded: 0 }),
+    coverage: () => Promise.resolve({ pending: 0, excluded: 0, failed: 0 }),
     anchorPage: () => Promise.resolve(null),
   };
   return {
@@ -111,7 +111,7 @@ Deno.test("entity result pagination preserves Unicode original references", asyn
   const entityId = "app:00000000-0000-4000-8000-000000000001:한글 원본";
   const original = { ...item, kind: "entity" as const, id: entityId, path: "/entities/encoded", rank: 1 };
   const store: SearchStore = {
-    coverage: () => Promise.resolve({ pending: 0, excluded: 0 }),
+    coverage: () => Promise.resolve({ pending: 0, excluded: 0, failed: 0 }),
     candidates: (_query, _vector, after) =>
       Promise.resolve(after ? [original] : [original, { ...original, id: `${entityId}2` }]),
     anchorPage: () => Promise.resolve(null),

@@ -14,10 +14,7 @@ import * as entities from "../../functions/_shared/core/entity/application.ts";
 import { indexBatch } from "../../functions/_shared/core/search/index-worker.ts";
 import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
 import { connect, dbTest, urls } from "./_db.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 
 const admin = connect(urls.admin, { max: 1 });
 const user = connect(urls.pooler, { max: 3, prepare: false });
@@ -37,9 +34,7 @@ dbTest(
       await fixture.grantKind(fixture.member, kind.id, "write");
       const model = { uow: new SqlDataModelUnitOfWork(user) };
       const document = await exportDataModel(model, fixture.manager);
-      const definition = document.entity_types.find((item) =>
-        item.schema["x-type-id"] === kind.id
-      )!;
+      const definition = document.entity_types.find((item) => item.schema["x-type-id"] === kind.id)!;
       definition.schema.properties.prop_1["x-search-text"] = true;
       definition.schema.properties.prop_1.title = "검색 제목";
       definition.schema.properties.prop_2 = {
@@ -152,7 +147,7 @@ dbTest(
       await fixture.grantKind(fixture.manager, first.id, "write");
       await fixture.grantKind(fixture.manager, second.id, "write");
       const model = { uow: new SqlDataModelUnitOfWork(user) };
-      async function publish(label: string) {
+      const publish = async (label: string) => {
         const document = await exportDataModel(model, fixture.manager);
         for (const type of document.entity_types) {
           type.schema.properties.prop_1["x-search-text"] = true;
@@ -179,7 +174,7 @@ dbTest(
           )).status,
           "applied",
         );
-      }
+      };
       await publish("처음 검색 이름");
       const entityDeps = { uow: new SqlEntityUnitOfWork(user) };
       const original = await entities.createEntity(
