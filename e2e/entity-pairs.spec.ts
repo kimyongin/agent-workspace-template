@@ -1,20 +1,22 @@
 import { businessRows } from "./table-actions.ts";
 import { detailDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique , ownedWorkspace, workspacePath} from "./support.ts";
 
 test("정의한 관계만 표시하고 실제 101개 작성 연결을 더 보기로 모두 조회한다", async ({ page }, info) => {
   test.setTimeout(180_000);
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const type = await mcp.call("create_entity_type", { label: unique("정의 관계") });
+    await workspace.grantKind(type.id);
     const origin = await mcp.call("create_entity", {
       entity_type_id: type.id,
       schema_version: 1,
       properties: { prop_1: "관계 원점" },
     });
-    const path = `/entities/${encodeURIComponent(origin.id)}`;
+    const path = workspacePath(workspace.id, `/entities/${encodeURIComponent(origin.id)}`);
     await page.goto(path);
     const detail = detailDialog(page);
     await expect(detail.getByRole("region", { name: /^연결된 자료/ })).toHaveCount(0);
