@@ -422,6 +422,12 @@ dbTest(
         ));
         assertEquals((directMeaning as { code?: string }).code, "42501");
         assertEquals((directMeaning as Error).message, "workspace_denied");
+        const directRemoval = await assertRejects(() => tx.savepoint((attempt) =>
+          attempt`delete from app.entity_type_identity_sources
+            where workspace_id=${owned[0]}::uuid and type_id=${kind.id}::uuid and code='custom'`
+        ));
+        assertEquals((directRemoval as { code?: string }).code, "42501");
+        assertEquals((directRemoval as Error).message, "workspace_denied");
       });
       const deniedMeaning = await assertRejects(() => issuers.updateIdentifierRule(
         issuerDeps, key(manager), customRule.id,

@@ -14,7 +14,8 @@ begin
 
  select pg_get_functiondef('private.guard_type_identity_source()'::regprocedure) into definition;
  insertion:=E'begin\n if tg_op=''DELETE'' then\n'
-  ||E'  if old.workspace_id is not null and exists(select 1 from app.entity_types where workspace_id=old.workspace_id and id=old.type_id) then\n'
+  ||E'  if old.workspace_id is not null and exists(select 1 from app.workspaces where id=old.workspace_id)\n'
+  ||E'   and exists(select 1 from app.entity_types where workspace_id=old.workspace_id and id=old.type_id) then\n'
   ||E'   perform private.authorize_workspace_model_kinds(array[old.type_id]);\n  end if;\n'
   ||E' elsif old.workspace_id is not null and (new.rule_id is distinct from old.rule_id or old.referenced and not new.referenced) then\n'
   ||E'  perform private.authorize_workspace_model_kinds(array[old.type_id]);\n end if;\n';
