@@ -1,3 +1,6 @@
+import { WorkspaceCapabilitiesContext } from "../../src/features/workspaces/workspace-context.tsx";
+import { fixtureWorkspaceId } from "./workspace-scope.tsx";
+import { fixtureType } from "../support/workspace-data.ts";
 import { FixtureWorkspace } from "./workspace-scope.tsx";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 // Isolated real feature UI: no AuthProvider, database, or server mutations.
@@ -22,4 +25,4 @@ const router = createBrowserRouter([{ element: <NavigationProtection><Outlet /><
   {path:"/tasks/:id",element:withRouteProbe(<TaskDetailPage />)},
 
 ]}]);
-createRoot(document.getElementById("root")!).render(<main><FixtureWorkspace actorId="fixture-actor"><RouterProvider router={router} /></FixtureWorkspace></main>);
+createRoot(document.getElementById("root")!).render(<main><FixtureWorkspace actorId="fixture-actor"><WorkspaceCapabilitiesContext.Provider value={{ workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null }, grants: [{ target_kind: "tasks", target_id: "*", access: "write" }, { target_kind: "entity_type", target_id: fixtureType.id, access: "write" }], can_manage: false, membership_version: 1 }}><RouterProvider router={router} /></WorkspaceCapabilitiesContext.Provider></FixtureWorkspace></main>);

@@ -12,7 +12,7 @@ import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
 import { ReadonlyTags } from "../tags/TagConnections.tsx";
 import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
-import { recordCreate, recordLabels } from "@contracts/record.ts";
+import { occurrenceRecordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels, type TaskResult } from "@contracts/task.ts";
 
 import { type ReactNode, useState } from "react";
@@ -108,12 +108,12 @@ export function RecordFormModal(props: {
             occurred_at: "선택한 시간대에서 존재하지 않는 시각입니다. 다른 시각을 입력하세요.",
           };
         }
-        const r = recordCreate.safeParse(value());
+        const r = occurrenceRecordCreate.safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
       onSubmit={(requestKey) => {
         if (!active || props.readonly) throw new Error("현재 기록 쓰기 권한이 없습니다.");
-        const parsed = recordCreate.parse(value());
+        const parsed = occurrenceRecordCreate.parse(value());
         return props.onSave(props.systemRecord ? { body: parsed.body } : parsed, requestKey);
       }}
     >
