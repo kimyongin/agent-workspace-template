@@ -76,7 +76,6 @@ do $$
 declare signature regprocedure;definition text;before text;
 begin
  for signature,before in select * from (values
-  ('app.claim_entity_schema_analysis()'::regprocedure,'perform private.cleanup_entity_schema_sources();'),
   ('app.claim_entity_schema_migration()'::regprocedure,'perform private.cleanup_entity_schema_sources();'),
   ('app.claim_data_model_conversion()'::regprocedure,'perform private.cleanup_data_model_sources();')) exact_calls loop
   select pg_get_functiondef(signature) into definition;
@@ -84,6 +83,10 @@ begin
    raise exception 'unexpected_inline_schema_retention' using errcode='55000';end if;
   execute replace(definition,before,'');
  end loop;
+ select pg_get_functiondef('app.claim_entity_schema_analysis()'::regprocedure) into definition;
+ if position('private.cleanup_entity_schema_sources(' in definition)>0
+   or position('private.cleanup_data_model_sources(' in definition)>0 then
+  raise exception 'unexpected_analysis_inline_retention' using errcode='55000';end if;
 end $$;
 
 -- Application writes may cancel or fence a superseded attempt, never replace its
