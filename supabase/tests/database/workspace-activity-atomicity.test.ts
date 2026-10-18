@@ -166,7 +166,7 @@ dbTest(
       assertEquals(reached, 2);
       assertEquals(
         await activity.getTask(deps, f.member, recurring.id),
-        recurring,
+        recurringBefore,
       );
       assertEquals(await storedFootprint(f.workspaceId), beforeOccurrence);
       assertEquals(
