@@ -397,11 +397,25 @@ test("selected entity fields stay identical in every layout and expansion withou
   }
   await page.goto(fixtureWorkspacePath(`/tasks/${task.id}`));
   const related=page.getByRole("region",{name:"연결된 자료 (1개)",exact:true});
-  await related.getByRole("button",{name:selected.title,exact:true}).click();
-  await expect(related.getByText("품명",{exact:true})).toBeVisible();
-  await expect(related.getByText("숨긴 날짜",{exact:true})).toHaveCount(0);
-  await expect(related.getByText("0",{exact:true})).toBeVisible();
-  await expect(related.getByText("거짓",{exact:true})).toBeVisible();
+  for (const view of ["테이블", "카드"]) {
+    await related.getByRole("radio", { name: view, exact: true }).click();
+    const toggle = related.getByRole("button", { name: selected.title, exact: true });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    // visual-spec.md:45: table headers are keys; card entries carry their own labels.
+    if (view === "테이블") {
+      await expect(related.getByRole("columnheader", { name: "자료 이름", exact: true })).toHaveText("자료 이름");
+      await expect(related.getByText("품명", { exact: true })).toHaveCount(0);
+    } else await expect(related.getByText("품명", { exact: true })).toBeVisible();
+    await expect(related.getByText(selected.title, { exact: true })).toHaveCount(1);
+    await expect(related.getByText("숨긴 날짜", { exact: true })).toHaveCount(0);
+    await expect(related.getByText("0", { exact: true })).toBeVisible();
+    await expect(related.getByText("0", { exact: true })).toHaveCount(1);
+    await expect(related.getByText("거짓", { exact: true })).toBeVisible();
+    await expect(related.getByText("거짓", { exact: true })).toHaveCount(1);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  }
   expect(state.writes).toEqual([]);
   expect(state.errors).toEqual([]);
 });
