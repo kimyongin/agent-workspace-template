@@ -1,3 +1,5 @@
+import { exportDataModel } from "../../functions/_shared/core/data-model/application.ts";
+import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import * as issuers from "../../functions/_shared/core/entity-issuers/application.ts";
 import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import * as settings from "../../functions/_shared/core/settings/application.ts";
@@ -50,6 +52,13 @@ dbTest(
       const reader = { ...b, workspaceId: owned[0] };
       assertEquals((await types.getEntityType(typeDeps, reader, left.id)).id, left.id);
       assertEquals((await types.getEntitySchema(typeDeps, reader, { type_id: left.id })).schema_version, 1);
+      const modelDeps = { uow: new SqlDataModelUnitOfWork(sql) };
+      assertEquals((await exportDataModel(modelDeps, reader)).entity_types.map((v) => v.schema["x-type-id"]), [
+        left.id,
+      ]);
+      assertEquals((await exportDataModel(modelDeps, second)).entity_types.map((v) => v.schema["x-type-id"]), [
+        right.id,
+      ]);
       const error = await assertRejects(
         () => types.createEntityType(typeDeps, key(reader), { label: "금지" }),
         AppError,
