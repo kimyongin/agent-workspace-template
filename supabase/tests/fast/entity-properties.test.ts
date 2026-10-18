@@ -37,7 +37,7 @@ Deno.test("Typed entity usecase validates the final patch, uses defaults only at
       Promise.resolve(
         state.row = {
           ...i,
-          tag_ids: i.tag_ids ?? [],
+          tag_ids: [],
           source_label: i.source,
           type: { id: typeId, label: "재료", icon_id: "leaf", archived: false },
           created_at: "2026-10-12T00:00:00Z",

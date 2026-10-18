@@ -43,7 +43,7 @@ function fixture(readonlyRepresentative = false) {
         display_properties: input.properties,
         current_schema_version: 1,
         source_label: input.source,
-        tag_ids: input.tag_ids ?? [],
+        tag_ids: [],
         version: 1,
         deleted_at: null,
         created_at: "2026-10-16T00:00:00Z",

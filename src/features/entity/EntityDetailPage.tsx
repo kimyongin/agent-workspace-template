@@ -1,3 +1,4 @@
+import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { PlusIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
@@ -20,7 +21,7 @@ import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagConnections } from "../tags/TagConnections.tsx";
 import { EntityProperties } from "./EntityProperties.tsx";
 import type { EntityDetail } from "@contracts/entity.ts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
@@ -29,7 +30,7 @@ import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
 import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
-  const api = useApi();
+  const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams(),
     [params] = useSearchParams(),
@@ -65,6 +66,8 @@ export function EntityDetailPage() {
     load: (id, signal) => api("GET", entityPath(id), undefined, signal),
   });
   const { value: entity, editReady } = detail;
+  const canWrite = !!entity && canWriteType(entity.entity_type_id);
+  const canRead = !!entity && canReadType(entity.entity_type_id);
   const taskRead = useEntityTaskRead(entity);
   const [actionError, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -74,6 +77,14 @@ export function EntityDetailPage() {
     (detail.error ? detail.error instanceof ApiError ? detail.error.message : "자료를 불러오지 못했습니다." : null);
   const reload = detail.reload;
   const editor = useDetailEditor(detail.editClosed);
+  const admittedEdit = useRef<{ api: typeof api; id: string; key: string } | null>(null);
+  const editing = editor.active && !creating && editReady && (canWrite ||
+    admittedEdit.current?.api === api && admittedEdit.current.id === id && admittedEdit.current.key === location.key);
+  useLayoutEffect(() => {
+    if (!editor.active || admittedEdit.current?.api !== api || admittedEdit.current.id !== id ||
+      admittedEdit.current.key !== location.key) admittedEdit.current = null;
+    if (editor.active && !creating && editReady && canWrite) admittedEdit.current = { api, id, key: location.key };
+  }, [api, id, location.key, editor.active, creating, editReady, canWrite]);
   const [busy, setBusy] = useState(false);
   const readRoot = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -153,7 +164,7 @@ export function EntityDetailPage() {
           key={kind}
           title={label}
           count={entity[kind].count}
-          action={
+          action={canWrite && (
             <Button variant="ghost" type="button"
 
               aria-label="기록 작성"
@@ -165,7 +176,7 @@ export function EntityDetailPage() {
             ><PlusIcon data-icon="inline-start" />
               작성
             </Button>
-          }
+          )}
         >
           {entity[kind].count > 0 && (
             <CollectionList columns={["본문 대표 문구"]}>
@@ -181,14 +192,14 @@ export function EntityDetailPage() {
     </div>
   );
   return (
-    <DetailSurface ready={!detail.loading}
-      title={entity?.type.label ?? "자료"}
+    <DetailSurface visible={!entity || canRead} ready={!detail.loading}
+      title={entity && canRead ? entity.type.label : "자료"}
       description="속성과 연결된 자료·할 일·기록을 확인하고 수정합니다."
-      tabTitle={entity?.title ?? "자료"}
+      tabTitle={entity && canRead ? entity.title : "자료"}
       onClose={() => navigate(back)}
       onError={detail.failed}
       busy={busy}
-      footer={entity && (
+      footer={entity && canWrite && (
         <Button variant="default" type="button"  onClick={editor.start}>
           {entity.deleted_at ? "복원" : "편집"}
         </Button>
@@ -223,8 +234,13 @@ export function EntityDetailPage() {
               onDraftClosed={detail.editClosed}
               scope="entity"
               target={entity}
-              readonly={!!entity.deleted_at}
-              onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
+              readonly={!canWrite || !!entity.deleted_at}
+              visible={canRead}
+              onSaved={(saved) => {
+                relationSaved.current = true;
+                detail.confirm((current) => current ? { ...current, ...saved } : current);
+                void reload();
+              }}
             />
           </section>
           <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
@@ -305,7 +321,7 @@ export function EntityDetailPage() {
               }}
             />
           )}
-          {creating === "record" && !entity.deleted_at && (
+          {creating === "record" && canWrite && !entity.deleted_at && (
             <RecordFormModal
               key={location.key}
               open
@@ -321,7 +337,7 @@ export function EntityDetailPage() {
               }}
             />
           )}
-          {editor.active && !creating && editReady && (
+          {editing && (
             <EntityForm
               initial={entity}
               relations={
@@ -339,7 +355,7 @@ export function EntityDetailPage() {
                   </RelatedSection>
                 </div>
               }
-              deletion={entity.deleted_at ? undefined : {
+              deletion={!canWrite || entity.deleted_at ? undefined : {
                 preparation: () => ({
                   model: "entity",
                   action: "delete",

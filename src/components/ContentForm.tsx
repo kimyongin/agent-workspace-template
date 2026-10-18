@@ -43,6 +43,7 @@ interface FormModalProps {
   description?: string;
   domain?: string;
   open: boolean;
+  visible?: boolean;
   submitLabel: string;
   submitDisabled?: boolean;
   dirty: boolean;
@@ -64,19 +65,19 @@ export function FormModal(props: FormModalProps) {
   const [presentation, setPresentation] = useState<Presentation>({dirty: props.dirty, busy: false, footer: null});
   const present = useCallback((value: Presentation) => setPresentation(value), []);
   if (surface) return <FormContents {...props}/>;
-  return <ModalShell open={props.open} title={props.title} description={props.description} domain={props.domain} dirty={props.dirty || presentation.dirty} busy={presentation.busy}
+  return <ModalShell open={props.open} visible={props.visible} title={props.title} description={props.description} domain={props.domain} dirty={props.dirty || presentation.dirty} busy={presentation.busy}
     onClose={props.onClose} onRouteDiscard={props.onRouteDiscard} footer={presentation.footer}>
     <FormContents {...props} present={present}/>
   </ModalShell>;
 }
 
-function FormContents({title, description, domain, open, submitLabel, submitDisabled = false, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
+function FormContents({title, description, domain, open, visible = true, submitLabel, submitDisabled = false, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
   const formId = useId();
   const surface = useContext(SurfaceContext);
   const callbacks = useRef({onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation,onPrepared});
   callbacks.current = {onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation,onPrepared};
   const confirmation = useRecordConfirmation({
-    open, initial: confirmationOnly ? "save" : undefined,
+    open, visible, disabled: submitDisabled, initial: confirmationOnly ? "save" : undefined,
     onCancel: confirmationOnly ? () => callbacks.current.onClose() : undefined,
     describe: kind => {
       const current = callbacks.current;
@@ -104,25 +105,25 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
   const { busy, uncertain, active, errors, failure } = confirmation;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (busy || active || submitDisabled) return;
+    if (!visible || busy || active || submitDisabled) return;
     const local = callbacks.current.validate();
     if (local) return confirmation.reject(local, "입력을 확인하세요.");
     if (mutation) confirmation.begin("save", (e.nativeEvent as SubmitEvent).submitter); else await confirmation.write("save");
   };
   const footer = (requestCancel:(event?: MouseEvent<HTMLElement>)=>void) => <>
-    {deletion && !uncertain && <Button variant="destructive" type="button" key="delete" className="sm:mr-auto" disabled={busy} onClick={event=>confirmation.begin("delete", event.currentTarget)}>삭제</Button>}
+    {deletion && !uncertain && <Button variant="destructive" type="button" key="delete" className="sm:mr-auto" disabled={busy || submitDisabled} onClick={event=>confirmation.begin("delete", event.currentTarget)}>삭제</Button>}
     <Button variant="outline" key="cancel" type="button"  disabled={busy} onClick={requestCancel}>취소</Button>
     <Button variant="default" key="save" type="submit" form={formId}  disabled={busy || submitDisabled}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</Button>
   </>;
   const register = surface?.register;
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || !visible) return;
     const presentation = {dirty: dirty || confirmation.dirty, busy, footer};
     if (register) register({title, description, domain, ...presentation,
       onClose: ()=>callbacks.current.onClose(), onRouteDiscard: ()=>(callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
     else present?.(presentation);
     return () => { register?.(null); };
-  }, [register,present,open,title,description,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
+  }, [register,present,open,visible,title,description,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
   const form = <form id={formId} className="flex min-w-0 flex-col gap-5" onSubmit={submit} noValidate>
     {failure && !active && <Notice kind="error">{failure}</Notice>}
     <FieldSet disabled={busy || uncertain || active}><FieldGroup>{children(errors, busy || uncertain || active)}</FieldGroup></FieldSet>
@@ -130,6 +131,6 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
   useLayoutEffect(() => {
     if (!active && Object.keys(errors).length) document.getElementById(formId)?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
   }, [errors,formId,active]);
-  useLayoutEffect(() => { if(surface?.slot && open) (firstField(surface.slot) ?? surface.slot.querySelector<HTMLElement>("input,textarea,select,button"))?.focus(); }, [surface?.slot,open]);
-  return surface ? surface.slot && open ? createPortal(form, surface.slot) : null : form;
+  useLayoutEffect(() => { if(surface?.slot && open && visible) (firstField(surface.slot) ?? surface.slot.querySelector<HTMLElement>("input,textarea,select,button"))?.focus(); }, [surface?.slot,open,visible]);
+  return surface ? surface.slot && open && visible ? createPortal(form, surface.slot) : null : form;
 }

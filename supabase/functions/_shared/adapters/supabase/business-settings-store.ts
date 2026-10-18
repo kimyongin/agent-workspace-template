@@ -17,7 +17,7 @@ import { effectiveEntityTemplates, templateFields, type TemplateModel } from "..
 import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
 import type { RecordTemplates } from "../../contracts/record-template.ts";
 import type { ChangeFacts } from "../../core/shared/changes.ts";
-import { entityPresentationRow, loadEntityDefinition } from "./entity-values.ts";
+import { entityPresentationRow, loadBusinessEntityDefinition, loadEntityDefinition } from "./entity-values.ts";
 
 export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   private templateTarget?: Parameters<NonNullable<BusinessSettingsStore["getForTarget"]>>[0];
@@ -29,7 +29,7 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId, lock);
   }
   definition(typeId: string, lock = false) {
-    return loadEntityDefinition(this.tx, typeId, lock);
+    return loadBusinessEntityDefinition(this.tx, typeId, lock);
   }
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
     return executeSqlRequest(this.tx, this.actor, request, execute);

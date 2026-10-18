@@ -1,3 +1,4 @@
+import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { cn } from "../../lib/utils.ts";
 import { FieldGroup } from "../../components/ui/field.tsx";
@@ -19,10 +20,9 @@ import { useEntityTypes } from "./useEntityTypes.ts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { Field } from "../../components/Field.tsx";
+import { Field, Notice } from "../../components/Field.tsx";
 
 import { fieldErrors } from "../../lib/format.ts";
-import { TagPicker } from "../tags/TagPicker.tsx";
 import { ReadonlyTags } from "../tags/TagConnections.tsx";
 import {
   fieldType,
@@ -37,6 +37,8 @@ export function EntityForm({
   initialTypeId,
   initialTypeLabel,
   fixedType = false,
+  readonly = false,
+  visible = true,
   context,
   submitLabel = "저장",
   details,
@@ -50,6 +52,8 @@ export function EntityForm({
   initialTypeId?: string;
   initialTypeLabel?: string;
   fixedType?: boolean;
+  readonly?: boolean;
+  visible?: boolean;
   context?: ReactNode;
   submitLabel?: string;
   details?: ReactNode;
@@ -59,7 +63,7 @@ export function EntityForm({
   onRouteDiscard?: () => void;
   onSave: (value: EntityCreate, requestKey: () => string) => Promise<void>;
 }) {
-  const api = useApi();
+  const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
   const [identitySettings, setIdentitySettings] = useState<EntityTypeIdentity | null>(null),
     [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
     [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
@@ -70,18 +74,19 @@ export function EntityForm({
     [identityReload, setIdentityReload] = useState(0),
     [nextType, setNextType] = useState<string | null>(null);
   const { types, error: catalogError, retry: retryCatalog } = useEntityTypes();
+  const readable = visible && (!typeId || canReadType(typeId));
+  const canWrite = readable && !readonly && canWriteType(typeId);
+  const writableTypes = types?.filter((type) => !type.archived && canWriteType(type.id));
   const [archived, setArchived] = useState<EntityDetail | null>(initial?.deleted_at ? initial : null),
     [identityMessage, setIdentityMessage] = useState(""),
     [identityStale, setIdentityStale] = useState(false);
   const [source, setSource] = useState(initial?.source ?? ""),
     [external, setExternal] = useState(initial?.external_id ?? ""),
-    [properties, setProperties] = useState<PropertyDraft>(propertyDraft(initial?.properties ?? {})),
-    [tags, setTags] = useState(initial?.tag_ids ?? []);
+    [properties, setProperties] = useState<PropertyDraft>(propertyDraft(initial?.properties ?? {}));
   const baseline = useRef({
     source: initial?.source ?? "",
     external: initial?.external_id ?? "",
     properties: propertyDraft(initial?.properties ?? {}),
-    tags: initial?.tag_ids ?? [],
     typeId: initial?.entity_type_id ?? initialTypeId ?? "",
   });
   const prepared = useRef<Record<string, unknown> | null>(null),
@@ -209,7 +214,6 @@ export function EntityForm({
       external_id: external || undefined,
       identity_version: !initial || archived ? settingsVersion.current : undefined,
       expected_version: archived?.version,
-      ...(!initial || initial.deleted_at ? { tag_ids: tags } : {}),
     };
   };
   const checkExisting = async () => {
@@ -237,7 +241,6 @@ export function EntityForm({
       }
       setArchived(stored);
       setProperties(propertyDraft(stored.properties));
-      setTags(stored.tag_ids);
       setIdentityMessage("보관한 자료를 불러왔습니다. 속성과 연결을 확인한 뒤 복원을 저장하세요.");
       return stored;
     } catch (e) {
@@ -250,8 +253,7 @@ export function EntityForm({
     }
   };
   const dirty = source !== baseline.current.source || external !== baseline.current.external ||
-    typeId !== baseline.current.typeId || JSON.stringify(properties) !== JSON.stringify(baseline.current.properties) ||
-    JSON.stringify(tags) !== JSON.stringify(baseline.current.tags);
+    typeId !== baseline.current.typeId || JSON.stringify(properties) !== JSON.stringify(baseline.current.properties);
   const changeProperties = (values: PropertyDraft) => {
     lookup.current?.abort();
     setReviewKeys((keys) => keys.filter((key) => values[key] === properties[key]));
@@ -265,11 +267,12 @@ export function EntityForm({
     <>
       <FormModal
         open
+        visible={readable}
         domain={label}
-        description="번호 출처와 번호를 확인하고, 자료의 입력 항목과 태그를 입력합니다."
+        description="번호 출처와 번호를 확인하고, 자료의 입력 항목을 작성합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel={submitLabel}
-        submitDisabled={!!typeId &&
+        submitDisabled={!canWrite || !!typeId &&
           (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
           target: definition
@@ -283,6 +286,7 @@ export function EntityForm({
         onClose={onClose}
         onRouteDiscard={onRouteDiscard}
         preparation={async () => {
+          if (!canWrite) throw new ApiError(403, "forbidden", "이 자료 종류의 편집 권한이 필요합니다.");
           const existing = archived ?? await checkExisting(), target = existing ?? initial;
           const input = existing && !archived
             ? {
@@ -293,7 +297,6 @@ export function EntityForm({
                 ),
               ),
               expected_version: existing.version,
-              tag_ids: existing.tag_ids,
             }
             : value();
           if (initial && !existing) {
@@ -324,6 +327,7 @@ export function EntityForm({
           prepared.current = result.prepared_input;
         }}
         validate={() => {
+          if (!canWrite) return { entity_type_id: "이 자료 종류의 편집 권한이 필요합니다." };
           if (!initial && activeType?.archived) {
             return {
               entity_type_id: "보관된 자료 종류에는 새 자료를 추가할 수 없습니다",
@@ -385,10 +389,11 @@ export function EntityForm({
           return Object.keys(errors).length ? errors : parsed.success ? null : fieldErrors(parsed.error.issues);
         }}
         onSubmit={async (requestKey, memo) => {
+          if (!canWrite) throw new ApiError(403, "forbidden", "이 자료 종류의 편집 권한이 필요합니다.");
           const current = value();
           try {
             await onSave(
-              { ...current, ...prepared.current, ...(!initial || initial.deleted_at ? { tag_ids: tags } : {}), ...memo } as EntityCreate,
+              { ...current, ...prepared.current, ...memo } as EntityCreate,
               requestKey,
             );
           } catch (error) {
@@ -402,6 +407,7 @@ export function EntityForm({
       >
         {(errors, frozen) => (
           <>
+            {typeId && !canWrite && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
             {context}
             <section className="flex-col grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
               {catalogError && (
@@ -413,7 +419,7 @@ export function EntityForm({
               {!initial && !archived && !fixedType && (
                 <>
                   <EntityTypePicker
-                    types={types?.filter((type) => !type.archived) ?? []}
+                    types={writableTypes ?? []}
                     value={typeId}
                     disabled={!types || frozen}
                     catalogState={types === null ? catalogError ? "unavailable" : "loading" : "ready"}
@@ -453,7 +459,7 @@ export function EntityForm({
                   <Button variant="outline"
                     type="button"
 
-                    disabled={schemaReading || frozen}
+                    disabled={schemaReading || frozen || !canWrite}
                     onClick={() => void readDefinition()}
                   >
                     {schemaReading ? "현재 정의 확인 중…" : "속성 정의 다시 조회"}
@@ -496,7 +502,7 @@ export function EntityForm({
               )}
               {definition && (
                 <PropertyFields
-                  disabled={frozen}
+                  disabled={frozen || !canWrite}
                   part="representative"
                   definition={definition}
                   values={effectiveProperties}
@@ -535,7 +541,7 @@ export function EntityForm({
                         {...p}
 
                         value={source}
-                        disabled={frozen || !identitySettings || !!initial || !!archived}
+                        disabled={frozen || !canWrite || !identitySettings || !!initial || !!archived}
                         onChange={(e) => {
                           lookup.current?.abort();
                           setSource(e.target.value);
@@ -584,7 +590,7 @@ export function EntityForm({
 
                         value={external}
                         maxLength={200}
-                        disabled={frozen || !identitySettings}
+                        disabled={frozen || !canWrite || !identitySettings}
                         readOnly={!!initial || !!archived ||
                           identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"}
                         placeholder={identitySettings?.sources.find((item) => item.code === source)?.generation ===
@@ -604,7 +610,7 @@ export function EntityForm({
                 <Button variant="outline"
                   type="button"
 
-                  disabled={frozen || !identitySettings || !definition}
+                  disabled={frozen || !canWrite || !identitySettings || !definition}
                   onClick={() =>
                     void checkExisting().catch((e) => {
                       if (!(e instanceof DOMException && e.name === "AbortError")) {
@@ -632,7 +638,7 @@ export function EntityForm({
               {definition
                 ? (
                   <PropertyFields
-                  disabled={frozen}
+                  disabled={frozen || !canWrite}
                     part="remaining"
                     definition={definition}
                     values={effectiveProperties}
@@ -642,9 +648,11 @@ export function EntityForm({
                 )
                 : typeId && !schemaError && <p role="status">속성 정의를 불러오는 중…</p>}
             </section>
-            <section className="flex min-w-0 flex-col gap-5">
-              {initial ? <ReadonlyTags scope="entity" ids={initial.tag_ids} /> : <TagPicker disabled={frozen} scope="entity" value={tags} error={errors.tag_ids} onChange={setTags} />}
-            </section>
+            {(initial || archived) && (
+              <section className="flex min-w-0 flex-col gap-5">
+                <ReadonlyTags scope="entity" ids={(archived ?? initial)!.tag_ids} />
+              </section>
+            )}
             {relations}
             {details}
           </>
@@ -663,7 +671,6 @@ export function EntityForm({
           prepared.current = null;
           setTypeId(nextType!);
           setProperties({});
-          setTags([]);
           setExternal("");
           setSource("");
           setIdentityMessage("");

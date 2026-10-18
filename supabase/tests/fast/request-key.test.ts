@@ -55,7 +55,8 @@ Deno.test("every public MCP business write requires UUID request_key before exec
     ...settingsTools(deps),
   ];
   const writes = tools.filter((tool) => !tool.readOnly);
-  assertEquals(writes.length, 17);
+  assertEquals(writes.length, 18);
+  assertEquals(writes.some((tool) => tool.name === "set_tag_connections"), true);
   for (const tool of writes) {
     const schema = z.toJSONSchema(tool.input, { io: "input" });
     assertEquals(schema.required?.includes("request_key"), true, tool.name);

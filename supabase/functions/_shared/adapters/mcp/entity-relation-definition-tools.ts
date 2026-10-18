@@ -19,7 +19,7 @@ export function entityRelationDefinitionTools(d: EntityRelationDefinitionDeps): 
     {
       name: "list_entity_relation_definitions",
       description:
-        "자료 관계 정의 목록. 종류·이름·보관 상태 필터와 커서 더 보기. ends[0/1]은 같은 종류여도 별개 역할이며 개수는 해당 끝에서 연결할 상대 수입니다.",
+        "자료 관계 정의 목록. purpose=business는 양쪽 자료 종류 읽기 권한으로 필요한 현재 역할만 조회하며 설정 권한이 필요하지 않습니다. 생략은 설정 조회입니다. 종류·이름·보관 상태 필터와 커서 더 보기. ends[0/1]은 같은 종류여도 별개 역할이며 개수는 해당 끝에서 연결할 상대 수입니다.",
       input: relationDefinitionQuery,
       readOnly: true,
       handler: (i, a) => listEntityRelationDefinitions(d, a, i),
@@ -27,9 +27,9 @@ export function entityRelationDefinitionTools(d: EntityRelationDefinitionDeps): 
     {
       name: "get_entity_relation_definition",
       description: "양쪽 역할·종류·개수와 최신 독립 버전 조회.",
-      input: z.strictObject({ id: z.string().uuid() }),
+      input: z.strictObject({ id: z.string().uuid(), purpose: z.literal("business").optional() }),
       readOnly: true,
-      handler: (i, a) => getEntityRelationDefinition(d, a, String(i.id)),
+      handler: (i, a) => getEntityRelationDefinition(d, a, String(i.id), i.purpose),
     },
     {
       name: "create_entity_relation_definition",

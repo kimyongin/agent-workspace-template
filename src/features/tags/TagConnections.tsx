@@ -3,7 +3,6 @@ import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldSet } from "@/components/ui/field";
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { entityPath } from "@contracts/entity-identity.ts";
 
 import { Notice } from "../../components/Field.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
@@ -29,10 +28,11 @@ export function ReadonlyTags(
 }
 
 /** The chooser only changes this draft. A partial write owns its exact version and retry lifetime. */
-export function TagConnections({ scope, target, readonly = false, onSaved, onDraftClosed }: {
+export function TagConnections({ scope, target, readonly = false, visible = true, onSaved, onDraftClosed }: {
   scope: TagScope;
-  target: { id: string; version: number; tag_ids: string[]; schema_version?: number; title?: string };
+  target: { id: string; version: number; tag_ids: string[]; title?: string };
   readonly?: boolean;
+  visible?: boolean;
   onDraftClosed?: () => void;
   onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
 }) {
@@ -42,17 +42,20 @@ export function TagConnections({ scope, target, readonly = false, onSaved, onDra
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
     if (wasEditing.current && !editing) {
-      trigger.current?.querySelector<HTMLButtonElement>('[aria-label="태그 연결"]')?.focus();
+      const destination = trigger.current?.querySelector<HTMLButtonElement>('[aria-label="태그 연결"]') ?? trigger.current;
+      destination?.focus();
     }
     wasEditing.current = !!editing;
   }, [editing]);
   return (
-    <section ref={trigger} className="flex min-w-0 flex-col gap-3" aria-label="태그 연결">
+    <section ref={trigger} hidden={!visible} tabIndex={-1} className="flex min-w-0 flex-col gap-3" aria-label="태그 연결">
       {editing
         ? (
           <TagConnectionDraft
             scope={scope}
             target={editing}
+            readonly={readonly}
+            visible={visible}
             onCancel={() => {
               setEditing(null);
               onDraftClosed?.();
@@ -95,34 +98,38 @@ export function TagConnections({ scope, target, readonly = false, onSaved, onDra
   );
 }
 
-function TagConnectionDraft({ scope, target, onCancel, onSaved }: {
+function TagConnectionDraft({ scope, target, readonly, visible, onCancel, onSaved }: {
   scope: TagScope;
-  target: { id: string; version: number; tag_ids: string[]; schema_version?: number };
+  target: { id: string; version: number; tag_ids: string[] };
+  readonly: boolean;
+  visible: boolean;
   onCancel: () => void;
   onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
 }) {
   const api = useApi();
   const surface = useContext(SurfaceContext);
   const [draft, setDraft] = useState(target.tag_ids);
-  const path = scope === "entity" ? entityPath(target.id) : `/${scope}s/${target.id}`;
   const confirmation = useRecordConfirmation({
     closeOnSuccess: true,
+    disabled: readonly,
+    visible,
     describe: () => {
-      const input = { tag_ids: [...draft], ...(scope === "entity" ? { schema_version: target.schema_version } : {}) };
+      const input = { tag_ids: [...draft] };
       const expected_version = target.version;
       return {
         title: "태그 연결을 적용하시겠습니까?",
         label: "연결하고 저장",
         defaultNote: "태그 연결 변경",
+        message: readonly ? "현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다." : undefined,
         record: scope !== "record",
         preparation: scope === "record"
           ? undefined
-          : () => ({ model: scope, action: "update", target_id: target.id, expected_version, input }),
+          : () => ({ intent: "tag-connections", model: scope, action: "update", target_id: target.id, expected_version, input }),
         execute: async (requestKey, memo) => {
           const saved = await api<{ tag_ids: string[]; version: number; updated_at: string }>(
-            "PATCH",
-            path,
-            { ...input, expected_version, ...(scope === "record" ? {} : memo) },
+            "POST",
+            "/tag-connections",
+            { target_kind: scope, target_id: target.id, ...input, expected_version, ...(scope === "record" ? {} : memo) },
             undefined,
             requestKey(),
           );
@@ -139,10 +146,12 @@ function TagConnectionDraft({ scope, target, onCancel, onSaved }: {
   }, [protect, frozen]);
   return (
     <>
-      <FieldSet disabled={frozen || confirmation.active}>
+      {readonly && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
+      <FieldSet disabled={readonly || frozen || confirmation.active}>
         <TagPicker
-          disabled={frozen || confirmation.active}
+          disabled={readonly || frozen || confirmation.active}
           scope={scope}
+          visible={visible}
           label="태그"
           value={draft}
           onChange={setDraft}
@@ -153,7 +162,7 @@ function TagConnectionDraft({ scope, target, onCancel, onSaved }: {
         <Button variant="outline" type="button" disabled={frozen} onClick={onCancel}>연결 취소</Button>
         <Button
           type="button"
-          disabled={confirmation.busy || confirmation.active}
+          disabled={readonly || confirmation.busy || confirmation.active}
           onClick={event =>
             scope === "record" || confirmation.uncertain
               ? void confirmation.write("save")

@@ -1,3 +1,5 @@
+import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
+import { createTag, setTagConnections } from "../../functions/_shared/core/tags/application.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
@@ -243,12 +245,18 @@ dbTest(
       const oldRead = await getEntity(entities, owner.actor, original.id);
       assertEquals(oldRead.properties, { prop_1: "existing" });
       assertEquals([oldRead.schema_version, oldRead.current_schema_version], [1, 2]);
-      const unrelated = await updateEntity(entities, requestActor(owner.actor), original.id, {
-        schema_version: 2,
+      const tags = { uow: new SqlTagUnitOfWork(sql) };
+      const tag = await createTag(tags, requestActor(owner.actor), { scope: "entity", name: "unrelated" });
+      const connection = await setTagConnections(tags, requestActor(owner.actor), {
+        target_kind: "entity",
+        target_id: original.id,
         expected_version: 1,
-        tag_ids: [],
+        tag_ids: [tag.id],
       });
+      const unrelated = await getEntity(entities, owner.actor, original.id);
       assertEquals(unrelated.properties, { prop_1: "existing" });
+      assertEquals(unrelated.tag_ids, [tag.id]);
+      assertEquals(unrelated.version, connection.version);
       await deleteEntity(entities, requestActor(owner.actor), original.id, unrelated.version);
       const removed = await getEntity(entities, owner.actor, original.id);
       const restored = await createEntity(entities, requestActor(owner.actor), {
@@ -259,6 +267,7 @@ dbTest(
         expected_version: removed.version,
       });
       assertEquals(restored.properties, { prop_1: "existing" });
+      assertEquals(restored.tag_ids, [tag.id]);
       const current = await createEntity(entities, requestActor(owner.actor), {
         entity_type_id: a.id,
         schema_version: 2,

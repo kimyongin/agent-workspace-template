@@ -6,7 +6,7 @@ import { AppError, invalidInput } from "../shared/errors.ts";
 
 export type EntityContent = Pick<
   EntityValues,
-  "source" | "external_id" | "entity_type_id" | "schema_version" | "properties" | "tag_ids"
+  "source" | "external_id" | "entity_type_id" | "schema_version" | "properties"
 >;
 
 /** Both snapshots and locked write reads classify the same registration target. */
@@ -47,13 +47,6 @@ export function registrationContent(
   identity: Pick<EntityContent, "source" | "external_id">,
   before: ChangeFacts | null = null,
 ): EntityContent {
-  const {
-    identity_version: _settings,
-    expected_version: _version,
-    change_note: _note,
-    change_tag_ids: _tags,
-    ...fields
-  } = input;
   if (before?.entity_type_id && before.entity_type_id !== input.entity_type_id) {
     throw new AppError("entity_type_immutable", "자료 종류는 변경할 수 없습니다", [{
       path: "entity_type_id",
@@ -65,7 +58,6 @@ export function registrationContent(
     entity_type_id: input.entity_type_id,
     schema_version: input.schema_version,
     properties: { ...before?.properties, ...input.properties },
-    tag_ids: fields.tag_ids ?? before?.tag_ids ?? [],
   };
 }
 

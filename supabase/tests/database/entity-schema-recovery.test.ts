@@ -44,7 +44,7 @@ import { jsonbText } from "../../functions/_shared/core/entity-types/schema-rule
 import { prepareMigrationBatch } from "../../functions/_shared/core/entity-types/migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
-import { createTag } from "../../functions/_shared/core/tags/application.ts";
+import { createTag, setTagConnections } from "../../functions/_shared/core/tags/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { SchemaEdit } from "../../functions/_shared/contracts/entity-schema-change.ts";
 async function fixture() {
@@ -573,9 +573,10 @@ dbTest(
               name: "later tag",
             },
           );
-          await updateEntity(f.e, f.actor(), x.id, {
+          await setTagConnections({ uow: new SqlTagUnitOfWork(f.sql) }, f.actor(), {
+            target_kind: "entity",
+            target_id: x.id,
             expected_version: x.version,
-            schema_version: 3,
             tag_ids: [tag.id],
           });
         }

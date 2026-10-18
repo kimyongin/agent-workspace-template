@@ -1,3 +1,5 @@
+import { useSettingsAccess } from "../settings/workspace-settings-access.tsx";
+import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { EyeIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
@@ -50,7 +52,8 @@ import { GuideLink } from "../../components/GuideLink.tsx";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 
 export function EntitiesPage() {
-  const api = useApi();
+  const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
+  const { canRead: canReadSettings } = useSettingsAccess();
   const searchInput = useRef<HTMLInputElement>(null);
   const create = useCreateMode();
   const [view, changeView] = useMainCollectionView();
@@ -181,7 +184,22 @@ export function EntitiesPage() {
   const key = query(filter),
     context = `${key}|${hash}|${urlFilters.error ?? ""}|${unsupported}|${schema?.schema_version ?? 0}`;
   const hasConditions = !!(filter.keyword || filter.tag_id || filter.filters || filter.sort !== "updated_at");
-  const creating = create.open;
+  const canCreate = selectedType
+    ? !selectedType.archived && canWriteType(selectedType.id)
+    : !!types?.some((type) => !type.archived && canWriteType(type.id));
+  const admittedCreate = useRef<{ api: typeof api; key: string } | null>(null);
+  const retainedCreation = admittedCreate.current?.api === api && admittedCreate.current.key === create.key;
+  const creating = create.open && (canCreate || retainedCreation);
+  useLayoutEffect(() => {
+    if (!create.open || admittedCreate.current?.api !== api || admittedCreate.current.key !== create.key) {
+      admittedCreate.current = null;
+    }
+    // Keep the committed owner of a draft/unknown write on permission refresh.
+    // A direct READ-only visit never admits a new form.
+    if (create.open && canCreate && !invalidType && !selectedType?.archived) {
+      admittedCreate.current = { api, key: create.key };
+    }
+  }, [api, create.open, create.key, canCreate, invalidType, selectedType?.archived]);
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
     scope: `${context}|${
       typeError
@@ -217,6 +235,7 @@ export function EntitiesPage() {
         : api("GET", `/entities${query({ ...filter, cursor })}`, undefined, signal),
   });
   const { page, busy } = list;
+  const visibleRows = page?.items.filter(row => canReadType(row.entity_type_id)) ?? [];
   const pageSchemaVersion = page?.items[0]?.current_schema_version;
   useEffect(() => {
     if (!filter.entity_type_id || !pageSchemaVersion || schema?.schema_version === pageSchemaVersion) return;
@@ -363,14 +382,15 @@ export function EntitiesPage() {
             <CollectionHeading
               hideLabel
               label={label}
-              count={page?.items.length}
+              count={page ? visibleRows.length : undefined}
               hasMore={!!page?.next_cursor}
               view={view}
               onChange={changeView}
             />
-            {!invalidType && !selectedType?.archived && types?.some((type) => !type.archived)
+            {!invalidType && canCreate
               ? <TabCreateButton label={`${selectedType?.label ?? "자료"} 추가`} onClick={create.begin} />
-              : types && !typeError && !invalidType && (
+              : canReadSettings && types && !typeError && !invalidType &&
+                (selectedType?.archived || !types.some((type) => !type.archived)) && (
                 <Button asChild variant="ghost">
                   <Link
                     className=""
@@ -419,7 +439,7 @@ export function EntitiesPage() {
           {!page && (busy || types === null && !typeError) && (
             <p role="status" className="text-sm text-muted-foreground">불러오는 중…</p>
           )}
-          {page?.items.length === 0 && !error && (
+          {page && visibleRows.length === 0 && !error && (
             <>
               <p className="text-sm text-muted-foreground">
                 {hasConditions ? "조건에 맞는 자료가 없습니다." : "아직 자료가 없습니다."}
@@ -470,7 +490,7 @@ export function EntitiesPage() {
                 ]
                 : ["자료 이름", "자료 종류"]}
             >
-              {page?.items.map((e) => (
+              {visibleRows.map((e) => (
                 <CollectionItem className="min-w-0" key={e.id}>
                   <ListPreviewItem
                     kind="entities"
@@ -522,7 +542,7 @@ export function EntitiesPage() {
               {busy ? "불러오는 중…" : error ? "다시 시도" : page.next_cursor ? "더 보기" : "모두 불러왔습니다"}
             </Button>
           )}
-          {creating && !invalidType && !selectedType?.archived && (
+          {creating && (retainedCreation || !invalidType && !selectedType?.archived) && (
             <EntityForm
               key={create.key}
               initialTypeId={filter.entity_type_id ?? undefined}

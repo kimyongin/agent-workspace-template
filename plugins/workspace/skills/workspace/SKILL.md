@@ -52,10 +52,12 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 모든 업무 쓰기의 필수 `request_key`는 논리 쓰기 한 건에 UUID를 한 번 만들어 명시적으로 전달한다. 응답 불명·네트워크 오류·5xx·`request_in_progress`에는 같은 키와 정확한 입력·대상·`expected_version`·준비한 메모·태그를 유지한다. 진행 중이면 안내된 대기 후 같은 요청을 재시도한다. 성공 요청 키와 결과는 완료 후 30일간 보관·재현한다. 30일 이후에는 중복 방지가 보장되지 않으며 정리 후 같은 키가 신규 요청으로 실행될 수 있다. 보관 기간 안에서 재현된 당시 결과와 버전을 최신 상태로 단정하지 않는다. 확정 실패의 입력을 고치거나 별도의 새 의도를 실행하면 새 키를 사용한다. 키를 잃으면 현재 자료를 조회하고 사용자 의도를 확인하며 새 키로 자동 반복하지 않는다. `result_expired`·`idempotency_key_reused`는 새 키 자동 재전송으로 해결하지 않는다. 현재 상태를 확인해 다음 의도를 판단한다.
 
-자료 ID는 `발급처 코드:자료 종류 ID:원본 번호`다. 서버가 반환한 정본 ID를 참조에 그대로 사용한다. 번호의 대소문자·앞자리 0·구분자·Unicode를 바꾸지 않는다. 자료 종류의 불변 설정 ID를 사용하며 자료별 내부 UUID를 만들지 않는다. `get_entity_type_identity`로 해당 종류의 번호 라벨·기본 발급처·지원 규칙·발급 방식·`version`을 확인한다. 선택한 `source`와 `version`을 `identity_version`으로 저장 입력에 유지한다. `automatic` 방식은 `external_id` 생략 시 저장 트랜잭션에서 발급하고 `direct` 방식은 원본 문자열을 명시한다. `settings_changed`이면 초안을 보존하고 종류 설정을 다시 확인한 뒤 새 의도 키로 제출한다. 활성 중복은 덮어쓰지 않는다. 삭제된 조합은 정본 ID로 `get_entity`를 조회하여 보관값·`version`·`deleted_at`을 확인하고 명시 복원 의도와 현재 `expected_version`으로 등록한다. 발급처가 중지되어도 기존 자료의 읽기·속성 편집·복원은 유지된다. 자료 종류·발급처·번호는 등록 후 변경할 수 없다. 번호 정정은 올바른 번호로 새 자료를 만들며 기존 연결·기록을 자동 이관하지 않는다. `update_entity`에는 `schema_version`·`expected_version`과 업무 속성·태그만 전달한다. 복원은 기존 값·태그·연결을 되살리며 별도로 삭제한 할 일·기록은 되살리지 않는다.
+자료 ID는 `발급처 코드:자료 종류 ID:원본 번호`다. 서버가 반환한 정본 ID를 참조에 그대로 사용한다. 번호의 대소문자·앞자리 0·구분자·Unicode를 바꾸지 않는다. 자료 종류의 불변 설정 ID를 사용하며 자료별 내부 UUID를 만들지 않는다. `get_entity_type_identity`로 해당 종류의 번호 라벨·기본 발급처·지원 규칙·발급 방식·`version`을 확인한다. 선택한 `source`와 `version`을 `identity_version`으로 저장 입력에 유지한다. `automatic` 방식은 `external_id` 생략 시 저장 트랜잭션에서 발급하고 `direct` 방식은 원본 문자열을 명시한다. `settings_changed`이면 초안을 보존하고 종류 설정을 다시 확인한 뒤 새 의도 키로 제출한다. 활성 중복은 덮어쓰지 않는다. 삭제된 조합은 정본 ID로 `get_entity`를 조회하여 보관값·`version`·`deleted_at`을 확인하고 명시 복원 의도와 현재 `expected_version`으로 등록한다. 발급처가 중지되어도 기존 자료의 읽기·속성 편집·복원은 유지된다. 자료 종류·발급처·번호는 등록 후 변경할 수 없다. 번호 정정은 올바른 번호로 새 자료를 만들며 기존 연결·기록을 자동 이관하지 않는다. `update_entity`에는 `schema_version`·`expected_version`과 변경할 업무 속성만 전달한다. 복원은 기존 값·태그·연결을 되살리며 별도로 삭제한 할 일·기록은 되살리지 않는다.
+
+자료 생성·복원·내용 수정과 `create_and_link_entity`의 중첩 `entity` 입력은 `tag_ids`를 받지 않는다. 먼저 자료를 저장한 뒤 `set_tag_connections`에 `target_kind`, 저장된 `target_id`, 현재 `expected_version`, 최종 `tag_ids`를 전달해 독립적으로 연결·해제한다. 연결은 같은 공간의 해당 자료 종류 쓰기 권한과 entity 범위 태그가 필요하다. 연결 실패·취소 후에도 저장된 자료를 유지하며 자료 생성 요청을 반복하지 않는다. 연결 메모는 `prepare_record_memo`의 `intent:"tag-connections"`, `model:"entity"`, `action:"update"`, 대상 ID·버전과 `input:{tag_ids}`로 준비한다. `change_tag_ids`는 변경 기록의 태그이며 자료의 태그 연결과 구분한다. 응답 불명에는 연결 요청의 같은 키·대상·버전·정확한 입력을 유지한다.
 
 
-자료 사이에는 명시된 관계 정의만 사용한다. 먼저 `list_entity_relation_definitions`로 양끝 종류·역할·개수를 확인하고 해당 `definition_id`·`side`·`origin_id`로 현재 연결과 후보를 읽는다. 정의가 없으면 임의 연결하거나 정의를 자동 생성하지 않는다. 관계 설정 변경을 요청받은 경우에만 정의를 만든다. 연결·해제·단일 교체에는 최신 정의 버전과 양쪽 자료 버전·메모·태그·요청 키를 유지한다. 작성해서 연결은 `create_and_link_entity`로 한 번에 저장한다. 복수 관계의 전체 개수 제한은 없으며 페이지 커서로 모두 읽는다. 과거 정의 없는 연결 원본은 현재 관계로 자동 배정하지 않는다. 할 일·기록의 `entity_ids` 대상 지정은 이 관계 설정과 별개다.
+자료 사이에는 명시된 관계 정의만 사용한다. 업무 조회에서는 `list_entity_relation_definitions`·`get_entity_relation_definition`에 `purpose:"business"`를 지정해 현재 읽을 수 있는 양끝 종류·역할·개수를 확인하고 해당 `definition_id`·`side`·`origin_id`로 현재 연결과 후보를 읽는다. 정의가 없으면 임의 연결하거나 정의를 자동 생성하지 않는다. 관계 설정 변경을 요청받은 경우에만 설정 권한으로 정의를 조회·변경하며 이때 업무 조회용 `purpose`를 생략한다. 연결 변경에는 현재 양끝 종류의 쓰기 권한이 모두 필요하다. 연결·해제·단일 교체에는 최신 정의 버전과 양쪽 자료 버전·메모·태그·요청 키를 유지한다. 작성해서 연결은 `create_and_link_entity`로 한 번에 저장한다. 복수 관계의 전체 개수 제한은 없으며 페이지 커서로 모두 읽는다. 과거 정의 없는 연결 원본은 현재 관계로 자동 배정하지 않는다. 할 일·기록의 `entity_ids` 대상 지정은 이 관계 설정과 별개다.
 
 발급처 설정 변경을 요청받으면 해당 발급처·규칙 또는 종류 설정의 최신 `version`을 읽고 그 객체의 `expected_version`으로 저장한다. 종류마다 발급처 규칙 하나를 연결한다. 참조된 규칙의 의미와 연결은 유지하며 라벨 변경이나 새 등록 사용 중지만 수행한다. 기본 발급처를 중지하려면 영향을 받는 종류에서 다른 활성 기본값을 먼저 선택한다. 외부 플랫폼 API 가져오기·인증·동기화는 이 기반 도구의 기능이 아니다.
 
@@ -118,6 +120,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 반복 할 일의 회차 기록·중단·재개 | `record_occurrence`, `stop_task`, `resume_task` |
 | 현재 자료·활동·색인 현황 | `get_status`, `list_indexing_issues` |
 | 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
+| 저장된 대상의 태그 독립 연결·해제 | `set_tag_connections` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
 | 기록 본문 의미 검색·업무 제목/본문 키워드 조회 | `search` |
 | 자료 찾기·전체 값 읽기·만들기·고치기·지우기 | `list_entities`, `get_entity`, `create_entity`, `update_entity`, `delete_entity` |

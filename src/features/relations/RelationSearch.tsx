@@ -114,6 +114,7 @@ export function RelationSearch(
         };
       },
     }), [
+    api,
     keyword,
     composing,
     retry,

@@ -1,13 +1,16 @@
+import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import { notFound } from "../../core/shared/errors.ts";
+import type { EntityEntry } from "../../core/entity/application.ts";
 import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
 import { entityId } from "../../contracts/entity-identity.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { EntityCreate, EntityDetail, EntityQuery, EntityUpdate, EntityValues } from "../../contracts/entity.ts";
-import { entityPresentationRow, loadEntityDefinition } from "./entity-values.ts";
+import { entityPresentationRow, loadBusinessEntityDefinition } from "./entity-values.ts";
 import type { EntityStore } from "../../core/entity/application.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import { type EntityKeyset, fieldKind } from "../../core/entity/list-rules.ts";
-import { runAsActor, SqlActorStore } from "./sql-context.ts";
+import { SqlActorStore } from "./sql-context.ts";
 import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
 const columns =
   "id,source,external_id,deleted_at,entity_type_id,schema_version,properties,version,created_at,updated_at";
@@ -28,22 +31,32 @@ function result(r: Record<string, unknown>) {
   };
 }
 export class SqlEntityStore extends SqlActorStore implements EntityStore {
-  definition(typeId: string, lock = false) {
-    return loadEntityDefinition(this.tx, typeId, lock);
+  private get workspaceId() {
+    return requireWorkspaceActor(this.actor).workspaceId;
   }
-  getTypeIdentity(typeId: string, lock = false) {
-    return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId, lock);
+  definition(typeId: string, lock = false) {
+    return loadBusinessEntityDefinition(this.tx, typeId, lock);
+  }
+  async getTypeIdentity(typeId: string, lock = false) {
+    if (lock) {
+      const [locked] = await this.tx`select app.lock_business_entity_identity(${typeId}::uuid) as available`;
+      if (!locked.available) return null;
+    }
+    return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId);
   }
   async get(id: string, lock = false) {
     if (lock) {
       // Discover immutable type without locking the entity; acquire type first for publication/migration.
-      const [identity] = await this.tx`select entity_type_id from app.entities where id=${id}`;
+      const [identity] = await this
+        .tx`select entity_type_id from app.entities where workspace_id=${this.workspaceId} and id=${id}`;
       if (!identity) return null;
       await this.definition(identity.entity_type_id, true);
-      const rows = await this.tx`select id from app.entities where id=${id} for update`;
+      const rows = await this
+        .tx`select id from app.entities where workspace_id=${this.workspaceId} and id=${id} for update`;
       if (!rows.length) return null;
     }
-    const [r] = await this.tx`select ${this.projection()} from ${this.joined()} where entities.id=${id}`;
+    const [r] = await this
+      .tx`select ${this.projection()} from ${this.joined()} where entities.workspace_id=${this.workspaceId} and entities.id=${id}`;
     return r ? this.present(r) : null;
   }
   private projection() {
@@ -56,9 +69,9 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   }
   private joined() {
     const tx = this.tx;
-    return tx`app.entities join app.entity_types t on t.owner_id=entities.owner_id and t.id=entities.entity_type_id
-      join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
-      join app.entity_issuers issuer on issuer.owner_id=entities.owner_id and issuer.code=entities.source`;
+    return tx`app.entities join app.entity_types t on t.workspace_id=entities.workspace_id and t.id=entities.entity_type_id
+      join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version
+      join app.entity_issuers issuer on issuer.workspace_id=entities.workspace_id and issuer.code=entities.source`;
   }
   private present(r: Record<string, unknown>): EntityValues {
     const row = result(r);
@@ -72,25 +85,33 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     const tx = this.tx;
     // Shared type locks keep revision resolution and query on the same publication epoch.
     // Reading during preparation remains allowed; only the atomic pointer commit waits.
-    const rows = await tx`select id,schema_version as version,schema_version from app.entity_types ${
-      typeId ? tx`where id=${typeId}::uuid` : tx``
-    } order by id for share`;
-    return rows.map((row) => ({
-      id: String(row.id),
-      type_version: Number(row.version),
-      schema_version: Number(row.schema_version),
-    }));
+    const rows = await tx`select id,schema_version as version,schema_version from app.entity_types
+      where workspace_id=${requireWorkspaceActor(this.actor).workspaceId}
+      and app.workspace_allows('entity_type',id::text,'read')
+      ${typeId ? tx`and id=${typeId}::uuid` : tx``} order by id`;
+    const revisions = [];
+    // The narrow reader lock is authorized by the kind grant, not settings UPDATE.
+    // Lock in deterministic order and read the revision after a publication waiter.
+    for (const row of rows) {
+      const [locked] = await tx`select app.lock_business_entity_type(${row.id}::uuid,false) as kind`;
+      if (locked.kind) {
+        revisions.push({
+          id: String(locked.kind.id),
+          type_version: Number(locked.kind.schema_version),
+          schema_version: Number(locked.kind.schema_version),
+        });
+      }
+    }
+    return revisions;
   }
   async insert(i: Parameters<EntityStore["insert"]>[0], generatedIdentity = false) {
     let external_id = i.external_id;
     const insert = () =>
-      this.tx`insert into app.entities(id,owner_id,source,external_id,entity_type_id,schema_version,properties)
-      values (${
-        entityId(i.source, i.entity_type_id, external_id)
-      },${this.actor.userId},${i.source},${external_id},${i.entity_type_id},${i.schema_version},${
-        this.tx.json(i.properties)
-      })
-      ${generatedIdentity ? this.tx`on conflict (owner_id,id) do nothing` : this.tx``} returning ${
+      this.tx`insert into app.entities(id,workspace_id,source,external_id,entity_type_id,schema_version,properties)
+      values (${entityId(i.source, i.entity_type_id, external_id)},${
+        requireWorkspaceActor(this.actor).workspaceId
+      },${i.source},${external_id},${i.entity_type_id},${i.schema_version},${this.tx.json(i.properties)})
+      ${generatedIdentity ? this.tx`on conflict (workspace_id,id) do nothing` : this.tx``} returning ${
         this.tx.unsafe(columns)
       }`;
     let first = true;
@@ -102,22 +123,29 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       })
       : (await insert())[0];
     const entity = result(row);
-    await setTagLinks(this.tx, this.actor, "entity", entity.id, i.tag_ids ?? []);
     return (await this.get(entity.id))!;
   }
   async update(id: string, changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_tag_ids">) {
-    if (changes.tag_ids !== undefined) await setTagLinks(this.tx, this.actor, "entity", id, changes.tag_ids);
     await this.tx`update app.entities set schema_version=${changes.schema_version},
       properties=${changes.properties === undefined ? this.tx`properties` : this.tx.json(changes.properties)},
-      version=version+1,updated_at=now() where id=${id}`;
+      version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id}`;
+    return (await this.get(id))!;
+  }
+  /** Independent saved-target links never rewrite business properties or schema. */
+  async setTags(id: string, ids: string[]) {
+    await setTagLinks(this.tx, this.actor, "entity", id, ids);
+    await this.tx`update app.entities set version=version+1,updated_at=now() where workspace_id=${
+      requireWorkspaceActor(this.actor).workspaceId
+    } and id=${id}`;
     return (await this.get(id))!;
   }
   async delete(id: string) {
-    await this.tx`update app.entities set deleted_at=now(),version=version+1,updated_at=now() where id=${id}`;
+    await this
+      .tx`update app.entities set deleted_at=now(),version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id}`;
   }
   async restore(id: string, changes: EntityCreate) {
     const { source: _source, external_id: _external, expected_version: _version, ...props } = changes;
-    await this.tx`update app.entities set deleted_at=null where id=${id}`;
+    await this.tx`update app.entities set deleted_at=null where workspace_id=${this.workspaceId} and id=${id}`;
     return this.update(id, props);
   }
   async list(q: EntityQuery, after?: EntityKeyset, typeIds?: string[]) {
@@ -196,11 +224,15 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">> {
     const load = async (table: "tasks" | "records") => {
       const tx = this.tx;
-      const membership = tx`entity_ids @> array[${id}::text]`;
-      const [count] = await tx`select count(*)::integer as count from app.${tx(table)} where ${membership}`;
+      const membership = table === "records" ? tx`entity_id=${id}` : tx`entity_ids @> array[${id}::text]`;
+      const [count] = await tx`select count(*)::integer as count from app.${
+        tx(table)
+      } where workspace_id=${this.workspaceId} and ${membership}`;
       const rows = await tx`select id,updated_at ${
         table === "records" ? tx`,body,record_kind,occurred_at` : tx`,title`
-      } from app.${tx(table)} where ${membership} order by updated_at desc,id desc limit 5`;
+      } from app.${
+        tx(table)
+      } where workspace_id=${this.workspaceId} and ${membership} order by updated_at desc,id desc limit 5`;
       return {
         count: count.count as number,
         rows,
@@ -229,7 +261,22 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
 }
 export class SqlEntityUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
-  run<T>(a: Actor, fn: (s: EntityStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, a, (tx) => fn(new SqlEntityStore(tx, a)));
+  run<T>(a: Actor, fn: (s: EntityStore) => Promise<T>, entry?: EntityEntry): Promise<T> {
+    const actor = requireWorkspaceActor(a);
+    const requirements = entry?.typeId
+      ? [{ target_kind: "entity_type" as const, target_id: entry.typeId, access: entry.access }]
+      : [];
+    return runInWorkspace(this.sql, actor, { mode: "business", requirements }, async (tx) => {
+      if (entry?.entityId) {
+        // Resolve immutable authority metadata before content and request-receipt reads.
+        const [target] =
+          await tx`select entity_type_id from app.entities where workspace_id=${actor.workspaceId} and id=${entry.entityId}`;
+        if (!target) throw notFound();
+        requirements.push({ target_kind: "entity_type", target_id: target.entity_type_id, access: entry.access });
+        await authorizeWorkspace(tx, requirements);
+        await tx`select set_config('request.workspace_requirements',${JSON.stringify(requirements)},true)`;
+      }
+      return fn(new SqlEntityStore(tx, a));
+    });
   }
 }
