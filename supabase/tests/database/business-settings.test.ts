@@ -1,6 +1,7 @@
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
 import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
-import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { connect, dbTest, urls } from "./_db.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
@@ -17,7 +18,7 @@ import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 
 dbTest("설정 ID별 첫 저장·버전 격리와 같은 ID의 동시 저장 충돌", async () => {
   const admin = connect(urls.admin), sql = connect(urls.direct, { max: 3 });
-  const own = await fixtureOwner(admin), first = await fixtureOwner(admin);
+  const own = await businessWorkspaceFixture(admin, sql), first = await businessWorkspaceFixture(admin, sql);
   const settings = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
   try {
     const input = {
@@ -25,19 +26,19 @@ dbTest("설정 ID별 첫 저장·버전 격리와 같은 ID의 동시 저장 충
       expected_version: 0,
       value: { task: { create: { memo: "동시 기록 기본값", tag_ids: [] } } },
     };
-    await updateBusinessSettings(settings, requestActor(own.actor), input);
-    const saved = await getBusinessSettings(settings, own.actor);
+    await updateBusinessSettings(settings, requestActor(own.manager), input);
+    const saved = await getBusinessSettings(settings, own.manager);
     assertEquals(saved.versions, { record_templates: 1 });
     assertEquals(saved.settings.record_templates?.task?.create?.memo, "동시 기록 기본값");
-    await updateBusinessSettings(settings, requestActor(own.actor), { ...input, expected_version: 1, value: {} });
-    assertEquals((await getBusinessSettings(settings, own.actor)).versions, { record_templates: 2 });
+    await updateBusinessSettings(settings, requestActor(own.manager), { ...input, expected_version: 1, value: {} });
+    assertEquals((await getBusinessSettings(settings, own.manager)).versions, { record_templates: 2 });
     assertEquals(
-      (await assertRejects(() => updateBusinessSettings(settings, requestActor(own.actor), input), AppError)).code,
+      (await assertRejects(() => updateBusinessSettings(settings, requestActor(own.manager), input), AppError)).code,
       "conflict",
     );
     assertEquals(
       (await assertRejects(async () =>
-        await updateBusinessSettings(settings, requestActor(own.actor), {
+        await updateBusinessSettings(settings, requestActor(own.manager), {
           id: "entity_identity",
           expected_version: 0,
           value: {},
@@ -46,7 +47,7 @@ dbTest("설정 ID별 첫 저장·버전 격리와 같은 ID의 동시 저장 충
     );
     const outcomes = await Promise.allSettled(
       ["첫 번째", "두 번째"].map((memo) =>
-        updateBusinessSettings(settings, requestActor(first.actor), {
+        updateBusinessSettings(settings, requestActor(first.manager), {
           id: "record_templates",
           expected_version: 0,
           value: { task: { create: { memo, tag_ids: [] } } },
@@ -54,7 +55,7 @@ dbTest("설정 ID별 첫 저장·버전 격리와 같은 ID의 동시 저장 충
       ),
     );
     assertEquals(outcomes.filter((result) => result.status === "fulfilled").length, 1);
-    assertEquals((await getBusinessSettings(settings, first.actor)).versions, {
+    assertEquals((await getBusinessSettings(settings, first.manager)).versions, {
       record_templates: 1,
     });
   } finally {
@@ -65,27 +66,32 @@ dbTest("설정 ID별 첫 저장·버전 격리와 같은 ID의 동시 저장 충
   }
 });
 
-dbTest("업무 설정 DB: 소유자 격리·섹션 병합·경합·고정 메모·명시 빈 태그·삭제 태그·과거 기록 보존", async () => {
+dbTest("업무 설정 DB: 공간 격리·섹션 병합·경합·고정 메모·명시 빈 태그·삭제 태그·과거 기록 보존", async () => {
   const admin = connect(urls.admin), sql = connect(urls.direct);
-  const own = await fixtureOwner(admin), other = await fixtureOwner(admin);
+  const own = await businessWorkspaceFixture(admin, sql), other = await businessWorkspaceFixture(admin, sql);
   const settings = {
     uow: new SqlBusinessSettingsUnitOfWork(sql),
     clock: { now: () => new Date("2026-10-09T00:00:00Z") },
   };
   const activity = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
   const tags = { uow: new SqlTagUnitOfWork(sql) };
-  const actor = own.actor;
+  const actor = own.manager;
   try {
+    await own.grant(actor, [{ target_kind: "settings", target_id: "*", access: "write" }, {
+      target_kind: "tasks",
+      target_id: "*",
+      access: "write",
+    }]);
     const tag = await createTag(tags, requestActor(actor), { name: "기본 기록", scope: "record" });
     await updateBusinessSettings(settings, requestActor(actor), {
       expected_version: 0,
       id: "record_templates",
       value: { task: { create: { memo: "${대상$}: ${할일.이후.본문$} (${액션$})", tag_ids: [tag.id] } } },
     });
-    assertEquals((await getBusinessSettings(settings, other.actor)).versions, {
+    assertEquals((await getBusinessSettings(settings, other.manager)).versions, {
       record_templates: 0,
     });
-    assertEquals((await getBusinessSettings(settings, other.actor)).settings.record_templates, {});
+    assertEquals((await getBusinessSettings(settings, other.manager)).settings.record_templates, {});
     assertEquals((await getBusinessSettings(settings, actor)).settings.record_templates?.task?.create?.tag_ids, [
       tag.id,
     ]);
@@ -154,25 +160,29 @@ dbTest("업무 설정 DB: 소유자 격리·섹션 병합·경합·고정 메모
 });
 
 dbTest("자료 기본 문구의 SQL 비교는 구 공통 값을 무시하며 null 문구와 종류 태그를 보존한다", async () => {
-  const admin = connect(urls.admin), owner = await fixtureOwner(admin), typeId = crypto.randomUUID();
+  const admin = connect(urls.admin),
+    sql = connect(urls.direct),
+    owner = await businessWorkspaceFixture(admin, sql),
+    typeId = crypto.randomUUID();
   const templates = {
     entity: { create: { memo: "폐기된 공통", tag_ids: [crypto.randomUUID()] } },
     entity_types: { [typeId]: { update: { memo: null, tag_ids: [] } } },
   };
   try {
-    await admin`insert into app.user_business_settings(owner_id,id,version,settings) values(${owner.actor.userId},'record_templates',1,${
+    await admin`insert into app.user_business_settings(workspace_id,id,version,settings) values(${owner.workspaceId},'record_templates',1,${
       admin.json(templates)
     })`;
     const [row] =
-      await admin`select private.entity_schema_effective_templates(${owner.actor.userId}::uuid,${typeId}::uuid) as value`;
+      await admin`select private.entity_schema_effective_templates(${owner.workspaceId}::uuid,${typeId}::uuid) as value`;
     assertEquals(row.value.entity.create, { memo: "$대상$ $액션$", tag_ids: [] });
     assertEquals(row.value.entity.update, { memo: "$대상$ $액션$ ($변경항목$)", tag_ids: [] });
     const [unchanged] =
-      await admin`select settings,version from app.user_business_settings where owner_id=${owner.actor.userId} and id='record_templates'`;
+      await admin`select settings,version from app.user_business_settings where workspace_id=${owner.workspaceId} and id='record_templates'`;
     assertEquals(unchanged.settings, templates);
     assertEquals(Number(unchanged.version), 1);
   } finally {
     await owner.cleanup();
+    await sql.end();
     await admin.end();
   }
 });
