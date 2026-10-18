@@ -116,6 +116,22 @@ dbTest(
         preview_fingerprint: managerA.fingerprint,
       });
       assertEquals(prepared.status, "ready");
+      await runInWorkspace(sql, reader, {
+        mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      }, async (tx) => {
+        for (const path of [
+          ["target", "entity_types", "0", "schema", "title"],
+          ["source", "entity_types", "0", "schema", "title"],
+          ["review", "mapping", "types", exported.entity_types[0].ref],
+        ]) {
+          const poisoned = await assertRejects(() => tx.savepoint((attempt) =>
+            attempt`update app.data_model_changes set plan=jsonb_set(plan,${path}::text[],to_jsonb('준비 후 위조'::text))
+              where workspace_id=${owned[0]}::uuid and id=${prepared.id}::uuid`
+          ));
+          assertEquals((poisoned as { code?: string }).code, "23514");
+          assertEquals((poisoned as Error).message, "model_plan_semantics_immutable");
+        }
+      });
       assertEquals((await getDataModelChange(modelDeps, reader, prepared.id)).id, prepared.id);
       const secondPrepared = await prepareDataModel(modelDeps, key(first), {
         ...reviewInput,
