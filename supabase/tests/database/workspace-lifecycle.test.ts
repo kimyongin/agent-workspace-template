@@ -18,6 +18,38 @@ const deps = { uow: new SqlWorkspaceUnitOfWork(sql) };
 const keyed = (actor: { userId: string }) => ({ ...actor, request: { key: crypto.randomUUID() } });
 
 dbTest(
+  "the final manager may leave a deleted workspace without destroying it or gaining restore authority",
+  async () => {
+    const actor = { userId: crypto.randomUUID() };
+    let id: string | undefined;
+    await admin`insert into auth.users(id,email) values(${actor.userId},${`workspace517-${actor.userId}@example.test`})`;
+    try {
+      id = (await createWorkspace(deps, keyed(actor), { name: "탈퇴 후 보존" })).workspace.id;
+      await workspaces.deleteWorkspace(deps, keyed(actor), id, { expected_generation: 1 });
+      const request = keyed(actor), input = { expected_version: 1 };
+      assertEquals(await workspaces.leaveWorkspace(deps, request, id, input), { left: true });
+      assertEquals((await workspaces.listDeletedWorkspaces(deps, actor)).items, []);
+      assertEquals(
+        (await assertRejects(() => workspaces.leaveWorkspace(deps, request, id, input), AppError)).code,
+        "forbidden",
+      );
+      assertEquals(
+        (await assertRejects(
+          () => workspaces.restoreWorkspace(deps, keyed(actor), id, { expected_generation: 2 }),
+          AppError,
+        )).code,
+        "forbidden",
+      );
+      const [preserved] = await admin`select deleted_at is not null as deleted from app.workspaces where id=${id}`;
+      assertEquals(preserved, { deleted: true });
+    } finally {
+      if (id) await admin`delete from app.workspaces where id=${id}`;
+      await admin`delete from auth.users where id=${actor.userId}`;
+    }
+  },
+);
+
+dbTest(
   "concurrent physical and soft Auth removals preserve one real administrator across shared workspaces",
   async () => {
     for (const kind of ["delete", "soft", "mixed"] as const) {
