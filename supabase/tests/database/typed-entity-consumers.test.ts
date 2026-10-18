@@ -27,11 +27,14 @@ const d = { uow: new SqlEntityUnitOfWork(sql) },
 // Administrative custom-schema/scale seeding is exact fixture setup, not RLS proof.
 function seedInWorkspace<T>(actor: WorkspaceActor, run: (tx: postgres.TransactionSql) => Promise<T>) {
   return admin.begin(async (tx) => {
-    await tx`select set_config('request.workspace_id',${actor.workspaceId},true)`;
+    await tx`select set_config('request.jwt.claims',${
+      JSON.stringify({ sub: actor.userId, role: "authenticated" })
+    },true),
+      set_config('request.workspace_id',${actor.workspaceId},true)`;
     return run(tx);
   });
 }
-async function typeFixture(actor: WorkspaceActor, label: string, numeric = true, id: string = crypto.randomUUID()) {
+async function typeFixture(actor: WorkspaceActor, label: string, numeric = true) {
   const definition = initialEntityDefinition("이름");
   Object.assign(definition.schema.properties, {
     prop_2: { "x-order": 20, "x-show-in-list": true, type: numeric ? ["number", "null"] : "string", title: "값" },
@@ -41,7 +44,7 @@ async function typeFixture(actor: WorkspaceActor, label: string, numeric = true,
   });
   return await seedInWorkspace(actor, async (tx) => {
     const [type] =
-      await tx`insert into app.entity_types(workspace_id,id,next_property_number) values(${actor.workspaceId},${id},6) returning id`;
+      await tx`insert into app.entity_types(workspace_id,next_property_number) values(${actor.workspaceId},6) returning id`;
     definition.schema["x-type-id"] = String(type.id);
     definition.schema.title = label;
     await tx`insert into app.entity_schema_versions(workspace_id,schema) values(${actor.workspaceId},${
@@ -60,11 +63,11 @@ dbTest(
         text = await typeFixture(owner.manager, "텍스트 자료", false),
         other = await typeFixture(foreign.manager, "타인 자료");
       const second = await owner.addWorkspace("같은 실행자의 다른 공간");
-      const sameId = await typeFixture(second.manager, "같은 종류 ID", true, type.id);
+      const secondType = await typeFixture(second.manager, "다른 공간의 숫자 자료");
       await owner.grantKind(owner.manager, type.id, "write");
       await owner.grantKind(owner.manager, text.id, "write");
       await foreign.grantKind(foreign.manager, other.id, "write");
-      await owner.grantKind(second.manager, sameId.id, "write");
+      await owner.grantKind(second.manager, secondType.id, "write");
       const values = [
         {},
         { prop_2: null, prop_3: null, prop_4: null },
@@ -131,7 +134,9 @@ dbTest(
         limit: 1,
       });
       for (
-        const [actor, patch] of [[foreign.manager, { entity_type_id: other.id }], [second.manager, {}], [
+        const [actor, patch] of [[foreign.manager, { entity_type_id: other.id }], [second.manager, {
+          entity_type_id: secondType.id,
+        }], [
           owner.manager,
           { entity_type_id: text.id },
         ], [owner.manager, {
