@@ -192,7 +192,12 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     } where ${c.recovery_source_job_id}::uuid is null or exists(select 1 from app.entity_schema_migrations source where source.id=${c.recovery_source_job_id} and source.source_expires_at>clock_timestamp()) returning *`;
     if (!j) throw new AppError("migration_source_expired", "복구 원본의 30일 보관 기간이 지났습니다");
     await this
-      .tx`insert into private.entity_schema_migration_rows(workspace_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed,recovery_properties) select r.workspace_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb)),r.after,r.changed,r.recovery_properties from private.entity_schema_analysis_rows r join app.entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
+      // Materialize the authorized kind once: otherwise a correlated nested loop
+      // may repeat its full RLS-filtered scan for every analysis row.
+      .tx`with readable_entities as materialized (
+        select workspace_id,id,source,external_id from app.entities
+        where workspace_id=${this.schemaWorkspaceId}::uuid and entity_type_id=${typeId}
+      ) insert into private.entity_schema_migration_rows(workspace_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed,recovery_properties) select r.workspace_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb)),r.after,r.changed,r.recovery_properties from private.entity_schema_analysis_rows r join readable_entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.workspace_id=${this.schemaWorkspaceId}::uuid and r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
     await this.tx`update app.entity_types set schema_write_locked=true where id=${typeId}`;
     return this.accepted(j);
   }
