@@ -117,7 +117,7 @@ export function EntityDetailPage() {
     return () => cancelAnimationFrame(frame);
   }, [creating, editReady, entity]);
   const entityContext: EntityContext[] = entity
-    ? [{ id: entity.id, title: entity.title, source: "selection", captured_at: new Date().toISOString() }]
+    ? [{ id: entity.id, title: entity.title, type: entity.type, source: "selection", captured_at: new Date().toISOString() }]
     : [];
   const management = entity && !entity.deleted_at && (
     <div className="flex min-w-0 flex-col gap-6">

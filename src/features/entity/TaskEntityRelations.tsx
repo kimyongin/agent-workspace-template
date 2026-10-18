@@ -1,3 +1,4 @@
+import { useEntityReadAccess } from "./entity-access.ts";
 import { useTaskAccess } from "../activity/task-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -171,6 +172,9 @@ function RelationControls({
 export function TaskEntityRelations(
   { task, onSaved, readOnly = false }: { task: TaskResult; readOnly?: boolean; onSaved: (saved?: TaskResult, before?: TaskResult) => void },
 ) {
+  const canReadType = useEntityReadAccess();
+  const readable = task.entity_context.filter(item => item.type && canReadType(item.type.id));
+  task = { ...task, entity_ids: task.entity_ids.filter(id => readable.some(item => item.id === id)), entity_context: readable };
   if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={task.entity_ids.length}>
     <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <CollectionItem key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></CollectionItem>)}</CollectionList>
   </RelatedSection>;
