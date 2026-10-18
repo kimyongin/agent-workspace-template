@@ -8,11 +8,13 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { entityCreate, entityListQuery } from '../../supabase/functions/_shared/contracts/entity.ts';
 import { tagCreate, tagListQuery } from '../../supabase/functions/_shared/contracts/tag.ts';
-import { recordCreate, recordListQuery } from '../../supabase/functions/_shared/contracts/record.ts';
+import { recordListQuery } from '../../supabase/functions/_shared/contracts/record.ts';
 import { taskCreate, taskListQuery } from '../../supabase/functions/_shared/contracts/task.ts';
 import { requestKey } from '../../supabase/functions/_shared/contracts/request.ts';
-// The same public input contracts used by HTTP/MCP; no core/runtime dependency.
-const creates = { tag: tagCreate, entity: entityCreate, record: recordCreate, task: taskCreate };
+// Journal v1 is historical owner-protocol evidence. Its retired record fixture
+// shape is local to this mock test and is never exposed by current HTTP/MCP.
+const historicalRecordInput = z.strictObject({ body: z.string().min(1).max(22000), tag_ids: z.array(z.string()).optional(), entity_ids: z.array(z.string()).optional() });
+const creates = { tag: tagCreate, entity: entityCreate, record: historicalRecordInput, task: taskCreate };
 const schemas = new Map(Object.entries(creates).map(([kind, contract]) => [`create_${kind}`, { parse(input) { const { request_key, ...body } = input; requestKey.parse(request_key); return { ...contract.parse(body), request_key }; } }]));
 for (const [name, contract] of Object.entries({ list_entities: entityListQuery, list_tags: tagListQuery, list_records: recordListQuery, list_tasks: taskListQuery })) schemas.set(name, contract);
 for (const kind of Object.keys(creates)) { schemas.set(`get_${kind}`, z.strictObject({ id: z.string() })); schemas.set(`delete_${kind}`, z.strictObject({ id: z.string(), expected_version: z.number(), request_key: requestKey.optional() })); }

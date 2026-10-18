@@ -14,6 +14,9 @@ import { readPreparationState } from './preparation.mjs';
 import { cleanupSavingRecords } from './saving-session.mjs';
 import { cleanupRoundtrip, prepareRoundtripProfile } from './roundtrip-session.mjs';
 
+// Historical #122–124 evidence is retained; this live protocol predates explicit workspaces.
+throw new Error('Retired owner/general-record experiment protocol: use current workspace fixtures; historical evidence is read-only');
+
 const [operation, source, clientName, outputDirectory, scenario = 'normal'] = process.argv.slice(2);
 if (!['normal', 'roundtrip'].includes(scenario)) throw new Error('Only owned documented preparation scenarios');
 if (!['setup', 'baseline', 'verify', 'cleanup'].includes(operation) || !source || !['codex-cli', 'claude-cli'].includes(clientName) || !outputDirectory || process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local') throw new Error('Root exclusive-local handoff required: prepare-fixture.mjs setup|baseline|verify|cleanup <allocated-source> <client> <outside-output>');

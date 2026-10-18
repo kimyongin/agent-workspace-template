@@ -20,6 +20,9 @@ import { observeSearch, searchProofForTarget } from './search-proof.mjs';
 import { roundtripModes, roundtripPrompt, assessRoundtripNative, hasRoundtripTaskOriginal, roundtripAnswerProof } from './roundtrip.mjs';
 import { openRoundtripTrial } from './roundtrip-session.mjs';
 
+// Historical #122–124 evidence is retained; this live protocol predates explicit workspaces.
+throw new Error('Retired owner/general-record experiment protocol: use current workspace fixtures; historical evidence is read-only');
+
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const [client, fixtureFile, mode, expectedCondition] = process.argv.slice(2);
 if (process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !['codex-cli', 'claude-cli'].includes(client) || !fixtureFile || !['prepare', 'prepare-explicit', ...savingModes, ...roundtripModes].includes(mode)) {

@@ -5,6 +5,9 @@ import { randomUUID, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { savingFaultAdapter } from './saving-fault.mjs';
 import { readRpcReply } from './rpc-response.mjs';
+// Historical #122–124 evidence is retained; this live protocol predates explicit workspaces.
+throw new Error('Retired owner/general-record experiment protocol: use current workspace fixtures; historical evidence is read-only');
+
 const [mode, port, upstreamText] = process.argv.slice(2);
 if (process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || port !== '55685' || upstreamText !== 'http://127.0.0.1:55621/functions/v1/mcp') throw new Error('Only allocated #123 loopback55685/upstream55621');
 const adapter = savingFaultAdapter(mode), upstream = new URL(upstreamText), instance = randomUUID();
