@@ -102,3 +102,70 @@ dbTest("workspace entity tag connections reject foreign scope and roll back late
     await f.cleanup();
   }
 });
+
+dbTest("workspace tag deletion authorizes every hidden affected kind before any unlink or receipt", async () => {
+  const f = await businessWorkspaceFixture(admin, sql);
+  try {
+    const left = await f.createKind("공개 분류"), right = await f.createKind("비공개 분류");
+    for (const kind of [left, right]) await f.grantKind(f.manager, kind.id, "write");
+    await f.grantKind(f.member, left.id, "write");
+    const values = [];
+    for (const kind of [left, right]) {
+      values.push(
+        await entities.createEntity(
+          entityDeps,
+          businessRequest(f.manager),
+          entityCreate.parse({ entity_type_id: kind.id, schema_version: 1, properties: { prop_1: "분류 대상" } }),
+        ),
+      );
+    }
+    const tag = await tags.createTag(tagDeps, businessRequest(f.manager), { scope: "entity", name: "함께 쓰는 분류" });
+    for (const value of values) {
+      await tags.setTagConnections(tagDeps, businessRequest(f.manager), {
+        target_kind: "entity",
+        target_id: value.id,
+        expected_version: 1,
+        tag_ids: [tag.id],
+      });
+    }
+    const deniedRequest = businessRequest(f.member);
+    const denied = await assertRejects(async () => await tags.deleteTag(tagDeps, deniedRequest, tag.id, 1), AppError);
+    assertEquals(denied.code, "forbidden");
+    for (const value of values) {
+      const unchanged = await entities.getEntity(entityDeps, f.manager, value.id);
+      assertEquals([unchanged.tag_ids, unchanged.version, unchanged.records.count], [[tag.id], 2, 2]);
+    }
+    assertEquals(
+      Number(
+        (await admin`select count(*) n from private.workspace_request_results where workspace_id=${f.workspaceId} and request_key=${
+          deniedRequest.request!.key
+        }`)[0].n,
+      ),
+      0,
+    );
+    await f.grantKind(f.member, right.id, "write");
+    const request = businessRequest(f.member);
+    assertEquals(await tags.deleteTag(tagDeps, request, tag.id, 1), { deleted: true });
+    assertEquals(await tags.deleteTag(tagDeps, request, tag.id, 1), { deleted: true });
+    for (const value of values) {
+      const changed = await entities.getEntity(entityDeps, f.manager, value.id);
+      assertEquals([changed.tag_ids, changed.version, changed.records.count], [[], 3, 3]);
+    }
+    assertEquals((await tags.listTags(tagDeps, f.manager, { scope: "entity", limit: 100 })).items, []);
+    const [receipt] =
+      await admin`select footprint from private.workspace_request_results where workspace_id=${f.workspaceId} and request_key=${
+        request.request!.key
+      }`;
+    assertEquals(
+      receipt.footprint,
+      [left.id, right.id].sort().map((target_id) => ({ target_kind: "entity_type", target_id, access: "write" })),
+    );
+    await f.grantKind(f.member, right.id, "none");
+    assertEquals(
+      (await assertRejects(async () => await tags.deleteTag(tagDeps, request, tag.id, 1), AppError)).code,
+      "forbidden",
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
