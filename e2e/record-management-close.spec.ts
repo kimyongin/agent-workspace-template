@@ -1,11 +1,12 @@
 import { detailDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique , ownedWorkspace, workspacePath} from "./support.ts";
 
 for (const kind of ["once", "recurring"] as const) {
   test(`#515 실제 MCP/웹 ${kind}: 명시적 수행 결과 저장·작성 URL 종료·새로고침·취소`, async ({ page }) => {
     await devLogin(page);
-    const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+    const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
     const title = unique(`결과 작성 종료 ${kind}`);
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     let taskId = "";
@@ -19,7 +20,7 @@ for (const kind of ["once", "recurring"] as const) {
       });
       taskId = task.id;
       const action = kind === "once" ? "완료하고 기록" : `${today} 회차 기록`;
-      await page.goto(`/tasks/${taskId}`);
+      await page.goto(workspacePath(workspace.id, `/tasks/${taskId}`));
       const surface = detailDialog(page);
       await expect(surface.getByRole("button", { name: "기록 작성", exact: true })).toHaveCount(0);
       await surface.getByRole("button", { name: action, exact: true }).click();

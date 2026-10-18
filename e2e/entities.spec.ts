@@ -18,13 +18,14 @@ import {
   saveOnce,
 } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique , ownedWorkspace, workspacePath} from "./support.ts";
 
 test("Entity 웹 CRUD·초안 보호→MCP parity·삭제 원문 보존", async ({ page }) => {
   await devLogin(page);
-  const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page));
-  const fixtureType = await scalarFixtureType(fixtureMcp);
-  await page.goto(fixtureEntityList(fixtureType.id));
+  const workspace = await ownedWorkspace(page);
+  const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
+  const fixtureType = await scalarFixtureType(fixtureMcp, workspace);
+  await page.goto(fixtureEntityList(workspace.id, fixtureType.id));
   await fixtureMcp.close();
   await beginTabAction(page, "검사 자료 추가");
   const form = page.getByRole("dialog", { name: /^검사 자료.* 추가$/ }),
@@ -44,7 +45,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·삭제 원문 보존", async 
   await expect(page).toHaveURL(/\/entities\/[^/?]+%3A[0-9]{8}-[0-9A-Z]{8}(?:\?|$)/);
   await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   const id = decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const e = await mcp.call("get_entity", { id });
     expect(e.properties.prop_2).toBe(0);
@@ -55,7 +56,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·삭제 원문 보존", async 
       body: "연결을 보존",
       entity_ids: [id],
     });
-    await page.goto(`/entities/${encodeURIComponent(id)}`);
+    await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(id)}`));
     await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: /^검사 자료.* 편집$/ });
     await edit.getByLabel("수량").fill("10");
@@ -63,7 +64,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·삭제 원문 보존", async 
     await saveOnce(page, edit);
     await expect(edit).not.toBeVisible();
     expect((await mcp.call("get_entity", { id })).properties.prop_2).toBe(10);
-    await page.goto(`/entities/${encodeURIComponent(id)}`);
+    await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(id)}`));
     await openDetailEditor(page);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     const remove = executionDialog(page);
@@ -88,10 +89,11 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·삭제 원문 보존", async 
 
 test("Entity 연결 활동 검색·목록과 상세 복귀·편집의 자료 연결 보존", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
-    const type = await scalarFixtureType(mcp);
-    await page.goto(fixtureEntityList(type.id));
+    const type = await scalarFixtureType(mcp, workspace);
+    await page.goto(fixtureEntityList(workspace.id, type.id));
     await beginTabAction(page, "검사 자료 추가");
     const form = page.getByRole("dialog", { name: /^검사 자료.* 추가$/ });
     const name = unique("연결 검색 자료");
@@ -110,7 +112,7 @@ test("Entity 연결 활동 검색·목록과 상세 복귀·편집의 자료 연
       entity_ids: [id],
     });
     const unrelated = await mcp.call("create_task", { kind: "once", title: task.title + " 외부", body: "별도" });
-    await page.goto(`/search?q=${encodeURIComponent(task.title)}&mode=keyword&kind=task`);
+    await page.goto(workspacePath(workspace.id, `/search?q=${encodeURIComponent(task.title)}&mode=keyword&kind=task`));
     await openTabFilters(page);
     await page.getByLabel("자료", { exact: true }).selectOption(id);
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
@@ -134,17 +136,17 @@ test("Entity 연결 활동 검색·목록과 상세 복귀·편집의 자료 연
       ) => x.id),
     ).toEqual([task.id]);
     await mcp.call("delete_task", { id: unrelated.id, expected_version: 1 });
-    await page.goto(`/entities/${encodeURIComponent(id)}`);
+    await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(id)}`));
     await expect(page.getByRole("heading", { name: "할 일 (1개)" }))
       .toBeVisible();
     await expect(page.getByRole("link", { name: "전체 할 일 보기" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: task.title, exact: true })).toBeVisible();
-    await page.goto(`/tasks?entity_id=${encodeURIComponent(id)}`);
+    await page.goto(workspacePath(workspace.id, `/tasks?entity_id=${encodeURIComponent(id)}`));
     expect(new URL(page.url()).pathname).toBe("/tasks");
     await expect(page.getByRole("button", { name: task.title, exact: true }))
       .toBeVisible();
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
-    await page.goto(`/tasks/${task.id}`);
+    await page.goto(workspacePath(workspace.id, `/tasks/${task.id}`));
     await openDetailEditor(page);
     const editTask = page.getByRole("dialog", { name: "할 일 편집" });
     await expect(editTask.getByRole("searchbox", { name: "자료 제목 검색" })).toHaveCount(0);
@@ -157,51 +159,37 @@ test("Entity 연결 활동 검색·목록과 상세 복귀·편집의 자료 연
   }
 });
 
-test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이벤트 무쓰기", async ({ page }) => {
+test("자료 상세에는 일반 기록 작성이 없고 새로고침 후 원본과 자동 변경 기록을 보존한다", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
-    const entity = await createFixtureEntity(mcp, { prop_1: unique("연결 취소"), prop_2: 0, prop_4: "a" });
+    const entity = await createFixtureEntity(mcp, workspace, { prop_1: unique("단일 소속 원본"), prop_2: 0, prop_4: "a" });
     const before = await mcp.call("list_records", { entity_id: entity.id, record_kind: "change", limit: 100 });
-    await page.goto(`/entities/${encodeURIComponent(entity.id)}?list=%2Fentities`);
-    for (const dirty of [false, true]) {
-      await beginTabAction(page, "기록 작성");
-      const editor = page.getByRole("dialog", { name: "기록 작성", exact: true });
-      await expect(page).toHaveURL(/create=record/);
-      if (dirty) await editor.getByLabel("본문").fill("취소할 설명");
-      await editor.getByRole("button", { name: "취소", exact: true }).click();
-      if (dirty) {
-        await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" })
-          .click();
-      }
-      await expect(page).not.toHaveURL(/create=/);
-      await expect(page).toHaveURL(/list=/);
-      await expect(page.getByRole("button", { name: "기록 작성", exact: true })).toBeFocused();
-    }
-    // Reload commits a new document; verify its rendered target rather than
-    // capturing a previous document's final request while it is unloading.
+    await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(entity.id)}`));
+    await expect(detailDialog(page).getByRole("heading", { name: entity.title, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "기록 작성", exact: true })).toHaveCount(0);
     await page.reload();
-    await expect(page.getByRole("heading", { name: entity.title, exact: true })).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "기록 작성", exact: true })).toHaveCount(0);
+    await expect(detailDialog(page).getByRole("heading", { name: entity.title, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "기록 작성", exact: true })).toHaveCount(0);
     expect((await mcp.call("get_entity", { id: entity.id })).version).toBe(1);
-    expect((await mcp.call("list_records", { entity_id: entity.id, record_kind: "user" })).items).toEqual([]);
-    expect((await mcp.call("list_records", { entity_id: entity.id, record_kind: "change", limit: 100 })).items).toEqual(
-      before.items,
-    );
+    expect((await mcp.call("list_records", { entity_id: entity.id, record_kind: "change", limit: 100 })).items).toEqual(before.items);
+    expect(before.items.every((record: { entity_id: string; task_id: null }) => record.entity_id === entity.id && record.task_id === null)).toBe(true);
   } finally {
     await mcp.close();
   }
 });
+
 test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/새로고침 초점·viewport", async ({ page }) => {
   await devLogin(page);
+  const workspace = await ownedWorkspace(page);
   const token = await mcpTokenViaConsent(page);
-  const ownerId: string = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
-  const mcp = await mcpClient(token), marker = unique("페이지 엔터티"), ids: string[] = [];
+  const mcp = await mcpClient(token, { workspaceId: workspace.id }), marker = unique("페이지 엔터티"), ids: string[] = [];
   try {
     ids.push(
       ...await seedFixtureEntities(
         mcp,
-        ownerId,
+        workspace,
         Array.from({ length: 21 }, (_, i) => ({
           prop_1: `${marker} ${String(i).padStart(2, "0")}`,
           prop_2: i,
@@ -210,7 +198,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
       ),
     );
     await page.goto(
-      fixtureEntityList((await scalarFixtureType(mcp)).id, marker, "c", true),
+      fixtureEntityList(workspace.id, (await scalarFixtureType(mcp, workspace)).id, marker, "c", true),
     );
     await expect(page.getByRole("button", { name: `${marker} 00`, exact: true }))
       .toBeVisible();
@@ -232,9 +220,9 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
     }
-    await page.goto(fixtureEntityList((await scalarFixtureType(mcp)).id, marker, "c", true));
+    await page.goto(fixtureEntityList(workspace.id, (await scalarFixtureType(mcp, workspace)).id, marker, "c", true));
     await openListDetail(page, `${marker} 19`);
-    const concurrent = await createFixtureEntity(mcp, { prop_1: `${marker} 새 항목`, prop_2: 0, prop_4: "c" });
+    const concurrent = await createFixtureEntity(mcp, workspace, { prop_1: `${marker} 새 항목`, prop_2: 0, prop_4: "c" });
     ids.push(concurrent.id);
     await closeDetail(page, `${marker} 19`);
     await expect(page.getByRole("button", { name: `${marker} 19`, exact: true })).toBeFocused();
@@ -249,7 +237,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     const read = await (await reloaded).response();
     expect(read?.status()).toBe(200);
     await read!.finished();
-    await expect(page.getByRole("heading", { name: (await scalarFixtureType(mcp)).label, level: 1, exact: true }))
+    await expect(page.getByRole("heading", { name: (await scalarFixtureType(mcp, workspace)).label, level: 1, exact: true }))
       .toBeFocused();
   } finally {
     // The serial owned fixture releases exactly these rows after all browser work ends.
@@ -259,6 +247,12 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
 
 test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제거·늦은 응답 격리", async ({ page }) => {
   await devLogin(page);
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
+  const created = await mcp.call("create_entity_type", { label: unique("목록 응답 격리") });
+  await workspace.grantKind(created.id);
+  const visibleType = { ...fixtureType, id: created.id };
+  const visibleSchema = { ...fixtureSchema, type_id: created.id, type: visibleType, schema: { ...fixtureSchema.schema, "x-type-id": created.id } };
   let requests = 0, release: () => void = () => {}, started: () => void = () => {};
   const delayed = new Promise<void>((resolve) => release = resolve),
     arrived = new Promise<void>((resolve) => started = resolve);
@@ -267,10 +261,10 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
     (route) =>
       route.fulfill({
         json: new URL(route.request().url()).pathname.endsWith("/entity-types")
-          ? { items: [fixtureType], next_cursor: null }
+          ? { items: [visibleType], next_cursor: null }
           : new URL(route.request().url()).pathname.endsWith("/schema")
-          ? fixtureSchema
-          : fixtureType,
+          ? visibleSchema
+          : visibleType,
       }),
   );
   await page.route("**/api/entities?**", async (route) => {
@@ -283,13 +277,15 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
     const externalId = crypto.randomUUID();
     const item = {
       ...makeEntity(1, { prop_1: keyword ?? "계속되는 목록" }),
-      id: `app:${makeEntity(1).entity_type_id}:${externalId}`,
+      id: `app:${created.id}:${externalId}`,
+      entity_type_id: created.id,
+      type: visibleType,
       external_id: externalId,
     };
     await route.fulfill({ json: { items: [item], next_cursor: keyword ? null : "more" } }).catch(() => {});
   });
   await page.goto(
-    `/entities?pages=1#entity-${encodeURIComponent(`app:${makeEntity(1).entity_type_id}:${crypto.randomUUID()}`)}`,
+    workspacePath(workspace.id, `/entities?pages=1#entity-${encodeURIComponent(`app:${created.id}:${crypto.randomUUID()}`)}`),
   );
   await expect(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true })).toBeFocused();
   expect(requests).toBe(2);
@@ -308,24 +304,24 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
 
 test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행과 버튼 초점 보존", async ({ page }) => {
   await devLogin(page);
+  const workspace = await ownedWorkspace(page);
   const token = await mcpTokenViaConsent(page);
-  const ownerId: string = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
-  const mcp = await mcpClient(token), marker = unique("복원 후 추가"), ids: string[] = [];
+  const mcp = await mcpClient(token, { workspaceId: workspace.id }), marker = unique("복원 후 추가"), ids: string[] = [];
   try {
     ids.push(
       ...await seedFixtureEntities(
         mcp,
-        ownerId,
+        workspace,
         Array.from({ length: 61 }, (_, i) => ({
           prop_1: `${marker} ${String(i).padStart(2, "0")}`,
           prop_2: i,
         })),
       ),
     );
-    await page.goto(fixtureEntityList((await scalarFixtureType(mcp)).id, marker, undefined, true));
+    await page.goto(fixtureEntityList(workspace.id, (await scalarFixtureType(mcp, workspace)).id, marker, undefined, true));
     const anchor = page.getByRole("button", { name: `${marker} 19`, exact: true });
     await openListDetail(page, `${marker} 19`);
-    ids.push((await createFixtureEntity(mcp, { prop_1: `${marker} 동시 추가`, prop_2: 0 })).id);
+    ids.push((await createFixtureEntity(mcp, workspace, { prop_1: `${marker} 동시 추가`, prop_2: 0 })).id);
     await closeDetail(page, `${marker} 19`);
     await expect(anchor).toBeFocused();
     await expect(page.locator("[data-list-anchor]")).toHaveCount(40);
@@ -385,9 +381,11 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
 
 test("#396 material creation and editing explain schema bounds before memo confirmation", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const type = await mcp.call("create_entity_type", { label: unique("입력 검증") });
+    await workspace.grantKind(type.id);
     const change = await mcp.call("create_entity_schema_change", {
       type_id: type.id,
       expected_schema_version: 1,
@@ -399,7 +397,7 @@ test("#396 material creation and editing explain schema bounds before memo confi
       }],
     });
     await analyzeAndApply(mcp, type.id, change.id, change.version);
-    await page.goto(fixtureEntityList(type.id));
+    await page.goto(fixtureEntityList(workspace.id, type.id));
     await beginTabAction(page, type.label + " 추가");
     const form = page.getByRole("dialog", { name: type.label + " 추가" });
     await form.getByLabel("이름", { exact: false }).fill(unique("경계 자료"));
