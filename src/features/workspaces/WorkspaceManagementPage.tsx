@@ -48,7 +48,7 @@ const defaults: WorkspaceGrant[] = [{
   access: "none",
 }, { target_kind: "settings", target_id: "*", access: "none" }];
 function displayName(
-  member: WorkspaceMember & { display_name?: string | null },
+  member: WorkspaceMember,
 ) {
   return member.display_name?.trim() ?? "";
 }
@@ -228,6 +228,7 @@ export function WorkspaceManagementPage() {
                   kind: "leave",
                   member: {
                     user_id: actorId,
+                    display_name: null,
                     version: capability.membership_version,
                     grants: capability.grants,
                   },
