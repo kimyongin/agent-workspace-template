@@ -47,6 +47,10 @@ export class SqlDataModelStore implements DataModelStore {
   executeRequest<T>(r: RequestIdentity, fn: () => Promise<T>) {
     return executeSqlRequest(this.tx, this.actor, r, fn);
   }
+  async exportDocument(): Promise<DataModelDocument> {
+    const [row] = await this.tx`select app.export_workspace_data_model() as document`;
+    return row.document as DataModelDocument;
+  }
   async snapshot(): Promise<ModelSnapshot> {
     const tx = this.tx, issuers = new SqlEntityIssuerStore(tx, this.actor);
     const rows =
@@ -207,12 +211,13 @@ export class SqlDataModelUnitOfWork {
           requirements: [{ target_kind: "settings", target_id: "*", access: readOnly ? "read" : "write" }],
         },
       async (tx) => {
-        if (readOnly) return fn(new this.Store(tx, a));
         // Before any model/type/entity row lock, share relation-definition writer ordering.
         await tx`select pg_advisory_xact_lock(hashtextextended(${workspaceActor.workspaceId + ":entity-relations"},0))`;
         await tx`select pg_advisory_xact_lock(hashtextextended(${workspaceActor.workspaceId + ":entity-types"},0))`;
-        await tx`select id from app.entity_relation_definitions where workspace_id=${workspaceActor.workspaceId} order by id for update`;
-        await tx`select id from app.entity_types where workspace_id=${workspaceActor.workspaceId} order by id for update`;
+        if (!readOnly) {
+          await tx`select id from app.entity_relation_definitions where workspace_id=${workspaceActor.workspaceId} order by id for update`;
+          await tx`select id from app.entity_types where workspace_id=${workspaceActor.workspaceId} order by id for update`;
+        }
         for (const suffix of [":entity-identity-registry", ":record_templates"]) {
           await tx`select pg_advisory_xact_lock(hashtextextended(${workspaceActor.workspaceId + suffix},0))`;
         }

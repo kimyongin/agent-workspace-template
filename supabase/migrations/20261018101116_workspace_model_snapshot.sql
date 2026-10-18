@@ -55,3 +55,49 @@ revoke all on function private.guard_workspace_business_anchor() from public,ano
 create trigger workspace_business_anchor before update on app.entities for each row execute function private.guard_workspace_business_anchor();
 create trigger workspace_business_anchor before update on app.entity_relation_definitions for each row execute function private.guard_workspace_business_anchor();
 create trigger workspace_business_anchor before update on app.entity_relation_links for each row execute function private.guard_workspace_business_anchor();
+
+-- A complete definition export is one statement snapshot, without entity counts.
+CREATE OR REPLACE FUNCTION private.data_model_document(p_owner uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO ''
+AS $function$
+ select jsonb_build_object(
+ 'format','workspace-data-model','format_version',1,'title','자료 모델',
+ 'entity_types',coalesce((select jsonb_agg(jsonb_build_object(
+  'ref','type_'||t.id::text,'schema',v.schema,
+  'identity',jsonb_build_object('version',i.version,'label',i.label,
+   'default_source',i.default_source,'sources',coalesce((
+    select jsonb_agg(jsonb_build_object('code',s.code,'rule_id',s.rule_id,'active',s.active)
+                     order by s.code)
+    from app.entity_type_identity_sources s
+    where s.workspace_id=p_owner and s.type_id=t.id),'[]'::jsonb))) order by t.id)
+  from app.entity_types t join app.entity_schema_versions v
+   on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version
+  join app.entity_type_identity i on i.workspace_id=t.workspace_id and i.type_id=t.id
+  where t.workspace_id=p_owner),'[]'::jsonb),
+ 'relations',coalesce((select jsonb_agg(jsonb_build_object(
+  'id',d.id,'version',d.version,'archived',d.archived,'ends',jsonb_build_array(
+   jsonb_build_object('type_ref','type_'||d.left_type_id::text,'label',d.left_label,'cardinality',d.left_cardinality),
+   jsonb_build_object('type_ref','type_'||d.right_type_id::text,'label',d.right_label,'cardinality',d.right_cardinality))) order by d.id)
+  from app.entity_relation_definitions d where d.workspace_id=p_owner),'[]'::jsonb),
+ 'identity_definitions',jsonb_build_object(
+  'issuers',coalesce((select jsonb_agg(jsonb_build_object('code',i.code,'label',i.label,
+   'active',i.active,'system',i.system,'version',i.version) order by i.code)
+   from app.entity_issuers i where i.workspace_id=p_owner),'[]'::jsonb),
+  'rules',coalesce((select jsonb_agg(jsonb_build_object('id',r.id,'source',r.source,
+   'label',r.label,'meaning',r.meaning,'generation',r.generation,
+   'active',r.active,'version',r.version) order by r.id)
+   from app.entity_identifier_rules r where r.workspace_id=p_owner),'[]'::jsonb)))
+$function$
+;
+
+create function app.export_workspace_data_model() returns jsonb language plpgsql security definer set search_path='' as $$
+begin
+ perform app.lock_workspace(app.current_workspace_id(),false);
+ perform app.authorize_workspace('[{"target_kind":"settings","target_id":"*","access":"read"}]'::jsonb);
+ return private.data_model_document(app.current_workspace_id());
+end $$;
+revoke all on function app.export_workspace_data_model() from public,anon,authenticated,app_worker;
+grant execute on function app.export_workspace_data_model() to app_user;

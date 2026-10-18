@@ -37,6 +37,7 @@ export interface DataModelStore extends RequestStore {
   cancelGroup?(id: string): Promise<ModelChange>;
   retryGroup?(id: string): Promise<ModelChange>;
   snapshot(): Promise<ModelSnapshot>;
+  exportDocument(): Promise<DataModelDocument>;
   save(plan: ModelPlan): Promise<ModelChange>;
   get(id: string, lock?: boolean): Promise<(ModelChange & { plan: ModelPlan }) | null>;
   list(limit: number, cursor?: string): Promise<{ items: ModelChange[]; next_cursor: string | null }>;
@@ -390,7 +391,10 @@ export async function resolveModel(
   return { target, review, baseline, source };
 }
 export function exportDataModel(d: DataModelDeps, a: Actor) {
-  return d.uow.run(a, async (s) => (await s.snapshot()).document, true);
+  return d.uow.run(a, (s) => s.exportDocument(), true, {
+    mode: "business",
+    requirements: [{ target_kind: "settings", target_id: "*", access: "read" }],
+  });
 }
 export function previewDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelInput, raw), document = parseModel(i.document);
