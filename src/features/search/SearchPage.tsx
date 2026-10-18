@@ -271,6 +271,11 @@ export function SearchPage() {
               의미 색인 대기 {result.semantic_coverage.pending}개 · 제외 {result.semantic_coverage.excluded}개
             </p>
           )}
+          {!!result.semantic_coverage.failed && (
+            <Notice>
+              의미 색인 확인 필요 {result.semantic_coverage.failed}개 · <PageLink to="/status">상태에서 문제 확인</PageLink>
+            </Notice>
+          )}
           {!!result.semantic_coverage.pending && (
             <p className="text-sm text-muted-foreground">
               색인 대기 중인 자료와 기록은 의미 검색 결과에 빠질 수 있습니다.{" "}

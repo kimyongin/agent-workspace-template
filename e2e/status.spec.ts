@@ -13,7 +13,7 @@ test("검색 대기 안내는 상태 점검과 관리자 문의로 연결하고 
           next_cursor: null,
           anchor_page: null,
           search_state: "ok",
-          semantic_coverage: { pending, excluded: 0 },
+          semantic_coverage: { pending, excluded: 0, failed: 0 },
         },
       }),
   );

@@ -93,7 +93,7 @@ test("mixed search text submission preserves optional drafts and disclosure caus
   await page.route("**/api/search", async (route) => {
     reads.push(route.request().postDataJSON());
     await route.fulfill({
-      json: { items: [], next_cursor: null, search_state: "keyword", semantic_coverage: { pending: 0, excluded: 0 } },
+      json: { items: [], next_cursor: null, search_state: "keyword", semantic_coverage: { pending: 0, excluded: 0, failed: 0 } },
     });
   });
   await page.goto("/search?q=alpha&filters=1");

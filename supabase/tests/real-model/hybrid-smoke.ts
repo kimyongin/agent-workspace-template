@@ -64,7 +64,7 @@ try {
       assertEquals(agent.search_state, "ok");
       assertEquals(agent.items[0].id, items[n].id);
       assertEquals(agent.items[0].match, "semantic");
-      assertEquals(agent.semantic_coverage, { pending: 0, excluded: 0 });
+      assertEquals(agent.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
       const match = agent.items[0];
       assertEquals(
         [...fixture.body].slice(match.snippet_start, match.snippet_end).join(

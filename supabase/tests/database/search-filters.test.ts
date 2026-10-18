@@ -115,7 +115,11 @@ dbTest(
       ) {
         const result = await search(d, actor, q(extra));
         assertEquals(result.items.map((r) => r.id), [...expected]);
-        assertEquals(result.semantic_coverage, { pending: extra.kinds[0] === "record" ? 1 : 0, excluded: 0 });
+        assertEquals(result.semantic_coverage, {
+          pending: extra.kinds[0] === "record" ? 1 : 0,
+          excluded: 0,
+          failed: 0,
+        });
         assertEquals(
           (await search(d, actor, q({ ...extra, anchor: { kind: "task", id: open.id } }))).anchor_page,
           null,
@@ -129,7 +133,7 @@ dbTest(
       await f.grantKind(actor, kind.id, "none");
       const readable = await search(d, actor, q({ kinds: ["record"] }));
       assertEquals(readable.items.map((item) => item.id), [completed.record.id]);
-      assertEquals(readable.semantic_coverage, { pending: 1, excluded: 0 });
+      assertEquals(readable.semantic_coverage, { pending: 1, excluded: 0, failed: 0 });
     } finally {
       await f.cleanup();
     }

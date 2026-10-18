@@ -84,7 +84,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
       to: "2099-01-01T00:00:00Z",
     }),
     first = searchResult.parse(await search(d, A, base));
-  assertEquals(first.semantic_coverage, { pending: 1, excluded: 0 });
+  assertEquals(first.semantic_coverage, { pending: 1, excluded: 0, failed: 0 });
   assertEquals(first.items[0].kind, "task");
   assertEquals(
     (await search(d, A, { ...base, anchor: { kind: "record", id: crypto.randomUUID() } })).anchor_page,
@@ -145,10 +145,10 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     [task.id],
   );
   const noMatch = await search(d, A, searchInput.parse({ query: "없는 말", entity_id: entity, tag_id: taskTag }));
-  assertEquals(noMatch.semantic_coverage, { pending: 0, excluded: 0 });
+  assertEquals(noMatch.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
   const foreignEntity = await search(d, B, searchInput.parse({ query: token, entity_id: entity }));
   assertEquals(foreignEntity.items, []);
-  assertEquals(foreignEntity.semantic_coverage, { pending: 0, excluded: 0 });
+  assertEquals(foreignEntity.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
 });
 
 dbTest("search fixture cleanup", async () => {

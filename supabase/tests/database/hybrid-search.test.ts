@@ -81,7 +81,7 @@ dbTest(
       [...bodies[0]].slice(first.items[0].snippet_start, first.items[0].snippet_end).join(""),
       first.items[0].snippet,
     );
-    assertEquals(first.semantic_coverage, { pending: 0, excluded: 0 });
+    assertEquals(first.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
     const second = await search(d, A, { ...q, cursor: first.next_cursor! });
     assertEquals(
       second.items.map((x) => x.id),
@@ -92,7 +92,7 @@ dbTest(
     assertEquals(third.anchor_page, 3);
     assertEquals(third.next_cursor, null);
     assertEquals((await search(d, foreign.actor, q)).items, []);
-    assertEquals((await search(d, foreign.actor, q)).semantic_coverage, { pending: 0, excluded: 0 });
+    assertEquals((await search(d, foreign.actor, q)).semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
     assertEquals(
       (await runInWorkspace(
         sql,
@@ -113,7 +113,7 @@ dbTest(
       recordUpdate.parse({ expected_version: 2, body: "바뀐 원문" }),
     );
     assertEquals((await search(d, A, { ...q, limit: 20 })).items.map((x) => x.id), [ids[1], ids[2]]);
-    assertEquals((await search(d, A, q)).semantic_coverage, { pending: 1, excluded: 0 });
+    assertEquals((await search(d, A, q)).semantic_coverage, { pending: 1, excluded: 0, failed: 0 });
     const down = { ...d, embedder: { embed: () => Promise.reject(new EmbeddingError("transient")) } };
     await assertRejects(() => search(down, A, { ...q, cursor: first.next_cursor! }), AppError);
     assertEquals((await search(down, A, { ...q, query: "두번째" })).search_state, "keyword_fallback");

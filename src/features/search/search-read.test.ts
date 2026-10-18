@@ -25,7 +25,7 @@ const page = (
   next_cursor,
   anchor_page,
   search_state: "keyword_fallback",
-  semantic_coverage: { pending: 3, excluded: 1 },
+  semantic_coverage: { pending: 3, excluded: 1, failed: 0 },
 });
 
 test("검색 복귀는 날짜 ID를 해석하고 종류가 다른 동일 ID와 검색 metadata를 보존", async () => {
@@ -36,7 +36,7 @@ test("검색 복귀는 날짜 ID를 해석하고 종류가 다른 동일 ID와 �
   await read.restore(1, `#search-record-${dated}`);
   expect(load.mock.calls[0][0].anchor).toEqual({ kind: "record", id: dated });
   expect(read.snapshot().page?.items.map((item) => item.kind)).toEqual(["task", "record"]);
-  expect(read.snapshot().page?.semantic_coverage).toEqual({ pending: 3, excluded: 1 });
+  expect(read.snapshot().page?.semantic_coverage).toEqual({ pending: 3, excluded: 1, failed: 0 });
 });
 
 test("검색 복귀 anchor는 UUID·날짜 ID·인코딩 hash만 받고 잘못된 ID는 무시", () => {

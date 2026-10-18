@@ -18,7 +18,7 @@ import { StatusBadge } from "./shared.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
-import { Navigate, useLocation, useNavigate, useSearchParams } from "../../lib/workspace-router.tsx";
+import { Link as PageLink, Navigate, useLocation, useNavigate, useSearchParams } from "../../lib/workspace-router.tsx";
 import type { SearchItem } from "@contracts/search.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -125,6 +125,11 @@ function ActivitySection(
           <p className="text-sm text-muted-foreground">
             의미 색인 대기 {metadata.semantic_coverage.pending}개 · 제외 {metadata.semantic_coverage.excluded}개
           </p>
+        )}
+        {!!metadata?.semantic_coverage.failed && (
+          <Notice>
+            의미 색인 확인 필요 {metadata.semantic_coverage.failed}개 · <PageLink to="/status">상태에서 문제 확인</PageLink>
+          </Notice>
         )}
         {list.busy && !list.items && <p role="status" className="text-sm text-muted-foreground">불러오는 중…</p>}
         {list.items?.length === 0 && !list.error && (

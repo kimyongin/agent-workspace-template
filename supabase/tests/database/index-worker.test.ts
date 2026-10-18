@@ -328,7 +328,7 @@ dbTest("latest task content creates no task vector job and remains keyword searc
   );
   assertEquals(result.items[0].id, task.id);
   assertEquals(result.items[0].match, "keyword");
-  assertEquals(result.semantic_coverage, { pending: 0, excluded: 0 });
+  assertEquals(result.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
 });
 dbTest("index-worker fixture cleanup", async () => {
   await fixture.cleanup();

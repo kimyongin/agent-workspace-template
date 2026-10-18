@@ -47,7 +47,7 @@ for (const kind of ["tasks", "records"] as const) test(`${kind} 탭은 자기 �
   const reads:string[]=[],searches:Record<string,unknown>[]=[],writes:string[]=[];
   await page.route("http://127.0.0.1:55581/api/**",async route => {if(await fulfillPreparation(route))return;
     const request=route.request(),path=new URL(request.url()).pathname;
-    if(path.endsWith("/search")){searches.push(request.postDataJSON());await route.fulfill({json:{items:[],next_cursor:null,search_state:"keyword_fallback",semantic_coverage:{pending:2,excluded:1}}});return;}
+    if(path.endsWith("/search")){searches.push(request.postDataJSON());await route.fulfill({json:{items:[],next_cursor:null,search_state:"keyword_fallback",semantic_coverage:{pending:2,excluded:1, failed: 0}}});return;}
     if(request.method()!=="GET")writes.push(path);
     if(path.endsWith("/tasks")||path.endsWith("/records"))reads.push(path);
     await route.fulfill({json:{items:[],next_cursor:null}});
