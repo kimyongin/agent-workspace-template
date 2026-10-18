@@ -520,7 +520,7 @@ function TaskRestoreForm({ task, onClose, onSaved }: {
   return <FormModal
     open
     visible={active && canRead}
-    submitDisabled={!active || !canWrite || !task.deleted_at}
+    submitDisabled={!active || !canWrite || !target.deleted_at}
     title="할 일 복원"
     submitLabel="복원"
     dirty={false}
@@ -531,7 +531,7 @@ function TaskRestoreForm({ task, onClose, onSaved }: {
     onRouteDiscard={onClose}
     validate={() => null}
     onSubmit={async (requestKey, memo) => {
-      if (!active || !canWrite || !task.deleted_at) throw new Error("이 할 일을 현재 복원할 수 없습니다.");
+      if (!active || !canWrite || !target.deleted_at) throw new Error("이 할 일을 현재 복원할 수 없습니다.");
       const saved = await api<TaskResult>("POST", `/tasks/${target.id}/restore`, { expected_version: target.version, ...memo }, undefined, requestKey());
       await onSaved(saved);
     }}
