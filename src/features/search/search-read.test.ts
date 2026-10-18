@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { entityPath } from "@contracts/entity-identity.ts";
 import type { SearchItem, SearchResult } from "@contracts/search.ts";
 import { createSearchRead, searchAnchor } from "./search-read.ts";
 const dated = "20261010-G123ABCD";
@@ -13,7 +14,7 @@ const row = (kind: SearchItem["kind"], id = dated): SearchItem => ({
   tag_ids: [],
   match: "keyword",
   index_state: "pending",
-  path: `/${kind}s/${id}`,
+  path: kind === "entity" ? entityPath(id) : `/${kind}s/${id}`,
 });
 const page = (
   items: SearchItem[],
@@ -99,4 +100,15 @@ test("entity anchors preserve encoded immutable references and reject entity IDs
   expect(searchAnchor(`#${encodeURIComponent(`search-entity-${entity}`)}`)).toEqual({ kind: "entity", id: entity });
   expect(searchAnchor(`#search-record-${entity}`)).toBeUndefined();
   expect(searchAnchor("#search-entity-invalid")).toBeUndefined();
+});
+
+test("entity result restoration retains readable original path and selected field offset metadata", async () => {
+  const id = "app:00000000-0000-4000-8000-000000000001:내부-자료";
+  const item = { ...row("entity", id), source_fields: [{ key: "prop_2", label: "설명", start: 5, end: 12 }] };
+  const load = vi.fn().mockResolvedValue(page([item]));
+  const read = createSearchRead(new URLSearchParams("q=선택&kind=entity"), load);
+  await read.restore(1, `#${encodeURIComponent(`search-entity-${id}`)}`);
+  expect(load.mock.calls[0][0].anchor).toEqual({ kind: "entity", id });
+  expect(read.snapshot().page?.items[0]).toEqual(item);
+  expect(read.snapshot().page?.items[0].path).toBe(entityPath(id));
 });

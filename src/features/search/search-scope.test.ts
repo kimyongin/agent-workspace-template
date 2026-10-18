@@ -25,3 +25,7 @@ test("entity search URLs retain entity tags, selected source and keyword mode", 
   expect(input.entity_id).toBe(entity);
   expect(input.mode).toBe("keyword");
 });
+
+test("unfiltered saved search includes all current source kinds", () => {
+  expect(workspaceSearchScope(new URLSearchParams("q=근거")).kinds.toSorted()).toEqual(["entity", "record", "task"]);
+});
