@@ -141,7 +141,8 @@ dbTest(
       assertEquals(await readGraph(fixture.workspaceId, true), currentGraph);
       const graphNoWorkspace = await readGraph();
       const graphOtherWorkspace = await readGraph(other.workspaceId);
-      await fixture.grant(fixture.manager, []);
+      // Keep the independent manager authority; settings does not grant business-data reads.
+      await fixture.grant(fixture.manager, [{ target_kind: "settings", target_id: "*", access: "write" }]);
       const graphNoPermission = await readGraph(fixture.workspaceId);
       const legacyDeleteDenied = [];
       for (const workspaceId of [undefined, other.workspaceId, fixture.workspaceId]) {
@@ -170,7 +171,7 @@ dbTest(
         legacyDeleteDenied: [true, true, true, true, true, true],
       });
       await fixture.grant(fixture.manager, [
-        { target_kind: "settings", target_id: "*", access: "read" },
+        { target_kind: "settings", target_id: "*", access: "write" },
         { target_kind: "tasks", target_id: "*", access: "read" },
         { target_kind: "entity_type", target_id: kind.id, access: "read" },
       ]);
