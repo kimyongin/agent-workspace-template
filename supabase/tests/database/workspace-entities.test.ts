@@ -1,3 +1,4 @@
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
@@ -123,6 +124,79 @@ dbTest("workspace entities public create shares values with kind writer and atom
     for (const id of owned) {
       await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${id}`;
       await admin`delete from app.workspaces where id=${id}`;
+    }
+    for (const id of seeded) await admin`delete from auth.users where id=${id}`;
+  }
+});
+
+dbTest("workspace record producer hides existing and missing sources after kind revocation", async () => {
+  const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
+  const seeded: string[] = [];
+  let workspaceId: string | undefined;
+  try {
+    for (const actor of [a, b]) {
+      const email = `producer514-${actor.userId}@example.test`;
+      await admin`insert into auth.users(id,email) values(${actor.userId},${email})`;
+      seeded.push(actor.userId);
+      await admin`insert into auth.identities(id,user_id,provider,provider_id,identity_data) values(${crypto.randomUUID()},${actor.userId},'google',${actor.userId},${
+        admin.json({ sub: actor.userId, email, email_verified: true })
+      })`;
+    }
+    workspaceId = (await workspaces.createWorkspace(workspaceDeps, key(a), { name: "생산자 권한 검사" })).workspace.id;
+    const author = { ...a, workspaceId }, reader = { ...b, workspaceId };
+    const type = await types.createEntityType(typeDeps, key(author), { label: "보호 자료" });
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, a.userId, {
+      expected_version: 1,
+      grants: [
+        { target_kind: "settings", target_id: "*", access: "write" },
+        { target_kind: "entity_type", target_id: type.id, access: "write" },
+      ],
+    });
+    const invitation = await workspaces.inviteWorkspaceMember(workspaceDeps, key(a), workspaceId, {
+      email: `producer514-${b.userId}@example.test`,
+      grants: [{ target_kind: "entity_type", target_id: type.id, access: "read" }],
+    });
+    await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(b), invitation.invitation.id);
+    // The SQL fixture exercises the already accepted #513 anchored-parent store;
+    // the regression under test is the direct app_user producer function.
+    const recordId = await runInWorkspace(sql, author, {
+      mode: "business",
+      requirements: [{ target_kind: "entity_type", target_id: type.id, access: "write" }],
+    }, async (tx) => {
+      const external = crypto.randomUUID(), id = `app:${type.id}:${external}`;
+      await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) values(${workspaceId!},${id},'app',${external},${type.id},1,'{"prop_1":"공개하지 않을 값"}')`;
+      const [record] =
+        await tx`insert into app.records(workspace_id,entity_id,body) values(${workspaceId!},${id},'공개하지 않을 본문') returning id`;
+      return String(record.id);
+    });
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
+      expected_version: 1,
+      grants: [],
+    });
+    for (const id of [recordId, "19990101-000000000000"]) {
+      await runInWorkspace(sql, reader, { mode: "business", requirements: [] }, async (tx) => {
+        const denied = await assertRejects(() =>
+          tx.savepoint((nested) =>
+            nested`select app.enqueue_search_index('record',${id},repeat('0',64),'oracle-regression')`
+          )
+        );
+        assertEquals([(denied as { code?: string }).code, (denied as Error).message], ["42501", "workspace_denied"]);
+      });
+    }
+    assertEquals(
+      Number((await admin`select count(*) n from app.search_index_state where workspace_id=${workspaceId}`)[0].n),
+      0,
+    );
+    assertEquals(
+      Number(
+        (await admin`select count(*) n from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`)[0].n,
+      ),
+      0,
+    );
+  } finally {
+    if (workspaceId) {
+      await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`;
+      await admin`delete from app.workspaces where id=${workspaceId}`;
     }
     for (const id of seeded) await admin`delete from auth.users where id=${id}`;
   }
