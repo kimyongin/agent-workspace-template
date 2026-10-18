@@ -1,3 +1,4 @@
+import { useTaskAccess } from "../activity/task-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { UnlinkIcon, PlusIcon } from "lucide-react";
@@ -35,6 +36,11 @@ function RelationControls({
   onSaved: (saved?: TaskResult, before?: TaskResult) => void;
 }) {
   const api = useApi();
+  const { canWrite } = useTaskAccess();
+  const [owner] = useState(() => api);
+  const active = owner === api;
+  const authority = useRef({ active, canWrite });
+  authority.current = { active, canWrite };
   const surface = useContext(SurfaceContext);
   const location = useLocation(), locationKey = useRef(location.key);
   locationKey.current = location.key;
@@ -46,7 +52,7 @@ function RelationControls({
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
   const prepare = async (item: Candidate, remove: boolean) => {
-    if (preparing) return;
+    if (preparing || !active || !canWrite) return;
     const startedKey = locationKey.current;
     request.current?.abort();
     const controller = new AbortController();
@@ -55,7 +61,7 @@ function RelationControls({
     setError(null);
     try {
       const latest = await api<TaskResult>("GET", `/tasks/${task?.id ?? item.id}`, undefined, controller.signal);
-      if (controller.signal.aborted || locationKey.current !== startedKey || surface?.editor.current) return;
+      if (controller.signal.aborted || locationKey.current !== startedKey || !authority.current.active || !authority.current.canWrite || surface?.editor.current) return;
       const entity = task ? item : { id: entityId!, title: entityTitle! }, ids = latest.entity_ids;
       if (ids.includes(entity.id) === !remove) {
         onSaved(latest);
@@ -74,7 +80,7 @@ function RelationControls({
     }
   };
   const kind = task ? "entity" : "task";
-  const unlink = (item: Candidate) => (
+  const unlink = (item: Candidate) => !active || !canWrite ? null : (
     <Button variant="ghost" type="button"
 
       aria-label={`${item.title} 해제`}
@@ -87,7 +93,7 @@ function RelationControls({
   return (
     <>
       {children({
-        button: (
+        button: !active || !canWrite ? null : (
           <RelationSearchAction
             kind={kind}
             expanded={searching}
@@ -97,7 +103,7 @@ function RelationControls({
           />
         ),
         unlink,
-        search: (
+        search: !active || !canWrite ? null : (
           <>
             {error && <Notice kind="error">{error}</Notice>}
             {preparing && <p className="text-sm text-muted-foreground" role="status">연결 확인 중…</p>}
@@ -119,6 +125,8 @@ function RelationControls({
         <FormModal
           open
           confirmationOnly
+          visible={active}
+          submitDisabled={!active || !canWrite}
           title={mutation.remove ? "해제" : "연결"}
           submitLabel="저장"
           dirty={false}
@@ -141,6 +149,7 @@ function RelationControls({
           onRouteDiscard={() => setMutation(null)}
           validate={() => null}
           onSubmit={async (requestKey, memo) => {
+            if (!authority.current.active || !authority.current.canWrite) throw new Error("현재 할 일 쓰기 권한이 없습니다.");
             const saved = await api<TaskResult>(
               "PATCH",
               `/tasks/${mutation.task.id}`,
@@ -202,7 +211,7 @@ export function useEntityTaskRead(entity: EntityDetail | null) {
     createPagedList<TaskResult, { items: TaskResult[]; next_cursor: string | null }>({
       load: (cursor, signal) =>
         api("GET", `/tasks${query({ entity_id: entity?.id ?? "", limit: 20, cursor })}`, undefined, signal),
-    }), [entity?.id, previewKey]);
+    }), [api, entity?.id, previewKey]);
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   useEffect(() => () => session.cancel(), [session]);
   const preview = entity?.tasks.items ?? [];
@@ -230,6 +239,7 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
   onCreate?: () => void;
   onSaved?: (saved?: TaskResult, before?: TaskResult) => void;
 }) {
+  const { canWrite } = useTaskAccess();
   const contents = (search?: ReactNode, action?: ReactNode, unlink?: (item: Candidate) => ReactNode) => (
     <RelatedSection title="할 일" count={entity.tasks.count} views={!readOnly} action={action}>
       {search}
@@ -263,7 +273,7 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
         contents(
           search,
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="ghost" type="button"  aria-label="할 일 작성" onClick={onCreate}><PlusIcon data-icon="inline-start" />작성</Button>
+            {canWrite && <Button variant="ghost" type="button" aria-label="할 일 작성" onClick={onCreate}><PlusIcon data-icon="inline-start" />작성</Button>}
             {button}
           </div>,
           unlink,
