@@ -4,6 +4,59 @@ import { installWorkspaceApi } from "./support/workspace-api.ts";
 const workspaceId = "00000000-0000-4000-8000-000000000981";
 const actorId = "00000000-0000-4000-8000-000000000901";
 
+test("a manager can leave a deleted space using its current own membership version", async ({ page }) => {
+  const user = {
+    id: actorId,
+    aud: "authenticated",
+    email: "fixture@example.test",
+    app_metadata: {},
+    user_metadata: {},
+  };
+  await page.addInitScript(
+    (user) =>
+      localStorage.setItem(
+        "sb-127-auth-token",
+        JSON.stringify({
+          user,
+          access_token: "isolated-lifecycle-token",
+          refresh_token: "isolated-lifecycle-refresh",
+          token_type: "bearer",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        }),
+      ),
+    user,
+  );
+  await page.route("**/auth/v1/user", (route) => route.fulfill({ json: user }));
+  await installWorkspaceApi(page, "http://127.0.0.1:55623", { entities: [], tags: [], records: [], tasks: [] });
+  const workspace = {
+    id: workspaceId,
+    name: "삭제한 공동 공간",
+    deleted_at: "2026-10-18T10:00:00Z",
+    lifecycle_generation: 2,
+  };
+  let left = false;
+  const writes: unknown[] = [];
+  await page.route(/\/api\/workspaces(?:\/|$)/, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/leave")) {
+      writes.push(route.request().postDataJSON());
+      left = true;
+      return route.fulfill({ json: { left: true } });
+    }
+    if (path === "/api/workspaces") return route.fulfill({ json: { items: [] } });
+    if (path === "/api/workspaces/deleted") return route.fulfill({ json: { items: left ? [] : [workspace] } });
+    if (path.endsWith("/membership")) return route.fulfill({ json: { workspace, membership_version: 4 } });
+    return route.fallback();
+  });
+  await page.goto("/workspaces");
+  await page.getByRole("row").filter({ hasText: "삭제한 공동 공간" }).getByRole("button", { name: "탈퇴", exact: true })
+    .click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "공간 탈퇴", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.getByRole("table", { name: "삭제한 공간", exact: true })).toHaveCount(0);
+  expect(writes).toEqual([{ expected_version: 4 }]);
+});
+
 test("a known management revocation on focus disables a previously prepared lifecycle action", async ({ page }) => {
   const user = {
     id: actorId,
