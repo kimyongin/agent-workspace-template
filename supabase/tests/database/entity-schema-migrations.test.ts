@@ -51,7 +51,6 @@ import type { EntityTypeDeps } from "../../functions/_shared/core/entity-types/a
 import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
 import { businessWorkspaceFixture } from "./_workspace-business.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
-import { explainSchemaSnapshot } from "./_schema-snapshot-diagnostic.ts";
 async function fixture(admin: postgres.Sql, sql: postgres.Sql) {
   const f = await businessWorkspaceFixture(admin, sql);
   await f.grant(f.manager, [{
@@ -756,7 +755,7 @@ dbTest(
   "migration 2000-target boundary commits complete bulk effects under existing 15s timeout; 2001 and byte limits reject",
   async () => {
     const admin = connect(urls.admin),
-      sql = explainSchemaSnapshot(connect(urls.direct, { max: 4 })),
+      sql = connect(urls.direct, { max: 4 }),
       worker = workerConnection(),
       a = await fixture(admin, sql),
       d = { uow: new SqlEntityTypeUnitOfWork(sql) },
