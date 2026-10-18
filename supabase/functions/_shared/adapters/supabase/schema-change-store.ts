@@ -373,8 +373,17 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       if (!entity) throw notFound();
     }
     const [a] = await this
-      .tx`with snapshot as materialized (select workspace_id,id,version,schema_version,properties,deleted_at from app.entities where workspace_id=${this.schemaWorkspaceId}::uuid and entity_type_id=${typeId}), size as (select count(*)::int as count,coalesce(sum(octet_length(jsonb_build_array(id,version,schema_version,properties,deleted_at)::text)),0)::bigint as bytes from snapshot), analysis as (insert into app.entity_schema_analyses(workspace_id,type_id,change_id,change_version,fingerprint,membership,total) select ${this.schemaWorkspaceId},${typeId},${id},${row.version},${row.fingerprint},md5(coalesce((select jsonb_agg(jsonb_build_array(id,version,schema_version,properties,deleted_at) order by id)::text from snapshot),'[]')),count from size where count<=2000 and bytes<=8388608 returning id), saved as (insert into private.entity_schema_analysis_rows(workspace_id,analysis_id,entity_id,source_version,source_schema_version,properties,deleted_at) select s.workspace_id,a.id,s.id,s.version,s.schema_version,s.properties,s.deleted_at from snapshot s cross join analysis a returning entity_id) select a.id,(select count(*) from saved) as captured from analysis a`;
+      .tx`with snapshot as materialized (select workspace_id,id,version,schema_version,properties,deleted_at from app.entities where workspace_id=${this.schemaWorkspaceId}::uuid and entity_type_id=${typeId}), size as (select count(*)::int as count,coalesce(sum(octet_length(jsonb_build_array(id,version,schema_version,properties,deleted_at)::text)),0)::bigint as bytes from snapshot), analysis as (insert into app.entity_schema_analyses(workspace_id,type_id,change_id,change_version,fingerprint,membership,total) select ${this.schemaWorkspaceId},${typeId},${id},${row.version},${row.fingerprint},md5(coalesce((select jsonb_agg(jsonb_build_array(id,version,schema_version,properties,deleted_at) order by id)::text from snapshot),'[]')),count from size where count<=2000 and bytes<=8388608 returning id) select a.id,(select count(*) from snapshot) as captured,coalesce((select jsonb_agg(to_jsonb(s) order by s.id) from snapshot s),'[]'::jsonb) as rows from analysis a`;
     if (!a) throw invalidInput("영향 분석은 2000개·8 MiB 이하에서 실행할 수 있습니다");
+    // A source-row policy resolves its persisted analysis. A data-modifying CTE
+    // cannot see a sibling INSERT through that policy's statement snapshot.
+    // Retain the exact bounded snapshot above, then write it in a new statement.
+    await this
+      .tx`insert into private.entity_schema_analysis_rows(workspace_id,analysis_id,entity_id,source_version,source_schema_version,properties,deleted_at)
+      select ${this.schemaWorkspaceId}::uuid,${a.id}::uuid,r.id,r.version,r.schema_version,r.properties,r.deleted_at
+      from jsonb_to_recordset(${this.tx.json(a.rows)}::jsonb)
+        r(id text,version integer,schema_version integer,properties jsonb,deleted_at timestamptz)`;
+
     if (row.recovery_source_job_id) {
       await this
         .tx`update private.entity_schema_analysis_rows r set recovery_properties=s.source_properties from private.entity_schema_migration_rows s where r.analysis_id=${a.id} and s.job_id=${row.recovery_source_job_id} and s.entity_id=r.entity_id and s.workspace_id=r.workspace_id`;
