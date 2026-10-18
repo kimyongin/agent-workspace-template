@@ -313,6 +313,24 @@ dbTest(
         limit: 100,
       });
       assertEquals(pickerTags.items.map((tag) => ({ id: tag.id, name: tag.name })), [{ id: tagId, name: "변환 기록" }]);
+      await admin.begin(async (tx) => {
+        await tx`select set_config('request.workspace_id',${owned[0]},true)`;
+        await tx`insert into app.tags(workspace_id,scope,name) values(${owned[0]}::uuid,'record','다른 설정 태그')`;
+      });
+      const pickerPage = await listTags({ uow: new SqlTagUnitOfWork(sql) }, first, {
+        scope: "record",
+        purpose: "record-template",
+        limit: 1,
+      });
+      assertEquals(typeof pickerPage.next_cursor, "string");
+      const wrongPickerCursor = await assertRejects(() =>
+        listTags({ uow: new SqlTagUnitOfWork(sql) }, second, {
+          scope: "record",
+          purpose: "record-template",
+          limit: 1,
+          cursor: pickerPage.next_cursor!,
+        }), AppError);
+      assertEquals(wrongPickerCursor.code, "invalid_input");
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
@@ -423,6 +441,16 @@ dbTest("business memo preparation uses only its permitted workspace target witho
     for (const id of owned) {
       const error = await assertRejects(() => settings.getBusinessSettings(deps, { ...b, workspaceId: id }), AppError);
       assertEquals(error.code, "forbidden");
+      const metadataError = await assertRejects(
+        () =>
+          listTags({ uow: new SqlTagUnitOfWork(sql) }, { ...b, workspaceId: id }, {
+            scope: "record",
+            purpose: "record-template",
+            limit: 100,
+          }),
+        AppError,
+      );
+      assertEquals(metadataError.code, "forbidden");
     }
     const first = await prepare(owned[0]), second = await prepare(owned[1]);
     assertEquals(first.change_note, "첫 공간 준비");

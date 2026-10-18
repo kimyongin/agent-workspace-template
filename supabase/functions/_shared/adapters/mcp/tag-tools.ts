@@ -11,7 +11,8 @@ export function tagTools(d: tags.TagDeps): ToolDef[] {
   const tools: ToolDef[] = [
     {
       name: "list_tags",
-      description: "scope entity/task/record 별 내 태그 목록. 생략은 record, next_cursor가 없을 때까지 조회한다.",
+      description:
+        "scope entity/task/record 별 태그 목록. 생략은 record. purpose=record-template은 설정 읽기 권한으로 기록 문구용 태그 이름·ID 메타데이터만 조회하며 record scope만 허용한다. next_cursor가 없을 때까지 조회한다.",
       input: tagListQuery,
       readOnly: true,
       handler: (i, a) => tags.listTags(d, a, parse(tagListQuery, i)),
