@@ -323,7 +323,7 @@ activityWorkspaceSuite(
     }
     assertEquals(
       (await request(foreign, otherW, "POST", "/entities/query", { entity_type_id: typeId }, null)).status,
-      404,
+      403,
     );
     const [readAfter] =
       await admin`select (select count(*) from private.workspace_request_results where workspace_id=${w})::int as requests,(select count(*) from app.records where workspace_id=${w} and change_metadata->>'target_id'=any(${entities}::text[]))::int as records,(select count(*) from app.entities where workspace_id=${w} and entity_type_id=${typeId!})::int as entities`;

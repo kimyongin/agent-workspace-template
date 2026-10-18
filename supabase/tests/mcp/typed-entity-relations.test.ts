@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "@std/assert";
-import { call } from "../http/_client.ts";
+import { admin, call } from "../http/_client.ts";
 import { activityWorkspaceSuite, scopedHttp, scopedTool } from "../http/_workspace-activity-fixture.ts";
 import { claimsOf, tool } from "./_mcp.ts";
 activityWorkspaceSuite(
@@ -95,13 +95,17 @@ activityWorkspaceSuite(
       }],
     });
     assertEquals(createdDefinition.status, 201);
-    const invitation = await call(token, "POST", `/workspaces/${workspace}/invitations`, {
-      email: claimsOf(memberToken).email,
-      grants: [{ target_kind: "entity_type", target_id: typeId, access: "write" }],
-    });
-    assertEquals(invitation.status, 201);
+    const memberId = String(claimsOf(memberToken).sub);
+    const [ownedRoot] = await admin`select created_by from app.workspaces where id=${workspace}`;
+    assertEquals(ownedRoot.created_by, claimsOf(token).sub);
+    // Admit only this real fixture session to the exact freshly owned workspace.
+    // Public manager authorization then supplies its minimal business grant.
+    await admin`insert into private.workspace_members(workspace_id,user_id) values(${workspace},${memberId})`;
     assertEquals(
-      (await call(memberToken, "POST", `/invitations/${invitation.body.invitation.id}/accept`, {})).status,
+      (await call(token, "PATCH", `/workspaces/${workspace}/members/${memberId}`, {
+        expected_version: 1,
+        grants: [{ target_kind: "entity_type", target_id: typeId, access: "write" }],
+      })).status,
       200,
     );
     const failures: unknown[] = [];

@@ -168,6 +168,10 @@ activityWorkspaceSuite(
       });
       compact(retry);
       assertEquals(retry.status, "queued");
+      const retryDetail = await scopedTool(client, w, "get_data_model_change", { id: ready.id });
+      const retryJobIds = retryDetail.group.children.map((child: { job: { id: string } }) => child.job.id);
+      assertEquals(retryJobIds.length, jobIds.length);
+      assert(jobIds.every((id: string) => !retryJobIds.includes(id)));
       const retryReplay = await scopedHttp(
         token,
         w,
@@ -196,7 +200,7 @@ activityWorkspaceSuite(
       }
       const done = await scopedTool(client, w, "get_data_model_change", { id: ready.id });
       assertEquals(done.status, "applied");
-      assertEquals(done.group.children.map((c: { job: { id: string } }) => c.job.id), jobIds);
+      assertEquals(done.group.children.map((c: { job: { id: string } }) => c.job.id), retryJobIds);
       const final = await scopedHttp(token, w, "GET", `/data-model/changes/${ready.id}`);
       assertEquals(await definitionFingerprint(final.body), await definitionFingerprint(done));
       const replay = await scopedTool(client, w, "apply_data_model", {
