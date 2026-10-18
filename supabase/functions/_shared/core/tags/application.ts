@@ -92,7 +92,8 @@ export function deleteTag(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return runWrite(d.uow, a, "tag.delete", id, { expected_version: v, change_note, change_tag_ids }, async (s) => {
+  const uow: TagDeps["uow"] = { run: (actor, fn) => d.uow.run(actor, fn, { deleteTagId: id }) };
+  return runWrite(uow, a, "tag.delete", id, { expected_version: v, change_note, change_tag_ids }, async (s) => {
     await s.prepareDelete?.(id);
     await requireVersion(s, id, v);
     if (change_tag_ids?.includes(id)) throw invalidInput("삭제할 태그는 기록에 붙일 수 없습니다");

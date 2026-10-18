@@ -1,3 +1,4 @@
+import { useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { PlusIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
@@ -29,7 +30,7 @@ import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
 import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
-  const api = useApi();
+  const api = useApi(), canWriteType = useEntityWriteAccess();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams(),
     [params] = useSearchParams(),
@@ -65,6 +66,7 @@ export function EntityDetailPage() {
     load: (id, signal) => api("GET", entityPath(id), undefined, signal),
   });
   const { value: entity, editReady } = detail;
+  const canWrite = !!entity && canWriteType(entity.entity_type_id);
   const taskRead = useEntityTaskRead(entity);
   const [actionError, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -153,7 +155,7 @@ export function EntityDetailPage() {
           key={kind}
           title={label}
           count={entity[kind].count}
-          action={
+          action={canWrite && (
             <Button variant="ghost" type="button"
 
               aria-label="기록 작성"
@@ -165,7 +167,7 @@ export function EntityDetailPage() {
             ><PlusIcon data-icon="inline-start" />
               작성
             </Button>
-          }
+          )}
         >
           {entity[kind].count > 0 && (
             <CollectionList columns={["본문 대표 문구"]}>
@@ -188,7 +190,7 @@ export function EntityDetailPage() {
       onClose={() => navigate(back)}
       onError={detail.failed}
       busy={busy}
-      footer={entity && (
+      footer={entity && canWrite && (
         <Button variant="default" type="button"  onClick={editor.start}>
           {entity.deleted_at ? "복원" : "편집"}
         </Button>
@@ -223,8 +225,12 @@ export function EntityDetailPage() {
               onDraftClosed={detail.editClosed}
               scope="entity"
               target={entity}
-              readonly={!!entity.deleted_at}
-              onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
+              readonly={!canWrite || !!entity.deleted_at}
+              onSaved={(saved) => {
+                relationSaved.current = true;
+                detail.confirm((current) => current ? { ...current, ...saved } : current);
+                void reload();
+              }}
             />
           </section>
           <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
@@ -305,7 +311,7 @@ export function EntityDetailPage() {
               }}
             />
           )}
-          {creating === "record" && !entity.deleted_at && (
+          {creating === "record" && canWrite && !entity.deleted_at && (
             <RecordFormModal
               key={location.key}
               open
@@ -321,7 +327,7 @@ export function EntityDetailPage() {
               }}
             />
           )}
-          {editor.active && !creating && editReady && (
+          {editor.active && canWrite && !creating && editReady && (
             <EntityForm
               initial={entity}
               relations={

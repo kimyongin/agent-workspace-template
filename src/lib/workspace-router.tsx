@@ -1,7 +1,10 @@
 /** Business screens use space-relative paths; browser URLs always retain their explicit space. */
-import { forwardRef, useCallback, useMemo } from "react";
+import { forwardRef, useCallback, useMemo, useRef } from "react";
 import {
   type BlockerFunction,
+  createSearchParams,
+  type SetURLSearchParams,
+  type URLSearchParamsInit,
   Link as RouterLink,
   type LinkProps,
   Navigate as RouterNavigate,
@@ -55,6 +58,28 @@ export function useNavigate(): NavigateFunction {
         : navigate(scoped(to, id), options)) as NavigateFunction,
     [navigate, id],
   );
+}
+/** Query-only navigation must keep the current business path's explicit workspace. */
+export function useSearchParams(defaultInit?: URLSearchParamsInit): [URLSearchParams, SetURLSearchParams] {
+  const defaults = useRef(createSearchParams(defaultInit)), changed = useRef(false);
+  const location = useLocation(), navigate = useNavigate();
+  const params = useMemo(() => {
+    const next = createSearchParams(location.search);
+    if (!changed.current) {
+      defaults.current.forEach((_, key) => {
+        if (!next.has(key)) {
+          for (const value of defaults.current.getAll(key)) next.append(key, value);
+        }
+      });
+    }
+    return next;
+  }, [location.search]);
+  const setParams = useCallback<SetURLSearchParams>((nextInit, options) => {
+    const next = createSearchParams(typeof nextInit === "function" ? nextInit(new URLSearchParams(params)) : nextInit);
+    changed.current = true;
+    void navigate({ pathname: location.pathname, search: `?${next}` }, options);
+  }, [navigate, location.pathname, params]);
+  return [params, setParams];
 }
 export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
   function Link(props, ref) {

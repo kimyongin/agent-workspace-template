@@ -46,6 +46,20 @@ test.beforeEach(async ({ page, isMobile }) => {
     return route.fulfill({json:{change_note:body.change_note??"변경 기록",change_tag_ids:[],missing_tag_ids:[],settings_version:0,prepared_input:body.input??{}}});
   });
 });
+// Feature-owned capability fixtures: settings authority never implies kind data access.
+async function entityCapabilities(page: Page, access: "read" | "write", settings = false, readTypeId?: string) {
+  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: {
+    workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null },
+    membership_version: 1,
+    can_manage: settings,
+    grants: [
+      { target_kind: "entity_type", target_id: fixtureType.id, access },
+      ...(readTypeId ? [{ target_kind: "entity_type", target_id: readTypeId, access: "read" }] : []),
+      ...(settings ? [{ target_kind: "settings", target_id: "*", access: "write" }] : []),
+    ],
+  } }));
+}
+
 async function revealNavigation(page: Page) {
   const profile=page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true,includeHidden:true});
   const trigger=page.getByRole("button",{name:/Toggle Sidebar|탐색 메뉴|주 메뉴 열기/,includeHidden:true});
@@ -588,12 +602,16 @@ test("#370 늦은 이전 사전 응답이 새 이름을 덮어쓰지 않는다",
 });
 
 test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결한다", async ({ page }, info) => {
+  await entityCapabilities(page, "write");
   const capture = async (name: string) => {
     await expect.poll(() => page.evaluate(() => document.getAnimations().filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
-    await info.attach(name, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+    const path = info.outputPath(`${name}.png`);
+    await page.screenshot({ path, fullPage: true });
+    await info.attach(name, { path, contentType: "image/png" });
   };
   let current = { ...makeEntity(301, { prop_1: "독립 태그 자료" }), tag_ids: [] as string[] };
   const creations: Record<string, unknown>[] = [], connections: Record<string, unknown>[] = [];
+  const history = [{ id: "tag-fixture-create", body: "최초 등록 기록", updated_at: current.updated_at, record_kind: "change", occurred_at: current.created_at }];
   await page.route("**/api/entity-types**", route => route.fulfill({
     json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema
       : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity()
@@ -607,12 +625,13 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
       creations.push(route.request().postDataJSON());
       return route.fulfill({ status: 201, json: current });
     }
-    return route.fulfill({ json: path.endsWith(current.id) ? { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } : { items: [], next_cursor: null } });
+    return route.fulfill({ json: path.endsWith(current.id) ? { ...current, tasks: { count: 0, items: [] }, records: { count: history.length, items: history } } : { items: [], next_cursor: null } });
   });
   await page.route("**/api/tag-connections", route => {
     const input = route.request().postDataJSON();
     expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
     connections.push(input);
+    history.push({ id: "tag-fixture-connect", body: "태그 연결 변경 기록", updated_at: current.updated_at, record_kind: "change", occurred_at: current.updated_at });
     current = { ...current, tag_ids: input.tag_ids, version: current.version + 1 };
     return route.fulfill({ json: { tag_ids: current.tag_ids, version: current.version, updated_at: current.updated_at } });
   });
@@ -621,6 +640,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   await beginTabAction(page, "검사 자료 추가");
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await expect(form.getByRole("button", { name: "태그 선택", exact: true })).toHaveCount(0);
+  await expect(form.getByText("번호 출처와 번호를 확인하고, 자료의 입력 항목을 작성합니다.", { exact: true })).toBeVisible();
   await form.getByLabel("제목").fill(current.title);
   await capture("new-entity-without-tag-selector");
   await saveOnce(page, form);
@@ -629,6 +649,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   expect(creations[0]).not.toHaveProperty("tag_ids");
   const region = page.getByRole("region", { name: "태그 연결" });
   await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+  await expect(page.getByText("기록 (1개)", { exact: true })).toBeVisible();
   await capture("saved-entity-before-tag-connection");
   await region.getByRole("button", { name: "태그 연결", exact: true }).click();
   await region.getByRole("button", { name: "태그 선택", exact: true }).click();
@@ -637,6 +658,12 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   await region.getByRole("button", { name: "연결 적용", exact: true }).click();
   await executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true }).click();
   await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
+  // Independent tag writes append a parent change record on the server; the
+  // detail must refresh that history without another mutation or a page reload.
+  await expect(page.getByText("기록 (2개)", { exact: true })).toBeVisible();
+  await expect(page.getByText("태그 연결 변경 기록", { exact: true })).toBeVisible();
+  await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toBeFocused();
+  await expect(page).toHaveURL(new RegExp(`/w/${fixtureWorkspaceId}/entities/`));
   await capture("saved-entity-after-tag-connection");
   expect(connections).toHaveLength(1);
   expect(connections[0]).toMatchObject({ target_kind: "entity", target_id: current.id, expected_version: 1, tag_ids: [tags[0].id] });
@@ -904,4 +931,80 @@ test("태그 연결 처리 중과 응답 불명은 Escape·뒤로가기를 막�
   } finally {
     release();
   }
+});
+
+
+test("넓은 App에서 자료 직접 추가는 공간 경로와 종류 조건을 유지한다", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop retained WorkspaceRoutes query navigation seam");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await entityCapabilities(page, "write");
+  await page.goto("/e2e/fixtures/entity-tags-app.html");
+  const list = `/w/${fixtureWorkspaceId}/entities?entity_type_id=${fixtureType.id}`;
+  await page.goto(list);
+  // Match the actual business-only user's direct primary action. The wide
+  // retained list uses WorkspaceRoutes' business-relative location override.
+  await page.getByRole("button", { name: `${fixtureType.label} 추가`, exact: true }).click();
+  await expect(page).toHaveURL(new URL(`${list}&create=1`, page.url()).href);
+  const form = page.getByRole("dialog", { name: `${fixtureType.label} 추가`, exact: true });
+  await expect(form).toBeVisible();
+  await expect(form.getByLabel("제목", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "페이지를 찾을 수 없습니다.", exact: true })).toHaveCount(0);
+  await page.goBack();
+  await expect(form).not.toBeVisible();
+  await expect(page).toHaveURL(new URL(list, page.url()).href);
+});
+
+for (const settings of [false, true]) {
+  test(`자료 종류 READ는 설정 ${settings ? "WRITE가 있어도" : "권한 없이도"} 보기만 제공한다`, async ({ page }) => {
+    await entityCapabilities(page, "read", settings);
+    const current = { ...makeEntity(1), tag_ids: [tags[0].id] };
+    await page.route("**/api/entities**", route => {
+      const path = decodeURIComponent(new URL(route.request().url()).pathname);
+      if (path.endsWith("/links")) return route.fulfill({ json: { items: [], next_cursor: null } });
+      return route.fulfill({ json: path.endsWith(current.id)
+        ? { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } }
+        : { items: [current], next_cursor: null } });
+    });
+    await page.goto("/e2e/fixtures/entity-tags-app.html");
+    const list = `/w/${fixtureWorkspaceId}/entities?entity_type_id=${fixtureType.id}`;
+    await page.goto(list);
+    await expect(page.getByRole("region", { name: `${fixtureType.label} 목록`, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: `${fixtureType.label} 추가`, exact: true })).toHaveCount(0);
+    // A manually supplied mode query does not open a writer surface.
+    await page.goto(`${list}&create=1`);
+    await expect(page.getByRole("region", { name: `${fixtureType.label} 목록`, exact: true })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: `${fixtureType.label} 추가`, exact: true })).toHaveCount(0);
+    const detail = `/w/${fixtureWorkspaceId}/entities/${encodeURIComponent(current.id)}`;
+    await page.goto(detail);
+    const region = page.getByRole("region", { name: "태그 연결", exact: true });
+    await expect(region.getByText(tags[0].name, { exact: true })).toBeVisible();
+    await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "기록 작성", exact: true })).toHaveCount(0);
+    await page.goto(`${detail}?edit=1`);
+    await expect(region.getByText(tags[0].name, { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "제목", exact: false })).toHaveCount(0);
+  });
+}
+
+
+test("전체 자료 작성의 종류 선택은 설정 WRITE와 별개로 종류 WRITE만 제공한다", async ({ page }) => {
+  const readable = { ...fixtureType, id: "00000000-0000-4000-8000-000000000901", label: "조회만 하는 자료" };
+  await entityCapabilities(page, "write", true, readable.id);
+  await page.route("**/api/entity-types**", route => route.fulfill({ json:
+    new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType, readable], next_cursor: null }
+      : new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema
+      : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : fixtureType,
+  }));
+  await page.goto("/e2e/fixtures/entity-tags-app.html");
+  await page.goto(`/w/${fixtureWorkspaceId}/entities`);
+  await page.getByRole("button", { name: "자료 추가", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "자료 추가", exact: true });
+  await expect(form).toBeVisible();
+  await form.getByRole("combobox", { name: "자료 종류", exact: true }).click();
+  await expect(page.getByRole("option", { name: fixtureType.label, exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: readable.label, exact: true })).toHaveCount(0);
+  await page.getByRole("option", { name: fixtureType.label, exact: true }).click();
+  await expect(page.getByRole("dialog", { name: `${fixtureType.label} 추가`, exact: true }).getByLabel("제목", { exact: false })).toBeEnabled();
 });
