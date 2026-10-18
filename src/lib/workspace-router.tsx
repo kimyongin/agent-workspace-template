@@ -33,7 +33,7 @@ function scoped(to: To, workspaceId: string | null, pathname: string): To {
       : path;
   // Descendant Routes render virtual business paths, so query/hash-only resolution needs its space too.
   if (workspaceId && (typeof to === "string" ? !to || /^[?#]/.test(to) : to.pathname == null || to.pathname === "")) {
-    return { ...(typeof to === "string" ? parsePath(to) : to), pathname: prefix(pathname) };
+    return { ...(typeof to === "string" ? parsePath(to) : to), pathname: workspacePath(workspaceId, businessPath(pathname)) };
   }
   return typeof to === "string"
     ? prefix(to)

@@ -11,14 +11,15 @@ function links(
   workspace: string | null = "space",
   prefix = true,
   browserPath = "/w/space/tags/record?edit=tag#old",
+  panePath = "/tags/record?edit=tag#old",
 ) {
   return renderToStaticMarkup(
     <WorkspaceRouteContext.Provider value={workspace}>
       <WorkspacePathPrefixContext.Provider value={prefix}>
         <MemoryRouter initialEntries={[browserPath]}>
-          <Routes location="/tags/record?edit=tag#old">
+          <Routes location={panePath}>
             <Route
-              path="tags/:scope"
+              path={panePath.startsWith("/manage") ? "manage" : "tags/:scope"}
               element={
                 <>
                   <Link to="?">clear</Link>
@@ -74,4 +75,9 @@ it("account-global and isolated routes do not acquire a workspace prefix", () =>
 it("retained virtual panes resolve against their own path rather than the browser foreground", () => {
   const html = links("space", true, "/w/space/entities/foreground?edit=1");
   expect(href(html, "query")).toBe("/w/space/tags/record?edit=next#name");
+});
+
+it("workspace management query changes retain the workspace outside the destination whitelist", () => {
+  const html = links("space", true, "/w/space/manage", "/manage");
+  expect(href(html, "query")).toBe("/w/space/manage?edit=next#name");
 });
