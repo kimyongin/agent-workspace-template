@@ -30,6 +30,7 @@ Deno.test("date and period occurrence reads agree across timezones and historica
   }));
   const store = new Proxy({
     executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+    visibleTask: (task: Task) => Promise.resolve(task),
     listTasks: () => Promise.resolve(tasks),
     getTask: (id: string) => Promise.resolve(tasks.find((task) => task.id === id) ?? null),
     occurrenceRecords: (ids: string[]) => {

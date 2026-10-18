@@ -9,11 +9,12 @@ import type { IndexJob } from "../../functions/_shared/core/shared/store.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 
 // Serial in-memory database boundary. Real DB tests own rollback/concurrency/RLS.
-function fixture(kind: "user" | "result" | "change") {
+function fixture(kind: "result" | "change") {
   const actor = { userId: crypto.randomUUID() }, now = "2026-10-06T01:00:00.000Z";
   let row: ActivityRecord = {
     id: crypto.randomUUID(),
     record_kind: kind,
+    entity_id: kind === "change" ? "app:00000000-0000-4000-8000-000000000001:001" : null,
     body: "본문",
     occurred_at: now,
     created_at: now,
@@ -21,7 +22,7 @@ function fixture(kind: "user" | "result" | "change") {
     version: 1,
     task_id: kind === "result" ? crypto.randomUUID() : null,
     occurrence_on: kind === "result" ? "2026-10-06" : null,
-    tag_ids: [],
+    tag_ids: ["20261016-ABCDEFGH"],
     change: kind === "change"
       ? {
         event_id: crypto.randomUUID(),
@@ -91,7 +92,7 @@ function fixture(kind: "user" | "result" | "change") {
   };
 }
 
-for (const kind of ["user", "result", "change"] as const) {
+for (const kind of ["result", "change"] as const) {
   Deno.test(`${kind}: HTTP edit without reason and MCP retry preserve facts, without another log`, async () => {
     const f = fixture(kind),
       patch = { expected_version: 1, body: "정정" };
@@ -101,11 +102,20 @@ for (const kind of ["user", "result", "change"] as const) {
     await assertRejects(() => f.call(patch));
     assertEquals(await f.read(), updated);
     assertEquals([updated.version, updated.body], [2, "정정"]);
-    assertEquals([updated.change, updated.occurred_at, updated.task_id, updated.occurrence_on], [
+    assertEquals([
+      updated.change,
+      updated.occurred_at,
+      updated.entity_id,
+      updated.task_id,
+      updated.occurrence_on,
+      updated.tag_ids,
+    ], [
       f.initial.change,
       f.initial.occurred_at,
+      f.initial.entity_id,
       f.initial.task_id,
       f.initial.occurrence_on,
+      f.initial.tag_ids,
     ]);
     assertEquals("applied_principle_ids" in updated, false);
     assertEquals(f.jobs.length, 1);
@@ -127,3 +137,25 @@ Deno.test("change: HTTP/MCP reject event identity and occurrence changes", async
   }
   assertEquals((await f.read()).version, 1);
 });
+
+for (const kind of ["result", "change"] as const) {
+  Deno.test(`${kind}: HTTP and MCP content edits reject classification and parent replacement`, async () => {
+    const f = fixture(kind);
+    for (
+      const patch of [
+        { tag_ids: [] },
+        { tag_ids: ["20261016-ABCDEFGH"] },
+        { entity_id: "app:00000000-0000-4000-8000-000000000001:002" },
+        { entity_ids: [] },
+        { entity_context: [] },
+        { task_id: "20261016-ABCDEFGH" },
+      ]
+    ) {
+      const input = { expected_version: 1, body: "정정", ...patch };
+      assertEquals((await f.http(input)).status, 400);
+      await assertRejects(async () => await f.call(input), AppError);
+      assertEquals(await f.read(), f.initial);
+      assertEquals(f.jobs, []);
+    }
+  });
+}
