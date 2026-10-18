@@ -42,6 +42,9 @@ function schemaRow(row: postgres.Row): EntitySchemaVersion {
   };
 }
 export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements EntityTypeStore {
+  private get workspaceId(): string {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
   private async hydrate(row: postgres.Row): Promise<EntityType> {
     return {
       ...typeRow(row),
@@ -70,12 +73,12 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     return row ? this.hydrate(row) : null;
   }
   async create(input: Parameters<EntityTypeStore["create"]>[0], definition: Parameters<EntityTypeStore["create"]>[1]) {
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.workspaceId + ":entity-types"},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.workspaceId + ":entity-types"},0))`;
     const [count] = await this.tx`select count(*)::int as count from app.entity_types`;
     assertEntityTypeCapacity(count.count);
     await this.assertActiveLabel(input.label);
     const id = crypto.randomUUID();
-    await this.tx`insert into app.entity_types(id,workspace_id) values (${id},${this.actor.workspaceId})`;
+    await this.tx`insert into app.entity_types(id,workspace_id) values (${id},${this.workspaceId})`;
     const schema = {
       ...definition.schema,
       "x-type-id": id,
@@ -84,7 +87,7 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
       "x-icon": input.icon_id,
       deprecated: false,
     };
-    await this.tx`insert into app.entity_schema_versions(workspace_id,schema) values (${this.actor.workspaceId},${
+    await this.tx`insert into app.entity_schema_versions(workspace_id,schema) values (${this.workspaceId},${
       this.tx.json(schema as never)
     })`;
     const row = (await loadSchemaType(this.tx, id))!;
@@ -92,15 +95,15 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     return this.hydrate(row);
   }
   async createImportedType(document: EntitySchemaVersion["schema"]) {
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.workspaceId + ":entity-types"},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.workspaceId + ":entity-types"},0))`;
     const [count] = await this.tx`select count(*)::int as count from app.entity_types`;
     assertEntityTypeCapacity(count.count);
     if (!document.deprecated) await this.assertActiveLabel(document.title!);
     const id = crypto.randomUUID(), schema = publicationDefinition({ schema: document }, id, 1).schema;
     const next = Object.keys(schema.properties).length + 1;
     await this
-      .tx`insert into app.entity_types(id,workspace_id,next_property_number) values (${id},${this.actor.workspaceId},${next})`;
-    await this.tx`insert into app.entity_schema_versions(workspace_id,schema) values (${this.actor.workspaceId},${
+      .tx`insert into app.entity_types(id,workspace_id,next_property_number) values (${id},${this.workspaceId},${next})`;
+    await this.tx`insert into app.entity_schema_versions(workspace_id,schema) values (${this.workspaceId},${
       this.tx.json(schema as never)
     })`;
     await new SqlEntityIssuerStore(this.tx, this.actor).initializeTypeIdentity(id);
@@ -113,7 +116,7 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     assertEntityTypeLabelAvailable(!!duplicate);
   }
   async update(id: string, input: Parameters<EntityTypeStore["update"]>[1]) {
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.workspaceId + ":entity-types"},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.workspaceId + ":entity-types"},0))`;
     const row = await loadSchemaType(this.tx, id, true);
     if (!row) throw notFound();
     if (row.schema_write_locked) {
@@ -130,7 +133,7 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
       row.id,
       revision,
     ).schema;
-    await this.tx`insert into app.entity_schema_versions(workspace_id,schema) values (${this.actor.workspaceId},${
+    await this.tx`insert into app.entity_schema_versions(workspace_id,schema) values (${this.workspaceId},${
       this.tx.json(schema)
     })`;
     await this.tx`update app.entity_types set schema_version=${revision},updated_at=now() where id=${row.id}`;

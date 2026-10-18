@@ -1,3 +1,4 @@
+import { requireWorkspaceActor } from "./workspace-context.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { EntityIssuerStore } from "../../core/entity-issuers/application.ts";
@@ -22,6 +23,9 @@ function rule(row: postgres.Row): IdentifierRule {
   };
 }
 export class SqlEntityIssuerStore implements EntityIssuerStore {
+  private get workspaceId(): string {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>) {
     return executeSqlRequest(this.tx, this.actor, request, execute);
@@ -101,7 +105,7 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
   }
   async createIssuer(input: Parameters<EntityIssuerStore["createIssuer"]>[0]) {
     const [row] = await this
-      .tx`insert into app.entity_issuers(workspace_id,code,label) values(${this.actor.workspaceId},${input.code},${input.label}) returning *`;
+      .tx`insert into app.entity_issuers(workspace_id,code,label) values(${this.workspaceId},${input.code},${input.label}) returning *`;
     return issuer(row);
   }
   async updateIssuer(code: string, input: Parameters<EntityIssuerStore["updateIssuer"]>[1]) {
@@ -120,7 +124,7 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
   }
   async createRule(source: string, input: Parameters<EntityIssuerStore["createRule"]>[1]) {
     const [row] = await this
-      .tx`insert into app.entity_identifier_rules(workspace_id,source,label,meaning,generation) values(${this.actor.workspaceId},${source},${input.label},${input.meaning},'direct') returning *`;
+      .tx`insert into app.entity_identifier_rules(workspace_id,source,label,meaning,generation) values(${this.workspaceId},${source},${input.label},${input.meaning},'direct') returning *`;
     return rule(row);
   }
   async updateRule(id: string, input: Parameters<EntityIssuerStore["updateRule"]>[1]) {
@@ -158,9 +162,7 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
     };
   }
   private async lockOwner() {
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${
-      this.actor.workspaceId + ":entity-identity-registry"
-    },0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.workspaceId + ":entity-identity-registry"},0))`;
   }
   async updateTypeIdentity(typeId: string, input: Parameters<EntityIssuerStore["updateTypeIdentity"]>[1]) {
     const old = await this.tx`select code from app.entity_type_identity_sources where type_id=${typeId}::uuid`;
@@ -171,7 +173,7 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
     }
     for (const s of input.sources) {
       await this
-        .tx`insert into app.entity_type_identity_sources(workspace_id,type_id,code,rule_id,active) values(${this.actor.workspaceId},${typeId}::uuid,${s.code},${s.rule_id},${s.active}) on conflict(workspace_id,type_id,code) do update set rule_id=excluded.rule_id,active=excluded.active`;
+        .tx`insert into app.entity_type_identity_sources(workspace_id,type_id,code,rule_id,active) values(${this.workspaceId},${typeId}::uuid,${s.code},${s.rule_id},${s.active}) on conflict(workspace_id,type_id,code) do update set rule_id=excluded.rule_id,active=excluded.active`;
     }
     const [saved] = await this
       .tx`update app.entity_type_identity set label=${input.label},default_source=${input.default_source},version=version+1 where type_id=${typeId}::uuid and version=${input.expected_version} returning type_id`;
@@ -181,13 +183,13 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
   async initializeTypeIdentity(typeId: string) {
     await this.lockOwner();
     await this
-      .tx`insert into app.entity_issuers(workspace_id,code,label,system) values(${this.actor.workspaceId},'app','앱',true) on conflict do nothing`;
+      .tx`insert into app.entity_issuers(workspace_id,code,label,system) values(${this.workspaceId},'app','앱',true) on conflict do nothing`;
     await this
-      .tx`insert into app.entity_identifier_rules(workspace_id,id,source,label,meaning,generation) values(${this.actor.workspaceId},${APP_IDENTIFIER_RULE_ID},'app','자동 발급','앱이 발급한 자료 번호','automatic') on conflict do nothing`;
+      .tx`insert into app.entity_identifier_rules(workspace_id,id,source,label,meaning,generation) values(${this.workspaceId},${APP_IDENTIFIER_RULE_ID},'app','자동 발급','앱이 발급한 자료 번호','automatic') on conflict do nothing`;
     await this
-      .tx`insert into app.entity_type_identity(workspace_id,type_id,label,default_source) values(${this.actor.workspaceId},${typeId},'번호','app')`;
+      .tx`insert into app.entity_type_identity(workspace_id,type_id,label,default_source) values(${this.workspaceId},${typeId},'번호','app')`;
     await this
-      .tx`insert into app.entity_type_identity_sources(workspace_id,type_id,code,rule_id) values(${this.actor.workspaceId},${typeId},'app',${APP_IDENTIFIER_RULE_ID})`;
+      .tx`insert into app.entity_type_identity_sources(workspace_id,type_id,code,rule_id) values(${this.workspaceId},${typeId},'app',${APP_IDENTIFIER_RULE_ID})`;
   }
 }
 export class SqlEntityIssuerUnitOfWork {
