@@ -142,7 +142,9 @@ for (const stage of stages) {
         const effects = await admin`select id,state,result is not null as has_result from private.passage_effects
           where workspace_id=${fixture.workspaceId} and source_kind='record' and source_id=${record.id}`;
         ownedEffects.push(...effects.map((effect) => effect.id as string));
-        assertEquals(effects.length, sends);
+        // Known completed results may be pruned after source revision; uncertain sends must remain.
+        const prunedCompleted = stage === "before_publish" && change === "source_edited";
+        assertEquals(effects.length, prunedCompleted ? 0 : sends);
         for (const effect of effects) {
           assertEquals(effect.state, stage === "before_publish" ? "succeeded" : "running");
           assertEquals(effect.has_result, stage === "before_publish");
