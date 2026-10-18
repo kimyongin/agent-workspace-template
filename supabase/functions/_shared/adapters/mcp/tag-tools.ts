@@ -1,3 +1,4 @@
+import { tagConnectionInput } from "../../contracts/tag-connection.ts";
 import { z } from "zod";
 import { expectedVersion, id } from "../../contracts/common.ts";
 import { mutationMeta } from "../../contracts/change.ts";
@@ -9,6 +10,14 @@ export function tagTools(d: tags.TagDeps): ToolDef[] {
   const rename = tagRename.extend({ id }),
     remove = z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta });
   const tools: ToolDef[] = [
+    {
+      name: "set_tag_connections",
+      description:
+        "저장된 대상의 태그 연결만 독립 교체·해제한다. 현재 expected_version과 같은 공간·태그 범위 및 대상 쓰기 권한을 검사한다. 자료·할 일의 연결 변경은 자동 변경 기록과 원자 저장하며 기록 태그에는 추가 편집 로그가 없다. 내용 생성·수정의 tag_ids는 받지 않는다.",
+      input: tagConnectionInput,
+      readOnly: false,
+      handler: (input, actor) => tags.setTagConnections(d, actor, parse(tagConnectionInput, input)),
+    },
     {
       name: "list_tags",
       description:

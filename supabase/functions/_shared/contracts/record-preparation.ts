@@ -22,7 +22,7 @@ export const prepareRecordMemo = z.strictObject({
     for (const issue of selection.error.issues) ctx.addIssue({ ...issue, path: ["input", ...issue.path] });
   }
 });
-export type PrepareRecordMemo = z.infer<typeof prepareRecordMemo>;
+export type PrepareRecordMemo = z.input<typeof prepareRecordMemo>;
 export interface PreparedRecordMemo {
   prepared_input: Record<string, unknown>;
   change_note: string;

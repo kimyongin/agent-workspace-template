@@ -370,15 +370,7 @@ dbTest("workspace entity saved tag connection preserves content and owns its ind
     );
     const tagDeps = { uow: new SqlTagUnitOfWork(sql) };
     const tag = await tags.createTag(tagDeps, key(author), { scope: "entity", name: "보기에서 연결" });
-    // Start with the current public module so the missing command is a runtime
-    // feature failure, rather than a type/import-only failure before the DB seam.
-    const set = (tags as unknown as {
-      setTagConnections(
-        d: tags.TagDeps,
-        a: Actor,
-        input: unknown,
-      ): Promise<{ tag_ids: string[]; version: number; updated_at: string }>;
-    }).setTagConnections;
+    const set = tags.setTagConnections;
     const request = key(author);
     const input = { target_kind: "entity", target_id: created.id, expected_version: 1, tag_ids: [tag.id] };
     const linked = await set(tagDeps, request, input);

@@ -1,3 +1,7 @@
+import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import { invalidInput, notFound } from "../../core/shared/errors.ts";
+import type { TagConnectionInput } from "../../contracts/tag-connection.ts";
+import type { TagEntry } from "../../core/tags/application.ts";
 import { loadEntityDefinition } from "./entity-values.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
@@ -6,10 +10,9 @@ import type { TagStore, TagUse } from "../../core/tags/application.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { Keyset } from "../../core/shared/store.ts";
 import { conflict } from "../../core/shared/errors.ts";
-import { runAsActor, SqlActorStore } from "./sql-context.ts";
+import { SqlActorStore } from "./sql-context.ts";
 import { SqlEntityStore } from "./entity-store.ts";
 import { SqlActivityStore } from "./activity-store.ts";
-import { checkedProperties, requireDefinition } from "../../core/entity/values.ts";
 const toTag = (r: Record<string, unknown>): TagResult => ({
   scope: r.scope as TagResult["scope"],
   id: r.id as string,
@@ -19,6 +22,14 @@ const toTag = (r: Record<string, unknown>): TagResult => ({
   updated_at: (r.updated_at as Date).toISOString(),
 });
 class SqlTagStore extends SqlActorStore implements TagStore {
+  private get workspaceId() {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
+  async connectionTarget(input: TagConnectionInput): Promise<TagUse | null> {
+    if (input.target_kind !== "entity") throw invalidInput("지원하지 않는 태그 연결 대상입니다");
+    const value = await new SqlEntityStore(this.tx, this.actor).get(input.target_id, true);
+    return value ? { kind: "entity", value } : null;
+  }
   private deletionTypes: Set<string> | undefined;
   private async deletionTypeIds(id: string) {
     const rows = await this.tx<
@@ -34,7 +45,9 @@ class SqlTagStore extends SqlActorStore implements TagStore {
     for (const typeId of this.deletionTypes) await loadEntityDefinition(this.tx, typeId, true);
   }
   async get(id: string, lock = false) {
-    const [r] = await this.tx`select * from app.tags where id=${id} ${lock ? this.tx`for update` : this.tx``}`;
+    const [r] = await this.tx`select * from app.tags where workspace_id=${this.workspaceId} and id=${id} ${
+      lock ? this.tx`for update` : this.tx``
+    }`;
     if (lock && this.deletionTypes && (await this.deletionTypeIds(id)).some((type) => !this.deletionTypes!.has(type))) {
       throw conflict("태그 연결이 변경되었습니다. 최신 상태에서 다시 삭제하세요");
     }
@@ -51,14 +64,15 @@ class SqlTagStore extends SqlActorStore implements TagStore {
   async insert(name: string, scope: TagResult["scope"]) {
     return toTag(
       await insertWithIdRetry(() =>
-        this.tx`insert into app.tags(owner_id,name,scope) values (${this.actor.userId},${name},${scope})
+        this.tx`insert into app.tags(workspace_id,name,scope) values (${this.workspaceId},${name},${scope})
       on conflict (id) do nothing returning *`
       ),
     );
   }
   rename(id: string, name: string) {
     return this.unique(() =>
-      this.tx`update app.tags set name=${name},version=version+1,updated_at=now() where id=${id} returning *`
+      this
+        .tx`update app.tags set name=${name},version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id} returning *`
     );
   }
   async *uses(id: string): AsyncIterable<TagUse> {
@@ -79,8 +93,6 @@ class SqlTagStore extends SqlActorStore implements TagStore {
   async setTags(use: TagUse, tag_ids: string[]): Promise<TagUse> {
     if (use.kind === "entity") {
       const entities = new SqlEntityStore(this.tx, this.actor);
-      const definition = await requireDefinition(entities, use.value.entity_type_id, use.value.current_schema_version);
-      checkedProperties(definition, use.value.properties, {}, false);
       return {
         kind: "entity",
         value: await entities.setTags(use.value.id, tag_ids),
@@ -91,7 +103,7 @@ class SqlTagStore extends SqlActorStore implements TagStore {
     return { kind: "record", value: await activity.updateRecord(use.value.id, { tag_ids }) };
   }
   async delete(id: string) {
-    await this.tx`delete from app.tags where id=${id}`;
+    await this.tx`delete from app.tags where workspace_id=${this.workspaceId} and id=${id}`;
   }
   async listRecordTemplateTags(limit: number, after?: Keyset) {
     const rows = await this.tx`select * from app.workspace_record_template_tags(${limit},${
@@ -101,14 +113,32 @@ class SqlTagStore extends SqlActorStore implements TagStore {
   }
   async list(limit: number, after?: Keyset, scope: TagResult["scope"] = "record") {
     const tx = this.tx;
-    return (await tx`select * from app.tags where scope=${scope} ${
+    return (await tx`select * from app.tags where workspace_id=${this.workspaceId} and scope=${scope} ${
       after ? tx`and (updated_at,id)<(${after.at}::timestamptz,${after.id}::text)` : tx``
     } order by updated_at desc,id desc limit ${limit}`).map(toTag);
   }
 }
 export class SqlTagUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
-  run<T>(a: Actor, fn: (s: TagStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, a, (tx) => fn(new SqlTagStore(tx, a)));
+  run<T>(a: Actor, fn: (s: TagStore) => Promise<T>, entry?: TagEntry): Promise<T> {
+    const actor = requireWorkspaceActor(a);
+    return runInWorkspace(this.sql, actor, { mode: "business", requirements: [] }, async (tx) => {
+      if (entry?.connection) {
+        if (entry.connection.target_kind !== "entity") {
+          throw invalidInput("지원하지 않는 태그 연결 대상입니다");
+        }
+        const [entity] =
+          await tx`select entity_type_id from app.entities where workspace_id=${actor.workspaceId} and id=${entry.connection.target_id}`;
+        if (!entity) throw notFound();
+        const requirements = [{
+          target_kind: "entity_type" as const,
+          target_id: String(entity.entity_type_id),
+          access: "write" as const,
+        }];
+        await authorizeWorkspace(tx, requirements);
+        await tx`select set_config('request.workspace_requirements',${JSON.stringify(requirements)},true)`;
+      }
+      return fn(new SqlTagStore(tx, a));
+    });
   }
 }
