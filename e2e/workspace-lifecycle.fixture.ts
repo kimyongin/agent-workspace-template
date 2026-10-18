@@ -368,6 +368,11 @@ test(
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await expect.poll(() => writes.length).toBe(3);
     await expect(page.getByRole("button", { name: "복원", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "내 공간", exact: true })).toBeFocused();
+    const createButton = page.getByRole("button", { name: "새 공간 만들기", exact: true });
+    await createButton.focus();
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(createButton).toBeFocused();
     expect(writes[2]).toEqual({
       method: "POST",
       key: expect.stringMatching(/^[0-9a-f-]{36}$/),
