@@ -399,14 +399,14 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     // cannot see a sibling INSERT through that policy's statement snapshot.
     // Retain the exact bounded snapshot above, then write it in a new statement.
     await this
-      .tx`insert into private.entity_schema_analysis_rows(workspace_id,analysis_id,entity_id,source_version,source_schema_version,properties,deleted_at)
-      select ${this.schemaWorkspaceId}::uuid,${a.id}::uuid,r.id,r.version,r.schema_version,r.properties,r.deleted_at
+      .tx`insert into private.entity_schema_analysis_rows(workspace_id,analysis_id,entity_id,source_version,source_schema_version,properties,deleted_at,recovery_properties)
+      select ${this.schemaWorkspaceId}::uuid,${a.id}::uuid,r.id,r.version,r.schema_version,r.properties,r.deleted_at,
+        (select source.source_properties from private.entity_schema_migration_rows source where source.workspace_id=${this.schemaWorkspaceId}::uuid
+          and source.job_id=${row.recovery_source_job_id}::uuid and source.entity_id=r.id)
       from jsonb_to_recordset(${this.tx.json(a.rows)}::jsonb)
         r(id text,version integer,schema_version integer,properties jsonb,deleted_at timestamptz)`;
 
     if (row.recovery_source_job_id) {
-      await this
-        .tx`update private.entity_schema_analysis_rows r set recovery_properties=s.source_properties from private.entity_schema_migration_rows s where r.analysis_id=${a.id} and s.job_id=${row.recovery_source_job_id} and s.entity_id=r.entity_id and s.workspace_id=r.workspace_id`;
       const [size] = await this
         .tx`select coalesce(sum(octet_length(properties::text)+octet_length(recovery_properties::text)),0) as bytes from private.entity_schema_analysis_rows where analysis_id=${a.id}`;
       if (Number(size.bytes) > 8388608) throw invalidInput("복구 분석 원본은 8 MiB 이하에서 실행할 수 있습니다");

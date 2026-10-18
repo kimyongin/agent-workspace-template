@@ -176,7 +176,7 @@ import { prepareMigrationBatch } from "../../functions/_shared/core/entity-types
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 
 const modelDeps = { uow: new SqlDataModelUnitOfWork(sql, SqlDataModelGroupStore) };
-async function twoKindPublicationFixture(injectLateFailure: boolean) {
+async function twoKindPublicationFixture(injectLateFailure: boolean, expireGroup = false) {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
   for (const actor of [a, b]) {
@@ -559,6 +559,22 @@ async function twoKindPublicationFixture(injectLateFailure: boolean) {
         pipeline: SEARCH_PIPELINE,
       });
     }
+    if (expireGroup) {
+      await workspaces.leaveWorkspace(workspaceDeps, key(b), workspaceId, { expected_version: 1 });
+      await admin`update app.data_model_changes set source_expires_at=clock_timestamp()-interval '1 second' where workspace_id=${workspaceId} and id=${saved.id}`;
+      await worker`select app.prune_data_model_sources()`;
+      const [expired] =
+        await admin`select source_templates,source_memberships from app.data_model_changes where workspace_id=${workspaceId} and id=${saved.id}`;
+      assertEquals(expired, { source_templates: null, source_memberships: null });
+      assertEquals(
+        Number(
+          (await admin`select count(*) count from private.entity_schema_migration_rows where workspace_id=${workspaceId}`)[
+            0
+          ].count,
+        ),
+        2,
+      );
+    }
   } finally {
     if (workspaceId) {
       await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`;
@@ -587,7 +603,10 @@ async function retryOrRestoreFixture(
     | "recovery"
     | "seal_job"
     | "seal_model"
-    | "seal_model_snapshots",
+    | "seal_model_snapshots"
+    | "analysis_expiry"
+    | "analysis_dependency"
+    | "seal_analysis",
 ) {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
@@ -811,6 +830,50 @@ async function retryOrRestoreFixture(
         },
       }],
     });
+    if (scenario === "analysis_expiry" || scenario === "seal_analysis") {
+      const [queued] =
+        await admin`select a.id,a.fence from app.entity_schema_analyses a join app.data_model_children c on c.workspace_id=a.workspace_id and c.analysis_id=a.id where c.workspace_id=${workspaceId} and c.model_id=${saved.id}`;
+      if (scenario === "seal_analysis") {
+        await runInWorkspace(sql, executor, {
+          mode: "business",
+          requirements: grants as workspaces.WorkspaceRequirement[],
+        }, async (tx) => {
+          const clock = await assertRejects(() =>
+            tx.savepoint((nested) =>
+              nested`update app.entity_schema_analyses set created_at=created_at+interval '1 day' where workspace_id=${executor.workspaceId} and id=${queued.id}`
+            )
+          );
+          assertEquals((clock as { code?: string }).code, "23514");
+          assertEquals((clock as Error).message, "schema_analysis_source_immutable");
+          const row = await assertRejects(() =>
+            tx.savepoint((nested) =>
+              nested`update private.entity_schema_analysis_rows set properties='{"prop_1":"tampered"}' where workspace_id=${executor.workspaceId} and analysis_id=${queued.id}`
+            )
+          );
+          assertEquals((row as { code?: string }).code, "23514");
+          assertEquals((row as Error).message, "schema_analysis_source_row_immutable");
+        });
+      } else {
+        await admin`update app.entity_schema_analyses set created_at=clock_timestamp()-interval '31 days' where workspace_id=${workspaceId} and id=${queued.id}`;
+        assertEquals((await worker`select app.claim_entity_schema_analysis() as batch`)[0].batch, null);
+        await workspaces.leaveWorkspace(workspaceDeps, key(a), workspaceId, { expected_version: 2 });
+        await worker`select app.prune_entity_schema_sources()`;
+        const [expired] =
+          await admin`select status,fence,lease_until from app.entity_schema_analyses where workspace_id=${workspaceId} and id=${queued.id}`;
+        assertEquals(expired.status, "failed");
+        assertEquals(Number(expired.fence) > Number(queued.fence), true);
+        assertEquals(expired.lease_until, null);
+        assertEquals(
+          Number(
+            (await admin`select count(*) count from private.entity_schema_analysis_rows where workspace_id=${workspaceId} and analysis_id=${queued.id}`)[
+              0
+            ].count,
+          ),
+          0,
+        );
+      }
+      return;
+    }
     const [analysis] = await worker`select app.claim_entity_schema_analysis() as batch`;
     assertEquals(Boolean(analysis.batch), true);
     const convert = compileMigration(analysis.batch.target, analysis.batch.migration, analysis.batch.recovery_keys);
@@ -900,6 +963,29 @@ async function retryOrRestoreFixture(
       return;
     }
     await applyDataModel(modelDeps, key(author), saved.id, { expected_version: ready.version });
+    if (scenario === "analysis_dependency") {
+      await admin`update app.entity_schema_analyses set created_at=clock_timestamp()-interval '31 days' where workspace_id=${workspaceId} and id=${analysis.batch.id}`;
+      await worker`select app.prune_entity_schema_sources()`;
+      assertEquals(
+        (await admin`select status from app.entity_schema_analyses where workspace_id=${workspaceId} and id=${analysis.batch.id}`)[
+          0
+        ].status,
+        "succeeded",
+      );
+      assertEquals(
+        Number(
+          (await admin`select count(*) count from private.entity_schema_analysis_rows where workspace_id=${workspaceId} and analysis_id=${analysis.batch.id}`)[
+            0
+          ].count,
+        ),
+        1,
+      );
+      assertEquals(
+        (await worker`select app.claim_data_model_conversion() as batch`)[0].batch.child.initiated_by,
+        a.userId,
+      );
+      return;
+    }
     if (["seal_model", "seal_model_snapshots", "seal_job"].includes(scenario)) {
       const [accepted] =
         await admin`select id from app.entity_schema_migrations where workspace_id=${workspaceId} and model_change_id=${saved.id}`;
@@ -921,7 +1007,8 @@ async function retryOrRestoreFixture(
         } else if (scenario === "seal_model_snapshots") {
           for (const column of ["source_templates", "source_memberships"] as const) {
             await reject(
-              (nested) => nested`update app.data_model_changes set ${nested(column)}='{}'::jsonb
+              (nested) =>
+                nested`update app.data_model_changes set ${nested(column)}='{}'::jsonb
                 where workspace_id=${executor.workspaceId} and id=${saved.id}`,
               "model_plan_source_snapshot_immutable",
             );
@@ -1123,8 +1210,24 @@ dbTest(
   () => retryOrRestoreFixture("seal_model"),
 );
 
-
 dbTest(
   "queued model retained source snapshots cannot be rewritten by an authorized manager",
   () => retryOrRestoreFixture("seal_model_snapshots"),
+);
+
+dbTest(
+  "expired queued analysis cannot claim before bounded source maintenance",
+  () => retryOrRestoreFixture("analysis_expiry"),
+);
+dbTest(
+  "live accepted source protects its older analysis from pruning",
+  () => retryOrRestoreFixture("analysis_dependency"),
+);
+dbTest(
+  "queued analysis clock and captured values are immutable to app_user",
+  () => retryOrRestoreFixture("seal_analysis"),
+);
+dbTest(
+  "expired model source is pruned without historical coordinator authority",
+  () => twoKindPublicationFixture(false, true),
 );
