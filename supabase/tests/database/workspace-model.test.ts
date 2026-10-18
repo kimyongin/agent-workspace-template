@@ -289,8 +289,8 @@ dbTest(
         mode: "business",
         requirements: [{ target_kind: "entity_type", target_id: left.id, access: "write" }],
       }, async (tx) => {
-        const [record] = await tx`insert into app.records(workspace_id,entity_id,body)
-          values(${owned[0]}::uuid,${entityId},'공유 자료 값의 변경 기록') returning id`;
+        const [record] = await tx`insert into app.records(workspace_id,entity_id,body,record_kind)
+          values(${owned[0]}::uuid,${entityId},'공유 자료 값의 변경 기록','change') returning id`;
         return record.id as string;
       });
       await runInWorkspace(sql, reader, {

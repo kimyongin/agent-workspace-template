@@ -168,7 +168,7 @@ dbTest("workspace record producer hides existing and missing sources after kind 
       const external = crypto.randomUUID(), id = `app:${type.id}:${external}`;
       await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) values(${workspaceId!},${id},'app',${external},${type.id},1,'{"prop_1":"공개하지 않을 값"}')`;
       const [record] =
-        await tx`insert into app.records(workspace_id,entity_id,body) values(${workspaceId!},${id},'공개하지 않을 본문') returning id`;
+        await tx`insert into app.records(workspace_id,entity_id,body,record_kind) values(${workspaceId!},${id},'공개하지 않을 본문','change') returning id`;
       return String(record.id);
     });
     await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
