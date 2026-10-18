@@ -98,6 +98,20 @@ async function openNavigation(page: Page) {
   await openMainNavigation(page);
   return page.getByRole("navigation", { name: "주 메뉴", exact: true });
 }
+/** A route click commits before the old mobile Sheet's closing Presence is removed. */
+async function routeReady(page: Page, path: RegExp, heading: string) {
+  await expect(page).toHaveURL(path);
+  await expect(
+    page.getByRole("heading", { name: heading, level: 1, exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("dialog", {
+      name: "주 메뉴",
+      exact: true,
+      includeHidden: true,
+    }),
+  ).toHaveCount(0);
+}
 async function selectWorkspace(page: Page, name: string) {
   const sidebar = await openNavigation(page);
   await sidebar.getByRole("button", { name: "공간 선택", exact: true }).click();
@@ -353,11 +367,11 @@ test(
         expect(body.workspace.name).toBe(name);
         expect(body.workspace.id).toMatch(uuid);
         created.push(body.workspace.id);
-        await expect(page).toHaveURL(
+        await routeReady(
+          page,
           new RegExp(`/w/${body.workspace.id}/tasks$`),
+          "할 일",
         );
-        await expect(page.getByRole("heading", { name: "할 일", exact: true }))
-          .toBeVisible();
         const sidebar = await openNavigation(page);
         await expect(
           sidebar.getByRole("button", { name: "공간 선택", exact: true }),
@@ -368,6 +382,7 @@ test(
           name: "공간 목록 · 새 공간",
           exact: true,
         }).click();
+        await routeReady(page, /\/workspaces$/, "내 공간");
         await expect(
           page.getByRole("table", { name: "공간 목록", exact: true }).getByText(
             name,
@@ -376,7 +391,7 @@ test(
         ).toBeVisible();
       }
       await selectWorkspace(page, names[0]);
-      await expect(page).toHaveURL(new RegExp(`/w/${created[0]}/tasks$`));
+      await routeReady(page, new RegExp(`/w/${created[0]}/tasks$`), "할 일");
       const sidebar = await openNavigation(page);
       await sidebar.getByRole("button", { name: "공간 선택", exact: true })
         .click();
