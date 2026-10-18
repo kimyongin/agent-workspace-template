@@ -4,35 +4,61 @@ import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { tagCreate } from "../../functions/_shared/contracts/tag.ts";
-import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
-import { taskCreate, taskUpdate } from "../../functions/_shared/contracts/task.ts";
-import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import {
+  entityCreate,
+  entityUpdate,
+} from "../../functions/_shared/contracts/entity.ts";
+import {
+  taskCreate,
+  taskUpdate,
+} from "../../functions/_shared/contracts/task.ts";
+import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import * as t from "../../functions/_shared/core/tags/application.ts";
 import * as e from "../../functions/_shared/core/entity/application.ts";
 import * as a from "../../functions/_shared/core/activity/application.ts";
-import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
-import { entityFixture } from "./_entity.ts";
+import { connect, dbTest, urls } from "./_db.ts";
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
 
 const applicationName = `tag-concurrency-${crypto.randomUUID()}`;
 const admin = connect(urls.admin, { max: 1 }),
-  sql = connect(urls.direct, { max: 3, connection: { application_name: applicationName } });
+  sql = connect(urls.direct, {
+    max: 3,
+    connection: { application_name: applicationName },
+  });
 const td = { uow: new SqlTagUnitOfWork(sql) },
   ed = { uow: new SqlEntityUnitOfWork(sql) },
   ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 
 for (
-  const [kind, scenario] of (["entity", "task", "record"] as const).flatMap((kind) =>
-    (["remove links", "edit content", "delete parent"] as const).map((scenario) => [kind, scenario] as const)
+  const [kind, scenario] of (["entity", "task", "record"] as const).flatMap((
+    kind,
+  ) =>
+    (["remove links", "edit content", "delete parent"] as const).map((
+      scenario,
+    ) => [kind, scenario] as const)
   )
 ) {
   dbTest(
     `Read Committed ${kind} ${scenario}: waiting tag deletion changes only existing links once`,
     async () => {
-      const f = await fixtureOwner(admin);
-      const ready = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-      let editing: Promise<unknown> | undefined, deleting: Promise<unknown> | undefined;
+      const workspace = await businessWorkspaceFixture(admin, sql);
+      const f = { ...workspace, actor: workspace.member };
+      const ready = Promise.withResolvers<void>(),
+        release = Promise.withResolvers<void>();
+      let editing: Promise<unknown> | undefined,
+        deleting: Promise<unknown> | undefined;
       try {
-        const schema = await entityFixture(admin, f.actor.userId);
+        const definition = await f.createKind("경합 대상");
+        await f.grant(f.actor, [{
+          target_kind: "tasks",
+          target_id: "*",
+          access: "write",
+        }, {
+          target_kind: "entity_type",
+          target_id: definition.id,
+          access: "write",
+        }]);
+        const schema = { entity_type_id: definition.id, schema_version: 1 };
         const scope = kind;
         const first = await t.createTag(
           td,
@@ -45,7 +71,7 @@ for (
           tagCreate.parse({ ...{ name: "also removed", scope } }),
         );
         const tag_ids = [first.id, other.id];
-        const parent = kind === "entity"
+        const created = kind === "entity"
           ? await e.createEntity(
             ed,
             requestActor(f.actor),
@@ -54,7 +80,6 @@ for (
               source: "app",
               external_id: crypto.randomUUID(),
               properties: { prop_1: "parent" },
-              tag_ids,
             }),
           )
           : kind === "task"
@@ -62,42 +87,60 @@ for (
             ad,
             requestActor(f.actor),
             taskCreate.parse({
-              ...{ kind: "once", title: "parent", tag_ids },
+              ...{ kind: "once", title: "parent" },
             }),
           )
-          : await a.createRecord(
+          : (await a.completeTask(
             ad,
             requestActor(f.actor),
-            recordCreate.parse({ ...{ body: "parent", tag_ids } }),
-          );
+            (await a.createTask(
+              ad,
+              requestActor(f.actor),
+              taskCreate.parse({ kind: "once", title: "결과의 명시적 원본" }),
+            )).id,
+            { expected_version: 1, body: "parent" },
+          )).record;
+        const linked = await t.setTagConnections(td, requestActor(f.actor), {
+          target_kind: kind,
+          target_id: created.id,
+          expected_version: created.version,
+          tag_ids,
+        });
+        const parent = { ...created, ...linked };
         // Hold the real application transaction after its edit, before commit.
         const heldE: e.EntityDeps = {
           uow: {
-            run: (actor, fn) =>
+            run: (actor, fn, entry) =>
               ed.uow.run(actor, async (s) => {
                 const result = await fn(s);
                 ready.resolve();
                 await release.promise;
                 return result;
-              }),
+              }, entry),
           },
         };
         const heldA: a.ActivityDeps = {
           ...ad,
           uow: {
-            run: (actor, fn) =>
+            run: (actor, fn, entry) =>
               ad.uow.run(actor, async (s) => {
                 const result = await fn(s);
                 ready.resolve();
                 await release.promise;
                 return result;
-              }),
+              }, entry),
           },
         };
         const patch = {
           expected_version: parent.version,
-          ...(kind === "entity" ? { schema_version: schema.schema_version } : {}),
-          ...(kind === "record" ? {} : { change_note: scenario === "edit content" ? "edit content" : "remove both" }),
+          ...(kind === "entity"
+            ? { schema_version: schema.schema_version }
+            : {}),
+          ...(kind === "record" ? {} : {
+            change_note: scenario === "edit content"
+              ? "edit content"
+              : "remove both",
+          }),
           ...(scenario === "edit content"
             ? (kind === "entity"
               ? { properties: { prop_1: "edited parent" } }
@@ -106,31 +149,87 @@ for (
               : { title: "edited parent" })
             : { tag_ids: [] }),
         };
-        editing = scenario === "delete parent"
+        const heldT: t.TagDeps = {
+          uow: {
+            run: (actor, fn, entry) =>
+              td.uow.run(actor, async (store) => {
+                const result = await fn(store);
+                ready.resolve();
+                await release.promise;
+                return result;
+              }, entry),
+          },
+        };
+        editing = scenario === "remove links"
+          ? t.setTagConnections(heldT, requestActor(f.actor), {
+            target_kind: kind,
+            target_id: parent.id,
+            expected_version: parent.version,
+            tag_ids: [],
+            ...(kind !== "record" ? { change_note: "remove both" } : {}),
+          })
+          : scenario === "delete parent"
           ? kind === "entity"
-            ? e.deleteEntity(heldE, requestActor(f.actor), parent.id, parent.version)
+            ? e.deleteEntity(
+              heldE,
+              requestActor(f.actor),
+              parent.id,
+              parent.version,
+            )
             : kind === "task"
-            ? a.deleteTask(heldA, requestActor(f.actor), parent.id, parent.version)
-            : a.deleteRecord(heldA, requestActor(f.actor), parent.id, parent.version)
+            ? a.deleteTask(
+              heldA,
+              requestActor(f.actor),
+              parent.id,
+              parent.version,
+            )
+            : a.deleteRecord(
+              heldA,
+              requestActor(f.actor),
+              parent.id,
+              parent.version,
+            )
           : kind === "entity"
-          ? e.updateEntity(heldE, requestActor(f.actor), parent.id, entityUpdate.parse(patch))
+          ? e.updateEntity(
+            heldE,
+            requestActor(f.actor),
+            parent.id,
+            entityUpdate.parse(patch),
+          )
           : kind === "task"
-          ? a.updateTask(heldA, requestActor(f.actor), parent.id, taskUpdate.parse(patch))
-          : a.updateRecord(heldA, requestActor(f.actor), parent.id, recordUpdate.parse(patch));
+          ? a.updateTask(
+            heldA,
+            requestActor(f.actor),
+            parent.id,
+            taskUpdate.parse(patch),
+          )
+          : a.updateRecord(
+            heldA,
+            requestActor(f.actor),
+            parent.id,
+            recordUpdate.parse(patch),
+          );
         await Promise.race([
           ready.promise,
           editing.then(() => {
             throw Error("edit did not reach barrier");
           }),
         ]);
-        deleting = t.deleteTag(td, requestActor(f.actor), first.id, first.version, "delete dictionary entry");
+        deleting = t.deleteTag(
+          td,
+          requestActor(f.actor),
+          first.id,
+          first.version,
+          "delete dictionary entry",
+        );
         // Observe failures immediately while the lock barrier is being inspected.
         void deleting.catch(() => {});
         // Observe this test's actual blocking chain, independent of which table a
         // typed writer locks first, then release its idle held transaction.
         let waited = false;
         for (let n = 0; n < 100; n++) {
-          const rows = await admin`select waiter.pid from pg_stat_activity waiter
+          const rows =
+            await admin`select waiter.pid from pg_stat_activity waiter
             where waiter.application_name=${applicationName} and waiter.wait_event_type='Lock'
             and exists(select 1 from pg_stat_activity holder where holder.application_name=${applicationName}
               and holder.state='idle in transaction' and holder.pid=any(pg_blocking_pids(waiter.pid)))`;
@@ -142,15 +241,27 @@ for (
         }
         release.resolve();
         await Promise.all([editing, deleting]);
-        assert(waited, "observed real SELECT waiting on the parent/type application lock");
-        await assertRejects(() =>
-          t.deleteTag(td, requestActor(f.actor), first.id, first.version, "delete dictionary entry")
+        assert(
+          waited,
+          "observed real SELECT waiting on the parent/type application lock",
         );
-        const events = await admin`select body,change_metadata from app.records where owner_id=${f.actor.userId}
+        await assertRejects(() =>
+          t.deleteTag(
+            td,
+            requestActor(f.actor),
+            first.id,
+            first.version,
+            "delete dictionary entry",
+          )
+        );
+        const events =
+          await admin`select body,change_metadata from app.records where workspace_id=${f.workspaceId}
         and change_metadata->>'target_id'=${parent.id} and change_metadata->>'action'='update' order by occurred_at`;
         if (scenario === "delete parent") {
-          if (kind === "entity") {
-            const retained = await e.getEntity(ed, f.actor, parent.id);
+          if (kind === "entity" || kind === "task") {
+            const retained = kind === "entity"
+              ? await e.getEntity(ed, f.actor, parent.id)
+              : await a.getTask(ad, f.actor, parent.id);
             assert(retained.deleted_at);
             assertEquals(retained.tag_ids, [other.id]);
             assertEquals(retained.version, parent.version + 2);
@@ -158,7 +269,9 @@ for (
             return;
           }
           assertEquals(
-            (await admin`select id from ${admin(`app.${kind}s`)} where id=${parent.id}`).length,
+            (await admin`select id from ${
+              admin(`app.${kind}s`)
+            } where id=${parent.id}`).length,
             0,
           );
           assertEquals(events.length, 0);
@@ -182,8 +295,13 @@ for (
           );
           assertEquals(events.length, kind === "record" ? 0 : 2);
           if (kind !== "record") {
-            const unlink = events.find((r) => r.body === "delete dictionary entry")!;
-            assertEquals([unlink.change_metadata.before, unlink.change_metadata.after], [null, null]);
+            const unlink = events.find((r) =>
+              r.body === "delete dictionary entry"
+            )!;
+            assertEquals([
+              unlink.change_metadata.before,
+              unlink.change_metadata.after,
+            ], [null, null]);
             assertEquals(unlink.change_metadata.target_title, "edited parent");
           }
         } else {
@@ -192,7 +310,10 @@ for (
           assertEquals(events.length, kind === "record" ? 0 : 1);
           if (kind !== "record") {
             assertEquals(events[0].body, "remove both");
-            assertEquals([events[0].change_metadata.before, events[0].change_metadata.after], [null, null]);
+            assertEquals([
+              events[0].change_metadata.before,
+              events[0].change_metadata.after,
+            ], [null, null]);
           }
         }
       } finally {
