@@ -287,6 +287,40 @@ test(
       expect((await updated.json()).tag_ids).toEqual([tag.body.id]);
       await bPage.goto(`${env.web}/w/${w}/entities/${encodeURIComponent(entity.id)}`);
       await expect(region.getByText(tagName, { exact: true })).toBeVisible();
+      await region.getByRole("button", { name: "태그 연결", exact: true }).click();
+      await region.getByRole("button", { name: "태그 선택", exact: true }).click();
+      const savedChooser = bPage.getByRole("dialog", { name: "태그 선택", exact: true });
+      await expect(savedChooser.getByRole("option", { name: tagName, exact: true })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+      const grantAndRefresh = async (expected_version: number, access: "none" | "read" | "write") => {
+        expect(
+          (await request(a.token, "PATCH", `/workspaces/${w}/members/${b.id}`, {
+            expected_version,
+            grants: access === "none" ? [] : [{ target_kind: "entity_type", target_id: kind.id, access }],
+          })).status,
+        ).toBe(200);
+        const refreshed = bPage.waitForResponse((response) =>
+          response.url() === `${env.api}/workspaces/${w}` && response.request().method() === "GET"
+        );
+        await bPage.evaluate(() => window.dispatchEvent(new Event("focus")));
+        expect((await refreshed).status()).toBe(200);
+      };
+      await grantAndRefresh(2, "none");
+      await expect(savedChooser).not.toBeVisible();
+      await expect(bPage.getByText(`${original} 수정`, { exact: true }).filter({ visible: true })).toHaveCount(0);
+      await bPage.screenshot({ path: info.outputPath("actual-entity-none-tag-chooser.png"), fullPage: true });
+      await grantAndRefresh(3, "read");
+      await expect(savedChooser).toBeVisible();
+      await expect(savedChooser.getByRole("option", { name: tagName, exact: true })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+      await expect(savedChooser.getByRole("option", { name: tagName, exact: true })).toBeDisabled();
+      await savedChooser.getByRole("button", { name: "닫기", exact: true }).click();
+      await region.getByRole("button", { name: "연결 취소", exact: true }).click();
+      await grantAndRefresh(4, "write");
       const unlink = bPage.waitForResponse((r) =>
         r.url() === `${env.api}/tag-connections` && r.request().method() === "POST"
       );
@@ -298,7 +332,7 @@ test(
       await region.getByRole("button", { name: "태그 연결", exact: true }).click();
       expect(
         (await request(a.token, "PATCH", `/workspaces/${w}/members/${b.id}`, {
-          expected_version: 2,
+          expected_version: 5,
           grants: [{ target_kind: "entity_type", target_id: kind.id, access: "read" }],
         })).status,
       ).toBe(200);
@@ -318,7 +352,7 @@ test(
       await expect(detailDialog(bPage).getByText(`${original} 수정`, { exact: true })).toBeVisible();
       await bPage.screenshot({ path: info.outputPath("actual-entity-readonly.png"), fullPage: true });
       expect(
-        (await request(a.token, "PATCH", `/workspaces/${w}/members/${b.id}`, { expected_version: 3, grants: [] }))
+        (await request(a.token, "PATCH", `/workspaces/${w}/members/${b.id}`, { expected_version: 6, grants: [] }))
           .status,
       ).toBe(200);
       expect((await request(b.token, "GET", `/entities/${encodeURIComponent(entity.id)}`, undefined, w)).status).toBe(
