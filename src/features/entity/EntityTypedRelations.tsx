@@ -2,7 +2,7 @@ import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { UnlinkIcon, PlusIcon, XIcon, LinkIcon } from "lucide-react";
-import { useContext, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation } from "../../lib/workspace-router.tsx";
 import type { EntityDetail, EntitySummary } from "@contracts/entity.ts";
 import type { EntityRelationDefinition, EntityRelationDefinitionPage } from "@contracts/entity-relation.ts";
@@ -39,6 +39,43 @@ export function EntityTypedRelations(
   const [definitions, setDefinitions] = useState<EntityRelationDefinition[]>([]),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0);
+  // Only an admitted mutation retains its section when the business catalog hides a peer.
+  const [owners, setOwners] = useState<{
+    api: typeof api;
+    originId: string;
+    sections: Record<string, { definition: EntityRelationDefinition; side: 0 | 1 }>;
+  } | null>(null);
+  const retainMutation = useCallback((
+    definition: EntityRelationDefinition | null,
+    side: 0 | 1,
+    ownerApi: typeof api,
+    originId: string,
+    definitionId: string,
+  ) => {
+    if (ownerApi !== api || originId !== entity.id) return;
+    setOwners(old => {
+      const sections = old?.api === api && old.originId === entity.id ? old.sections : {};
+      const key = `${definitionId}-${side}`;
+      if (definition ? sections[key]?.definition === definition : !sections[key]) return old;
+      const next = { ...sections };
+      if (definition) next[key] = { definition, side };
+      else delete next[key];
+      return { api, originId: entity.id, sections: next };
+    });
+  }, [api, entity.id]);
+  const readable = (definition: EntityRelationDefinition) => definition.ends.every(end =>
+    capability?.grants.some(grant => grant.target_kind === "entity_type" && grant.target_id === end.type_id &&
+      (grant.access === "read" || grant.access === "write"))
+  );
+  const sections = new Map<string, { definition: EntityRelationDefinition; side: 0 | 1 }>();
+  if (owners?.api === api && owners.originId === entity.id) {
+    for (const [key, owner] of Object.entries(owners.sections)) sections.set(key, owner);
+  }
+  for (const definition of definitions.filter(readable)) {
+    definition.ends.forEach((end, side) => {
+      if (end.type_id === entity.entity_type_id) sections.set(`${definition.id}-${side}`, { definition, side: side as 0 | 1 });
+    });
+  }
   useEffect(() => {
     const c = new AbortController();
     setError("");
@@ -70,31 +107,27 @@ export function EntityTypedRelations(
           관계 정의를 읽지 못했습니다.<Button variant="ghost" type="button" onClick={() => setRetry((n) => n + 1)}>관계 다시 조회</Button>
         </Notice>
       )}
-      {definitions.filter(def => def.ends.every(end => capability?.grants.some(grant =>
-        grant.target_kind === "entity_type" && grant.target_id === end.type_id && (grant.access === "read" || grant.access === "write")
-      ))).flatMap((def) =>
-        def.ends.map((end, side) =>
-          end.type_id === entity.entity_type_id
-            ? (
-              <EntityRelationSection
-                key={`${def.id}-${side}`}
-                entity={entity}
-                definition={def}
-                side={side as 0 | 1}
-                onSaved={onSaved}
-                onCreate={onCreate}
-                readOnly={readOnly}
-              />
-            )
-            : null
-        )
-      )}
+      {[...sections.entries()].map(([key, { definition, side }]) => (
+        <EntityRelationSection
+          key={key}
+          entity={entity}
+          definition={definition}
+          side={side}
+          onSaved={onSaved}
+          onCreate={onCreate}
+          readOnly={readOnly}
+          visible={readable(definition)}
+          onMutationChange={retainMutation}
+        />
+      ))}
     </>
   );
 }
 export function EntityRelationSection(
-  { entity, definition, side, onSaved, onCreate, readOnly = false }: {
+  { entity, definition, side, onSaved, onCreate, readOnly = false, visible = true, onMutationChange }: {
     readOnly?: boolean;
+    visible?: boolean;
+    onMutationChange?: (definition: EntityRelationDefinition | null, side: 0 | 1, api: ReturnType<typeof useApi>, originId: string, definitionId: string) => void;
     entity: EntityDetail;
     definition: EntityRelationDefinition;
     side: 0 | 1;
@@ -117,6 +150,7 @@ export function EntityRelationSection(
   const [retry, setRetry] = useState(0),
     [mutation, setMutation] = useState<
       {
+        api: typeof api;
         origin: EntityDetail;
         other: EntityDetail;
         previous: EntitySummary | null;
@@ -124,17 +158,22 @@ export function EntityRelationSection(
         remove: boolean;
       } | null
     >(null);
+  useLayoutEffect(() => {
+    if (!mutation) return;
+    onMutationChange?.(mutation.definition, side, mutation.api, mutation.origin.id, definition.id);
+    return () => onMutationChange?.(null, side, mutation.api, mutation.origin.id, definition.id);
+  }, [mutation, onMutationChange, side, definition.id]);
   const base = `/entity-relations/${definition.id}/${side}/${encodeURIComponent(entity.id)}`;
   const session = useMemo(
     () =>
       createPagedList<EntitySummary, LinkPage>({
         load: (cursor, signal) => api("GET", `${base}/links${query({ limit: 20, cursor })}`, undefined, signal),
       }),
-    [api, base, entity.version, definition.version, retry],
+    [api, base, entity.version, definition.version, retry, visible],
   );
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   useEffect(() => {
-    void session.restore(view.pages);
+    if (visible) void session.restore(view.pages);
     return () => session.cancel();
   }, [session]);
   useEffect(() => {
@@ -150,9 +189,9 @@ export function EntityRelationSection(
     single = def.ends[side].cardinality === "one",
     current = state.page?.items[0],
     canWrite = def.ends.every(end => capability?.grants.some(grant => grant.target_kind === "entity_type" && grant.target_id === end.type_id && grant.access === "write")),
-    active = !readOnly && canWrite && !entity.deleted_at && !entity.type.archived && !def.archived;
+    active = visible && !readOnly && canWrite && !entity.deleted_at && !entity.type.archived && !def.archived;
   const prepare = async (item: Candidate, remove: boolean) => {
-    if (!canWrite || preparing || surface?.editor.current) return;
+    if (!visible || !canWrite || preparing || surface?.editor.current) return;
     const started = locationKey.current, c = new AbortController();
     preparation.current?.abort();
     preparation.current = c;
@@ -166,7 +205,7 @@ export function EntityRelationSection(
         api<LinkPage>("GET", `${base}/links`, undefined, c.signal),
       ]);
       if (!c.signal.aborted && started === locationKey.current && !surface?.editor.current) {
-        setMutation({ origin, other, previous: page.items[0] ?? null, definition: latest, remove });
+        setMutation({ api, origin, other, previous: page.items[0] ?? null, definition: latest, remove });
       }
     } catch (e) {
       if (!c.signal.aborted) setError(e instanceof Error ? e.message : "최신 자료를 읽지 못했습니다");
@@ -176,7 +215,7 @@ export function EntityRelationSection(
   };
   return (
     <>
-      <div ref={section} tabIndex={-1} aria-label={`${def.ends[side].label} 관계`}>
+      <div ref={section} hidden={!visible} tabIndex={-1} aria-label={`${def.ends[side].label} 관계`}>
         <RelatedSection
           title={def.ends[side].label + (def.archived ? " · 보관" : "")}
           views={!single && !readOnly}
@@ -305,6 +344,7 @@ export function EntityRelationSection(
       {mutation && (
         <FormModal
           open
+          visible={visible}
           title={mutation.remove ? "관계 연결 해제" : single ? "관계 연결 교체" : "관계 자료 연결"}
           submitLabel="저장"
           submitDisabled={!canWrite}
