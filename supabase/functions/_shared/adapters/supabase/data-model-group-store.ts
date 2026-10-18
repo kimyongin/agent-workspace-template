@@ -171,7 +171,9 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
       this.tx.json(memberships)
     },source_templates=${
       this.tx.json(templates as never)
-    },source_expires_at=now()+interval '30 days',updated_at=now() where id=${id}::uuid`;
+    },source_expires_at=(select min(j.source_expires_at) from app.data_model_children c
+      join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
+      where c.workspace_id=${this.workspaceId}::uuid and c.model_id=${id}::uuid),updated_at=now() where id=${id}::uuid`;
     return receiptChange((await this.get(id))!);
   }
   async cancelGroup(id: string) {

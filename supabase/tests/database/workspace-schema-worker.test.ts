@@ -586,7 +586,8 @@ async function retryOrRestoreFixture(
     | "repair"
     | "recovery"
     | "seal_job"
-    | "seal_model",
+    | "seal_model"
+    | "seal_model_snapshots",
 ) {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
@@ -899,7 +900,7 @@ async function retryOrRestoreFixture(
       return;
     }
     await applyDataModel(modelDeps, key(author), saved.id, { expected_version: ready.version });
-    if (scenario === "seal_model" || scenario === "seal_job") {
+    if (["seal_model", "seal_model_snapshots", "seal_job"].includes(scenario)) {
       const [accepted] =
         await admin`select id from app.entity_schema_migrations where workspace_id=${workspaceId} and model_change_id=${saved.id}`;
       await runInWorkspace(sql, executor, {
@@ -917,6 +918,14 @@ async function retryOrRestoreFixture(
               nested`update app.data_model_changes set source_expires_at=source_expires_at+interval '1 day' where workspace_id=${executor.workspaceId} and id=${saved.id}`,
             "model_plan_source_expiry_immutable",
           );
+        } else if (scenario === "seal_model_snapshots") {
+          for (const column of ["source_templates", "source_memberships"] as const) {
+            await reject(
+              (nested) => nested`update app.data_model_changes set ${nested(column)}='{}'::jsonb
+                where workspace_id=${executor.workspaceId} and id=${saved.id}`,
+              "model_plan_source_snapshot_immutable",
+            );
+          }
         } else {
           await reject(
             (nested) =>
@@ -1112,4 +1121,10 @@ dbTest(
 dbTest(
   "queued model source expiry cannot be extended by another authorized manager",
   () => retryOrRestoreFixture("seal_model"),
+);
+
+
+dbTest(
+  "queued model retained source snapshots cannot be rewritten by an authorized manager",
+  () => retryOrRestoreFixture("seal_model_snapshots"),
 );
