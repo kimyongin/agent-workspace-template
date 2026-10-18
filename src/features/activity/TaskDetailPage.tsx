@@ -276,7 +276,7 @@ export function TaskDetailPage() {
       onClose={() => navigate(back)}
       onError={detail.failed}
       busy={busy}
-      footer={canWrite &&
+      footer={canWrite && (
         task.deleted_at ? <Button type="button" disabled={busy} onClick={() => manage("restore")}>복원</Button> : <>
           <Button variant="outline" type="button" disabled={busy} onClick={editor.start}>편집</Button>
           {task.kind === "once" && task.status === "open" && (
@@ -300,7 +300,7 @@ export function TaskDetailPage() {
             </Button>
           )}
         </>
-      }
+      )}
     >
       <div className="flex min-w-0 flex-col gap-6">
         {management}
