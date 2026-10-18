@@ -1,6 +1,12 @@
 // Actual App/StrictMode/Supabase SDK; only Auth HTTP replies are fixtures. No DB or credentials.
 import { expect, type Page, test } from "@playwright/test";
 
+function deferred<T>() {
+  let resolve: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve: (value: T) => resolve(value) };
+}
+
 const userA = "00000000-0000-4000-8000-000000000001", userB = "00000000-0000-4000-8000-000000000002";
 type RequestKey = { id: string; userId: string };
 const details = (name: string) => ({
@@ -56,7 +62,7 @@ async function session(page: Page, userId = userA) {
 test("로그인·OAuth 동의의 긴 주소와 중요 안내는 320~1440px에서 읽힌다",async({page},info)=>{
   const f=await authFixture(page,async()=>({...details("긴 에이전트 이름 ".repeat(8)),redirect_uri:"https://example.invalid/callback?query="+"longvalue".repeat(15)}));
   await page.goto("/login");await expect(page.getByRole("heading",{name:"로그인",exact:true})).toBeVisible();
-  await expect(page.locator(".page-heading > .page-description")).toBeVisible();
+  await expect(page.getByRole("region", { name: "로그인", exact: true }).getByText("내 자료와 할 일·기록을 관리하려면 로그인하세요.", { exact: true })).toBeVisible();
   for(const width of [320,360,390,639,640,768,1024,1440]){
     await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     const heading=page.getByRole("heading",{name:"로그인",exact:true}),action=page.getByRole("button",{name:"Google로 로그인",exact:true});expect(await heading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(await action.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)));
@@ -66,8 +72,15 @@ test("로그인·OAuth 동의의 긴 주소와 중요 안내는 320~1440px에서
     await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await expect(page.getByText("직접 시작한 연결이 아니거나 돌아갈 주소를 모르면 거부하세요.",{exact:false})).toBeVisible();
     for(const name of ["승인","거부"]){const box=(await page.getByRole("button",{name,exact:true}).boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);}
-    if(width===390||width===1440)await page.screenshot({path:info.outputPath(`consent-hierarchy-${width}.png`)});
+    if(width===320||width===390||width===1440)await page.screenshot({path:info.outputPath(`consent-hierarchy-${width}.png`)});
   }
+  const data = page.getByRole("region", { name: "에이전트 연결 승인", exact: true }).locator("dl");
+  await expect(data.locator("dt")).toHaveText(["클라이언트", "돌아갈 주소", "요청 범위"]);
+  await expect(data.locator("dd").first()).toHaveText("긴 에이전트 이름 ".repeat(8));
+  await page.setViewportSize({width:320,height:900});
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath("consent-pairs-320-text200.png"),fullPage:true});
   expect(f.decisions).toHaveLength(0);
 });
 async function changeRequest(page: Page, id: string) {
@@ -95,7 +108,7 @@ test("StrictMode shares one details request before an approval decision", async 
 });
 
 test("a late previous authorization redirect cannot replace current consent", async ({ page }) => {
-  const old = Promise.withResolvers<object>();
+  const old = deferred<object>();
   const f = await authFixture(page, key => key.id === "old" ? old.promise : Promise.resolve(details("New agent")));
   await page.goto("/login"); await session(page);
   await page.goto("/oauth/consent?authorization_id=old");
@@ -112,7 +125,7 @@ test("a late previous authorization redirect cannot replace current consent", as
 });
 
 test("changing session user reloads details and ignores the previous user response", async ({ page }) => {
-  const old = Promise.withResolvers<object>();
+  const old = deferred<object>();
   const f = await authFixture(page, key => key.userId === userA ? old.promise : Promise.resolve(details("User B agent")));
   await page.goto("/login"); await session(page);
   await page.goto("/oauth/consent?authorization_id=same");

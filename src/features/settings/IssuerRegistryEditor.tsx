@@ -1,3 +1,8 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup, FieldSet, FieldLabel } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "../../components/ui/button.tsx";
+import { Input } from "../../components/ui/input.tsx";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   type EntityIssuer,
@@ -5,7 +10,7 @@ import {
   type IdentityDefaultType,
   identityDefaultTypeField,
 } from "@contracts/entity-issuer.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { DefaultIssuerRepair } from "./DefaultIssuerRepair.tsx";
 import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
@@ -185,29 +190,29 @@ export function IssuerRegistryEditor(
     }
   };
   const deleteAction = baseline && onDeleted && (
-    <div className="settings-inline-actions">
-      <BodyAction
-        danger
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <Button variant="destructive" type="button"
+
         disabled={busy || reading || conflict || saving.uncertain ||
           repairState.uncertain}
         onClick={() => deleting.uncertain ? void remove() : setConfirmDelete(true)}
       >
         {deleting.uncertain ? "삭제 결과 다시 확인" : target.kind === "issuer" ? "번호 출처 삭제" : "번호 종류 삭제"}
-      </BodyAction>
+      </Button>
     </div>
   );
   const footer = (requestClose: () => void) => (
     <>
-      <button
-        className="btn"
+      <Button variant="outline"
+
         type="button"
         disabled={busy || reading || uncertain}
         onClick={requestClose}
       >
         {target.kind === "rule" && target.createdIssuer ? "나중에 추가" : "취소"}
-      </button>
-      <button
-        className="btn btn-primary"
+      </Button>
+      <Button variant="default"
+
         type="submit"
         form={formId}
         disabled={busy || reading || conflict || deleting.uncertain ||
@@ -221,7 +226,7 @@ export function IssuerRegistryEditor(
           : target.kind === "issuer" && !baseline
           ? "저장하고 번호 추가"
           : "저장"}
-      </button>
+      </Button>
     </>
   );
   const content = (
@@ -229,28 +234,28 @@ export function IssuerRegistryEditor(
       <form
         id={formId}
         ref={form}
-        className="form"
+        className="flex min-w-0 flex-col gap-5"
         onSubmit={(e) => {
           e.preventDefault();
           void save();
         }}
       >
-        {target.kind === "rule" && !inline && <p className="item-title">{target.sourceLabel}</p>}
+        {target.kind === "rule" && !inline && <p className="min-w-0 [overflow-wrap:anywhere]">{target.sourceLabel}</p>}
         {target.kind === "rule" && target.createdIssuer && (
-          <p role="status" className="secondary">번호 출처를 저장했습니다.</p>
+          <Alert role="status" className="text-sm text-muted-foreground"><AlertDescription>번호 출처를 저장했습니다.</AlertDescription></Alert>
         )}
-        {error && <p className="error-text" role="alert">{error}</p>}
+        {error && <Alert variant="destructive" className="text-sm text-destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
         {blockedTypes.length > 0 && (
-          <div className="settings-fields">
+          <FieldGroup className="min-w-0">
             {blockedTypes.filter((type) => type.type_id !== repairing?.type_id)
               .map((type) => (
-                <BodyAction
+                <Button variant="ghost" type="button"
                   key={type.type_id}
                   disabled={busy || uncertain}
                   onClick={() => setRepairing(type)}
                 >
                   {type.label} 기본 번호 출처 변경
-                </BodyAction>
+                </Button>
               ))}
             {repairing && (
               <DefaultIssuerRepair
@@ -271,25 +276,25 @@ export function IssuerRegistryEditor(
                 }}
               />
             )}
-          </div>
+          </FieldGroup>
         )}
         {conflict && (
-          <div className="settings-inline-actions">
-            <button
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Button variant="outline"
               type="button"
-              className="btn"
+
               disabled={busy || uncertain || reading}
               onClick={() => void readLatest()}
             >
               {reading ? "확인 중…" : "최신 저장값 확인"}
-            </button>
+            </Button>
             {latest && (
               <>
-                <p className="secondary">
+                <p className="text-sm text-muted-foreground">
                   최신 저장값: {latest.label} · {latest.active ? "사용 중" : "중지"}
                 </p>
-                <button
-                  className="btn"
+                <Button variant="outline"
+
                   type="button"
                   onClick={() => {
                     setBaseline(latest);
@@ -301,13 +306,13 @@ export function IssuerRegistryEditor(
                   }}
                 >
                   입력 유지하고 최신 버전 사용
-                </button>
+                </Button>
               </>
             )}
           </div>
         )}
-        <fieldset
-          className="settings-fields"
+        <FieldSet
+          className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
           disabled={busy || reading || uncertain}
         >
           <Field
@@ -315,9 +320,9 @@ export function IssuerRegistryEditor(
             required
           >
             {(props) => (
-              <input
+              <Input
                 {...props}
-                className="input"
+
                 required
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
@@ -325,29 +330,31 @@ export function IssuerRegistryEditor(
             )}
           </Field>
           {inline && target.kind === "rule" && baseline && (
-            <div className="issuer-input-method">
-              <span className="label">입력 방식</span>
-              <span>
-                {target.rule?.generation === "automatic" ? "자동 생성" : "직접 입력"}
-              </span>
-            </div>
+            <dl className="grid min-w-0 gap-3 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+              <div>
+                <dt>입력 방식</dt>
+                <dd>
+                  {target.rule?.generation === "automatic" ? "자동 생성" : "직접 입력"}
+                </dd>
+              </div>
+            </dl>
           )}
           {baseline && (
-            <label className="issuer-status-choice">
-              <input
-                type="checkbox"
+            <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+              <Checkbox
+
                 checked={active}
-                onChange={(e) => setActive(e.target.checked)}
+                onCheckedChange={(checked) => setActive(checked === true)}
               />{" "}
               사용
-            </label>
+            </FieldLabel>
           )}
           {inline && (
-            <p className="help">
+            <p className="text-sm text-muted-foreground">
               사용을 중지해도 기존 자료의 번호는 유지됩니다.
             </p>
           )}
-        </fieldset>
+        </FieldSet>
 
         {!inline && deleteAction}
       </form>
@@ -355,7 +362,7 @@ export function IssuerRegistryEditor(
         open={confirmDelete}
         danger
         title={target.kind === "issuer" ? "번호 출처를 삭제할까요?" : "번호 종류를 삭제할까요?"}
-        message={`${baseline?.label ?? "항목"}을 영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.`}
+        message={<><dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3"><div className="col-span-full"><dt>대상</dt><dd>{baseline?.label ?? "항목"}</dd></div></dl><p>영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.</p></>}
         confirmLabel="삭제"
         busy={busy}
         onConfirm={() => void remove()}
@@ -374,9 +381,9 @@ export function IssuerRegistryEditor(
   );
   if (inline) {
     return (
-      <section className="issuer-rule-editor" aria-label="번호 종류 편집">
+      <section className="flex min-w-0 flex-col gap-4 py-4" aria-label="번호 종류 편집">
         {content}
-        <div className="issuer-rule-editor-actions">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           {deleteAction}
           <div>{footer(onClose)}</div>
         </div>

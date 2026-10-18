@@ -12,6 +12,7 @@
     "skipLibCheck": true,
     "types": ["vite/client", "node"],
     "paths": {
+      "@/*": ["./src/*"],
       "@contracts/*": ["./supabase/functions/_shared/contracts/*"]
     }
   },

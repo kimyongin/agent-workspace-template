@@ -1,6 +1,8 @@
+import { Button } from "../../components/ui/button.tsx";
+import { UnlinkIcon, PlusIcon } from "lucide-react";
 import { createPagedList } from "../collections/paged-list.ts";
-import { CollectionList } from "../../components/Collection.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
+
 import { type ReactNode, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { useLocation } from "react-router";
@@ -9,7 +11,7 @@ import type { EntityDetail } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Notice } from "../../components/Field.tsx";
-import { RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { api, query } from "../../lib/api.ts";
 import { type Candidate, RelationSearch, RelationSearchAction } from "../relations/RelationSearch.tsx";
@@ -71,14 +73,14 @@ function RelationControls({
   };
   const kind = task ? "entity" : "task";
   const unlink = (item: Candidate) => (
-    <BodyAction
-      icon="unlink"
+    <Button variant="ghost" type="button"
+
       aria-label={`${item.title} 해제`}
       aria-disabled={preparing}
       onClick={() => void prepare(item, true)}
-    >
+    ><UnlinkIcon data-icon="inline-start" />
       해제
-    </BodyAction>
+    </Button>
   );
   return (
     <>
@@ -96,7 +98,7 @@ function RelationControls({
         search: (
           <>
             {error && <Notice kind="error">{error}</Notice>}
-            {preparing && <p className="secondary" role="status">연결 확인 중…</p>}
+            {preparing && <p className="text-sm text-muted-foreground" role="status">연결 확인 중…</p>}
             <div id={searchId} hidden={!searching}>
               {searching && (
                 <RelationSearch
@@ -156,27 +158,30 @@ function RelationControls({
 }
 
 export function TaskEntityRelations(
-  { task, onSaved }: { task: TaskResult; onSaved: (saved?: TaskResult, before?: TaskResult) => void },
+  { task, onSaved, readOnly = false }: { task: TaskResult; readOnly?: boolean; onSaved: (saved?: TaskResult, before?: TaskResult) => void },
 ) {
+  if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={task.entity_ids.length}>
+    <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <CollectionItem key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></CollectionItem>)}</CollectionList>
+  </RelatedSection>;
   return (
     <RelationControls key={task.id} task={task} onSaved={onSaved}>
       {({ search, button, unlink }) => (
         <RelatedSection title="연결된 자료" count={task.entity_ids.length} action={button}>
           {search}
-          <CollectionList>
+          <CollectionList columns={["자료 이름"]}>
             {task.entity_ids.map((id) => {
               const item = {
                 id,
                 title: task.entity_context.find((item) => item.id === id)?.title ?? "자료",
               };
               return (
-                <li key={id}>
+                <CollectionItem key={id}>
                   <RelatedPreviewItem
                     to={`/entities/${encodeURIComponent(id)}`}
                     title={item.title}
                     action={unlink(item)}
                   />
-                </li>
+                </CollectionItem>
               );
             })}
           </CollectionList>
@@ -186,67 +191,80 @@ export function TaskEntityRelations(
   );
 }
 
-export function EntityTaskRelations(
-  { entity, onCreate, onSaved }: {
-    entity: EntityDetail;
-    onCreate: () => void;
-    onSaved: (saved?: TaskResult, before?: TaskResult) => void;
-  },
-) {
+/** The detail visit owns paging so viewing and editing share already-read links. */
+export function useEntityTaskRead(entity: EntityDetail | null) {
+  const previewKey = JSON.stringify(entity?.tasks);
   // The detail's five-row preview is not a cursor page: fetch page one only on expansion.
   const session = useMemo(() =>
     createPagedList<TaskResult, { items: TaskResult[]; next_cursor: string | null }>({
       load: (cursor, signal) =>
-        api("GET", `/tasks${query({ entity_id: entity.id, limit: 20, cursor })}`, undefined, signal),
-    }), [entity.id, entity.tasks]);
+        api("GET", `/tasks${query({ entity_id: entity?.id ?? "", limit: 20, cursor })}`, undefined, signal),
+    }), [entity?.id, previewKey]);
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   useEffect(() => () => session.cancel(), [session]);
-  const previewIds = new Set(entity.tasks.items.map((item) => item.id));
-  const items = [...entity.tasks.items, ...state.page?.items.filter((item) => !previewIds.has(item.id)) ?? []];
+  const preview = entity?.tasks.items ?? [];
+  const previewIds = new Set(preview.map((item) => item.id));
+  const items = [...preview, ...state.page?.items.filter((item) => !previewIds.has(item.id)) ?? []];
   const loading = state.busy, failed = !!state.error;
   const more = () => {
     if (failed) void session.retry();
     else if (!state.page) void session.restore(1);
-    else session.more();
+    else void session.more();
   };
+  return {
+    items,
+    loading,
+    failed,
+    more,
+    canReadMore: failed || !!state.page?.next_cursor || !state.page && (entity?.tasks.count ?? 0) > items.length,
+  };
+}
+
+export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, onSaved }: {
+  entity: EntityDetail;
+  read: ReturnType<typeof useEntityTaskRead>;
+  readOnly?: boolean;
+  onCreate?: () => void;
+  onSaved?: (saved?: TaskResult, before?: TaskResult) => void;
+}) {
+  const contents = (search?: ReactNode, action?: ReactNode, unlink?: (item: Candidate) => ReactNode) => (
+    <RelatedSection title="할 일" count={entity.tasks.count} views={!readOnly} action={action}>
+      {search}
+      <CollectionList columns={["제목"]}>
+        {read.items.map((item) => (
+          <CollectionItem key={item.id}>
+            {readOnly
+              ? <RelatedItem title={item.title} />
+              : <RelatedPreviewItem to={`/tasks/${item.id}`} title={item.title} action={unlink?.(item)} />}
+          </CollectionItem>
+        ))}
+      </CollectionList>
+      {read.failed && <Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
+      {read.canReadMore && (
+        <Button variant="ghost" type="button" disabled={read.loading} onClick={read.more}>
+          {read.loading ? "불러오는 중…" : read.failed ? "할 일 다시 시도" : "할 일 더 보기"}
+        </Button>
+      )}
+    </RelatedSection>
+  );
+  if (readOnly) return contents();
   return (
     <RelationControls
       key={entity.id}
       entityId={entity.id}
       entityTitle={entity.title}
       revision={entity.tasks}
-      onSaved={onSaved}
+      onSaved={onSaved ?? (() => {})}
     >
-      {({ search, button, unlink }) => (
-        <RelatedSection
-          title="할 일"
-          count={entity.tasks.count}
-          action={
-            <div className="actions">
-              <BodyAction icon="create" aria-label="할 일 작성" onClick={onCreate}>작성</BodyAction>
-              {button}
-            </div>
-          }
-        >
-          {search}
-          <CollectionList>
-            {items.map((item) => (
-              <li key={item.id}>
-                <RelatedPreviewItem to={`/tasks/${item.id}`} title={item.title} action={unlink(item)} />
-              </li>
-            ))}
-          </CollectionList>
-          {failed && <Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
-          {(failed || state.page?.next_cursor || !state.page && entity.tasks.count > items.length) && (
-            <BodyAction
-              disabled={loading}
-              onClick={() => void more()}
-            >
-              {loading ? "불러오는 중…" : failed ? "할 일 다시 시도" : "할 일 더 보기"}
-            </BodyAction>
-          )}
-        </RelatedSection>
-      )}
+      {({ search, button, unlink }) =>
+        contents(
+          search,
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" type="button"  aria-label="할 일 작성" onClick={onCreate}><PlusIcon data-icon="inline-start" />작성</Button>
+            {button}
+          </div>,
+          unlink,
+        )}
     </RelationControls>
   );
 }

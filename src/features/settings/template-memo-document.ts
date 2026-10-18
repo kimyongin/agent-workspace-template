@@ -1,3 +1,4 @@
+import { badgeVariants } from "@/components/ui/badge";
 /** Display labels never participate in the persisted template grammar. */
 export type MemoVariable = { value: string; label: string };
 export type MemoPart = { text: string; variable?: MemoVariable };
@@ -44,7 +45,9 @@ export function memoFragment(memo: string, variables: MemoVariable[]): DocumentF
     if (!part.variable) fragment.append(document.createTextNode(part.text));
     else {
       const token = document.createElement("span");
-      token.className = "template-variable-token";
+      token.className = badgeVariants({ variant: "secondary" });
+      token.dataset.slot = "badge";
+      token.dataset.variant = "secondary";
       token.contentEditable = "false";
       token.dataset.memoToken = part.text;
       token.setAttribute("aria-label", `변수: ${part.variable.label}`);

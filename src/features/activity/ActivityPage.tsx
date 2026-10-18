@@ -1,7 +1,17 @@
+import { NativeSelect } from "@/components/ui/native-select";
+import { NativeSelectOption } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Button } from "../../components/ui/button.tsx";
+import { RotateCcwIcon } from "lucide-react";
 import { PageHeading } from "../../components/PageHeading.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
-import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
-import { RecordCalendar } from "./RecordCalendar.tsx";
+
+import {
+  CollectionHeading,
+  CollectionItem,
+  CollectionList,
+  useMainCollectionView,
+} from "../../components/Collection.tsx";
+import { deferView } from "../../components/DeferredView.tsx";
 import { StatusBadge } from "./shared.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
@@ -35,7 +45,12 @@ import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds } from "./activity-filte
 import { activityLocation, type WorkspaceListKind } from "./activity-location.ts";
 import { EntityScope } from "../entity/EntityScope.tsx";
 import { ListExpansionProvider, ListPreviewItem } from "../relations/ListPreviewItem.tsx";
-import "./activity.css";
+
+type CalendarProps = Parameters<typeof import("./RecordCalendar.tsx").RecordCalendar<ActivityItem>>[0];
+const RecordCalendar = deferView<CalendarProps>(
+  () => import("./RecordCalendar.tsx").then(module => ({ default: module.RecordCalendar })),
+  "기록 달력",
+);
 
 function ActivitySection(
   { kind, tags, bounds, dictionary, onCreate, onClear }: {
@@ -56,7 +71,11 @@ function ActivitySection(
   const preview = (item: ActivityItem) => {
     const time = "occurred_at" in item ? item.occurred_at : (item as SearchItem).at;
     const cells = kind === "tasks"
-      ? ["status" in item ? <StatusBadge status={item.status} /> : null, "due_on" in item ? item.due_on : null]
+      ? [
+        "status" in item ? <StatusBadge status={item.status} /> : null,
+        "status" in item ? taskLabels[item.kind as TaskResult["kind"]] : null,
+        "due_on" in item ? item.due_on : null,
+      ]
       : [
         "record_kind" in item && item.record_kind ? recordKindNames[item.record_kind] : null,
         <time dateTime={time} title={formatDateTime(time)}>
@@ -75,8 +94,11 @@ function ActivitySection(
   };
   return (
     <ListExpansionProvider readiness={list.readiness}>
-      <section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
-        <div className="detail-section-head">
+      <section
+        className="@container flex min-w-0 flex-col gap-4"
+        aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <CollectionHeading
             hideLabel
             label={kind === "tasks" ? "할 일" : "기록"}
@@ -89,7 +111,7 @@ function ActivitySection(
           <TabCreateButton label={kind === "tasks" ? "할 일 등록" : "기록 작성"} onClick={onCreate} />
         </div>
         {q && (
-          <p className="help">
+          <p className="text-sm text-muted-foreground">
             관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}
           </p>
         )}
@@ -97,19 +119,23 @@ function ActivitySection(
           <Notice>의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.</Notice>
         )}
         {metadata && metadata.semantic_coverage.pending + metadata.semantic_coverage.excluded > 0 && (
-          <p className="help">
+          <p className="text-sm text-muted-foreground">
             의미 색인 대기 {metadata.semantic_coverage.pending}개 · 제외 {metadata.semantic_coverage.excluded}개
           </p>
         )}
-        {list.busy && !list.items && <p role="status" className="secondary">불러오는 중…</p>}
+        {list.busy && !list.items && <p role="status" className="text-sm text-muted-foreground">불러오는 중…</p>}
         {list.items?.length === 0 && !list.error && (
           <>
-            <p className="secondary">
+            <p className="text-sm text-muted-foreground">
               {filtered
                 ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`
                 : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}
             </p>
-            {filtered && <BodyAction icon="reset" onClick={onClear}>검색 조건 해제</BodyAction>}
+            {filtered && (
+              <Button variant="ghost" type="button" onClick={onClear}>
+                <RotateCcwIcon data-icon="inline-start" />검색 조건 해제
+              </Button>
+            )}
           </>
         )}
         {list.items && (
@@ -122,10 +148,10 @@ function ActivitySection(
                 <CollectionList
                   view={view === "calendar" ? "list" : view}
                   label="할 일 목록"
-                  columns={["할 일", "상태", "기한"]}
-                  numericColumns={[2]}
+                  columns={["제목", "상태", "종류", "기한"]}
+                  numericColumns={[3]}
                 >
-                  {list.items.map((item) => <li key={item.id}>{preview(item)}</li>)}
+                  {list.items.map((item) => <CollectionItem key={item.id}>{preview(item)}</CollectionItem>)}
                 </CollectionList>
               )
               : view === "calendar"
@@ -152,7 +178,9 @@ function ActivitySection(
         )}
         {list.error && <Notice kind="error">{list.error}</Notice>}
         {list.showMoreControl && (
-          <BodyAction
+          <Button
+            variant="ghost"
+            type="button"
             id={`activity-${kind}-page-control`}
             aria-disabled={list.busy || !list.cursor && !list.error}
             onClick={list.error ? list.retry : list.more}
@@ -164,7 +192,7 @@ function ActivitySection(
               : list.cursor
               ? `${kind === "tasks" ? "할 일" : "기록"} 더 보기`
               : "모두 불러왔습니다"}
-          </BodyAction>
+          </Button>
         )}
       </section>
     </ListExpansionProvider>
@@ -172,6 +200,7 @@ function ActivitySection(
 }
 
 export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
+  const searchInput = useRef<HTMLInputElement>(null);
   const { timezone } = useDisplayTime();
   const [params, setParams] = useSearchParams(),
     location = useLocation(),
@@ -232,7 +261,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   }
   return (
     <>
-      <section className="panel main-tab-header" aria-labelledby={`${kind}-title`}>
+      <section className="@container flex min-w-0 flex-col gap-5" aria-labelledby={`${kind}-title`}>
         <PageHeading
           title={label}
           id={`${kind}-title`}
@@ -241,7 +270,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
             ? "할 일을 정리하고, 반복 일정과 수행 결과를 관리합니다."
             : "메모와 참고 자료, 업무 변경 내역을 모아 봅니다."}
         />
-        <div className="panel-body">
+        <div className="flex min-w-0 flex-col gap-4">
           {params.has("legacy_activity") && (
             <Notice>
               목록을 나누어 {label} 탭으로 이동했습니다. {kind === "tasks"
@@ -249,8 +278,8 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                 : "할 일과 진행 상태는 할 일 탭에서 확인하세요."}
             </Notice>
           )}
-          <div className="query-bar">
-            <TabSearch />
+          <div className="grid min-w-0 grid-cols-1 items-end gap-3 @min-[14rem]:grid-cols-[minmax(0,1fr)_auto]">
+            <TabSearch inputRef={searchInput} />
             <TabFilters
               dirty={editing.dirty}
               onReset={() => {
@@ -285,39 +314,37 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                   onClear={() => editing.set("entity_id", "")}
                 />
               )}
-              <div className="filter-grid">
+              <div className="grid min-w-0 gap-4 @min-[32rem]:grid-cols-2">
                 {kind === "tasks"
                   ? (
                     <>
                       <Field label="할 일 종류">
                         {(props) => (
-                          <select
+                          <NativeSelect
                             {...props}
-                            className="input"
                             value={editing.draft.get("kind") ?? ""}
                             onChange={(event) => filter("kind", event.target.value)}
                           >
-                            <option value="">전체</option>
-                            <option value="once">한 번</option>
-                            <option value="recurring">반복</option>
-                          </select>
+                            <NativeSelectOption value="">전체</NativeSelectOption>
+                            <NativeSelectOption value="once">한 번</NativeSelectOption>
+                            <NativeSelectOption value="recurring">반복</NativeSelectOption>
+                          </NativeSelect>
                         )}
                       </Field>
                       <Field label="할 일 상태">
                         {(props) => (
-                          <select
+                          <NativeSelect
                             {...props}
-                            className="input"
                             value={editing.draft.get("status") ?? ""}
                             onChange={(event) => filter("status", event.target.value)}
                           >
-                            <option value="">전체</option>
+                            <NativeSelectOption value="">전체</NativeSelectOption>
                             {["open", "done", "active", "stopped"].map((status) => (
-                              <option key={status} value={status}>
+                              <NativeSelectOption key={status} value={status}>
                                 {taskLabels[status as keyof typeof taskLabels] as string}
-                              </option>
+                              </NativeSelectOption>
                             ))}
-                          </select>
+                          </NativeSelect>
                         )}
                       </Field>
                     </>
@@ -325,17 +352,16 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                   : (
                     <Field label="기록 종류">
                       {(props) => (
-                        <select
+                        <NativeSelect
                           {...props}
-                          className="input"
                           value={editing.draft.get("record_kind") ?? ""}
                           onChange={(event) => filter("record_kind", event.target.value)}
                         >
-                          <option value="">전체</option>
+                          <NativeSelectOption value="">전체</NativeSelectOption>
                           {Object.entries(recordKindNames).map(([value, text]) => (
-                            <option key={value} value={value}>{text}</option>
+                            <NativeSelectOption key={value} value={value}>{text}</NativeSelectOption>
                           ))}
-                        </select>
+                        </NativeSelect>
                       )}
                     </Field>
                   )}
@@ -348,10 +374,9 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                     ]].map(([name, label, value]) => (
                       <Field key={name} label={label}>
                         {(props) => (
-                          <input
+                          <Input
                             {...props}
                             type="date"
-                            className="input"
                             value={value}
                             aria-invalid={!!filterError || undefined}
                             onChange={(event) => setDate(name, event.target.value)}
@@ -379,7 +404,9 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                 }}
               />
               {trimmedTags && (
-                <p className="help" role="status">태그는 최대 10개입니다. 기존 조건의 앞 10개만 적용했습니다.</p>
+                <p className="text-sm text-muted-foreground" role="status">
+                  태그는 최대 10개입니다. 기존 조건의 앞 10개만 적용했습니다.
+                </p>
               )}
             </TabFilters>
           </div>
@@ -396,7 +423,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
           next.delete("q");
           next.delete("keyword");
           void navigate({ pathname, search: next.toString(), hash: "" }, { replace: true });
-          document.querySelector<HTMLInputElement>(".workspace-search input")?.focus();
+          searchInput.current?.focus();
         }}
       />
       {create.open && (kind === "tasks"

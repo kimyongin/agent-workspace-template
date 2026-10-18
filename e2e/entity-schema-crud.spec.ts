@@ -1,6 +1,7 @@
+import { executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { analyzeAndApply } from "./entity-schema-support.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
@@ -8,7 +9,7 @@ import { initialEntityDefinition } from "../supabase/functions/_shared/contracts
 test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편집은 summary에 없는 값도 유지한다", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
-  const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+  const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   let typeId: string | undefined, entityId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", {
@@ -94,11 +95,11 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     });
     await analyzeAndApply(mcp, typeId!, next.id, next.version);
     await stale.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.locator("dialog.modal-action[open]").getByRole("alert")).toBeVisible();
-    await page.locator("dialog.modal-action[open]").getByRole("button", { name: "취소", exact: true }).click();
+    await expect(executionDialog(page).getByRole("alert")).toBeVisible();
+    await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
     await expect(stale.getByLabel("이름", { exact: false })).toHaveValue("실패해도 보존할 초안");
     expect((await mcp.call("get_entity", { id: entityId })).properties.prop_1).toBe(updatedTitle);
-    await stale.getByRole("button", { name: "입력 항목 정의 다시 조회", exact: true }).click();
+    await stale.getByRole("button", { name: "속성 정의 다시 조회", exact: true }).click();
     await expect(stale.getByRole("region", { name: "현재 속성 정의 검토" })).toContainText("현재 정의 버전 3");
     await expect(stale.getByLabel("이름", { exact: false })).toHaveValue("실패해도 보존할 초안");
     await stale.getByRole("button", { name: "확인한 정의로 편집", exact: true }).click();

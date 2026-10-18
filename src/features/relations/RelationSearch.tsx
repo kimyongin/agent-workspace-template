@@ -1,8 +1,11 @@
+import { Button } from "../../components/ui/button.tsx";
+import { XIcon, LinkIcon } from "lucide-react";
+import { Input } from "../../components/ui/input.tsx";
 import type { RelationLocation } from "@contracts/entity-relation-links.ts";
 import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import { createPagedList } from "../collections/paged-list.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { EntityDetail, EntitySummary } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
@@ -31,17 +34,17 @@ export function RelationSearchAction(
 ) {
   const label = kind === "entity" ? "자료" : "할 일";
   return (
-    <BodyAction
-      icon={expanded ? "close" : "link"}
+    <Button variant="ghost" type="button"
+
       data-relation-search-toggle={kind}
       aria-label={expanded ? `${label} 검색 닫기` : `${label} 연결`}
       aria-expanded={expanded}
       aria-controls={controls}
       disabled={disabled}
       onClick={onToggle}
-    >
+    >{expanded ? <XIcon data-icon="inline-start" /> : <LinkIcon data-icon="inline-start" />}
       {expanded ? "닫기" : "연결"}
-    </BodyAction>
+    </Button>
   );
 }
 /** Current-title lookup, shared by the two directions of the same relationship. */
@@ -141,15 +144,15 @@ export function RelationSearch(
   const more = () => session.more();
   const candidates = result?.items.filter((item) => !item.type?.archived && !excluded(item)) ?? [];
   return (
-    <div className="related-search">
+    <div className="flex min-w-0 flex-col gap-4" aria-busy={pending || undefined}>
       <Field label={`${label} 제목 검색`}>
         {(props) => (
-          <input
+          <Input
             {...props}
             autoFocus
             type="search"
             maxLength={100}
-            className="input"
+
             placeholder="제목으로 검색"
             value={draft}
             disabled={disabled}
@@ -166,47 +169,44 @@ export function RelationSearch(
           />
         )}
       </Field>
-      {pending && <p className="secondary" role="status" aria-label="후보 검색">불러오는 중…</p>}
+      {pending && <p className="text-sm text-muted-foreground" role="status" aria-label="후보 검색">불러오는 중…</p>}
       {failed && (
         <>
           <Notice kind="error">검색하지 못했습니다.</Notice>
-          <BodyAction disabled={pending || disabled} onClick={() => void session.retry()}>검색 다시 시도</BodyAction>
+          <Button variant="ghost" type="button" disabled={pending || disabled} onClick={() => void session.retry()}>검색 다시 시도</Button>
         </>
       )}
       {result && (
-        <div className="related-search-results" role="group" aria-label={`${label} 검색 결과`}>
+        <div className="flex min-w-0 max-h-[28rem] flex-col gap-3 overflow-y-auto" role="group" aria-label={`${label} 검색 결과`}>
           {candidates.map((item) => (
             <RelatedItem
               key={item.id}
               to={draftMode ? undefined : `/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(item.id)}`}
               restoreKey={`relation-candidate-${kind}-${item.id}`}
               title={item.title}
+              titleLabel={kind === "task" ? "제목" : "자료 이름"}
               metadata={item.identity && (
-                <span>
-                  {item.type && (
-                    <>
-                      <EntityTypeIcon id={item.type.icon_id} /> {item.type.label} ·
-                    </>
-                  )}
-                  {item.identity}
-                </span>
+                <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+                  {item.type && <div><dt>자료 종류</dt><dd><EntityTypeIcon id={item.type.icon_id} /> {item.type.label}</dd></div>}
+                  <div><dt>자료 식별</dt><dd>{item.identity}</dd></div>
+                </dl>
               )}
               action={
-                <BodyAction
-                  icon="link"
+                <Button variant="ghost" type="button"
+
                   aria-disabled={disabled}
                   aria-label={`${item.title} 연결`}
                   onClick={() => {
                     if (!disabled) onChoose(item);
                   }}
-                >
+                ><LinkIcon data-icon="inline-start" />
                   연결
-                </BodyAction>
+                </Button>
               }
             />
           ))}
           {!candidates.length && !pending && !failed && (
-            <p className="secondary">
+            <p className="text-sm text-muted-foreground">
               {!result.items.length
                 ? "검색 결과가 없습니다."
                 : result.next_cursor
@@ -215,7 +215,7 @@ export function RelationSearch(
             </p>
           )}
           {result.next_cursor && (
-            <BodyAction disabled={pending || disabled} onClick={more}>검색 결과 더 보기</BodyAction>
+            <Button variant="ghost" type="button" disabled={pending || disabled} onClick={more}>검색 결과 더 보기</Button>
           )}
         </div>
       )}

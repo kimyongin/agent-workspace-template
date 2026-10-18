@@ -1,6 +1,9 @@
+import { FieldGroup } from "../../components/ui/field.tsx";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Button } from "../../components/ui/button.tsx";
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
-import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
@@ -9,7 +12,6 @@ import { useEffect, useState } from "react";
 import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
-import "./entity.css";
 import { RelationPicker } from "../relations/RelationPicker.tsx";
 export function EntityPicker(
   { value, onChange, error, label = "자료" }: {
@@ -21,43 +23,43 @@ export function EntityPicker(
 ) {
   const { items, failed, retry } = useEntities();
   return (
-    <div className="form">
+    <FieldGroup className="flex min-w-0 flex-col gap-5">
       <Field label={label} error={error}>
         {(p) => (
-          <select
+          <NativeSelect
             {...p}
-            className="input"
+
             value={value ?? ""}
             disabled={!items}
             onChange={(e) => onChange(e.target.value || null)}
           >
-            <option value="">{items ? "미지정" : "불러오는 중…"}</option>
-            {value && !items?.some((e) => e.id === value) && <option value={value}>현재 연결 ({value})</option>}
+            <NativeSelectOption value="">{items ? "미지정" : "불러오는 중…"}</NativeSelectOption>
+            {value && !items?.some((e) => e.id === value) && <NativeSelectOption value={value}>현재 연결 ({value})</NativeSelectOption>}
             {items?.map((e) => (
-              <option key={e.id} value={e.id}>{e.type.label} · {e.title} · {entityIdentityLabel(e)}</option>
+              <NativeSelectOption key={e.id} value={e.id}>{e.type.label} · {e.title} · {entityIdentityLabel(e)}</NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         )}
       </Field>
       {failed && (
         <>
           <Notice kind="error">자료를 불러오지 못했습니다.</Notice>
-          <button
-            className="btn"
+          <Button variant="outline"
+
             type="button"
             onClick={retry}
           >
             다시 시도
-          </button>
+          </Button>
         </>
       )}
-    </div>
+    </FieldGroup>
   );
 }
 export function EntityLink({ id }: { id: string | null | undefined }) {
   return id
     ? (
-      <p className="secondary">
+      <p className="text-sm text-muted-foreground">
         연결 자료: <Link to={`/entities/${encodeURIComponent(id)}`}>자료 보기</Link>
       </p>
     )
@@ -96,14 +98,15 @@ function useEntities() {
 
 /** Form selection uses the same search/card design as saved relationships. */
 export function EntityMultiPicker(
-  { value, context = [], onChange, error }: {
+  { value, context = [], onChange, error, disabled = false }: {
     value: string[];
     context?: EntityContext[];
+    disabled?: boolean;
     onChange: (ids: string[]) => void;
     error?: string;
   },
 ) {
-  return <RelationPicker kind="entity" value={value} context={context} onChange={onChange} error={error} />;
+  return <RelationPicker disabled={disabled} kind="entity" value={value} context={context} onChange={onChange} error={error} />;
 }
 
 export function EntityLinks(
@@ -112,12 +115,12 @@ export function EntityLinks(
   if (!ids?.length) return null;
   return (
     <RelatedSection title="연결된 자료" count={ids.length}>
-      <CollectionList>
+      <CollectionList columns={["자료 이름"]}>
         {ids.map((id) => {
           return (
-            <li key={id}>
+            <CollectionItem key={id}>
               <EntityLinkItem id={id} context={context} />
-            </li>
+            </CollectionItem>
           );
         })}
       </CollectionList>
@@ -132,11 +135,11 @@ export function EntityLinkItem({ id, context = [] }: { id: string; context?: Ent
       to={`/entities/${encodeURIComponent(id)}`}
       title={capture?.title ?? "연결된 자료"}
       metadata={
-        <span>
-          {capture?.type && <EntityTypeIcon id={capture.type.icon_id} />}{" "}
-          {capture?.type ? `${capture.type.label} · 속성 버전 ${capture.schema_version ?? "—"} · ` : ""}
-          {id}
-        </span>
+        <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+          {capture?.type && <div><dt>당시 자료 종류</dt><dd><EntityTypeIcon id={capture.type.icon_id} /> {capture.type.label}</dd></div>}
+          {capture?.type && <div><dt>당시 입력 항목 버전</dt><dd>{capture.schema_version ?? "확인 필요"}</dd></div>}
+          <div className="col-span-full"><dt>자료 식별</dt><dd>{id}</dd></div>
+        </dl>
       }
       restoreKey={`linked-entity-${id}`}
     />

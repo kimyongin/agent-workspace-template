@@ -38,6 +38,8 @@ it("shows stored historical snapshots, without implying missing snapshots descri
         <ChangeContext record={value} />
       </MemoryRouter>,
     );
+  expect(render(record)).toContain("<dt>변경 대상</dt><dd>자료 「고객」</dd>");
+  expect(render(record)).toContain("<dt>행동</dt><dd>수정</dd>");
   expect(render(record)).not.toContain("변경 전");
   expect(render(record)).not.toContain("변경 후");
   const old = { ...record, change: { ...record.change!, before: { prop1: "옛 이름" }, after: { prop1: "새 이름" } } };

@@ -1,9 +1,16 @@
+import { RotateCcwIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldSet } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Button } from "../../components/ui/button.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { PageHeading } from "../../components/PageHeading.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { NavigationRowActions } from "./NavigationRowActions.tsx";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
 import { defaultNavigationRefs, type NavigationRef, resolveNavigationRefs } from "../../app/type-navigation.ts";
@@ -13,7 +20,6 @@ import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { accountPreferences, type NavigationPreference } from "./account-preferences.ts";
 import { useNavigationPreview } from "./navigation-preview.tsx";
-import "./settings.css";
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const key = (ref: NavigationRef) => `${ref.kind}:${ref.id}`;
 export function NavigationSettingsPage() {
@@ -35,18 +41,18 @@ export function NavigationSettings(
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [candidate, setCandidate] = useState("");
   const pending = useRef(false), mounted = useRef(true);
-  const addSelect = useRef<HTMLSelectElement>(null);
+  const addSelect = useRef<HTMLInputElement>(null);
   const { setPreview } = useNavigationPreview();
   const location = useLocation();
   const catalog = useEntityTypes(location.key);
-  const types = catalog.types ?? [];
+  const types = useMemo(() => catalog.types ?? [], [catalog.types]);
   const dirty = !equal(draft, baseline);
-  const refs = draft?.refs ?? defaultNavigationRefs(types);
-  const choices = resolveNavigationRefs([
+  const refs = useMemo(() => draft?.refs ?? defaultNavigationRefs(types), [draft, types]);
+  const choices = useMemo(() => resolveNavigationRefs([
     ...["entities", "tasks", "records"].map((id) => ({ kind: "builtin", id } as NavigationRef)),
     ...types.map((type) => ({ kind: "type" as const, id: type.id })),
-  ], types);
-  const available = choices.filter((entry) => !refs.some((ref) => key(ref) === entry.key));
+  ], types), [types]);
+  const available = useMemo(() => choices.filter((entry) => !refs.some((ref) => key(ref) === entry.key)), [choices, refs]);
   const selected = available.find((entry) => entry.key === candidate);
   useEffect(() => {
     onStateChange?.({ dirty, busy });
@@ -112,27 +118,31 @@ export function NavigationSettings(
   };
   return (
     <section
-      className={inline ? "settings-section navigation-settings" : "panel settings navigation-settings"}
+      className={inline ? "flex min-w-0 flex-col gap-4" : "min-w-0 flex w-full flex-col gap-6"}
       id="settings-navigation"
       aria-label="메뉴 바로가기"
     >
+      <Card>
+      <CardHeader>
       {inline && (
-        <div className="navigation-settings-heading">
-          <h2 className="settings-section-title">메뉴 바로가기</h2>
-          <span className="secondary" aria-label={`${refs.length}개 선택, 최대 4개`}>{refs.length}/4</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle><h2>메뉴 바로가기</h2></CardTitle>
+          <span className="text-sm text-muted-foreground" aria-label={`${refs.length}개 선택, 최대 4개`}>{refs.length}/4</span>
         </div>
       )}
       {!inline && (
         <>
-          <nav className="settings-breadcrumb" aria-label="설정 경로">
+          <nav className="flex flex-wrap items-center gap-2" aria-label="설정 경로">
             <DetailLink to="/settings">설정</DetailLink>
             <span>메뉴 바로가기</span>
           </nav>
           <PageHeading title="메뉴 바로가기" id="navigation-settings-title" description="자주 쓰는 화면을 골라 메뉴에 표시하고 순서를 정합니다." />
         </>
       )}
+      </CardHeader>
+      <CardContent>
       <form
-        className="form"
+        className="flex min-w-0 flex-col gap-5"
         aria-label="메뉴 바로가기 설정"
         aria-busy={busy}
         onSubmit={(event) => {
@@ -140,14 +150,14 @@ export function NavigationSettings(
           void save();
         }}
       >
-        <fieldset className="settings-fields" disabled={busy}>
-          <ol className="navigation-selection" aria-label="선택한 바로가기">
+        <FieldSet className="min-w-0" disabled={busy}>
+          <ol className="flex min-w-0 flex-col divide-y divide-border" aria-label="선택한 바로가기">
             {refs.map((ref, index) => {
               const entry = resolveNavigationRefs([ref], types)[0];
               const label = entry?.label ?? "사용할 수 없는 자료 종류";
               return (
                 <li key={key(ref)}>
-                  <span className="navigation-selection-label">
+                  <span className="flex min-w-0 flex-1 items-center gap-2 [overflow-wrap:anywhere]">
                     <EntityTypeIcon id={entry?.icon ?? "box"} />
                     {label}
                     {entry?.archived ? " · 보관" : ""}
@@ -174,26 +184,15 @@ export function NavigationSettings(
               );
             })}
           </ol>
-          {refs.length === 0 && <p className="secondary">내 프로필만 표시합니다.</p>}
-          <div className="navigation-add-row">
-            <select
-              ref={addSelect}
-              className="input"
-              aria-label="추가할 메뉴"
-              value={selected?.key ?? ""}
-              disabled={refs.length >= 4 || available.length === 0}
-              onChange={(event) => setCandidate(event.target.value)}
-            >
-              <option value="">
-                {refs.length >= 4 ? "최대 4개 선택" : available.length ? "메뉴 선택" : "추가할 메뉴 없음"}
-              </option>
-              {available.map((entry) => (
-                <option key={entry.key} value={entry.key}>{entry.label}{entry.archived ? " · 보관" : ""}</option>
-              ))}
-            </select>
-            <button
+          {refs.length === 0 && <p className="text-sm text-muted-foreground">바로가기를 표시하지 않습니다.</p>}
+          <div className="flex flex-wrap items-end gap-3">
+            <Combobox items={available} value={selected ?? null} isItemEqualToValue={(a,b) => a.key === b.key} itemToStringLabel={entry => entry.label} onValueChange={entry => setCandidate(entry?.key ?? "")} disabled={busy || refs.length >= 4 || available.length === 0}>
+              <ComboboxInput ref={addSelect} aria-label="추가할 메뉴" placeholder={refs.length >= 4 ? "최대 4개 선택" : available.length ? "메뉴 선택" : "추가할 메뉴 없음"} />
+              <ComboboxContent><ComboboxEmpty>추가할 메뉴가 없습니다.</ComboboxEmpty><ComboboxList>{entry => <ComboboxItem key={entry.key} value={entry}>{entry.label}{entry.archived ? " · 보관" : ""}</ComboboxItem>}</ComboboxList></ComboboxContent>
+            </Combobox>
+            <Button variant="outline"
               type="button"
-              className="btn"
+
               disabled={refs.length >= 4 || !selected}
               aria-label={selected ? `${selected.label} 추가` : "메뉴 추가"}
               onClick={() => {
@@ -203,24 +202,24 @@ export function NavigationSettings(
               }}
             >
               추가
-            </button>
+            </Button>
           </div>
           {catalog.error && (
-            <div role="alert" className="notice notice-error">
+            <Alert variant="destructive" role="alert"><AlertDescription>
               자료 종류를 불러오지 못했습니다. 저장된 참조는 유지됩니다.{" "}
-              <button type="button" className="btn" onClick={catalog.retry}>다시 시도</button>
-            </div>
+              <Button variant="outline" type="button"  onClick={catalog.retry}>다시 시도</Button>
+            </AlertDescription></Alert>
           )}
-        </fieldset>
+        </FieldSet>
         {conflict && (
-          <div role="alert" className="notice notice-error">
+          <Alert variant="destructive" role="alert"><AlertDescription>
             <p>
               다른 탭에서 메뉴 설정이 변경되었습니다. 선택한 미리보기는 유지했습니다. 최신 설정을 확인하고 계속하세요.
             </p>
-            <div className="actions">
-              <button
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="outline"
                 type="button"
-                className="btn"
+
                 disabled={busy}
                 onClick={() => {
                   setBaseline(saved);
@@ -229,10 +228,10 @@ export function NavigationSettings(
                 }}
               >
                 최신 설정 사용
-              </button>
-              <button
+              </Button>
+              <Button variant="outline"
                 type="button"
-                className="btn"
+
                 disabled={busy}
                 onClick={() => {
                   setBaseline(saved);
@@ -240,30 +239,30 @@ export function NavigationSettings(
                 }}
               >
                 현재 선택 유지
-              </button>
+              </Button>
             </div>
-          </div>
+          </AlertDescription></Alert>
         )}
         {message && (
-          <p role={message.error ? "alert" : "status"} className={message.error ? "error-text" : "secondary"}>
+          <Alert role={message.error ? "alert" : "status"} className={message.error ? "text-sm text-destructive" : "text-sm text-muted-foreground"}><AlertDescription>
             {message.text}
-          </p>
+          </AlertDescription></Alert>
         )}
-        <div className="settings-section-footer navigation-settings-footer">
-          <BodyAction
-            icon="reset"
+        <div className="flex flex-col gap-3 pt-4">
+          <Button variant="ghost" type="button"
+
             disabled={draft === null || busy}
             onClick={() => {
               setDraft(null);
               setMessage(null);
             }}
-          >
+          ><RotateCcwIcon data-icon="inline-start" />
             기본 구성 사용
-          </BodyAction>
-          <div className="actions">
-            <button
+          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button variant="outline"
               type="button"
-              className="btn"
+
               aria-label="변경 취소"
               disabled={!dirty && !conflict || busy}
               onClick={() => {
@@ -274,19 +273,21 @@ export function NavigationSettings(
               }}
             >
               취소
-            </button>
-            <button
+            </Button>
+            <Button variant="default"
               type="submit"
-              className="btn btn-primary"
+
               disabled={!dirty || busy || conflict}
               aria-label="메뉴 바로가기 저장"
             >
               {busy ? "저장 중…" : "저장"}
-            </button>
+            </Button>
           </div>
         </div>
       </form>
       {!inline && <NavigationSettingsProtection dirty={dirty} busy={busy} />}
+      </CardContent>
+      </Card>
     </section>
   );
 }

@@ -1,11 +1,12 @@
+import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·MCP 결과·stale·모바일 초안 보존", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   let typeId: string | undefined, entityId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("변환 준비") });
@@ -47,10 +48,16 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await expect(row).toContainText("001");
     await row.getByRole("button", { name: "보완값 지정", exact: true }).click();
     await row.getByRole("textbox", { name: "보완값", exact: true }).fill("01");
-    await page.getByRole("link", { name: "할 일", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+    const beforeNavigation = page.url();
+    await openMainNavigation(page);
+    const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
+    await expect(tasksLink).toHaveAttribute("href", "/tasks");
+    await tasksLink.click();
+    const dialog = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(page).toHaveURL(beforeNavigation);
+    await closeMainNavigation(page);
     await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
     const reviewed = page.waitForResponse((response) =>
       response.url().endsWith("/analyze") && response.request().method() === "POST" && response.status() === 202
@@ -109,7 +116,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
 test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰지 않는다", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   let typeId: string | undefined;
   const ids: string[] = [];
   let release = () => {};

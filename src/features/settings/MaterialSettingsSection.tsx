@@ -1,3 +1,8 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDownIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState } from "react";
 
 export type MaterialSectionState = { dirty: boolean; busy: boolean; uncertain?: boolean; error?: boolean };
@@ -20,35 +25,24 @@ export function MaterialSettingsSection(
   useEffect(() => {
     if (initialOpen) setOpen(true);
   }, [initialOpen]);
-  return (
-    <section className="settings-section material-settings-section" aria-label={title} data-open={open}>
-      <h2 className="settings-section-title">
-        <button
-          type="button"
-          className="material-section-toggle"
-          aria-expanded={open}
-          aria-controls={id}
-          onClick={() => {
-            setOpen(!open);
-            onOpenChange?.(!open);
-          }}
-        >
-          <span>{title}</span>
-          <span className="secondary">
-            {state?.busy
-              ? "저장 중…"
-              : state?.uncertain
-              ? "결과 확인 필요"
-              : state?.error
-              ? "오류 · 미저장"
-              : state?.dirty
-              ? "미저장"
-              : summary}
-          </span>
-        </button>
-      </h2>
-      {description && <p className="material-section-description secondary">{description}</p>}
-      <div id={id} hidden={!open}>{children}</div>
+  const status = state?.busy ? "저장 중…" : state?.uncertain ? "결과 확인 필요" : state?.error ? "오류 · 미저장" : state?.dirty ? "미저장" : summary;
+  return <Collapsible open={open} onOpenChange={value => { setOpen(value); onOpenChange?.(value); }} asChild>
+    <section aria-label={title}>
+      <Card>
+        <CardHeader>
+          <CardTitle><h2>
+            <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-between whitespace-normal text-left" aria-controls={id}>
+              <span className="min-w-0 [overflow-wrap:anywhere]">{title}</span>
+              {status && <Badge variant={state?.error ? "destructive" : "secondary"}>{status}</Badge>}
+              <ChevronDownIcon data-icon="inline-end" />
+            </Button></CollapsibleTrigger>
+          </h2></CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+        <CollapsibleContent forceMount hidden={!open} id={id}>
+          <CardContent>{children}</CardContent>
+        </CollapsibleContent>
+      </Card>
     </section>
-  );
+  </Collapsible>;
 }

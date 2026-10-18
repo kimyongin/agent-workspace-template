@@ -1,9 +1,10 @@
+import { NativeSelect, NativeSelectOption } from "./ui/native-select.tsx";
 import { type SelectHTMLAttributes, useMemo } from "react";
 import { browserTimezone, timezoneOptions } from "../lib/timezone.ts";
 
 /** Keep the stored IANA value while showing a recognizable time-zone name. */
 export function TimezoneSelect(
-  { deviceDefault = false, ...props }: Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> & {
+  { deviceDefault = false, ...props }: Omit<SelectHTMLAttributes<HTMLSelectElement>, "children" | "size"> & {
     value: string;
     deviceDefault?: boolean;
   },
@@ -19,9 +20,9 @@ export function TimezoneSelect(
       return { zone, label };
     }), [props.value]);
   return (
-    <select {...props} className={props.className ?? "input"}>
-      {deviceDefault && <option value="">기기 시간대 사용 ({browserTimezone()})</option>}
-      {options.map((option) => <option key={option.zone} value={option.zone}>{option.label}</option>)}
-    </select>
+    <NativeSelect {...props} className={props.className ?? "w-full"}>
+      {deviceDefault && <NativeSelectOption value="">기기 시간대 사용 ({browserTimezone()})</NativeSelectOption>}
+      {options.map((option) => <NativeSelectOption key={option.zone} value={option.zone}>{option.label}</NativeSelectOption>)}
+    </NativeSelect>
   );
 }

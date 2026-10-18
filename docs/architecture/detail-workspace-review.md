@@ -20,7 +20,7 @@
 | 초안·guard·busy | 각 폼과 [Modal](../../src/components/Modal.tsx)의 `SurfaceEditor`, `readGuard`; TabContent와 WorkspaceRouteProtection | 숨기거나 다른 탭을 선택해도 폼은 mounted 상태로 남는다. dirty 닫기는 확인하며, 확인 취소는 유지한다. busy일 때 선택·닫기·재정렬·숨김·경로 이동이 차단된다. |
 | 상세 읽기·늦은 응답·확정값 | [useDetailResource](../../src/features/details/useDetailResource.ts), [detail-resource](../../src/features/details/detail-resource.ts) | identity별 resource와 취소·generation이 오래된 GET을 버린다. 확정 저장값을 이전 GET이 덮지 않고, 충돌 후 초안 version은 편집 종료 전 갱신하지 않는다. |
 | 편집 종료·식별자 교체 | [useDetailEditor](../../src/features/details/useDetailEditor.ts), [useEntityIdentityChange](https://github.com/kimyongin/agent-workspace-template/blob/b9ccaa56a36add3882cd6c86bd16f90442dd64e6/src/features/details/useEntityIdentityChange.ts), [identity-change](https://github.com/kimyongin/agent-workspace-template/blob/b9ccaa56a36add3882cd6c86bd16f90442dd64e6/src/features/details/identity-change.ts), [useDeferredNavigation](../../src/lib/useDeferredNavigation.ts) | 폼과 guard를 제거한 뒤 이동한다. 저장된 새 식별자는 탭과 return pointer를 교체하고 목록 펼침·초점 hash를 옮긴다. |
-| 화면 전환·scroll·focus | DetailWorkspace의 `started`, media query, `useWorkspaceScroll`, focus effect; [useWorkspaceResize](../../src/features/details/useWorkspaceResize.ts); ModalShell | 이미 시작한 workspace는 mobile modal 전환에서도 탭 폼을 유지한다. 모바일에서 시작한 열린 native dialog는 넓어진 화면에서도 재부모화하지 않는다. 목록 scroll 소유자가 바뀌면 위치를 옮긴다. |
+| 화면 전환·scroll·focus | DetailWorkspace의 `started`, media query, `useWorkspaceScroll`, focus effect; [useWorkspaceResize](../../src/features/details/DetailWorkspace.tsx); ModalShell | 이미 시작한 workspace는 mobile modal 전환에서도 탭 폼을 유지한다. 모바일에서 시작한 열린 native dialog는 넓어진 화면에서도 재부모화하지 않는다. 목록 scroll 소유자가 바뀌면 위치를 옮긴다. |
 | 계정 수명 | [App Layout](../../src/app/App.tsx)의 account/logout key와 DetailNavigationProvider의 scope | 로그아웃·사용자 ID 변경은 retained workspace를 다시 mount하고 탐색 snapshot을 분리한다. 계정 간 초안·탭·복귀 정보가 공유되어서는 안 된다. |
 
 `revision`은 저장·편집 종료·닫기 후 목록을 다시 읽게 하는 신호다. 도메인 저장값이나 초안의 정본이 아니다. `current` ref는 콜백이 최신 탭 상태를 읽는 역할이며, 별도 상태 소유자로 취급하면 안 된다. 모드 종료와 식별 교체의 deferred navigation은 단순한 URL 계산 이상의 실행 순서 계약이다.
@@ -61,3 +61,5 @@
 ## 검증 범위
 
 검토 revision에서 `vitest run src/features/details/detail-resource.test.ts src/features/details/identity-change.test.ts`의 기존 6개 검사가 통과했다. 브라우저 검사의 정의와 assertion을 대조했으며 이번 문서 변경으로 브라우저 E2E를 다시 실행하지 않았다. 제품 코드 변경이 없어 이 티켓 자체의 E2E는 생략하되, 전체 스펙의 통합 E2E 판단은 [실행 기준](../development/verification.md#로컬-e2e-실행-기준)에 남는다. 이 문서는 실행하지 않은 브라우저·실기기·계정 교체 검증의 성공 증거가 아니다.
+
+2026-10-17 UI 전환 후 조절 구현은 공식 Resizable을 조합한 DetailWorkspace로 통합했다. 이 문서의 최초 조사 당시 native dialog·손잡이 표현은 역사적 근거이며 현재 표현 기준은 [ADR-0025](../adr/0025-shadcn-tailwind-ui.md)와 [디자인 가이드](../design/guide.md)를 따른다.

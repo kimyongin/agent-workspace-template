@@ -17,7 +17,7 @@ import {
 export const env = parseEnv(
   readFileSync(new URL("../.env.local", import.meta.url), "utf8"),
 );
-function requiredEnv(name: string): string {
+export function requiredEnv(name: string): string {
   const value = env[name];
   if (!value) throw new Error(`E2E 환경 설정이 필요합니다: ${name}`);
   return value;

@@ -1,7 +1,9 @@
+import { chooseSetting } from "./settings-actions.ts";
+import { executionDialog } from "./ui-actions.ts";
 import postgres from "postgres";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
-import { devLogin, env, ownFixtureResult, test, unique } from "./support.ts";
+import { devLogin, env, ownFixtureResult, test, unique, requiredEnv } from "./support.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 
 let fixtureSource: string;
@@ -11,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   const login = await page.request.post(
     `${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`,
     {
-      headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY") },
       data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
     },
   );
@@ -74,7 +76,7 @@ test.beforeEach(async ({ page }) => {
     definition.schema.properties[key]["x-order"] = (index + 1) * 10;
   });
   definition.schema["x-version"] = 2;
-  const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+  const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   try {
     await admin.begin(async (tx) => {
       const [owner] = await tx`select owner_id from app.entity_types where id=${fixtureType!.id}`;
@@ -93,7 +95,7 @@ test("manual tuple registration restores stored properties and links while ident
   const login = await page.request.post(
     `${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`,
     {
-      headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY") },
       data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
     },
   );
@@ -204,8 +206,8 @@ test("manual tuple registration restores stored properties and links while ident
       name: `${fixtureType!.label} 편집`,
       exact: true,
     });
-    await expect(rekey.getByLabel("자료 번호")).toHaveAttribute("readonly", "");
-    await expect(rekey.getByLabel("자료 번호")).toHaveValue(external_id);
+    await expect(rekey.locator("dt:visible", { hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(external_id);
+    await expect(rekey.getByRole("textbox", { name: "자료 번호", exact: true })).toHaveCount(0);
     await rekey.getByLabel("이름", { exact: false }).fill(name + " 수정");
     await saveOnce(page, rekey);
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(target.id)));
@@ -221,7 +223,7 @@ test("manual tuple registration restores stored properties and links while ident
     await expect(page.getByText(name + " 수정", { exact: true }).first()).toBeVisible();
     await page.getByRole("button", { name: "편집", exact: true }).click();
     await page.getByRole("button", { name: "삭제", exact: true }).click();
-    const deletion = page.locator("dialog.modal-action[open]");
+    const deletion = executionDialog(page);
     await expect(deletion.getByLabel("기록 메모", { exact: true })).toHaveValue(
       "삭제 템플릿",
     );
@@ -234,7 +236,10 @@ test("manual tuple registration restores stored properties and links while ident
     const events = await api("GET", "/records?record_kind=change&limit=100");
     const deletionEvent = events.items.find((
       event: { change?: { target_id: string; action: string } },
-    ) => event.change?.target_id === entityId && event.change.action === "delete");
+    ) => {
+      const change = event.change;
+      return !!change && change.target_id === entityId && change.action === "delete";
+    });
     expect(deletionEvent.body).not.toBe("삭제 템플릿");
     expect(deletionEvent.body).toContain(name);
   } finally {
@@ -399,7 +404,7 @@ test("late archived lookup preserves newer identity and same-identity property e
     "보관된 값 4",
   );
   await restore.getByRole("button", { name: "취소", exact: true }).click();
-  const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   if (await discard.isVisible()) {
     await discard.getByRole("button", { name: "변경 버리기", exact: true })
       .click();
@@ -492,7 +497,16 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
   );
   await form.getByRole("button", { name: "저장", exact: true }).click();
   const defaults = await (await prepared).json();
-  const confirmation = page.locator("dialog.modal-action[open]");
+  const confirmation = executionDialog(page);
+  const target = confirmation.getByRole("term").filter({ hasText: /^대상$/ })
+    .locator("..").getByRole("definition");
+  expect(defaults.prepared_input).toMatchObject({
+    entity_type_id: fixtureType!.id,
+    source,
+    external_id: identity,
+    properties: { prop_1: title },
+  });
+  await expect(target).toHaveText(title);
   await expect(confirmation.getByLabel("기록 메모", { exact: true }))
     .toHaveValue(defaults.change_note);
   release();
@@ -503,7 +517,7 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
   await expect(
     confirmation.getByRole("button", { name: "등록하고 저장", exact: true }),
   ).toBeEnabled();
-  await expect(confirmation.getByRole("heading")).toContainText(title);
+  await expect(target).toHaveText(title);
   await expect(confirmation.getByLabel("기록 메모", { exact: true }))
     .toHaveValue(defaults.change_note);
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
@@ -519,38 +533,38 @@ test("seven settings workspaces retain real API selections and stay within the v
       ["/settings/tags", "태그 설정"],
       ["/settings/records", "기록 설정"],
       ["/settings/issuers", "자료 설정"],
-      ["/settings/relations", "연결 설정"],
-      ["/settings/data-model", "자료 모델"],
+      ["/settings/relations", "자료 설정"],
+      ["/settings/data-model", "자료 설정"],
     ]
   ) {
     await page.goto(path);
     await expect(page.getByRole("heading", { name: title, exact: true, level: 1 })).toBeVisible();
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    const menu = page.getByRole("navigation", { name: "설정 메뉴", exact: true });
+    const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
     const destinations = [
       ["기본", "/settings"],
       ["자료", "/settings/materials"],
-      ["자료 모델 가져오기·내보내기", "/settings/data-model"],
-      ["자료 관계", "/settings/relations"],
       ["태그", "/settings/tags"],
       ["기록", "/settings/records"],
-      ["번호 출처", "/settings/issuers"],
     ] as const;
-    await expect(menu.getByRole("link")).toHaveCount(7);
-    await expect(menu.getByRole("link")).toHaveText(destinations.map(([label]) => label));
+    await expect(menu.getByRole("menuitem")).toHaveCount(4);
+    await expect(menu.getByRole("menuitem")).toHaveText(destinations.map(([label]) => label));
     for (const [label, href] of destinations) {
-      await expect(menu.getByRole("link", { name: label, exact: true })).toHaveAttribute("href", href);
+      await expect(menu.getByRole("menuitem", { name: label, exact: true })).toHaveAttribute("href", href);
     }
-    await page.getByRole("button", { name: "설정 메뉴", exact: true }).press("Escape");
-    if (title === "자료 설정") {
+    await page.keyboard.press("Escape");
+    await expect(menu).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toBeFocused();
+    if (path === `/settings/entity-types/${fixtureType!.id}`) {
       const identity = page.getByRole("region", { name: "자료 번호", exact: true });
-      await identity.getByRole("button", { name: /^자료 번호/ }).click();
+      const disclosure = identity.getByRole("heading", { level: 2 }).getByRole("button", { name: /^자료 번호/ });
+      if (await disclosure.getAttribute("aria-expanded") !== "true") await disclosure.click();
       await expect(identity.getByLabel("이름", { exact: false })).toHaveValue("자료 번호");
       await expect(identity.getByRole("radio", { name: "시험 마켓 기본 번호 출처", exact: true })).toBeChecked();
       await expect(page.getByRole("region", { name: "기록 자동 완성", exact: true })).toHaveCount(0);
     }
     if (title === "기록 설정") {
-      await page.getByLabel("대상", { exact: true }).selectOption(`type:${fixtureType!.id}`);
+      await chooseSetting(page, page.getByLabel("대상", { exact: true }), fixtureType!.label);
       const template = page.getByRole("form", { name: "기록 자동 완성", exact: true });
       await expect(template).toBeVisible();
       await expect(template.getByLabel("액션", { exact: true })).toBeEnabled();
@@ -567,6 +581,21 @@ test("seven settings workspaces retain real API selections and stay within the v
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
       .toBe(true);
-    await page.screenshot({ path: info.outputPath(`${title}.png`), fullPage: true });
+    await page.screenshot({ path: info.outputPath(`${path.slice(1).replaceAll("/", "-")}.png`), fullPage: true });
+  }
+  // Material workspaces share the official tabs rather than separate global menu items.
+  for (const [label, path] of [
+    ["자료 종류", "/settings/materials"],
+    ["연결 설정", "/settings/relations"],
+    ["번호 설정", "/settings/issuers"],
+    ["일괄 설정", "/settings/data-model"],
+  ] as const) {
+    const tabs = page.getByRole("tablist", { name: "자료 설정 항목", exact: true });
+    await expect(tabs.getByRole("tab")).toHaveCount(4);
+    await expect(tabs.getByRole("tab")).toHaveText(["자료 종류", "연결 설정", "번호 설정", "일괄 설정"]);
+    await tabs.getByRole("tab", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page.getByRole("heading", { name: "자료 설정", level: 1, exact: true })).toBeVisible();
+    await expect(tabs.getByRole("tab", { name: label, exact: true })).toHaveAttribute("aria-selected", "true");
   }
 });

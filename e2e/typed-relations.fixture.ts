@@ -1,3 +1,4 @@
+import { executionDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
@@ -123,9 +124,9 @@ test(
     await single.getByRole("button", { name: "새 주문 연결", exact: true }).click();
     await page.getByRole("button", { name: "수정하고 저장", exact: true }).click();
     await expect(
-      page.locator("dialog.modal-action[open]").getByRole("button", { name: "같은 내용 다시 시도", exact: true }),
+      executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true }),
     ).toBeVisible();
-    await page.locator("dialog.modal-action[open]").getByRole("button", { name: "같은 내용 다시 시도", exact: true })
+    await executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true })
       .click();
     await expect(single.getByRole("link", { name: "새 주문", exact: true })).toBeVisible();
     expect(writes.length).toBe(2);
@@ -135,7 +136,7 @@ test(
     await page.screenshot({ path: `/private/tmp/typed-relations-single-${info.project.name}.png`, fullPage: true });
     for (let n = 0; n < 5; n++) await multi.getByRole("button", { name: "더 보기", exact: true }).click();
     await expect(multi.getByRole("button", { name: "재료 101", exact: true })).toBeVisible();
-    await expect(multi.locator(".related-items > li")).toHaveCount(101);
+    await expect(multi.locator("[data-slot=item-group] > li")).toHaveCount(101);
     await page.screenshot({ path: `/private/tmp/typed-relations-${info.project.name}.png`, fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await single.getByRole("button", { name: "해제", exact: true }).click();

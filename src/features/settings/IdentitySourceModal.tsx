@@ -1,6 +1,11 @@
+import { PlusIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup } from "@/components/ui/field";
+import { Button } from "../../components/ui/button.tsx";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
-import { BodyActionFace } from "../../components/BodyAction.tsx";
+
 import { Field } from "../../components/Field.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
@@ -107,9 +112,9 @@ export function IdentitySourceModal({
       onClose={onClose}
       footer={(requestClose) => (
         <>
-          <button className="btn" type="button" onClick={requestClose}>취소</button>
-          <button
-            className="btn btn-primary"
+          <Button variant="outline"  type="button" onClick={requestClose}>취소</Button>
+          <Button variant="default"
+
             type="button"
             disabled={!issuer?.active || !rule?.active || !!editing}
             onClick={() => {
@@ -117,31 +122,31 @@ export function IdentitySourceModal({
             }}
           >
             연결
-          </button>
+          </Button>
         </>
       )}
     >
-      <div className="form">
-        <div className="issuer-binding-choice">
+      <FieldGroup className="flex min-w-0 flex-col gap-5">
+        <div className="flex min-w-0 flex-wrap items-end gap-3 [&>div]:flex-1">
           <Field label="번호 출처">
             {(props) => (
-              <select
+              <NativeSelect
                 {...props}
                 ref={sourceSelect}
-                className="input"
+
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
               >
-                <option value="">선택</option>
+                <NativeSelectOption value="">선택</NativeSelectOption>
                 {issuers.filter((i) => i.active && !linked.includes(i.code)).map((i) => (
-                  <option key={i.code} value={i.code}>{i.label}</option>
+                  <NativeSelectOption key={i.code} value={i.code}>{i.label}</NativeSelectOption>
                 ))}
-              </select>
+              </NativeSelect>
             )}
           </Field>
-          <button
+          <Button variant="outline"
             type="button"
-            className="btn btn-input"
+
             ref={issuerAdd}
             onClick={() => {
               returnTo.current = "issuer";
@@ -149,27 +154,27 @@ export function IdentitySourceModal({
             }}
           >
             번호 출처 추가
-          </button>
+          </Button>
         </div>
-        {error && <p className="error-text" role="alert">{error}</p>}
+        {error && <Alert variant="destructive" className="text-sm text-destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
         {source && (
-          <div className="issuer-binding-choice">
+          <div className="flex min-w-0 flex-wrap items-end gap-3 [&>div]:flex-1">
             <div>
               {rules === null && !error
-                ? <p role="status">번호 종류를 읽는 중…</p>
+                ? <Alert role="status"><AlertDescription>번호 종류를 읽는 중…</AlertDescription></Alert>
                 : eligible.length > 1
                 ? (
                   <Field label="번호 종류">
                     {(props) => (
-                      <select
+                      <NativeSelect
                         {...props}
-                        className="input"
+
                         value={ruleId}
                         onChange={(e) => setRuleId(e.target.value)}
                       >
-                        <option value="">선택</option>
-                        {eligible.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-                      </select>
+                        <NativeSelectOption value="">선택</NativeSelectOption>
+                        {eligible.map((r) => <NativeSelectOption key={r.id} value={r.id}>{r.label}</NativeSelectOption>)}
+                      </NativeSelect>
                     )}
                   </Field>
                 )
@@ -180,12 +185,11 @@ export function IdentitySourceModal({
                     {eligible[0].generation === "automatic" && eligible[0].label !== "자동 발급" ? " · 자동 발급" : ""}
                   </p>
                 )
-                : <p className="secondary">등록된 번호 종류가 없습니다.</p>}
+                : <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
             </div>
             {issuer && !issuer.system && (
-              <button
+              <Button variant="outline"
                 type="button"
-                className={eligible.length > 1 ? "btn btn-input" : "body-action"}
                 ref={ruleAdd}
                 disabled={rules === null}
                 onClick={() => {
@@ -193,12 +197,12 @@ export function IdentitySourceModal({
                   setEditing({ kind: "rule", source, sourceLabel: issuer.label });
                 }}
               >
-                {eligible.length > 1 ? "번호 종류 추가" : <BodyActionFace icon="create">번호 종류 추가</BodyActionFace>}
-              </button>
+                {eligible.length > 1 ? "번호 종류 추가" : <><PlusIcon data-icon="inline-start" />번호 종류 추가</>}
+              </Button>
             )}
           </div>
         )}
-      </div>
+      </FieldGroup>
     </ModalShell>
   );
 }

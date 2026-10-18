@@ -1,3 +1,4 @@
+import { detailDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -17,7 +18,7 @@ for (const kind of ["once", "recurring"] as const) {
       });
       taskId = task.id;
       await page.goto(`/tasks/${taskId}`);
-      const surface = page.locator("dialog.modal:not(.modal-confirm)[open]");
+      const surface = detailDialog(page);
       await surface.getByRole("button", { name: "기록 작성", exact: true }).click();
       await surface.getByRole("textbox", { name: /^본문/ }).fill(`${title} 참고 메모`);
       const saved = page.waitForResponse(response => response.request().method() === "POST" && response.url() === `${env.VITE_API_URL}/records`);

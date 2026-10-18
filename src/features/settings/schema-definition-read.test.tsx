@@ -5,6 +5,17 @@ import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { SchemaChangeDiff } from "./SchemaChangeRead.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 
+it("역사 입력 항목은 이름을 키와 결합해 한 번 읽고 0·거짓 기본값을 보존한다", () => {
+  const definition = initialEntityDefinition("과거 상품명");
+  definition.schema.properties.prop_2 = { type: "number", title: "과거 가격", "x-order": 20, minimum: 0, default: 0 };
+  definition.schema.properties.prop_3 = { type: "boolean", title: "과거 판매 여부", "x-order": 30, default: false };
+  const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
+  expect(html).toContain("<dt>항목 이름</dt><dd>과거 가격</dd>");
+  expect(html.match(/>과거 가격</g)).toHaveLength(1);
+  expect(html).toContain("<dt>최소값</dt><dd>0</dd>");
+  expect(html).toContain("<dt>생성 기본값</dt><dd>아니오</dd>");
+});
+
 it("reads a saved definition using option labels without exposing storage codes", () => {
   const definition = initialEntityDefinition("상품명");
   definition.schema.properties.prop_2 = {

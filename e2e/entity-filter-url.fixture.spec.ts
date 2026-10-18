@@ -1,3 +1,5 @@
+import { chooseEntityType } from "./ui-actions.ts";
+import { detailDialog } from "./ui-actions.ts";
 import { closeDetail, openDetailEditor, openListDetail } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entity, fixtureSchema, fixtureType, id, task } from "./support/workspace-data.ts";
@@ -67,7 +69,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
   await page.goto("/tasks");
   expect((await page.goto(copied))?.status()).toBe(200);
   await expect(page.getByLabel("조건 1 값", { exact: true })).toHaveValue(value);
-  await page.getByLabel("자료 종류", { exact: true }).selectOption("");
+  await chooseEntityType(page, "전체 자료");
   await expect.poll(() => new URL(page.url()).hash).toBe("");
   await page.goBack();
   await expect(page.getByLabel("조건 1 값", { exact: true })).toHaveValue(value);
@@ -175,7 +177,7 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
       await expect.poll(() => reads.length).toBeGreaterThan(before);
       expect(reads.at(-1)).toEqual({ type: fixtureType.id, valueLength: 4096, matches: true });
     }
-    const form = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+    const form = detailDialog(page);
     await form.getByRole("button", { name: "취소", exact: true }).click();
     await expect.poll(() => new URL(page.url()).searchParams.has(mode === "edit" ? "edit" : "create")).toBe(false);
     expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("anchor")).toBe(`entity-${row.id}`);
@@ -194,7 +196,7 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
   expect(taskEditor.searchParams.get("edit")).toBe("1");
   expect(taskEditor.search.length).toBeLessThan(2048);
   expect(new URLSearchParams(taskEditor.hash.slice(1)).get("property_filters")).toBe(filters);
-  await page.locator("dialog.modal:not(.modal-confirm)[open]:visible").getByRole("button", {
+  await detailDialog(page).getByRole("button", {
     name: "취소",
     exact: true,
   }).click();

@@ -31,11 +31,20 @@ async function importModelFile(page: Page, document: DataModelDocument) {
   await page.getByLabel("가져오는 방법", { exact: true }).selectOption(
     "update",
   );
-  await page.getByLabel("JSON 파일", { exact: true }).setInputFiles({
+  const contents = JSON.stringify(document, null, 2) + "\n";
+  const selectFile = page.getByRole("button", { name: "설정 파일 선택", exact: true });
+  await expect(selectFile).toBeVisible();
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    selectFile.click(),
+  ]);
+  await chooser.setFiles({
     name: "whole-model.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(document, null, 2) + "\n"),
+    buffer: Buffer.from(contents),
   });
+  await expect(page.getByText("whole-model.json", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "설정 파일 내용", exact: true })).toHaveValue(contents);
   await page.getByRole("button", { name: "가져올 내용 검토", exact: true })
     .click();
   const prepared = page.waitForResponse((r) =>

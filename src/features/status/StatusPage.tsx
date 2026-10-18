@@ -3,8 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import type { StatusOverview } from "@contracts/status.ts";
 import { api } from "../../lib/api.ts";
 import { StatusContent } from "./StatusContent.tsx";
-import "./status.css";
-import { Notice } from "../../components/Field.tsx";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { RefreshCwIcon } from "lucide-react";
 import { IndexingIssues } from "./IndexingIssues.tsx";
 
 export function StatusPage() {
@@ -33,32 +36,30 @@ export function StatusPage() {
     return () => controller.current?.abort();
   }, []);
   return (
-    <section className="panel status-page" aria-labelledby="status-title" aria-busy={busy}>
+    <section className="@container flex min-w-0 flex-col gap-6" aria-labelledby="status-title" aria-busy={busy}>
       <PageHeading title="상태" id="status-title" description="저장된 데이터와 검색 준비 상태를 확인합니다.">
-        <button
-          className="btn btn-text"
-          type="button"
+        <Button
+          variant="outline"
+          size="icon"
           aria-label="새로고침"
           title={busy ? "조회 중…" : "새로고침"}
           onClick={() => void refresh()}
           disabled={busy}
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M20 11a8 8 0 0 0-14-5L3 9m0-6v6h6m-5 4a8 8 0 0 0 14 5l3-3m0 6v-6h-6" />
-          </svg>
-        </button>
+          {busy ? <Spinner /> : <RefreshCwIcon />}
+        </Button>
       </PageHeading>
-      {error && <Notice kind="error">{error}</Notice>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {busy && !data && (
+        <div role="status" aria-label="상태 조회 중" className="grid gap-4">
+          <Skeleton className="h-72 w-full" />
+          <Skeleton className="h-72 w-full" />
+        </div>
+      )}
       {data && (
         <StatusContent data={data}>
           <IndexingIssues key={issuesRevision} count={data.indexing.attention} disabled={busy || !!error} />

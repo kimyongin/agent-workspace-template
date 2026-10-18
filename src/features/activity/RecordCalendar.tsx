@@ -1,62 +1,175 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { type ComponentProps, createContext, type ReactNode, useContext } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
-import { CollectionList } from "../../components/Collection.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+import { TZDate, MonthGrid, type MonthGridProps, type RootProps } from "react-day-picker";
+import { addDays, addMonths, addYears, startOfWeek, endOfWeek } from "date-fns";
+import { ko } from "date-fns/locale";
+import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import { todayIn } from "../../lib/format.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { groupRecords } from "./timeline.ts";
-import { adjacentMonth, calendarDay, calendarMonth, monthDays, moveCalendarDay } from "./calendar.ts";
-import "./record-calendar.css";
+import { calendarDay, calendarMonth } from "./calendar.ts";
 
-/** A calendar projects the same loaded records; it never claims server-wide date coverage. */
-export function RecordCalendar<T extends { id: string }>({ items, at, children, partial }: { items: T[]; at: (item: T) => string; children: (item: T) => ReactNode; partial: boolean }) {
-  const { timezone } = useDisplayTime(), [params] = useSearchParams(), location = useLocation(), navigate = useNavigate();
-  const dates = useRef<HTMLDivElement>(null), focusDay = useRef<string | null>(null);
-  const today = todayIn(timezone), groups = groupRecords(items.map(item => ({ ...item, occurred_at: at(item) })), timezone).sort((a, b) => b.date.localeCompare(a.date));
+function RecordCalendarRoot({ rootRef, ...props }: RootProps) {
+  return <div data-slot="calendar" ref={rootRef} {...props} />;
+}
+function RecordMonthGrid(props: MonthGridProps) {
+  return <ScrollArea type="always" className="min-w-0 max-w-full">
+    <MonthGrid {...props} />
+    <ScrollBar orientation="horizontal" />
+  </ScrollArea>;
+}
+const DayCounts = createContext(new Map<string, number>());
+function civilDay(date: Date) {
+  return `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${
+    String(date.getDate()).padStart(2, "0")
+  }`;
+}
+function zonedDay(day: string, timezone: string) {
+  const [year, month, date] = day.split("-").map(Number);
+  const result = new TZDate(0, timezone);
+  result.setFullYear(year, month - 1, date);
+  result.setHours(12, 0, 0, 0);
+  return result;
+}
+function RecordDayButton(props: ComponentProps<typeof CalendarDayButton>) {
+  const counts = useContext(DayCounts), day = civilDay(props.day.date), count = counts.get(day) ?? 0;
+  return (
+    <CalendarDayButton
+      {...props}
+      locale={ko}
+      aria-label={`${day}, 불러온 기록 ${count}개`}
+      aria-pressed={props.modifiers.selected}
+    >
+      <span>{props.day.date.getDate()}</span>
+      {count > 0 && <Badge variant="secondary" aria-hidden="true">{count}</Badge>}
+    </CalendarDayButton>
+  );
+}
+/** The calendar projects loaded records; it never claims server-wide coverage. */
+export function RecordCalendar<T extends { id: string }>(
+  { items, at, children, partial }: {
+    items: T[];
+    at: (item: T) => string;
+    children: (item: T) => ReactNode;
+    partial: boolean;
+  },
+) {
+  const { timezone } = useDisplayTime(),
+    [params] = useSearchParams(),
+    location = useLocation(),
+    navigate = useNavigate();
+  const today = todayIn(timezone),
+    groups = groupRecords(items.map((item) => ({ ...item, occurred_at: at(item) })), timezone).sort((a, b) =>
+      b.date.localeCompare(a.date)
+    );
   const opened = params.get("open")?.split("/").pop();
-  const openedDay = groups.find(group => group.records.some(item => item.id === opened))?.date;
+  const openedDay = groups.find((group) => group.records.some((item) => item.id === opened))?.date;
   const defaultDay = groups[0]?.date ?? today;
   const month = openedDay?.slice(0, 7) ?? calendarMonth(params.get("calendar_month"), defaultDay.slice(0, 7));
-  const selected = openedDay ?? calendarDay(params.get("calendar_day"), month) ?? groups.find(group => group.date.startsWith(month))?.date ?? `${month}-01`;
-  const records = groups.find(group => group.date === selected)?.records ?? [];
+  const selected = openedDay ?? calendarDay(params.get("calendar_day"), month) ??
+    groups.find((group) => group.date.startsWith(month))?.date ?? `${month}-01`;
+  const records = groups.find((group) => group.date === selected)?.records ?? [];
   const choose = (month: string, day: string) => {
     const next = new URLSearchParams(params);
-    next.set("calendar_month", month); next.set("calendar_day", day);
+    next.set("calendar_month", month);
+    next.set("calendar_day", day);
     if (day !== selected) next.delete("open");
-    void navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, { replace: true, preventScrollReset: true });
+    void navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, {
+      replace: true,
+      preventScrollReset: true,
+    });
   };
-  const before = adjacentMonth(month, -1), after = adjacentMonth(month, 1);
-  useEffect(() => {
-    if (!focusDay.current) return;
-    const target = dates.current?.querySelector<HTMLButtonElement>(`button[data-date="${focusDay.current}"]`);
-    if (target) { target.focus(); focusDay.current = null; }
-  }, [month, selected]);
-  return <div className="record-calendar">
-    <div className="calendar-month-panel">
-    <div className="calendar-toolbar"><div className="actions">
-      <BodyAction aria-label="이전 달" disabled={!before} onClick={() => before && choose(before, `${before}-01`)}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></BodyAction>
-      <h3 className="calendar-month-title">{Number(month.slice(0, 4))}년 {Number(month.slice(5))}월</h3>
-      <BodyAction aria-label="다음 달" disabled={!after} onClick={() => after && choose(after, `${after}-01`)}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></BodyAction>
-    </div><BodyAction onClick={() => choose(today.slice(0, 7), today)}>오늘</BodyAction></div>
-    {partial && <p className="help calendar-coverage" role="status">불러온 기록만 표시합니다. 더 보기로 나머지 기록을 불러올 수 있습니다.</p>}
-    <div className="calendar-week" aria-hidden="true">{"일월화수목금토".split("").map(day => <span key={day}>{day}</span>)}</div>
-    <div className="calendar-days" role="group" aria-label="기록 날짜" ref={dates} onKeyDown={event => {
-      const offsets: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
-      if (offsets[event.key] === undefined) return;
-      event.preventDefault();
-      const focused = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-date]")?.dataset.date ?? selected;
-      const target = moveCalendarDay(focused, offsets[event.key]);
-      if (target) { focusDay.current = target; choose(target.slice(0, 7), target); }
-    }}>{monthDays(month).map((day, index) => {
-      if (!day) return <span key={index} aria-hidden="true"/>;
-      const count = groups.find(group => group.date === day)?.records.length ?? 0;
-      return <button key={day} type="button" data-date={day} tabIndex={day === selected ? 0 : -1} aria-label={`${day}, 불러온 기록 ${count}개`} aria-pressed={day === selected} aria-current={day === today ? "date" : undefined} onClick={() => choose(month, day)}>
-        <span>{Number(day.slice(8))}</span>{count > 0 && <small aria-hidden="true">{count}</small>}
-      </button>;
-    })}</div>
-    </div>
-    <section className="calendar-selection" aria-label={`${selected} 기록`}><h3 className="section-title">{Number(selected.slice(5, 7))}월 {Number(selected.slice(8))}일 · 기록 {records.length}개</h3>
-      {records.length > 0 ? <CollectionList label={`${selected} 기록`}>{records.map(item => <li key={item.id}>{children(item)}</li>)}</CollectionList> : <p className="secondary">이 날짜에 불러온 기록이 없습니다.</p>}
+  return (
+    <section aria-label="기록 달력" className="grid min-w-0 items-start gap-4 @min-[56rem]:grid-cols-2">
+      <Card className="min-w-0">
+        <CardHeader>
+          <CardTitle>기록 날짜</CardTitle>
+          <CardDescription>{timezone} 기준으로 불러온 기록을 표시합니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex min-w-0 flex-col gap-4">
+          <Button type="button" variant="outline" onClick={() => choose(today.slice(0, 7), today)}>오늘</Button>
+          {partial && (
+            <Alert role="status">
+              <AlertDescription>불러온 기록만 표시합니다. 더 보기로 나머지 기록을 불러올 수 있습니다.</AlertDescription>
+            </Alert>
+          )}
+          <DayCounts.Provider value={new Map(groups.map((group) => [group.date, group.records.length]))}>
+            <Calendar
+              mode="single"
+              required
+              locale={ko}
+              timeZone={timezone}
+              noonSafe
+              showOutsideDays={false}
+              weekStartsOn={0}
+              navLayout="after"
+              classNames={{
+                month: "flex min-w-0 w-full flex-col gap-4",
+                nav: "static flex w-full items-center justify-between gap-2",
+                month_caption: "flex min-h-(--cell-size) w-full items-center justify-center",
+                caption_label: "text-center text-sm font-medium whitespace-normal wrap-anywhere",
+              }}
+              className="w-full [--cell-size:2.75rem]"
+              month={zonedDay(`${month}-01`, timezone)}
+              selected={zonedDay(selected, timezone)}
+              today={zonedDay(today, timezone)}
+              startMonth={zonedDay("0001-01-01", timezone)}
+              endMonth={zonedDay("9999-12-01", timezone)}
+              onMonthChange={(date) => {
+                const day = civilDay(date);
+                choose(day.slice(0, 7), `${day.slice(0, 7)}-01`);
+              }}
+              onSelect={(date) => {
+                if (date) {
+                  const day = civilDay(date);
+                  choose(day.slice(0, 7), day);
+                }
+              }}
+              onDayKeyDown={(date, _modifiers, event) => {
+                const next = event.key === "ArrowLeft" ? (event.shiftKey ? addMonths(date, -1) : addDays(date, -1))
+                  : event.key === "ArrowRight" ? (event.shiftKey ? addMonths(date, 1) : addDays(date, 1))
+                  : event.key === "ArrowUp" ? (event.shiftKey ? addYears(date, -1) : addDays(date, -7))
+                  : event.key === "ArrowDown" ? (event.shiftKey ? addYears(date, 1) : addDays(date, 7))
+                  : event.key === "PageUp" ? (event.shiftKey ? addYears(date, -1) : addMonths(date, -1))
+                  : event.key === "PageDown" ? (event.shiftKey ? addYears(date, 1) : addMonths(date, 1))
+                  : event.key === "Home" ? startOfWeek(date)
+                  : event.key === "End" ? endOfWeek(date) : null;
+                if (next && next.getFullYear() >= 1 && next.getFullYear() <= 9999) {
+                  const day = civilDay(next);
+                  choose(day.slice(0, 7), day);
+                }
+              }}
+              labels={{ labelPrevious: () => "이전 달", labelNext: () => "다음 달" }}
+              components={{ Root: RecordCalendarRoot, MonthGrid: RecordMonthGrid, DayButton: RecordDayButton }}
+            />
+          </DayCounts.Provider>
+        </CardContent>
+      </Card>
+      <section aria-label={`${selected} 기록`} className="flex min-w-0 flex-col gap-4">
+        <h3 className="text-base font-semibold">
+          {Number(selected.slice(5, 7))}월 {Number(selected.slice(8))}일 · 기록 {records.length}개
+        </h3>
+        {records.length > 0
+          ? (
+            <CollectionList label={`${selected} 기록`} columns={["본문 대표 문구", "종류", "날짜"]}>
+              {records.map((item) => <CollectionItem key={item.id}>{children(item)}</CollectionItem>)}
+            </CollectionList>
+          )
+          : (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>이 날짜에 불러온 기록이 없습니다.</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          )}
+      </section>
     </section>
-  </div>;
+  );
 }

@@ -1,3 +1,4 @@
+import { detailDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 
@@ -14,7 +15,7 @@ test("정의한 관계만 표시하고 실제 101개 작성 연결을 더 보기
     });
     const path = `/entities/${encodeURIComponent(origin.id)}`;
     await page.goto(path);
-    const detail = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+    const detail = detailDialog(page);
     await expect(detail.getByRole("region", { name: /^연결된 자료/ })).toHaveCount(0);
     await expect(detail.getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
     const def = await mcp.call("create_entity_relation_definition", {

@@ -1,3 +1,8 @@
+import { FieldSet, FieldLegend } from "../../components/ui/field.tsx";
+import { Button } from "../../components/ui/button.tsx";
+import { XIcon, PlusIcon } from "lucide-react";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Input } from "../../components/ui/input.tsx";
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { isoDate } from "@contracts/common.ts";
@@ -5,7 +10,7 @@ import { entityNumberDraft } from "@contracts/entity-number.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { entityPropertyFilter } from "@contracts/entity.ts";
 import { Field, Notice } from "../../components/Field.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { displayedProperty, fieldType } from "./property-fields.tsx";
 import { z } from "zod";
 const labels: Record<string, string> = {
@@ -58,32 +63,32 @@ export function TypedEntityFilters(
     <>
       <Field label="정렬">
         {(props) => (
-          <select
+          <NativeSelect
             {...props}
-            className="input"
+
             value={sort}
             onChange={(event) => onChange(raw ?? "", event.target.value)}
           >
-            <option value="updated_at">최근 수정순</option>
-            <option value="title">이름순</option>
+            <NativeSelectOption value="updated_at">최근 수정순</NativeSelectOption>
+            <NativeSelectOption value="title">이름순</NativeSelectOption>
             {keys.flatMap((key) =>
               ["asc", "desc"].map((direction) => (
-                <option key={key + direction} value={JSON.stringify({ key, direction })}>
+                <NativeSelectOption key={key + direction} value={JSON.stringify({ key, direction })}>
                   {schema!.schema.properties[key].title ?? key} · {direction === "asc" ? "오름차순" : "내림차순"}
-                </option>
+                </NativeSelectOption>
               ))
             )}
-          </select>
+          </NativeSelect>
         )}
       </Field>
       {schema && (
-        <fieldset className="form plain-fieldset entity-property-conditions">
-          <legend className="label">속성 조건 · 모두 충족</legend>
+        <FieldSet className="flex flex-col gap-5 border-0 p-0 min-w-0">
+          <FieldLegend className="text-sm font-medium">속성 조건 · 모두 충족</FieldLegend>
           {draft.length > 0 && (
-            <div className="condition-column-labels label" aria-hidden="true">
+            <div className="hidden text-sm font-medium" aria-hidden="true">
               <span>속성</span>
               <span>비교</span>
-              <span className="condition-value-label">값</span>
+              <span className="min-w-0">값</span>
               <span />
             </div>
           )}
@@ -95,12 +100,12 @@ export function TypedEntityFilters(
               ? ["eq", "contains"]
               : ["eq", "gt", "gte", "lt", "lte"];
             return (
-              <div className="entity-property-condition" key={index}>
+              <div className="grid min-w-0 grid-cols-2 items-end gap-3 @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" key={index}>
                 <Field hideLabel label={`조건 ${index + 1} 속성`}>
                   {(props) => (
-                    <select
+                    <NativeSelect
                       {...props}
-                      className="input"
+
                       value={row.key}
                       onChange={(event) => {
                         const next = schema.schema.properties[event.target.value];
@@ -122,23 +127,23 @@ export function TypedEntityFilters(
                       }}
                     >
                       {keys.map((key) => (
-                        <option key={key} value={key}>{schema.schema.properties[key].title ?? key}</option>
+                        <NativeSelectOption key={key} value={key}>{schema.schema.properties[key].title ?? key}</NativeSelectOption>
                       ))}
-                    </select>
+                    </NativeSelect>
                   )}
                 </Field>
                 <Field hideLabel label={`조건 ${index + 1} 비교`}>
                   {(props) => (
-                    <select
+                    <NativeSelect
                       {...props}
-                      className="input"
+
                       value={row.operator}
                       onChange={(event) => update(index, { operator: event.target.value })}
                     >
                       {[...operators, "unset"].map((operator) => (
-                        <option key={operator} value={operator}>{labels[operator]}</option>
+                        <NativeSelectOption key={operator} value={operator}>{labels[operator]}</NativeSelectOption>
                       ))}
-                    </select>
+                    </NativeSelect>
                   )}
                 </Field>
                 {"value" in row && (
@@ -146,36 +151,36 @@ export function TypedEntityFilters(
                     {(props) =>
                       kind === "boolean"
                         ? (
-                          <select
+                          <NativeSelect
                             {...props}
-                            className="input"
+
                             value={String(row.value)}
                             onChange={(event) => update(index, { value: event.target.value === "true" })}
                           >
-                            <option value="true">참</option>
-                            <option value="false">거짓</option>
-                          </select>
+                            <NativeSelectOption value="true">참</NativeSelectOption>
+                            <NativeSelectOption value="false">거짓</NativeSelectOption>
+                          </NativeSelect>
                         )
                         : fieldChoices(field)
                         ? (
-                          <select
+                          <NativeSelect
                             {...props}
-                            className="input"
+
                             value={String(row.value)}
                             onChange={(event) => update(index, { value: event.target.value })}
                           >
-                            <option value="">선택하세요</option>
+                            <NativeSelectOption value="">선택하세요</NativeSelectOption>
                             {fieldChoices(field)!.filter((value) => value !== null).map((value) => (
-                              <option key={value!} value={value!}>
+                              <NativeSelectOption key={value!} value={value!}>
                                 {displayedProperty(field, value, schemaPresentation(schema).option_labels[row.key])}
-                              </option>
+                              </NativeSelectOption>
                             ))}
-                          </select>
+                          </NativeSelect>
                         )
                         : (
-                          <input
+                          <Input
                             {...props}
-                            className="input"
+
                             type={field?.format === "date" ? "date" : "text"}
                             placeholder="값 입력"
                             inputMode={kind === "integer" || kind === "number" ? "decimal" : undefined}
@@ -185,33 +190,33 @@ export function TypedEntityFilters(
                         )}
                   </Field>
                 )}
-                <BodyAction
-                  icon="close"
+                <Button variant="ghost"
+
                   type="button"
-                  className="condition-remove"
+                  className="justify-self-end"
                   aria-label={`조건 ${index + 1} 제거`}
                   onClick={() => setDraft((rows) => rows.filter((_, n) => n !== index))}
-                >
+                ><XIcon data-icon="inline-start" />
                   {null}
-                </BodyAction>
+                </Button>
               </div>
             );
           })}
-          <div className="actions">
-            <BodyAction
-              icon="create"
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost"
+
               type="button"
-              className="condition-add"
+              className="justify-self-start"
               disabled={!keys.length || draft.length >= 32}
               onClick={() => {
                 const key = keys[0];
                 setDraft((rows) => [...rows, { key, operator: "eq", value: "" }]);
               }}
-            >
+            ><PlusIcon data-icon="inline-start" />
               속성 조건 추가
-            </BodyAction>
+            </Button>
           </div>
-        </fieldset>
+        </FieldSet>
       )}
       {error && <Notice kind="error">{error}</Notice>}
     </>

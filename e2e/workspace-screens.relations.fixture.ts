@@ -1,3 +1,4 @@
+import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
@@ -23,22 +24,18 @@ for (const width of [320, 390, 1024]) {
     });
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-    const section = form(page).locator(".related-section").filter({
-        has: page.getByRole("heading", { name: "기록 (2개)", exact: true }),
-      }),
-      rows = section.locator(".related-item");
+    const section = form(page).getByRole("region", { name: "기록 (2개)", exact: true }),
+      rows = section.getByRole("listitem");
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("상담 판단 정리");
     await expect(rows.last().getByRole("button", { name: title, exact: true })).toHaveCount(1);
-    await expect(rows.locator(".related-item-meta, time, .badge")).toHaveCount(0);
+    await expect(rows.locator("time, [data-slot='badge']")).toHaveCount(0);
     await expect(form(page).getByRole("link", { name: "전체 할 일 보기", exact: true })).toHaveCount(0);
     await expect(section.getByRole("link", { name: "전체 기록 보기", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toBeVisible();
-    for (const section of await form(page).locator(".detail-management > .related-section").all()) {
-      expect(
-        await section.evaluate((el) => getComputedStyle(el).borderTopWidth),
-      ).toBe("0px");
-    }
+    const related = form(page).getByRole("region", { name: /^(할 일|기록) \(\d+개\)$/ });
+    await expect(related).toHaveCount(2);
+    for (const region of await related.all()) await expect(region.getByRole("heading").first()).toBeVisible();
     for (const row of await rows.all()) expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await section.screenshot({ path: info.outputPath(`entity-related-${width}.png`) });
@@ -103,7 +100,7 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
   expect(state.searches.at(-1)).not.toHaveProperty("entity_id");
   expect(new URL(page.url()).searchParams.get("q")).toBe("할");
   await go(page, `/records?entity_id=${encodeURIComponent(entityKey(1))}&from=2026-10-01&q=기록`);
-  await expect(page.locator(".records .list .item-title")).toBeVisible();
+  await expect(page.locator("[data-list-anchor]")).toBeVisible();
   expect(state.searches.at(-1)?.kinds).toEqual(["record"]);
   expect(state.searches.at(-1)?.from).toBeTruthy();
   expect(state.searches.at(-1)?.entity_id).toBe(entityKey(1));
@@ -119,6 +116,8 @@ for (const kind of ["tasks", "records"] as const) {
       await page.setViewportSize({ width, height: 900 });
       await go(page, `/${kind}/${row.id}`);
       const link = form(page).getByRole("region", { name: /^연결된 자료/ }).getByRole("button", { name: "함", exact: true });
+      await expect.poll(() => form(page).evaluate(element => element.getAnimations({ subtree: true })
+        .filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
       const box = (await link.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
@@ -144,15 +143,15 @@ test("연결 범위 해제 뒤 늦은 scoped 페이지는 전체 행·cursor를 
   const held = state.holdRead({ kind: "tasks", page: 2, entityId: entityKey(1) });
   await go(page, `/tasks?entity_id=${encodeURIComponent(entityKey(1))}`);
   await openTabFilters(page);
-  await page.locator(".tasks").getByRole("button", { name: "할 일 더 보기", exact: true }).click();
+  await page.getByRole("region", { name: "할 일 목록", exact: true }).getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await held.started;
   await page.getByRole("button", { name: "자료 범위 해제", exact: true }).click();
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
-  await expect(page.locator(".tasks .item-title")).toHaveText(["전체 업무"]);
+  await expect(page.getByRole("region", { name: "할 일 목록", exact: true }).locator("[data-list-anchor]")).toHaveText(["전체 업무"]);
   held.release();
   await held.finished;
-  await expect(page.locator(".tasks .item-title")).toHaveText(["전체 업무"]);
-  await expect(page.locator(".tasks").getByText("오래된 범위 추가", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "할 일 목록", exact: true }).locator("[data-list-anchor]")).toHaveText(["전체 업무"]);
+  await expect(page.getByRole("region", { name: "할 일 목록", exact: true }).getByText("오래된 범위 추가", { exact: true })).toHaveCount(0);
   await expect(page).not.toHaveURL(/entity_id=|tasks_pages=/);
   expect(state.errors).toEqual([]);
 });
@@ -284,9 +283,9 @@ test("엔터티 제목 연결 검색: IME·늦은 응답 격리·페이지 실�
   for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    for (const label of await form(page).locator(".entity-choice").all()) {
-      expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    }
+    const choices = form(page).getByRole("group", { name: "자료 검색 결과", exact: true }).getByRole("button", { name: / 연결$/ });
+    await expect(choices).toHaveCount(2);
+    for (const choice of await choices.all()) expect((await choice.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
@@ -302,7 +301,7 @@ for (const kind of ["tasks", "records"] as const) {
     await search.dispatchEvent("compositionstart");
     await search.fill("검");
     await search.press("Enter");
-    await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+    await expect(executionDialog(page)).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
     await search.fill("검색");
     await search.dispatchEvent("compositionend");
@@ -310,9 +309,9 @@ for (const kind of ["tasks", "records"] as const) {
     const result = form(page).getByRole("group", { name: "자료 검색 결과" });
     await result.getByRole("button", { name: "검색 대상 연결", exact: true }).click();
     const selected = form(page).getByRole("list", { name: "선택한 자료", exact: true });
-    await expect(selected.locator(".related-item")).toHaveCount(1);
+    await expect(selected.getByRole("listitem")).toHaveCount(1);
     expect((await selected.boundingBox())!.y).toBeGreaterThan((await search.boundingBox())!.y);
-    await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+    await expect(executionDialog(page)).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
     if (kind === "tasks") {
       await expect(form(page).getByRole("heading", { name: "일정", exact: true })).toHaveCount(0);
@@ -334,10 +333,11 @@ test("#185 빈 연결 개수만 표시·관계 카드 빈 공간은 이동하지
   });
   await page.reload();
   const link = form(page).getByRole("button", { name: "자료", exact: true }),
-    card = link.locator("xpath=ancestor::div[contains(@class,'related-item')][last()]");
-  const t = (await link.boundingBox())!;
-  await page.mouse.click(t.x + t.width + 12, t.y + t.height / 2);
+    card = form(page).getByRole("listitem").filter({ has: page.getByRole("button", { name: "자료", exact: true }) });
+  await expect(card).toHaveCount(1);
+  await card.click({ position: { x: 4, y: 4 } });
   await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
+  await expect(link).toHaveAttribute("aria-expanded", "false");
   await link.click();
   await expect(link).toHaveAttribute("aria-expanded", "true");
   await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
@@ -369,15 +369,15 @@ for (const side of ["tasks", "entities"] as const) {
       await search.fill(side === "tasks" ? "자료" : "할 일");
       await search.press("Enter");
       expect(state.writes).toHaveLength(0);
-      await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+      await expect(executionDialog(page)).toHaveCount(0);
       const connect = form(page).getByRole("button", {
         name: side === "tasks" ? "자료 연결" : "할 일 연결",
         exact: true,
       }).last();
       await connect.click();
       await expect(form(page).getByLabel("기록 메모", { exact: true })).toHaveValue("할 일 수정");
-      await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveAttribute("data-original", "yes");
-      await expect(page.locator("dialog[open]")).toHaveCount(2);
+      await expect(detailDialog(page)).toHaveAttribute("data-original", "yes");
+      await expect(openDialogs(page)).toHaveCount(2);
       await form(page).getByRole("button", { name: "취소", exact: true }).click();
       expect(state.writes).toHaveLength(0);
       await connect.click();
@@ -407,7 +407,7 @@ for (const side of ["tasks", "entities"] as const) {
       ).toBe(true);
       await unlink.click();
       await form(page).getByRole("button", { name: "해제하고 저장", exact: true }).click();
-      await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+      await expect(executionDialog(page)).toHaveCount(0);
       await expect(unlink).toHaveCount(0);
       expect(state.writes.at(-1)?.body.entity_ids).toEqual([]);
       expect(state.rows.tasks).toHaveLength(1);
@@ -485,7 +485,7 @@ test("#187 연결 검색 IME·늦은 추가 페이지 격리와 다른 편집 �
   releaseTask();
   await form(page).getByRole("textbox", { name: "제목 (필수)" }).fill("보존할 편집");
   await page.waitForTimeout(100);
-  await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+  await expect(executionDialog(page)).toHaveCount(0);
   await expect(form(page).getByRole("textbox", { name: "제목 (필수)" })).toHaveValue("보존할 편집");
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
@@ -521,7 +521,7 @@ for (const side of ["tasks", "entities"] as const) {
     await expect(page).toHaveURL(
       new RegExp(`/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(82)) : id(82)}$`),
     );
-    await expect(page.locator("dialog[open]")).toHaveCount(1);
+    await expect(openDialogs(page)).toHaveCount(1);
     await form(page).getByRole("button", { name: /^이전:/ }).click();
     await expect(form(page).getByRole("searchbox", { name: `${label} 제목 검색` })).toHaveValue("후보");
     await expect(candidate).toBeFocused();

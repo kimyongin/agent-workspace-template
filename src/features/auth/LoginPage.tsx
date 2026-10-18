@@ -1,8 +1,13 @@
-import { PageHeading } from "../../components/PageHeading.tsx";
 // 로그인: Google OAuth(기본). 로컬 개발·E2E에서만 이메일 로그인 폼을 보인다(티켓의 로컬 대체).
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { Navigate, useSearchParams } from "react-router";
-import { Field, Notice } from "../../components/Field.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { devLoginEnabled, supabase } from "../../lib/supabase.ts";
 import { useAuth } from "./AuthProvider.tsx";
 
@@ -13,6 +18,7 @@ function safeNext(value: string | null): string {
 
 export function LoginPage() {
   const { session } = useAuth();
+  const emailId = useId(), passwordId = useId();
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
   const [email, setEmail] = useState("");
@@ -40,34 +46,40 @@ export function LoginPage() {
   };
 
   return (
-    <section className="panel auth-panel" aria-labelledby="login-title">
-      <PageHeading title="로그인" id="login-title" description="내 자료와 할 일·기록을 관리하려면 로그인하세요." />
-      {error && <Notice kind="error">{error}</Notice>}
-      <button type="button" className="btn btn-primary" onClick={google}>Google로 로그인</button>
-      {devLoginEnabled && (
-        <form className="form auth-alternative" onSubmit={devLogin} aria-labelledby="dev-login-title">
-          <h2 id="dev-login-title" className="section-title">개발용 로그인</h2>
-          <Field label="이메일" required>
-            {(p) => (
-              <input {...p} className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            )}
-          </Field>
-          <Field label="비밀번호" required>
-            {(p) => (
-              <input
-                {...p}
-                className="input"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            )}
-          </Field>
-          <button type="submit" className="btn" disabled={busy}>{busy ? "로그인 중…" : "이메일로 로그인"}</button>
-        </form>
-      )}
+    <section className="mx-auto w-full min-w-0 max-w-md px-4 py-6 sm:px-0" aria-labelledby="login-title">
+      <Card>
+        <CardHeader>
+          <CardTitle><h1 id="login-title">로그인</h1></CardTitle>
+          <CardDescription>내 자료와 할 일·기록을 관리하려면 로그인하세요.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+          <Button type="button" size="lg" className="w-full" onClick={google}>Google로 로그인</Button>
+          {devLoginEnabled && <>
+            <Separator />
+            <form onSubmit={devLogin} aria-labelledby="dev-login-title">
+              <FieldGroup>
+                <h2 id="dev-login-title">개발용 로그인</h2>
+                <Field>
+                  <FieldLabel htmlFor={emailId}>이메일 <span className="sr-only">(필수)</span></FieldLabel>
+                  <Input id={emailId} type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={passwordId}>비밀번호 <span className="sr-only">(필수)</span></FieldLabel>
+                  <Input id={passwordId} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                </Field>
+                <Field>
+                  <Button type="submit" variant="outline" size="lg" className="w-full" disabled={busy}>
+                    {busy && <Spinner aria-hidden="true" data-icon="inline-start" />}
+                    {busy ? "로그인 중…" : "이메일로 로그인"}
+                  </Button>
+                </Field>
+              </FieldGroup>
+            </form>
+          </>}
+        </CardContent>
+        <CardFooter><CardDescription>내 계정으로 로그인해 업무를 이어가세요.</CardDescription></CardFooter>
+      </Card>
     </section>
   );
 }

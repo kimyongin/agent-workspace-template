@@ -1,3 +1,6 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+import { Button } from "../../components/ui/button.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { ModelChange } from "@contracts/data-model.ts";
 import type { MigrationPlan } from "@contracts/entity-schema-change.ts";
@@ -173,27 +176,39 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
     }
   };
   return (
-    <section aria-label="기존 자료 값 변환" className="settings-fields">
-      {notice && !["applied", "cancelled"].includes(change.status) && <p role="status">{notice}</p>}
-      {error && <p role="alert" className="error-text">{error}</p>}
+    <section aria-label="기존 자료 값 변환" className="min-w-0">
+      {notice && !["applied", "cancelled"].includes(change.status) && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
+      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {readError && (
-        <div role="alert">
-          <p className="error-text">{readError} 접수된 작업은 유지됩니다.</p>
-          <button className="btn" disabled={busy || reading} onClick={() => void refresh()}>진행 상태 다시 조회</button>
-        </div>
+        <Alert variant="destructive" role="alert"><AlertDescription>
+          <p className="text-sm text-destructive">{readError} 접수된 작업은 유지됩니다.</p>
+          <Button variant="outline"  disabled={busy || reading} onClick={() => void refresh()}>진행 상태 다시 조회</Button>
+        </AlertDescription></Alert>
       )}
       {change.group && (
-        <p role="status">
-          전체 {change.group.total}개 · 처리 {change.group.processed}개 · 실패 {change.group.failed}개
-        </p>
+        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3" role="status">
+          <div>
+            <dt>전체</dt>
+            <dd>{change.group.total}개</dd>
+          </div>
+          <div>
+            <dt>처리</dt>
+            <dd>{change.group.processed}개</dd>
+          </div>
+          <div>
+            <dt>실패</dt>
+            <dd>{change.group.failed}개</dd>
+          </div>
+        </dl>
       )}
-      {change.group?.failure_reason && <p role="alert" className="error-text">{change.group.failure_reason}</p>}
+      {change.group?.failure_reason && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{change.group.failure_reason}</AlertDescription></Alert>}
       {active && (
-        <p className="help">
-          요청한 작업을 진행하고 있습니다. 처리 중에는 값 변환 방법을 수정할 수 없습니다. 화면을 다시 열어도 진행 상태를 확인할 수 있습니다.
+        <p className="text-sm text-muted-foreground">
+          요청한 작업을 진행하고 있습니다. 처리 중에는 값 변환 방법을 수정할 수 없습니다. 화면을 다시 열어도 진행 상태를
+          확인할 수 있습니다.
         </p>
       )}
-      <div className="issuer-registry-list">
+      <div className="flex min-w-0 flex-col gap-4">
         {children.map((child) => (
           <IssuerRow
             key={child.type_ref}
@@ -216,56 +231,55 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
           </IssuerRow>
         ))}
       </div>
-      {dirty && <p role="status">수정한 값 변환 방법을 아직 저장하지 않았습니다. 변경 영향 확인을 눌러 저장하고 다시 확인하세요.</p>}
-      <div className="actions schema-actions">
+      {dirty && (
+        <Alert role="status"><AlertDescription>
+          수정한 값 변환 방법을 아직 저장하지 않았습니다. 변경 영향 확인을 눌러 저장하고 다시 확인하세요.
+        </AlertDescription></Alert>
+      )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {uncertain
           ? (
-            <button className="btn btn-primary" disabled={disabled || busy} onClick={() => void perform(pending)}>
+            <Button variant="default"  disabled={disabled || busy} onClick={() => void perform(pending)}>
               같은 요청 다시 확인
-            </button>
+            </Button>
           )
           : (
             <>
               {editable && (
-                <button
-                  className={`btn${
-                    change.status === "needs_conversion" || dirty ||
-                      change.status === "failed" && !change.group?.retryable
-                      ? " btn-primary"
-                      : ""
-                  }`}
+                <Button variant="outline"
+
                   disabled={locked || !children.length}
                   onClick={() => void perform("analyze")}
                 >
                   {busy ? "접수 중…" : "변경 영향 확인"}
-                </button>
+                </Button>
               )}
               {change.status === "ready" && (
-                <button
-                  className="btn btn-primary"
+                <Button variant="default"
+
                   disabled={locked || dirty || !!change.group?.failed}
                   onClick={() => void perform("apply")}
                 >
                   검토한 설정 적용
-                </button>
+                </Button>
               )}
               {change.status === "failed" && change.group?.retryable && (
-                <button
-                  className="btn btn-primary"
+                <Button variant="default"
+
                   disabled={locked || dirty}
                   onClick={() => void perform("retry")}
                 >
                   값 변환 다시 시도
-                </button>
+                </Button>
               )}
               {!["applied", "cancelled", "committing"].includes(change.status) && (
-                <button
-                  className="btn"
+                <Button variant="outline"
+
                   disabled={locked}
                   onClick={() => void perform("cancel")}
                 >
                   변경 취소
-                </button>
+                </Button>
               )}
             </>
           )}

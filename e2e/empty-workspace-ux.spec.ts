@@ -32,12 +32,13 @@ test("빈 계정에서 자료 준비와 모든 설정의 다음 행동을 찾고
   ) {
     await page.goto(path);
     await expect(page.getByRole("heading", { name: heading, exact: true, level: 1 })).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+    await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), heading).toBe(true);
     if (path.endsWith("records")) {
       const target = page.getByLabel("대상", { exact: true });
-      await expect(target.locator("option")).toHaveText(["할 일"]);
-      await target.selectOption("task");
+      await target.click();
+      await expect(page.getByRole("option")).toHaveText(["할 일"]);
+      await page.getByRole("option", { name: "할 일", exact: true }).click();
       await expect(page.getByRole("form", { name: "기록 자동 완성", exact: true })).toBeVisible();
     }
     if (path.endsWith("issuers")) {

@@ -6,7 +6,6 @@ import { RecordsPage } from "../../src/features/activity/RecordsPage.tsx";
 import { RecordDetailPage } from "../../src/features/activity/RecordDetailPage.tsx";
 import { TasksPage } from "../../src/features/activity/TasksPage.tsx";
 import { TaskDetailPage } from "../../src/features/activity/TaskDetailPage.tsx";
-import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 
 history.replaceState({}, "", new URLSearchParams(location.search).get("route") ?? "/records");
@@ -22,4 +21,4 @@ const router = createBrowserRouter([{ element: <NavigationProtection><Outlet /><
   {path:"/tasks/:id",element:withRouteProbe(<TaskDetailPage />)},
 
 ]}]);
-createRoot(document.getElementById("root")!).render(<main className="app-main"><RouterProvider router={router} /></main>);
+createRoot(document.getElementById("root")!).render(<main><RouterProvider router={router} /></main>);

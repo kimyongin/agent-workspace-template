@@ -1,3 +1,4 @@
+import { chooseSetting } from "./settings-actions.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect, type Page, test } from "@playwright/test";
 import { fulfillPreparation } from "./support/preparation-api.ts";
@@ -94,6 +95,29 @@ async function fixture(page: Page, baseURL: string, initial: unknown = null) {
 }
 const ref = (id: string) => ({ kind: "builtin", id });
 const nav = (page: Page) => page.getByRole("navigation", { name: "주 메뉴", exact: true });
+async function openNavigation(page: Page) {
+  const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
+  if (await trigger.isVisible() && !await nav(page).isVisible()) await trigger.click();
+  await expect(nav(page)).toBeVisible();
+}
+async function closeNavigation(page: Page) {
+  const close = page.getByRole("button", { name: "메뉴 닫기", exact: true });
+  if (await close.isVisible()) {
+    await close.click();
+    await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true })).toHaveCount(0);
+  }
+}
+const shortcuts = (page: Page) => nav(page).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link");
+async function expectShortcuts(page: Page, expected: string[] | number) {
+  await openNavigation(page);
+  if (typeof expected === "number") await expect(shortcuts(page)).toHaveCount(expected);
+  else await expect(shortcuts(page)).toHaveText(expected);
+  await closeNavigation(page);
+}
+async function expectWorkLink(page: Page, label: string) {
+  await openNavigation(page); await expect(nav(page).getByRole("link", { name: label, exact: true })).toBeVisible(); await closeNavigation(page);
+}
+
 test("shortcut editing has its own section with compact rows, bounded selection and independent cancel", async ({ page, baseURL }, info) => {
   const state = await fixture(page, baseURL!);
   await page.goto("/settings/navigation");
@@ -105,22 +129,23 @@ test("shortcut editing has its own section with compact rows, bounded selection 
   await expect(section.getByRole("heading", { name: "메뉴 바로가기" })).toBeVisible();
   const select = section.getByRole("combobox", { name: "추가할 메뉴", exact: true });
   await expect(select).toBeDisabled();
+  await expect(select.locator("..").getByRole("button")).toBeDisabled();
   await page.getByLabel("닉네임", { exact: true }).fill("보존할 초안");
   await section.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(section.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
-  await select.selectOption({ label: "전체 자료" });
+  await chooseSetting(page, select, "전체 자료");
   await section.getByRole("button", { name: "전체 자료 추가", exact: true }).click();
   await expect(select).toHaveValue("");
   await expect(select).toBeDisabled();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["재료", "할 일", "기록", "전체 자료"]);
+  await expectShortcuts(page, ["재료", "할 일", "기록", "전체 자료"]);
   await section.getByRole("button", { name: "변경 취소", exact: true }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["재료", "상품", "할 일", "기록"]);
+  await expectShortcuts(page, ["재료", "상품", "할 일", "기록"]);
   await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue("보존할 초안");
   expect(state.writes).toEqual([]);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    for (const button of await section.locator(".navigation-row-actions button").all()) {
+    for (const button of await section.getByRole("button", { name: / (위로 이동|아래로 이동|숨기기)$/ }).all()) {
       const box = (await button.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
@@ -144,17 +169,17 @@ test("explicit empty configuration saves only navigation and survives reload; de
   for (const label of ["재료", "상품", "할 일", "기록"]) {
     await page.getByRole("button", { name: `${label} 숨기기`, exact: true }).click();
   }
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveCount(0);
+  await expectShortcuts(page, 0);
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
   expect(state.writes).toEqual([{ workspace_navigation: { version: 1, refs: [] } }]);
   expect(state.metadata().workspace_nickname).toBe("보존할 이름");
   await page.reload();
-  await expect(page.getByText("내 프로필만 표시합니다.")).toBeVisible();
+  await expect(page.getByText("바로가기를 표시하지 않습니다.")).toBeVisible();
   await page.getByRole("button", { name: "기본 구성 사용", exact: true }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveCount(4);
+  await expectShortcuts(page, 4);
   await page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveCount(0);
+  await expectShortcuts(page, 0);
   await page.getByRole("button", { name: "기본 구성 사용", exact: true }).click();
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
@@ -166,18 +191,44 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
   const move = page.getByRole("button", { name: "기록 위로 이동" });
   await move.focus();
   await page.keyboard.press("Enter");
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
+  await expectShortcuts(page, ["기록", "할 일"]);
   state.fail();
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("alert")).toContainText("선택한 메뉴를 유지");
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "자료", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible();
+  await page.getByRole("menu", { name: "설정 메뉴" }).getByRole("menuitem", { name: "자료", exact: true }).click();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expectShortcuts(page, ["기록", "할 일"]);
   await page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["할 일", "기록"]);
+  await expectShortcuts(page, ["할 일", "기록"]);
 });
+test("shortcut search retains its query while external metadata reports a draft conflict", async ({ page, baseURL }) => {
+  const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks"), ref("records")] });
+  await page.goto("/settings/navigation");
+  const section = page.getByRole("region", { name: "메뉴 바로가기", exact: true });
+  await section.getByRole("button", { name: "기록 위로 이동", exact: true }).click();
+  const control = section.getByRole("combobox", { name: "추가할 메뉴", exact: true });
+  await chooseSetting(page, control, "재료");
+  await control.fill("상품");
+  await expect(page.getByRole("option", { name: "상품", exact: true })).toBeVisible();
+  state.setMetadata({ version: 1, refs: [ref("records")] });
+  await page.evaluate(id => {
+    const channel = new BroadcastChannel("workspace-decorative-profile");
+    channel.postMessage(id);
+    channel.close();
+  }, account.id);
+  await expect(section.getByRole("alert", { includeHidden: true })).toContainText("다른 탭");
+  await expect(control).toHaveValue("상품");
+  await page.getByRole("option", { name: "상품", exact: true }).click();
+  await expect(section.getByRole("button", { name: "상품 추가", exact: true })).toBeEnabled();
+  await expect(section.getByRole("alert")).toContainText("다른 탭");
+  expect(state.writes).toEqual([]);
+});
+
 test("external tab metadata preserves dirty preview until conflict is reviewed", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks"), ref("records")] });
   await page.goto("/settings/navigation");
@@ -189,10 +240,10 @@ test("external tab metadata preserves dirty preview until conflict is reviewed",
     channel.close();
   }, account.id);
   await expect(page.getByRole("alert")).toContainText("다른 탭");
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
+  await expectShortcuts(page, ["기록", "할 일"]);
   await expect(page.getByRole("button", { name: "메뉴 바로가기 저장" })).toBeDisabled();
   await page.getByRole("button", { name: "최신 설정 사용" }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록"]);
+  await expectShortcuts(page, ["기록"]);
   expect(state.writes).toEqual([]);
 });
 test("unknown refs remain explicit and live rename archive restore do not rewrite preferences", async ({ page, baseURL }) => {
@@ -206,24 +257,25 @@ test("unknown refs remain explicit and live rename archive restore do not rewrit
   await expect(page.getByText("사용할 수 없는 자료 종류 · 참조 유지")).toBeVisible();
   state.setTypes([{ ...material, label: "새 재료 이름", archived: true }, product]);
   await page.reload();
-  await expect(page.locator(".navigation-selection-label").first()).toContainText("새 재료 이름 · 보관");
-  await expect(nav(page).locator(".bottom-nav-inner > a").filter({ hasText: "새 재료 이름" })).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "선택한 바로가기" }).getByRole("listitem").first()).toContainText("새 재료 이름 · 보관");
+  await openNavigation(page); await expect(shortcuts(page).filter({ hasText: "새 재료 이름" })).toHaveCount(0); await closeNavigation(page);
   expect(state.metadata().workspace_navigation).toEqual(preference);
   expect(state.writes).toEqual([]);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "기록", exact: true })).toBeVisible();
+  await expectWorkLink(page, "기록");
 });
 test("invalid navigation reads fallback without hidden writes and all profile destinations stay reachable at short 200% layout", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("logout")] });
   await page.goto("/settings/navigation");
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveCount(4);
+  await expectShortcuts(page, 4);
   await page.setViewportSize({ width: 320, height: 300 });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-  for (const label of ["전체 자료", "기록", "설정", "사용 가이드", "로그아웃"]) {
-    const link = page.locator("#nav-profile-options").getByRole("link", { name: label, exact: true });
-    await link.scrollIntoViewIfNeeded();
-    await expect(link).toBeVisible();
+  await openNavigation(page);
+  for (const label of ["전체 자료", "기록"]) {
+    const link = nav(page).getByRole("link", { name: label, exact: true }); await link.scrollIntoViewIfNeeded(); await expect(link).toBeVisible();
+  }
+  await nav(page).getByRole("button", { name: "내 프로필", exact: true }).click();
+  for (const label of ["설정", "사용 가이드", "로그아웃"]) {
+    const link = page.getByRole("menuitem", { name: label, exact: true }); await link.scrollIntoViewIfNeeded(); await expect(link).toBeVisible();
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(state.writes).toEqual([]);
@@ -247,20 +299,20 @@ test(
     const state = await fixture(page, baseURL!, preference);
     state.setTypes(types);
     await page.goto("/settings/navigation");
-    await expect(page.locator(".navigation-selection-label").first()).toContainText(types[11].label);
+    await expect(page.getByRole("list", { name: "선택한 바로가기" }).getByRole("listitem").first()).toContainText(types[11].label);
     await page.setViewportSize({ width: 320, height: 300 });
     await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-    await expect.poll(() => nav(page).locator(".bottom-nav-inner > a").count()).toBeLessThan(4);
+    await expectShortcuts(page, [types[11].label, "할 일", "기록", "전체 자료"]);
     await expect(page.getByRole("combobox", { name: "추가할 메뉴", exact: true })).toBeDisabled();
     await page.getByRole("button", { name: "할 일 숨기기", exact: true }).click();
-    await page.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption({ label: "자료 10" });
+    await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), "자료 10");
     await expect(page.getByRole("button", { name: "자료 10 추가", exact: true })).toBeEnabled();
-    await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
+    await openNavigation(page);
     const search = page.getByLabel("자료 종류 검색", { exact: true });
     await search.dispatchEvent("compositionstart");
     await search.fill("자료 11");
     await search.dispatchEvent("compositionend");
-    await expect(page.locator("#nav-profile-options").getByRole("link", { name: "자료 11", exact: true }))
+    await expect(nav(page).getByRole("link", { name: "자료 11", exact: true }))
       .toBeVisible();
     expect(state.writes).toEqual([]);
     expect(state.metadata().workspace_navigation).toEqual(preference);
@@ -268,21 +320,15 @@ test(
     await page.screenshot({ path: info.outputPath("navigation-preferences-short-200.png"), fullPage: true });
   },
 );
-test("profile identifies current location when its shortcut is hidden", async ({ page, baseURL }) => {
-  await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] });
-  await page.goto("/records");
-  await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
-  await expect(page.getByRole("button", { name: "내 프로필 · 기록 현재 화면", exact: true })).toHaveAttribute("aria-current", "page");
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "기록", exact: true })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+test("navigation identifies current location when its shortcut is hidden", async ({ page, baseURL }) => {
+  await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] }); await page.goto("/records");
+  await openNavigation(page); await expect(nav(page).getByRole("link", { name: "기록", exact: true })).toHaveAttribute("aria-current", "page");
 });
+
 test("pending save prevents duplicate submission and departure until authoritative GET", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] });
   await page.goto("/settings/navigation");
-  await page.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption({ label: "기록" });
+  await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), "기록");
   await page.getByRole("button", { name: "기록 추가", exact: true }).click();
   let release!: () => void;
   const held = new Promise<void>((resolve) => {
@@ -297,8 +343,9 @@ test("pending save prevents duplicate submission and departure until authoritati
   });
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("button", { name: "메뉴 바로가기 저장" })).toBeDisabled();
+  await expect(page.getByRole("combobox", { name: "추가할 메뉴", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "자료", exact: true }).click();
+  await page.getByRole("menu", { name: "설정 메뉴" }).getByRole("menuitem", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/\/settings#settings-navigation$/);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   release();
@@ -334,16 +381,16 @@ test("late old account metadata cannot overwrite the new account navigation", as
     });
   });
   await page.goto("/tasks");
-  await expect(nav(page).getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeVisible();
+  await openNavigation(page); await expect(nav(page).getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeVisible();
   await page.evaluate(async (access_token) => {
     const path = "/src/lib/supabase.ts";
     const { supabase } = await import(path);
     const { error } = await supabase.auth.setSession({ access_token, refresh_token: "other-refresh" });
     if (error) throw error;
   }, otherToken);
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록"]);
+  await expectShortcuts(page, ["기록"]);
   release();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록"]);
+  await expectShortcuts(page, ["기록"]);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("sb-127-auth-token")!).user.id)).toBe(otherId);
 });
 
@@ -370,32 +417,30 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
   });
   await page.goto(`/settings/entity-types/${material.id}`);
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
-  const picker = page.getByRole("group", { name: "아이콘", exact: true });
+  const picker = page.getByRole("radiogroup", { name: "자료 종류 아이콘", exact: true });
   await expect(picker.getByRole("radio")).toHaveCount(6);
   await expect(picker.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
   await expect(picker.locator("svg")).toHaveCount(6);
   await picker.getByRole("radio", { name: "잎", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
+  await expect(picker.getByRole("radio", { name: "포장", exact: true })).toBeFocused();
+  await page.keyboard.press("Space");
   await expect(picker.getByRole("radio", { name: "포장", exact: true })).toBeChecked();
-  expect(await picker.locator("label").evaluateAll((labels) => labels.every((label) => {
-    const rect = label.getBoundingClientRect();
+  expect(await picker.getByRole("radio").evaluateAll((controls) => controls.every((control) => {
+    const rect = control.getBoundingClientRect();
     return rect.width >= 44 && rect.height >= 44;
   }))).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("새 재료");
   await page.getByRole("radio", { name: "별", exact: true }).check();
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-  await expect(nav(page).getByRole("link", { name: "새 재료", exact: true }).locator("svg")).toHaveAttribute("data-icon", "star");
+  await openNavigation(page); await expect(nav(page).getByRole("link", { name: "새 재료", exact: true }).locator("svg")).toHaveAttribute("data-icon", "star"); await closeNavigation(page);
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)", { exact: true }).check();
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "새 재료 · 보관", exact: true }))
-    .toBeVisible();
-  await page.keyboard.press("Escape");
+  await expectWorkLink(page, "새 재료 · 보관");
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)", { exact: true }).uncheck();
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
-  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "새 재료", exact: true })).toBeVisible();
+  await expectWorkLink(page, "새 재료");
   expect(state.writes).toEqual([]);
   expect(state.metadata().workspace_navigation).toEqual(preference);
 });
@@ -421,9 +466,56 @@ test("owner catalog refresh cancels obsolete reads and ignores another account i
   );
   expect(reads).toBe(1);
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await expect(nav(page).getByRole("link", { name: "최신 재료", exact: true })).toBeVisible();
+  await expectWorkLink(page, "최신 재료");
   release();
-  await expect(nav(page).getByRole("link", { name: "최신 재료", exact: true })).toBeVisible();
+  await expectWorkLink(page, "최신 재료");
   expect(state.writes).toEqual([]);
   expect(state.metadata().workspace_navigation).toEqual(preference);
 });
+
+test(
+  "기본 설정의 라벨과 값은 좁은 패널과 확대에서도 읽기 순서와 독립 초안을 유지한다",
+  async ({ page, baseURL }, info) => {
+    const state = await fixture(page, baseURL!);
+    await page.goto("/settings");
+    const nickname = page.getByLabel("닉네임", { exact: true });
+    await nickname.fill("보존할 긴 프로필 이름");
+    for (const width of [320, 640, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      for (const name of ["닉네임", "표시 시간대", "모바일 화면 배율", "데스크톱 화면 배율"]) {
+        const input = page.getByLabel(name, { exact: true });
+        const geometry = await input.evaluate((control) => {
+          const labelledBy = control.getAttribute("aria-labelledby")?.split(/\s+/).filter(Boolean) ?? [];
+          const label = labelledBy.length
+            ? document.getElementById(labelledBy[0])
+            : control instanceof HTMLInputElement || control instanceof HTMLSelectElement
+              ? control.labels?.[0]
+              : null;
+          const field = control.closest('[data-slot="field"]');
+          if (!label || !field) throw new Error("The setting must have an associated visible label inside its Field");
+          if (!field.contains(label)) throw new Error("The setting label must belong to the same Field as its control");
+          const key = label.getBoundingClientRect(), value = control.getBoundingClientRect(), bounds = field.getBoundingClientRect();
+          return { keyBottom: key.bottom, valueTop: value.top, keyLeft: key.left, keyRight: key.right, valueLeft: value.left, valueRight: value.right, fieldLeft: bounds.left, fieldRight: bounds.right };
+        });
+        expect(geometry.keyBottom).toBeLessThanOrEqual(geometry.valueTop);
+        for (const [left, right] of [[geometry.keyLeft, geometry.keyRight], [geometry.valueLeft, geometry.valueRight]]) {
+          expect(left).toBeGreaterThanOrEqual(geometry.fieldLeft - 1);
+          expect(right).toBeLessThanOrEqual(geometry.fieldRight + 1);
+        }
+      }
+      await expect(nickname).toHaveValue("보존할 긴 프로필 이름");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`settings-pairs-${width}.png`), fullPage: true });
+    }
+    await page.getByRole("region", { name: "프로필", exact: true }).evaluate((panel) => {
+      (panel as HTMLElement).style.maxWidth = "360px";
+    });
+    await page.screenshot({ path: info.outputPath("settings-pairs-narrow-parent.png"), fullPage: true });
+    await page.setViewportSize({ width: 320, height: 1000 });
+    await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect(nickname).toHaveValue("보존할 긴 프로필 이름");
+    await page.screenshot({ path: info.outputPath("settings-pairs-200.png"), fullPage: true });
+    expect(state.writes).toEqual([]);
+  },
+);

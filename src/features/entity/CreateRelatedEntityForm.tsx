@@ -1,3 +1,4 @@
+import { Button } from "../../components/ui/button.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { EntityDetail, EntitySummary, EntityValues } from "@contracts/entity.ts";
 import type { EntityRelationDefinition } from "@contracts/entity-relation.ts";
@@ -6,7 +7,7 @@ import { entityPath } from "@contracts/entity-identity.ts";
 import { api, ApiError } from "../../lib/api.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Notice } from "../../components/Field.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+
 import { EntityForm } from "./forms.tsx";
 interface Context {
   origin: EntityDetail;
@@ -80,7 +81,7 @@ export function CreateRelatedEntityForm(
           reading ? <p role="status">관계와 현재 자료를 확인하는 중…</p> : (
             <Notice kind="error">
               {error}
-              <BodyAction onClick={() => void read()}>다시 조회</BodyAction>
+              <Button variant="ghost" type="button" onClick={() => void read()}>다시 조회</Button>
             </Notice>
           )}
       </FormModal>
@@ -88,11 +89,11 @@ export function CreateRelatedEntityForm(
   }
   const typeId = context.definition.ends[side === 0 ? 1 : 0].type_id;
   const notice = (
-    <section className="detail-section">
-      <h2 className="section-title">작성 후 연결</h2>
+    <section className="flex min-w-0 flex-col gap-4">
+      <h2 className="text-base font-semibold">작성 후 연결</h2>
       <p>{context.origin.title} → {context.definition.ends[side].label}</p>
       {context.previous && (
-        <p className="secondary">
+        <p className="text-sm text-muted-foreground">
           기존 연결: {context.previous.title}
           {context.previous.deleted_at ? " · 삭제됨" : ""}. 저장하면 새로 작성한 자료로 교체합니다.
         </p>
@@ -100,12 +101,12 @@ export function CreateRelatedEntityForm(
       {error && <Notice kind="error">{error}</Notice>}
       {contextChanged && (
         <Notice kind="error">
-          관계 또는 원점이 변경되었습니다. 작성한 입력은 유지했습니다.<BodyAction
+          관계 또는 원점이 변경되었습니다. 작성한 입력은 유지했습니다.<Button variant="ghost" type="button"
             disabled={reading}
             onClick={() => void read()}
           >
             현재 관계 다시 확인
-          </BodyAction>
+          </Button>
         </Notice>
       )}
       {reading && <p role="status">현재 관계 확인 중…</p>}

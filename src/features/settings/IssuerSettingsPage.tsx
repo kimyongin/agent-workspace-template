@@ -1,14 +1,17 @@
+import { PlusIcon, RotateCcwIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+import { Button } from "../../components/ui/button.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
-import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
+
 import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
 import { issuerRegistry } from "./issuer-registry-api.ts";
-import "./settings.css";
 
 export function IssuerSettingsPage() {
   const [issuers, setIssuers] = useState<EntityIssuer[] | null>(null),
@@ -148,38 +151,38 @@ export function IssuerSettingsPage() {
   );
   return (
     <section
-      className="panel settings material-settings"
+      className="min-w-0 flex w-full flex-col gap-6 max-w-6xl"
       aria-label="번호 설정"
     >
       <MaterialSettingsHeading section="numbers" />
-      <div className="material-number-heading">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="section-title">번호 출처</h2>
+          <h2 className="text-base font-semibold">번호 출처</h2>
         </div>
-        <div className="settings-inline-actions">
-          <button
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button variant="outline"
             type="button"
-            className="body-action"
+
             ref={addButton}
             disabled={loading || locked}
             onClick={() => edit({ kind: "issuer" })}
           >
-            <BodyActionFace icon="create">번호 출처 추가</BodyActionFace>
-          </button>
+            <><PlusIcon data-icon="inline-start" />번호 출처 추가</>
+          </Button>
         </div>
       </div>
-      {loading && <p role="status">불러오는 중…</p>}
+      {loading && <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert>}
       {error && (
-        <div className="notice notice-error" role="alert">
+        <Alert variant="destructive" role="alert"><AlertDescription>
           {error}
-          <BodyAction icon="reset" onClick={() => setRevision((v) => v + 1)}>
+          <Button variant="ghost" type="button"  onClick={() => setRevision((v) => v + 1)}><RotateCcwIcon data-icon="inline-start" />
             다시 조회
-          </BodyAction>
-        </div>
+          </Button>
+        </AlertDescription></Alert>
       )}
-      {message && <p role="status">{message}</p>}
-      {issuers?.length === 0 && !loading && !error && <p className="secondary">번호 출처가 없습니다.</p>}
-      <div className="issuer-registry-list">
+      {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
+      {issuers?.length === 0 && !loading && !error && <p className="text-sm text-muted-foreground">번호 출처가 없습니다.</p>}
+      <div className="flex min-w-0 flex-col gap-4">
         {issuers?.map((issuer) => (
           <IssuerRow
             key={issuer.code}
@@ -188,13 +191,13 @@ export function IssuerSettingsPage() {
             summary={!issuer.active ? "사용 중지" : issuer.system ? "자동 생성" : undefined}
             disabled={locked}
             action={issuer.system ? undefined : selected !== issuer.code ? <span /> : (
-              <BodyAction
+              <Button variant="ghost" type="button"
                 disabled={locked}
                 aria-label={`${issuer.label} 편집`}
                 onClick={() => edit({ kind: "issuer", issuer })}
               >
                 출처 편집
-              </BodyAction>
+              </Button>
             )}
             onToggle={() => {
               const origin = document.activeElement as HTMLElement;
@@ -208,38 +211,47 @@ export function IssuerSettingsPage() {
           >
             {selected === issuer.code && (
               <>
-                {rules === null && !ruleError && <p role="status">불러오는 중…</p>}
+                {rules === null && !ruleError && <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert>}
                 {ruleError && (
-                  <div className="notice notice-error" role="alert">
+                  <Alert variant="destructive" role="alert"><AlertDescription>
                     {ruleError}
-                    <BodyAction
-                      icon="reset"
+                    <Button variant="ghost" type="button"
+
                       onClick={() => setRuleRevision((v) => v + 1)}
-                    >
+                    ><RotateCcwIcon data-icon="inline-start" />
                       다시 조회
-                    </BodyAction>
-                  </div>
+                    </Button>
+                  </AlertDescription></Alert>
                 )}
-                {rules?.length === 0 && <p className="secondary">등록된 번호 종류가 없습니다.</p>}
-                <div className="issuer-rule-list">
+                {rules?.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
+                <div className="flex min-w-0 flex-col gap-3">
                   {rules?.map((rule) => {
                     const generation = rule.generation === "automatic" ? "자동 생성" : "직접 입력";
-                    const summary = [
-                      rule.label === generation ? "" : generation,
-                      rule.active ? "" : "사용 중지",
-                    ]
-                      .filter(Boolean).join(" · ");
                     const expanded = inline && editing.rule?.id === rule.id;
                     return (
-                      <div key={rule.id} className="issuer-number-entry">
-                        <div className="issuer-rule-row issuer-rule-summary">
-                          <div>
-                            <span className="item-title">{rule.label}</span>
-                            {summary && <span className="secondary">{summary}</span>}
-                          </div>
+                      <div key={rule.id} className="min-w-0 border-b border-border py-4 last:border-b-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-3 border-b border-border py-3">
+                          {!expanded && (
+                            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3 flex-1">
+                              <div>
+                                <dt>번호 종류 이름</dt>
+                                <dd>{rule.label}</dd>
+                              </div>
+                              {rule.label !== generation && (
+                                <div>
+                                  <dt>입력 방식</dt>
+                                  <dd>{generation}</dd>
+                                </div>
+                              )}
+                              <div>
+                                <dt>사용</dt>
+                                <dd>{rule.active ? "사용 중" : "사용 중지"}</dd>
+                              </div>
+                            </dl>
+                          )}
                           {!issuer.system && (
-                            <BodyAction
-                              className="issuer-rule-toggle"
+                            <Button variant="ghost" type="button"
+
                               aria-label={`${rule.label} 편집`}
                               aria-expanded={expanded}
                               aria-controls={`${ruleListId}-${rule.id}`}
@@ -253,7 +265,7 @@ export function IssuerSettingsPage() {
                                 })}
                             >
                               {expanded ? "접기" : "편집"}
-                            </BodyAction>
+                            </Button>
                           )}
                         </div>
                         <div id={`${ruleListId}-${rule.id}`}>
@@ -265,8 +277,8 @@ export function IssuerSettingsPage() {
                 </div>
                 {!issuer.system && (
                   <div>
-                    <BodyAction
-                      icon="create"
+                    <Button variant="ghost" type="button"
+
                       disabled={rules === null || !issuer.active || locked}
                       onClick={() =>
                         edit({
@@ -274,9 +286,9 @@ export function IssuerSettingsPage() {
                           source: issuer.code,
                           sourceLabel: issuer.label,
                         })}
-                    >
+                    ><PlusIcon data-icon="inline-start" />
                       번호 종류 추가
-                    </BodyAction>
+                    </Button>
                   </div>
                 )}
               </>
@@ -284,7 +296,7 @@ export function IssuerSettingsPage() {
           </IssuerRow>
         ))}
       </div>
-      <p className="secondary">
+      <p className="text-sm text-muted-foreground">
         실제 상품 번호·주문 번호 값은 각 자료에 입력합니다.
       </p>
       {editing && !inline && renderEditor(editing)}

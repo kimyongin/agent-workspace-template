@@ -90,7 +90,7 @@ test(
     await page.getByLabel(/두 번째 연결 이름/).fill("소속 주문");
     await page.getByLabel("두 번째 연결 개수", { exact: true }).selectOption("one");
     await page.getByRole("button", { name: "추가", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("저장했습니다");
+    await expect(page.getByRole("status").filter({ hasText: "연결 설정을 저장했습니다" })).toBeVisible();
     await page.getByRole("button", { name: /주문품목.*소속 주문/ }).click();
     conflict = true;
     await page.getByLabel(/첫 번째 연결 이름/).fill("품목");
@@ -100,9 +100,22 @@ test(
     await page.getByRole("button", { name: "최신 버전 확인", exact: true }).click();
     await page.getByRole("button", { name: "내 입력으로 다시 검토", exact: true }).click();
     await page.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("저장했습니다");
+    await expect(page.getByRole("status").filter({ hasText: "연결 설정을 저장했습니다" })).toBeVisible();
     await page.getByRole("button", { name: /품목.*소속 주문/ }).click();
-    await page.screenshot({ path: `/private/tmp/relation-settings-${info.project.name}.png`, fullPage: true });
+    for (const width of [320, 640, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`relation-pairs-${width}.png`), fullPage: true });
+    }
+    await page.getByRole("region", { name: "연결 설정", exact: true }).evaluate((panel) => {
+      (panel as HTMLElement).style.maxWidth = "360px";
+    });
+    await page.screenshot({ path: info.outputPath("relation-pairs-narrow-parent.png"), fullPage: true });
+    await page.setViewportSize({ width: 320, height: 1000 });
+    await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath("relation-pairs-200.png"), fullPage: true });
+    await page.evaluate(() => document.documentElement.style.fontSize = "");
     await page.getByLabel("보관").check();
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await page.getByLabel("연결 설정 상태", { exact: true }).selectOption("all");

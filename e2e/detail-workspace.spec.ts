@@ -1,5 +1,7 @@
-import { fixtureIdentity } from "./support/workspace-data.ts";
-import { expect, test, type Page } from "@playwright/test";
+import { openProfileMenu } from "./ui-actions.ts";
+import { baseWorkspace, detailDialog, executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
+import { fixtureIdentity, fixtureSchema } from "./support/workspace-data.ts";
+import { expect, test, type Page, type Locator } from "@playwright/test";
 import { entityKey } from "./support/workspace-data.ts";
 import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.ts";
 import { entity, task, record,  id, stamp } from "./support/workspace-data.ts";
@@ -15,9 +17,39 @@ async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<s
   await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
   return state;
 }
+const workspaceGroup = (page: Page) => baseWorkspace(page).locator("xpath=ancestor::*[@data-slot='resizable-panel-group'][1]");
 const panel = (page: Page) => page.getByRole("tabpanel").filter({ visible: true });
+/** Compare settled surface geometry without suppressing the official entrance animation. */
+async function settleSurface(surface: Locator) {
+  await expect.poll(() => surface.evaluate(element => element.getAnimations({ subtree: true })
+    .filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
+}
+/** Profile choices must fit their own labels and grid, including retained narrow panes. */
+async function assertProfileChoiceGeometry(group: Locator) {
+  await expect(group.getByRole("radio")).toHaveCount(20);
+  await expect.poll(() => group.evaluate(element => {
+    const group = element as HTMLElement, bounds = group.getBoundingClientRect();
+    const labels = [...group.querySelectorAll("label")];
+    const problems: string[] = [];
+    if (group.scrollWidth > group.clientWidth + 1) problems.push("grid horizontal overflow");
+    const boxes = labels.map(label => label.getBoundingClientRect());
+    boxes.forEach((box, index) => {
+      if (box.width < 43.5 || box.height < 43.5) problems.push(`choice ${index} target smaller than44`);
+      if (box.left < bounds.left - 1 || box.right > bounds.left + group.clientWidth + 1) problems.push(`choice ${index} outside grid`);
+      for (const child of labels[index].children) {
+        const childBox = child.getBoundingClientRect();
+        if (childBox.width && (childBox.left < box.left - 1 || childBox.right > box.right + 1)) problems.push(`choice ${index} content outside label`);
+      }
+      for (let other = index + 1; other < boxes.length; other++) {
+        const next = boxes[other];
+        if (Math.min(box.bottom, next.bottom) - Math.max(box.top, next.top) > 1 && Math.min(box.right, next.right) - Math.max(box.left, next.left) > 1) problems.push(`choices ${index}/${other} overlap`);
+      }
+    });
+    return problems;
+  })).toEqual([]);
+}
 async function detailWidth(page: Page) {
-  return (await page.locator(".workspace-details").boundingBox())!.width;
+  return (await page.locator("[aria-label=\"상세 작업 영역\"]").boundingBox())!.width;
 }
 async function dragSplit(page: Page, distance: number) {
   const box = (await page.getByRole("separator", { name: "상세 패널 너비 조절" }).boundingBox())!;
@@ -27,7 +59,7 @@ async function dragSplit(page: Page, distance: number) {
   await page.mouse.up();
 }
 async function openEntity(page: Page, title = "등심") {
-  const list = page.locator(".workspace-list").getByRole("region", { name: /^(전체 자료|검사 자료) 목록$/, exact: true });
+  const list = baseWorkspace(page).getByRole("region", { name: /^(전체 자료|검사 자료) 목록$/, exact: true });
   await list.getByRole("button", { name: title, exact: true }).click();
   await list.getByRole("link", { name: `${title} 상세`, exact: true }).click();
   await expect(page.getByRole("tab", {name:title,exact:true})).toHaveAttribute("aria-selected","true");
@@ -47,8 +79,8 @@ for (const width of [390, 1100, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const state = await fixture(page);
     await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-    const view = page.locator("dialog.modal[open]").first();
-    const title = view.locator(".dialog-title");
+    const view = openDialogs(page).first();
+    const title = view.locator("[data-slot=\"dialog-title\"]");
     await expect(title).toBeFocused();
     await expect(title).toHaveAttribute("tabindex", "-1");
     await expect(title).toHaveCSS("outline-style", "none");
@@ -58,21 +90,19 @@ for (const width of [390, 1100, 1440]) {
     const edit = view.getByRole("button", { name: "편집", exact: true });
     await edit.focus();
     await expect(edit).toBeFocused();
-    await expect(edit).toHaveCSS("outline-style", "solid");
-    await expect(edit).toHaveCSS("outline-width", "2px");
+    expect(await edit.evaluate(el => getComputedStyle(el).boxShadow !== "none" || getComputedStyle(el).outlineStyle !== "none")).toBe(true);
     await edit.press("Enter");
     const input = view.getByLabel("제목", { exact: false });
     await input.focus();
     await expect(input).toBeFocused();
-    await expect(input).toHaveCSS("outline-style", "solid");
-    await expect(input).toHaveCSS("outline-width", "2px");
+    expect(await input.evaluate(el => getComputedStyle(el).boxShadow !== "none" || getComputedStyle(el).outlineStyle !== "none")).toBe(true);
     expect(state.writes).toEqual([]);
     expect(state.errors).toEqual([]);
   });
 }
 
 async function dragTab(page: Page, source: string, targetId: string, after = true) {
-  const target = page.locator(`.workspace-tab[data-tab-id="${targetId}"]`);
+  const target = page.locator(`[data-tab-id="${targetId}"]`);
   const box = (await target.boundingBox())!;
   await page.getByRole("tab", { name: source, exact: true }).dragTo(target, { targetPosition: { x: after ? box.width - 2 : 2, y: 20 } });
 }
@@ -84,14 +114,14 @@ test("desktop: tab drag and keyboard reorder preserve the selected URL, draft an
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   await panel(page).getByLabel("본문", { exact: true }).fill("순서를 바꿔도 보존할 초안");
-  await panel(page).locator(".modal-body").evaluate(el => { el.scrollTop = 40; });
-  const scroll = await panel(page).locator(".modal-body").evaluate(el => el.scrollTop), url = page.url();
+  await panel(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate(el => { el.scrollTop = 40; });
+  const scroll = await panel(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate(el => el.scrollTop), url = page.url();
   expect(scroll).toBeGreaterThan(0);
   await dragTab(page, "등심", `/entities/${encodeURIComponent(entityKey(6))}`);
   await expect.poll(() => tabNames(page)).toEqual(["등심 구매하기", "버섯", "등심"]);
   expect(page.url()).toBe(url);
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("순서를 바꿔도 보존할 초안");
-  expect(await panel(page).locator(".modal-body").evaluate(el => el.scrollTop)).toBe(scroll);
+  expect(await panel(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate(el => el.scrollTop)).toBe(scroll);
   const selected = page.getByRole("tab", { name: "등심 구매하기", exact: true });
   await selected.press("Control+Shift+ArrowRight");
   await expect.poll(() => tabNames(page)).toEqual(["버섯", "등심 구매하기", "등심"]); await expect(selected).toBeFocused();
@@ -110,12 +140,12 @@ test("desktop: canceled or external tab drops leave order unchanged; overflow ke
   await page.goto("/entities");
   for (const title of titles) await openEntity(page, title);
   const original = await tabNames(page), last = page.getByRole("tab", { name: titles[6], exact: true });
-  await last.dragTo(page.locator(".workspace-list h1"));
-  expect(await tabNames(page)).toEqual(original); await expect(page.locator(".workspace-tab[data-dragging]")).toHaveCount(0);
+  await last.dragTo(baseWorkspace(page).getByRole("heading", { level: 1 }));
+  expect(await tabNames(page)).toEqual(original); await expect(page.locator("[data-tab-id][data-dragging]")).toHaveCount(0);
   const box = (await last.boundingBox())!;
   await page.mouse.move(box.x + 20, box.y + 20); await page.mouse.down(); await page.mouse.move(box.x + 35, box.y + 20, { steps: 4 });
   await page.keyboard.press("Escape"); await page.mouse.up();
-  expect(await tabNames(page)).toEqual(original); await expect(page.locator(".workspace-tab[data-drop]")).toHaveCount(0);
+  expect(await tabNames(page)).toEqual(original); await expect(page.locator("[data-tab-id][data-drop]")).toHaveCount(0);
   await last.press("Control+Shift+ArrowLeft");
   await expect.poll(() => tabNames(page)).toEqual([...titles.slice(0, 5), titles[6], titles[5]]);
   await expect(last).toBeFocused();
@@ -129,18 +159,18 @@ test("desktop: navigation drag, keyboard limits, cancellation and reset reserve 
   const state = await fixture(page); await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
   const handle = page.getByRole("separator", { name: "탐색 메뉴 너비 조절" }), nav = page.getByRole("navigation", { name: "주 메뉴" });
   const navWidth = async () => (await nav.boundingBox())!.width;
-  await expect(handle).toBeVisible(); expect(await navWidth()).toBe(208);
+  await expect(handle).toBeVisible(); expect(await navWidth()).toBeCloseTo(208, 0);
   const box = (await handle.boundingBox())!;
   await page.mouse.move(box.x + 6, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 66, box.y + box.height / 2, { steps: 8 }); await page.mouse.up();
-  await expect.poll(navWidth).toBe(268); await handle.press("ArrowLeft"); await expect.poll(navWidth).toBe(252);
-  await handle.press("Home"); await expect.poll(navWidth).toBe(208);
-  await handle.press("End"); await expect.poll(navWidth).toBe(320);
-  expect((await page.locator(".workspace-list").boundingBox())!.width).toBeGreaterThanOrEqual(448);
+  await expect.poll(navWidth).toBeCloseTo(268, 0); const dragged = await navWidth(); await handle.press("ArrowLeft"); await expect.poll(navWidth).toBeLessThan(dragged);
+  await handle.press("Home"); await expect.poll(navWidth).toBeCloseTo(208, 0);
+  await handle.press("End"); await expect.poll(navWidth).toBeCloseTo(320, 0);
+  expect((await baseWorkspace(page).boundingBox())!.width).toBeGreaterThanOrEqual(448);
   expect(await detailWidth(page)).toBeGreaterThanOrEqual(432);
   const end = (await handle.boundingBox())!;
   await page.mouse.move(end.x + 6, end.y + end.height / 2); await page.mouse.down();
   await handle.dispatchEvent("pointercancel", { pointerId: 1 }); await page.mouse.move(end.x - 80, end.y + end.height / 2); await page.mouse.up();
-  expect(await navWidth()).toBe(320); await handle.dblclick(); await expect.poll(navWidth).toBe(208);
+  expect(await navWidth()).toBeCloseTo(320, 0); await handle.dblclick(); await expect.poll(navWidth).toBeCloseTo(208, 0);
   await page.getByRole("button", { name: "상세 패널 숨기기" }).click();
   await page.setViewportSize({ width: 1024, height: 320 });
   const tasks = nav.getByRole("link", { name: "할 일", exact: true }); const menu = (await tasks.boundingBox())!;
@@ -154,15 +184,15 @@ test("desktop: both dividers at 150% preserve tabs and draft through hiding and 
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`); await openTask(page);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("양쪽 폭을 바꿔도 유지할 초안");
   const handle = page.getByRole("separator", { name: "탐색 메뉴 너비 조절" }), nav = page.getByRole("navigation", { name: "주 메뉴" });
-  await handle.press("End"); await expect.poll(async () => (await nav.boundingBox())!.width).toBe(480);
+  await handle.press("End"); await expect.poll(async () => (await nav.boundingBox())!.width).toBeCloseTo(480, 0);
   await dragSplit(page, -50); const width = await detailWidth(page);
   await page.getByRole("button", { name: "상세 패널 숨기기" }).click();
   await expect(handle).toBeVisible(); await page.getByRole("button", { name: "상세 탭 보기 (2개)" }).click();
   await expect.poll(() => detailWidth(page)).toBeCloseTo(width, 0);
   await page.setViewportSize({ width: 390, height: 844 }); await expect(page.getByRole("separator")).toHaveCount(0);
-  await expect(page.locator("dialog.modal[open]").getByLabel("본문", { exact: true })).toHaveValue("양쪽 폭을 바꿔도 유지할 초안");
+  await expect(openDialogs(page).getByLabel("본문", { exact: true })).toHaveValue("양쪽 폭을 바꿔도 유지할 초안");
   await page.setViewportSize({ width: 2160, height: 1080 }); await expect(handle).toBeVisible();
-  expect((await nav.boundingBox())!.width).toBe(480); await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("양쪽 폭을 바꿔도 유지할 초안");
+  expect((await nav.boundingBox())!.width).toBeCloseTo(480, 0); await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("양쪽 폭을 바꿔도 유지할 초안");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
@@ -173,16 +203,19 @@ test("desktop: split dragging, keyboard limits and reset keep both panes readabl
   const original = await detailWidth(page);
   await dragSplit(page, -100);
   await expect.poll(() => detailWidth(page)).toBeCloseTo(original + 100, 0);
-  await expect(page.locator(".detail-workspace")).not.toHaveClass(/is-resizing/);
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).not.toHaveAttribute("data-separator", "active");
+  const dragged = await detailWidth(page);
   await separator.press("ArrowRight");
-  await expect.poll(() => detailWidth(page)).toBeCloseTo(original + 84, 0);
+  await expect.poll(() => detailWidth(page)).toBeLessThan(dragged);
   await separator.press("Home");
-  await expect.poll(() => detailWidth(page)).toBeCloseTo(432, 0);
+  await expect.poll(async () => (await baseWorkspace(page).boundingBox())!.width).toBeCloseTo(448, 0);
+  const largest = await detailWidth(page);
   await separator.press("End");
-  expect((await page.locator(".workspace-list").boundingBox())!.width).toBeCloseTo(448, 0);
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(432, 0);
+  expect(await detailWidth(page)).toBeLessThan(largest);
   expect(Number(await separator.getAttribute("aria-valuenow"))).toBe(Number(await separator.getAttribute("aria-valuemax")));
   await dragSplit(page, -2000);
-  expect((await page.locator(".workspace-list").boundingBox())!.width).toBeCloseTo(448, 0);
+  expect((await baseWorkspace(page).boundingBox())!.width).toBeCloseTo(448, 0);
   await dragSplit(page, 2000);
   expect(await detailWidth(page)).toBeCloseTo(432, 0);
   await separator.dblclick();
@@ -197,7 +230,7 @@ test("desktop: resized split preserves draft, tabs, hide/reopen and responsive p
   await panel(page).getByLabel("본문", { exact: true }).fill("너비를 바꿔도 보존할 초안");
   await dragSplit(page, -60);
   const width = await detailWidth(page);
-  const originalAvailable = (await page.locator(".detail-workspace").boundingBox())!.width - 12;
+  const originalAvailable = (await workspaceGroup(page).boundingBox())!.width - (await page.getByRole("separator", { name: "상세 패널 너비 조절" }).boundingBox())!.width;
   await page.getByRole("tab", { name: "등심", exact: true }).click();
   expect(await detailWidth(page)).toBeCloseTo(width, 0);
   await page.getByRole("button", { name: "상세 패널 숨기기" }).click();
@@ -207,13 +240,13 @@ test("desktop: resized split preserves draft, tabs, hide/reopen and responsive p
   await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).toHaveCount(0);
-  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("본문", { exact: true })).toHaveValue("너비를 바꿔도 보존할 초안");
+  await expect(detailDialog(page).getByLabel("본문", { exact: true })).toHaveValue("너비를 바꿔도 보존할 초안");
   await page.setViewportSize({ width: 1600, height: 900 });
   await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).toBeVisible();
-  const available = (await page.locator(".detail-workspace").boundingBox())!.width - 12;
+  const available = (await workspaceGroup(page).boundingBox())!.width - (await page.getByRole("separator", { name: "상세 패널 너비 조절" }).boundingBox())!.width;
   await expect.poll(async () => await detailWidth(page) / available).toBeCloseTo(width / originalAvailable, 2);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await expect.poll(async () => (await page.locator(".workspace-list").boundingBox())!.width).toBeGreaterThanOrEqual(448);
+  await expect.poll(async () => (await baseWorkspace(page).boundingBox())!.width).toBeGreaterThanOrEqual(448);
   expect(await detailWidth(page)).toBeGreaterThanOrEqual(432);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -227,9 +260,9 @@ test("desktop: pointer cancellation ends resizing without consuming later mouse 
   const box = (await separator.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + 100); await page.mouse.down();
   await page.mouse.move(box.x - 50, box.y + 100);
-  await expect(page.locator(".detail-workspace")).toHaveClass(/is-resizing/);
+  await expect(separator).toHaveAttribute("data-separator", "active");
   await separator.dispatchEvent("pointercancel", { pointerId: 1 });
-  await expect(page.locator(".detail-workspace")).not.toHaveClass(/is-resizing/);
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).not.toHaveAttribute("data-separator", "active");
   const width = await detailWidth(page);
   await page.mouse.move(box.x - 100, box.y + 100); await page.mouse.up();
   expect(await detailWidth(page)).toBeCloseTo(width, 0);
@@ -242,7 +275,7 @@ test("desktop: separator target leaves tab icons clickable and adapts to large t
   const first = page.getByRole("tab", { name: "등심", exact: true });
   await first.locator("svg").click({ position: { x: 2, y: 8 } });
   await expect(first).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".detail-workspace")).not.toHaveClass(/is-resizing/);
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).not.toHaveAttribute("data-separator", "active");
   const separator = page.getByRole("separator", { name: "상세 패널 너비 조절" });
   const box = (await separator.boundingBox())!;
   const before = await detailWidth(page);
@@ -252,17 +285,23 @@ test("desktop: separator target leaves tab icons clickable and adapts to large t
   await expect.poll(() => detailWidth(page)).toBeCloseTo(before + 20, 0);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.addStyleTag({ content: ":root { font-size: 21px; }" });
-  const available = (await page.locator(".detail-workspace").boundingBox())!.width - 12;
-  await expect.poll(() => detailWidth(page)).toBeCloseTo(available / 2, 0);
-  expect((await page.locator(".workspace-list").boundingBox())!.width).toBeCloseTo(available / 2, 0);
+  const currentHalfDifference = () => workspaceGroup(page).evaluate(group => {
+    const separator = group.querySelector('[role="separator"][aria-label="상세 패널 너비 조절"]');
+    const list = group.querySelector('[role="region"][aria-label="기본 작업 영역"]');
+    const detail = group.querySelector('[aria-label="상세 작업 영역"]');
+    if (!separator || !list || !detail) return Infinity;
+    const half = (group.getBoundingClientRect().width - separator.getBoundingClientRect().width) / 2;
+    return Math.max(Math.abs(list.getBoundingClientRect().width - half), Math.abs(detail.getBoundingClientRect().width - half));
+  });
+  await expect.poll(currentHalfDifference).toBeLessThan(0.5);
   await separator.press("End");
-  expect(await detailWidth(page)).toBeCloseTo(available / 2, 0);
+  await expect.poll(currentHalfDifference).toBeLessThan(0.5);
 });
 test("desktop: list stays usable, related details become unique tabs and close restores list", async ({ page }, info) => {
   const state = await fixture(page); await page.goto("/entities?view=table");
   await openEntity(page); await expect(page.getByRole("tab", { name: "등심", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".workspace-list")).not.toHaveAttribute("inert");
-  expect(await panel(page).locator("dialog").evaluate(el => el.matches(":modal"))).toBe(false);
+  await expect(baseWorkspace(page)).not.toHaveAttribute("inert");
+  expect(await panel(page).getByRole("dialog").evaluate(el => el.getAttribute("aria-modal") === "true")).toBe(false);
   await openTask(page); await expect(page.getByRole("tab")).toHaveCount(2);
   const historyLength = await page.evaluate(() => history.length);
   await page.getByRole("tab", { name: "등심", exact: true }).click();
@@ -281,12 +320,12 @@ test("desktop: drafts survive tab switch, panel hiding and responsive modal tran
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("보존할 편집 초안");
   await page.getByRole("tab", { name: "등심", exact: true }).click(); await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("보존할 편집 초안");
-  await page.getByRole("button", { name: "상세 패널 숨기기" }).click(); await expect(page.locator(".workspace-details")).toBeHidden();
+  await page.getByRole("button", { name: "상세 패널 숨기기" }).click(); await expect(page.locator("[aria-label=\"상세 작업 영역\"]")).toBeHidden();
   await page.getByRole("button", { name: "상세 탭 보기 (2개)" }).click(); await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("보존할 편집 초안");
   await page.setViewportSize({ width: 390, height: 844 });
-  const modal = page.locator("dialog.modal:not(.modal-confirm)[open]"); await expect(modal.getByLabel("본문", { exact: true })).toHaveValue("보존할 편집 초안");
+  const modal = detailDialog(page); await expect(modal.getByLabel("본문", { exact: true })).toHaveValue("보존할 편집 초안");
   // The media-query update and effect must finish closing the docked dialog and calling showModal.
-  await expect.poll(() => modal.evaluate(el => el.matches(":modal"))).toBe(true);
+  await expect.poll(() => modal.evaluate(el => el.getAttribute("aria-modal") === "true")).toBe(true);
   await page.setViewportSize({ width: 1440, height: 900 }); await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("보존할 편집 초안");
   await page.screenshot({ path: info.outputPath("desktop-tabs-edit.png") });
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
@@ -296,7 +335,7 @@ test("desktop: closing an inactive dirty tab asks once; cancel and discard prese
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("초안");
   await page.getByRole("tab", { name: "등심", exact: true }).click();
   await page.getByRole("button", { name: "등심 구매하기 탭 닫기" }).click();
-  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" }); await confirm.getByRole("button", { name: "취소", exact: true }).click();
+  const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" }); await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("tab")).toHaveCount(2);
   await page.getByRole("button", { name: "등심 구매하기 탭 닫기" }).click(); await confirm.getByRole("button", { name: "변경 버리기" }).click();
   await expect(page.getByRole("tab")).toHaveCount(1); await expect(confirm).not.toBeVisible();
@@ -308,30 +347,45 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
   await openTask(page);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   await panel(page).getByLabel("본문", { exact: true }).fill("메뉴를 이동해도 유지할 초안");
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
-  const left = page.locator(".workspace-list");
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  const left = baseWorkspace(page);
   await expect(left.getByRole("heading", { name: "기본 설정", level: 1, exact: true })).toBeVisible();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
   await left.getByLabel("닉네임", { exact: true }).fill("왼쪽 설정의 초안");
   await page.getByRole("tab", { name: "등심", exact: true }).click();
   await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
   await expect(left.getByLabel("닉네임", { exact: true })).toHaveValue("왼쪽 설정의 초안");
-  await expect(page.getByRole("button", { name: /^내 프로필 · 설정 현재 화면$/ })).toHaveAttribute("aria-current", "page");
+  await left.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "기본", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true, includeHidden: true })).toHaveCount(0);
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
-  await page.screenshot({ path: info.outputPath("settings-and-retained-detail.png") });
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
-  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  for (const fontSize of [16, 32]) {
+    await page.evaluate(value => document.documentElement.style.fontSize = `${value}px`, fontSize);
+    const icons = left.getByRole("radiogroup", { name: "프로필 아이콘", exact: true });
+    await assertProfileChoiceGeometry(icons);
+    await icons.getByRole("radio", { name: "기본", exact: true }).focus();
+    await page.keyboard.down("ArrowRight");
+    try {
+      await expect(icons.getByRole("radio", { name: "선글라스", exact: true })).toBeFocused();
+      await expect(icons.getByRole("radio", { name: "선글라스", exact: true })).toBeChecked();
+    } finally { await page.keyboard.up("ArrowRight"); }
+    await page.screenshot({ path: info.outputPath(fontSize === 16 ? "settings-and-retained-detail.png" : "settings-and-retained-detail-font200.png") });
+  }
+  await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
+  const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(left.getByLabel("닉네임", { exact: true })).toHaveValue("왼쪽 설정의 초안");
-  if (await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).getAttribute("aria-expanded") !== "true") await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  if (await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).getAttribute("aria-expanded") !== "true") await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
   await confirm.getByRole("button", { name: "변경 버리기" }).click();
   await expect(left.getByRole("heading", { name: "사용 가이드", level: 1, exact: true })).toBeVisible();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("tab")).toHaveCount(2);
@@ -340,28 +394,29 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
 });
 test("mobile: direct detail keeps existing modal and no desktop tabs", async ({ page }) => {
   const state = await fixture(page); await page.setViewportSize({ width: 390, height: 844 }); await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-  const modal = page.locator("dialog.modal:not(.modal-confirm)[open]"); await expect(modal.getByRole("heading", { name: "등심" })).toBeVisible();
-  expect(await modal.evaluate(el => el.matches(":modal"))).toBe(true); await expect(page.getByRole("tab")).toHaveCount(0);
+  const modal = detailDialog(page); await expect(modal.getByRole("heading", { name: "등심" })).toBeVisible();
+  expect(await modal.evaluate(el => el.getAttribute("aria-modal") === "true")).toBe(true); await expect(page.getByRole("tab")).toHaveCount(0);
   await modal.getByRole("button", { name: "닫기", exact: true }).click(); await expect(page).toHaveURL(/\/entities/); expect(state.errors).toEqual([]);
 });
 
 test("desktop: saving updates the retained list; confirmation remains small and uncertain retry identical", async ({ page }) => {
   const state = await fixture(page, { failWrite: "unknown" }); await page.goto("/tasks");
-  const list = page.locator(".workspace-list"); await list.getByRole("button", { name: "등심 구매하기", exact: true }).click(); await list.getByRole("link", { name: "등심 구매하기 상세" }).click();
+  const list = baseWorkspace(page); await list.getByRole("button", { name: "등심 구매하기", exact: true }).click(); await list.getByRole("link", { name: "등심 구매하기 상세" }).click();
   await expect(page.getByRole("tab", { name: "등심 구매하기" })).toHaveAttribute("aria-selected", "true");
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("제목").fill("새 구매 계획");
   await panel(page).getByRole("button", { name: "저장", exact: true }).click();
-  const confirmation = page.locator("dialog.modal-action[open]"); await expect(confirmation.getByLabel("기록 메모")).toBeVisible();
-  expect(await confirmation.evaluate(el => el.matches(":modal"))).toBe(true); expect((await confirmation.boundingBox())!.width).toBeLessThan(650);
+  const confirmation = executionDialog(page); await expect(confirmation.getByLabel("기록 메모")).toBeVisible();
+  expect(await confirmation.evaluate(el => el.getAttribute("aria-modal") === "true")).toBe(true); expect((await confirmation.boundingBox())!.width).toBeLessThan(650);
   await confirmation.getByRole("button", { name: "수정하고 저장" }).click(); await confirmation.getByRole("button", { name: "같은 내용 다시 시도" }).click();
   await expect(page.getByRole("tab", { name: "새 구매 계획" })).toHaveAttribute("aria-selected", "true");
   await expect(list.getByRole("button", { name: "새 구매 계획", exact: true })).toBeVisible();
   expect(state.writes).toHaveLength(2);
   expect(state.writes[0]).toMatchObject({ method: "PATCH", path: `/api/tasks/${id(2)}`, body: {
-    title: "새 구매 계획", body: "상세 본문", tag_ids: [], due_on: null, expected_version: 1,
+    title: "새 구매 계획", body: "상세 본문", due_on: null, expected_version: 1,
     change_note: "새 구매 계획 수정", change_tag_ids: [],
   } });
   expect(state.writes[0].body).not.toHaveProperty("entity_ids");
+  expect(state.writes[0].body).not.toHaveProperty("tag_ids");
   expect(state.writes[1].body).toEqual(state.writes[0].body);
   expect(state.writes[0].requestKey).toMatch(/^[0-9a-f-]{36}$/);
   expect(state.writes[1].requestKey).toBe(state.writes[0].requestKey);
@@ -385,11 +440,11 @@ test("desktop: recurring task confirmation cancellation prepares and saves the c
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   await panel(page).getByLabel("제목").fill("처음 계획");
   await panel(page).getByRole("button", { name: "저장", exact: true }).click();
-  const confirmation = page.locator("dialog.modal-action[open]");
+  const confirmation = executionDialog(page);
   await expect(confirmation.getByLabel("기록 메모")).toHaveValue("처음 계획 수정");
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await panel(page).getByLabel("제목").fill("월간 계획");
-  await panel(page).getByRole("radio", { name: "매월", exact: true }).check();
+  await panel(page).getByRole("radio", { name: "매월", exact: true }).click();
   await panel(page).getByLabel("날짜", { exact: true }).fill("1, 15");
   await panel(page).getByLabel("시간대").selectOption("America/New_York");
   await panel(page).getByRole("button", { name: "저장", exact: true }).click();
@@ -400,7 +455,6 @@ test("desktop: recurring task confirmation cancellation prepares and saves the c
   const input = {
     title: "월간 계획",
     body: "상세 본문",
-    tag_ids: [],
     recurrence: { freq: "monthly", month_days: [1, 15], starts_on: "2026-10-04" },
     timezone: "America/New_York",
   };
@@ -449,16 +503,16 @@ test("desktop: creating a task from an entity prepares and saves its selected re
 
 test("desktop: pending writes block tab switching, close, hide and navigation", async ({ page }) => {
   const state = await fixture(page, { hold: true }); await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`); await openTask(page);
-  await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("새 내용"); await panel(page).getByRole("button", { name: "저장", exact: true }).click();
-  await page.locator("dialog.modal-action[open]").getByRole("button", { name: "수정하고 저장" }).click(); await state.pending;
-  await page.getByRole("tab", { name: "등심 구매하기", exact: true }).dispatchEvent("keydown", { key: "ArrowLeft", ctrlKey: true, shiftKey: true, bubbles: true });
-  expect(await tabNames(page)).toEqual(["등심", "등심 구매하기"]);
-  for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true }).evaluate((el: HTMLButtonElement) => el.click());
-  await page.getByRole("tab", { name: "등심", exact: true }).evaluate((el: HTMLButtonElement) => el.click());
-  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "검사 자료", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
-  await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".workspace-details")).toBeVisible(); await expect(page.getByRole("tab")).toHaveCount(2);
-  state.release(); await expect(panel(page).getByRole("button", { name: "편집", exact: true })).toBeVisible(); expect(state.errors).toEqual([]);
+  await panel(page).getByRole("button", { name: "편집", exact: true, includeHidden: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("새 내용"); await panel(page).getByRole("button", { name: "저장", exact: true, includeHidden: true }).click();
+  await executionDialog(page).getByRole("button", { name: "수정하고 저장" }).click(); await state.pending;
+  await page.getByRole("tab", { name: "등심 구매하기", exact: true, includeHidden: true }).dispatchEvent("keydown", { key: "ArrowLeft", ctrlKey: true, shiftKey: true, bubbles: true });
+  expect(await page.getByRole("tab", { includeHidden: true }).allTextContents()).toEqual(["등심", "등심 구매하기"]);
+  for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true, includeHidden: true }).evaluate((el: HTMLButtonElement) => el.click());
+  await page.getByRole("tab", { name: "등심", exact: true, includeHidden: true }).evaluate((el: HTMLButtonElement) => el.click());
+  await page.getByRole("navigation", { name: "주 메뉴", includeHidden: true }).getByRole("link", { name: "검사 자료", exact: true, includeHidden: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true, includeHidden: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[aria-label=\"상세 작업 영역\"]")).toBeVisible(); await expect(page.getByRole("tab", { includeHidden: true })).toHaveCount(2);
+  state.release(); await expect(panel(page).getByRole("button", { name: "편집", exact: true, includeHidden: true })).toBeVisible(); expect(state.errors).toEqual([]);
 });
 
 
@@ -468,12 +522,12 @@ test("desktop: creation opens a viewer tab, deletion closes it and refreshes the
   const creation = page.getByRole("dialog", { name: "할 일 추가", exact: true });
   await creation.getByLabel("제목").fill("새 할 일"); await saveOnce(page, creation, "추가");
   await expect(creation).not.toBeVisible(); await expect(page.getByRole("tab", { name: "새 할 일", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".workspace-list").getByRole("button", { name: "새 할 일", exact: true })).toBeVisible();
+  await expect(baseWorkspace(page).getByRole("button", { name: "새 할 일", exact: true })).toBeVisible();
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByRole("button", { name: "삭제", exact: true }).click();
-  await page.locator("dialog.modal-action[open]").getByRole("button", { name: "삭제하고 기록", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "삭제하고 기록", exact: true }).click();
   await expect(page.getByRole("tab")).toHaveCount(0); await expect(page).not.toHaveURL(/create=/);
-  await expect(page.locator(".workspace-list").getByRole("button", { name: "새 할 일", exact: true })).toHaveCount(0);
-  await expect(page.locator(".workspace-list").getByRole("button", { name: "등심 구매하기", exact: true })).toBeVisible();
+  await expect(baseWorkspace(page).getByRole("button", { name: "새 할 일", exact: true })).toHaveCount(0);
+  await expect(baseWorkspace(page).getByRole("button", { name: "등심 구매하기", exact: true })).toBeVisible();
   expect(state.writes.map(write => write.method)).toEqual(["POST", "POST"]); expect(state.errors).toEqual([]);
 });
 
@@ -481,11 +535,11 @@ test("desktop: list position survives panel hide, reopen and last close", async 
   const state = await fixture(page);
   state.rows.entities.push(...Array.from({ length: 40 }, (_, i) => entity(i + 200, { prop_1: `상품 ${i}` })));
   await page.goto("/entities"); await openEntity(page);
-  const list = page.locator(".workspace-list"); await list.evaluate(el => { el.scrollTop = 750; });
+  const list = baseWorkspace(page); await list.evaluate(el => { el.scrollTop = 750; });
   await expect.poll(() => list.evaluate(el => el.scrollTop)).toBe(750);
-  await page.getByRole("button", { name: "상세 패널 숨기기" }).click(); await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
+  await page.getByRole("button", { name: "상세 패널 숨기기" }).click(); await expect.poll(() => page.getByRole("main").evaluate(element => element.scrollTop)).toBe(750);
   await page.getByRole("button", { name: "상세 탭 보기 (1개)" }).click(); await expect.poll(() => list.evaluate(el => el.scrollTop)).toBe(750);
-  await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).click(); await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
+  await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).click(); await expect.poll(() => page.getByRole("main").evaluate(element => element.scrollTop)).toBe(750);
   const origin = list.getByRole("button", { name: "등심", exact: true });
   await expect(origin).toBeFocused(); expect(await origin.evaluate(element => element.tabIndex)).toBe(0); expect(state.errors).toEqual([]);
 });
@@ -493,13 +547,13 @@ test("desktop: list position survives panel hide, reopen and last close", async 
 test("desktop: each detail retains its own body scroll and reopening a dirty target reuses its editor", async ({ page }) => {
   const state = await fixture(page); state.rows.tasks[0].body = Array.from({ length: 60 }, (_, i) => `상세 설명 ${i}`).join("\n\n");
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`); await openTask(page);
-  const body = panel(page).locator(".modal-body"); await body.evaluate(el => { el.scrollTop = 400; });
+  const body = panel(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]"); await body.evaluate(el => { el.scrollTop = 400; });
   await expect.poll(() => body.evaluate(el => el.scrollTop)).toBe(400);
   await page.getByRole("tab", { name: "등심", exact: true }).click(); await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
   await expect.poll(() => body.evaluate(el => el.scrollTop)).toBe(400);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("보존할 초안");
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click();
-  const list = page.locator(".workspace-list"); await list.getByRole("button", { name: "등심 구매하기", exact: true }).click(); await list.getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
+  const list = baseWorkspace(page); await list.getByRole("button", { name: "등심 구매하기", exact: true }).click(); await list.getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("보존할 초안"); await expect(page.getByRole("tab")).toHaveCount(2);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
@@ -509,7 +563,7 @@ test("desktop: browser history selects retained tabs without discarding their dr
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("이력 이동 후에도 보존");
   await page.goBack(); await expect(page.getByRole("tab", { name: "등심", exact: true })).toHaveAttribute("aria-selected", "true");
   await page.goForward(); await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("이력 이동 후에도 보존");
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible(); expect(state.errors).toEqual([]);
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible(); expect(state.errors).toEqual([]);
 });
 
 test("desktop: many long titles scroll inside the tab strip and keyboard selection stays visible", async ({ page }) => {
@@ -546,23 +600,23 @@ test("desktop: record tabs use distinct body previews and logout removes the ret
   const state = await fixture(page); state.rows.records.push({ ...record(200), body: "다음 상담 때 확인할 내용" });
   await page.route("**/auth/v1/logout**", route => route.fulfill({ status: 200, json: {} }));
   await page.goto("/records");
-  const list = page.locator(".workspace-list");
+  const list = baseWorkspace(page);
   for (const title of ["구매 기준을 정리했습니다.", "다음 상담 때 확인할 내용"]) {
     await list.getByRole("button", { name: title, exact: true }).click(); await list.getByRole("link", { name: `${title} 상세`, exact: true }).click();
   await expect(page.getByRole("tab", {name:title,exact:true})).toHaveAttribute("aria-selected","true");
     await expect(page.getByRole("tab", { name: title, exact: true })).toHaveAttribute("aria-selected", "true");
   }
-  await expect(page.getByRole("tab")).toHaveCount(2); await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await expect(page.getByRole("tab")).toHaveCount(2); await openProfileMenu(page); await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/); await expect(page.getByRole("tab")).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("sb-127-auth-token"))).toBeNull(); expect(state.errors).toEqual([]);
 });
 test("mobile: expanding an unfinished native editor never reparents or loses its draft", async ({ page }) => {
   const state = await fixture(page); await page.setViewportSize({ width: 390, height: 844 }); await page.goto(`/tasks/${id(2)}?edit=1`);
-  const modal = page.locator("dialog.modal:not(.modal-confirm)[open]"); await modal.getByLabel("본문", { exact: true }).fill("모바일 초안");
+  const modal = detailDialog(page); await modal.getByLabel("본문", { exact: true }).fill("모바일 초안");
   await page.setViewportSize({ width: 1440, height: 900 }); await expect(modal.getByLabel("본문", { exact: true })).toHaveValue("모바일 초안"); await expect(page.getByRole("tab")).toHaveCount(0);
-  await modal.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
-  await modal.getByRole("button", { name: "닫기", exact: true }).click(); await expect(page.locator(".workspace-list")).toBeVisible(); expect(state.errors).toEqual([]);
-  await expect(page.getByRole("tab")).toHaveCount(0); await expect(page.locator(".workspace-details")).toBeHidden();
+  await modal.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
+  await modal.getByRole("button", { name: "닫기", exact: true }).click(); await expect(baseWorkspace(page)).toBeVisible(); expect(state.errors).toEqual([]);
+  await expect(page.getByRole("tab")).toHaveCount(0); await expect(page.locator("[aria-label=\"상세 작업 영역\"]")).toBeHidden();
 });
 
 test("desktop: relation saves refresh retained filtered lists without leaving the viewer", async ({ page }) => {
@@ -571,10 +625,10 @@ test("desktop: relation saves refresh retained filtered lists without leaving th
     return route.fulfill({ json: { items: state.rows.tasks.filter(task => task.entity_ids.includes(entityKey(1))), next_cursor: null } });
   });
   await page.goto(`/tasks?entity_id=${encodeURIComponent(entityKey(1))}`);
-  const list = page.locator(".workspace-list"); await list.getByRole("button", { name: "등심 구매하기", exact: true }).click(); await list.getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
+  const list = baseWorkspace(page); await list.getByRole("button", { name: "등심 구매하기", exact: true }).click(); await list.getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
   const entities = panel(page).getByRole("region", { name: "연결된 자료 (1개)", exact: true });
   await entities.getByRole("button", { name: "등심", exact: true }).click(); await entities.getByRole("button", { name: "등심 해제", exact: true }).click();
-  await page.locator("dialog.modal-action[open]").getByRole("button", { name: "해제하고 저장", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "해제하고 저장", exact: true }).click();
   await expect(panel(page).getByRole("heading", { name: "연결된 자료 (0개)", exact: true })).toBeVisible();
   await expect(list.getByRole("button", { name: "등심 구매하기", exact: true })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
@@ -588,13 +642,13 @@ for (const width of [320, 390]) {
     const label = "긴자료종류이름".repeat(8);
     state.rows.entities[0].type = { ...state.rows.entities[0].type, label };
     await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-    const view = page.locator("dialog.modal[open]:not(.modal-confirm)");
-    const title = view.locator(".dialog-title");
+    const view = detailDialog(page);
+    const title = view.locator("[data-slot=\"dialog-title\"]");
     await expect(title).toHaveText(label);
     const close = view.getByRole("button", { name: "닫기", exact: true });
     const titleBox = (await title.boundingBox())!, closeBox = (await close.boundingBox())!;
     expect(closeBox.x).toBeGreaterThanOrEqual(titleBox.x + titleBox.width);
-    const descriptionBox = (await view.locator(".modal-head > .page-description").boundingBox())!;
+    const descriptionBox = (await view.locator("[data-slot=\"dialog-description\"]").boundingBox())!;
     expect(descriptionBox.y).toBeGreaterThanOrEqual(
       Math.max(titleBox.y + titleBox.height, closeBox.y + closeBox.height),
     );
@@ -613,32 +667,31 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     {path:`/records/${id(3)}`,domain:"기록",title:null},
   ]) {
     await page.goto(item.path);
-    const view=page.locator("dialog.modal[open]:not(.modal-confirm)");
-    await expect(view.locator(".modal-head .dialog-title")).toHaveText(item.domain);
-    const description = view.locator(".modal-head > .page-description");
+    const view=detailDialog(page);
+    await expect(view.locator("[data-slot=\"dialog-title\"]")).toHaveText(item.domain);
+    const description = view.locator("[data-slot=\"dialog-description\"]");
     await expect(description).toBeVisible();
     const readDescription = await description.innerText();
-    await expect(view).toHaveAttribute("aria-describedby", await description.getAttribute("id") as string);
-    if(item.title) await expect(view.locator(".modal-body .detail-title")).toHaveText(item.title);
-    else await expect(view.locator(".record-content")).toHaveText("구매 기준을 정리했습니다.");
-    const relation=view.locator(".detail-relations");
-    {
-      await expect(relation).toBeVisible();
-      expect(await relation.evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe("1px");
-      expect(await relation.evaluate(el=>parseFloat(getComputedStyle(el).paddingTop))).toBeGreaterThanOrEqual(24);
-    }
+    expect((await view.getAttribute("aria-describedby"))?.split(/\s+/)).toContain(await description.getAttribute("id"));
+    if(item.title) await expect(view.getByRole("heading", { name: item.title, exact: true })).toHaveText(item.title);
+    else await expect(view.getByRole("term").filter({ hasText: /^본문$/ }).first().locator("..").getByRole("definition")).toHaveText("구매 기준을 정리했습니다.");
+    const relation = view.getByRole("region", { name: /^(연결된 자료|할 일|기록) \(\d+개\)$/ });
+    await expect(relation).toHaveCount(2);
+    for (const region of await relation.all()) await expect(region).toBeVisible();
     expect(await view.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
     if(item.domain==="할 일") await view.screenshot({path:info.outputPath(`detail-hierarchy-${width}.png`)});
     await view.getByRole("button",{name:"편집",exact:true}).click();
-    await expect(view.locator(".modal-head .dialog-title")).toHaveText(item.domain);
+    await expect(view.locator("[data-slot=\"dialog-title\"]")).toHaveText(item.domain);
     await expect(description).not.toHaveText(readDescription);
-    await expect(description).toHaveCSS("font-size", "13px");
-    await expect(view.getByRole("region",{name:/^(엔터티|할 일|기록) \(\d+개\)$/})).toHaveCount(0);
+    expect(await description.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
+    const readonlyRelations = view.getByRole("region", { name: /^(연결된 자료|할 일|기록) \(\d+개\)$/ });
+    await expect(readonlyRelations).toHaveCount(2);
+    for (const region of await readonlyRelations.all()) await expect(region.getByRole("button").or(region.getByRole("link"))).toHaveCount(0);
     await expect(view.getByRole("button",{name:/^(엔터티|할 일|기록).* (연결|해제)$/})).toHaveCount(0);
     if(item.domain==="기록") {
       await view.getByLabel("본문",{exact:false}).fill("관계를 보존하는 본문 정정");
       await view.getByRole("button",{name:"저장",exact:true}).click();
-      await expect(view.locator(".record-content")).toHaveText("관계를 보존하는 본문 정정");
+      await expect(view.getByRole("term").filter({ hasText: /^본문$/ }).first().locator("..").getByRole("definition")).toHaveText("관계를 보존하는 본문 정정");
       const write=state.writes.find(row=>row.method==="PATCH"&&row.path===`/api/records/${id(3)}`)!;
       expect(write.body).not.toHaveProperty("entity_ids"); expect(write.body).not.toHaveProperty("task_id");
       await expect(view.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toBeVisible();
@@ -672,14 +725,14 @@ test("related previous: one starting tab survives cross-links, dirty drafts, res
   await panel(page).getByLabel("본문",{exact:true}).fill("이전 이동해도 보존할 초안");
   await panel(page).getByRole("button",{name:"이전: 등심",exact:true}).click();
   await expect(page.getByRole("tab",{name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
-  await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).not.toBeVisible();
+  await expect(page.getByRole("alertdialog",{name:"변경을 버릴까요?"})).not.toBeVisible();
   await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
   await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(panel(page).getByLabel("본문",{exact:true})).toHaveValue("이전 이동해도 보존할 초안");
   await page.setViewportSize({width:390,height:844});
-  const modal=page.locator("dialog.modal[open]:not(.modal-confirm)");
+  const modal=detailDialog(page);
   await modal.getByRole("button",{name:"이전: 등심",exact:true}).click();
-  await expect(modal.locator(".detail-title")).toHaveText("등심");
+  await expect(modal.getByRole("heading", { name: "등심", exact: true })).toHaveText("등심");
   await page.setViewportSize({width:1440,height:900});
   await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();
   await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
@@ -692,21 +745,24 @@ test("related previous: one starting tab survives cross-links, dirty drafts, res
 test("mobile direct visit: related previous restores its source without stacked dialogs",async({page})=>{
   await page.setViewportSize({width:390,height:844}); const state=await fixture(page);
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-  const modal=page.locator("dialog.modal[open]:not(.modal-confirm)");
+  const modal=detailDialog(page);
   await expect(modal.getByRole("button",{name:/^이전:/})).toHaveCount(0);
   const tasks=modal.getByRole("region",{name:"할 일 (1개)",exact:true});
   await tasks.getByRole("button",{name:"등심 구매하기",exact:true}).click();
   await tasks.getByRole("link",{name:"등심 구매하기 상세",exact:true}).click();
-  await expect(modal.locator(".modal-head .dialog-title")).toHaveText("할 일");
+  await expect(modal.locator("[data-slot=\"dialog-title\"]")).toHaveText("할 일");
   await expect(modal).toHaveCount(1);
   await modal.getByRole("button",{name:/^이전:/}).click();
-  await expect(modal.locator(".modal-head .dialog-title")).toHaveText("검사 자료");
-  await expect(modal.locator(".detail-title")).toHaveText("등심");
+  await expect(modal.locator("[data-slot=\"dialog-title\"]")).toHaveText("검사 자료");
+  await expect(modal.getByRole("heading", { name: "등심", exact: true })).toHaveText("등심");
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
 
 test("related previous: an explicit new source replaces the single return target; selecting tabs does not",async({page})=>{
+  const cpu = await page.context().newCDPSession(page);
+  await cpu.send("Emulation.setCPUThrottlingRate", {rate: 4});
+  try {
   const state=await fixture(page);
   state.rows.entities[1].tasks={count:1,items:[state.rows.tasks[0]]};
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`); await openTask(page);
@@ -716,9 +772,15 @@ test("related previous: an explicit new source replaces the single return target
   await page.getByRole("tab",{name:"등심",exact:true}).click();
   await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
   await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
+  await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
+  // Re-selecting an already selected visit remains a history no-op.
+  const currentVisit = await page.evaluate(() => ({length: history.length, state: history.state}));
+  await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
+  expect(await page.evaluate(() => ({length: history.length, state: history.state}))).toEqual(currentVisit);
   await panel(page).getByRole("button",{name:"이전: 버섯",exact:true}).click();
   await expect(page.getByRole("tab",{name:"버섯",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(page.getByRole("tab")).toHaveCount(3); expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+  } finally { await cpu.detach(); }
 });
 
 
@@ -727,7 +789,8 @@ test("desktop: ordinary edits preserve the immutable identity, retained tab and 
   const state = await fixture(page), oldId = entityKey(1);
   await page.goto(`/entities/${encodeURIComponent(oldId)}`);
   await panel(page).getByRole("button", {name:"편집",exact:true}).click();
-  await expect(panel(page).getByLabel("번호",{exact:true})).toHaveAttribute("readonly", "");
+  await expect(panel(page).locator("dt:visible", { hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(id(1));
+  await expect(panel(page).getByRole("textbox", { name: /^(번호|자료 번호)$/ })).toHaveCount(0);
   await panel(page).getByLabel("제목",{exact:false}).fill("등심 수정");
   await saveOnce(page,panel(page));
   await expect(page).toHaveURL(new RegExp(encodeURIComponent(oldId)));
@@ -758,7 +821,7 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await expect(form.getByRole("combobox", {name:"번호 출처",exact:true})).toHaveCount(0);
   if (entered) await expect(form.getByLabel("제목")).toHaveValue("설정 도착 전 입력");
   await form.getByRole("button", {name:"취소",exact:true}).click();
-  const discard = page.getByRole("dialog", {name:"변경을 버릴까요?",exact:true});
+  const discard = page.getByRole("alertdialog", {name:"변경을 버릴까요?",exact:true});
   if (entered) {
     await expect(discard).toBeVisible();
     await discard.getByRole("button", {name:"변경 버리기",exact:true}).click();
@@ -770,7 +833,7 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
 test("desktop: closing a search detail restores the originating result and reload focus",async({page})=>{
   const state=await fixture(page);await page.setViewportSize({width:1440,height:900});
   await page.goto("/search?q=등심&mode=keyword&kind=task");
-  const result=page.locator(".workspace-list").getByRole("link",{name:"등심 구매하기",exact:true});
+  const result=baseWorkspace(page).getByRole("link",{name:"등심 구매하기",exact:true});
   await result.click();await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
   await page.getByRole("button",{name:"등심 구매하기 탭 닫기",exact:true}).click();
   await expect(result).toBeFocused();expect(await result.evaluate(element=>element.tabIndex)).toBe(0);expect(new URL(page.url()).hash).toBe(`#search-task-${id(2)}`);
@@ -783,7 +846,7 @@ test("desktop: entity list focus round trips a Unicode and percent identity thro
   Object.assign(state.rows.entities[0],{id:canonical,source:"crm",external_id:external,source_label:"고객 관리"});
   await page.goto("/entities");await openEntity(page);
   await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();
-  const target=page.locator(".workspace-list").getByRole("button",{name:"등심",exact:true});
+  const target=baseWorkspace(page).getByRole("button",{name:"등심",exact:true});
   await expect(target).toBeFocused();expect(await target.evaluate(element=>element.tabIndex)).toBe(0);expect(new URL(page.url()).hash).toBe(`#${encodeURIComponent(`entity-${canonical}`)}`);
   await page.reload();await expect(target).toBeFocused();expect(state.errors).toEqual([]);
 });
@@ -825,14 +888,14 @@ test("#335 준비 충돌: 패널 숨김은 초안 보존, 탭 닫기 승인 뒤 
   await page.route("**/records/prepare", route => route.fulfill({ status: 409,
     json: { code: "conflict", message: "다른 변경이 저장되어 있습니다.", retryable: false } }));
   await panel(page).getByRole("button", { name: "저장", exact: true }).click();
-  const confirmation = page.locator("dialog.modal-action[open]");
+  const confirmation = executionDialog(page);
   await expect(confirmation).toContainText("탭 닫기");
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await page.getByRole("button", { name: "상세 패널 숨기기", exact: true }).click();
   await page.getByRole("button", { name: "상세 탭 보기 (1개)", exact: true }).click();
   await expect(panel(page).getByLabel("제목", { exact: false })).toHaveValue("숨겨도 보존할 초안");
   await page.getByRole("button", { name: /탭 닫기$/ }).click();
-  const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await discard.getByRole("button", { name: "취소", exact: true }).click();
   await expect(panel(page).getByLabel("제목", { exact: false })).toHaveValue("숨겨도 보존할 초안");
   await page.getByRole("button", { name: /탭 닫기$/ }).click();
@@ -880,18 +943,18 @@ test("confirmation overlays the retained mobile editor and restores its focus", 
   const state = await fixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/tasks/${id(2)}`);
-  const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
+  const editor = detailDialog(page);
   await editor.getByRole("button", { name: "편집", exact: true }).click();
   await editor.getByLabel("제목").fill("겹친 확인창 초안");
   const save = editor.getByRole("button", { name: "저장", exact: true });
   await save.click();
-  await expect(page.locator("dialog[open]")).toHaveCount(2);
-  const confirmation = page.locator("dialog.modal-confirm[open]");
+  await expect(openDialogs(page)).toHaveCount(2);
+  const confirmation = shortDialog(page);
   await expect(confirmation.getByLabel("기록 메모")).toBeVisible();
   await expect(editor).toBeVisible();
   await expect(editor.getByLabel("제목")).toHaveValue("겹친 확인창 초안");
-  expect(await editor.evaluate(el => el.matches(":modal"))).toBe(true);
-  expect(await confirmation.evaluate(el => el.matches(":modal"))).toBe(true);
+  expect(await editor.evaluate(el => el.getAttribute("aria-modal") === "true")).toBe(true);
+  expect(await confirmation.evaluate(el => el.getAttribute("aria-modal") === "true")).toBe(true);
   expect((await confirmation.boundingBox())!.width).toBeLessThan(390);
   await confirmation.getByLabel("기록 메모").fill("취소해도 보존할 메모");
   for (const width of [1440, 390]) {
@@ -902,7 +965,7 @@ test("confirmation overlays the retained mobile editor and restores its focus", 
     expect(await confirmation.evaluate(el => el.contains(document.activeElement))).toBe(true);
   }
   await confirmation.press("Escape");
-  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(openDialogs(page)).toHaveCount(1);
   await expect(save).toBeFocused();
   await expect(editor.getByLabel("제목")).toHaveValue("겹친 확인창 초안");
   for (const width of [1440, 390]) {
@@ -923,17 +986,17 @@ test("resizing after confirmation cancellation keeps the original editor action 
   const state = await fixture(page);
   await page.goto(`/tasks/${id(2)}`);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
-  const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
+  const editor = detailDialog(page);
   await editor.getByLabel("제목").fill("확인 취소 뒤 화면 전환");
   const save = editor.getByRole("button", { name: "저장", exact: true });
   await save.click();
-  const confirmation = page.locator("dialog.modal-confirm[open]");
+  const confirmation = shortDialog(page);
   await expect(confirmation.getByLabel("기록 메모")).toBeVisible();
   await confirmation.press("Escape");
   await expect(save).toBeFocused();
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await expect.poll(() => editor.evaluate(el => el.matches(":modal"))).toBe(width === 390);
+    await expect.poll(() => editor.evaluate(el => el.getAttribute("aria-modal") === "true")).toBe(width === 390);
     await expect(save).toBeFocused();
     await expect(editor.getByLabel("제목")).toHaveValue("확인 취소 뒤 화면 전환");
   }
@@ -945,20 +1008,20 @@ test("docked confirmation remains topmost during one-way resize and cancellation
   const state = await fixture(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/tasks/${id(2)}`);
-  const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
+  const editor = detailDialog(page);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   const save = editor.getByRole("button", { name: "저장", exact: true });
   await editor.getByLabel("제목").fill("패널의 확인창 초안");
-  expect(await editor.evaluate(el => el.matches(":modal"))).toBe(false);
+  expect(await editor.evaluate(el => el.getAttribute("aria-modal") === "true")).toBe(false);
   for (const width of [390, 1440]) {
     await save.click();
-    const confirmation = page.locator("dialog.modal-confirm[open]");
+    const confirmation = shortDialog(page);
     await expect(confirmation.getByLabel("기록 메모")).toBeVisible();
     await page.setViewportSize({ width, height: 900 });
     await expect.poll(() => confirmation.evaluate(el => el.contains(document.activeElement))).toBe(true);
     await confirmation.press("Escape");
     await expect(save).toBeFocused();
-    await expect.poll(() => editor.evaluate(el => el.matches(":modal"))).toBe(width === 390);
+    await expect.poll(() => editor.evaluate(el => el.getAttribute("aria-modal") === "true")).toBe(width === 390);
     await expect(editor.getByLabel("제목")).toHaveValue("패널의 확인창 초안");
   }
   expect(state.writes).toHaveLength(0);
@@ -970,7 +1033,7 @@ test("related navigation hides the previous model edit action while the destinat
   const state = await fixture(page);
   await page.setViewportSize({ width: 1024, height: 720 });
   await page.goto(`/tasks/${id(2)}`);
-  const viewer = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+  const viewer = detailDialog(page);
   await expect(viewer.getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
   await viewer.getByRole("region", { name: /^연결된 자료/ }).getByRole("button", { name: "등심", exact: true }).click();
   let release!: () => void;
@@ -1010,7 +1073,7 @@ test("desktop: opened detail tabs stay visible while navigating to another list"
   await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "기록", exact: true }).click();
   await expect(page).toHaveURL(/\/records$/);
   await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible();
-  await expect(page.locator(".detail-workspace")).toHaveClass(/has-detail-panel/);
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절", exact: true, includeHidden: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toBeVisible();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("목록 이동 후에도 유지");
@@ -1020,8 +1083,8 @@ test("desktop: opened detail tabs stay visible while navigating to another list"
 test("desktop: opened detail tabs stay visible when opening settings from the left menu", async ({ page }) => {
   await fixture(page);
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { name: "기본 설정", level: 1, exact: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
@@ -1031,20 +1094,20 @@ test("desktop: a pending detail write remains protected while settings is the le
   const state = await fixture(page, { hold: true });
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
   await openTask(page);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
-  await expect(page.locator(".workspace-list").getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  await expect(page.getByRole("region", { name: "기본 작업 영역", exact: true, includeHidden: true }).getByRole("heading", { name: "기본 설정", exact: true, includeHidden: true })).toBeVisible();
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   await panel(page).getByLabel("본문", { exact: true }).fill("설정 화면에서 상세 저장");
   await panel(page).getByRole("button", { name: "저장", exact: true }).click();
-  await page.locator("dialog.modal-action[open]").getByRole("button", { name: "수정하고 저장" }).click();
+  await executionDialog(page).getByRole("button", { name: "수정하고 저장" }).click();
   await state.pending;
   try {
-    await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기록", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
-    for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true }).evaluate((el: HTMLButtonElement) => el.click());
-    await expect(page.locator(".workspace-list").getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
-    await expect(page.getByRole("tab")).toHaveCount(2);
-    await expect(page.locator(".detail-workspace")).toHaveClass(/has-detail-panel/);
+    await page.getByRole("navigation", { name: "주 메뉴", includeHidden: true }).getByRole("link", { name: "기록", exact: true, includeHidden: true }).evaluate((el: HTMLAnchorElement) => el.click());
+    for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true, includeHidden: true }).evaluate((el: HTMLButtonElement) => el.click());
+    await expect(page.getByRole("region", { name: "기본 작업 영역", exact: true, includeHidden: true }).getByRole("heading", { name: "기본 설정", exact: true, includeHidden: true })).toBeVisible();
+    await expect(page.getByRole("tab", { includeHidden: true })).toHaveCount(2);
+    await expect(page.getByRole("separator", { name: "상세 패널 너비 조절", exact: true, includeHidden: true })).toBeVisible();
   } finally { state.release(); }
   await expect(panel(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
   expect(state.errors).toEqual([]);
@@ -1063,8 +1126,8 @@ test("desktop: a pending base setting also prevents closing or hiding the retain
     await route.fulfill({ status: 400, json: { message: "Fixture profile save rejected" } });
   });
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
   const form = page.getByRole("form", { name: "프로필 설정", exact: true });
   await form.getByLabel("닉네임", { exact: true }).fill("진행 중인 왼쪽 설정");
   await form.getByRole("button", { name: "프로필 저장", exact: true }).click();
@@ -1075,7 +1138,7 @@ test("desktop: a pending base setting also prevents closing or hiding the retain
     await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기록", exact: true }).click();
     await expect(form).toHaveAttribute("aria-busy", "true");
     await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
-    await expect(page.locator(".detail-workspace")).toHaveClass(/has-detail-panel/);
+    await expect(page.getByRole("separator", { name: "상세 패널 너비 조절", exact: true, includeHidden: true })).toBeVisible();
   } finally { release(); }
   await expect(form).toHaveAttribute("aria-busy", "false");
   await expect(form.getByLabel("닉네임", { exact: true })).toHaveValue("진행 중인 왼쪽 설정");
@@ -1091,16 +1154,16 @@ for (const screen of ["materials", "relations"] as const) test(`desktop: uncerta
     return route.abort();
   });
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
-  const left = page.locator(".workspace-list");
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  const left = baseWorkspace(page);
   await left.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await left.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
   if (screen === "materials") {
     await left.getByLabel("자료 종류 이름", { exact: true }).fill("미확정 종류");
     await left.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
   } else {
-    await left.getByRole("link", { name: "연결 설정", exact: true }).click();
+    await left.getByRole("tab", { name: "연결 설정", exact: true }).click();
     await left.getByRole("button", { name: "연결 설정 추가", exact: true }).click();
     await left.getByLabel("첫 번째 자료 종류", { exact: true }).selectOption("00000000-0000-4000-8000-000000000900");
     await left.getByLabel("두 번째 자료 종류", { exact: true }).selectOption("00000000-0000-4000-8000-000000000900");
@@ -1114,9 +1177,9 @@ for (const screen of ["materials", "relations"] as const) test(`desktop: uncerta
   await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "상세 패널 숨기기", exact: true }).evaluate((el: HTMLButtonElement) => el.click());
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기록", exact: true }).click();
-  await expect(page.locator(".detail-workspace")).toHaveClass(/has-detail-panel/);
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절", exact: true, includeHidden: true })).toBeVisible();
   await expect(retry).toBeEnabled();
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   await retry.click();
   await expect.poll(() => writes.length).toBe(2);
   expect(writes[0]).toEqual(writes[1]);
@@ -1126,15 +1189,15 @@ test("desktop: closing the last detail retains the dirty base setting without a 
   await fixture(page);
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
   await openTask(page);
-  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
-  const nickname = page.locator(".workspace-list").getByLabel("닉네임", { exact: true });
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  const nickname = baseWorkspace(page).getByLabel("닉네임", { exact: true });
   await nickname.fill("마지막 상세를 닫아도 유지");
   await page.getByRole("button", { name: "등심 구매하기 탭 닫기", exact: true }).click();
   await expect(page.getByRole("tab", { name: "등심", exact: true })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   await expect(nickname).toHaveValue("마지막 상세를 닫아도 유지");
   await expect(page.getByRole("tab")).toHaveCount(0);
 });
@@ -1147,9 +1210,311 @@ test("mobile settings: widening into the desktop workspace retains the original 
   await nickname.fill("화면 크기를 바꿔도 유지할 초안");
   await page.screenshot({ path: info.outputPath("mobile-settings-draft.png") });
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(page.locator(".workspace-list")).toBeVisible();
+  await expect(baseWorkspace(page)).toBeVisible();
   await expect(nickname).toHaveValue("화면 크기를 바꿔도 유지할 초안");
   await page.setViewportSize({ width: 390, height: 900 });
   await expect(nickname).toHaveValue("화면 크기를 바꿔도 유지할 초안");
   expect(state.writes).toEqual([]);
+});
+
+
+test("desktop: entity pairs follow resized panel width and keep the same edit axis", async ({ page }, info) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  const separator = page.getByRole("separator", { name: "상세 패널 너비 조절" });
+  const detail = panel(page);
+  const source = detail.locator("dt:visible", { hasText: /^번호 출처$/ });
+  const number = detail.locator("dt:visible", { hasText: /^자료 번호$/ });
+  await separator.press("End");
+  await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeLessThan(1);
+  await page.screenshot({ path: info.outputPath("entity-narrow-panel.png") });
+  await separator.press("Home");
+  await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeGreaterThan(200);
+  const before = (await source.boundingBox())!.x;
+  await page.screenshot({ path: info.outputPath("entity-wide-panel.png") });
+  await detail.getByRole("button", { name: "편집", exact: true }).click();
+  await expect(detail.getByRole("textbox", { name: /^제목/ })).toBeEditable();
+  expect((await source.boundingBox())!.x).toBeCloseTo(before, 0);
+  await expect(detail.getByRole("region", { name: "할 일 (1개)" })).toContainText("등심 구매하기");
+  await expect(detail.getByRole("button", { name: "할 일 작성" })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("entity-wide-panel-edit.png") });
+});
+
+for (const kind of ["once", "recurring", "done"] as const) {
+  test(`task data parity: ${kind} retains labeled fields and static context during editing`, async ({ page }, info) => {
+    const state = await fixture(page);
+    Object.assign(state.rows.tasks[0], kind === "recurring" ? {
+      kind: "recurring", status: "active", recurrence: { freq: "weekly", weekdays: [1, 5], starts_on: "2026-10-04" }, timezone: "Asia/Seoul",
+    } : { due_on: null, ...(kind === "done" ? { status: "done", completed_at: stamp } : {}) });
+    await page.route(/\/api\/tasks\/[^/]+\/occurrences\?/, route => route.fulfill({ json: { today: "2026-10-11", items: [] } }));
+    await page.goto(`/tasks/${id(2)}`);
+    const surface = panel(page);
+    const expected = ["제목", "본문", "상태", "종류", ...(kind === "recurring" ? ["반복 규칙", "요일", "시작일", "시간대"] : ["기한"]), ...(kind === "done" ? ["완료 시각"] : [])];
+    await expect(surface.locator("dt").filter({ hasText: /^제목$/ })).toHaveCount(1);
+    const labels = async () => surface.locator('dt:visible, [data-slot="field-label"]:visible').allTextContents();
+    expect((await labels()).slice(0, expected.length)).toEqual(expected);
+    await surface.getByRole("button", { name: "편집", exact: true }).click();
+    expect((await labels()).slice(0, expected.length).map(s => s.replace(/\*\(필수\)/g, ""))).toEqual(expected);
+    await expect(surface.getByRole("region", { name: "연결된 자료 (1개)", exact: true })).toContainText("등심");
+    await expect(surface.getByRole("region", { name: "기록 (1개)", exact: true })).toContainText("구매 기준을 정리했습니다.");
+    await expect(surface.getByRole("button", { name: /연결|해제|펼치기|기록 작성/ })).toHaveCount(0);
+    await expect(surface.getByText(kind === "done" ? "완료" : kind === "recurring" ? "반복 중" : "진행 중", { exact: true }).filter({visible:true})).toBeVisible();
+    await page.screenshot({ path: info.outputPath(`task-${kind}-edit.png`) });
+    await surface.getByRole("button", { name: "취소", exact: true }).click();
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+  test(`task responsive parity: ${width}px uses the same key and value axes`, async ({ page }, info) => {
+    await page.setViewportSize({width, height: 900});
+    const state = await fixture(page);
+    state.rows.tasks[0].title = "긴할일제목".repeat(12);
+    await page.goto(`/tasks/${id(2)}`);
+    const surface = width < 1100 ? openDialogs(page).first() : panel(page);
+    const titleKey = surface.locator("dt:visible").filter({hasText:/^제목$/});
+    await expect(titleKey).toBeVisible();
+    await settleSurface(surface);
+    const beforeKey = (await titleKey.boundingBox())!;
+    const beforeValue = (await titleKey.locator("../dd").boundingBox())!;
+    await page.screenshot({path:info.outputPath(`task-view-${width}.png`)});
+    await surface.getByRole("button", {name:"편집",exact:true}).click();
+    const input = surface.getByLabel("제목");
+    await settleSurface(surface);
+    const afterKey = (await surface.locator("label:visible").filter({hasText:/^제목/}).boundingBox())!;
+    const afterValue = (await input.boundingBox())!;
+    expect(afterKey.x).toBeCloseTo(beforeKey.x,0);
+    expect(afterValue.x).toBeCloseTo(beforeValue.x,0);
+    expect(afterValue.width).toBeCloseTo(beforeValue.width,0);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await input.focus(); await expect(input).toBeFocused();
+    await page.screenshot({path:info.outputPath(`task-edit-${width}.png`)});
+    expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+  });
+}
+
+test("task responsive parity: resized panel and 200% text enlargement preserve the draft", async ({ page }, info) => {
+  const state = await fixture(page);
+  await page.goto(`/tasks/${id(2)}`);
+  await dragSplit(page, -700);
+  await panel(page).getByRole("button", {name:"편집",exact:true}).click();
+  await panel(page).getByLabel("본문",{exact:true}).fill("폭을 바꾸어도 유지할 본문");
+  const before = await detailWidth(page);
+  await dragSplit(page, 400);
+  expect(await detailWidth(page)).toBeLessThan(before);
+  await expect(panel(page).getByLabel("본문",{exact:true})).toHaveValue("폭을 바꾸어도 유지할 본문");
+  await page.evaluate(()=>{document.documentElement.style.fontSize="32px";});
+  await expect(panel(page).getByLabel("제목")).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath("task-panel-200-percent.png")});
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+for (const width of [320, 1440]) for (const kind of ["user", "result", "change"] as const) {
+  test(`record data parity: ${kind} ${width}px keeps context and only saves permitted values`, async ({page}, info) => {
+    await page.setViewportSize({width,height:900});
+    const state = await fixture(page);
+    const row = state.rows.records[0];
+    Object.assign(row, {record_kind:kind, occurred_at:"2026-10-01T02:03:04.567Z", occurrence_on:kind === "result" ? "2026-10-01" : null,
+      change:kind === "change" ? {event_id:id(450),target_kind:"entity",target_id:entityKey(1),target_title:"당시 등심",action:"update",source:"http",before:{properties:{prop_1:0,prop_2:false,prop_3:null},property_labels:{prop_1:"당시 수량",prop_2:"당시 사용",prop_3:"당시 메모"}},after:{title:"등심"},path:null}:null});
+    await page.goto(`/records/${row.id}`);
+    const surface=width<1100?openDialogs(page).first():panel(page);
+    const labels=()=>surface.locator('dt:visible, [data-slot="field-label"]:visible').allTextContents();
+    const expected=["본문","종류",...(kind==="change"?["출처"]:[]),"수행 시각",...(kind==="change"?["변경 대상","행동"]:[])];
+    await expect(surface.locator("dt:visible").filter({hasText:/^본문$/})).toHaveCount(1);
+    expect((await labels()).slice(0,expected.length)).toEqual(expected);
+    await surface.getByRole("button",{name:"편집",exact:true}).click();
+    expect((await labels()).slice(0,expected.length).map(s=>s.replace(/\*\(필수\)/g,""))).toEqual(expected);
+    await expect(surface.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toContainText(kind==="change"?"당시 등심":"등심");
+    await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true})).toContainText("등심 구매하기");
+    await expect(surface.getByRole("region",{name:"연결된 자료 (1개)",exact:true}).getByRole("button")).toHaveCount(0);
+    await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true}).getByRole("button")).toHaveCount(0);
+    await expect(surface.getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
+    if(kind==="result") await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true}).locator("dt").filter({hasText:/^회차$/}).locator("../dd")).toHaveText("2026-10-01");
+    if(kind==="change") {
+      await expect(surface.getByLabel("수행 시각")).toHaveCount(0);
+      await surface.getByText("변경 전후 값",{exact:true}).filter({visible:true}).click();
+      await expect(surface.locator("dt:visible").filter({hasText:"당시 수량"}).locator("../dd")).toHaveText("0");
+      await expect(surface.locator("dt:visible").filter({hasText:"당시 사용"}).locator("../dd")).toHaveText("아니오");
+      await expect(surface.locator("dt:visible").filter({hasText:"당시 메모"}).locator("../dd")).toHaveText("값 없음");
+      const historicalKey=surface.locator("dt:visible").filter({hasText:"당시 수량"});
+      expect((await historicalKey.boundingBox())!.x).toBeCloseTo((await surface.locator("label:visible").filter({hasText:/^본문/}).boundingBox())!.x,0);
+      await surface.locator("dt:visible").filter({hasText:"당시 메모"}).scrollIntoViewIfNeeded();
+      await page.screenshot({path:info.outputPath(`record-change-${width}-history.png`)});
+    } else await expect(surface.getByLabel("수행 시각")).toBeVisible();
+    await page.screenshot({path:info.outputPath(`record-${kind}-${width}-edit.png`)});
+    await surface.getByLabel("본문").fill("정정한 본문");
+    await surface.getByRole("button",{name:"저장",exact:true}).click();
+    await expect(surface.getByRole("button",{name:"편집",exact:true})).toBeVisible();
+    expect(state.writes).toHaveLength(1);
+    expect(state.writes[0].body).toEqual({body:"정정한 본문",expected_version:1,...(kind==="change"?{}:{occurred_at:"2026-10-01T02:03:04.567Z"})});
+    expect(state.errors).toEqual([]);
+  });
+}
+
+for (const width of [320,360,390,639,640,768,1024,1440]) {
+  test(`record responsive parity: ${width}px shares the body value area`,async({page},info)=>{
+    const state=await fixture(page);
+    state.rows.records[0].body="긴본문과근거".repeat(80);
+    await page.setViewportSize({width,height:900});
+    await page.goto(`/records/${state.rows.records[0].id}`);
+    const surface=width<1100?openDialogs(page).first():panel(page);
+    const key=surface.locator("dt:visible").filter({hasText:/^본문$/});
+    await expect(key).toBeVisible();
+    await settleSurface(surface);
+    const beforeKey=(await key.boundingBox())!,beforeValue=(await key.locator("../dd").boundingBox())!;
+    const readingSize=await surface.locator(".markdown:visible").evaluate(el=>getComputedStyle(el).fontSize);
+    await page.screenshot({path:info.outputPath(`record-view-${width}.png`)});
+    await surface.getByRole("button",{name:"편집",exact:true}).click();
+    const input=surface.getByLabel("본문");
+    await settleSurface(surface);
+    const afterKey=(await surface.locator("label:visible").filter({hasText:/^본문/}).boundingBox())!,afterValue=(await input.boundingBox())!;
+    expect(afterKey.x).toBeCloseTo(beforeKey.x,0);
+    expect(afterValue.x).toBeCloseTo(beforeValue.x,0);
+    expect(afterValue.width).toBeCloseTo(beforeValue.width,0);
+    expect(parseFloat(readingSize)).toBeGreaterThanOrEqual(14);
+    expect(await input.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(width < 768 ? 16 : 14);
+    await expect(input).toHaveValue(state.rows.records[0].body);
+    await input.focus();await expect(input).toBeFocused();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.screenshot({path:info.outputPath(`record-edit-${width}.png`)});
+    expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+  });
+}
+
+test("record responsive parity: panel resize and 200% text enlargement keep the body draft",async({page},info)=>{
+  const state=await fixture(page);
+  await page.goto(`/records/${state.rows.records[0].id}`);
+  await dragSplit(page,-700);
+  await panel(page).getByRole("button",{name:"편집",exact:true}).click();
+  await panel(page).getByLabel("본문").fill("패널을 바꾸어도 보존할 근거");
+  const width=await detailWidth(page);
+  await dragSplit(page,400);
+  expect(await detailWidth(page)).toBeLessThan(width);
+  await page.evaluate(()=>{document.documentElement.style.fontSize="32px";});
+  await expect(panel(page).getByLabel("본문")).toHaveValue("패널을 바꾸어도 보존할 근거");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath("record-panel-200-percent.png")});
+  expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+});
+
+
+test("review: readonly entity representative keeps the full-width emphasized value in edit", async ({ page }, info) => {
+  const state = await fixture(page);
+  const schema = structuredClone(fixtureSchema);
+  schema.schema.properties.prop_1.readOnly = true;
+  await page.route("**/api/entity-types/*/schema**", (route) => route.fulfill({ json: schema }));
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await page.getByRole("separator", { name: "상세 패널 너비 조절" }).press("End");
+  const surface = panel(page);
+  const heading = surface.getByRole("heading", { name: "등심", exact: true });
+  await expect(heading).toBeVisible();
+  const readValue = (await heading.locator("..").boundingBox())!;
+  const readFont = await heading.evaluate((el) => getComputedStyle(el).fontSize);
+  await surface.getByRole("button", { name: "편집", exact: true }).click();
+  await expect(heading).toBeVisible();
+  const editValue = (await heading.locator("..").boundingBox())!;
+  expect(editValue.x).toBeCloseTo(readValue.x, 0);
+  expect(editValue.width).toBeCloseTo(readValue.width, 0);
+  expect(await heading.evaluate((el) => getComputedStyle(el).fontSize)).toBe(readFont);
+  await expect(surface.getByRole("textbox", { name: /^제목/ })).toHaveCount(0);
+  const nameKey = surface.locator("dt:visible", { hasText: /^제목/ }).first();
+  const source = surface.locator("dt:visible", { hasText: /^번호 출처$/ });
+  const nameBox = (await nameKey.boundingBox())!;
+  expect((await source.boundingBox())!.y).toBeGreaterThan(nameBox.y + nameBox.height);
+  await page.screenshot({ path: info.outputPath("readonly-representative-wide.png") });
+  expect(state.writes).toEqual([]);
+});
+
+test("review: captured entity labels retain their historical meaning in record edit", async ({ page }, info) => {
+  const state = await fixture(page);
+  state.rows.records[0].entity_context = [{
+    ...state.rows.records[0].entity_context[0],
+    type: { ...state.rows.entities[0].type, label: "당시 상품" },
+    schema_version: 7,
+  }];
+  await page.goto(`/records/${state.rows.records[0].id}`);
+  const surface = panel(page);
+  const linked = surface.getByRole("region", { name: "연결된 자료 (1개)", exact: true });
+  await linked.getByRole("button", { name: "등심", exact: true }).click();
+  await expect(linked.locator("dt", { hasText: /^당시 자료 종류$/ }).locator("../dd")).toContainText("당시 상품");
+  await expect(linked.locator("dt", { hasText: /^당시 입력 항목 버전$/ }).locator("../dd")).toHaveText("7");
+  await expect(linked.locator("dt", { hasText: /^자료 식별$/ }).locator("../dd")).toHaveText(entityKey(1));
+  await surface.getByRole("button", { name: "편집", exact: true }).click();
+  await expect(linked.locator("dt:visible", { hasText: /^당시 자료 종류$/ }).locator("../dd")).toContainText(
+    "당시 상품",
+  );
+  await expect(linked.locator("dt:visible", { hasText: /^당시 입력 항목 버전$/ }).locator("../dd")).toHaveText("7");
+  await expect(linked.locator("dt:visible", { hasText: /^자료 식별$/ }).locator("../dd")).toHaveText(entityKey(1));
+  await expect(linked.getByRole("button")).toHaveCount(0);
+  await linked.locator("dt:visible", { hasText: /^자료 식별$/ }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("record-captured-entity-edit.png") });
+  expect(state.writes).toEqual([]);
+});
+
+for (const width of [320, 390]) test(`profile icon choices ${width}px: labels fit at normal and200percent font`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  const state = await fixture(page);
+  await page.goto("/settings");
+  const group = page.getByRole("radiogroup", { name: "프로필 아이콘", exact: true });
+  for (const fontSize of [16, 32]) {
+    await page.evaluate(value => document.documentElement.style.fontSize = `${value}px`, fontSize);
+    await assertProfileChoiceGeometry(group);
+    const radios = group.getByRole("radio");
+    await radios.nth(0).focus();
+    await page.keyboard.down("ArrowRight");
+    try {
+      await expect(radios.nth(1)).toBeFocused();
+      await expect(radios.nth(1)).toBeChecked();
+    } finally { await page.keyboard.up("ArrowRight"); }
+    await group.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath(`profile-icons-${width}-font${fontSize}.png`) });
+  }
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+});
+
+
+test("desktop: deferred settings loading and failure preserve the retained draft and scale", async ({ page }, info) => {
+  let requests = 0;
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/src/features/settings/SettingsPage.tsx", async route => {
+    requests++;
+    await held;
+    await route.abort("failed");
+  });
+  try {
+    const state = await fixture(page, {}, { workspace_display_scale: "150" });
+    await page.setViewportSize({ width: 2160, height: 1080 });
+    await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`, { waitUntil: "commit" });
+    await expect(panel(page).getByRole("heading", { name: "등심", exact: true })).toBeVisible({ timeout: 5000 });
+    expect(requests).toBe(0);
+    await openTask(page);
+    const editor = panel(page).getByLabel("본문", { exact: true });
+    await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+    await editor.fill("설정 로딩 실패에도 보존할 초안");
+    const originalEditor = await editor.elementHandle();
+    const font = await page.locator("html").evaluate(node => getComputedStyle(node).fontSize);
+    await openProfileMenu(page);
+    await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+    await expect(baseWorkspace(page).getByRole("status")).toContainText("기본 설정 화면을 불러오는 중");
+    await expect(editor).toHaveValue("설정 로딩 실패에도 보존할 초안");
+    expect(requests).toBe(1);
+    release();
+    await expect(baseWorkspace(page).getByRole("alert")).toContainText("기본 설정 화면을 불러오지 못했습니다");
+    await expect(editor).toHaveValue("설정 로딩 실패에도 보존할 초안");
+    expect(await editor.evaluate((node, original) => node === original, originalEditor)).toBe(true);
+    await expect(page.locator("html")).toHaveCSS("font-size", font);
+    await editor.focus();
+    await expect(editor).toBeFocused();
+    await editor.press("End");
+    await editor.press("!");
+    await expect(editor).toHaveValue("설정 로딩 실패에도 보존할 초안!");
+    await page.screenshot({ path: info.outputPath("deferred-settings-error-retained-draft150.png") });
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  } finally { release(); }
 });

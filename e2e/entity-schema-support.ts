@@ -115,9 +115,11 @@ export async function seedFixtureEntities(
   values: Record<string, unknown>[],
 ) {
   const type = await scalarFixtureType(mcp);
-  const target = new URL(env.LOCAL_DB_URL);
+  const databaseUrl = env.LOCAL_DB_URL;
+  if (!databaseUrl) throw new Error("fixture seed requires LOCAL_DB_URL");
+  const target = new URL(databaseUrl);
   if (!["127.0.0.1", "localhost"].includes(target.hostname)) throw new Error("fixture seed requires a local database");
-  const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+  const admin = postgres(databaseUrl, { max: 1, onnotice: () => {} });
   const prefix = "fixture_" + crypto.randomUUID();
   const rows = values.map((properties, index) => ({
     owner_id: ownerId,

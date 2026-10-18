@@ -1,3 +1,4 @@
+import { openDialogs } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListDetail, openListEditor } from "./ui-actions.ts";
 import { beginTabAction, discardEditor, saveOnce } from "./ui-actions.ts";
@@ -24,7 +25,7 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
     await submit();
     await expect(form(page).getByRole("button", { name: "같은 내용 다시 시도" })).toBeVisible();
     await discardEditor(page);
-    await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
+    await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
     await expect(form(page)).toHaveCount(0);
     await begin();
     await fill("새 작성");
@@ -46,7 +47,7 @@ for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const
     await saveOnce(page, form(page));
     await expect(form(page).getByRole("button", { name: "같은 내용 다시 시도" })).toBeVisible();
     await discardEditor(page);
-    await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
+    await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
     await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}`);
     await compatibleEdit(page);
     if (kind === "records") await form(page).getByLabel("본문", { exact: false }).fill("새 수정");
@@ -63,11 +64,11 @@ test("dirty 작성 조건 이동 승인: create 유지 URL도 새 초안", async
   const state = await fixtures(page);
   await go(page, "/tasks?create=1");
   await fillText(page, "버릴 작성 초안");
-  // Native dialog makes background links inert; trigger the route guard through the fixture router.
-  await page.getByRole("link", { name: "작성 조건 변경 fixture" }).evaluate((el) =>
+  // The official modal hides background links; deliberately exercise the fixture router's guard.
+  await page.getByRole("link", { name: "작성 조건 변경 fixture", includeHidden: true }).evaluate((el) =>
     el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
   );
-  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "변경 버리기" }).click();
   await expect(page).toHaveURL(/tasks\?create=1&kind=recurring$/);
   await expect(form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ })).toHaveValue("");
@@ -83,7 +84,7 @@ for (const [kind, label, submit] of [["task", "할 일 작성", "추가"], ["rec
     await saveOnce(page, form(page), submit);
     await expect(form(page).getByRole("button", { name: "같은 내용 다시 시도" })).toBeVisible();
     await discardEditor(page);
-    await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
+    await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
     await expect(page).not.toHaveURL(/create=/);
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
     await form(page).getByRole("button", { name: label, exact: true }).click();
@@ -120,7 +121,7 @@ for (const [kind, label] of [["task", "할 일 작성"], ["record", "기록 작�
       if (dirty) await fillText(page, "폐기할 연결 작성");
       await form(page).getByRole("button", { name: "취소", exact: true }).click();
       if (dirty) {
-        const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+        const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
         await confirm.getByRole("button", { name: "취소", exact: true }).click();
         await expect(form(page).getByRole("textbox", { name: kind === "record" ? /^본문/ : /^제목/ })).toHaveValue(
           "폐기할 연결 작성",
@@ -149,7 +150,7 @@ test("엔터티 관련 작성은 URL·뒤로가기 초안 보호·reload·같은
   await expect(form(page)).toHaveCount(1);
   await fillText(page, "연결 업무");
   await page.goBack();
-  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ })).toHaveValue("연결 업무");
   await saveOnce(page, form(page), "추가");
@@ -218,7 +219,7 @@ for (const failure of ["unknown", "conflict"] as const) {
     await saveOnce(page, form(page));
     await expect(form(page).getByRole("alert")).toBeVisible();
     await discardEditor(page);
-    const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+    const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await confirm.getByRole("button", { name: "취소", exact: true }).click();
     await expect(form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ })).toHaveValue("보존할 초안");
     if (failure === "unknown") {
@@ -242,14 +243,14 @@ test("busy POP·dirty back/forward·reload·직접 링크", async ({ page }) => 
   await state.pending;
   await page.goBack();
   await expect(page).toHaveURL(/edit=1/);
-  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   state.release();
   await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
   await form(page).getByRole("button", { name: "닫기", exact: true }).click();
   await openListEditor(page, "할 일");
   await form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ }).fill("버리지 않을 초안");
   await page.goBack();
-  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ })).toHaveValue("버리지 않을 초안");
   await page.goBack();
@@ -285,7 +286,7 @@ test("저장 성공 후 GET 실패·조회만 재시도·서버 conflict 초안 
   await fillChangeMemo(page, form(page), "수정 사유");
   await saveOnce(page, form(page));
   await expect(form(page).getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toBeVisible();
-  await expect(form(page).locator(".detail-title").filter({ hasText: "최신 내용" })).toBeVisible();
+  await expect(form(page).getByRole("heading", { name: "최신 내용", exact: true })).toBeVisible();
   fail = false;
   await form(page).getByRole("button", { name: "조회 다시 시도" }).click();
   await expect(form(page).getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toHaveCount(0);
@@ -310,7 +311,7 @@ test("#229 엔터티 관련 작성 취소는 직접 편집 의도와 목록 문�
   const url = new URL(page.url());
   expect(url.searchParams.get("list")).toBe(list);
   for (const key of ["edit", "edit_from", "create"]) expect(url.searchParams.has(key)).toBe(false);
-  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(openDialogs(page)).toHaveCount(1);
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
@@ -331,6 +332,15 @@ test("미확정 저장 새로고침: 최소 메타데이터만 보관하고 자�
   expect(Object.keys(stored[0]).sort()).toEqual(["operation", "request_key", "status", "target"]);
   expect(JSON.stringify(stored)).not.toContain("비공개 초안 본문");
   await page.reload();
+  await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toHaveCount(1);
+  await expect(form(page).getByRole("alert").filter({ hasText: "이전 저장 결과" })).toBeVisible();
+  await expect(form(page).getByRole("textbox", { name: "제목 (필수)", exact: true })).toHaveValue("");
+  await expect(form(page).getByRole("textbox", { name: "본문", exact: true })).toHaveValue("");
+  expect(state.writes).toHaveLength(1);
+  await form(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(form(page)).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toHaveCount(1);
   await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toBeVisible();
   expect(state.writes).toHaveLength(1);
   expect(state.errors).toEqual([]);

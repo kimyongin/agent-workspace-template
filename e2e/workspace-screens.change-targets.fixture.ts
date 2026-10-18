@@ -47,11 +47,11 @@ for (const kind of ["entity", "task"] as const) {
         const entities = form(page).getByRole("region", { name: "연결된 자료 (2개)", exact: true }),
           tasks = connectedTarget(page, "task");
         await expect(entities).toHaveCount(1);
-        await expect(entities.locator(".related-item")).toHaveCount(2);
-        await expect(tasks.locator(".related-item")).toHaveCount(1);
+        await expect(entities.getByRole("listitem")).toHaveCount(2);
+        await expect(tasks.getByRole("listitem")).toHaveCount(1);
         await expect(form(page).getByRole("heading", { name: /^변경 대상/ })).toHaveCount(0);
         const changed = kind === "entity" ? entities : tasks;
-        await expect(changed.locator(".related-item").filter({ hasText: "당시 대상" })).toHaveCount(1);
+        await expect(changed.getByRole("listitem").filter({ hasText: "당시 대상" })).toHaveCount(1);
         await changed.getByRole("button", { name: "당시 대상", exact: true }).click();
         await expect(entities.getByRole("button", { name: "다른 연결 엔터티", exact: true })).toHaveAttribute(
           "aria-expanded",
@@ -65,7 +65,7 @@ for (const kind of ["entity", "task"] as const) {
             "true",
           );}
         if (kind === "task") {
-          await expect(tasks).toContainText("2026-10-04 회차");
+          await expect(tasks.locator("dt").filter({hasText:/^회차$/}).first().locator("../dd")).toHaveText("2026-10-04");
           if (!deleted) await expect(tasks).toContainText("진행 중");
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -110,7 +110,7 @@ for (const [kind, route, n] of targetCases) {
       );
       await go(page, `/records/${r.id}`);
       const target = connectedTarget(page, kind);
-      await expect(target.locator(".related-item .item-title")).toContainText(change.target_title);
+      await expect(target.getByRole("button", { name: change.target_title, exact: true })).toContainText(change.target_title);
       const link = target.getByRole("button", { name: change.target_title, exact: true });
       if (outcome === "exists") await expect(link).toHaveAttribute("aria-expanded", "false");
       else if (outcome === "failed") {
@@ -221,11 +221,11 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
     await endpoint.fulfill({ json: state.rows.entities[0] }).catch(() => {});
   });
   await go(page, "/records");
-  await expect(page.locator(".records .list")).not.toContainText("첫 대상");
-  await page.locator(".records .list .item-title").first().click();
-  await expect(page.locator(".records .list")).toContainText("첫 대상");
+  await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("첫 대상");
+  await page.locator("[data-list-anchor]").first().click();
+  await expect(page.getByRole("region", { name: "기록 목록", exact: true })).toContainText("첫 대상");
   expect(reads).toBe(0);
-  await expect(page.locator(".records .list")).not.toContainText("삭제된 대상");
+  await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("삭제된 대상");
   await go(page, `/records/${r.id}`);
   await connectedTarget(page, "entity").getByRole("button", { name: "첫 대상", exact: true }).click();
   await expect(connectedTarget(page, "entity").getByRole("status")).toBeVisible();
