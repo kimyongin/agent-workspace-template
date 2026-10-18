@@ -17,12 +17,10 @@ import {
   EmptyTitle,
 } from "../../components/ui/empty.tsx";
 import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemGroup,
-  ItemTitle,
-} from "../../components/ui/item.tsx";
+  BusinessCell,
+  BusinessRow,
+  BusinessTable,
+} from "../../components/BusinessTable.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 export function WorkspacesPage() {
@@ -74,7 +72,7 @@ export function WorkspacesPage() {
     }
   };
   return (
-    <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-6">
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">내 공간</h1>
         <Button onClick={() => setCreating(true)}>새 공간 만들기</Button>
@@ -98,20 +96,22 @@ export function WorkspacesPage() {
         )
         : items.length
         ? (
-          <ItemGroup>
+          <BusinessTable
+            columns={["공간", "작업"]}
+            label="공간 목록"
+            disclosureColumn={false}
+          >
             {items.map((item) => (
-              <Item key={item.id} variant="outline">
-                <ItemContent>
-                  <ItemTitle>{item.name}</ItemTitle>
-                </ItemContent>
-                <ItemActions>
+              <BusinessRow key={item.id}>
+                <BusinessCell index={0}>{item.name}</BusinessCell>
+                <BusinessCell index={1}>
                   <Button asChild variant="outline">
                     <Link to={workspacePath(item.id)}>열기</Link>
                   </Button>
-                </ItemActions>
-              </Item>
+                </BusinessCell>
+              </BusinessRow>
             ))}
-          </ItemGroup>
+          </BusinessTable>
         )
         : (
           <Empty>

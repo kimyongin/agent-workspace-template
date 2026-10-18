@@ -24,13 +24,10 @@ import {
 import { Alert, AlertDescription } from "../../components/ui/alert.tsx";
 import { Badge } from "../../components/ui/badge.tsx";
 import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from "../../components/ui/item.tsx";
+  BusinessCell,
+  BusinessRow,
+  BusinessTable,
+} from "../../components/BusinessTable.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
 import {
   Empty,
@@ -50,6 +47,46 @@ const defaults: WorkspaceGrant[] = [{
   target_id: "*",
   access: "none",
 }, { target_kind: "settings", target_id: "*", access: "none" }];
+function displayName(
+  member: WorkspaceMember & { display_name?: string | null },
+) {
+  return member.display_name?.trim() ?? "";
+}
+function memberLabel(member: WorkspaceMember, peers: WorkspaceMember[] = []) {
+  const name = displayName(member);
+  const ambiguous = !name ||
+    peers.some((other) =>
+      other.user_id !== member.user_id && displayName(other) === name
+    );
+  return `${name || "이름 없는 참여자"}${
+    ambiguous ? ` · ${member.user_id.slice(-6)}` : ""
+  }`;
+}
+function GrantSummary(
+  { grants, targets }: { grants: WorkspaceGrant[]; targets: Target[] },
+) {
+  if (!grants.length) return <span>부여한 권한 없음</span>;
+  return (
+    <ul className="flex flex-col gap-1">
+      {grants.map((grant) => (
+        <li key={`${grant.target_kind}:${grant.target_id}`}>
+          {grant.target_kind === "tasks"
+            ? "할 일"
+            : grant.target_kind === "settings"
+            ? "설정"
+            : targets.find((target) =>
+              target.id === grant.target_id
+            )?.label ?? `자료 종류 · ${grant.target_id.slice(-6)}`}{" "}
+          {grant.access === "write"
+            ? "읽기·쓰기"
+            : grant.access === "read"
+            ? "읽기"
+            : "접근 불가"}
+        </li>
+      ))}
+    </ul>
+  );
+}
 export function WorkspaceManagementPage() {
   const api = useApi(),
     { workspaceId, actorId } = useRequestScope(),
@@ -166,7 +203,7 @@ export function WorkspaceManagementPage() {
     }
   };
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 sm:p-6">
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold">공간 관리</h1>
@@ -268,44 +305,53 @@ export function WorkspaceManagementPage() {
                   </p>
                 )
                 : (
-                  <ItemGroup>
+                  <BusinessTable
+                    columns={["참여자", "권한", "작업"]}
+                    label="참여자"
+                    disclosureColumn={false}
+                  >
                     {members.map((member) => (
-                      <Item key={member.user_id} variant="outline">
-                        <ItemContent>
-                          <ItemTitle className="break-all">
-                            {member.user_id}
+                      <BusinessRow key={member.user_id}>
+                        <BusinessCell index={0}>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>{memberLabel(member, members)}</span>
                             {member.user_id === actorId && (
                               <Badge variant="secondary">나</Badge>
                             )}
-                          </ItemTitle>
-                          <ItemDescription>
-                            {member.grants.length}개 대상 권한
-                          </ItemDescription>
-                        </ItemContent>
-                        <ItemActions>
-                          <Button
-                            variant="outline"
-                            onClick={() =>
-                              setEdit({ kind: "member", member })}
-                          >
-                            권한 편집
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() =>
-                              setRemoval({
-                                kind: member.user_id === actorId
-                                  ? "leave"
-                                  : "member",
-                                member,
-                              })}
-                          >
-                            {member.user_id === actorId ? "탈퇴" : "제외"}
-                          </Button>
-                        </ItemActions>
-                      </Item>
+                          </div>
+                        </BusinessCell>
+                        <BusinessCell index={1}>
+                          <GrantSummary
+                            grants={member.grants}
+                            targets={targets}
+                          />
+                        </BusinessCell>
+                        <BusinessCell index={2}>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() =>
+                                setEdit({ kind: "member", member })}
+                            >
+                              권한 편집
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() =>
+                                setRemoval({
+                                  kind: member.user_id === actorId
+                                    ? "leave"
+                                    : "member",
+                                  member,
+                                })}
+                            >
+                              {member.user_id === actorId ? "탈퇴" : "제외"}
+                            </Button>
+                          </div>
+                        </BusinessCell>
+                      </BusinessRow>
                     ))}
-                  </ItemGroup>
+                  </BusinessTable>
                 )}
             </section>
             <section
@@ -318,14 +364,24 @@ export function WorkspaceManagementPage() {
               {!invitations.length
                 ? <p className="text-muted-foreground">보낸 초대가 없습니다.</p>
                 : (
-                  <ItemGroup>
+                  <BusinessTable
+                    columns={["이메일", "권한", "상태", "작업"]}
+                    label="초대"
+                    disclosureColumn={false}
+                  >
                     {invitations.map((invitation) => (
-                      <Item key={invitation.id} variant="outline">
-                        <ItemContent>
-                          <ItemTitle className="break-all">
-                            {invitation.email}
-                          </ItemTitle>
-                          <ItemDescription>
+                      <BusinessRow key={invitation.id}>
+                        <BusinessCell index={0}>
+                          {invitation.email}
+                        </BusinessCell>
+                        <BusinessCell index={1}>
+                          <GrantSummary
+                            grants={invitation.grants}
+                            targets={targets}
+                          />
+                        </BusinessCell>
+                        <BusinessCell index={2}>
+                          <div className="flex flex-col items-start gap-2">
                             <Badge variant="secondary">
                               {invitation.revoked_at
                                 ? "취소됨"
@@ -338,9 +394,9 @@ export function WorkspaceManagementPage() {
                             </Badge>
                             {invitation.delivery && (
                               <span>
-                                · {({
+                                {({
                                   pending: "이메일 전달 대기",
-                                  sent: "이메일 서비스 접수",
+                                  sent: "발송 접수",
                                   failed: "이메일 전달 실패",
                                   unknown: "이메일 전달 결과 불명",
                                   unconfigured: "직접 링크 전달 필요",
@@ -349,27 +405,29 @@ export function WorkspaceManagementPage() {
                                 ]}
                               </span>
                             )}
-                          </ItemDescription>
-                        </ItemContent>
-                        <ItemActions>
-                          {!invitation.revoked_at && !invitation.accepted_at &&
-                            ["failed", "unknown", "unconfigured"].includes(
-                              invitation.delivery?.status ?? "",
-                            ) && (
-                            <Button
-                              variant="outline"
-                              disabled={busy || uncertain}
-                              onClick={() => {
-                                void retryDelivery(invitation);
-                              }}
-                            >
-                              {invitation.delivery?.status === "unknown"
-                                ? "전달 결과 다시 확인"
-                                : "이메일 전달 다시 요청"}
-                            </Button>
-                          )}
-                          {!invitation.revoked_at && !invitation.accepted_at &&
-                            (
+                          </div>
+                        </BusinessCell>
+                        <BusinessCell index={3}>
+                          <div className="flex flex-wrap gap-2">
+                            {!invitation.revoked_at &&
+                              !invitation.accepted_at &&
+                              ["failed", "unknown", "unconfigured"].includes(
+                                invitation.delivery?.status ?? "",
+                              ) && (
+                              <Button
+                                variant="outline"
+                                disabled={busy || uncertain}
+                                onClick={() => {
+                                  void retryDelivery(invitation);
+                                }}
+                              >
+                                {invitation.delivery?.status === "unknown"
+                                  ? "전달 결과 다시 확인"
+                                  : "이메일 전달 다시 요청"}
+                              </Button>
+                            )}
+                            {!invitation.revoked_at &&
+                              !invitation.accepted_at && (
                               <Button
                                 variant="outline"
                                 onClick={() =>
@@ -381,10 +439,11 @@ export function WorkspaceManagementPage() {
                                 초대 취소
                               </Button>
                             )}
-                        </ItemActions>
-                      </Item>
+                          </div>
+                        </BusinessCell>
+                      </BusinessRow>
                     ))}
-                  </ItemGroup>
+                  </BusinessTable>
                 )}
             </section>
           </>
@@ -514,7 +573,9 @@ function GrantEditor(
   return (
     <ModalShell
       title={edit.kind === "invite" ? "이메일로 초대" : "참여자 권한 편집"}
-      description="대상별 권한을 명시적으로 지정합니다. 설정 쓰기는 공간 관리 권한을 포함합니다."
+      description={`${
+        edit.kind === "member" ? `${memberLabel(edit.member)}의 ` : ""
+      }대상별 권한을 지정합니다. 설정 쓰기는 공간 관리 권한을 포함합니다.`}
       open
       onClose={onClose}
       dirty={dirty || uncertain}

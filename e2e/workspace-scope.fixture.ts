@@ -189,6 +189,7 @@ test(
           json: {
             items: [{
               user_id: actor,
+              display_name: "김도윤",
               version: 1,
               grants: [{
                 target_kind: "settings",
@@ -200,8 +201,24 @@ test(
         }),
     );
     await page.route("**/api/workspaces/*/invitations", (route) => {
-      if (route.request().method() !== "POST") return route.fallback();
+      if (route.request().method() !== "POST") {
+        return route.fulfill({
+          json: { items: invitation ? [invitation] : [] },
+        });
+      }
       input = route.request().postDataJSON();
+      invitation = {
+        id: "00000000-0000-4000-8000-000000000990",
+        workspace_id: a,
+        version: 1,
+        email: input!.email,
+        grants: input!.grants,
+        expires_at: "2099-01-01T00:00:00Z",
+        revoked_at: null,
+        accepted_at: null,
+        accepted_by: null,
+        delivery: { status: "pending" },
+      };
       return route.fulfill({
         status: 201,
         json: {
@@ -212,6 +229,15 @@ test(
       });
     });
     await page.goto(`/w/${a}/manage`);
+    const membersTable = page.getByRole("table", {
+      name: "참여자",
+      exact: true,
+    });
+    await expect(membersTable).toBeVisible();
+    await expect(membersTable.getByText("김도윤", { exact: true }))
+      .toBeVisible();
+    await expect(membersTable.getByText("설정 읽기·쓰기", { exact: true }))
+      .toBeVisible();
     await page.getByRole("button", { name: "이메일로 초대", exact: true })
       .click();
     await page.getByRole("textbox", { name: "초대할 이메일", exact: true })
@@ -238,6 +264,17 @@ test(
         exact: false,
       }),
     ).toBeVisible();
+    const invitationsTable = page.getByRole("table", {
+      name: "초대",
+      exact: true,
+    });
+    await expect(
+      invitationsTable.getByText("guest@example.test", { exact: true }),
+    ).toBeVisible();
+    await expect(invitationsTable.getByText("할 일 읽기·쓰기", { exact: true }))
+      .toBeVisible();
+    await expect(page.getByText("보낸 초대가 없습니다.", { exact: true }))
+      .toHaveCount(0);
     expect(input).toEqual({
       email: "guest@example.test",
       grants: [{ target_kind: "settings", target_id: "*", access: "none" }, {
@@ -256,6 +293,9 @@ test(
       fullPage: true,
     });
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.screenshot({ path: info.outputPath("workspace-management-desktop.png"), fullPage: true });
+    await page.screenshot({
+      path: info.outputPath("workspace-management-desktop.png"),
+      fullPage: true,
+    });
   },
 );
