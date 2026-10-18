@@ -16,9 +16,31 @@ import type { WorkspaceActor } from "../../functions/_shared/core/workspaces/app
 const admin = connect(urls.admin, { max: 1 });
 const sql = connect(urls.direct, { max: 1, prepare: false });
 const rootUrl = new URL(urls.admin);
-rootUrl.username = "postgres";
-rootUrl.password = "postgres";
+rootUrl.username = "supabase_admin";
 const root = connect(rootUrl.toString(), { max: 1 });
+
+// Keep the RNG override rollback-only while public entries use the real app_server → app_user seam.
+function rollbackConnection(tx: postgres.TransactionSql): postgres.Sql {
+  return {
+    begin: async (
+      optionsOrRun: string | ((t: postgres.TransactionSql) => Promise<unknown>),
+      run?: (t: postgres.TransactionSql) => Promise<unknown>,
+    ) => {
+      await tx`set local session authorization app_server`;
+      try {
+        const value = await (typeof optionsOrRun === "function" ? optionsOrRun : run!)(tx);
+        await tx`reset session authorization`;
+        return value;
+      } catch (error) {
+        // A failed statement may have aborted the enclosing savepoint. Preserve its original error.
+        try {
+          await tx`reset session authorization`;
+        } catch { /* rollback restores the session authorization with the savepoint */ }
+        throw error;
+      }
+    },
+  } as unknown as postgres.Sql;
+}
 
 // Exercise real adapters in one rollback transaction so the deterministic RNG never escapes the test.
 async function deterministic(
@@ -50,12 +72,7 @@ async function deterministic(
         perform set_config('test.id_calls',(n+1)::text,true);
         return '20261011-'||lpad(case when current_setting('test.id_exhaust',true)='true' or n=0 then '0' else n::text end,8,'0');
       end $$`);
-      const scoped = {
-        begin: (
-          optionsOrRun: string | ((t: postgres.TransactionSql) => Promise<unknown>),
-          run?: (t: postgres.TransactionSql) => Promise<unknown>,
-        ) => (typeof optionsOrRun === "function" ? optionsOrRun : run!)(tx),
-      } as unknown as postgres.Sql;
+      const scoped = rollbackConnection(tx);
       await runInWorkspace(scoped, f.member, {
         mode: "business",
         requirements: [
@@ -130,12 +147,7 @@ dbTest(
       await tx`select set_config('test.id_exhaust','true',true)`;
       const a = actor(member), input = taskCreate.parse({ kind: "once", title: "new" });
       await tx.savepoint(async (attempt) => {
-        const nested = {
-          begin: (
-            optionsOrRun: string | ((t: postgres.TransactionSql) => Promise<unknown>),
-            run?: (t: postgres.TransactionSql) => Promise<unknown>,
-          ) => (typeof optionsOrRun === "function" ? optionsOrRun : run!)(attempt),
-        } as unknown as postgres.Sql;
+        const nested = rollbackConnection(attempt);
         const error = await assertRejects(
           () => activity.createTask({ uow: new SqlUnitOfWork(nested), clock: { now: () => new Date() } }, a, input),
           AppError,
@@ -192,12 +204,7 @@ dbTest(
       for (const write of writes) {
         await reset(tx);
         await tx.savepoint(async (attempt) => {
-          const connection = {
-            begin: (
-              optionsOrRun: string | ((t: postgres.TransactionSql) => Promise<unknown>),
-              run?: (t: postgres.TransactionSql) => Promise<unknown>,
-            ) => (typeof optionsOrRun === "function" ? optionsOrRun : run!)(attempt),
-          } as unknown as postgres.Sql;
+          const connection = rollbackConnection(attempt);
           const error = await assertRejects(() => write(connection), AppError);
           assertEquals(error.code, "conflict");
           throw error;
