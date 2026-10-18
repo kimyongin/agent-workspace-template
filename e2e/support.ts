@@ -20,11 +20,7 @@ import {
 } from "@playwright/test";
 import { parse } from "smol-toml";
 import { runWorkspaceCleanup } from "../scripts/workspace-fixture-cleanup.mjs";
-import {
-  cleanupOwnedFixture,
-  type FixtureScope,
-  modelFixtureRoots,
-} from "../scripts/actual-fixture-cleanup.mjs";
+import { modelFixtureRoots } from "../scripts/workspace-model-fixture.mjs";
 
 export const env = parseEnv(
   readFileSync(
@@ -43,11 +39,9 @@ if (!/^http:\/\/(127\.0\.0\.1|localhost)/.test(SUPABASE)) {
   throw new Error("E2E는 로컬 Supabase에서만 실행합니다");
 }
 type Scope = {
-  owners: Map<string, FixtureScope>;
   clients: Set<() => Promise<void>>;
   contexts: Set<BrowserContext>;
   responses: Set<Promise<void>>;
-  tokens: Set<string>;
   workspaces: OwnedWorkspace[];
   workspaceCreations: {
     name: string;
@@ -78,7 +72,6 @@ type OwnedWorkspace = {
 };
 const pageSessions = new WeakMap<Page, { token: string; actorId: string }>();
 let activeScope: Scope | null = null;
-const tokenOwners = new Map<string, string>();
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Persist only IDs from a just-minted Auth response, never its bearer token. */
 function trackMintedSession(token: unknown) {
@@ -107,61 +100,6 @@ function tokenOwner(token: string) {
     return null;
   }
 }
-function ownerScope(owner: string) {
-  if (!activeScope || !uuid.test(owner)) return null;
-  // Owned-workspace suites clean their exact new root, never the actor's baseline data.
-  if (activeScope.workspaces.length) return null;
-  let scope = activeScope.owners.get(owner);
-  if (!scope) {
-    scope = {
-      ownerId: owner,
-      ids: {
-        entities: [],
-        tasks: [],
-        records: [],
-        tags: [],
-        entity_types: [],
-        entity_issuers: [],
-        entity_identifier_rules: [],
-        entity_relation_definitions: [],
-        data_model_changes: [],
-      },
-      requestKeys: [],
-    };
-    activeScope.owners.set(owner, scope);
-  }
-  return scope;
-}
-export function ownFixtureResult(
-  owner: string,
-  root: keyof FixtureScope["ids"],
-  id: string,
-  requestKey?: string,
-) {
-  const scope = ownerScope(owner);
-  if (!scope) return;
-  if (typeof id === "string" && !scope.ids[root]?.includes(id)) {
-    (scope.ids[root] ??= []).push(id);
-  }
-  if (
-    requestKey && uuid.test(requestKey) &&
-    !scope.requestKeys.includes(requestKey)
-  ) scope.requestKeys.push(requestKey);
-}
-function ownFixtureRequest(owner: string, key: unknown) {
-  const scope = ownerScope(owner);
-  if (
-    scope && typeof key === "string" && uuid.test(key) &&
-    !scope.requestKeys.includes(key)
-  ) scope.requestKeys.push(key);
-}
-function ownModelResult(owner: string, result: unknown, key?: string) {
-  for (const [root, ids] of Object.entries(modelFixtureRoots(result))) {
-    for (const id of ids) {
-      ownFixtureResult(owner, root as keyof FixtureScope["ids"], id, key);
-    }
-  }
-}
 function ownWorkspaceKinds(workspaceId: string | undefined, root: string, result: Record<string, unknown>) {
   const workspace = activeScope?.workspaces.find((value) => value.id === workspaceId);
   if (!workspace) return;
@@ -174,11 +112,9 @@ function ownWorkspaceKinds(workspaceId: string | undefined, root: string, result
 export const test = baseTest.extend<{ _ownedFixture: void }>({
   _ownedFixture: [async ({ context }, use, testInfo) => {
     const scope: Scope = {
-      owners: new Map(),
       clients: new Set(),
       contexts: new Set([context]),
       responses: new Set(),
-      tokens: new Set(),
       workspaces: [],
       workspaceCreations: [],
       actors: new Set(),
@@ -222,11 +158,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
         }
         return;
       }
-      if (/\/workspaces(?:\/|$)/.test(new URL(request.url()).pathname)) return;
-      const owner = tokenOwner(
-        request.headers().authorization?.replace(/^Bearer /i, "") ?? "",
-      );
-      if (owner) ownFixtureRequest(owner, request.headers()["idempotency-key"]);
+
     });
     context.on("response", (response) => {
       if (
@@ -247,29 +179,13 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
           : (["entities", "tasks", "records", "tags"] as const).find((root) =>
             path.endsWith(`/api/${root}`)
           );
-      const owner = tokenOwner(
-        response.request().headers().authorization?.replace(/^Bearer /i, "") ??
-          "",
-      );
-      if (!root || !owner) return;
+      if (!root) return;
       const read = (async () => {
         try {
           if (!await response.serverAddr()) return;
           const result = await response.json();
           ownWorkspaceKinds(response.request().headers()["x-workspace-id"], root, result);
-          if (root === "data_model_changes") {
-            ownModelResult(
-              owner,
-              result,
-              response.request().headers()["idempotency-key"],
-            );
-          }
-          ownFixtureResult(
-            owner,
-            root,
-            root === "entity_issuers" ? result.code : result.id,
-            response.request().headers()["idempotency-key"],
-          );
+
         } catch {
           /* Completed writes can still be recovered from this test's exact request receipts. */
         }
@@ -338,55 +254,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
             contentType: "application/json",
           });
         }
-        if (
-          [...scope.owners.values()].some((owner) =>
-            Object.values(owner.ids).some((ids) => ids?.length) ||
-            owner.requestKeys.length
-          )
-        ) {
-          if (testInfo.config.workers !== 1) {
-            throw new Error(
-              "actual fixture cleanup requires the serial local runner",
-            );
-          }
-          const file = process.env.ENTITY_SCHEMA_WORKER_CONFIG ??
-            new URL("../supabase/config.toml", import.meta.url);
-          const config = parse(readFileSync(file, "utf8")) as {
-            project_id: string;
-            api: { port: number };
-            db: { port: number };
-          };
-          const target = new URL(requiredEnv("LOCAL_DB_URL"));
-          if (
-            new URL(requiredEnv("VITE_SUPABASE_URL")).port !==
-              String(config.api.port) ||
-            Number(target.port) !== config.db.port
-          ) {
-            throw new Error(
-              "actual fixture cleanup configuration does not match API/database",
-            );
-          }
-          const environment = {
-            name: config.project_id,
-            host: target.hostname,
-            port: config.db.port,
-            database: decodeURIComponent(target.pathname.slice(1)),
-          };
-          const reports = [];
-          for (const owner of scope.owners.values()) {
-            reports.push(
-              ...await cleanupOwnedFixture(
-                requiredEnv("LOCAL_DB_URL"),
-                environment,
-                owner,
-              ),
-            );
-          }
-          await testInfo.attach("owned-fixture-cleanup", {
-            body: JSON.stringify(reports),
-            contentType: "application/json",
-          });
-        }
+
       } catch (error) {
         cleanupErrors.push(error);
       } finally {
@@ -435,7 +303,6 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
           }
         }
         scope.persist();
-        for (const token of scope.tokens) tokenOwners.delete(token);
         activeScope = null;
       }
       if (cleanupErrors.length) {
@@ -829,11 +696,6 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
   })).json();
   trackMintedSession(token.access_token);
   expect(token.access_token).toBeTruthy();
-  const owner = tokenOwner(token.access_token);
-  if (owner) {
-    tokenOwners.set(token.access_token, owner);
-    activeScope?.tokens.add(token.access_token);
-  }
   return token.access_token;
 }
 
@@ -846,7 +708,7 @@ export async function mcpClient(
     throw new Error("explicit MCP workspace identity required");
   }
   const client = new Client({ name: "e2e-agent", version: "0.0.0" });
-  const owner = tokenOwners.get(token) ?? tokenOwner(token);
+  const owner = tokenOwner(token);
   let closed = false;
   const close = async () => {
     if (!closed) {
@@ -883,7 +745,6 @@ export async function mcpClient(
       if (writing && activeScope && !owner) {
         throw new Error("authenticated MCP fixture owner missing");
       }
-      if (writing && owner) ownFixtureRequest(owner, args.request_key);
       const res = await client.callTool({ name, arguments: args });
       if (res.isError) {
         throw new Error(
@@ -912,28 +773,6 @@ export async function mcpClient(
           | "create_tag"
       ];
       if (root) ownWorkspaceKinds(workspaceId, root, result);
-      if (name === "prepare_data_model" && owner) {
-        ownModelResult(owner, result, String(args.request_key));
-      }
-      if (root && owner) {
-        ownFixtureResult(
-          owner,
-          root,
-          root === "entity_issuers" ? result.code : result.id,
-          String(args.request_key),
-        );
-      }
-      if (["complete_task", "record_occurrence"].includes(name) && owner) {
-        const record = name === "complete_task" ? result.record : result;
-        if (record?.id) {
-          ownFixtureResult(
-            owner,
-            "records",
-            record.id,
-            String(args.request_key),
-          );
-        }
-      }
       if (scope && activeScope) {
         const workspace = activeScope.workspaces.find((value) =>
           value.id === scope.workspaceId

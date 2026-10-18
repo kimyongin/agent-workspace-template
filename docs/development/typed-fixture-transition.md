@@ -29,4 +29,4 @@
 
 브라우저 등록은 실제 API 설정 하나와 fixture 설정 열 개다. [실행 기준](verification.md)에 등록된 순서로 직렬 실행하며 root가 할당한 실제 설정은 실행 인자의 `--actual-config`로 교체한다. 실제 DB·HTTP·OAuth MCP·브라우저 성공과 메모리 adapter·정적 패키지·문법·단위 검사 성공을 구별한다.
 
-[명시 데모 정리](../operations/demo-cleanup.md)는 환경·owner·승인 ID와 dryrun digest를 기준으로 수행한다. 복구 원본·색인·큐·관계의 의존성을 함께 검사하고 다른 자료로 범위를 확대하지 않는다. Auth/OAuth·개인 설정·무관 템플릿을 보존한다. 이 개발 티켓은 운영 배포·운영 자료 삭제·정기 worker 활성화의 실행 증거가 아니다.
+[명시 데모 정리](../operations/demo-cleanup.md)는 환경·공간·승인 ID와 dryrun digest를 기준으로 수행한다. 복구 원본·색인·큐·관계의 의존성을 함께 검사하고 다른 자료로 범위를 확대하지 않는다. Auth/OAuth·개인 설정·무관 템플릿을 보존한다. 이 개발 티켓은 운영 배포·운영 자료 삭제·정기 worker 활성화의 실행 증거가 아니다.

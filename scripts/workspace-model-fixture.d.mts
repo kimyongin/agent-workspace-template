@@ -1,0 +1,1 @@
+export function modelFixtureRoots(result: unknown): { data_model_changes: string[]; entity_types: string[]; entity_relation_definitions: string[]; entity_issuers: string[]; entity_identifier_rules: string[] };
