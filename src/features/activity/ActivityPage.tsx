@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { useTaskAccess } from "./task-access.ts";
 import { NativeSelect } from "@/components/ui/native-select";
 import { NativeSelectOption } from "@/components/ui/native-select";
@@ -73,7 +74,7 @@ function ActivitySection(
     const time = "occurred_at" in item ? item.occurred_at : (item as SearchItem).at;
     const cells = kind === "tasks"
       ? [
-        "status" in item ? <StatusBadge status={item.status} /> : null,
+        "status" in item ? "deleted_at" in item && item.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : <StatusBadge status={item.status} /> : null,
         "status" in item ? taskLabels[item.kind as TaskResult["kind"]] : null,
         "due_on" in item ? item.due_on : null,
       ]
@@ -113,7 +114,7 @@ function ActivitySection(
         </div>
         {q && (
           <p className="text-sm text-muted-foreground">
-            관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}
+            {list.semanticSearching ? "관련도순으로 회수한 검색 결과" : "키워드 검색 결과"}{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}
           </p>
         )}
         {metadata?.search_state === "keyword_fallback" && (
@@ -237,7 +238,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
     next.set("create", "1");
     setParams(next);
   };
-  const filterKeys = ["tag_id", "tag_ids", "entity_id", "kind", "status", "record_kind", "from", "to"];
+  const filterKeys = ["tag_id", "tag_ids", "entity_id", "kind", "status", "deleted", "record_kind", "from", "to"];
   const editing = useFilterDraft(pickFilterParams(params, filterKeys), kind);
   const draftTags = activityTags(editing.draft).slice(0, ACTIVITY_TAG_LIMIT);
   const [filterError, setFilterError] = useState("");
@@ -289,7 +290,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
               }}
               onApply={applyFilters}
               active={!!(tags.length || params.get("entity_id") || params.get("kind") || params.get("status") ||
-                params.get("record_kind") || from || to)}
+                params.get("record_kind") || params.get("deleted") || from || to)}
               attention={!checked || dictionary.failed || trimmedTags}
               summary={[
                 ...tags.map((id) => `태그: ${dictionary.tags?.find((tag) => tag.id === id)?.name ?? "선택됨"}`),
@@ -298,6 +299,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                 params.get("status")
                   ? `상태: ${taskLabels[params.get("status") as keyof typeof taskLabels] ?? params.get("status")}`
                   : "",
+                params.get("deleted") ? `삭제 상태: ${params.get("deleted") === "only" ? "삭제된 할 일만" : "삭제된 할 일 포함"}` : "",
                 params.get("record_kind")
                   ? `종류: ${
                     recordKindNames[params.get("record_kind") as keyof typeof recordKindNames] ??
@@ -345,6 +347,15 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                                 {taskLabels[status as keyof typeof taskLabels] as string}
                               </NativeSelectOption>
                             ))}
+                          </NativeSelect>
+                        )}
+                      </Field>
+                      <Field label="삭제 상태">
+                        {(props) => (
+                          <NativeSelect {...props} value={editing.draft.get("deleted") ?? ""} onChange={event => filter("deleted", event.target.value)}>
+                            <NativeSelectOption value="">삭제되지 않은 할 일</NativeSelectOption>
+                            <NativeSelectOption value="include">삭제된 할 일 포함</NativeSelectOption>
+                            <NativeSelectOption value="only">삭제된 할 일만</NativeSelectOption>
                           </NativeSelect>
                         )}
                       </Field>

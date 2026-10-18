@@ -49,6 +49,7 @@ export function TaskDetailPage() {
         status: params.get("status"),
         tag_id: params.get("tag_id"),
         entity_id: params.get("entity_id"),
+        deleted: params.get("deleted"),
       })
     }`,
   );

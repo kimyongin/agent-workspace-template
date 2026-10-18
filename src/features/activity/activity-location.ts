@@ -24,7 +24,7 @@ export function activityLocation(kind: WorkspaceListKind, source: URLSearchParam
     params.delete("records_pages");
     changed = true;
   }
-  const unsupported = target === "tasks" ? ["record_kind", "from", "to"] : ["kind", "status"];
+  const unsupported = target === "tasks" ? ["record_kind", "from", "to"] : ["kind", "status", "deleted"];
   for (const key of [...unsupported, "collapsed"]) {
     if (params.has(key)) {
       params.delete(key);
