@@ -34,8 +34,12 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   definition(typeId: string, lock = false) {
     return loadBusinessEntityDefinition(this.tx, typeId, lock);
   }
-  getTypeIdentity(typeId: string, lock = false) {
-    return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId, lock);
+  async getTypeIdentity(typeId: string, lock = false) {
+    if (lock) {
+      const [locked] = await this.tx`select app.lock_business_entity_identity(${typeId}::uuid) as available`;
+      if (!locked.available) return null;
+    }
+    return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId);
   }
   async get(id: string, lock = false) {
     if (lock) {
