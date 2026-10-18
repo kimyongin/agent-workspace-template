@@ -1,7 +1,9 @@
-import { assertEquals } from "@std/assert";
-import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { assertEquals, assertRejects } from "@std/assert";
+import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
 import { businessWorkspaceFixture } from "./_workspace-business.ts";
+import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
+import { getBusinessSettings, updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import { SqlDataModelGroupStore } from "../../functions/_shared/adapters/supabase/data-model-group-store.ts";
 import {
@@ -35,7 +37,6 @@ dbTest("whole model analysis without conversion needs remains a private ready re
   }
 });
 
-import { assertRejects } from "@std/assert";
 import { applyDataModel, getDataModelChange } from "../../functions/_shared/core/data-model/application.ts";
 import { createEntity, getEntity } from "../../functions/_shared/core/entity/application.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -199,38 +200,39 @@ dbTest(
 
 import { changeDataModelGroup } from "../../functions/_shared/core/data-model/groups.ts";
 async function queuedGroup(analyzeOnly = false) {
-  const fixture = await fixtureOwner(admin);
+  const fixture = await businessWorkspaceFixture(admin, sql);
   try {
     const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
     for (const t of sample.entity_types.slice(0, 2)) t.schema.properties.prop_2 = { type: "string", "x-order": 20 };
     const source = { mode: "copy", document: JSON.stringify(sample) },
-      review = await previewDataModel(deps, fixture.actor, source);
-    const initial = await prepareDataModel(deps, requestActor(fixture.actor), {
+      review = await previewDataModel(deps, fixture.manager, source);
+    const initial = await prepareDataModel(deps, requestActor(fixture.manager), {
       ...source,
       preview_fingerprint: review.fingerprint,
     });
-    await applyDataModel(deps, requestActor(fixture.actor), initial.id, { expected_version: initial.version });
+    await applyDataModel(deps, requestActor(fixture.manager), initial.id, { expected_version: initial.version });
     const entityDeps = { uow: new SqlEntityUnitOfWork(sql) },
       ids = sample.entity_types.slice(0, 2).map((t) => review.mapping.types[t.ref]);
+    for (const id of ids) await fixture.grantKind(fixture.manager, id, "write");
     const entities = [];
     for (const [index, id] of ids.entries()) {
       entities.push(
-        await createEntity(entityDeps, requestActor(fixture.actor), {
+        await createEntity(entityDeps, requestActor(fixture.manager), {
           entity_type_id: id,
           schema_version: 1,
           properties: { prop_1: `기준${index}`, prop_2: String(41 + index) },
         }),
       );
     }
-    const before = await exportDataModel(deps, fixture.actor), target = structuredClone(before);
+    const before = await exportDataModel(deps, fixture.manager), target = structuredClone(before);
     for (const t of target.entity_types) {
       if (ids.includes(t.schema["x-type-id"])) t.schema.properties.prop_2 = { type: "integer", "x-order": 20 };
       else t.schema.description = "함께 게시";
     }
     target.relations[0].ends[0].label = "최종 관계";
     const input = { mode: "update", document: JSON.stringify(target) },
-      preview = await previewDataModel(deps, fixture.actor, input);
-    const saved = await prepareDataModel(deps, requestActor(fixture.actor), {
+      preview = await previewDataModel(deps, fixture.manager, input);
+    const saved = await prepareDataModel(deps, requestActor(fixture.manager), {
       ...input,
       preview_fingerprint: preview.fingerprint,
     });
@@ -238,7 +240,7 @@ async function queuedGroup(analyzeOnly = false) {
       type_ref: t.ref,
       migration: { rules: [{ op: "convert", key: "prop_2", to: "integer" }], overrides: [] },
     }));
-    await analyzeDataModel(deps, requestActor(fixture.actor), saved.id, {
+    await analyzeDataModel(deps, requestActor(fixture.manager), saved.id, {
       expected_version: saved.version,
       conversions,
     });
@@ -252,9 +254,9 @@ async function queuedGroup(analyzeOnly = false) {
       ) => convert(r.entity_id, r.properties, r.recovery_properties));
       await worker`select app.complete_entity_schema_analysis_batch(${b.id},${b.fence},${worker.json(rows)})`;
     }
-    const ready = await getDataModelChange(deps, fixture.actor, saved.id);
+    const ready = await getDataModelChange(deps, fixture.manager, saved.id);
     assertEquals(ready.status, "ready");
-    await applyDataModel(deps, requestActor(fixture.actor), saved.id, { expected_version: ready.version });
+    await applyDataModel(deps, requestActor(fixture.manager), saved.id, { expected_version: ready.version });
     return { fixture, id: saved.id, before, entities, entityDeps, ids, target };
   } catch (error) {
     await fixture.cleanup();
@@ -278,33 +280,58 @@ async function prepareUntilCommit(id: string) {
   throw Error("group did not become ready to commit");
 }
 dbTest(
-  "a late model identity publication failure rolls back every converted value, schema, record and index intent",
+  "a late model record publication failure rolls back every converted value, schema, record and index intent",
   async () => {
     const f = await queuedGroup();
     try {
       const batch = await prepareUntilCommit(f.id);
       const rows =
-        await admin`select r.record_id from private.entity_schema_migration_rows r join app.entity_schema_migrations j on j.owner_id=r.owner_id and j.id=r.job_id where j.owner_id=${f.fixture.actor.userId}::uuid and j.model_change_id=${f.id}::uuid and r.record_id is not null`;
-      const recordIds = rows.map((r) => String(r.record_id));
-      // Fault injection changes only this test-owned frozen target after acceptance.
-      await admin`update app.data_model_changes set plan=jsonb_set(plan,'{target,entity_types,0,identity,label}','""'::jsonb) where owner_id=${f.fixture.actor.userId}::uuid and id=${f.id}::uuid`;
+        await admin`select r.record_id,r.entity_id,r.record_body from private.entity_schema_migration_rows r join app.entity_schema_migrations j on j.workspace_id=r.workspace_id and j.id=r.job_id where j.workspace_id=${f.fixture.workspaceId}::uuid and j.model_change_id=${f.id}::uuid and r.record_id is not null order by j.type_id desc`;
+      const recordIds = rows.map((r) => String(r.record_id)), collision = rows[0];
+      // A valid existing record collides in the last child after earlier values/schema
+      // were published inside the savepoint. Accepted plans remain immutable.
+      await admin.begin(async (tx) => {
+        await tx`select set_config('request.workspace_id',${f.fixture.workspaceId},true)`;
+        await tx`insert into app.records(workspace_id,id,entity_id,created_by,body,record_kind,change_metadata)
+          values(${f.fixture.workspaceId},${collision.record_id},${collision.entity_id},${f.fixture.manager.userId},${collision.record_body},'change',${
+          tx.json({
+            event_id: collision.record_id,
+            target_kind: "entity",
+            target_id: collision.entity_id,
+            target_title: "의도한 충돌",
+            action: "update",
+            source: "http",
+            before: null,
+            after: null,
+            path: null,
+          })
+        })`;
+      });
+      const collisionBefore =
+        await admin`select * from app.records where workspace_id=${f.fixture.workspaceId} and id=${collision.record_id}`;
       const [result] =
         await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`;
       assertEquals(result.committed, false);
-      const failed = await getDataModelChange(deps, f.fixture.actor, f.id);
+      const failed = await getDataModelChange(deps, f.fixture.manager, f.id);
       assertEquals(failed.status, "failed");
       assertEquals(failed.result, null);
       assertEquals(failed.group?.retryable, false);
-      assertEquals(await exportDataModel(deps, f.fixture.actor), f.before);
+      assertEquals(await exportDataModel(deps, f.fixture.manager), f.before);
       for (const e of f.entities) {
-        assertEquals(
-          (await getEntity(f.entityDeps, f.fixture.actor, e.id)).properties,
+        const current = await getEntity(f.entityDeps, f.fixture.manager, e.id);
+        assertEquals([current.properties, current.version, current.schema_version], [
           e.properties,
-        );
+          e.version,
+          e.schema_version,
+        ]);
       }
       const [remaining] =
-        await admin`select (select count(*)::int from app.records where owner_id=${f.fixture.actor.userId}::uuid and id=any(${recordIds}::text[])) as records,(select count(*)::int from app.search_index_state where owner_id=${f.fixture.actor.userId}::uuid and id=any(${recordIds}::text[])) as indexes,(select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${f.fixture.actor.userId} and message->>'id'=any(${recordIds}::text[])) as queue`;
-      assertEquals(remaining, { records: 0, indexes: 0, queue: 0 });
+        await admin`select (select count(*)::int from app.records where workspace_id=${f.fixture.workspaceId}::uuid and id=any(${recordIds}::text[])) as records,(select count(*)::int from app.search_index_state where workspace_id=${f.fixture.workspaceId}::uuid and id=any(${recordIds}::text[])) as indexes,(select count(*)::int from pgmq.q_search_index where message->>'workspace_id'=${f.fixture.workspaceId} and message->>'id'=any(${recordIds}::text[])) as queue`;
+      assertEquals(remaining, { records: 1, indexes: 0, queue: 0 });
+      assertEquals(
+        await admin`select * from app.records where workspace_id=${f.fixture.workspaceId} and id=${collision.record_id}`,
+        collisionBefore,
+      );
     } finally {
       await f.fixture.cleanup();
     }
@@ -317,8 +344,8 @@ dbTest(
     try {
       const [claimed] = await worker`select app.claim_data_model_conversion() as batch`, batch = claimed.batch;
       const prepared = await prepareMigrationBatch(batch.child, new Date());
-      const current = await getDataModelChange(deps, f.fixture.actor, f.id);
-      const cancelled = await changeDataModelGroup(deps, requestActor(f.fixture.actor), f.id, {
+      const current = await getDataModelChange(deps, f.fixture.manager, f.id);
+      const cancelled = await changeDataModelGroup(deps, requestActor(f.fixture.manager), f.id, {
         expected_version: current.version,
       }, "cancel");
       assertEquals(cancelled.status, "cancelled");
@@ -327,9 +354,9 @@ dbTest(
           worker.json(prepared.results)
         }) as accepted`;
       assertEquals(old.accepted, false);
-      assertEquals(await exportDataModel(deps, f.fixture.actor), f.before);
+      assertEquals(await exportDataModel(deps, f.fixture.manager), f.before);
       const [material] =
-        await admin`select count(*)::int as n from private.entity_schema_migration_rows r join app.entity_schema_migrations j on j.owner_id=r.owner_id and j.id=r.job_id where j.owner_id=${f.fixture.actor.userId}::uuid and j.model_change_id=${f.id}::uuid`;
+        await admin`select count(*)::int as n from private.entity_schema_migration_rows r join app.entity_schema_migrations j on j.workspace_id=r.workspace_id and j.id=r.job_id where j.workspace_id=${f.fixture.workspaceId}::uuid and j.model_change_id=${f.id}::uuid`;
       assertEquals(material.n, 0);
     } finally {
       await f.fixture.cleanup();
@@ -339,24 +366,24 @@ dbTest(
 dbTest("a temporary whole model failure retries the same frozen child jobs without duplicate publication", async () => {
   const f = await queuedGroup();
   try {
-    const old = (await getDataModelChange(deps, f.fixture.actor, f.id)).group!.children.map((c) => c.job!.id);
+    const old = (await getDataModelChange(deps, f.fixture.manager, f.id)).group!.children.map((c) => c.job!.id);
     const [claimed] = await worker`select app.claim_data_model_conversion() as batch`, batch = claimed.batch;
     const [failure] =
       await worker`select app.fail_data_model_conversion(${batch.id},${batch.fence},${batch.child.id},${batch.child.fence},'migration_worker_failed',true) as accepted`;
     assertEquals(failure.accepted, true);
-    const failed = await getDataModelChange(deps, f.fixture.actor, f.id);
+    const failed = await getDataModelChange(deps, f.fixture.manager, f.id);
     assertEquals(failed.status, "failed");
     assertEquals(failed.group?.retryable, true);
-    const resumed = await changeDataModelGroup(deps, requestActor(f.fixture.actor), f.id, {
+    const resumed = await changeDataModelGroup(deps, requestActor(f.fixture.manager), f.id, {
       expected_version: failed.version,
     }, "retry");
     assertEquals(resumed.status, "queued");
-    assertEquals((await getDataModelChange(deps, f.fixture.actor, f.id)).group!.children.map((c) => c.job!.id), old);
+    assertEquals((await getDataModelChange(deps, f.fixture.manager, f.id)).group!.children.map((c) => c.job!.id), old);
     const ready = await prepareUntilCommit(f.id);
     const [result] =
       await worker`select app.commit_data_model_conversion(${ready.id},${ready.fence},${SEARCH_PIPELINE}) as committed`;
     assertEquals(result.committed, true);
-    const done = await getDataModelChange(deps, f.fixture.actor, f.id);
+    const done = await getDataModelChange(deps, f.fixture.manager, f.id);
     assertEquals(done.status, "applied");
     for (const child of done.group!.children) assertEquals(child.job?.result?.schema_version, 2);
   } finally {
@@ -369,8 +396,8 @@ dbTest("expired parent and child leases reject old stage/fail before a fenced re
     const [first] = await worker`select app.claim_data_model_conversion() as batch`, old = first.batch;
     const prepared = await prepareMigrationBatch(old.child, new Date());
     await admin.begin(async (tx) => {
-      await tx`update app.data_model_changes set lease_until=now()-interval '1 second' where owner_id=${f.fixture.actor.userId}::uuid and id=${f.id}::uuid`;
-      await tx`update app.entity_schema_migrations set lease_until=now()-interval '1 second' where owner_id=${f.fixture.actor.userId}::uuid and id=${old.child.id}::uuid`;
+      await tx`update app.data_model_changes set lease_until=now()-interval '1 second' where workspace_id=${f.fixture.workspaceId}::uuid and id=${f.id}::uuid`;
+      await tx`update app.entity_schema_migrations set lease_until=now()-interval '1 second' where workspace_id=${f.fixture.workspaceId}::uuid and id=${old.child.id}::uuid`;
     });
     const [expired] =
       await worker`select app.stage_data_model_conversion(${old.id},${old.fence},${old.child.id},${old.child.fence},${
@@ -410,16 +437,20 @@ dbTest(
       const settings = {
         entity_types: { [other.schema["x-type-id"]]: { update: { memo: "바뀐 템플릿 $대상$ $액션$", tag_ids: [] } } },
       };
-      await admin`insert into app.user_business_settings(owner_id,id,version,settings) values(${f.fixture.actor.userId}::uuid,'record_templates',1,${
-        admin.json(settings)
-      }) on conflict(owner_id,id) do update set settings=excluded.settings,version=app.user_business_settings.version+1`;
+      const settingsDeps = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
+      const currentSettings = await getBusinessSettings(settingsDeps, f.fixture.manager);
+      await updateBusinessSettings(settingsDeps, requestActor(f.fixture.manager), {
+        id: "record_templates",
+        expected_version: currentSettings.versions.record_templates,
+        value: settings,
+      });
       const [result] =
         await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`;
       assertEquals(result.committed, false);
-      const state = await getDataModelChange(deps, f.fixture.actor, f.id);
+      const state = await getDataModelChange(deps, f.fixture.manager, f.id);
       assertEquals(state.status, "failed");
       assertEquals(state.group?.failure_reason, "schema_plan_stale");
-      assertEquals(await exportDataModel(deps, f.fixture.actor), f.before);
+      assertEquals(await exportDataModel(deps, f.fixture.manager), f.before);
     } finally {
       await f.fixture.cleanup();
     }
@@ -427,40 +458,90 @@ dbTest(
 );
 
 dbTest(
-  "whole model account deletion cascades durable children without touching another owner's queued group",
+  "whole model account deletion preserves shared durable data, detaches initiators and requires current authority",
   async () => {
-    const removed = await queuedGroup(), retained = await queuedGroup();
+    const removed = await queuedGroup();
+    let retained: Awaited<ReturnType<typeof queuedGroup>> | undefined;
     try {
-      const before = await getDataModelChange(deps, retained.fixture.actor, retained.id);
-      await removed.fixture.cleanup();
-      const [rows] =
-        await admin`select (select count(*)::int from app.data_model_children where owner_id=${removed.fixture.actor.userId}::uuid) as children,(select count(*)::int from app.entity_schema_migrations where owner_id=${removed.fixture.actor.userId}::uuid) as jobs,(select count(*)::int from app.data_model_changes where owner_id=${removed.fixture.actor.userId}::uuid) as models`;
-      assertEquals(rows, { children: 0, jobs: 0, models: 0 });
-      assertEquals(await getDataModelChange(deps, retained.fixture.actor, retained.id), before);
+      const batch = await prepareUntilCommit(removed.id);
+      retained = await queuedGroup();
+      const survivor = removed.fixture.member;
+      await removed.fixture.grant(survivor, [{ target_kind: "settings", target_id: "*", access: "write" }]);
+      for (const type of removed.target.entity_types) {
+        await removed.fixture.grantKind(survivor, type.schema["x-type-id"], "write");
+      }
+      const before = await getDataModelChange(deps, retained.fixture.manager, retained.id);
+      const shared = await getDataModelChange(deps, survivor, removed.id);
+      const durableIds = async () => ({
+        children:
+          (await admin`select change_id,job_id from app.data_model_children where workspace_id=${removed.fixture.workspaceId}::uuid and model_id=${removed.id}::uuid order by change_id`)
+            .map((row) => [row.change_id, row.job_id]),
+        jobs:
+          (await admin`select id from app.entity_schema_migrations where workspace_id=${removed.fixture.workspaceId}::uuid and model_change_id=${removed.id}::uuid order by id`)
+            .map((row) => row.id),
+        models:
+          (await admin`select id from app.data_model_changes where workspace_id=${removed.fixture.workspaceId}::uuid order by id`)
+            .map((row) => row.id),
+      });
+      const idsBefore = await durableIds();
+      await admin`delete from auth.users where id=${removed.fixture.manager.userId}`;
+      assertEquals(await durableIds(), idsBefore);
+      assertEquals(
+        (await admin`select initiated_by from app.data_model_changes where workspace_id=${removed.fixture.workspaceId}::uuid and id=${removed.id}::uuid`)[
+          0
+        ].initiated_by,
+        null,
+      );
+      assertEquals(
+        (await admin`select initiated_by from app.entity_schema_migrations where workspace_id=${removed.fixture.workspaceId}::uuid and model_change_id=${removed.id}::uuid`)
+          .map((row) => row.initiated_by),
+        [null, null],
+      );
+      await assertRejects(() => getDataModelChange(deps, removed.fixture.manager, removed.id));
+      assertEquals(
+        (await getDataModelChange(deps, survivor, removed.id)).group?.children.map((child) => child.job?.id),
+        shared.group?.children.map((child) => child.job?.id),
+      );
+      assertEquals(await exportDataModel(deps, survivor), removed.before);
+      for (const entity of removed.entities) {
+        assertEquals((await getEntity(removed.entityDeps, survivor, entity.id)).properties, entity.properties);
+      }
+      assertEquals(
+        (await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`)[
+          0
+        ].committed,
+        false,
+      );
+      const current = await getDataModelChange(deps, survivor, removed.id);
+      const cancelled = await changeDataModelGroup(deps, requestActor(survivor), removed.id, {
+        expected_version: current.version,
+      }, "cancel");
+      assertEquals(cancelled.status, "cancelled");
+      assertEquals(await getDataModelChange(deps, retained.fixture.manager, retained.id), before);
     } finally {
       await removed.fixture.cleanup();
-      await retained.fixture.cleanup();
+      await retained?.fixture.cleanup();
     }
   },
 );
 
 dbTest(
-  "expired group analysis material returns its parent to review without expiring another owner's analysis",
+  "expired group analysis material returns its parent to review without expiring another workspace's analysis",
   async () => {
     const expired = await queuedGroup(true), fresh = await queuedGroup(true);
     try {
-      const freshBefore = await getDataModelChange(deps, fresh.fixture.actor, fresh.id);
-      await admin`update app.entity_schema_analyses set created_at=now()-interval '31 days' where owner_id=${expired.fixture.actor.userId}::uuid and change_id in(select change_id from app.data_model_children where owner_id=${expired.fixture.actor.userId}::uuid and model_id=${expired.id}::uuid)`;
+      const freshBefore = await getDataModelChange(deps, fresh.fixture.manager, fresh.id);
+      await admin`update app.entity_schema_analyses set created_at=now()-interval '31 days' where workspace_id=${expired.fixture.workspaceId}::uuid and change_id in(select change_id from app.data_model_children where workspace_id=${expired.fixture.workspaceId}::uuid and model_id=${expired.id}::uuid)`;
       await worker`select app.claim_entity_schema_migration()`;
-      const current = await getDataModelChange(deps, expired.fixture.actor, expired.id);
+      const current = await getDataModelChange(deps, expired.fixture.manager, expired.id);
       assertEquals(current.status, "needs_conversion");
       assertEquals(current.review.can_apply, false);
       assertEquals(current.group?.children.every((child) => child.change.analysis === null), true);
       const [rows] =
-        await admin`select count(*)::int as count from private.entity_schema_analysis_rows r join app.data_model_children c on c.owner_id=r.owner_id and c.analysis_id=r.analysis_id where c.owner_id=${expired.fixture.actor.userId}::uuid and c.model_id=${expired.id}::uuid`;
+        await admin`select count(*)::int as count from private.entity_schema_analysis_rows r join app.data_model_children c on c.workspace_id=r.workspace_id and c.analysis_id=r.analysis_id where c.workspace_id=${expired.fixture.workspaceId}::uuid and c.model_id=${expired.id}::uuid`;
       assertEquals(rows.count, 0);
-      assertEquals(await getDataModelChange(deps, fresh.fixture.actor, fresh.id), freshBefore);
-      assertEquals(await exportDataModel(deps, expired.fixture.actor), expired.before);
+      assertEquals(await getDataModelChange(deps, fresh.fixture.manager, fresh.id), freshBefore);
+      assertEquals(await exportDataModel(deps, expired.fixture.manager), expired.before);
     } finally {
       await expired.fixture.cleanup();
       await fresh.fixture.cleanup();
