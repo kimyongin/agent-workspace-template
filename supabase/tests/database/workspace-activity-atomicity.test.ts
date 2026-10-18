@@ -102,6 +102,12 @@ dbTest(
           recurrence: { freq: "daily", starts_on: "2026-10-01" },
         }),
       );
+      const onceBefore = await activity.getTask(deps, f.member, once.id);
+      const recurringBefore = await activity.getTask(
+        deps,
+        f.member,
+        recurring.id,
+      );
       let reached = 0;
       const failure = failingProducer(() => reached++);
       const completionRequest = businessRequest(f.member);
@@ -121,7 +127,7 @@ dbTest(
         "unavailable",
       );
       assertEquals(reached, 1);
-      assertEquals(await activity.getTask(deps, f.member, once.id), once);
+      assertEquals(await activity.getTask(deps, f.member, once.id), onceBefore);
       assertEquals(await storedFootprint(f.workspaceId), beforeCompletion);
       await noReceipt(completionRequest);
       const completed = await activity.completeTask(
