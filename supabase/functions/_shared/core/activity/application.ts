@@ -400,7 +400,7 @@ export async function listRecords(
   });
 }
 
-/** 본문 변경만 구간 색인을 교체한다. */
+/** 변경된 기록 버전마다 구간 색인을 새 원본 버전에 연결한다. */
 export async function updateRecord(
   deps: ActivityDeps,
   actor: Actor,
@@ -429,9 +429,7 @@ export async function updateRecord(
       const updated = await store.updateRecord(id, {
         ...changes,
       });
-      if (updated.body !== record.body) {
-        await store.enqueueIndex({ kind: "record", id, input_hash: await searchInputHash(updated.body) });
-      }
+      await store.enqueueIndex({ kind: "record", id, input_hash: await searchInputHash(updated.body) });
       // Records are editable knowledge. Editing their memo does not create another event.
       return toRecordResult(updated);
     },
