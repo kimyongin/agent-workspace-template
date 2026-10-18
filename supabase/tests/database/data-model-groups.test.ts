@@ -1,6 +1,8 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
+import type { WorkspaceActor } from "../../functions/_shared/core/workspaces/application.ts";
 import { businessWorkspaceFixture } from "./_workspace-business.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { getBusinessSettings, updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
@@ -565,10 +567,25 @@ dbTest(
     const f = await queuedGroup();
     try {
       const batch = await prepareUntilCommit(f.id), survivor = f.fixture.member;
+      const execution = (actor: WorkspaceActor) =>
+        runInWorkspace(
+          sql,
+          actor,
+          { mode: "business", requirements: [] },
+          async (tx) =>
+            (await tx`select app.workspace_schema_execution_current('model',${f.id}::uuid) as current`)[0].current,
+        );
+      assertEquals(await execution(f.fixture.manager), true);
+      await assertRejects(() => execution(survivor));
       await f.fixture.grant(survivor, [{ target_kind: "settings", target_id: "*", access: "write" }]);
+      await assertRejects(() => execution(survivor));
       for (const type of f.target.entity_types) await f.fixture.grantKind(survivor, type.schema["x-type-id"], "write");
+      assertEquals(await execution(survivor), true);
+      const other = await f.fixture.addWorkspace("交差する空間");
+      assertEquals(await execution(other.manager), false);
       assertEquals((await getDataModelChange(deps, survivor, f.id)).status, "committing");
       await admin`delete from auth.users where id=${f.fixture.manager.userId}`;
+      assertEquals(await execution(survivor), false);
       assertEquals(
         (await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`)[
           0
