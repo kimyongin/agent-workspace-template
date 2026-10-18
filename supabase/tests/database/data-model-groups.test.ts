@@ -583,6 +583,9 @@ dbTest(
       assertEquals(await execution(survivor), true);
       const other = await f.fixture.addWorkspace("交差する空間");
       assertEquals(await execution(other.manager), false);
+      // The initiating account may be deleted only after every shared fixture
+      // workspace, including this cross-workspace probe, has a surviving manager.
+      await f.fixture.grant(other.member, [{ target_kind: "settings", target_id: "*", access: "write" }]);
       assertEquals((await getDataModelChange(deps, survivor, f.id)).status, "committing");
       await admin`delete from auth.users where id=${f.fixture.manager.userId}`;
       assertEquals(await execution(survivor), false);
