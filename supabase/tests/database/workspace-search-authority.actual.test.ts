@@ -137,10 +137,10 @@ for (const stage of stages) {
         assertEquals(result.indexed, 0);
         assertEquals(sends, stage === "before_prepare" || stage === "before_send_claim" ? 0 : 1);
         const [chunks] = await admin`select count(*)::int as count from app.search_chunks
-          where workspace_id=${fixture.workspaceId} and record_id=${record.id}`;
+          where workspace_id=${fixture.workspaceId} and source_kind='record' and source_id=${record.id}`;
         assertEquals(chunks.count, 0);
         const effects = await admin`select id,state,result is not null as has_result from private.passage_effects
-          where workspace_id=${fixture.workspaceId} and record_id=${record.id}`;
+          where workspace_id=${fixture.workspaceId} and source_kind='record' and source_id=${record.id}`;
         ownedEffects.push(...effects.map((effect) => effect.id as string));
         assertEquals(effects.length, sends);
         for (const effect of effects) {
@@ -230,7 +230,7 @@ dbTest("workspace passage: unknown responses retain a durable five-send ceiling"
       assertEquals(result.attempts, attempt);
       assertEquals(sends, attempt);
       const [effect] = await admin`select id,attempts,state,result is null as no_result from private.passage_effects
-        where workspace_id=${fixture.workspaceId} and record_id=${fixture.record.id}`;
+        where workspace_id=${fixture.workspaceId} and source_kind='record' and source_id=${fixture.record.id}`;
       effectId = effect.id as string;
       assertEquals(effect.attempts, attempt);
       assertEquals(effect.state, "unknown");
