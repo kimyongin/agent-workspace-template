@@ -168,7 +168,7 @@ import {
   prepareDataModel,
   previewDataModel,
 } from "../../functions/_shared/core/data-model/application.ts";
-import { analyzeDataModel } from "../../functions/_shared/core/data-model/groups.ts";
+import { analyzeDataModel, changeDataModelGroup } from "../../functions/_shared/core/data-model/groups.ts";
 import { prepareMigrationBatch } from "../../functions/_shared/core/entity-types/migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 
@@ -408,3 +408,120 @@ dbTest(
     }
   },
 );
+
+dbTest("shared manager retry creates a new immutable job after the original executor leaves", async () => {
+  const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
+  let workspaceId: string | undefined;
+  for (const actor of [a, b]) {
+    const email = `retry513-${actor.userId}@example.test`;
+    await admin`insert into auth.users(id,email) values(${actor.userId},${email})`;
+    await admin`insert into auth.identities(id,user_id,provider,provider_id,identity_data)
+      values(${crypto.randomUUID()},${actor.userId},'google',${actor.userId},${
+      admin.json({ sub: actor.userId, email, email_verified: true })
+    })`;
+  }
+  try {
+    workspaceId = (await workspaces.createWorkspace(workspaceDeps, key(a), { name: "공유 재시도" })).workspace.id;
+    const author = { ...a, workspaceId }, executor = { ...b, workspaceId };
+    const kind = await types.createEntityType(typeDeps, key(author), { label: "재시도 대상" });
+    const grants = [
+      { target_kind: "settings", target_id: "*", access: "write" },
+      { target_kind: "entity_type", target_id: kind.id, access: "write" },
+    ];
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, a.userId, {
+      expected_version: 1,
+      grants,
+    });
+    const invitation = await workspaces.inviteWorkspaceMember(workspaceDeps, key(a), workspaceId, {
+      email: `retry513-${b.userId}@example.test`,
+      grants,
+    });
+    await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(b), invitation.invitation.id);
+    const externalId = crypto.randomUUID(), entityId = `app:${kind.id}:${externalId}`;
+    await runInWorkspace(sql, author, {
+      mode: "business",
+      requirements: [{ target_kind: "entity_type", target_id: kind.id, access: "write" }],
+    }, (tx) =>
+      tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
+      values(${author.workspaceId},${entityId},'app',${externalId},${kind.id},1,'{"prop_1":"12"}')`);
+    const target = await exportDataModel(modelDeps, author);
+    target.entity_types[0].schema.properties.prop_1.maxLength = 1;
+    const input = { mode: "update", document: JSON.stringify(target) };
+    const preview = await previewDataModel(modelDeps, author, input);
+    const saved = await prepareDataModel(modelDeps, key(author), {
+      ...input,
+      preview_fingerprint: preview.fingerprint,
+    });
+    await analyzeDataModel(modelDeps, key(author), saved.id, {
+      expected_version: saved.version,
+      conversions: [{
+        type_ref: target.entity_types[0].ref,
+        migration: { rules: [], overrides: [{ entity_id: entityId, key: "prop_1", value: "X" }] },
+      }],
+    });
+    const [analysis] = await worker`select app.claim_entity_schema_analysis() as batch`;
+    assertEquals(Boolean(analysis.batch), true);
+    const convert = compileMigration(analysis.batch.target, analysis.batch.migration, analysis.batch.recovery_keys);
+    assertEquals(
+      (await worker`select app.complete_entity_schema_analysis_batch(${analysis.batch.id},${analysis.batch.fence},${
+        worker.json(analysis.batch.rows.map((row: { entity_id: string; properties: Record<string, unknown> }) =>
+          convert(row.entity_id, row.properties)
+        ))
+      }) as accepted`)[0].accepted,
+      true,
+    );
+    const ready = await getDataModelChange(modelDeps, author, saved.id);
+    await applyDataModel(modelDeps, key(author), saved.id, { expected_version: ready.version });
+    const [claim] = await worker`select app.claim_data_model_conversion() as batch`;
+    assertEquals(Boolean(claim.batch?.child), true);
+    const batch = claim.batch;
+    assertEquals(
+      (await worker`select app.fail_data_model_conversion(${batch.id},${batch.fence},${batch.child.id},${batch.child.fence},'migration_worker_failed',true) as accepted`)[
+        0
+      ].accepted,
+      true,
+    );
+    const [oldJob] =
+      await admin`select id,initiated_by,workspace_generation,source_expires_at,source_definition,source_templates,source_references,migration,status,failure_reason
+      from app.entity_schema_migrations where workspace_id=${workspaceId} and id=${batch.child.id}`;
+    const oldRows =
+      await admin`select to_jsonb(r)-array['job_id','owner_id'] as sealed from private.entity_schema_migration_rows r
+      where workspace_id=${workspaceId} and job_id=${oldJob.id} order by entity_id`;
+    await workspaces.leaveWorkspace(workspaceDeps, key(a), workspaceId, { expected_version: 2 });
+    const failed = await getDataModelChange(modelDeps, executor, saved.id);
+    const retried = await changeDataModelGroup(
+      modelDeps,
+      key(executor),
+      saved.id,
+      { expected_version: failed.version },
+      "retry",
+    );
+    assertEquals(retried.status, "queued");
+    const [current] =
+      await admin`select j.* from app.data_model_children c join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
+      where c.workspace_id=${workspaceId} and c.model_id=${saved.id}`;
+    assertEquals(current.id === oldJob.id, false);
+    assertEquals(current.initiated_by, b.userId);
+    assertEquals(current.retry_source_job_id, oldJob.id);
+    assertEquals(Number(current.workspace_generation), Number(oldJob.workspace_generation));
+    assertEquals(current.source_expires_at, oldJob.source_expires_at);
+    for (const field of ["source_definition", "source_templates", "source_references", "migration"]) {
+      assertEquals(current[field], oldJob[field]);
+    }
+    assertEquals(
+      await admin`select to_jsonb(r)-array['job_id','owner_id'] as sealed from private.entity_schema_migration_rows r
+      where workspace_id=${workspaceId} and job_id=${current.id} order by entity_id`,
+      oldRows,
+    );
+    const [retained] =
+      await admin`select status,failure_reason,initiated_by from app.entity_schema_migrations where workspace_id=${workspaceId} and id=${oldJob.id}`;
+    assertEquals(retained, { status: oldJob.status, failure_reason: oldJob.failure_reason, initiated_by: a.userId });
+    assertEquals(
+      (await worker`select app.claim_data_model_conversion() as batch`)[0].batch.child.initiated_by,
+      b.userId,
+    );
+  } finally {
+    if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
+    for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
+  }
+});
