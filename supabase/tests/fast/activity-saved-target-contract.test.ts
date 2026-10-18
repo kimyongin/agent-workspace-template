@@ -45,4 +45,11 @@ Deno.test("public activity tools expose explicit completion occurrence and resto
   for (const name of ["complete_task", "record_occurrence", "restore_task"]) {
     assertEquals(tools.some((tool) => tool.name === name), true);
   }
+  const deleting = tools.find((tool) => tool.name === "delete_record")!;
+  const request_key = "00000000-0000-4000-8000-000000000001";
+  assertEquals(deleting.input.safeParse({ id: "20261018-00000001", expected_version: 1, request_key }).success, true);
+  assertEquals(
+    deleting.input.safeParse({ id: "20261018-00000001", expected_version: 1, request_key, change_tag_ids: [] }).success,
+    false,
+  );
 });
