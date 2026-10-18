@@ -1,3 +1,4 @@
+import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import { executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
@@ -44,6 +45,7 @@ test(
       user,
     );
     await page.route("**/auth/v1/user", (r) => r.fulfill({ json: user }));
+    await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({json:{workspace:{id:fixtureWorkspaceId,name:"관계 쓰기 공간",deleted_at:null},can_manage:false,membership_version:1,grants:[{target_kind:"entity_type",target_id:fixtureType.id,access:"write"},{target_kind:"tasks",target_id:"*",access:"read"}]}}));
     await page.route(
       "**/api/entity-relation-definitions**",
       (r) => r.fulfill({ json: { items: [definition], next_cursor: null } }),
@@ -98,7 +100,7 @@ test(
       }
       return r.fulfill({ json: result });
     });
-    await page.goto(`/entities/${encodeURIComponent(origin.id)}`);
+    await page.goto(`/w/${fixtureWorkspaceId}/entities/${encodeURIComponent(origin.id)}`);
     const section = page.getByLabel("주문품목 관계", { exact: true }).filter({
       visible: true,
     });
@@ -189,7 +191,6 @@ test(
 
 test("business relation reader sees linked preview without settings or mutation controls", async ({ page }, info) => {
   const origin = entity(21, { prop_1: "읽기 원점" }), peer = entity(22, { prop_1: "읽을 상대" });
-  const { fixtureWorkspaceId } = await import("./support/workspace-scope.ts");
   await installWorkspaceApi(page, "http://127.0.0.1:56906", { entities: [origin, peer], tasks: [], records: [], tags: [] });
   const user = { id: id(999), aud: "authenticated", app_metadata: {}, user_metadata: {} };
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
