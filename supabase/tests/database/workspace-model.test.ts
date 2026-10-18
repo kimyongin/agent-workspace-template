@@ -413,6 +413,16 @@ dbTest(
       const renamedRule = await issuers.updateIdentifierRule(issuerDeps, key(manager), customRule.id, {
         expected_version: customRule.version, label: "번호 이름 변경",
       });
+      await runInWorkspace(sql, manager, {
+        mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      }, async (tx) => {
+        const directMeaning = await assertRejects(() => tx.savepoint((attempt) =>
+          attempt`update app.entity_identifier_rules set meaning='SQL 우회',version=version+1
+            where workspace_id=${owned[0]}::uuid and id=${customRule.id}::uuid`
+        ));
+        assertEquals((directMeaning as { code?: string }).code, "42501");
+        assertEquals((directMeaning as Error).message, "workspace_denied");
+      });
       const deniedMeaning = await assertRejects(() => issuers.updateIdentifierRule(
         issuerDeps, key(manager), customRule.id,
         { expected_version: renamedRule.version, meaning: "변경된 의미" },
