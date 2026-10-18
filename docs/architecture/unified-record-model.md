@@ -2,6 +2,8 @@
 
 ## 상태와 정본
 
+이 문서의 아래 설계와 인계 표는 2026-10-05 당시의 이력이다. 일반 기록 작성·선택적 다중 소속·할 일 연결 상속 범위는 [ADR-0026](../adr/0026-workspace-membership-and-inherited-record-access.md)과 [현재 제품 요구](../product/concept.md#워크스페이스와-참여)가 대체한다. 현재 기록은 같은 워크스페이스의 자료 하나 또는 할 일 하나에 고정 소속된 수행 결과·변경 메모이며 직접 메모는 자료로 관리한다. 할 일의 선택적 참고 자료는 기록 소속과 구분한다. 아래 과거 경로·티켓을 현재 API나 작성 기능의 사용 지침으로 적용하지 않는다. 현재 할 일·기록 전환은 [#515](https://github.com/kimyongin/agent-workspace-template/issues/515), 검색·색인 전환은 [#516](https://github.com/kimyongin/agent-workspace-template/issues/516)의 구현·검증 증거로 확인한다.
+
 2026-10-05 대화에서 합의한 모델이다. [PRD](../product/concept.md)와 [ADR-0012](../adr/0012-current-state-and-unified-records.md)가 의미를 소유하며, 현재 소스·통합·실제 서비스 검증의 상태는 [통합 실행 명세 #120](https://github.com/kimyongin/agent-workspace-template/issues/120)의 하위 티켓·PR 증거가 관리한다. 이전 #110·#111은 2026-10-06 대체된 계획으로 종료했다. 설계 중간의 불변 로그·정정 체인·강제 snapshot 및 기존 활동의 두 목록 동시 조율 제안은 최종 결정이 아니다.
 
 ## 책임
