@@ -396,6 +396,35 @@ dbTest(
         grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
       });
       await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(b), invitation.invitation.id);
+      const manager = { ...b, workspaceId: owned[0] };
+      const issuerDeps = { uow: new SqlEntityIssuerUnitOfWork(sql) };
+      const kind = await types.createEntityType(typeDeps, key(manager), { label: "번호 설정" });
+      await issuers.createEntityIssuer(issuerDeps, key(manager), { code: "custom", label: "외부" });
+      const customRule = await issuers.createIdentifierRule(issuerDeps, key(manager), "custom", {
+        label: "번호", meaning: "원래 의미",
+      });
+      const originalIdentity = await issuers.getEntityTypeIdentity(issuerDeps, manager, kind.id);
+      const configuredIdentity = await issuers.updateEntityTypeIdentity(issuerDeps, key(manager), kind.id, {
+        expected_version: originalIdentity.version,
+        label: "외부 번호", default_source: "app",
+        sources: [...originalIdentity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })),
+          { code: "custom", rule_id: customRule.id, active: true }],
+      });
+      const renamedRule = await issuers.updateIdentifierRule(issuerDeps, key(manager), customRule.id, {
+        expected_version: customRule.version, label: "번호 이름 변경",
+      });
+      const deniedMeaning = await assertRejects(() => issuers.updateIdentifierRule(
+        issuerDeps, key(manager), customRule.id,
+        { expected_version: renamedRule.version, meaning: "변경된 의미" },
+      ), AppError);
+      assertEquals(deniedMeaning.code, "forbidden");
+      const currentIdentity = await issuers.getEntityTypeIdentity(issuerDeps, manager, kind.id);
+      const deniedRemoval = await assertRejects(() => issuers.updateEntityTypeIdentity(
+        issuerDeps, key(manager), kind.id,
+        { expected_version: currentIdentity.version, label: configuredIdentity.label, default_source: "app",
+          sources: currentIdentity.sources.filter((s) => s.code !== "custom").map(({ code, rule_id, active }) => ({ code, rule_id, active })) },
+      ), AppError);
+      assertEquals(deniedRemoval.code, "forbidden");
       await workspaces.updateWorkspaceMember(workspaceDeps, key(b), owned[0], a.userId, {
         expected_version: 1,
         grants: [{ target_kind: "settings", target_id: "*", access: "read" }],
@@ -406,7 +435,6 @@ dbTest(
       );
       const error = await assertRejects(() => settings.updateBusinessSettings(deps, request, input), AppError);
       assertEquals(error.code, "forbidden");
-      const issuerDeps = { uow: new SqlEntityIssuerUnitOfWork(sql) };
       const deniedRegistry = await assertRejects(
         () => issuers.createEntityIssuer(issuerDeps, key(first), { code: "external", label: "원본" }),
         AppError,
