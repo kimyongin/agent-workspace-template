@@ -1049,9 +1049,13 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
     const picker = region.getByRole("button", { name: "태그 선택", exact: true });
     await picker.click();
     await page.getByRole("option", { name: "첫 태그", exact: true }).click();
-    await page.getByRole("button", { name: "선택 완료", exact: true }).click();
     await refresh("read");
+    const chooser = page.getByRole("dialog", { name: "태그 선택", exact: true });
+    await expect(chooser.getByRole("option", { name: "다른 태그", exact: true })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(chooser).toHaveCount(0);
     await expect(picker).toBeDisabled();
+    await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
     await expect(region.getByRole("button", { name: "연결 적용", exact: true })).toBeDisabled();
     expect(writes).toHaveLength(0);
     await refresh("write");
@@ -1064,6 +1068,7 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
     await confirmation.getByRole("button", { name: "취소", exact: true }).click();
     await expect(picker).toBeDisabled();
     await region.getByRole("button", { name: "연결 취소", exact: true }).click();
+    await expect(region).toBeFocused();
     await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toHaveCount(0);
     await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
     await refresh("write");

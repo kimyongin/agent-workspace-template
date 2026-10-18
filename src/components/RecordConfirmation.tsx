@@ -56,6 +56,7 @@ interface ConfirmationDescription {
 /** One confirmation lifetime owns memo drafts, errors, frozen retries and its dialog stage. */
 export function useRecordConfirmation(options: {
   open?: boolean;
+  disabled?: boolean;
   initial?: ConfirmationKind;
   describe: (kind: ConfirmationKind) => ConfirmationDescription;
   onCancel?: () => void;
@@ -84,6 +85,7 @@ export function useRecordConfirmation(options: {
   };
   const origin = useRef<FocusOrigin | null>(null);
   const begin = async (kind: ConfirmationKind, invoker?: HTMLElement | null) => {
+    if (latest.current.disabled) return;
     origin.current = captureFocusOrigin(invoker ?? document.activeElement);
     if (attempt.snapshot().busy || attempt.snapshot().uncertain) { setStage(kind); return; }
     setStage(kind);
@@ -127,7 +129,9 @@ export function useRecordConfirmation(options: {
     else setStage(null);
   };
   const write = async (kind: ConfirmationKind) => {
-    if (attempt.snapshot().busy || preparing) return;
+    // Retained retries keep their original operation, but current authority
+    // still decides whether that operation may be submitted again.
+    if (latest.current.disabled || attempt.snapshot().busy || preparing) return;
     const description = latest.current.describe(kind);
     if (description.preparation && description.record && !preparationReady.current && !attempt.snapshot().uncertain) return;
     const local = description.record ? changeNoteErrors(note, false) : null;
@@ -152,17 +156,17 @@ export function useRecordConfirmation(options: {
       title: description.title, busy, returnFocus: origin.current,
       body: <RecordMemoFields note={note} tags={tags} onNote={value => { touched.current.note = true; setNote(value); }} onTags={value => { touched.current.tags = true; setTags(value); }}
         preparing={preparing}
-        errors={errors} failure={failure} frozen={busy || uncertain || preparing} record={description.record}
+        errors={errors} failure={failure} frozen={!!options.disabled || busy || uncertain || preparing} record={description.record}
         data={description.data} message={description.message} excludeTag={description.excludeTag}/>,
       footer: <><Button variant="outline" type="button"  disabled={busy} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</Button>
-        <Button variant={description.danger ? "destructive" : "default"} type="button" disabled={busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)} onClick={() => void write(stage)}>
+        <Button variant={description.danger ? "destructive" : "default"} type="button" disabled={!!options.disabled || busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)} onClick={() => void write(stage)}>
           {busy ? description.pendingLabel ?? "처리 중…" : uncertain ? "같은 내용 다시 시도" : description.label}
         </Button></>,
       onCancel: cancel,
     });
     return () => register(null);
   }, [register, options.open, stage, note, tags, errors, failure, busy, uncertain, preparing,
-    description?.title, description?.label, description?.record, description?.danger, description?.excludeTag]);
+    options.disabled, description?.title, description?.label, description?.record, description?.danger, description?.excludeTag]);
   return { active: stage !== null, dirty: !!stage || touched.current.note || touched.current.tags || !!tags.length || uncertain,
     busy, uncertain, errors, failure, begin, write, reject };
 }

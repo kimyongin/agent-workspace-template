@@ -263,6 +263,7 @@ test("open relation confirmation respects WRITE to READ refresh and retains the 
     expect(writes).toHaveLength(0);
     await confirmation.getByRole("button", { name: "취소", exact: true }).click();
     await expect(confirmation).toHaveCount(0);
+    await expect(section).toBeFocused();
     await expect(section.getByRole("link", { name: peer.title, exact: true })).toBeVisible();
     await expect(section.getByRole("button", { name: "해제", exact: true })).toHaveCount(0);
     await refresh("write");

@@ -76,7 +76,7 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
   const callbacks = useRef({onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation,onPrepared});
   callbacks.current = {onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation,onPrepared};
   const confirmation = useRecordConfirmation({
-    open, initial: confirmationOnly ? "save" : undefined,
+    open, disabled: submitDisabled, initial: confirmationOnly ? "save" : undefined,
     onCancel: confirmationOnly ? () => callbacks.current.onClose() : undefined,
     describe: kind => {
       const current = callbacks.current;

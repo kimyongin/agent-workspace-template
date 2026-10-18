@@ -32,6 +32,7 @@ const router = createBrowserRouter([{
   { path: "/entities/:id", element: <EntityDetailPage /> },
   { path: "/tasks/:id", element: <TaskDetailPage /> },
   { path: "/records/:id", element: <RecordDetailPage /> },
+  { path: "/records", element: <h1>기록 목록 fixture</h1> },
   { path: "/modal-guard", element: <ModalDiscardFixture /> },
 ],
 }]);

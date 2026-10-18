@@ -307,18 +307,23 @@ export function EntityRelationSection(
           open
           title={mutation.remove ? "관계 연결 해제" : single ? "관계 연결 교체" : "관계 자료 연결"}
           submitLabel="저장"
+          submitDisabled={!canWrite}
           dirty={false}
           confirmationOnly
           mutation={{
             target: `${mutation.origin.title} → ${mutation.definition.ends[side].label} → ${mutation.other.title}`,
             action: mutation.remove ? "해제" : single ? "수정" : "연결",
+            message: !canWrite ? "현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다." : undefined,
             data: single && !mutation.remove ? [
               { label: "기존", value: mutation.previous?.title ?? "연결 없음", fullWidth: true },
               { label: "변경", value: mutation.other.title, fullWidth: true },
             ] : undefined,
           }}
           validate={() => null}
-          onClose={() => setMutation(null)}
+          onClose={() => {
+            setMutation(null);
+            requestAnimationFrame(() => section.current?.focus());
+          }}
           onRouteDiscard={() => setMutation(null)}
           onSubmit={async (key, memo) => {
             const mode = mutation.remove
