@@ -578,7 +578,15 @@ dbTest(
 );
 
 async function retryOrRestoreFixture(
-  scenario: "retry" | "restore" | "restore_committing" | "coordinator" | "repair" | "recovery",
+  scenario:
+    | "retry"
+    | "restore"
+    | "restore_committing"
+    | "coordinator"
+    | "repair"
+    | "recovery"
+    | "seal_job"
+    | "seal_model",
 ) {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
@@ -891,6 +899,44 @@ async function retryOrRestoreFixture(
       return;
     }
     await applyDataModel(modelDeps, key(author), saved.id, { expected_version: ready.version });
+    if (scenario === "seal_model" || scenario === "seal_job") {
+      const [accepted] =
+        await admin`select id from app.entity_schema_migrations where workspace_id=${workspaceId} and model_change_id=${saved.id}`;
+      await runInWorkspace(sql, executor, {
+        mode: "business",
+        requirements: grants as workspaces.WorkspaceRequirement[],
+      }, async (tx) => {
+        const reject = async (write: (nested: typeof tx) => Promise<unknown>, message: string) => {
+          const error = await assertRejects(() => tx.savepoint(write));
+          assertEquals((error as { code?: string }).code, "23514");
+          assertEquals((error as Error).message, message);
+        };
+        if (scenario === "seal_model") {
+          await reject(
+            (nested) =>
+              nested`update app.data_model_changes set source_expires_at=source_expires_at+interval '1 day' where workspace_id=${executor.workspaceId} and id=${saved.id}`,
+            "model_plan_source_expiry_immutable",
+          );
+        } else {
+          await reject(
+            (nested) =>
+              nested`update app.entity_schema_migrations set source_expires_at=source_expires_at+interval '1 day' where workspace_id=${executor.workspaceId} and id=${accepted.id}`,
+            "schema_job_source_immutable",
+          );
+          await reject(
+            (nested) =>
+              nested`update app.entity_schema_migrations set target=jsonb_set(target,'{schema,properties,prop_1,maxLength}','2') where workspace_id=${executor.workspaceId} and id=${accepted.id}`,
+            "schema_job_source_immutable",
+          );
+          await reject(
+            (nested) =>
+              nested`update private.entity_schema_migration_rows set source_properties='{"prop_1":"偽"}' where workspace_id=${executor.workspaceId} and job_id=${accepted.id}`,
+            "schema_job_source_row_immutable",
+          );
+        }
+      });
+      return;
+    }
     if (scenario === "coordinator") {
       await runInWorkspace(sql, executor, {
         mode: "business",
@@ -1057,4 +1103,13 @@ dbTest(
 dbTest(
   "standalone activation recovery and expiry use current workspace authority",
   () => retryOrRestoreFixture("recovery"),
+);
+
+dbTest(
+  "queued schema job execution source and expiry are immutable to app_user",
+  () => retryOrRestoreFixture("seal_job"),
+);
+dbTest(
+  "queued model source expiry cannot be extended by another authorized manager",
+  () => retryOrRestoreFixture("seal_model"),
 );
