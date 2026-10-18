@@ -1,19 +1,27 @@
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { createEntityType } from "../../functions/_shared/core/entity-types/application.ts";
-import { requestActor } from "../_request.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
+import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
+import {
+  applyDataModel,
+  exportDataModel,
+  prepareDataModel,
+  previewDataModel,
+} from "../../functions/_shared/core/data-model/application.ts";
+
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import * as registry from "../../functions/_shared/core/entity-issuers/application.ts";
 import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import { entityCreate, entityListQuery, type EntityUpdate } from "../../functions/_shared/contracts/entity.ts";
-import { recordCreate } from "../../functions/_shared/contracts/record.ts";
 import { taskComplete, taskCreate, taskUpdate } from "../../functions/_shared/contracts/task.ts";
 import * as entities from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
-import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
-import { directEntitySource, entityFixture } from "./_entity.ts";
+import { connect, dbTest, urls } from "./_db.ts";
+import { directEntitySource } from "./_entity.ts";
 
 // Invalid identity fields intentionally reach the public core guard, rather than failing a test-side parser.
 const updateInput = (value: unknown) => value as EntityUpdate;
@@ -21,10 +29,56 @@ const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { prep
 const ed = { uow: new SqlEntityUnitOfWork(sql) };
 const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 
-dbTest("발급처 설정 조회 후 자동 식별자는 생성 성공에서 반환한다", async () => {
-  const f = await fixtureOwner(admin);
+// Publish the typed fixture through the current whole-model public boundary before any entities exist.
+async function typedKind(f: Awaited<ReturnType<typeof businessWorkspaceFixture>>, manager = f.manager) {
+  const kind = await f.createKind("검사 자료", manager);
+  await f.grantKind(manager, kind.id, "write");
+  const modelDeps = { uow: new SqlDataModelUnitOfWork(sql) };
+  const document = await exportDataModel(modelDeps, manager);
+  const type = document.entity_types.find((value) => value.schema["x-type-id"] === kind.id)!;
+  Object.assign(type.schema.properties, {
+    prop_2: { type: ["integer", "null"], title: "속성 2", minimum: 0, maximum: 1000000, default: null, "x-order": 20 },
+    prop_3: { type: ["string", "null"], title: "속성 3", format: "date", default: null, "x-order": 30 },
+    prop_4: {
+      type: "string",
+      title: "속성 4",
+      oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }],
+      default: "a",
+      "x-order": 40,
+    },
+  });
+  const input = { mode: "update", document: JSON.stringify(document) };
+  const review = await previewDataModel(modelDeps, manager, input);
+  const change = await prepareDataModel(modelDeps, businessRequest(manager), {
+    ...input,
+    preview_fingerprint: review.fingerprint,
+  });
+  const applied = await applyDataModel(modelDeps, businessRequest(manager), change.id, {
+    expected_version: change.version,
+  });
+  assertEquals(applied.status, "applied");
+  return { entity_type_id: kind.id, schema_version: 2 };
+}
+
+async function identityWorkspaceFixture() {
+  const f = await businessWorkspaceFixture(admin, sql);
   try {
-    const schema = await entityFixture(admin, f.actor.userId);
+    const schema = await typedKind(f);
+    await f.grant(f.member, [
+      { target_kind: "tasks", target_id: "*", access: "write" },
+      { target_kind: "entity_type", target_id: schema.entity_type_id, access: "write" },
+    ]);
+    return { ...f, actor: f.member, schema };
+  } catch (error) {
+    await f.cleanup();
+    throw error;
+  }
+}
+
+dbTest("발급처 설정 조회 후 자동 식별자는 생성 성공에서 반환한다", async () => {
+  const f = await identityWorkspaceFixture();
+  try {
+    const schema = f.schema;
     const settings = await registry.getEntityTypeIdentity(
       { uow: new SqlEntityIssuerUnitOfWork(sql) },
       f.actor,
@@ -33,7 +87,7 @@ dbTest("발급처 설정 조회 후 자동 식별자는 생성 성공에서 반�
     const source = settings.default_source;
     const saved = await entities.createEntity(
       ed,
-      requestActor(f.actor),
+      businessRequest(f.actor),
       entityCreate.parse({
         ...schema,
         source,
@@ -51,27 +105,27 @@ dbTest("발급처 설정 조회 후 자동 식별자는 생성 성공에서 반�
 dbTest(
   "발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를 보존하며 중지 상태에서도 같은 엔터티를 되살린다",
   async () => {
-    const f = await fixtureOwner(admin);
+    const f = await identityWorkspaceFixture();
     try {
-      const schema = await entityFixture(admin, f.actor.userId);
-      const setup = await directEntitySource(sql, f.actor, schema.entity_type_id);
+      const schema = f.schema;
+      const setup = await directEntitySource(sql, f.manager, schema.entity_type_id);
       const entity = await entities.createEntity(
         ed,
-        requestActor(f.actor),
+        businessRequest(f.actor),
         entityCreate.parse({ ...schema, source: "crm", external_id: "보존", properties: { prop_1: "발급처 보존" } }),
       );
       const task = await activity.createTask(
         ad,
-        requestActor(f.actor),
+        businessRequest(f.actor),
         taskCreate.parse({ kind: "once", title: "연결", entity_ids: [entity.id] }),
       );
-      await registry.updateEntityTypeIdentity(setup.deps, requestActor(f.actor), schema.entity_type_id, {
+      await registry.updateEntityTypeIdentity(setup.deps, businessRequest(f.manager), schema.entity_type_id, {
         label: "번호",
         default_source: "app",
         expected_version: setup.identity.version,
         sources: setup.identity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })),
       });
-      await registry.updateEntityIssuer(setup.deps, requestActor(f.actor), "crm", {
+      await registry.updateEntityIssuer(setup.deps, businessRequest(f.manager), "crm", {
         expected_version: setup.issuer.version,
         active: false,
       });
@@ -80,7 +134,7 @@ dbTest(
         () =>
           entities.createEntity(
             ed,
-            requestActor(f.actor),
+            businessRequest(f.actor),
             entityCreate.parse({ ...schema, source: "crm", external_id: "새 ID", properties: { prop_1: "금지" } }),
           ),
         AppError,
@@ -89,7 +143,7 @@ dbTest(
         () =>
           entities.updateEntity(
             ed,
-            requestActor(f.actor),
+            businessRequest(f.actor),
             entity.id,
             updateInput({
               schema_version: schema.schema_version,
@@ -102,7 +156,7 @@ dbTest(
       );
       const edited = await entities.updateEntity(
         ed,
-        requestActor(f.actor),
+        businessRequest(f.actor),
         entity.id,
         updateInput({
           schema_version: schema.schema_version,
@@ -110,11 +164,11 @@ dbTest(
           properties: { prop_1: "기존 값 편집 가능" },
         }),
       );
-      await entities.deleteEntity(ed, requestActor(f.actor), entity.id, edited.version);
+      await entities.deleteEntity(ed, businessRequest(f.actor), entity.id, edited.version);
       const restore = () =>
         entities.createEntity(
           ed,
-          requestActor(f.actor),
+          businessRequest(f.actor),
           entityCreate.parse({ ...schema, source: "crm", external_id: "보존", expected_version: 3, properties: {} }),
         );
       const restored = await restore();
@@ -132,68 +186,73 @@ dbTest(
 );
 
 dbTest(
-  "namespaced identity isolates owners, preserves exact IDs, restores retained links, and rejects identity edits atomically",
+  "namespaced identity isolates workspaces, preserves exact IDs, restores retained links, and rejects identity edits atomically",
   async () => {
-    const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
+    const f = await identityWorkspaceFixture(), other = await identityWorkspaceFixture();
     try {
-      const schema = await entityFixture(admin, f.actor.userId),
-        foreignSchema = await entityFixture(admin, other.actor.userId);
-      await directEntitySource(sql, f.actor, schema.entity_type_id);
-      await directEntitySource(sql, other.actor, foreignSchema.entity_type_id);
+      const schema = f.schema,
+        foreignSchema = other.schema;
+      await directEntitySource(sql, f.manager, schema.entity_type_id);
+      await directEntitySource(sql, other.manager, foreignSchema.entity_type_id);
       const input = entityCreate.parse({
         ...schema,
         source: "crm",
         external_id: "000Ab:/한글%",
         properties: { prop_1: "보관 고객", prop_2: 0, prop_4: "c" },
       });
-      const created = await entities.createEntity(ed, requestActor(f.actor), input),
-        foreign = await entities.createEntity(ed, requestActor(other.actor), { ...input, ...foreignSchema });
+      const created = await entities.createEntity(ed, businessRequest(f.actor), input),
+        foreign = await entities.createEntity(ed, businessRequest(other.actor), { ...input, ...foreignSchema });
       assertEquals(created.id, `crm:${schema.entity_type_id}:000Ab:/한글%`);
       assertEquals(foreign.external_id, created.external_id);
       await assertRejects(() => entities.getEntity(ed, other.actor, created.id), AppError);
       const task = await activity.createTask(
         ad,
-        requestActor(f.actor),
+        businessRequest(f.actor),
         taskCreate.parse({ kind: "once", title: "연결 유지", entity_ids: [created.id] }),
       );
-      const record = await activity.createRecord(
+      const noteTask = await activity.createTask(
         ad,
-        requestActor(f.actor),
-        recordCreate.parse({
-          body: "본문의 crm:000Ab:/한글% 는 그대로",
-          entity_ids: [created.id],
-        }),
+        businessRequest(f.actor),
+        taskCreate.parse({ kind: "once", title: "본문 보존 수행" }),
       );
-      await entities.deleteEntity(ed, requestActor(f.actor), created.id, created.version);
+      const { record } = await activity.completeTask(ad, businessRequest(f.actor), noteTask.id, {
+        expected_version: noteTask.version,
+        body: "본문의 crm:000Ab:/한글% 는 그대로",
+      });
+      await entities.deleteEntity(ed, businessRequest(f.actor), created.id, created.version);
       const deleted = await entities.getEntity(ed, f.actor, created.id);
       assert(deleted.deleted_at);
       assertEquals(deleted.version, 2);
       assertEquals((await entities.listEntities(ed, f.actor, entityListQuery.parse({}))).items, []);
       assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, [created.id]);
-      await assertRejects(() => entities.createEntity(ed, requestActor(f.actor), input), AppError);
+      await assertRejects(() => entities.createEntity(ed, businessRequest(f.actor), input), AppError);
       await assertRejects(() =>
-        activity.createRecord(
+        activity.createTask(
           ad,
-          requestActor(f.actor),
-          recordCreate.parse({ body: "새 선택 거부", entity_ids: [created.id] }),
+          businessRequest(f.actor),
+          taskCreate.parse({
+            kind: "once",
+            title: "삭제된 자료에 신규 연결 거부",
+            entity_ids: [created.id],
+          }),
         ), AppError);
       const edited = await activity.updateTask(
         ad,
-        requestActor(f.actor),
+        businessRequest(f.actor),
         task.id,
         taskUpdate.parse({ expected_version: 1, title: "삭제 대상 연결 유지", entity_ids: [created.id] }),
       );
       const completed = await activity.completeTask(
         ad,
-        requestActor(f.actor),
+        businessRequest(f.actor),
         task.id,
-        taskComplete.parse({ expected_version: edited.version, body: "보관된 문맥을 상속한 결과" }),
+        taskComplete.parse({ expected_version: edited.version, body: "보관된 자료를 참조한 수행 결과" }),
       );
-      assertEquals(completed.record.entity_ids, [created.id]);
+      assertEquals([completed.record.entity_id, completed.record.task_id], [null, task.id]);
       const restore = () =>
         entities.createEntity(
           ed,
-          requestActor(f.actor),
+          businessRequest(f.actor),
           entityCreate.parse({
             ...schema,
             source: "crm",
@@ -216,7 +275,7 @@ dbTest(
       await assertRejects(() =>
         entities.updateEntity(
           ed,
-          requestActor(f.actor),
+          businessRequest(f.actor),
           restored.id,
           updateInput({
             schema_version: schema.schema_version,
@@ -226,7 +285,7 @@ dbTest(
         ), AppError);
       const collision = await entities.createEntity(
         ed,
-        requestActor(f.actor),
+        businessRequest(f.actor),
         entityCreate.parse({
           ...schema,
           source: "app",
@@ -234,11 +293,11 @@ dbTest(
           properties: { prop_1: "다른 발급처" },
         }),
       );
-      await entities.deleteEntity(ed, requestActor(f.actor), collision.id, 1);
+      await entities.deleteEntity(ed, businessRequest(f.actor), collision.id, 1);
       await assertRejects(() =>
         entities.updateEntity(
           ed,
-          requestActor(f.actor),
+          businessRequest(f.actor),
           restored.id,
           updateInput({
             schema_version: schema.schema_version,
@@ -247,12 +306,12 @@ dbTest(
             expected_version: 3,
           }),
         ), AppError);
-      assertEquals((await activity.getRecord(ad, f.actor, record.id)).entity_ids, [restored.id]);
+      assertEquals((await activity.getRecord(ad, f.actor, record.id)).task_id, noteTask.id);
       await assertRejects(
         () =>
           entities.updateEntity(
             ed,
-            requestActor(f.actor),
+            businessRequest(f.actor),
             restored.id,
             updateInput({
               schema_version: schema.schema_version,
@@ -266,13 +325,13 @@ dbTest(
         AppError,
       );
       assertEquals((await entities.getEntity(ed, f.actor, restored.id)).version, 3);
-      assertEquals((await activity.getRecord(ad, f.actor, record.id)).entity_ids, [restored.id]);
+      assertEquals((await activity.getRecord(ad, f.actor, record.id)).task_id, noteTask.id);
       for (const field of ["source", "external_id", "entity_type_id"]) {
         await assertRejects(
           () =>
             entities.updateEntity(
               ed,
-              requestActor(f.actor),
+              businessRequest(f.actor),
               restored.id,
               updateInput({ schema_version: schema.schema_version, expected_version: 3, [field]: "replacement" }),
             ),
@@ -281,7 +340,7 @@ dbTest(
       }
       const updated = await entities.updateEntity(
         ed,
-        requestActor(f.actor),
+        businessRequest(f.actor),
         restored.id,
         updateInput({
           schema_version: schema.schema_version,
@@ -291,18 +350,18 @@ dbTest(
       );
       assertEquals(updated.id, restored.id);
       const readRecord = await activity.getRecord(ad, f.actor, record.id);
-      assertEquals(readRecord.entity_ids, [restored.id]);
-      assertEquals(readRecord.entity_context.map((c) => c.id), [restored.id]);
+      assertEquals([readRecord.entity_id, readRecord.task_id], [null, noteTask.id]);
       assertEquals(readRecord.body, record.body);
       assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, [restored.id]);
       assertEquals((await entities.getEntity(ed, other.actor, foreign.id)).version, 1);
-      const order = await createEntityType({ uow: new SqlEntityTypeUnitOfWork(sql) }, requestActor(f.actor), {
+      const order = await createEntityType({ uow: new SqlEntityTypeUnitOfWork(sql) }, businessRequest(f.manager), {
         label: "주문",
       });
-      await directEntitySource(sql, f.actor, order.id);
+      await directEntitySource(sql, f.manager, order.id);
+      await f.grantKind(f.actor, order.id, "write");
       const sameNumber = await entities.createEntity(
         ed,
-        requestActor(f.actor),
+        businessRequest(f.actor),
         entityCreate.parse({
           entity_type_id: order.id.toUpperCase(),
           schema_version: 1,
@@ -326,10 +385,20 @@ dbTest(
           order.id,
         ]]
       ) {
-        const failure = await assertRejects(() =>
-          asUser(sql, f.actor.userId, (tx) => tx`update app.entities set ${tx(field)}=${value} where id=${restored.id}`)
-        );
-        assertEquals((failure as { code?: string }).code, "23514");
+        await runInWorkspace(sql, f.actor, {
+          mode: "business",
+          requirements: [{ target_kind: "entity_type", target_id: schema.entity_type_id, access: "write" }],
+        }, async (tx) => {
+          const failure = await assertRejects(() =>
+            tx.savepoint(async (nested) => {
+              const changed = await nested`update app.entities set ${
+                nested(field)
+              }=${value} where workspace_id=${f.workspaceId} and id=${restored.id} returning id`;
+              assertEquals(changed.length, 1, "a zero-row write cannot prove the identity guard");
+            })
+          );
+          assertEquals((failure as { code?: string }).code, "23514");
+        });
       }
       assertEquals((await entities.getEntity(ed, f.actor, restored.id)).version, updated.version);
     } finally {
