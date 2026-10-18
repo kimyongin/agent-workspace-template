@@ -73,7 +73,7 @@ test("주간 할 일의 요일 오류는 실제 선택 버튼에 연결되고 �
   await editor.getByRole("textbox", { name: /^제목/ }).fill("화요일 조사");
   await editor.getByRole("radio", { name: "반복", exact: true }).click();
   await editor.getByRole("radio", { name: "매주", exact: true }).click();
-  await editor.getByLabel("시작일", { exact: false }).fill("2028-01-03");
+  await editor.getByRole("textbox", { name: /^시작일/ }).fill("2028-01-03");
   await editor.getByRole("combobox", { name: "시간대", exact: false }).selectOption("UTC");
   await editor.getByRole("button", { name: "추가", exact: true }).click();
   const monday = editor.getByRole("button", { name: "월", exact: true });

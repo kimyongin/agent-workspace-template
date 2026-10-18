@@ -1706,3 +1706,50 @@ for (const mode of ["editor", "history"] as const) {
     expect(writes).toEqual([]);
   });
 }
+
+test("schema default date calendar edits only the retained definition draft", async ({ page }) => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = { "x-order": 20, type: "string", format: "date", title: "확인 날짜", default: "2024-02-29" };
+  await page.route(`**/api/entity-types/${materials.id}/schema`, (route) => route.fulfill({
+    json: { ...definition, type: materials, type_id: materials.id, schema_version: 1 },
+  }));
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/") && request.method() !== "GET") writes.push(request.method());
+  });
+  await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await page.getByRole("button", { name: /^확인 날짜 항목 펼치기$/, exact: true }).click();
+  const field = page.getByRole("region", { name: "확인 날짜 입력 항목", exact: true });
+  await field.getByRole("button", { name: "추가 설정", exact: true }).click();
+  const input = field.getByLabel("기본값", { exact: true });
+  await expect(input).toHaveValue("2024-02-29");
+  await field.getByRole("button", { name: "확인 날짜 기본값 달력 열기", exact: true }).click();
+  const calendar = page.getByRole("dialog", { name: "확인 날짜 기본값 달력", exact: true });
+  await calendar.getByRole("gridcell", { selected: true }).getByRole("button").press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(calendar).toHaveCount(0);
+  await expect(input).toHaveValue("2024-03-01");
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expect(input).toHaveValue("2024-03-01");
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  await field.getByRole("button", { name: "확인 날짜 기본값 달력 열기", exact: true }).click();
+  await expect(calendar.getByRole("grid")).toBeVisible();
+  await expect.poll(async () => {
+    const box = await calendar.boundingBox();
+    return !!box && box.x >= -1 && box.x + box.width <= 321 && box.y >= -1 && box.y + box.height <= 801;
+  }).toBe(true);
+  const selected = calendar.getByRole("gridcell", { selected: true }).getByRole("button");
+  await selected.focus();
+  await expect.poll(() => selected.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    return node.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+  })).toBe(true);
+  await selected.press("Escape");
+  await expect(input).toHaveValue("2024-03-01");
+  await input.fill("0000-02-29");
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(field.getByText("올바른 날짜를 YYYY-MM-DD 형식으로 입력하세요.", { exact: true })).toBeVisible();
+  await expect(input).toHaveValue("0000-02-29");
+  expect(writes).toEqual([]);
+});

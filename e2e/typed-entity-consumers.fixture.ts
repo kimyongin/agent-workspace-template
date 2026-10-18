@@ -1,6 +1,6 @@
 import { chooseSetting } from "./settings-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
-import { executionDialog } from "./ui-actions.ts";
+import { executionDialog, saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entity, fixtureIdentity, fixtureSchema, fixtureType, id, stamp } from "./support/workspace-data.ts";
 import { openTabFilters } from "./ui-actions.ts";
@@ -314,3 +314,206 @@ for (const serverDefault of [true, false]) {
     await expect(form).not.toBeVisible();
   });
 }
+
+test("date property calendar closes with Escape without closing the editor or writing its unchanged leap-day draft", async ({ page }) => {
+  const schema = structuredClone(fixtureSchema);
+  schema.schema.properties.prop_5 = {
+    "x-order": 50,
+    type: ["string", "null"],
+    format: "date",
+    title: "확인 날짜",
+  };
+  const saved = { ...entity(), properties: { ...entity().properties, prop_5: "2024-02-29" } };
+  await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: schema }));
+  await page.route("**/api/entities/*", (route) => route.fulfill({ json: saved }));
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/") && request.method() !== "GET") {
+      writes.push(request.method());
+    }
+  });
+  await page.goto(`/entities/${encodeURIComponent(saved.id)}`);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
+  const input = form.getByLabel("확인 날짜", { exact: true });
+  await expect(input).toHaveValue("2024-02-29");
+  await form.getByRole("button", { name: "확인 날짜 달력 열기", exact: true }).click();
+  const calendar = page.getByRole("dialog", { name: "확인 날짜 달력", exact: true });
+  await expect(calendar.getByRole("gridcell", { selected: true })).toContainText("29");
+  await calendar.press("Escape");
+  await expect(calendar).toHaveCount(0);
+  await expect(form).toBeVisible();
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("2024-02-29");
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+  expect(writes).toEqual([]);
+});
+
+test("date calendar keeps its popup within a narrow enlarged screen without shrinking day targets", async ({ page }) => {
+  const schema = structuredClone(fixtureSchema);
+  schema.schema.properties.prop_5 = { "x-order": 50, type: ["string", "null"], format: "date", title: "확인 날짜" };
+  const saved = { ...entity(), properties: { ...entity().properties, prop_5: "2024-02-29" } };
+  await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: schema }));
+  await page.route("**/api/entities/*", (route) => route.fulfill({ json: saved }));
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto(`/entities/${encodeURIComponent(saved.id)}`);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
+  await form.getByRole("button", { name: "확인 날짜 달력 열기", exact: true }).click();
+  const calendar = page.getByRole("dialog", { name: "확인 날짜 달력", exact: true });
+  await expect(calendar.getByRole("grid")).toBeVisible();
+
+  await expect.poll(async () => {
+    const box = await calendar.boundingBox();
+    return !!box && box.x >= -1 && box.x + box.width <= 321 && box.y >= -1 && box.y + box.height <= 801;
+  }).toBe(true);
+  const selected = calendar.getByRole("gridcell", { selected: true }).getByRole("button");
+  const target = await selected.boundingBox();
+  expect(target?.width).toBeGreaterThanOrEqual(87);
+  expect(target?.height).toBeGreaterThanOrEqual(87);
+  await selected.focus();
+  const box = await selected.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(-1);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(321);
+  await expect.poll(() => selected.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    return [[box.left + 2, box.top + box.height / 2], [box.right - 2, box.top + box.height / 2],
+      [box.left + box.width / 2, box.top + 2], [box.left + box.width / 2, box.bottom - 2]].every(([x, y]) =>
+      node.contains(document.elementFromPoint(x, y)));
+  })).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("date-calendar-320-zoom2.png"), animations: "disabled" });
+  await page.setViewportSize({ width: 320, height: 568 });
+  await expect(calendar.getByRole("grid")).toBeVisible();
+  await expect.poll(async () => {
+    const box = await calendar.boundingBox();
+    return !!box && box.x >= -1 && box.x + box.width <= 321 && box.y >= -1 && box.y + box.height <= 569;
+  }).toBe(true);
+  await selected.focus();
+
+  await expect.poll(() => selected.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    return [[box.left + 2, box.top + box.height / 2], [box.right - 2, box.top + box.height / 2],
+      [box.left + box.width / 2, box.top + 2], [box.left + box.width / 2, box.bottom - 2]].every(([x, y]) =>
+      node.contains(document.elementFromPoint(x, y)));
+  })).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("date-calendar-320-short-zoom2.png"), animations: "disabled" });
+  await selected.press("Escape");
+  await expect(calendar).toHaveCount(0);
+  await expect(form.getByLabel("확인 날짜", { exact: true })).toHaveValue("2024-02-29");
+});
+
+test("date calendar navigation preserves the supported civil-year boundaries", async ({ page }) => {
+  await page.goto(`/entities/${encodeURIComponent(entity().id)}`);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
+  const input = form.getByLabel("날짜", { exact: true });
+  await input.fill("2024-02-29");
+  await form.getByRole("button", { name: "날짜 달력 열기", exact: true }).click();
+  const yearCalendar = page.getByRole("dialog", { name: "날짜 달력", exact: true });
+  await yearCalendar.getByRole("gridcell", { selected: true }).getByRole("button").press("Shift+PageDown");
+  await page.keyboard.press("Enter");
+  await expect(input).toHaveValue("2025-02-28");
+  await input.fill("9999-12-31");
+  await form.getByRole("button", { name: "날짜 달력 열기", exact: true }).click();
+  const calendar = page.getByRole("dialog", { name: "날짜 달력", exact: true });
+  await expect(calendar.getByRole("gridcell", { selected: true })).toContainText("31");
+  await expect(calendar.getByRole("gridcell", { selected: true }).getByRole("button")).toBeEnabled();
+  await expect(calendar.getByRole("button", { name: "다음 달", exact: true })).toBeDisabled();
+  await calendar.press("Escape");
+  await expect(calendar).toHaveCount(0);
+  await input.fill("0001-01-01");
+  await form.getByRole("button", { name: "날짜 달력 열기", exact: true }).click();
+  await expect(calendar.getByRole("gridcell", { selected: true })).toContainText("1");
+  await expect(calendar.getByRole("gridcell", { selected: true }).getByRole("button")).toBeEnabled();
+  await expect(calendar.getByRole("button", { name: "이전 달", exact: true })).toBeDisabled();
+  await calendar.press("Escape");
+  await expect(input).toHaveValue("0001-01-01");
+});
+
+test("keyboard calendar selection changes only the date draft until explicit save and survives reopen", async ({ page }) => {
+  let current = entity(1, { prop_3: "2024-02-29" });
+  const writes: Record<string, unknown>[] = [];
+  await page.route("**/api/entities/*", async (route) => {
+    if (route.request().method() === "PATCH") {
+      const input = route.request().postDataJSON();
+      writes.push(input);
+      current = { ...current, properties: { ...current.properties, ...input.properties }, version: current.version + 1 };
+    }
+    return route.fulfill({ json: current });
+  });
+  await page.goto(`/entities/${encodeURIComponent(current.id)}`);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
+  await form.getByRole("button", { name: "날짜 달력 열기", exact: true }).click();
+  const calendar = page.getByRole("dialog", { name: "날짜 달력", exact: true });
+  await calendar.getByRole("gridcell", { selected: true }).getByRole("button").press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(calendar).toHaveCount(0);
+  await expect(form.getByLabel("날짜", { exact: true })).toHaveValue("2024-03-01");
+  expect(writes).toEqual([]);
+  await saveOnce(page, form);
+  await expect.poll(() => writes.length).toBe(1);
+  expect((writes[0].properties as Record<string, unknown>).prop_3).toBe("2024-03-01");
+  expect((writes[0].properties as Record<string, unknown>).prop_2).toBe(0);
+  await page.reload();
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  await expect(form.getByLabel("날짜", { exact: true })).toHaveValue("2024-03-01");
+});
+
+test.describe("date-only values independent of browser timezone", () => {
+  test.use({ timezoneId: "Pacific/Apia" });
+  test("calendar retains a civil day even when that day is absent from the browser timezone", async ({ page }) => {
+    await page.goto(`/entities/${encodeURIComponent(entity().id)}`);
+    await page.getByRole("button", { name: "편집", exact: true }).click();
+    const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
+    const input = form.getByLabel("날짜", { exact: true });
+    await input.fill("2011-12-30");
+    await form.getByRole("button", { name: "날짜 달력 열기", exact: true }).click();
+    const calendar = page.getByRole("dialog", { name: "날짜 달력", exact: true });
+    await expect(calendar.getByRole("gridcell", { selected: true })).toContainText("30");
+    await calendar.getByRole("gridcell", { selected: true }).getByRole("button").press("Enter");
+    await expect(calendar).toHaveCount(0);
+    await expect(input).toHaveValue("2011-12-30");
+  });
+});
+
+test("calendar loading failure keeps the raw editor draft available for manual correction", async ({ page }) => {
+  const blocked = "**/src/components/DateCalendar.tsx*";
+  await page.route(blocked, (route) => route.abort("failed"));
+  let current = entity();
+  const patches: Record<string, unknown>[] = [];
+  await page.route("**/api/entities/*", (route) => {
+    if (route.request().method() === "PATCH") {
+      const patch = route.request().postDataJSON();
+      patches.push(patch);
+      current = { ...current, title: patch.properties.prop_1, properties: { ...current.properties, ...patch.properties }, version: current.version + 1 };
+    }
+    return route.fulfill({ json: current });
+  });
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/") && request.method() !== "GET") writes.push(request.method());
+  });
+  await page.goto(`/entities/${encodeURIComponent(entity().id)}`);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
+  const title = form.getByRole("textbox", { name: /^제목/ });
+  await title.fill("로딩 실패에도 남길 초안");
+  const date = form.getByLabel("날짜", { exact: true });
+  await date.fill("2024-02-29");
+  await form.getByRole("button", { name: "날짜 달력 열기", exact: true }).click();
+  const calendar = page.getByRole("dialog", { name: "날짜 달력", exact: true });
+  await expect(calendar.getByRole("alert")).toContainText("달력 화면을 불러오지 못했습니다");
+  await expect(title).toHaveValue("로딩 실패에도 남길 초안");
+  await expect(date).toHaveValue("2024-02-29");
+  expect(writes).toEqual([]);
+  await calendar.press("Escape");
+  await expect(date).toBeFocused();
+  await expect(title).toHaveValue("로딩 실패에도 남길 초안");
+  expect(writes).toEqual([]);
+  await date.fill("2024-03-01");
+  await saveOnce(page, form);
+  await expect.poll(() => patches.length).toBe(1);
+  expect((patches[0].properties as Record<string, unknown>).prop_3).toBe("2024-03-01");
+});

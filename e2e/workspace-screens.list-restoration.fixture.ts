@@ -538,7 +538,8 @@ test("#211 기록 필터·날짜 그룹·표시·편집은 계정 시간대로 �
   );
   await expect(form(page).locator("time")).toHaveText(displayed);
   await openDetailEditor(page);
-  await expect(form(page).locator('input[type="datetime-local"]')).toHaveValue("2026-10-07T19:15");
+  await expect(form(page).getByRole("textbox", { name: "수행 시각 날짜", exact: true })).toHaveValue("2026-10-07");
+  await expect(form(page).getByLabel("수행 시각 시간", { exact: true })).toHaveValue("19:15");
   await form(page).getByLabel("본문", { exact: false }).fill("시각을 유지하는 편집");
   await saveOnce(page, form(page));
   await expect.poll(() => state.writes[0]?.body.occurred_at).toBe("2026-10-07T23:15:22.123Z");

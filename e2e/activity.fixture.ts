@@ -411,3 +411,134 @@ for(const kind of ["records","tasks"]){
     }
   });
 }
+
+for (const kind of ["once", "recurring"] as const) {
+  test(`task date picker ${kind} keeps the selected date draft through calendar close and discard cancellation`, async ({ page }) => {
+    const writes: string[] = [];
+    await page.route("http://127.0.0.1:55581/api/**", async (route) => {
+      if (route.request().method() !== "GET") writes.push(new URL(route.request().url()).pathname);
+      return route.fulfill({ json: { items: [], next_cursor: null } });
+    });
+    await page.goto("/e2e/fixtures/activity.html?route=/tasks?create=1");
+    const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });
+    if (kind === "recurring") await form.getByRole("radio", { name: "반복", exact: true }).click();
+    const label = kind === "once" ? "기한" : "시작일";
+    const input = form.getByRole("textbox", { name: kind === "once" ? "기한" : /^시작일/ });
+    await input.fill("2024-02-29");
+    await form.getByRole("button", { name: `${label} 달력 열기`, exact: true }).click();
+    const calendar = page.getByRole("dialog", { name: `${label} 달력`, exact: true });
+    await calendar.getByRole("gridcell", { selected: true }).getByRole("button").press("ArrowRight");
+    await page.keyboard.press("Enter");
+    await expect(calendar).toHaveCount(0);
+    await expect(input).toHaveValue("2024-03-01");
+    await input.press("Escape");
+    const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
+    await expect(discard).toBeVisible();
+    await discard.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(input).toHaveValue("2024-03-01");
+    expect(writes).toEqual([]);
+  });
+}
+
+test("record date picker preserves the clock and untouched timestamp precision across explicit saves", async ({ page }, info) => {
+  const original = "2024-02-29T14:58:37.123Z";
+  let current = record(71, original);
+  const writes: Record<string, unknown>[] = [];
+  await page.route("http://127.0.0.1:55581/api/**", async (route) => {
+    if (await fulfillPreparation(route)) return;
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith(`/records/${id(71)}`)) {
+      if (route.request().method() === "PATCH") {
+        const input = route.request().postDataJSON();
+        writes.push(input);
+        current = { ...current, ...input, version: current.version + 1 };
+      }
+      return route.fulfill({ json: current });
+    }
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
+  await page.goto("/e2e/fixtures/activity.html?route=" + encodeURIComponent(`/records/${id(71)}`));
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "기록 편집", exact: true });
+  const date = form.getByLabel("수행 시각 날짜", { exact: true });
+  const clock = form.getByLabel("수행 시각 시간", { exact: true });
+  const expectedClock = info.project.use.timezoneId === "UTC" ? "14:58" : "23:58";
+  await expect(date).toHaveValue("2024-02-29");
+  await expect(clock).toHaveValue(expectedClock);
+  await form.getByRole("textbox", { name: /^본문/ }).fill("본문만 정정");
+  await saveOnce(page, form);
+  await expect.poll(() => writes.length).toBe(1);
+  expect(writes[0].occurred_at).toBe(original);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  await form.getByRole("button", { name: "수행 시각 날짜 달력 열기", exact: true }).click();
+  const calendar = page.getByRole("dialog", { name: "수행 시각 날짜 달력", exact: true });
+  await calendar.getByRole("gridcell", { selected: true }).getByRole("button").press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(date).toHaveValue("2024-03-01");
+  await expect(clock).toHaveValue(expectedClock);
+  expect(writes).toHaveLength(1);
+  await saveOnce(page, form);
+  await expect.poll(() => writes.length).toBe(2);
+  expect(writes[1].occurred_at).toBe("2024-03-01T14:58:00.000Z");
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  await expect(date).toHaveValue("2024-03-01");
+  await expect(clock).toHaveValue(expectedClock);
+});
+
+test("task date picker rejects year zero beside the original draft before preparation", async ({ page }) => {
+  const writes: string[] = [];
+  await page.route("http://127.0.0.1:55581/api/**", async (route) => {
+    if (route.request().method() !== "GET") writes.push(new URL(route.request().url()).pathname);
+    if (await fulfillPreparation(route)) return;
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
+  await page.goto("/e2e/fixtures/activity.html?route=/tasks?create=1");
+  const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });
+  await form.getByRole("textbox", { name: /^제목/ }).fill("날짜 범위 검사");
+  const input = form.getByRole("textbox", { name: "기한", exact: true });
+  await input.fill("0000-01-01");
+  await form.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(input).toHaveValue("0000-01-01");
+  await expect(form).toContainText("날짜");
+  expect(writes).toEqual([]);
+});
+
+test("record date picker retains invalid and partial parent drafts while only two blank parts mean now", async ({ page }) => {
+  const writes: Record<string, unknown>[] = [];
+  await page.route("http://127.0.0.1:55581/api/**", async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/records") && route.request().method() === "POST") {
+      const input = route.request().postDataJSON();
+      writes.push(input);
+      return route.fulfill({ json: { ...record(72), ...input } });
+    }
+    if (await fulfillPreparation(route)) return;
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
+  await page.goto("/e2e/fixtures/activity.html?route=/records?create=1");
+  const form = page.getByRole("dialog", { name: "기록 작성", exact: true });
+  await form.getByRole("textbox", { name: /^본문/ }).fill("미완성 시각 초안");
+  const date = form.getByLabel("수행 시각 날짜", { exact: true });
+  const clock = form.getByLabel("수행 시각 시간", { exact: true });
+  await date.fill("0000-01-01");
+  await clock.fill("12:30");
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(date).toHaveAttribute("aria-invalid", "true");
+  await expect(date).toHaveValue("0000-01-01");
+  expect(writes).toEqual([]);
+  await date.fill("2024-T불완전");
+  for (const width of [390, 1440, 320]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expect(date).toHaveValue("2024-T불완전");
+    await expect(clock).toHaveValue("12:30");
+  }
+  await date.fill("");
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(date).toHaveAttribute("aria-invalid", "true");
+  await expect(clock).toHaveValue("12:30");
+  expect(writes).toEqual([]);
+  await clock.fill("");
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect.poll(() => writes.length).toBe(1);
+  expect(writes[0]).not.toHaveProperty("occurred_at");
+});

@@ -180,7 +180,7 @@ test("manual tuple registration restores stored properties and links while ident
     );
     await expect(restore.getByLabel("개수")).toHaveValue("0");
     await expect(restore.getByLabel("구분")).toHaveValue("value:c");
-    await restore.getByLabel("날짜").fill("2026-10-09");
+    await restore.getByRole("textbox", { name: "날짜", exact: true }).fill("2026-10-09");
     await saveOnce(page, restore);
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     const restored = await api(

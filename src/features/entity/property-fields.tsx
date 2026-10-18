@@ -1,6 +1,7 @@
 import { cn } from "../../lib/utils.ts";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Input } from "../../components/ui/input.tsx";
+import { DateInput } from "../../components/DateInput.tsx";
 import { fieldChoiceLabels, fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { codePointLength, isoDate } from "@contracts/common.ts";
@@ -194,12 +195,20 @@ export function PropertyFields(
                         ))}
                     </NativeSelect>
                   )
-                  : (
+                  : field.format === "date" ? (
+                    <DateInput
+                      {...props}
+                      label={field.title ?? key}
+                      disabled={disabled}
+                      value={typeof value === "string" ? value : ""}
+                      onValueChange={(next) => set(key, next === "" ? nullable ? null : required ? "" : undefined : next)}
+                    />
+                  ) : (
                     <Input
                       {...props}
                       disabled={disabled}
 
-                      type={field.format === "date" ? "date" : "text"}
+                      type="text"
                       inputMode={["integer", "number"].includes(fieldType(field) ?? "") ? "decimal" : undefined}
                       value={typeof value === "string" ? value : ""}
                       onChange={(e) => {

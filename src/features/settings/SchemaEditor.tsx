@@ -1,3 +1,4 @@
+import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 import { BusinessTable, BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 import { RadioGroup } from "@/components/ui/radio-group";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
@@ -8,6 +9,7 @@ import { FieldSet, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "../../components/ui/button.tsx";
 import { Input } from "../../components/ui/input.tsx";
+import { DateInput } from "../../components/DateInput.tsx";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Textarea } from "../../components/ui/textarea.tsx";
 import { SchemaExport } from "./SchemaExport.tsx";
@@ -188,6 +190,7 @@ export function SchemaEditor(
     restartedFrom,
     planSyncNeeded,
   } = editor.view;
+  const inputsDisabled = lockedPlan || busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain;
   const {
     editField,
     editNumeric,
@@ -327,8 +330,7 @@ export function SchemaEditor(
               id="schema-property-inputs"
               hidden={!propertiesOpen}
               className="min-w-0"
-              disabled={lockedPlan || busy || uncertain || disabled || readBusy || startState.busy ||
-                startState.uncertain}
+              disabled={inputsDisabled}
             >
               <RadioGroup value={schemaPresentation(draft).representative} onValueChange={editor.chooseRepresentative} aria-label="자료 이름으로 사용할 항목">
               <CollectionList view="table" label="입력 항목 목록" columns={["입력 항목", "설정", "순서"]}>
@@ -697,7 +699,8 @@ export function SchemaEditor(
                                 )}
                               </Field>
                               {f.default !== undefined && f.default !== null && (
-                                <Field label="기본값">
+                                <Field label="기본값" error={f.format === "date" && !isCivilDateInput(String(f.default))
+                                  ? "올바른 날짜를 YYYY-MM-DD 형식으로 입력하세요." : undefined}>
                                   {(p) =>
                                     scalar === "boolean"
                                       ? (
@@ -739,11 +742,20 @@ export function SchemaEditor(
                                           ))}
                                         </NativeSelect>
                                       )
-                                      : (
+                                      : f.format === "date" ? (
+                                        <DateInput
+                                          {...p}
+                                          label={`${f.title ?? key} 기본값`}
+                                          disabled={inputsDisabled}
+                                          data-schema-setting="default"
+                                          value={numericDrafts[key + ":default"] ?? String(f.default)}
+                                          onValueChange={(next) => editField(key, { ...f, default: next })}
+                                        />
+                                      ) : (
                                         <Input
                                           {...p}
 
-                                          type={f.format === "date" ? "date" : "text"}
+                                          type="text"
                                           inputMode={["integer", "number"].includes(
                                               scalar,
                                             )
