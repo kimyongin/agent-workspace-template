@@ -7,7 +7,7 @@ import type {
   WorkspaceRequirement,
   WorkspaceStore,
 } from "../../core/workspaces/application.ts";
-import type { Workspace, WorkspaceGrant } from "../../contracts/workspace.ts";
+import type { WorkspaceGrant, WorkspaceSummary } from "../../contracts/workspace.ts";
 import { executeWorkspaceRequest } from "./workspace-request-ledger.ts";
 import { lockWorkspace, runInWorkspace, workspaceAccount } from "./workspace-context.ts";
 
@@ -46,7 +46,9 @@ export class SqlWorkspaceStore implements WorkspaceStore {
   async list() {
     return {
       items: Array.from(
-        await this.tx<Workspace[]>`select id,name,deleted_at from app.workspaces order by created_at,id`,
+        await this.tx<
+          WorkspaceSummary[]
+        >`select id,name,deleted_at,app.can_manage_workspace(id) as can_manage from app.workspaces order by created_at,id`,
       ),
     };
   }

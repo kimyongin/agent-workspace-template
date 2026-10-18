@@ -12,6 +12,7 @@ import {
   workspaceLifecycleChange,
   type WorkspaceMember,
   workspaceMemberUpdate,
+  type WorkspaceSummary,
   workspaceVersion,
 } from "../../contracts/workspace.ts";
 
@@ -31,7 +32,7 @@ export interface WorkspaceEntry {
 export interface WorkspaceStore {
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T>;
   create(name: string): Promise<{ workspace: Workspace }>;
-  list(): Promise<{ items: Workspace[] }>;
+  list(): Promise<{ items: WorkspaceSummary[] }>;
   deleted(): Promise<{ items: WorkspaceLifecycle[] }>;
   lifecycleDetails(): Promise<{ workspace: WorkspaceLifecycle }>;
   setDeleted(generation: number, deleted: boolean): Promise<{ workspace: WorkspaceLifecycle }>;

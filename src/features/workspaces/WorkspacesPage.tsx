@@ -2,7 +2,8 @@ import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
-import type { Workspace } from "@contracts/workspace.ts";
+import type { Workspace, WorkspaceSummary } from "@contracts/workspace.ts";
+import { DeletedWorkspaces, WorkspaceLifecycleDialog, type WorkspaceLifecycleIntent } from "./WorkspaceLifecycle.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { workspacePath } from "../../lib/workspace-route.tsx";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -10,32 +11,24 @@ import { Button } from "../../components/ui/button.tsx";
 import { Field, FieldGroup, FieldLabel } from "../../components/ui/field.tsx";
 import { Input } from "../../components/ui/input.tsx";
 import { Alert, AlertDescription } from "../../components/ui/alert.tsx";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "../../components/ui/empty.tsx";
-import {
-  BusinessCell,
-  BusinessRow,
-  BusinessTable,
-} from "../../components/BusinessTable.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../components/ui/empty.tsx";
+import { BusinessCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 export function WorkspacesPage() {
   const api = useApi(), navigate = useDeferredNavigation();
-  const [items, setItems] = useState<Workspace[] | null>(null),
+  const [items, setItems] = useState<WorkspaceSummary[] | null>(null),
     [error, setError] = useState(""),
     [revision, setRevision] = useState(0),
     [creating, setCreating] = useState(false),
     [name, setName] = useState("");
+  const [lifecycle, setLifecycle] = useState<WorkspaceLifecycleIntent | null>(null);
   const { attempt, busy, uncertain } = useWriteAttempt<
     { workspace: Workspace }
   >();
   useEffect(() => {
     const controller = new AbortController();
-    void api<{ items: Workspace[] }>(
+    void api<{ items: WorkspaceSummary[] }>(
       "GET",
       "/workspaces",
       undefined,
@@ -50,6 +43,11 @@ export function WorkspacesPage() {
     });
     return () => controller.abort();
   }, [api, revision]);
+  useEffect(() => {
+    const refresh = () => setRevision((value) => value + 1);
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
@@ -105,9 +103,19 @@ export function WorkspacesPage() {
               <BusinessRow key={item.id}>
                 <BusinessCell index={0}>{item.name}</BusinessCell>
                 <BusinessCell index={1}>
-                  <Button asChild variant="outline">
-                    <Link to={workspacePath(item.id)}>열기</Link>
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline">
+                      <Link to={workspacePath(item.id)}>열기</Link>
+                    </Button>
+                    {item.can_manage && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setLifecycle({ workspace: item, action: "delete" })}
+                      >
+                        삭제
+                      </Button>
+                    )}
+                  </div>
                 </BusinessCell>
               </BusinessRow>
             ))}
@@ -123,6 +131,21 @@ export function WorkspacesPage() {
             </EmptyHeader>
           </Empty>
         )}
+      <DeletedWorkspaces
+        revision={revision}
+        onRestore={(workspace) => setLifecycle({ workspace, action: "restore" })}
+      />
+      {lifecycle && (
+        <WorkspaceLifecycleDialog
+          key={`${lifecycle.workspace.id}:${lifecycle.action}`}
+          intent={lifecycle}
+          onClose={() => setLifecycle(null)}
+          onSaved={() => {
+            setLifecycle(null);
+            setRevision((value) => value + 1);
+          }}
+        />
+      )}
       <ModalShell
         title="새 공간 만들기"
         open={creating}
@@ -199,8 +222,7 @@ export function InvitationPage() {
     <section className="mx-auto flex w-full max-w-xl flex-col gap-5 p-6">
       <h1 className="text-2xl font-semibold">공간 초대</h1>
       <p>
-        초대받은 이메일의 Google 계정으로 로그인한 뒤 참여하세요. 초대의
-        유효성과 계정을 서버에서 확인합니다.
+        초대받은 이메일의 Google 계정으로 로그인한 뒤 참여하세요. 초대의 유효성과 계정을 서버에서 확인합니다.
       </p>
       {error && (
         <Alert variant="destructive">

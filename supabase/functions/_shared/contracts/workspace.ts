@@ -42,6 +42,9 @@ export const workspaceLifecycleChange = z.strictObject({
 export interface WorkspaceLifecycle extends Workspace {
   lifecycle_generation: number;
 }
+export interface WorkspaceSummary extends Workspace {
+  can_manage: boolean;
+}
 export interface WorkspaceMember {
   display_name: string | null;
   user_id: string;
