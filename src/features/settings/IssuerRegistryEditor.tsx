@@ -286,7 +286,7 @@ export function IssuerRegistryEditor(
             <Button variant="outline"
               type="button"
 
-              disabled={!canWrite || busy || uncertain || reading}
+              disabled={busy || uncertain || reading}
               onClick={() => void readLatest()}
             >
               {reading ? "확인 중…" : "최신 저장값 확인"}
@@ -316,7 +316,7 @@ export function IssuerRegistryEditor(
         )}
         <FieldSet
           className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
-          disabled={busy || reading || uncertain}
+          disabled={!canWrite || busy || reading || uncertain}
         >
           <Field
             label={target.kind === "issuer" ? "번호 출처 이름" : "번호 종류 이름"}
@@ -332,8 +332,9 @@ export function IssuerRegistryEditor(
               />
             )}
           </Field>
-          {inline && target.kind === "rule" && baseline && (
+          {target.kind === "rule" && baseline && (
             <dl className="grid min-w-0 gap-3 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+              <div><dt>번호의 의미</dt><dd>{target.rule?.meaning}</dd></div>
               <div>
                 <dt>입력 방식</dt>
                 <dd>
@@ -384,7 +385,7 @@ export function IssuerRegistryEditor(
   );
   if (inline) {
     return (
-      <section className="flex min-w-0 flex-col gap-4 py-4" aria-label="번호 종류 편집">
+      <section className="flex min-w-0 flex-col gap-4 py-4" aria-label={canWrite ? "번호 종류 편집" : "번호 종류 보기"}>
         {content}
         <div className="flex flex-wrap items-center justify-between gap-3">
           {deleteAction}

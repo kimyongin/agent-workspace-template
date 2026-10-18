@@ -101,7 +101,7 @@ function IssuerSettingsPageContent() {
     }
   }, [editing]);
   const edit = (target: RegistryEditTarget) => {
-    if (!canWrite) return;
+    if (!canWrite && (target.kind === "issuer" ? !target.issuer : !target.rule)) return;
     const origin = document.activeElement as HTMLElement;
     request(() => {
       returnFocus.current = origin;
@@ -201,11 +201,11 @@ function IssuerSettingsPageContent() {
             disabled={locked}
             action={issuer.system ? undefined : selected !== issuer.code ? <span /> : (
               <Button variant="ghost" type="button"
-                disabled={!canWrite || locked}
-                aria-label={`${issuer.label} 편집`}
+                disabled={locked}
+                aria-label={`${issuer.label} ${canWrite ? "편집" : "보기"}`}
                 onClick={() => edit({ kind: "issuer", issuer })}
               >
-                출처 편집
+                {canWrite ? "출처 편집" : "출처 보기"}
               </Button>
             )}
             onToggle={() => {
@@ -239,7 +239,7 @@ function IssuerSettingsPageContent() {
                     const expanded = inline && editing.rule?.id === rule.id;
                     return <Fragment key={rule.id}>
                       <BusinessRow>
-                        <BusinessDisclosureCell>{!issuer.system && <Button variant="ghost" size="icon" type="button" aria-label={`${rule.label} 편집`} aria-expanded={expanded} aria-controls={`${ruleListId}-${rule.id}`} disabled={!canWrite || locked}
+                        <BusinessDisclosureCell>{!issuer.system && <Button variant="ghost" size="icon" type="button" aria-label={`${rule.label} ${canWrite ? "편집" : "보기"}`} aria-expanded={expanded} aria-controls={`${ruleListId}-${rule.id}`} disabled={locked}
                           onClick={() => expanded ? request(() => setEditing(null)) : edit({kind:"rule",source:issuer.code,sourceLabel:issuer.label,rule})}>
                           {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
                         </Button>}</BusinessDisclosureCell>

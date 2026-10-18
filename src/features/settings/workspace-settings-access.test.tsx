@@ -7,6 +7,7 @@ import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.t
 import { WorkspaceSettingsBoundary } from "./workspace-settings-access.tsx";
 import { MigrationStart } from "./SchemaMigrationJobs.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
+import { IssuerRegistryEditor } from "./IssuerRegistryEditor.tsx";
 import { RecoveryChangeCreate } from "./SchemaRecovery.tsx";
 
 const capability: { current: WorkspaceCapabilities | null } = { current: null };
@@ -85,4 +86,34 @@ it("설정 권한이 없으면 하위 설정 독자를 마운트하지 않고 �
   );
   expect(read).toContain("읽기 전용 설정");
   expect(read).toContain("현재 자료 정의");
+});
+
+it("읽기 전용 번호 종류는 저장된 의미를 보여 주되 입력과 저장은 허용하지 않는다", () => {
+  showRecovery("read");
+  const html = renderToStaticMarkup(
+    <WorkspaceCapabilitiesContext.Provider value={capability.current}>
+      <IssuerRegistryEditor
+        inline
+        target={{
+          kind: "rule",
+          source: "store",
+          sourceLabel: "판매처",
+          rule: {
+            id: "rule",
+            source: "store",
+            label: "상품 번호",
+            meaning: "판매처에 등록된 고유 상품 번호",
+            active: true,
+            generation: "direct",
+            version: 1,
+          },
+        }}
+        onClose={() => {}}
+        onSaved={() => {}}
+      />
+    </WorkspaceCapabilitiesContext.Provider>,
+  );
+  expect(html).toContain("판매처에 등록된 고유 상품 번호");
+  expect(html).toMatch(/<fieldset[^>]*disabled=""/);
+  expect(html).toMatch(/<button[^>]*disabled=""[^>]*>저장<\/button>/);
 });
