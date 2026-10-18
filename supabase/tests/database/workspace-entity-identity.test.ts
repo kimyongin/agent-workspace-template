@@ -17,6 +17,11 @@ const deps = { uow: new SqlEntityUnitOfWork(sql) };
 dbTest("workspace entity direct identities preserve exact tuples and shared history across lifecycle", async () => {
   const f = await businessWorkspaceFixture(admin, sql);
   try {
+    const rawAuthor = `  공유 기록 작성자\n${"가".repeat(120)}  `;
+    const savedAuthor = (`공유 기록 작성자 ${"가".repeat(120)}`).slice(0, 100);
+    await admin`update auth.users set raw_user_meta_data=${
+      admin.json({ full_name: rawAuthor })
+    } where id=${f.member.userId}`;
     const kind = await f.createKind("직접 번호 자료");
     await f.grantKind(f.manager, kind.id, "write");
     await f.grantKind(f.member, kind.id, "write");
@@ -265,7 +270,7 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
         null,
         f.member.userId,
       ]);
-      assert(typeof row.created_by_name === "string" && [...row.created_by_name].length <= 100);
+      assertEquals(row.created_by_name, savedAuthor);
     }
     assertEquals((await entities.getEntity(deps, f.manager, created.id)).records.count, 4);
     const [stored] =
