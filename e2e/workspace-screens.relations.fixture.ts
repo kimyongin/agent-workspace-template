@@ -14,7 +14,7 @@ for (const width of [320, 390, 1024]) {
     Object.assign(state.rows.entities[0], {
       records: {
         count: 2,
-        items: [{ id: id(3), body: "상담 판단 정리", record_kind: "user", occurred_at: stamp, updated_at: stamp }, {
+        items: [{ id: id(3), body: "상담 판단 정리", record_kind: "change", occurred_at: stamp, updated_at: stamp }, {
           id: id(30),
           body: title,
           record_kind: "change",
@@ -49,15 +49,11 @@ for (const width of [320, 390, 1024]) {
 
 test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해제", async ({ page }) => {
   const state = await fixtures(page);
-  for (const kind of ["tasks", "records"] as const) {
-    state.rows[kind as "tasks" | "records"][0].entity_ids = [entityKey(1)];
-    state.rows[kind as "tasks" | "records"][0].entity_context = [{
-      id: entityKey(1),
-      title: "자료",
-      source: "selection",
-      captured_at: stamp,
-    }];
-  }
+  Object.assign(state.rows.tasks[0], {
+    entity_ids: [entityKey(1)],
+    entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }],
+  });
+  Object.assign(state.rows.records[0], { entity_id: entityKey(1), task_id: null, record_kind: "change" });
   state.rows.entities[0].tasks = { count: 1, items: [{ id: id(2), title: "할 일", updated_at: stamp }] };
   const reads: { kind: string; params: URLSearchParams }[] = [];
   for (const kind of ["tasks", "records"] as const) {
@@ -67,7 +63,9 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
       return route.fulfill({
         json: {
           items: state.rows[kind as "tasks" | "records"].filter((row) =>
-            !params.has("entity_id") || (row.entity_ids as string[]).includes(params.get("entity_id")!)
+            !params.has("entity_id") || ("entity_ids" in row
+              ? row.entity_ids.includes(params.get("entity_id")!)
+              : row.entity_id === params.get("entity_id"))
           ),
           next_cursor: null,
         },
@@ -111,12 +109,18 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
 for (const kind of ["tasks", "records"] as const) {
   test(`${kind} 보기의 연결 대상은44px 펼침으로 엔터티 내용을 읽는다`, async ({ page }) => {
     const state = await fixtures(page), row = state.rows[kind][0];
-    row.entity_ids = [entityKey(1)];
-    row.entity_context = [{ id: entityKey(1), title: "함", source: "selection", captured_at: stamp }];
+    if (kind === "tasks") Object.assign(row, {
+      entity_ids: [entityKey(1)],
+      entity_context: [{ id: entityKey(1), title: "함", source: "selection", captured_at: stamp }],
+    });
+    else Object.assign(row, { entity_id: entityKey(1), task_id: null, record_kind: "change", change: {
+      event_id: id(30), target_kind: "entity", target_id: entityKey(1), target_title: "함",
+      action: "update", source: "http", before: null, after: null, path: null,
+    } });
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await go(page, `/${kind}/${row.id}`);
-      const link = form(page).getByRole("region", { name: /^연결된 자료/ }).getByRole("button", { name: "함", exact: true });
+      const link = form(page).getByRole("region", { name: kind === "tasks" ? /^연결된 자료/ : /^자료/ }).getByRole("button", { name: "함", exact: true });
       await expect.poll(() => form(page).evaluate(element => element.getAnimations({ subtree: true })
         .filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
       const box = (await link.boundingBox())!;

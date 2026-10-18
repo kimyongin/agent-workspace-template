@@ -343,12 +343,12 @@ test("상세 탐색: 계정 전환 뒤 이전 계정의 편집 문맥을 무시"
 test("상세 탐색: 관련 편집 닫기도 처음 기록 목록 조건 복원", async ({ page }) => {
   const state = await fixtures(page);
   linkedFixture(state);
-  await go(page, "/records?record_kind=user");
+  await go(page, "/records?record_kind=result");
   await openListDetail(page, "기록");
   await form(page).getByRole("button", { name: "할 일", exact: true }).click();
   await form(page).getByRole("link", { name: "할 일 상세", exact: true }).click();
   await form(page).getByRole("button", { name: "닫기", exact: true }).click();
-  expect(new URL(page.url()).searchParams.get("record_kind")).toBe("user");
+  expect(new URL(page.url()).searchParams.get("record_kind")).toBe("result");
   await expect(page.locator(`#activity-records-${id(3)}`)).toBeFocused();
   expect(state.errors).toEqual([]);
 });

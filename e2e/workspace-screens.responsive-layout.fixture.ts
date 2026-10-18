@@ -329,31 +329,27 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       body: "상담 결과 " + "긴본문대표문구".repeat(18),
       record_kind: "result",
       task_id: t.id,
-      entity_ids: [entityKey(1)],
-      entity_context: [{
-        id: entityKey(1),
-        title: "고객 " + "긴이름".repeat(25),
-        source: "selection",
-        captured_at: stamp,
-      }],
+      entity_id: null,
     });
     Object.assign(t, {
-      entity_ids: r.entity_ids,
-      entity_context: r.entity_context,
+      entity_ids: [entityKey(1)],
+      entity_context: [{ id: entityKey(1), title: "고객 " + "긴이름".repeat(25), source: "selection", captured_at: stamp }],
       status: "done",
       completed_at: stamp,
       result_record_id: r.id,
       result_record: { id: r.id, body: r.body },
     });
-    Object.assign(state.rows.entities[0], { tasks: { count: 1, items: [t] }, records: { count: 1, items: [r] } });
+    const entityRecord = { ...r, id: id(33), record_kind: "change" as const, entity_id: entityKey(1), task_id: null };
+    state.rows.records.push(entityRecord);
+    Object.assign(state.rows.entities[0], { tasks: { count: 1, items: [t] }, records: { count: 1, items: [entityRecord] } });
     await page.setViewportSize({ width, height: 900 });
     const styles: string[] = [];
     for (const path of [`/entities/${encodeURIComponent(entityKey(1))}`, `/tasks/${t.id}`, `/records/${r.id}`]) {
       await go(page, path);
       const links = businessRows(form(page).getByRole("table"));
-      await expect(links).toHaveCount(2);
+      await expect(links).toHaveCount(path.startsWith("/records/") ? 1 : 2);
       const lastRows = form(page).getByRole("table").locator(":scope > tbody > tr:last-child");
-      await expect(lastRows).toHaveCount(2);
+      await expect(lastRows).toHaveCount(path.startsWith("/records/") ? 1 : 2);
       for (const row of await lastRows.all()) await expect(row).toBeVisible();
       const first = links.first();
       await settleSurface(form(page));

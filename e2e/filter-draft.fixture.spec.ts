@@ -75,7 +75,7 @@ test("invalid property draft and reset retain applied results until common apply
 test("record dates and kind apply together and invalid dates preserve URL and edited fields", async ({ page }) => {
   await page.goto("/records?filters=1&from=2026-09-01&to=2026-10-01");
   await page.getByLabel("기록 시작일", { exact: true }).fill("2026-11-01");
-  await page.getByLabel("기록 종류", { exact: true }).selectOption("user");
+  await page.getByLabel("기록 종류", { exact: true }).selectOption("result");
   expect(new URL(page.url()).searchParams.get("from")).toBe("2026-09-01");
   expect(new URL(page.url()).searchParams.has("record_kind")).toBe(false);
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
@@ -85,7 +85,7 @@ test("record dates and kind apply together and invalid dates preserve URL and ed
   await page.getByLabel("기록 종료일", { exact: true }).fill("2026-12-01");
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("from")).toBe("2026-11-01");
-  expect(new URL(page.url()).searchParams.get("record_kind")).toBe("user");
+  expect(new URL(page.url()).searchParams.get("record_kind")).toBe("result");
 });
 
 test("mixed search text submission preserves optional drafts and disclosure causes no read", async ({ page }) => {

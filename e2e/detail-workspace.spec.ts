@@ -9,7 +9,7 @@ import { saveOnce } from "./ui-actions.ts";
 
 async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<string, unknown> = {}) {
   const t = { ...task(), title: "등심 구매하기", entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "등심", source: "selection" as const, captured_at: stamp }] };
-  const r = { ...record(), body: "구매 기준을 정리했습니다.", task_id: id(2), entity_ids: [entityKey(1)], entity_context: t.entity_context };
+  const r = { ...record(), body: "구매 기준을 정리했습니다.", task_id: id(2) };
   const e = { ...entity(1, { prop_1: "등심" }), tasks: { count: 1, items: [t] }, records: { count: 1, items: [r] } };
   const state = await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [e, entity(6, { prop_1: "버섯" })], tasks: [t], records: [r],  tags: [] }, options);
   const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: metadata };
@@ -1433,26 +1433,27 @@ test("review: readonly entity representative keeps the full-width emphasized val
 
 test("review: captured entity labels retain their historical meaning in record edit", async ({ page }, info) => {
   const state = await fixture(page);
-  state.rows.records[0].entity_context = [{
-    ...state.rows.records[0].entity_context[0],
-    type: { ...state.rows.entities[0].type, label: "당시 상품" },
-    schema_version: 7,
-  }];
+  Object.assign(state.rows.records[0], {
+    record_kind: "change", entity_id: entityKey(1), task_id: null,
+    change: { event_id: id(30), target_kind: "entity", target_id: entityKey(1), target_title: "당시 상품",
+      action: "update", source: "http", path: null,
+      before: { schema_version: 7, property_labels: { prop_1: "당시 상품명" }, properties: { prop_1: "등심" } },
+      after: { schema_version: 8, property_labels: { prop_1: "당시 상품명" }, properties: { prop_1: "버섯" } },
+    },
+  });
   await page.goto(`/records/${state.rows.records[0].id}`);
   const surface = panel(page);
-  const linked = surface.getByRole("region", { name: "연결된 자료 (1개)", exact: true });
-  await linked.getByRole("button", { name: "등심", exact: true }).click();
-  await expect(linked.locator("dt", { hasText: /^당시 자료 종류$/ }).locator("../dd")).toContainText("당시 상품");
-  await expect(linked.locator("dt", { hasText: /^당시 입력 항목 버전$/ }).locator("../dd")).toHaveText("7");
-  await expect(linked.locator("dt", { hasText: /^자료 식별$/ }).locator("../dd")).toHaveText(entityKey(1));
+  const linked = surface.getByRole("region", { name: "자료 (1개)", exact: true });
+  await expect(linked.getByRole("button", { name: "당시 상품", exact: true })).toBeVisible();
+  await expect(surface).toContainText("당시 상품명");
+  await expect(surface).toContainText("등심");
+  await expect(surface).toContainText("버섯");
+  await expect(surface.locator("dt", { hasText: /^입력 항목 버전$/ }).locator("../dd")).toHaveText(["7", "8"]);
   await surface.getByRole("button", { name: "편집", exact: true }).click();
-  await expect(linked.locator("dt:visible", { hasText: /^당시 자료 종류$/ }).locator("../dd")).toContainText(
-    "당시 상품",
-  );
-  await expect(linked.locator("dt:visible", { hasText: /^당시 입력 항목 버전$/ }).locator("../dd")).toHaveText("7");
-  await expect(linked.locator("dt:visible", { hasText: /^자료 식별$/ }).locator("../dd")).toHaveText(entityKey(1));
+  await expect(linked).toContainText("당시 상품");
   await expect(linked.getByRole("button")).toHaveCount(0);
-  await linked.locator("dt:visible", { hasText: /^자료 식별$/ }).scrollIntoViewIfNeeded();
+  await expect(surface).toContainText("당시 상품명");
+  await expect(surface.locator("dt:visible", { hasText: /^입력 항목 버전$/ }).locator("../dd")).toHaveText(["7", "8"]);
   await page.screenshot({ path: info.outputPath("record-captured-entity-edit.png") });
   expect(state.writes).toEqual([]);
 });
