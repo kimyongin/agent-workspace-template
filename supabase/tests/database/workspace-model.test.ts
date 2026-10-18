@@ -1,4 +1,5 @@
 import {
+  applyDataModel,
   exportDataModel,
   getDataModelChange,
   listDataModelChanges,
@@ -115,6 +116,20 @@ dbTest(
       const wrongPlan = await assertRejects(() => getDataModelChange(modelDeps, second, prepared.id), AppError);
       assertEquals(wrongPlan.code, "not_found");
       assertEquals((await types.listEntityTypes(typeDeps, first)).items.map((v) => v.id), [left.id]);
+      const applied = await applyDataModel(modelDeps, key(reader), prepared.id, {
+        expected_version: prepared.version,
+      });
+      assertEquals(applied.status, "applied");
+      assertEquals(
+        new Set((await exportDataModel(modelDeps, first)).entity_types.map((v) => v.schema["x-type-id"])),
+        new Set([left.id, ...Object.values(managerA.mapping.types)]),
+      );
+      assertEquals((await exportDataModel(modelDeps, second)).entity_types.map((v) => v.schema["x-type-id"]), [
+        right.id,
+      ]);
+      assertEquals((await workspaces.workspaceDetails(workspaceDeps, b, owned[0])).grants, [
+        { target_kind: "settings", target_id: "*", access: "write" },
+      ]);
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
