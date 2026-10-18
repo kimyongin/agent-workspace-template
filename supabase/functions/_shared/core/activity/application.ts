@@ -252,7 +252,7 @@ export async function stopTask(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return await runWrite(deps.uow, actor, "task.stop", id, {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.stop", id, {
     expected_version: expectedVersion,
     change_note,
     change_tag_ids,
@@ -280,7 +280,7 @@ export async function resumeTask(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return await runWrite(deps.uow, actor, "task.resume", id, {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.resume", id, {
     expected_version: expectedVersion,
     change_note,
     change_tag_ids,
@@ -324,23 +324,27 @@ export async function recordOccurrence(
   date: string,
   input: Omit<RecordCreate, "task_id">,
 ): Promise<RecordResult> {
-  return await runWrite(deps.uow, actor, "occurrence.record", { task_id: id, date }, input, async (store) => {
-    // 중단·규칙 수정과 겹치지 않도록 할 일을 잠그고 판단한다.
-    const task = await requireTask(store, id, true, undefined, true);
-    assertRecordableOccurrence(task, date, deps.clock.now());
-    const record = await store.insertRecord({
-      record_kind: "result",
-      inherit_task_entities: input.entity_ids === undefined,
-      entity_ids: input.entity_ids ?? task.entity_ids ?? [],
-      body: input.body,
-      occurred_at: input.occurred_at ?? null,
-      task_id: id,
-      occurrence_on: date,
-      tag_ids: input.tag_ids,
-    });
-    await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
-    return toRecordResult(record);
-  });
+  return await runWrite(
+    activityWork(deps, { access: "write" }),
+    actor,
+    "occurrence.record",
+    { task_id: id, date },
+    input,
+    async (store) => {
+      // 중단·규칙 수정과 겹치지 않도록 할 일을 잠그고 판단한다.
+      const task = await requireTask(store, id, true);
+      assertRecordableOccurrence(task, date, deps.clock.now());
+      const record = await store.insertRecord({
+        record_kind: "result",
+        body: input.body,
+        occurred_at: input.occurred_at ?? null,
+        task_id: id,
+        occurrence_on: date,
+      });
+      await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
+      return toRecordResult(record);
+    },
+  );
 }
 
 // ---------- 기록 ----------
