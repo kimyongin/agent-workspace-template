@@ -114,7 +114,10 @@ test(
       for (const table of await page.getByRole("table", { name: /날짜별 수치$/ }).all()) {
         expect(await table.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
       }
+      await page.getByRole("heading", { name: "상태", exact: true, level: 1 }).scrollIntoViewIfNeeded();
       await snapshot(page, info, `current-status-${width}-${scale}`);
+      await page.getByRole("region", { name: "자료 색인 현황", exact: true }).scrollIntoViewIfNeeded();
+      await snapshot(page, info, `current-indexing-${width}-${scale}`);
     }
     await page.setViewportSize(initialViewport);
     await page.evaluate(() => document.documentElement.style.removeProperty("--display-scale"));
