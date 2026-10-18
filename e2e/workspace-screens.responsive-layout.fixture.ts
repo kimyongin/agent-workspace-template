@@ -1,7 +1,7 @@
 import { businessRows, disclosureContent } from "./table-actions.ts";
 import { listHeader } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
-import { entityKey } from "./support/workspace-data.ts";
+import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListEditor, openTabFilters } from "./ui-actions.ts";
 import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
 import { discardEditor } from "./ui-actions.ts";
@@ -334,7 +334,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     });
     Object.assign(t, {
       entity_ids: [entityKey(1)],
-      entity_context: [{ id: entityKey(1), title: "고객 " + "긴이름".repeat(25), source: "selection", captured_at: stamp }],
+      entity_context: [{ id: entityKey(1), title: "고객 " + "긴이름".repeat(25), type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
       status: "done",
       completed_at: stamp,
       result_record_id: r.id,

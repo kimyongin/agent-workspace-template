@@ -1,7 +1,7 @@
 import { businessRows } from "./table-actions.ts";
 import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
-import { entityKey } from "./support/workspace-data.ts";
+import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
@@ -51,7 +51,7 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
   const state = await fixtures(page);
   Object.assign(state.rows.tasks[0], {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
   });
   Object.assign(state.rows.records[0], { entity_id: entityKey(1), task_id: null, record_kind: "change" });
   state.rows.entities[0].tasks = { count: 1, items: [{ id: id(2), title: "할 일", updated_at: stamp }] };
@@ -111,7 +111,7 @@ for (const kind of ["tasks", "records"] as const) {
     const state = await fixtures(page), row = state.rows[kind][0];
     if (kind === "tasks") Object.assign(row, {
       entity_ids: [entityKey(1)],
-      entity_context: [{ id: entityKey(1), title: "함", source: "selection", captured_at: stamp }],
+      entity_context: [{ id: entityKey(1), title: "함", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
     });
     else Object.assign(row, { entity_id: entityKey(1), task_id: null, record_kind: "change", change: {
       event_id: id(30), target_kind: "entity", target_id: entityKey(1), target_title: "함",
@@ -334,7 +334,7 @@ test("#185 빈 연결 개수만 표시·관계 카드 빈 공간은 이동하지
   await expect(form(page).getByText("연결된 기록이 없습니다.", { exact: true })).toHaveCount(0);
   Object.assign(state.rows.tasks[0], {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
   });
   await page.reload();
   const link = form(page).getByRole("button", { name: "자료", exact: true }),

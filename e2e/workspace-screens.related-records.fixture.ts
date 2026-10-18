@@ -1,5 +1,5 @@
 import { businessRows } from "./table-actions.ts";
-import { entityKey } from "./support/workspace-data.ts";
+import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { openListDetail } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { id, record, stamp, task } from "./support/workspace-data.ts";
@@ -146,7 +146,7 @@ test("연결 기록 자동 복원 상한 뒤에도 수동 더 보기는 다음 c
 for (const width of [320, 1440]) {
   test(`#191 수행 결과 ${width}px: 불변 할 일 귀속과 결과 본문`, async ({ page }, info) => {
     const state = await fixtures(page), t = state.rows.tasks[0];
-    Object.assign(t, { entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }] });
+    Object.assign(t, { entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }] });
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/tasks/${t.id}`);
     await form(page).getByRole("button", { name: "완료하고 기록", exact: true }).click();
