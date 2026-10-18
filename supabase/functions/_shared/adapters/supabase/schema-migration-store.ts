@@ -240,9 +240,10 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     if (!type) throw notFound();
     const j = await this.job(id, true);
     const observed_at = await this.recoveryObservedAt();
-    const [epoch] = await this.tx`select ${j.workspace_generation}::bigint=app.workspace_generation() as current`;
+    const [execution] = await this
+      .tx`select app.workspace_schema_execution_current('migration',${id}::uuid) as current`;
     return {
-      generation_current: Boolean(epoch.current),
+      execution_current: Boolean(execution.current),
       job: {
         id: j.id,
         type_id: j.type_id,

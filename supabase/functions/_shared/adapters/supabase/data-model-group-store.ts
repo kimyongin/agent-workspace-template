@@ -178,10 +178,10 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
   }
   async cancelGroup(id: string) {
     const c = (await this.get(id, true))!;
-    const [epoch] = await this
-      .tx`select workspace_generation=app.workspace_generation() as current from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
-    if (["applied", "cancelled"].includes(c.status) || (c.status === "committing" && epoch.current)) {
-      return receiptChange(c);
+    if (["applied", "cancelled"].includes(c.status)) return receiptChange(c);
+    if (c.status === "committing") {
+      const [execution] = await this.tx`select app.workspace_schema_execution_current('model',${id}::uuid) as current`;
+      if (execution.current) return receiptChange(c);
     }
     const store = new SqlSchemaMigrationStore(this.tx, this.actor, id);
     const rows = await this.tx`select * from app.data_model_children where model_id=${id}::uuid order by type_id`;
