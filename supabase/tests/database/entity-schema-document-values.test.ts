@@ -1,5 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { connect, dbTest, urls } from "./_db.ts";
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
 import { requestActor } from "../_request.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -16,11 +17,12 @@ import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 dbTest(
   "document field annotations: readonly server defaults, deprecated input, examples and exact numeric multiples",
   async () => {
-    const admin = connect(urls.admin), sql = connect(urls.direct), owner = await fixtureOwner(admin);
+    const admin = connect(urls.admin), sql = connect(urls.direct), owner = await businessWorkspaceFixture(admin, sql);
     const types = { uow: new SqlEntityTypeUnitOfWork(sql) }, entities = { uow: new SqlEntityUnitOfWork(sql) };
     try {
-      const type = await createEntityType(types, requestActor(owner.actor), { label: "문서 속성 의미" });
-      const draft = await createEntitySchemaChange(types, requestActor(owner.actor), type.id, {
+      const type = await createEntityType(types, requestActor(owner.manager), { label: "문서 속성 의미" });
+      await owner.grantKind(owner.manager, type.id, "write");
+      const draft = await createEntitySchemaChange(types, requestActor(owner.manager), type.id, {
         expected_schema_version: 1,
         edits: [
           {
@@ -37,18 +39,18 @@ dbTest(
           },
         ],
       });
-      const analysis = await analyzeEntitySchemaChange(types, requestActor(owner.actor), type.id, draft.id, {
+      const analysis = await analyzeEntitySchemaChange(types, requestActor(owner.manager), type.id, draft.id, {
         expected_change_version: draft.version,
       });
-      await applyEntitySchemaChange(types, requestActor(owner.actor), type.id, draft.id, {
+      await applyEntitySchemaChange(types, requestActor(owner.manager), type.id, draft.id, {
         expected_change_version: draft.version,
         analysis_id: analysis.analysis_id,
       });
-      const schema = await getEntitySchema(types, owner.actor, { type_id: type.id });
+      const schema = await getEntitySchema(types, owner.manager, { type_id: type.id });
       assertEquals(schema.schema["x-version"], 2);
       assertEquals(schema.schema.properties.prop_3.multipleOf, 0.25);
       const create = (properties: EntityProperties) =>
-        createEntity(entities, requestActor(owner.actor), { entity_type_id: type.id, schema_version: 2, properties });
+        createEntity(entities, requestActor(owner.manager), { entity_type_id: type.id, schema_version: 2, properties });
       for (
         const properties of [{ prop_1: "readonly", prop_2: 7 }, { prop_1: "retired", prop_5: "입력 금지" }, {
           prop_1: "fraction",
@@ -59,7 +61,7 @@ dbTest(
       }
       const saved = await create({ prop_1: "원본", prop_3: 0.5 });
       assertEquals(saved.properties, { prop_1: "원본", prop_2: 7, prop_3: 0.5 });
-      const same = await updateEntity(entities, requestActor(owner.actor), saved.id, {
+      const same = await updateEntity(entities, requestActor(owner.manager), saved.id, {
         expected_version: saved.version,
         schema_version: 2,
         properties: { prop_2: 7, prop_3: 0.75 },
@@ -68,7 +70,7 @@ dbTest(
       for (const properties of [{ prop_2: 8 }, { prop_3: 0.6 }, { prop_5: "새 입력" }] as EntityProperties[]) {
         assertEquals(
           (await assertRejects(() =>
-            updateEntity(entities, requestActor(owner.actor), saved.id, {
+            updateEntity(entities, requestActor(owner.manager), saved.id, {
               expected_version: same.version,
               schema_version: 2,
               properties,

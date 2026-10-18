@@ -76,14 +76,28 @@ dbTest(
     }
   },
 );
-dbTest("whole model aborts a late identity violation without publishing earlier compatible schemas", async () => {
+dbTest("whole model aborts a late identity reference without publishing earlier compatible schemas", async () => {
   const a = await businessWorkspaceFixture(admin, sql);
   try {
     const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/openmarket.json")) as DataModelDocument;
     await install(a.manager, sample);
-    const before = await exportDataModel(deps, a.manager),
-      sku = before.entity_types.find((t) => t.schema.title === "판매 SKU")!;
+    const original = await exportDataModel(deps, a.manager);
+    const sku = original.entity_types.find((t) => t.schema.title === "판매 SKU")!;
     await a.grantKind(a.manager, sku.schema["x-type-id"], "write");
+    const changed = structuredClone(original);
+    changed.entity_types[0].schema.description = "실패하면 게시되면 안 되는 변경";
+    const target = changed.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
+    target.identity.default_source = "app";
+    target.identity.sources = target.identity.sources.filter((source) => source.code !== "seller");
+    const input = { mode: "update" as const, document: JSON.stringify(changed) };
+    const review = await previewDataModel(deps, a.manager, input);
+    assertEquals(review.can_apply, true);
+    const change = await prepareDataModel(deps, requestActor(a.manager), {
+      ...input,
+      preview_fingerprint: review.fingerprint,
+    });
+    // A valid public write introduces a reference after review. The frozen plan
+    // remains immutable; final publication must recheck current references.
     await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.manager), {
       entity_type_id: sku.schema["x-type-id"],
       schema_version: 1,
@@ -91,21 +105,14 @@ dbTest("whole model aborts a late identity violation without publishing earlier 
       external_id: "sku-1",
       properties: { prop_1: "등록 SKU" },
     });
-    const original = await exportDataModel(deps, a.manager), changed = structuredClone(original);
-    changed.entity_types[0].schema.description = "실패하면 게시되면 안 되는 변경";
-    const target = changed.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
-    const rejected = structuredClone(changed);
-    const rejectedType = rejected.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
-    rejectedType.identity.default_source = "app";
-    rejectedType.identity.sources = rejectedType.identity.sources.filter((s) => s.code !== "seller");
-    const removal = await previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(rejected) });
+    const removal = await previewDataModel(deps, a.manager, input);
     assertEquals(removal.can_apply, false);
-    assertEquals(removal.items.find((i) => i.ref === target.ref)?.kind, "conflict");
-    const replacement = structuredClone(changed);
+    assertEquals(removal.items.find((item) => item.ref === target.ref)?.kind, "conflict");
+    const replacement = structuredClone(original);
     const replacementType = replacement.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
-    const oldSource = replacementType.identity.sources.find((s) => s.code === "seller")!;
+    const oldSource = replacementType.identity.sources.find((source) => source.code === "seller")!;
     const newRule = {
-      ...replacement.identity_definitions.rules.find((r) => r.id === oldSource.rule_id)!,
+      ...replacement.identity_definitions.rules.find((rule) => rule.id === oldSource.rule_id)!,
       id: crypto.randomUUID(),
       label: "새 판매자 번호",
     };
@@ -113,25 +120,7 @@ dbTest("whole model aborts a late identity violation without publishing earlier 
     oldSource.rule_id = newRule.id;
     const rebound = await previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(replacement) });
     assertEquals(rebound.can_apply, false);
-    assertEquals(rebound.items.find((i) => i.ref === target.ref)?.kind, "conflict");
-    const input = { mode: "update" as const, document: JSON.stringify(changed) },
-      review = await previewDataModel(deps, a.manager, input),
-      change = await prepareDataModel(deps, requestActor(a.manager), {
-        ...input,
-        preview_fingerprint: review.fingerprint,
-      });
-    assertEquals(review.can_apply, true);
-    // Late fault injection affects only this owned stored target, after a valid review.
-    // The final SQL guard must roll back any earlier compatible schema publication.
-    target.identity.default_source = "app";
-    target.identity.sources = target.identity.sources.filter((s) => s.code !== "seller");
-    const [stored] =
-      await admin`select plan->'target' as target from app.data_model_changes where workspace_id=${a.workspaceId}::uuid and id=${change.id}::uuid`;
-    const frozen = stored.target as DataModelDocument;
-    frozen.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!.identity = target.identity;
-    await admin`update app.data_model_changes set plan=jsonb_set(plan,'{target}',${
-      admin.json(frozen)
-    }) where workspace_id=${a.workspaceId}::uuid and id=${change.id}::uuid`;
+    assertEquals(rebound.items.find((item) => item.ref === target.ref)?.kind, "conflict");
     await assertRejects(() =>
       applyDataModel(deps, requestActor(a.manager), change.id, { expected_version: change.version })
     );
@@ -141,6 +130,7 @@ dbTest("whole model aborts a late identity violation without publishing earlier 
     await a.cleanup();
   }
 });
+
 import { createEntitySchemaChange } from "../../functions/_shared/core/entity-types/schema-changes.ts";
 dbTest(
   "whole model concurrent receipt replay and property reservations never duplicate or silently renumber",
@@ -246,6 +236,7 @@ dbTest("whole model requires explicit per-kind permanent removal and distinguish
     sample.relations = [];
     await install(a.manager, sample);
     const d = await exportDataModel(deps, a.manager), type = d.entity_types[0];
+    await a.grantKind(a.manager, type.schema["x-type-id"], "write");
     delete type.schema.properties.prop_2;
     const input = { mode: "update" as const, document: JSON.stringify(d) },
       p = await previewDataModel(deps, a.manager, input);
