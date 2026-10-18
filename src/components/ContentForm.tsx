@@ -110,7 +110,7 @@ function FormContents({title, description, domain, open, submitLabel, submitDisa
     if (mutation) confirmation.begin("save", (e.nativeEvent as SubmitEvent).submitter); else await confirmation.write("save");
   };
   const footer = (requestCancel:(event?: MouseEvent<HTMLElement>)=>void) => <>
-    {deletion && !uncertain && <Button variant="destructive" type="button" key="delete" className="sm:mr-auto" disabled={busy} onClick={event=>confirmation.begin("delete", event.currentTarget)}>삭제</Button>}
+    {deletion && !uncertain && <Button variant="destructive" type="button" key="delete" className="sm:mr-auto" disabled={busy || submitDisabled} onClick={event=>confirmation.begin("delete", event.currentTarget)}>삭제</Button>}
     <Button variant="outline" key="cancel" type="button"  disabled={busy} onClick={requestCancel}>취소</Button>
     <Button variant="default" key="save" type="submit" form={formId}  disabled={busy || submitDisabled}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</Button>
   </>;

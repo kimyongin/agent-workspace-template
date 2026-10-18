@@ -401,6 +401,7 @@ export function EntityForm({
       >
         {(errors, frozen) => (
           <>
+            {typeId && !canWrite && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
             {context}
             <section className="flex-col grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
               {catalogError && (

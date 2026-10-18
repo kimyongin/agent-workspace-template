@@ -187,7 +187,19 @@ export function EntitiesPage() {
   const canCreate = selectedType
     ? !selectedType.archived && canWriteType(selectedType.id)
     : !!types?.some((type) => !type.archived && canWriteType(type.id));
-  const creating = create.open && canCreate;
+  const admittedCreate = useRef<{ api: typeof api; key: string } | null>(null);
+  const creating = create.open && (canCreate ||
+    admittedCreate.current?.api === api && admittedCreate.current.key === create.key);
+  useLayoutEffect(() => {
+    if (!create.open || admittedCreate.current?.api !== api || admittedCreate.current.key !== create.key) {
+      admittedCreate.current = null;
+    }
+    // Keep the committed owner of a draft/unknown write on permission refresh.
+    // A direct READ-only visit never admits a new form.
+    if (create.open && canCreate && !invalidType && !selectedType?.archived) {
+      admittedCreate.current = { api, key: create.key };
+    }
+  }, [api, create.open, create.key, canCreate, invalidType, selectedType?.archived]);
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
     scope: `${context}|${
       typeError

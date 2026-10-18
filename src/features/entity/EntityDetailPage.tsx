@@ -21,7 +21,7 @@ import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagConnections } from "../tags/TagConnections.tsx";
 import { EntityProperties } from "./EntityProperties.tsx";
 import type { EntityDetail } from "@contracts/entity.ts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
@@ -76,6 +76,14 @@ export function EntityDetailPage() {
     (detail.error ? detail.error instanceof ApiError ? detail.error.message : "자료를 불러오지 못했습니다." : null);
   const reload = detail.reload;
   const editor = useDetailEditor(detail.editClosed);
+  const admittedEdit = useRef<{ api: typeof api; id: string; key: string } | null>(null);
+  const editing = editor.active && !creating && editReady && (canWrite ||
+    admittedEdit.current?.api === api && admittedEdit.current.id === id && admittedEdit.current.key === location.key);
+  useLayoutEffect(() => {
+    if (!editor.active || admittedEdit.current?.api !== api || admittedEdit.current.id !== id ||
+      admittedEdit.current.key !== location.key) admittedEdit.current = null;
+    if (editor.active && !creating && editReady && canWrite) admittedEdit.current = { api, id, key: location.key };
+  }, [api, id, location.key, editor.active, creating, editReady, canWrite]);
   const [busy, setBusy] = useState(false);
   const readRoot = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -327,7 +335,7 @@ export function EntityDetailPage() {
               }}
             />
           )}
-          {editor.active && canWrite && !creating && editReady && (
+          {editing && (
             <EntityForm
               initial={entity}
               relations={
@@ -345,7 +353,7 @@ export function EntityDetailPage() {
                   </RelatedSection>
                 </div>
               }
-              deletion={entity.deleted_at ? undefined : {
+              deletion={!canWrite || entity.deleted_at ? undefined : {
                 preparation: () => ({
                   model: "entity",
                   action: "delete",
