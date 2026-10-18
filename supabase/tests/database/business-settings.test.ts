@@ -169,9 +169,12 @@ dbTest("자료 기본 문구의 SQL 비교는 구 공통 값을 무시하며 nul
     entity_types: { [typeId]: { update: { memo: null, tag_ids: [] } } },
   };
   try {
-    await admin`insert into app.user_business_settings(workspace_id,id,version,settings) values(${owner.workspaceId},'record_templates',1,${
-      admin.json(templates)
-    })`;
+    await admin.begin(async (tx) => {
+      await tx`select set_config('request.workspace_id',${owner.workspaceId},true)`;
+      await tx`insert into app.user_business_settings(workspace_id,id,version,settings) values(${owner.workspaceId},'record_templates',1,${
+        tx.json(templates)
+      })`;
+    });
     const [row] =
       await admin`select private.entity_schema_effective_templates(${owner.workspaceId}::uuid,${typeId}::uuid) as value`;
     assertEquals(row.value.entity.create, { memo: "$대상$ $액션$", tag_ids: [] });

@@ -55,6 +55,7 @@ dbTest("태그 parity: 빈 값·Unicode 30/31자와 trim", async () => {
       let accepted = true;
       try {
         await admin.begin(async (tx) => {
+          await tx`select set_config('request.workspace_id',${fixture.workspaceId},true)`;
           await tx`insert into app.tags(workspace_id,name) values (${fixture.workspaceId},${name})`;
           throw new Error("rollback");
         });
