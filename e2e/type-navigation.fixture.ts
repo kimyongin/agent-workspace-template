@@ -180,7 +180,7 @@ test("typed shortcut and profile access preserve canonical list filters and Back
   await openMainNavigation(page);
   const nav = page.getByRole("navigation", { name: "주 메뉴" });
   await expect(nav.locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link")).toHaveText(["재료", "상품", "할 일", "기록"]);
-  await expect(nav.locator(`a[href='/entities?entity_type_id=${materials.id}']`)).toHaveAttribute(
+  await expect(nav.locator(`a[href='${fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}`)}']`)).toHaveAttribute(
     "aria-current",
     "page",
   );

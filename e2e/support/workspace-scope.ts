@@ -12,7 +12,7 @@ export const fixtureWorkspacePath = (path: string) => workspacePath(fixtureWorks
 export async function fulfillFixtureWorkspace(route: Route, grants: WorkspaceGrant[]): Promise<boolean> {
   const { pathname } = new URL(route.request().url());
   if (!pathname.startsWith("/api/workspaces")) {
-    if (/^\/api\/(?:entities|entity-types|entity-schema-migrations|entity-relation-definitions|entity-identity|tasks|records|tags|tag-connections|status|search|settings|data-model)(?:\/|$)/.test(pathname) &&
+    if (pathname.startsWith("/api/") &&
       route.request().headers()["x-workspace-id"] !== fixtureWorkspaceId) {
       await route.fulfill({ status: 400, json: { code: "invalid_input", message: "fixture 공간 문맥이 필요합니다" } });
       return true;
