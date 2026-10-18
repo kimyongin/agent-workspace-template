@@ -173,3 +173,27 @@ test(
     expect(fixture.writes).toEqual([]);
   },
 );
+
+test("unknown write followed by permission demotion can leave with draft confirmation without replaying a mutation", async ({ page }) => {
+  const fixture = await setup(page, "write");
+  await page.route(`http://127.0.0.1:55633/api/entity-types/${fixtureType.id}`, async (route) => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    fixture.writes.push(new URL(route.request().url()).pathname);
+    return route.abort("failed");
+  });
+  await page.goto(`/w/${space}/settings/entity-types/${fixtureType.id}`);
+  await page.getByRole("button", { name: "기본 정보", exact: true }).click();
+  await page.getByRole("textbox", { name: "자료 종류 이름", exact: true }).fill("불명 응답의 초안");
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
+  await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeEnabled();
+  fixture.setAccess("read");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText("읽기 전용 설정", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeDisabled();
+  await page.getByRole("tab", { name: "일괄 설정", exact: true }).click();
+  const confirmation = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "이동", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/w/${space}/settings/data-model$`));
+  expect(fixture.writes).toHaveLength(1);
+});
