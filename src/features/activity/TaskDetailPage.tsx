@@ -1,7 +1,7 @@
+import { useTaskAccess } from "./task-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Button } from "../../components/ui/button.tsx";
-import { PlusIcon } from "lucide-react";
 import { useDetailResource } from "../details/useDetailResource.ts";
 
 import { RelatedRecords } from "./RelatedRecords.tsx";
@@ -11,8 +11,8 @@ import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams } from "../../lib/workspace-router.tsx";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { TaskDataFields } from "./TaskDataFields.tsx";
@@ -25,10 +25,10 @@ import { OccurrenceBadge } from "./shared.tsx";
 import { TagConnections } from "../tags/TagConnections.tsx";
 import { TaskEntityRelations } from "../entity/TaskEntityRelations.tsx";
 
-type Dialog = null | "complete" | "record" | "transition" | { occurrence: string };
+type Dialog = null | "complete" | "transition" | "restore" | { occurrence: string };
 function requestedDialog(params: URLSearchParams): Dialog {
   const action = params.get("action");
-  return action === "complete" || action === "transition" || action === "record"
+  return action === "complete" || action === "transition" || action === "restore"
     ? action
     : params.has("occurrence")
     ? { occurrence: params.get("occurrence")! }
@@ -37,6 +37,8 @@ function requestedDialog(params: URLSearchParams): Dialog {
 
 export function TaskDetailPage() {
   const api = useApi();
+  const { canRead, canWrite } = useTaskAccess();
+  const location = useLocation();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
@@ -47,6 +49,7 @@ export function TaskDetailPage() {
         status: params.get("status"),
         tag_id: params.get("tag_id"),
         entity_id: params.get("entity_id"),
+        deleted: params.get("deleted"),
       })
     }`,
   );
@@ -84,6 +87,15 @@ export function TaskDetailPage() {
   });
   const editor = useDetailEditor(detail.editClosed);
   const { value: task, editReady } = detail;
+  const admittedEdit = useRef<{ api: typeof api; id: string; key: string } | null>(null);
+  const editing = editor.active && !dialog && editReady && (canWrite && !task?.deleted_at ||
+    admittedEdit.current?.api === api && admittedEdit.current.id === id && admittedEdit.current.key === location.key);
+  useLayoutEffect(() => {
+    if (!editor.active || admittedEdit.current?.api !== api || admittedEdit.current.id !== id ||
+      admittedEdit.current.key !== location.key) admittedEdit.current = null;
+    if (editor.active && !dialog && editReady && canWrite && !task?.deleted_at) admittedEdit.current = { api, id, key: location.key };
+  }, [api, id, location.key, editor.active, dialog, editReady, canWrite, task?.deleted_at]);
+
   const loadError = detail.error
     ? detail.error instanceof ApiError && detail.error.code === "not_found"
       ? "할 일을 찾을 수 없습니다."
@@ -97,7 +109,7 @@ export function TaskDetailPage() {
   const occurrenceGeneration = useRef(0);
   useEffect(() => () => {
     occurrenceGeneration.current++;
-  }, [id]);
+  }, [api, id]);
   const loadOccurrences = useCallback(async (t: TaskResult, end: string | null) => {
     const started = ++occurrenceGeneration.current;
     try {
@@ -115,7 +127,7 @@ export function TaskDetailPage() {
       setOccurrences(null);
       setActionError("회차를 불러오지 못했습니다.");
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     if (task?.kind === "recurring") loadOccurrences(task, rangeEnd);
@@ -172,11 +184,14 @@ export function TaskDetailPage() {
             <Button variant="outline" type="button" onClick={reload}>조회 다시 시도</Button>
           </>
         )}
+        {task.deleted_at && <Notice>삭제된 할 일입니다. 내용과 결과·회차 기록은 보존되어 있습니다.</Notice>}
         <TaskDataFields task={task} />
         <TagConnections
           onDraftClosed={detail.editClosed}
           scope="task"
           target={task}
+          readonly={!canWrite || !!task.deleted_at}
+          visible={canRead}
           onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
         />
         {task.kind === "once" && task.status === "done" && !task.result_record && (
@@ -232,7 +247,7 @@ export function TaskDetailPage() {
                   <BusinessCell index={1}><OccurrenceBadge status={o.status} /></BusinessCell>
                   <BusinessCell index={2}>{o.record_ids.length > 0 ? `기록 ${o.record_ids.length}개` : "기록 없음"}</BusinessCell>
                   <BusinessCell index={3}>
-                  {!readOnly && o.in_rule && o.status !== "upcoming" && (
+                  {!readOnly && canWrite && !task.deleted_at && o.in_rule && o.status !== "upcoming" && (
                     <Button
                       variant="ghost"
                       type="button"
@@ -253,15 +268,16 @@ export function TaskDetailPage() {
   );
   return (
     <DetailSurface
+      visible={canRead}
       ready={!detail.loading}
       title="할 일"
       description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다."
-      tabTitle={task.title}
+      tabTitle={canRead ? task.title : "할 일"}
       onClose={() => navigate(back)}
       onError={detail.failed}
       busy={busy}
-      footer={
-        <>
+      footer={canWrite &&
+        task.deleted_at ? <Button type="button" disabled={busy} onClick={() => manage("restore")}>복원</Button> : <>
           <Button variant="outline" type="button" disabled={busy} onClick={editor.start}>편집</Button>
           {task.kind === "once" && task.status === "open" && (
             <Button
@@ -301,21 +317,12 @@ export function TaskDetailPage() {
           <RelatedRecords
             taskId={task.id}
             revision={task.version + recordRefresh}
-            action={
-              <Button
-                variant="ghost"
-                type="button"
-                aria-label="기록 작성"
-                onClick={() => manage("record")}
-              >
-                <PlusIcon data-icon="inline-start" />작성
-              </Button>
-            }
+
           />
           {occurrenceSection()}
         </div>
       </div>
-      {editor.active && !dialog && editReady && (
+      {editing && (
         <TaskFormModal
           mode="edit"
           target={task}
@@ -333,7 +340,7 @@ export function TaskDetailPage() {
               </div>
             </>
           }
-          deletion={{
+          deletion={!canWrite || task.deleted_at ? undefined : {
             target: task.title,
             preparation: () => ({
               model: "task",
@@ -344,7 +351,7 @@ export function TaskDetailPage() {
             }),
             message: (
               <p>
-                이 할 일을 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
+                이 할 일을 삭제 상태로 보관합니다. 내용과 결과·회차 기록, 기존 연결은 유지합니다.
               </p>
             ),
             onConfirm: (reason, tags, requestKey) =>
@@ -368,29 +375,22 @@ export function TaskDetailPage() {
           }}
         />
       )}
-      {dialog === "record" && (
-        <RecordFormModal
-          title="기록 작성"
-          submitLabel="저장"
-          open
-          initial={{
-            ...emptyRecord(),
-            task_id: task.id,
-            entity_ids: task.entity_ids,
-            entity_context: task.entity_context,
-          }}
+      {dialog === "restore" && (
+        <TaskRestoreForm
+          key={task.id}
+          task={task}
           onClose={closeManagement}
-          onRouteDiscard={() => setDialog(null)}
-          onSave={async (value, requestKey) => {
-            await api("POST", "/records", { ...value }, undefined, requestKey());
+          onSaved={async (saved) => {
+            detail.confirm(current => current ? { ...current, ...saved } : current);
             closeManagement();
-            setRecordRefresh((n) => n + 1);
+            setMessage("복원했습니다.");
+            await reload();
           }}
         />
       )}
-      {task.kind === "recurring" && (
+      {task.kind === "recurring" && dialog === "transition" && (
         <TaskTransitionForm
-          key={`${task.id}:${task.version}`}
+          key={task.id}
           open={dialog === "transition"}
           task={task}
           onClose={closeManagement}
@@ -404,7 +404,8 @@ export function TaskDetailPage() {
       {dialog === "complete" && (
         <RecordFormModal
           title="할 일 완료"
-          entityEditable={false}
+          visible={canRead}
+          readonly={!canWrite || !!task.deleted_at}
           submitLabel="완료하고 기록 저장"
           open
           initial={emptyRecord()}
@@ -427,10 +428,11 @@ export function TaskDetailPage() {
       {dialog && typeof dialog === "object" && (
         <RecordFormModal
           title={`${dialog.occurrence} 회차 기록`}
-          taskEditable={false}
+          visible={canRead}
+          readonly={!canWrite || !!task.deleted_at}
           submitLabel="기록 저장"
           open
-          initial={{ ...emptyRecord(), entity_ids: task.entity_ids, entity_context: task.entity_context }}
+          initial={emptyRecord()}
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value, requestKey) => {
@@ -463,17 +465,23 @@ function TaskTransitionForm(
   },
 ) {
   const api = useApi();
-  const action = task.status === "active" ? "stop" : "resume", label = action === "stop" ? "중단" : "재개";
+  const { canRead, canWrite } = useTaskAccess();
+  const [owner] = useState(() => api);
+  const active = owner === api;
+  const [target] = useState(task);
+  const action = target.status === "active" ? "stop" : "resume", label = action === "stop" ? "중단" : "재개";
   return (
     <FormModal
       open={open}
+      visible={active && canRead}
+      submitDisabled={!active || !canWrite || !!task.deleted_at}
       title={`반복 할 일 ${label}`}
       submitLabel={label}
       dirty={false}
       confirmationOnly
-      preparation={() => ({ model: "task", action, target_id: task.id, expected_version: task.version, input: {} })}
+      preparation={() => ({ model: "task", action, target_id: target.id, expected_version: target.version, input: {} })}
       mutation={{
-        target: task.title,
+        target: target.title,
         action: label,
         message: action === "stop"
           ? "오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다."
@@ -483,10 +491,11 @@ function TaskTransitionForm(
       onRouteDiscard={onClose}
       validate={() => null}
       onSubmit={async (requestKey, memo) => {
+        if (!active || !canWrite || task.deleted_at) throw new Error("이 할 일을 현재 변경할 수 없습니다.");
         await api(
           "POST",
-          `/tasks/${task.id}/${action}`,
-          { expected_version: task.version, ...memo },
+          `/tasks/${target.id}/${action}`,
+          { expected_version: target.version, ...memo },
           undefined,
           requestKey(),
         );
@@ -496,4 +505,35 @@ function TaskTransitionForm(
       {() => null}
     </FormModal>
   );
+}
+
+function TaskRestoreForm({ task, onClose, onSaved }: {
+  task: TaskResult;
+  onClose: () => void;
+  onSaved: (saved: TaskResult) => Promise<void>;
+}) {
+  const api = useApi();
+  const { canRead, canWrite } = useTaskAccess();
+  const [owner] = useState(() => api);
+  const [target] = useState(task);
+  const active = owner === api;
+  return <FormModal
+    open
+    visible={active && canRead}
+    submitDisabled={!active || !canWrite || !target.deleted_at}
+    title="할 일 복원"
+    submitLabel="복원"
+    dirty={false}
+    confirmationOnly
+    preparation={() => ({ model: "task", action: "restore", target_id: target.id, expected_version: target.version, input: {} })}
+    mutation={{ target: target.title, action: "복원", message: "같은 할 일을 복원합니다. 보관된 내용과 결과·회차 기록, 기존 연결을 유지합니다." }}
+    onClose={onClose}
+    onRouteDiscard={onClose}
+    validate={() => null}
+    onSubmit={async (requestKey, memo) => {
+      if (!active || !canWrite || !target.deleted_at) throw new Error("이 할 일을 현재 복원할 수 없습니다.");
+      const saved = await api<TaskResult>("POST", `/tasks/${target.id}/restore`, { expected_version: target.version, ...memo }, undefined, requestKey());
+      await onSaved(saved);
+    }}
+  >{() => null}</FormModal>;
 }

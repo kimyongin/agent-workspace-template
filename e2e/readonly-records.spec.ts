@@ -10,13 +10,13 @@ test("읽기·검색·세 탭 이동·상세 닫기는 계정 기록 원문과 �
   test.setTimeout(300_000);
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
-  let fixtureId = "";
+  let fixtureId = "", taskId = "";
   try {
     const title = unique("읽기 무기록 확인");
-    const fixture = await mcp.call("create_record", {
-      body: title,
-    });
-    fixtureId = fixture.id;
+    const task = await mcp.call("create_task", { kind: "once", title: `${title} 할 일` });
+    taskId = task.id;
+    const completed = await mcp.call("complete_task", { id: taskId, expected_version: task.version, body: title });
+    fixtureId = completed.record.id;
     const snapshot = async () => {
       const listed: Record<string, unknown>[] = [], cursors = new Set<string>();
       let cursor: string | undefined;
@@ -90,6 +90,10 @@ test("읽기·검색·세 탭 이동·상세 닫기는 계정 기록 원문과 �
       if (fixtureId) {
         const row = await mcp.call("get_record", { id: fixtureId });
         await mcp.call("delete_record", { id: fixtureId, expected_version: row.version });
+      }
+      if (taskId) {
+        const task = await mcp.call("get_task", { id: taskId });
+        await mcp.call("delete_task", { id: taskId, expected_version: task.version });
       }
     } finally { await mcp.close(); }
   }

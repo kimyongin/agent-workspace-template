@@ -3,45 +3,56 @@ import { expect } from "@playwright/test";
 import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 for (const kind of ["once", "recurring"] as const) {
-  test(`#341 실제 MCP/웹 ${kind}: 일반 기록 저장·작성 URL 종료·새로고침·취소`, async ({ page }) => {
+  test(`#515 실제 MCP/웹 ${kind}: 명시적 수행 결과 저장·작성 URL 종료·새로고침·취소`, async ({ page }) => {
     await devLogin(page);
     const mcp = await mcpClient(await mcpTokenViaConsent(page));
-    const title = unique(`작성 종료 ${kind}`);
+    const title = unique(`결과 작성 종료 ${kind}`);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     let taskId = "";
     try {
       const task = await mcp.call("create_task", {
         kind,
         title,
         ...(kind === "recurring"
-          ? { recurrence: { freq: "daily", starts_on: "2026-10-01" }, timezone: "Asia/Seoul" }
+          ? { recurrence: { freq: "daily", starts_on: today }, timezone: "Asia/Seoul" }
           : {}),
       });
       taskId = task.id;
+      const action = kind === "once" ? "완료하고 기록" : `${today} 회차 기록`;
       await page.goto(`/tasks/${taskId}`);
       const surface = detailDialog(page);
-      await surface.getByRole("button", { name: "기록 작성", exact: true }).click();
-      await surface.getByRole("textbox", { name: /^본문/ }).fill(`${title} 참고 메모`);
-      const saved = page.waitForResponse(response => response.request().method() === "POST" && response.url() === `${env.VITE_API_URL}/records`);
-      await surface.getByRole("button", { name: "저장", exact: true }).click();
-      expect((await saved).status()).toBe(201);
+      await expect(surface.getByRole("button", { name: "기록 작성", exact: true })).toHaveCount(0);
+      await surface.getByRole("button", { name: action, exact: true }).click();
+      await surface.getByRole("button", { name: "취소", exact: true }).click();
+      await expect(page).not.toHaveURL(/action=|occurrence=/);
+      expect((await mcp.call("list_records", { task_id: taskId, record_kind: "result" })).items).toHaveLength(0);
+      await surface.getByRole("button", { name: action, exact: true }).click();
+      await surface.getByRole("textbox", { name: /^본문/ }).fill(`${title} 수행 결과`);
+      await expect(surface.getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
+      await expect(surface.getByRole("button", { name: "태그 연결", exact: true })).toHaveCount(0);
+      const path = kind === "once" ? `/tasks/${taskId}/complete` : `/tasks/${taskId}/occurrences/${today}/records`;
+      const saved = page.waitForResponse(response => response.request().method() === "POST" && response.url() === `${env.VITE_API_URL}${path}`);
+      await surface.getByRole("button", { name: kind === "once" ? "완료하고 기록 저장" : "기록 저장", exact: true }).click();
+      const response = await saved;
+      expect(response.ok()).toBe(true);
+      const input = response.request().postDataJSON();
+      expect(input).not.toHaveProperty("entity_ids");
+      expect(input).not.toHaveProperty("tag_ids");
+      expect(input).not.toHaveProperty("task_id");
       await expect(surface.getByRole("heading", { name: title, exact: true })).toBeVisible();
-      await expect(page).not.toHaveURL(/action=record/);
-      // Assert the new document's viewer; an unloading document can issue a
-      // final read that never receives a response.
+      await expect(page).not.toHaveURL(/action=|occurrence=/);
       await page.reload();
       await expect(surface.getByRole("heading", { name: title, exact: true })).toBeVisible();
       await expect(surface.getByRole("textbox", { name: /^본문/ })).toHaveCount(0);
-      const records = await mcp.call("list_records", { task_id: taskId, record_kind: "user" });
-      expect(records.items.map((r: { body: string }) => r.body)).toEqual([`${title} 참고 메모`]);
-      expect((await mcp.call("get_task", { id: taskId })).status).toBe(kind === "once" ? "open" : "active");
-      await surface.getByRole("button", { name: "기록 작성", exact: true }).click();
-      await surface.getByRole("button", { name: "취소", exact: true }).click();
-      await expect(page).not.toHaveURL(/action=record/);
-      expect((await mcp.call("list_records", { task_id: taskId, record_kind: "user" })).items).toHaveLength(1);
+      const records = await mcp.call("list_records", { task_id: taskId, record_kind: "result" });
+      expect(records.items.map((record: { body: string }) => record.body)).toEqual([`${title} 수행 결과`]);
+      expect(records.items[0].task_id).toBe(taskId);
+      expect(records.items[0].entity_id).toBeNull();
+      expect((await mcp.call("get_task", { id: taskId })).status).toBe(kind === "once" ? "done" : "active");
     } finally {
       if (taskId) {
-        const records = await mcp.call("list_records", { task_id: taskId, record_kind: "user" });
-        for (const r of records.items) await mcp.call("delete_record", { id: r.id, expected_version: r.version });
+        const records = await mcp.call("list_records", { task_id: taskId, record_kind: "result" });
+        for (const record of records.items) await mcp.call("delete_record", { id: record.id, expected_version: record.version });
         const latest = await mcp.call("get_task", { id: taskId });
         await mcp.call("delete_task", { id: taskId, expected_version: latest.version });
       }

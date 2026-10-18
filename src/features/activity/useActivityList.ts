@@ -1,3 +1,4 @@
+import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { useEffect, useRef } from "react";
@@ -20,20 +21,23 @@ export function useActivityList(kind: WorkspaceListKind, {
   tags, bounds, layoutReady,
 }: { tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; layoutReady: boolean }) {
   const api = useApi();
+  const capabilities = useWorkspaceCapabilities();
+  const permissionKey = JSON.stringify(capabilities?.grants ?? []);
   const [params] = useSearchParams();
   const location = useLocation(), { hash } = location;
   const latestLocation = useRef(location);
   latestLocation.current = location;
   const q = params.get("q") ?? "", entity = params.get("entity_id") || undefined;
-  const filters = kind === "tasks" ? { kind: params.get("kind") || undefined, status: params.get("status") || undefined }
+  const filters = kind === "tasks" ? { kind: params.get("kind") || undefined, status: params.get("status") || undefined, deleted: params.get("deleted") || undefined }
     : { record_kind: params.get("record_kind") || undefined };
+  const semanticSearching = !!q && !(kind === "tasks" && filters.deleted);
   const filtered = !!(q || tags.length || entity || Object.values(filters).some(Boolean) || kind === "records" && (bounds.from || bounds.to));
   const input = { query: q, kinds: [kind === "tasks" ? "task" : "record"], mode: "auto", limit: 20,
     ...(kind === "tasks" ? { task_kind: filters.kind, task_status: filters.status } : filters),
     ...(tags.length ? { tag_ids: tags } : {}), ...(entity ? { entity_id: entity } : {}), ...(kind === "records" ? bounds : {}) };
   const path = `/${kind}${query({ limit: 20, entity_id: entity, tag_ids: tags.length ? tags.join(",") : undefined,
-    ...filters, ...(kind === "records" ? { occurred_from: bounds.from, occurred_to: bounds.to } : {}) })}`;
-  const scope = q ? `${kind}|${JSON.stringify(input)}` : path;
+    ...filters, ...(kind === "tasks" && filters.deleted && q ? { keyword: q } : {}), ...(kind === "records" ? { occurred_from: bounds.from, occurred_to: bounds.to } : {}) })}`;
+  const scope = `${permissionKey}|${semanticSearching ? `${kind}|${JSON.stringify(input)}` : path}`;
   const errorMessage = `${kind === "tasks" ? "할 일" : "기록"}을 불러오지 못했습니다. 다시 시도하세요.`;
   const navigate = useNavigate();
   const publishPages = (count: number) => {
@@ -46,7 +50,7 @@ export function useActivityList(kind: WorkspaceListKind, {
   const pages = requestedPages(params), anchor = anchorId(kind, hash);
   const list = usePagedList<ActivityItem, ActivityPage>({
     scope, pages, anchor, restoreRetry: "restart",
-    load: (after, signal) => !q
+    load: (after, signal) => !semanticSearching
       ? api<ActivityPage>("GET", `${path}${after ? `&cursor=${encodeURIComponent(after)}` : ""}`, undefined, signal)
       : api<SearchResult>("POST", "/search", { ...input, ...(after ? { cursor: after } : anchor ? {
         anchor: { kind: kind === "tasks" ? "task" : "record", id: anchor },
@@ -54,14 +58,14 @@ export function useActivityList(kind: WorkspaceListKind, {
   });
   const { page, completion } = list;
   const items = page?.items ?? null, cursor = page?.next_cursor ?? null;
-  const metadata = q && page?.search_state && page.semantic_coverage
+  const metadata = semanticSearching && page?.search_state && page.semantic_coverage
     ? { search_state: page.search_state, semantic_coverage: page.semantic_coverage } : null;
   useEffect(() => {
     if (completion && (completion.source === "more" ||
       completion.pages > pages && completion.anchorFound)) publishPages(completion.pages);
   }, [completion]);
   const readiness = useRestoreListPosition(kind, layoutReady&&!list.busy&&(items!==null||!!list.error));
-  return { searching: !!q, filtered, metadata, items, cursor, readiness,
+  return { searching: !!q, semanticSearching, filtered, metadata, items, cursor, readiness,
     error: list.error ? errorMessage : null, busy: list.busy,
     showMoreControl: list.showMoreControl, more: list.more, retry: list.retry };
 }

@@ -1,4 +1,5 @@
-import { useApi } from "../../lib/api-context.tsx";
+import { Badge } from "@/components/ui/badge";
+import { useTaskAccess } from "./task-access.ts";
 import { NativeSelect } from "@/components/ui/native-select";
 import { NativeSelectOption } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,6 @@ import { Navigate, useLocation, useNavigate, useSearchParams } from "../../lib/w
 import type { SearchItem } from "@contracts/search.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
-import type { RecordResult } from "@contracts/record.ts";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 import {
   applyFilterParams,
@@ -39,7 +39,7 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { TagSelection } from "../tags/TagSelection.tsx";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { recordKindNames } from "./ChangeContext.tsx";
-import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "./forms.tsx";
+import { emptyTask, TaskFormModal } from "./forms.tsx";
 import { type ActivityItem, useActivityList } from "./useActivityList.ts";
 import { Timeline } from "./Timeline.tsx";
 import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds } from "./activity-filters.ts";
@@ -63,6 +63,7 @@ function ActivitySection(
     dictionary: ReturnType<typeof useTagDictionary>;
   },
 ) {
+  const { canRead, canWrite } = useTaskAccess();
   const [view, changeView] = useMainCollectionView(kind === "records");
   const { formatDateTime, timezone } = useDisplayTime();
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
@@ -73,12 +74,12 @@ function ActivitySection(
     const time = "occurred_at" in item ? item.occurred_at : (item as SearchItem).at;
     const cells = kind === "tasks"
       ? [
-        "status" in item ? <StatusBadge status={item.status} /> : null,
+        "status" in item ? "deleted_at" in item && item.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : <StatusBadge status={item.status} /> : null,
         "status" in item ? taskLabels[item.kind as TaskResult["kind"]] : null,
         "due_on" in item ? item.due_on : null,
       ]
       : [
-        "record_kind" in item && item.record_kind ? recordKindNames[item.record_kind] : null,
+        "record_kind" in item && item.record_kind ? recordKindNames[item.record_kind as keyof typeof recordKindNames] : null,
         <time dateTime={time} title={formatDateTime(time)}>
           {new Intl.DateTimeFormat("ko-KR", { dateStyle: "short", timeZone: timezone }).format(new Date(time))}
         </time>,
@@ -93,6 +94,7 @@ function ActivitySection(
       />
     );
   };
+  if (kind === "tasks" && !canRead) return <Notice>이 공간의 할 일을 읽을 권한이 없습니다.</Notice>;
   return (
     <ListExpansionProvider readiness={list.readiness}>
       <section
@@ -109,11 +111,11 @@ function ActivitySection(
             onChange={changeView}
             calendar={kind === "records"}
           />
-          <TabCreateButton label={kind === "tasks" ? "할 일 등록" : "기록 작성"} onClick={onCreate} />
+          {kind === "tasks" && canWrite && <TabCreateButton label="할 일 등록" onClick={onCreate} />}
         </div>
         {q && (
           <p className="text-sm text-muted-foreground">
-            관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}
+            {list.semanticSearching ? "관련도순으로 회수한 검색 결과" : "키워드 검색 결과"}{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}
           </p>
         )}
         {metadata?.search_state === "keyword_fallback" && (
@@ -201,7 +203,7 @@ function ActivitySection(
 }
 
 export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
-  const api = useApi();
+  const { canRead } = useTaskAccess();
   const searchInput = useRef<HTMLInputElement>(null);
   const { timezone } = useDisplayTime();
   const [params, setParams] = useSearchParams(),
@@ -238,7 +240,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
     next.set("create", "1");
     setParams(next);
   };
-  const filterKeys = ["tag_id", "tag_ids", "entity_id", "kind", "status", "record_kind", "from", "to"];
+  const filterKeys = ["tag_id", "tag_ids", "entity_id", "kind", "status", "deleted", "record_kind", "from", "to"];
   const editing = useFilterDraft(pickFilterParams(params, filterKeys), kind);
   const draftTags = activityTags(editing.draft).slice(0, ACTIVITY_TAG_LIMIT);
   const [filterError, setFilterError] = useState("");
@@ -263,14 +265,14 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   }
   return (
     <>
-      <section className="@container flex min-w-0 flex-col gap-5" aria-labelledby={`${kind}-title`}>
+      <section hidden={kind === "tasks" && !canRead} className="@container flex min-w-0 flex-col gap-5" aria-labelledby={`${kind}-title`}>
         <PageHeading
           title={label}
           id={`${kind}-title`}
           tabIndex={-1}
           description={kind === "tasks"
             ? "할 일을 정리하고, 반복 일정과 수행 결과를 관리합니다."
-            : "메모와 참고 자료, 업무 변경 내역을 모아 봅니다."}
+            : "할 일 수행 결과와 업무 변경 내역을 모아 봅니다. 메모와 참고 내용은 자료로 등록하세요."}
         />
         <div className="flex min-w-0 flex-col gap-4">
           {params.has("legacy_activity") && (
@@ -290,7 +292,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
               }}
               onApply={applyFilters}
               active={!!(tags.length || params.get("entity_id") || params.get("kind") || params.get("status") ||
-                params.get("record_kind") || from || to)}
+                params.get("record_kind") || params.get("deleted") || from || to)}
               attention={!checked || dictionary.failed || trimmedTags}
               summary={[
                 ...tags.map((id) => `태그: ${dictionary.tags?.find((tag) => tag.id === id)?.name ?? "선택됨"}`),
@@ -299,6 +301,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                 params.get("status")
                   ? `상태: ${taskLabels[params.get("status") as keyof typeof taskLabels] ?? params.get("status")}`
                   : "",
+                params.get("deleted") ? `삭제 상태: ${params.get("deleted") === "only" ? "삭제된 할 일만" : "삭제된 할 일 포함"}` : "",
                 params.get("record_kind")
                   ? `종류: ${
                     recordKindNames[params.get("record_kind") as keyof typeof recordKindNames] ??
@@ -349,6 +352,15 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                           </NativeSelect>
                         )}
                       </Field>
+                      <Field label="삭제 상태">
+                        {(props) => (
+                          <NativeSelect {...props} value={editing.draft.get("deleted") ?? ""} onChange={event => filter("deleted", event.target.value)}>
+                            <NativeSelectOption value="">삭제되지 않은 할 일</NativeSelectOption>
+                            <NativeSelectOption value="include">삭제된 할 일 포함</NativeSelectOption>
+                            <NativeSelectOption value="only">삭제된 할 일만</NativeSelectOption>
+                          </NativeSelect>
+                        )}
+                      </Field>
                     </>
                   )
                   : (
@@ -391,6 +403,8 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
               </div>
               {filterError && <Notice kind="error">{filterError}</Notice>}
               <TagSelection
+                visible={kind !== "tasks" || canRead}
+                disabled={kind === "tasks" && !canRead}
                 label={`${label} 태그`}
                 tags={dictionary.tags}
                 value={draftTags}
@@ -428,8 +442,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
           searchInput.current?.focus();
         }}
       />
-      {create.open && (kind === "tasks"
-        ? (
+      {create.open && kind === "tasks" && (
           <TaskFormModal
             key={create.key}
             mode="create"
@@ -442,22 +455,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
               saved("task", task.id);
             }}
           />
-        )
-        : (
-          <RecordFormModal
-            key={create.key}
-            title="기록 작성"
-            submitLabel="저장"
-            open
-            initial={emptyRecord()}
-            onClose={create.close}
-            onRouteDiscard={create.discard}
-            onSave={async (draft, requestKey) => {
-              const record = await api<RecordResult>("POST", "/records", { ...draft }, undefined, requestKey());
-              saved("record", record.id);
-            }}
-          />
-        ))}
+        )}
     </>
   );
 }

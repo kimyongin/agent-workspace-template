@@ -1,3 +1,4 @@
+import { useEntityReadAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { useEffect, useState } from "react";
@@ -7,7 +8,8 @@ import { entityReferenceId } from "@contracts/entity-identity.ts";
 /** Related-list URL scope uses owner-protected source data, never a URL display name. */
 export function EntityScope({ id, onClear }: { id: string; onClear: () => void }) {
   const api = useApi();
-  const [name, setName] = useState<string | null>(null),
+  const canReadType = useEntityReadAccess();
+  const [name, setName] = useState<{ typeId: string; label: string } | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);
   const valid = entityReferenceId.safeParse(id).success;
@@ -16,18 +18,18 @@ export function EntityScope({ id, onClear }: { id: string; onClear: () => void }
     setFailed(false);
     if (!valid) return;
     const controller = new AbortController();
-    api<{ title: string; type: { label: string } }>(
+    api<{ title: string; entity_type_id: string; type: { label: string } }>(
       "GET",
       `/entities/${encodeURIComponent(id)}`,
       undefined,
       controller.signal,
     ).then((value) => {
-      if (!controller.signal.aborted) setName(`${value.type.label}: ${value.title}`);
+      if (!controller.signal.aborted) setName({ typeId: value.entity_type_id, label: `${value.type.label}: ${value.title}` });
     }).catch(() => {
       if (!controller.signal.aborted) setFailed(true);
     });
     return () => controller.abort();
-  }, [id, valid, retry]);
+  }, [api, id, valid, retry]);
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg bg-muted p-3 text-sm">
       <span role="status">
@@ -36,7 +38,7 @@ export function EntityScope({ id, onClear }: { id: string; onClear: () => void }
           : failed
           ? "연결된 자료를 조회할 수 없습니다."
           : name
-          ? `연결된 자료: ${name}`
+          ? canReadType(name.typeId) ? `연결된 자료: ${name.label}` : "연결된 자료를 조회할 수 없습니다."
           : "연결된 자료를 불러오는 중…"}
       </span>
       {valid && failed && (

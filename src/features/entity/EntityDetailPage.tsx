@@ -1,6 +1,6 @@
+import { useTaskAccess } from "../activity/task-access.ts";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
-import { PlusIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { CreateRelatedEntityForm } from "./CreateRelatedEntityForm.tsx";
@@ -27,9 +27,10 @@ import { Notice } from "../../components/Field.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
-import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
+import { emptyTask, TaskFormModal } from "../activity/forms.tsx";
 import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
+  const taskAccess = useTaskAccess();
   const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams(),
@@ -39,9 +40,9 @@ export function EntityDetailPage() {
   const relationSaved = useRef(false);
   const relationCreateTarget = useRef<string | null>(null);
   const location = useLocation();
-  const [creating, setCreating] = useState<"task" | "record" | "relation" | null>(null);
-  const returnCreateFocus = useRef<"task" | "record" | "relation" | null>(null),
-    previousCreate = useRef<"task" | "record" | "relation" | null>(null);
+  const [creating, setCreating] = useState<"task" | "relation" | null>(null);
+  const returnCreateFocus = useRef<"task" | "relation" | null>(null),
+    previousCreate = useRef<"task" | "relation" | null>(null);
   const closeCreate = () => {
     returnCreateFocus.current = creating;
     setCreating(null);
@@ -53,7 +54,7 @@ export function EntityDetailPage() {
   };
   useEffect(() => {
     const value = params.get("create"),
-      next = value === "task" || value === "record" || value === "relation" ? value : null;
+      next = value === "task" || value === "relation" ? value : null;
     if (!next && previousCreate.current) returnCreateFocus.current = previousCreate.current;
     previousCreate.current = next;
     setCreating(next);
@@ -116,7 +117,7 @@ export function EntityDetailPage() {
     return () => cancelAnimationFrame(frame);
   }, [creating, editReady, entity]);
   const entityContext: EntityContext[] = entity
-    ? [{ id: entity.id, title: entity.title, source: "selection", captured_at: new Date().toISOString() }]
+    ? [{ id: entity.id, title: entity.title, type: entity.type, source: "selection", captured_at: new Date().toISOString() }]
     : [];
   const management = entity && !entity.deleted_at && (
     <div className="flex min-w-0 flex-col gap-6">
@@ -154,6 +155,7 @@ export function EntityDetailPage() {
           void reload();
         }}
         onCreate={() => {
+          if (!taskAccess.canWrite || !canRead) return;
           const p = new URLSearchParams(params);
           p.set("create", "task");
           navigate(detailModeLink(location.pathname, p, location.hash));
@@ -164,19 +166,7 @@ export function EntityDetailPage() {
           key={kind}
           title={label}
           count={entity[kind].count}
-          action={canWrite && (
-            <Button variant="ghost" type="button"
 
-              aria-label="기록 작성"
-              onClick={() => {
-                const p = new URLSearchParams(params);
-                p.set("create", "record");
-                navigate(detailModeLink(location.pathname, p, location.hash));
-              }}
-            ><PlusIcon data-icon="inline-start" />
-              작성
-            </Button>
-          )}
         >
           {entity[kind].count > 0 && (
             <CollectionList columns={["본문 대표 문구"]}>
@@ -261,9 +251,9 @@ export function EntityDetailPage() {
             />
             {entity.deleted_at && (
               <>
-                <RelatedSection title="할 일" count={entity.tasks.count}>
+                <RelatedSection title="할 일" count={taskAccess.canRead ? entity.tasks.count : 0}>
                   <CollectionList columns={["제목"]}>
-                    {entity.tasks.items.map((item) => (
+                    {(taskAccess.canRead ? entity.tasks.items : []).map((item) => (
                       <CollectionItem key={item.id}>
                         <RelatedTaskItem id={item.id} occurrence={null} />
                       </CollectionItem>
@@ -311,27 +301,12 @@ export function EntityDetailPage() {
               key={location.key}
               open
               mode="create"
+              visible={canRead}
               initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
               onClose={closeCreate}
               onRouteDiscard={() => setCreating(null)}
               onSave={async (save) => {
                 await save();
-                closeCreate();
-                void reload();
-              }}
-            />
-          )}
-          {creating === "record" && canWrite && !entity.deleted_at && (
-            <RecordFormModal
-              key={location.key}
-              open
-              title="기록 작성"
-              submitLabel="저장"
-              initial={{ ...emptyRecord(), entity_ids: [entity.id], entity_context: entityContext }}
-              onClose={closeCreate}
-              onRouteDiscard={() => setCreating(null)}
-              onSave={async (value, requestKey) => {
-                await api("POST", "/records", { ...value }, undefined, requestKey());
                 closeCreate();
                 void reload();
               }}
