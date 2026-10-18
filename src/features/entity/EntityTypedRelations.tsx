@@ -2,7 +2,7 @@ import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { UnlinkIcon, PlusIcon, XIcon, LinkIcon } from "lucide-react";
-import { useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useContext, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation } from "../../lib/workspace-router.tsx";
 import type { EntityDetail, EntitySummary } from "@contracts/entity.ts";
 import type { EntityRelationDefinition, EntityRelationDefinitionPage } from "@contracts/entity-relation.ts";
@@ -140,7 +140,12 @@ export function EntityRelationSection(
   useEffect(() => {
     if (state.completion?.source === "more") setView((old) => ({ ...old, pages: state.completion!.pages }));
   }, [state.completion]);
-  useEffect(() => () => preparation.current?.abort(), [entity.id]);
+  useLayoutEffect(() => {
+    setMutation(null);
+    setPreparing(false);
+    setError("");
+    return () => preparation.current?.abort();
+  }, [api, entity.id]);
   const def = state.page?.definition ?? definition,
     single = def.ends[side].cardinality === "one",
     current = state.page?.items[0],

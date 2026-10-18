@@ -1,7 +1,7 @@
 import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EntityDetail, EntitySummary, EntityValues } from "@contracts/entity.ts";
 import type { EntityRelationDefinition } from "@contracts/entity-relation.ts";
 import type { RelationMutationResult } from "@contracts/entity-relation-links.ts";
@@ -64,8 +64,11 @@ export function CreateRelatedEntityForm(
       if (!c.signal.aborted) setReading(false);
     }
   };
-  useEffect(() => {
+  useLayoutEffect(() => {
     setContext(null);
+    return () => request.current?.abort();
+  }, [api, originId, definitionId, side]);
+  useEffect(() => {
     void read();
     return () => request.current?.abort();
   }, [api, originId, definitionId, side]);
