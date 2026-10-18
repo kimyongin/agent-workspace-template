@@ -66,8 +66,14 @@ dbTest(
 dbTest(
   "shared record templates are workspace configuration and retained writes recheck current settings permission",
   async () => {
-    const a = { userId: crypto.randomUUID() };
-    await admin`insert into auth.users(id,email) values(${a.userId},${`settings513-${a.userId}@example.test`})`;
+    const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
+    for (const actor of [a, b]) {
+      const email = `settings513-${actor.userId}@example.test`;
+      await admin`insert into auth.users(id,email) values(${actor.userId},${email})`;
+      await admin`insert into auth.identities(id,user_id,provider,provider_id,identity_data) values(${crypto.randomUUID()},${actor.userId},'google',${actor.userId},${
+        admin.json({ sub: actor.userId, email, email_verified: true })
+      })`;
+    }
     const owned: string[] = [];
     const deps = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
     try {
@@ -87,13 +93,24 @@ dbTest(
       assertEquals(saved.settings.record_templates?.task?.create?.memo, "첫 공간 문구");
       assertEquals((await settings.getBusinessSettings(deps, second)).versions.record_templates, 0);
       assertEquals(await settings.updateBusinessSettings(deps, request, input), saved);
-      // The only admin must retain settings-write; demote this actor after another
-      // independently created current participant holds the manager capability.
-      const [member] = await workspaces.listWorkspaceMembers(workspaceDeps, a, owned[0]).then((r) => r.items);
-      assertEquals(member.grants, [{ target_kind: "settings", target_id: "*", access: "write" }]);
+      const invitation = await workspaces.inviteWorkspaceMember(workspaceDeps, key(a), owned[0], {
+        email: `settings513-${b.userId}@example.test`,
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      });
+      await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(b), invitation.invitation.id);
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(b), owned[0], a.userId, {
+        expected_version: 1,
+        grants: [{ target_kind: "settings", target_id: "*", access: "read" }],
+      });
+      assertEquals(
+        (await settings.getBusinessSettings(deps, first)).settings.record_templates?.task?.create?.memo,
+        "첫 공간 문구",
+      );
+      const error = await assertRejects(() => settings.updateBusinessSettings(deps, request, input), AppError);
+      assertEquals(error.code, "forbidden");
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
-      await admin`delete from auth.users where id=${a.userId}`;
+      for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
     }
   },
 );
