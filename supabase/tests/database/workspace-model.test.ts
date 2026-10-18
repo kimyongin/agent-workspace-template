@@ -236,6 +236,23 @@ dbTest(
       const sharedValuesReview = await previewDataModel(modelDeps, reader, dataInput);
       assertEquals(sharedValuesReview.items.find((item) => item.ref === `type_${left.id}`)?.kind, "migration_required");
       assertEquals((await exportDataModel(modelDeps, second)).entity_types.length, 1);
+      const recordId = await runInWorkspace(sql, first, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "write" }],
+      }, async (tx) => {
+        const [record] = await tx`insert into app.records(workspace_id,entity_id,body)
+          values(${owned[0]}::uuid,${entityId},'공유 자료 값의 변경 기록') returning id`;
+        return record.id as string;
+      });
+      await runInWorkspace(sql, reader, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "read" }],
+      }, async (tx) => {
+        const [record] = await tx`select entity_id,task_id,body from app.records where workspace_id=${
+          owned[0]
+        }::uuid and id=${recordId}`;
+        assertEquals(record, { entity_id: entityId, task_id: null, body: "공유 자료 값의 변경 기록" });
+      });
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
