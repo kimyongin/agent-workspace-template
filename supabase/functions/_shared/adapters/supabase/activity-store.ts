@@ -152,11 +152,12 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
   async getTask(id: string, opts: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean } = {}) {
     if (opts.forUpdate) {
       if (opts.selectionWrite) await this.entityLinks.prepareSelection(opts.entityIds, id);
-      const rows = await this.tx`select id from app.tasks where id=${id} for update`;
+      const rows = await this
+        .tx`select id from app.tasks where workspace_id=${this.workspaceId} and id=${id} for update`;
       if (!rows.length) return null;
     }
     const [row] = await this.tx`
-      select ${taskColumns(this.tx)} from app.tasks where id = ${id}`;
+      select ${taskColumns(this.tx)} from app.tasks where workspace_id=${this.workspaceId} and id = ${id}`;
     return row ? toTask(row) : null;
   }
 
@@ -218,33 +219,36 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const [row] = Object.keys(values).length
       ? await tx`
       update app.tasks set ${tx(values)}, version = version + 1, updated_at = now()
-      where id = ${id} returning ${taskColumns(tx)}`
-      : await tx`update app.tasks set version=version+1,updated_at=now() where id=${id} returning ${taskColumns(tx)}`;
+      where workspace_id=${this.workspaceId} and id = ${id} returning ${taskColumns(tx)}`
+      : await tx`update app.tasks set version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id} returning ${
+        taskColumns(tx)
+      }`;
     if (!row) throw new AppError("not_found", "항목을 찾을 수 없습니다");
     return toTask(row);
   }
 
   async getRecord(id: string, opts: { forUpdate?: boolean } = {}) {
     if (opts.forUpdate) {
-      const rows = await this.tx`select id from app.records where id=${id} for update`;
+      const rows = await this
+        .tx`select id from app.records where workspace_id=${this.workspaceId} and id=${id} for update`;
       if (!rows.length) return null;
     }
     const [row] = await this.tx`
-      select ${recordColumns(this.tx)} from app.records where id = ${id}`;
+      select ${recordColumns(this.tx)} from app.records where workspace_id=${this.workspaceId} and id = ${id}`;
     return row ? toRecord(row) : null;
   }
 
   async getRecordBodies(ids: string[]) {
     if (ids.length === 0) return [];
     return await this.tx<{ id: string; body: string }[]>`
-      select id, body from app.records where id in ${this.tx(ids)}`;
+      select id, body from app.records where workspace_id=${this.workspaceId} and id in ${this.tx(ids)}`;
   }
 
   async listRecords(f: RecordFilter) {
     const tx = this.tx;
     const rows = await tx`
       select ${recordColumns(tx)} from app.records
-      where true
+      where workspace_id=${this.workspaceId}
         ${f.task_id ? tx`and task_id = ${f.task_id}` : tx``}
         ${f.record_kind ? tx`and record_kind=${f.record_kind}` : tx``}
         ${f.entity_id ? tx`and entity_id=${f.entity_id}` : tx``}
@@ -265,7 +269,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     return await tx<{ task_id: string; id: string; occurrence_on: string }[]>`
       select task_id, id, occurrence_on::text as occurrence_on from app.records
-      where task_id in ${tx(taskIds)} and occurrence_on between ${from} and ${to}
+      where workspace_id=${this.workspaceId} and task_id in ${tx(taskIds)} and occurrence_on between ${from} and ${to}
       order by task_id, occurrence_on, occurred_at, id`;
   }
 
@@ -297,20 +301,22 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     }
     const [row] = Object.keys(values).length
       ? await tx`update app.records set ${tx(values)}, version=version+1, updated_at=now()
-          where id=${id} returning ${recordColumns(tx)}`
+          where workspace_id=${this.workspaceId} and id=${id} returning ${recordColumns(tx)}`
       : await tx`update app.records set version=version+1, updated_at=now()
-          where id=${id} returning ${recordColumns(tx)}`;
+          where workspace_id=${this.workspaceId} and id=${id} returning ${recordColumns(tx)}`;
     if (!row) throw new AppError("not_found", "항목을 찾을 수 없습니다");
     return toRecord(row);
   }
 
   async deleteRecord(id: string) {
-    await this.tx`delete from app.records where id = ${id}`;
+    await this.tx`delete from app.records where workspace_id=${this.workspaceId} and id = ${id}`;
   }
 
   async taskWithResult(recordId: string) {
     const [row] = await this.tx`
-      select ${taskColumns(this.tx)} from app.tasks where result_record_id = ${recordId} for update`;
+      select ${
+      taskColumns(this.tx)
+    } from app.tasks where workspace_id=${this.workspaceId} and result_record_id = ${recordId} for update`;
     return row ? toTask(row) : null;
   }
 }
