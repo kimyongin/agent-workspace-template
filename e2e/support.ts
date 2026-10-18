@@ -1,5 +1,10 @@
 // E2E 보조: 로컬 설정 읽기, 개발용 로그인, 브라우저 동의 화면을 거친 MCP 토큰, MCP 클라이언트.
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import postgres from "postgres";
+import { workspacePath } from "../src/lib/workspace-route.tsx";
+import type { WorkspaceGrant } from "../supabase/functions/_shared/contracts/workspace.ts";
+export { workspacePath };
 import { parseEnv } from "node:util";
 import { createHash, randomBytes } from "node:crypto";
 import {
@@ -15,7 +20,11 @@ import {
 } from "../scripts/actual-fixture-cleanup.mjs";
 
 export const env = parseEnv(
-  readFileSync(new URL("../.env.local", import.meta.url), "utf8"),
+  readFileSync(
+    process.env.WORKSPACE_E2E_ENV_FILE ??
+      new URL("../.env.local", import.meta.url),
+    "utf8",
+  ),
 );
 export function requiredEnv(name: string): string {
   const value = env[name];
@@ -31,7 +40,22 @@ type Scope = {
   clients: Set<() => Promise<void>>;
   responses: Set<Promise<void>>;
   tokens: Set<string>;
+  workspaces: OwnedWorkspace[];
+  actors: Set<string>;
+  runId: string;
+  persist: () => void;
 };
+type OwnedWorkspace = {
+  id: string;
+  name: string;
+  actorId: string;
+  projectId: string;
+  requestKeys: string[];
+  createdKinds: string[];
+  grants: WorkspaceGrant[];
+  cleaned: boolean;
+};
+const pageSessions = new WeakMap<Page, { token: string; actorId: string }>();
 let activeScope: Scope | null = null;
 const tokenOwners = new Map<string, string>();
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,6 +70,8 @@ function tokenOwner(token: string) {
 }
 function ownerScope(owner: string) {
   if (!activeScope || !uuid.test(owner)) return null;
+  // Owned-workspace suites clean their exact new root, never the actor's baseline data.
+  if (activeScope.workspaces.length) return null;
   let scope = activeScope.owners.get(owner);
   if (!scope) {
     scope = {
@@ -105,11 +131,43 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
       clients: new Set(),
       responses: new Set(),
       tokens: new Set(),
+      workspaces: [],
+      actors: new Set(),
+      runId: crypto.randomUUID(),
+      persist: () => {},
     };
+    scope.persist = () =>
+      writeFileSync(
+        testInfo.outputPath("owned-workspaces.json"),
+        JSON.stringify(
+          {
+            run: scope.runId,
+            source_revision: process.env.WORKSPACE_E2E_SOURCE_REVISION ?? null,
+            config_file: process.env.WORKSPACE_E2E_CONFIG ?? null,
+            actor_ids: [...scope.actors],
+            workspaces: scope.workspaces,
+          },
+          null,
+          2,
+        ) + "\n",
+        { mode: 0o600 },
+      );
     activeScope = scope;
     const apiOrigin = new URL(requiredEnv("VITE_API_URL")).origin;
     context.on("request", (request) => {
       if (new URL(request.url()).origin !== apiOrigin) return;
+      const workspace = scope.workspaces.find((value) =>
+        value.id === request.headers()["x-workspace-id"]
+      );
+      if (workspace) {
+        const key = request.headers()["idempotency-key"];
+        if (key && !workspace.requestKeys.includes(key)) {
+          workspace.requestKeys.push(key);
+          scope.persist();
+        }
+        return;
+      }
+      if (/\/workspaces(?:\/|$)/.test(new URL(request.url()).pathname)) return;
       const owner = tokenOwner(
         request.headers().authorization?.replace(/^Bearer /i, "") ?? "",
       );
@@ -170,6 +228,50 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
       await Promise.allSettled([...scope.responses]);
       await Promise.allSettled([...scope.clients].map((close) => close()));
       try {
+        if (scope.workspaces.length) {
+          if (testInfo.config.workers !== 1) {
+            throw new Error("owned workspace fixtures require one worker");
+          }
+          const projectId = ownedRuntime();
+          const admin = postgres(requiredEnv("LOCAL_DB_URL"), {
+            max: 1,
+            onnotice: () => {},
+          });
+          try {
+            for (const workspace of scope.workspaces) {
+              if (workspace.projectId !== projectId) {
+                throw new Error("owned workspace project changed");
+              }
+              await admin.begin(async (tx) => {
+                const [root] =
+                  await tx`select name,created_by from app.workspaces where id=${workspace.id} for update`;
+                expect(root).toEqual({
+                  name: workspace.name,
+                  created_by: workspace.actorId,
+                });
+                const members =
+                  await tx`select user_id from private.workspace_members where workspace_id=${workspace.id}`;
+                expect(members.map((member) => member.user_id)).toEqual([
+                  workspace.actorId,
+                ]);
+                await tx`delete from pgmq.q_search_index where message->>'workspace_id'=${workspace.id}`;
+                await tx`delete from pgmq.a_search_index where message->>'workspace_id'=${workspace.id}`;
+                await tx`delete from app.workspaces where id=${workspace.id}`;
+                expect(
+                  await tx`select id from app.workspaces where id=${workspace.id}`,
+                ).toHaveLength(0);
+              });
+              workspace.cleaned = true;
+              scope.persist();
+            }
+          } finally {
+            await admin.end();
+          }
+          await testInfo.attach("owned-workspaces", {
+            body: JSON.stringify(scope.workspaces),
+            contentType: "application/json",
+          });
+        }
         if (
           [...scope.owners.values()].some((owner) =>
             Object.values(owner.ids).some((ids) => ids?.length) ||
@@ -236,9 +338,167 @@ export async function devLogin(page: Page, who: "A" | "B" = "A") {
   await page.getByLabel("비밀번호").fill(
     requiredEnv(`DEV_USER_${who}_PASSWORD`),
   );
+  const tokenResponse = page.waitForResponse((response) =>
+    response.url().startsWith(`${AUTH}/token`) &&
+    response.request().method() === "POST"
+  );
   await page.getByRole("button", { name: "이메일로 로그인" }).click();
+  const response = await tokenResponse;
+  expect(response.ok()).toBeTruthy();
+  const session = await response.json();
+  if (
+    !uuid.test(session.user?.id) || typeof session.access_token !== "string"
+  ) throw new Error("authenticated fixture session missing");
+  pageSessions.set(page, {
+    token: session.access_token,
+    actorId: session.user.id,
+  });
+  activeScope?.actors.add(session.user.id);
+  if (activeScope?.workspaces.length) activeScope.persist();
+  await expect(page.getByRole("heading", { name: "내 공간", exact: true }))
+    .toBeVisible();
+}
+
+/** Same explicit isolated-runtime guard used by the actual workspace fixtures. */
+function ownedRuntime() {
+  const setting = (name: string) => {
+    const value = process.env[name];
+    if (!value) {
+      throw new Error(
+        `Explicit owned workspace fixture setting required: ${name}`,
+      );
+    }
+    return value;
+  };
+  const configFile = resolve(setting("WORKSPACE_E2E_CONFIG"));
+  const root = resolve(dirname(configFile), "..");
+  const envFile = resolve(setting("WORKSPACE_E2E_ENV_FILE"));
+  const ownershipFile = resolve(setting("WORKSPACE_E2E_OWNERSHIP"));
+  setting("WORKSPACE_E2E_SOURCE_REVISION");
+  if (dirname(envFile) !== root || dirname(ownershipFile) !== root) {
+    throw new Error("owned workspace runtime files disagree");
+  }
+  const config = parse(readFileSync(configFile, "utf8")) as {
+    project_id: string;
+    api: { port: number };
+    db: { port: number };
+    auth: { site_url: string };
+  };
+  const ownership = JSON.parse(readFileSync(ownershipFile, "utf8"));
+  const auth = new URL(SUPABASE),
+    api = new URL(requiredEnv("VITE_API_URL")),
+    db = new URL(requiredEnv("LOCAL_DB_URL"));
+  const web = new URL(setting("WORKSPACE_E2E_BASE_URL"));
+  if (
+    ![auth, api, db, web].every((url) =>
+      ["127.0.0.1", "localhost"].includes(url.hostname)
+    ) || [auth, api, web].some((url) => url.username || url.password) ||
+    ownership.project_id !== config.project_id || !config.project_id ||
+    auth.protocol !== "http:" || web.protocol !== "http:" ||
+    api.origin !== auth.origin || api.pathname !== "/functions/v1/api" ||
+    Number(auth.port) !== config.api.port ||
+    Number(db.port) !== config.db.port ||
+    !["postgres:", "postgresql:"].includes(db.protocol) ||
+    web.origin !== new URL(config.auth.site_url).origin
+  ) {
+    throw new Error(
+      "owned workspace runtime does not match explicit project configuration",
+    );
+  }
+  return config.project_id;
+}
+
+/** Creates one new root and explicitly grants only this fixture actor's required capabilities. */
+export async function ownedWorkspace(page: Page) {
+  const scope = activeScope, session = pageSessions.get(page);
+  if (!scope || !session) {
+    throw new Error("owned workspace requires the active authenticated test");
+  }
+  const projectId = ownedRuntime();
+  if (
+    new URL(page.url()).origin !==
+      new URL(process.env.WORKSPACE_E2E_BASE_URL!).origin
+  ) {
+    throw new Error("authenticated browser does not match the owned runtime");
+  }
+  const requestKeys: string[] = [];
+  const request = async (method: string, path: string, body?: unknown) => {
+    const key = crypto.randomUUID();
+    requestKeys.push(key);
+    scope.persist();
+    const response = await page.request.fetch(
+      `${requiredEnv("VITE_API_URL")}${path}`,
+      {
+        method,
+        headers: {
+          authorization: `Bearer ${session.token}`,
+          "Idempotency-Key": key,
+        },
+        data: body,
+      },
+    );
+    expect(response.ok()).toBeTruthy();
+    return response.json();
+  };
+  const name = unique("owned activity fixture");
+  const created = await request("POST", "/workspaces", { name });
+  if (!uuid.test(created.workspace?.id)) {
+    throw new Error("workspace creation returned no identity");
+  }
+  const fixture: OwnedWorkspace = {
+    id: created.workspace.id,
+    name,
+    actorId: session.actorId,
+    projectId,
+    requestKeys,
+    createdKinds: [],
+    grants: [],
+    cleaned: false,
+  };
+  scope.workspaces.push(fixture);
+  scope.persist();
+  const grant = async (added: WorkspaceGrant[]) => {
+    const current = await request("GET", `/workspaces/${fixture.id}`);
+    const grants = [
+      ...current.grants.filter((existing: WorkspaceGrant) =>
+        !added.some((value) =>
+          value.target_kind === existing.target_kind &&
+          value.target_id === existing.target_id
+        )
+      ),
+      ...added,
+    ];
+    await request(
+      "PATCH",
+      `/workspaces/${fixture.id}/members/${session.actorId}`,
+      { expected_version: current.membership_version, grants },
+    );
+    fixture.grants = grants;
+    scope.persist();
+  };
+  await grant([{ target_kind: "tasks", target_id: "*", access: "write" }, {
+    target_kind: "settings",
+    target_id: "*",
+    access: "write",
+  }]);
+  await page.goto(workspacePath(fixture.id, "/tasks"));
   await expect(page.getByRole("heading", { name: "할 일", level: 1 }))
     .toBeVisible();
+  return {
+    id: fixture.id,
+    grantKind: async (typeId: string) => {
+      if (!uuid.test(typeId) || !fixture.createdKinds.includes(typeId)) {
+        throw new Error(
+          "explicit publicly created fixture kind identity required",
+        );
+      }
+      await grant([{
+        target_kind: "entity_type",
+        target_id: typeId,
+        access: "write",
+      }]);
+    },
+  };
 }
 
 const b64url = (b: Buffer) => b.toString("base64url");
@@ -331,7 +591,13 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
   return token.access_token;
 }
 
-export async function mcpClient(token: string) {
+export async function mcpClient(
+  token: string,
+  scope?: { workspaceId: string },
+) {
+  if (scope && !uuid.test(scope.workspaceId)) {
+    throw new Error("explicit MCP workspace identity required");
+  }
   const client = new Client({ name: "e2e-agent", version: "0.0.0" });
   await client.connect(
     new StreamableHTTPClientTransport(new URL(MCP_URL), {
@@ -349,8 +615,14 @@ export async function mcpClient(token: string) {
   activeScope?.clients.add(close);
   return {
     async call(name: string, args: Record<string, unknown>) {
+      if (scope) {
+        if ("workspace_id" in args && args.workspace_id !== scope.workspaceId) {
+          throw new Error("MCP fixture workspace mismatch");
+        }
+        args = { ...args, workspace_id: scope.workspaceId };
+      }
       const writing =
-        /^(create_|update_|delete_|link_|unlink_|rename_|rekey_|complete_|stop_|resume_|analyze_|apply_|start_|cancel_|retry_|record_occurrence$)/
+        /^(create_|update_|delete_|restore_|link_|unlink_|rename_|rekey_|complete_|stop_|resume_|analyze_|apply_|start_|cancel_|retry_|record_occurrence$|set_tag_connections$)/
           .test(name) ||
         [
           "prepare_data_model",
@@ -379,7 +651,6 @@ export async function mcpClient(token: string) {
         prepare_data_model: "data_model_changes",
         create_entity: "entities",
         create_task: "tasks",
-        create_record: "records",
         create_tag: "tags",
       } as const)[
         name as
@@ -390,7 +661,6 @@ export async function mcpClient(token: string) {
           | "prepare_data_model"
           | "create_entity"
           | "create_task"
-          | "create_record"
           | "create_tag"
       ];
       if (name === "prepare_data_model" && owner) {
@@ -403,6 +673,29 @@ export async function mcpClient(token: string) {
           root === "entity_issuers" ? result.code : result.id,
           String(args.request_key),
         );
+      }
+      if (["complete_task", "record_occurrence"].includes(name) && owner) {
+        const record = name === "complete_task" ? result.record : result;
+        if (record?.id) {
+          ownFixtureResult(
+            owner,
+            "records",
+            record.id,
+            String(args.request_key),
+          );
+        }
+      }
+      if (scope && activeScope) {
+        const workspace = activeScope.workspaces.find((value) =>
+          value.id === scope.workspaceId
+        );
+        if (
+          workspace && name === "create_entity_type" && uuid.test(result.id)
+        ) workspace.createdKinds.push(result.id);
+        if (workspace && writing && typeof args.request_key === "string") {
+          workspace.requestKeys.push(args.request_key);
+          activeScope.persist();
+        }
       }
       return result;
     },
