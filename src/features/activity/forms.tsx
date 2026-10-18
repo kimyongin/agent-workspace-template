@@ -1,3 +1,4 @@
+import { useTaskAccess } from "./task-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimeInput, type DateTimeDraft } from "../../components/DateTimeInput.tsx";
@@ -289,6 +290,7 @@ function taskInput(draft: TaskDraft, mode: "create" | "edit"): Record<string, un
 export function TaskFormModal(
   props: {
     open: boolean;
+    visible?: boolean;
     initial: TaskDraft;
     details?: ReactNode;
     deletion?: DeletionOptions;
@@ -299,6 +301,9 @@ export function TaskFormModal(
   } & ({ mode: "create"; target?: never } | { mode: "edit"; target: TaskResult }),
 ) {
   const api = useApi();
+  const { canRead, canWrite } = useTaskAccess();
+  const [owner] = useState(() => api);
+  const active = owner === api;
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
@@ -308,6 +313,8 @@ export function TaskFormModal(
   return (
     <FormModal
       domain="할 일"
+      visible={active && canRead && props.visible !== false}
+      submitDisabled={!active || !canWrite}
       description={props.mode === "create"
         ? "내용과 일정을 정하고, 관련 자료와 태그를 연결합니다."
         : "할 일의 내용과 일정을 수정합니다."}
@@ -342,6 +349,7 @@ export function TaskFormModal(
         return errs;
       }}
       onSubmit={(requestKey, memo) => {
+        if (!active || !canWrite) throw new Error("현재 할 일 쓰기 권한이 없습니다.");
         const input = { ...taskInput(draft, props.mode), ...memo };
         const save = props.mode === "create"
           ? () => api<TaskResult>("POST", "/tasks", input, undefined, requestKey())

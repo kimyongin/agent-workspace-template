@@ -1,3 +1,4 @@
+import { useTaskAccess } from "../activity/task-access.ts";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { PlusIcon } from "lucide-react";
@@ -30,6 +31,7 @@ import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
 import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
+  const taskAccess = useTaskAccess();
   const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams(),
@@ -154,6 +156,7 @@ export function EntityDetailPage() {
           void reload();
         }}
         onCreate={() => {
+          if (!taskAccess.canWrite || !canRead) return;
           const p = new URLSearchParams(params);
           p.set("create", "task");
           navigate(detailModeLink(location.pathname, p, location.hash));
@@ -311,6 +314,7 @@ export function EntityDetailPage() {
               key={location.key}
               open
               mode="create"
+              visible={canRead}
               initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
               onClose={closeCreate}
               onRouteDiscard={() => setCreating(null)}
