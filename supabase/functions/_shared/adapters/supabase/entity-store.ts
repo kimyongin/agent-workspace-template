@@ -75,9 +75,10 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     const tx = this.tx;
     // Shared type locks keep revision resolution and query on the same publication epoch.
     // Reading during preparation remains allowed; only the atomic pointer commit waits.
-    const rows = await tx`select id,schema_version as version,schema_version from app.entity_types ${
-      typeId ? tx`where id=${typeId}::uuid` : tx``
-    } order by id`;
+    const rows = await tx`select id,schema_version as version,schema_version from app.entity_types
+      where workspace_id=${requireWorkspaceActor(this.actor).workspaceId}
+      and app.workspace_allows('entity_type',id::text,'read')
+      ${typeId ? tx`and id=${typeId}::uuid` : tx``} order by id`;
     const revisions = [];
     // The narrow reader lock is authorized by the kind grant, not settings UPDATE.
     // Lock in deterministic order and read the revision after a publication waiter.
