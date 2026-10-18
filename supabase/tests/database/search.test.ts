@@ -151,6 +151,69 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
   assertEquals(foreignEntity.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
 });
 
+dbTest(
+  "search: current grant revocation commits while query embedding waits and fences every returned projection",
+  async () => {
+    const owned = await businessWorkspaceFixture(admin, sql);
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    let pending: ReturnType<typeof search> | undefined;
+    try {
+      await owned.grant(owned.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+      const task = await activity.createTask(
+        activityDeps,
+        businessRequest(owned.member),
+        taskCreate.parse({
+          kind: "once",
+          title: "질의 대기 검증",
+        }),
+      );
+      const completed = await activity.completeTask(activityDeps, businessRequest(owned.member), task.id, {
+        expected_version: task.version,
+        body: "질의 공급자 대기 중 권한 변경",
+      });
+      const query = searchInput.parse({
+        query: "질의 공급자",
+        kinds: ["record"],
+        anchor: { kind: "record", id: completed.record.id },
+      });
+      assertEquals((await search(d, owned.member, { ...query, mode: "keyword" })).items.length, 1);
+      let sends = 0;
+      pending = search(
+        {
+          ...d,
+          embedder: {
+            async embed(_text, type) {
+              assertEquals(type, "query");
+              sends++;
+              entered.resolve();
+              await release.promise;
+              return Array.from({ length: 1024 }, (_, i) => i === 0 ? 1 : 0);
+            },
+          },
+        },
+        owned.member,
+        query,
+      );
+      await entered.promise;
+      // This public write must commit before the fake query provider returns;
+      // retaining a DB grant lock during provider I/O would fail its lock timeout.
+      await owned.grant(owned.member, []);
+      release.resolve();
+      const result = await pending;
+      assertEquals(sends, 1);
+      assertEquals(result.items, []);
+      assertEquals(result.semantic_coverage, { pending: 0, failed: 0, excluded: 0 });
+      assertEquals(result.anchor_page, null);
+      assertEquals(result.next_cursor, null);
+      await assertRejects(() => activity.getRecord(activityDeps, owned.member, completed.record.id), AppError);
+    } finally {
+      release.resolve();
+      if (pending) await pending.catch(() => {});
+      await owned.cleanup();
+    }
+  },
+);
+
 dbTest("search fixture cleanup", async () => {
   await fixture.cleanup();
 });
