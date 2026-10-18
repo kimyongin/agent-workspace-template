@@ -240,6 +240,7 @@ test(
     expect(fixture.tagReads.length).toBeGreaterThan(0);
     expect(fixture.tagReads.every((url) => new URL(url).searchParams.get("purpose") === "record-template")).toBe(true);
     expect(fixture.writes).toEqual([]);
+    await page.getByText("공유 설정 태그", { exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath("settings-readonly-saved-tags.png"), fullPage: true });
   },
 );
