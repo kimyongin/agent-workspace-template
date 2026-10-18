@@ -10,6 +10,8 @@ import { dataModelPrepare } from "../../functions/_shared/contracts/data-model.t
 import { requestIdentity } from "../../functions/_shared/core/shared/request.ts";
 import { replayRetainedSqlRequest } from "../../functions/_shared/adapters/supabase/request-ledger.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
+import { listTags } from "../../functions/_shared/core/tags/application.ts";
+import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import * as issuers from "../../functions/_shared/core/entity-issuers/application.ts";
 import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
@@ -210,6 +212,125 @@ dbTest(
         (await assertRejects(() => getDataModelChange(modelDeps, reader, dataPlan.id), AppError)).code,
         "forbidden",
       );
+      assertEquals(
+        (await assertRejects(() => listDataModelChanges(modelDeps, reader, { limit: 100 }), AppError)).code,
+        "forbidden",
+      );
+      for (const [actor, version] of [[a, 1], [b, 4]] as const) {
+        await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], actor.userId, {
+          expected_version: version,
+          grants: [
+            { target_kind: "settings", target_id: "*", access: "write" },
+            { target_kind: "entity_type", target_id: left.id, access: "write" },
+          ],
+        });
+      }
+      const externalId = crypto.randomUUID(), entityId = `app:${left.id}:${externalId}`;
+      await runInWorkspace(sql, first, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "write" }],
+      }, async (tx) => {
+        await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
+          values(${owned[0]}::uuid,${entityId},'app',${externalId},${left.id}::uuid,1,${
+          tx.json({ prop_1: "공유 값" })
+        })`;
+      });
+      const sharedValuesReview = await previewDataModel(modelDeps, reader, dataInput);
+      assertEquals(sharedValuesReview.items.find((item) => item.ref === `type_${left.id}`)?.kind, "migration_required");
+      assertEquals((await exportDataModel(modelDeps, second)).entity_types.length, 1);
+      const recordId = await runInWorkspace(sql, first, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "write" }],
+      }, async (tx) => {
+        const [record] = await tx`insert into app.records(workspace_id,entity_id,body)
+          values(${owned[0]}::uuid,${entityId},'공유 자료 값의 변경 기록') returning id`;
+        return record.id as string;
+      });
+      await runInWorkspace(sql, reader, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "read" }],
+      }, async (tx) => {
+        const [record] = await tx`select entity_id,task_id,body from app.records where workspace_id=${
+          owned[0]
+        }::uuid and id=${recordId}`;
+        assertEquals(record, { entity_id: entityId, task_id: null, body: "공유 자료 값의 변경 기록" });
+      });
+      const parentMutation = await assertRejects(() =>
+        admin`update app.records set entity_id=null where workspace_id=${owned[0]}::uuid and id=${recordId}`
+      );
+      assertEquals((parentMutation as { code?: string }).code, "23514");
+      assertEquals((parentMutation as Error).message, "record_parent_immutable");
+      const missingParent = await assertRejects(() =>
+        admin.begin(async (tx) => {
+          await tx`select set_config('request.workspace_id',${owned[0]},true)`;
+          await tx`insert into app.records(workspace_id,body) values(${owned[0]}::uuid,'소속 누락은 거절')`;
+        })
+      );
+      assertEquals((missingParent as { code?: string }).code, "23514");
+      assertEquals((missingParent as { constraint_name?: string }).constraint_name, "record_workspace_exact_parent");
+      const [parentAfter] = await admin`select entity_id,task_id from app.records where workspace_id=${
+        owned[0]
+      }::uuid and id=${recordId}`;
+      assertEquals(parentAfter, { entity_id: entityId, task_id: null });
+      const tagId = await admin.begin(async (tx) => {
+        await tx`select set_config('request.workspace_id',${owned[0]},true)`;
+        const [tag] = await tx`insert into app.tags(workspace_id,scope,name) values(${
+          owned[0]
+        }::uuid,'record','변환 기록') returning id`;
+        return tag.id as string;
+      });
+      const taggedSettings = await settings.updateBusinessSettings(
+        { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } },
+        key(first),
+        {
+          id: "record_templates",
+          expected_version: 0,
+          value: { entity_types: { [left.id]: { update: { memo: "$대상$ 값 변환", tag_ids: [tagId] } } } },
+        },
+      );
+      assertEquals(taggedSettings.settings.record_templates?.entity_types?.[left.id]?.update?.tag_ids, [tagId]);
+      await runInWorkspace(sql, first, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "write" }],
+      }, async (tx) => {
+        await tx`insert into app.record_tags(workspace_id,record_id,tag_id) values(${
+          owned[0]
+        }::uuid,${recordId},${tagId})`;
+      });
+      await runInWorkspace(sql, reader, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "read" }],
+      }, async (tx) => {
+        assertEquals(
+          (await tx`select tag_id from app.record_tags where workspace_id=${owned[0]}::uuid and record_id=${recordId}`)
+            .map((r) => r.tag_id),
+          [tagId],
+        );
+      });
+      const pickerTags = await listTags({ uow: new SqlTagUnitOfWork(sql) }, reader, {
+        scope: "record",
+        purpose: "record-template",
+        limit: 100,
+      });
+      assertEquals(pickerTags.items.map((tag) => ({ id: tag.id, name: tag.name })), [{ id: tagId, name: "변환 기록" }]);
+      await admin.begin(async (tx) => {
+        await tx`select set_config('request.workspace_id',${owned[0]},true)`;
+        await tx`insert into app.tags(workspace_id,scope,name) values(${owned[0]}::uuid,'record','다른 설정 태그')`;
+      });
+      const pickerPage = await listTags({ uow: new SqlTagUnitOfWork(sql) }, first, {
+        scope: "record",
+        purpose: "record-template",
+        limit: 1,
+      });
+      assertEquals(typeof pickerPage.next_cursor, "string");
+      const wrongPickerCursor = await assertRejects(() =>
+        listTags({ uow: new SqlTagUnitOfWork(sql) }, second, {
+          scope: "record",
+          purpose: "record-template",
+          limit: 1,
+          cursor: pickerPage.next_cursor!,
+        }), AppError);
+      assertEquals(wrongPickerCursor.code, "invalid_input");
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
@@ -320,6 +441,16 @@ dbTest("business memo preparation uses only its permitted workspace target witho
     for (const id of owned) {
       const error = await assertRejects(() => settings.getBusinessSettings(deps, { ...b, workspaceId: id }), AppError);
       assertEquals(error.code, "forbidden");
+      const metadataError = await assertRejects(
+        () =>
+          listTags({ uow: new SqlTagUnitOfWork(sql) }, { ...b, workspaceId: id }, {
+            scope: "record",
+            purpose: "record-template",
+            limit: 100,
+          }),
+        AppError,
+      );
+      assertEquals(metadataError.code, "forbidden");
     }
     const first = await prepare(owned[0]), second = await prepare(owned[1]);
     assertEquals(first.change_note, "첫 공간 준비");

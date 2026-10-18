@@ -93,6 +93,12 @@ class SqlTagStore extends SqlActorStore implements TagStore {
   async delete(id: string) {
     await this.tx`delete from app.tags where id=${id}`;
   }
+  async listRecordTemplateTags(limit: number, after?: Keyset) {
+    const rows = await this.tx`select * from app.workspace_record_template_tags(${limit},${
+      after?.at ?? null
+    }::timestamptz,${after?.id ?? null}::text)`;
+    return rows.map(toTag);
+  }
   async list(limit: number, after?: Keyset, scope: TagResult["scope"] = "record") {
     const tx = this.tx;
     return (await tx`select * from app.tags where scope=${scope} ${
