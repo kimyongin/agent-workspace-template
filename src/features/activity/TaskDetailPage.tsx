@@ -373,9 +373,9 @@ export function TaskDetailPage() {
           }}
         />
       )}
-      {task.kind === "recurring" && (
+      {task.kind === "recurring" && dialog === "transition" && (
         <TaskTransitionForm
-          key={`${task.id}:${task.version}`}
+          key={task.id}
           open={dialog === "transition"}
           task={task}
           onClose={closeManagement}
@@ -453,7 +453,8 @@ function TaskTransitionForm(
   const { canRead, canWrite } = useTaskAccess();
   const [owner] = useState(() => api);
   const active = owner === api;
-  const action = task.status === "active" ? "stop" : "resume", label = action === "stop" ? "중단" : "재개";
+  const [target] = useState(task);
+  const action = target.status === "active" ? "stop" : "resume", label = action === "stop" ? "중단" : "재개";
   return (
     <FormModal
       open={open}
@@ -463,9 +464,9 @@ function TaskTransitionForm(
       submitLabel={label}
       dirty={false}
       confirmationOnly
-      preparation={() => ({ model: "task", action, target_id: task.id, expected_version: task.version, input: {} })}
+      preparation={() => ({ model: "task", action, target_id: target.id, expected_version: target.version, input: {} })}
       mutation={{
-        target: task.title,
+        target: target.title,
         action: label,
         message: action === "stop"
           ? "오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다."
@@ -478,8 +479,8 @@ function TaskTransitionForm(
         if (!active || !canWrite) throw new Error("현재 할 일 쓰기 권한이 없습니다.");
         await api(
           "POST",
-          `/tasks/${task.id}/${action}`,
-          { expected_version: task.version, ...memo },
+          `/tasks/${target.id}/${action}`,
+          { expected_version: target.version, ...memo },
           undefined,
           requestKey(),
         );
