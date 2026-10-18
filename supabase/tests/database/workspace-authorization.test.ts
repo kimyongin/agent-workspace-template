@@ -1,4 +1,5 @@
-import { entityFixture } from "./_entity.ts";
+import { createEntityType } from "../../functions/_shared/core/entity-types/application.ts";
+import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { WorkspaceGrant } from "../../functions/_shared/contracts/workspace.ts";
 import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
@@ -403,8 +404,12 @@ dbTest("scoped kind anchors reject direct owner-policy escapes and cross-workspa
   const f = await fixture();
   try {
     const first = await f.create(f.a), second = await f.create(f.a), foreign = await f.create(f.b);
-    const kind = await entityFixture(admin, f.a.userId);
-    await admin`update app.entity_types set workspace_id=${first.id} where id=${kind.entity_type_id}`;
+    const kind = {
+      entity_type_id:
+        (await createEntityType({ uow: new SqlEntityTypeUnitOfWork(sql) }, key({ ...f.a, workspaceId: first.id }), {
+          label: "앵커",
+        })).id,
+    };
     const direct = async (id: string, fn: (tx: import("postgres").TransactionSql) => Promise<unknown>) =>
       await asUser(sql, f.a.userId, async (tx) => {
         await tx`select set_config('request.workspace_id',${id},true)`;
@@ -432,7 +437,10 @@ dbTest("scoped kind anchors reject direct owner-policy escapes and cross-workspa
           tx`insert into app.entity_types(owner_id,workspace_id) values(${f.a.userId},${foreign.id}) returning id`,
       ),
     );
-    assert(injected.startsWith("42501"));
+    assertEquals(injected, "23514 workspace_model_anchor_required");
+    const [unchanged] =
+      await admin`select count(*)::int as count from app.entity_types where workspace_id=${foreign.id}`;
+    assertEquals(unchanged.count, 0);
     await denied(
       () =>
         workspaces.updateWorkspaceMember(deps, key(f.a), second.id, f.a.userId, {
@@ -603,13 +611,17 @@ dbTest("simultaneous mutual removal and leave both retain a final manageable par
 });
 
 dbTest(
-  "a scoped kind cannot escape through legacy NULL while a legacy kind may enter its authorized workspace",
+  "a scoped kind cannot escape through NULL or be reassigned to another workspace",
   async () => {
     const f = await fixture();
     try {
-      const first = await f.create(f.a), second = await f.create(f.a), legacySpace = await f.create(f.b);
-      const scoped = await entityFixture(admin, f.a.userId), legacy = await entityFixture(admin, f.b.userId);
-      await admin`update app.entity_types set workspace_id=${first.id} where id=${scoped.entity_type_id}`;
+      const first = await f.create(f.a), second = await f.create(f.a);
+      const scoped = {
+        entity_type_id:
+          (await createEntityType({ uow: new SqlEntityTypeUnitOfWork(sql) }, key({ ...f.a, workspaceId: first.id }), {
+            label: "앵커",
+          })).id,
+      };
       const direct = <T>(user: string, workspace: string, fn: (tx: import("postgres").TransactionSql) => Promise<T>) =>
         asUser(sql, user, async (tx) => {
           await tx`select set_config('request.workspace_id',${workspace},true)`;
@@ -638,13 +650,6 @@ dbTest(
         visible: 0,
         reassigned: 0,
       });
-      const adopted = await direct(
-        f.b.userId,
-        legacySpace.id,
-        (tx) =>
-          tx`update app.entity_types set workspace_id=${legacySpace.id} where id=${legacy.entity_type_id} returning id`,
-      );
-      assertEquals(adopted.length, 1);
     } finally {
       await f.cleanup();
     }

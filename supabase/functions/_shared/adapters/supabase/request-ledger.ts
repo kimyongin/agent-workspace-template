@@ -12,7 +12,19 @@ export async function executeSqlRequest<T>(
   execute: () => Promise<T>,
 ): Promise<T> {
   if (actor.workspaceId) {
-    return executeWorkspaceRequest(tx, actor, request, await workspaceFootprint(tx), execute);
+    const footprint = await workspaceFootprint(tx);
+    return executeWorkspaceRequest(tx, actor, request, footprint, async () => {
+      const result = await execute();
+      // Domain effects may resolve additional targets only after reading trusted
+      // definitions. Preserve the same array consumed by common finish/replay.
+      const resolved = new Map<string, WorkspaceRequirement>();
+      for (const requirement of [...footprint, ...await workspaceFootprint(tx)]) {
+        const key = `${requirement.target_kind}:${requirement.target_id}`;
+        if (resolved.get(key)?.access !== "write") resolved.set(key, requirement);
+      }
+      footprint.splice(0, footprint.length, ...resolved.values());
+      return result;
+    });
   }
   const [row] =
     await tx`select app.begin_request(${request.key}::uuid, ${request.operation}, ${request.fingerprint}) as receipt`;

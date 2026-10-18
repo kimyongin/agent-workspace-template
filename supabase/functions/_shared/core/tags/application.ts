@@ -27,6 +27,7 @@ function target(use: TagUse) {
 }
 export interface TagStore extends ChangeStore {
   prepareDelete?(id: string): Promise<void>;
+  listRecordTemplateTags?(limit: number, after?: Keyset): Promise<TagResult[]>;
   get(id: string, lock?: boolean): Promise<TagResult | null>;
   insert(name: string, scope: TagResult["scope"]): Promise<TagResult>;
   rename(id: string, name: string): Promise<TagResult>;
@@ -43,11 +44,22 @@ export function createTag(d: TagDeps, a: Actor, i: z.infer<typeof tagCreate>) {
   return runWrite(d.uow, a, "tag.create", null, i, (s) => s.insert(i.name, i.scope));
 }
 export async function listTags(d: TagDeps, a: Actor, q: z.infer<typeof tagListQuery>) {
-  const scope = await scopeOf(a, { list: "tags", scope: q.scope });
+  if (q.purpose && q.scope !== "record") throw invalidInput("기록 문구 설정에서는 기록 태그만 조회할 수 있습니다");
+  const scope = await scopeOf(a, {
+    list: "tags",
+    scope: q.scope,
+    ...(q.purpose ? { purpose: q.purpose, workspace_id: a.workspaceId } : {}),
+  });
   const after = q.cursor ? decodeCursor(q.cursor, scope) : undefined;
   return d.uow.run(
     a,
-    async (s) => paginate(await s.list(q.limit + 1, after, q.scope), q.limit, (t) => t.updated_at, scope),
+    async (s) => {
+      if (q.purpose && !s.listRecordTemplateTags) throw invalidInput("기록 문구 태그 조회 저장소가 필요합니다");
+      const tags = q.purpose
+        ? await s.listRecordTemplateTags!(q.limit + 1, after)
+        : await s.list(q.limit + 1, after, q.scope);
+      return paginate(tags, q.limit, (t) => t.updated_at, scope);
+    },
   );
 }
 async function requireVersion(s: TagStore, id: string, v: number) {

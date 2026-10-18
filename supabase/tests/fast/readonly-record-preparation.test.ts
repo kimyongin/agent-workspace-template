@@ -73,6 +73,9 @@ function fixture(readonlyRepresentative = false) {
           executeRequest: store.executeRequest,
           definition: store.definition,
           getTypeIdentity: store.getTypeIdentity,
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },

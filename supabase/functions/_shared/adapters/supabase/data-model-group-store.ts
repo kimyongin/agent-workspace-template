@@ -10,19 +10,28 @@ import {
   assertSchemaApplication,
   assertSchemaApplicationBindings,
 } from "../../core/entity-types/schema-application.ts";
-import { AppError, invalidInput } from "../../core/shared/errors.ts";
+import { AppError, invalidInput, notFound } from "../../core/shared/errors.ts";
 import type { ModelChange, ModelGroupAnalyze } from "../../contracts/data-model.ts";
 import type { MigrationPlan } from "../../contracts/entity-schema-change.ts";
 import type { ModelPlan } from "../../core/data-model/application.ts";
 type GroupPlan = ModelPlan & { conversion_refs?: string[] };
 export class SqlDataModelGroupStore extends SqlDataModelStore {
+  private async assertCurrentGroup(id: string) {
+    const [row] = await this
+      .tx`select workspace_generation from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
+    if (!row) throw notFound();
+    const [epoch] = await this.tx`select app.workspace_generation() as generation`;
+    if (Number(row.workspace_generation) !== Number(epoch.generation)) {
+      throw new AppError("schema_plan_stale", "삭제 전 모델 작업은 실행할 수 없습니다. 새 변경안을 준비하세요");
+    }
+  }
   override async get(id: string, lock = false) {
     const c = await super.get(id, lock);
     if (!c) return null;
     const plan = c.plan as GroupPlan;
     if (!plan.conversion_refs) return c;
     const rows = await this
-      .tx`select c.*,g.retryable,g.failure_reason from app.data_model_children c join app.data_model_changes g on g.owner_id=c.owner_id and g.id=c.model_id where c.model_id=${id}::uuid order by c.type_id`;
+      .tx`select c.*,g.retryable,g.failure_reason from app.data_model_children c join app.data_model_changes g on g.workspace_id=c.workspace_id and g.id=c.model_id where c.model_id=${id}::uuid order by c.type_id`;
     const store = new SqlSchemaMigrationStore(this.tx, this.actor, id);
     const children = await Promise.all(
       rows.map(async (r) => ({
@@ -44,7 +53,10 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     return { ...c, group };
   }
   async analyzeGroup(id: string, input: ModelGroupAnalyze) {
-    const c = (await this.get(id, true))!, plan = c.plan as GroupPlan, snapshot = await this.snapshot();
+    await this.assertCurrentGroup(id);
+    const c = (await this.get(id, true))!,
+      plan = c.plan as GroupPlan,
+      snapshot = await this.snapshot({ document: plan.target, mode: "update" });
     if (
       canonical(snapshot.document) !== canonical(plan.source) ||
       (!plan.conversion_refs && await definitionFingerprint(snapshot) !== plan.baseline)
@@ -52,6 +64,10 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     const refs = plan.review.items.filter((i) =>
       i.kind === "migration_required" && plan.target.entity_types.some((t) => t.ref === i.ref)
     ).map((i) => i.ref);
+    await this.authorizeKinds(
+      refs.map((ref) => plan.target.entity_types.find((t) => t.ref === ref)!.schema["x-type-id"]),
+      "write",
+    );
     for (const conversion of input.conversions) {
       if (
         !refs.includes(conversion.type_ref) &&
@@ -89,13 +105,13 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
           this.tx.json(migration as never)
         },fingerprint=${fingerprint},updated_at=now() where id=${previous.change_id}::uuid returning *`
         : await this
-          .tx`insert into app.entity_schema_changes(owner_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint,model_change_id) values(${this.actor.userId},${typeId},${type.schema_version},${type.schema_version},${template},${
+          .tx`insert into app.entity_schema_changes(workspace_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint,model_change_id) values(${this.workspaceId},${typeId},${type.schema_version},${type.schema_version},${template},${
           this.tx.json(migration as never)
         },${this.tx.json(edits)},'{}',${this.tx.json({ schema: target.schema } as never)},${
           this.tx.json(diff as never)
         },'migration_required',${fingerprint},${id}) returning *`;
       await this
-        .tx`insert into app.data_model_children(owner_id,model_id,type_ref,type_id,change_id) values(${this.actor.userId},${id},${ref},${typeId},${draft.id}) on conflict(owner_id,model_id,type_ref) do update set analysis_id=null,job_id=null`;
+        .tx`insert into app.data_model_children(workspace_id,model_id,type_ref,type_id,change_id) values(${this.workspaceId},${id},${ref},${typeId},${draft.id}) on conflict(workspace_id,model_id,type_ref) do update set analysis_id=null,job_id=null`;
       const maxKey = Math.max(1, ...Object.keys(target.schema.properties).map((k) => Number(k.slice(5)))) + 1;
       await this
         .tx`update app.entity_types set next_property_number=greatest(next_property_number,${maxKey}) where id=${typeId}::uuid`;
@@ -104,7 +120,7 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
         .tx`update app.data_model_children set analysis_id=${accepted.analysis_id}::uuid where model_id=${id}::uuid and type_ref=${ref}`;
     }
     plan.conversion_refs = refs;
-    plan.baseline = await definitionFingerprint(await this.snapshot());
+    plan.baseline = await definitionFingerprint(await this.snapshot({ document: plan.target, mode: "update" }));
     await this.tx`update app.data_model_changes set plan=${
       this.tx.json(plan as never)
     },status='analyzing',version=version+1,retryable=false,failure_reason=null where id=${id}::uuid`;
@@ -112,18 +128,22 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     return receiptChange((await this.get(id))!);
   }
   async startGroup(id: string) {
+    await this.assertCurrentGroup(id);
     const c = (await this.get(id, true))!, plan = c.plan as GroupPlan;
     if (c.status !== "ready" || !plan.conversion_refs?.length) {
       throw invalidInput("전체 종류의 최신 성공 분석을 준비하세요");
     }
-    if (await definitionFingerprint(await this.snapshot()) !== plan.baseline) {
+    if (await definitionFingerprint(await this.snapshot({ document: plan.target, mode: "update" })) !== plan.baseline) {
       throw new AppError("schema_plan_stale", "분석 후 모델 또는 자료가 변경되었습니다. 다시 분석하세요");
     }
+    await this.authorizeKinds(plan.protected_kind_ids ?? [], "write");
     const store = new SqlSchemaMigrationStore(this.tx, this.actor, id);
     const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
     const templates: Record<string, unknown> = {}, memberships: Record<string, string> = {};
-    for (const t of plan.source.entity_types) {
-      const [m] = await this.tx`select app.entity_schema_membership(${this.actor.userId},${
+    for (
+      const t of plan.source.entity_types.filter((t) => (plan.protected_kind_ids ?? []).includes(t.schema["x-type-id"]))
+    ) {
+      const [m] = await this.tx`select app.entity_schema_membership(${this.workspaceId},${
         t.schema["x-type-id"]
       }) as value`;
       memberships[t.schema["x-type-id"]] = m.value;
@@ -143,40 +163,48 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
       });
       await assertSchemaApplicationBindings(context, await store.lockSchemaApplicationBindings(context));
       const job = await store.saveSchemaMigration(context);
-      await this.tx`update app.entity_schema_migrations set model_change_id=${id}::uuid where id=${job.job_id}::uuid`;
       await this
         .tx`update app.data_model_children set job_id=${job.job_id}::uuid where model_id=${id}::uuid and type_ref=${r.type_ref}`;
     }
     await this
-      .tx`update app.data_model_changes set status='queued',version=version+1,fence=fence+1,source_memberships=${
+      .tx`update app.data_model_changes set initiated_by=(app.workspace_author()->>'created_by')::uuid,status='queued',version=version+1,fence=fence+1,source_memberships=${
       this.tx.json(memberships)
     },source_templates=${
       this.tx.json(templates as never)
-    },source_expires_at=now()+interval '30 days',updated_at=now() where id=${id}::uuid`;
+    },source_expires_at=(select min(j.source_expires_at) from app.data_model_children c
+      join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
+      where c.workspace_id=${this.workspaceId}::uuid and c.model_id=${id}::uuid),updated_at=now() where id=${id}::uuid`;
     return receiptChange((await this.get(id))!);
   }
   async cancelGroup(id: string) {
     const c = (await this.get(id, true))!;
-    if (["applied", "cancelled", "committing"].includes(c.status)) return receiptChange(c);
+    const [epoch] = await this
+      .tx`select workspace_generation=app.workspace_generation() as current from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
+    if (["applied", "cancelled"].includes(c.status) || (c.status === "committing" && epoch.current)) {
+      return receiptChange(c);
+    }
     const store = new SqlSchemaMigrationStore(this.tx, this.actor, id);
     const rows = await this.tx`select * from app.data_model_children where model_id=${id}::uuid order by type_id`;
     for (const r of rows) {
       if (r.job_id) {
         const context = await store.loadMigrationAction(r.job_id);
-        await store.saveMigrationCancellation(context.job);
+        if (["queued", "preparing", "ready_to_commit", "committing"].includes(context.job.status)) {
+          await store.saveMigrationCancellation(context.job);
+        }
       }
       if (r.analysis_id) {
         await this
-          .tx`update app.entity_schema_analyses set status='failed',fence=fence+1,lease_until=null,retryable=false,failure_reason='analysis_discarded' where id=${r.analysis_id}::uuid`;
+          .tx`update app.entity_schema_analyses set status='failed',fence=fence+1,lease_until=null,retryable=false,failure_reason='analysis_discarded' where workspace_id=${this.workspaceId}::uuid and id=${r.analysis_id}::uuid and status in ('queued','running')`;
       }
       await this
-        .tx`update app.entity_schema_changes set status='cancelled',version=version+1,updated_at=now() where id=${r.change_id}::uuid`;
+        .tx`update app.entity_schema_changes set status='cancelled',version=version+1,updated_at=now() where workspace_id=${this.workspaceId}::uuid and id=${r.change_id}::uuid and status<>'cancelled'`;
     }
     await this
       .tx`update app.data_model_changes set status='cancelled',version=version+1,fence=fence+1,lease_until=null,retryable=false,updated_at=now() where id=${id}::uuid`;
     return receiptChange((await this.get(id))!);
   }
   async retryGroup(id: string) {
+    await this.assertCurrentGroup(id);
     const c = (await this.get(id, true))!;
     const [parent] = await this.tx`select source_expires_at,retryable from app.data_model_changes where id=${id}::uuid`;
     if (parent.source_expires_at && parent.source_expires_at <= new Date()) {
@@ -185,7 +213,9 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     if (c.status !== "failed" || !parent.retryable) {
       throw invalidInput("재시도 가능한 전체 실패 작업만 재개할 수 있습니다");
     }
-    if (await definitionFingerprint(await this.snapshot()) !== c.plan.baseline) {
+    if (
+      await definitionFingerprint(await this.snapshot({ document: c.plan.target, mode: "update" })) !== c.plan.baseline
+    ) {
       throw new AppError("schema_plan_stale", "원본이 바뀌었습니다. 새 분석을 준비하세요");
     }
     const store = new SqlSchemaMigrationStore(this.tx, this.actor, id);
@@ -205,10 +235,12 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
       if (job.source_expires_at && new Date(job.source_expires_at) <= new Date()) {
         throw new AppError("migration_source_expired", "값 변환 원본의 보관 기간이 지났습니다");
       }
-      await store.saveMigrationRetry(job);
+      const accepted = await store.saveMigrationRetry(job);
+      await this.tx`update app.data_model_children set job_id=${accepted.job_id}::uuid
+        where workspace_id=${this.workspaceId}::uuid and model_id=${id}::uuid and type_ref=${r.type_ref}`;
     }
     await this
-      .tx`update app.data_model_changes set status='queued',version=version+1,fence=fence+1,lease_until=null,retryable=false,failure_reason=null,updated_at=now() where id=${id}::uuid`;
+      .tx`update app.data_model_changes set initiated_by=(app.workspace_author()->>'created_by')::uuid,status='queued',version=version+1,fence=fence+1,lease_until=null,retryable=false,failure_reason=null,updated_at=now() where id=${id}::uuid`;
     return receiptChange((await this.get(id))!);
   }
 }

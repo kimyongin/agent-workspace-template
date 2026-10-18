@@ -47,6 +47,9 @@ export function entitySchemaWorker(readEnv: (name: string) => string | undefined
         connection: { statement_timeout: 15000, lock_timeout: 5000 },
         onnotice: () => {},
       });
+      // Each statement commits before claiming actual actor authority or doing conversion work.
+      await sql`select app.prune_data_model_sources()`;
+      await sql`select app.prune_entity_schema_sources()`;
       const [group] = await sql`select app.claim_data_model_conversion() as batch`;
       if (group.batch) {
         const parent = group.batch;

@@ -13,10 +13,15 @@ import {
   businessSettingsUpdate,
   resolvedBusinessSettings,
 } from "../../contracts/business-settings.ts";
+import type { WorkspaceEntry } from "../workspaces/application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { conflict, notFound } from "../shared/errors.ts";
-import { type PreparedRecordMemo, prepareRecordMemo } from "../../contracts/record-preparation.ts";
+import {
+  type PreparedRecordMemo,
+  type PrepareRecordMemo,
+  prepareRecordMemo,
+} from "../../contracts/record-preparation.ts";
 import {
   effectiveRecordTemplate,
   modelActions,
@@ -35,6 +40,9 @@ export interface BusinessSettingsStore extends RequestStore {
   getTypeIdentity?(typeId: string, lock?: boolean): Promise<EntityTypeIdentity | null>;
   definition?: EntityDefinitions["definition"];
   get(): Promise<BusinessSettingsResult>;
+  getForTarget?(
+    input: Pick<PrepareRecordMemo, "model" | "action" | "target_id"> & { entity_type_id?: string },
+  ): Promise<BusinessSettingsResult>;
   update(input: BusinessSettingsUpdate): Promise<BusinessSettingsResult>;
   recordTags(ids: string[]): Promise<string[]>;
   target?(
@@ -60,7 +68,13 @@ export function prepareBusinessRecord(
     throw invalidInput("입력 크기가 너무 큽니다");
   }
   return d.uow.run(actor, async (store) => {
-    const saved = await store.get();
+    if (!store.getForTarget) throw invalidInput("업무 기본 문구 준비 저장소가 필요합니다");
+    const saved = await store.getForTarget({
+      model: input.model,
+      action: input.action,
+      target_id: input.target_id,
+      entity_type_id: typeof input.input.entity_type_id === "string" ? input.input.entity_type_id : undefined,
+    });
     let before: ChangeFacts | null = null;
     if (input.action !== "create") {
       if (!input.target_id || !input.expected_version) throw invalidInput("대상과 expected_version이 필요합니다");
@@ -231,7 +245,7 @@ export function prepareBusinessRecord(
 }
 export interface BusinessSettingsDeps {
   clock: { now(): Date };
-  uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>): Promise<T> };
+  uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>, entry?: WorkspaceEntry): Promise<T> };
 }
 export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor): Promise<BusinessSettingsResult>;
 export function getBusinessSettings(
@@ -256,7 +270,7 @@ export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor, input
     const settings = resolvedBusinessSettings(saved.settings);
     if (id) return { settings: { [id]: settings[id] }, versions: { [id]: saved.versions[id] } };
     return { ...saved, settings };
-  });
+  }, { mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "read" }] });
 }
 export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, input: unknown) {
   const parsed = businessSettingsUpdate.safeParse(input);
@@ -266,23 +280,36 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
       parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
     );
   }
-  return runWrite(d.uow, actor, "settings.update", parsed.data.id, parsed.data, async (store) => {
-    const sections: BusinessSettings = { [parsed.data.id]: parsed.data.value };
-    const current = await store.get();
-    if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
-      throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
-    }
-    if (
-      new TextEncoder().encode(JSON.stringify(parsed.data.value)).length >
-        BUSINESS_SETTINGS_MAX_BYTES
-    ) throw invalidInput(`업무 설정은 ${BUSINESS_SETTINGS_MAX_BYTES}바이트 이하입니다`);
-    const ids = recordTemplateTagIds(sections.record_templates);
-    if ((await store.recordTags(ids)).length !== ids.length) {
-      throw invalidInput("기록 범위에서 존재하는 태그만 기본값으로 사용할 수 있습니다", [{
-        path: "value",
-        message: "삭제되었거나 다른 범위의 태그를 제거하세요",
-      }]);
-    }
-    return store.update(parsed.data);
-  });
+  return runWrite<BusinessSettingsStore, BusinessSettingsResult>(
+    {
+      run: (actor, fn) =>
+        d.uow.run(actor, fn, {
+          mode: "business",
+          requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+        }),
+    },
+    actor,
+    "settings.update",
+    parsed.data.id,
+    parsed.data,
+    async (store) => {
+      const sections: BusinessSettings = { [parsed.data.id]: parsed.data.value };
+      const current = await store.get();
+      if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
+        throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
+      }
+      if (
+        new TextEncoder().encode(JSON.stringify(parsed.data.value)).length >
+          BUSINESS_SETTINGS_MAX_BYTES
+      ) throw invalidInput(`업무 설정은 ${BUSINESS_SETTINGS_MAX_BYTES}바이트 이하입니다`);
+      const ids = recordTemplateTagIds(sections.record_templates);
+      if ((await store.recordTags(ids)).length !== ids.length) {
+        throw invalidInput("기록 범위에서 존재하는 태그만 기본값으로 사용할 수 있습니다", [{
+          path: "value",
+          message: "삭제되었거나 다른 범위의 태그를 제거하세요",
+        }]);
+      }
+      return store.update(parsed.data);
+    },
+  );
 }

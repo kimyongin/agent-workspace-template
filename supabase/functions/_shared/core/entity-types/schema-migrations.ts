@@ -27,6 +27,7 @@ import {
 import type { EntityTypeDeps } from "./application.ts";
 import type { SchemaChangeStore } from "./schema-changes.ts";
 import type { RequestStore } from "../shared/request.ts";
+import type { WorkspaceEntry } from "../workspaces/application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { AppError, conflict, invalidInput } from "../shared/errors.ts";
 import { runWrite } from "../shared/request.ts";
@@ -63,6 +64,7 @@ export type SchemaMigrationActionContext = {
     | "source_expires_at"
   >;
   schema_write_locked: boolean;
+  generation_current: boolean;
   observed_at: string;
 };
 export type SchemaMigrationActionStore =
@@ -77,8 +79,20 @@ export type SchemaMigrationActionStore =
   >
   & Pick<SchemaChangeStore, "loadSchemaApplication" | "lockSchemaApplicationBindings">;
 type SchemaMigrationActionDeps = {
-  uow: { run<T>(actor: Actor, fn: (store: SchemaMigrationActionStore) => Promise<T>): Promise<T> };
+  uow: {
+    run<T>(actor: Actor, fn: (store: SchemaMigrationActionStore) => Promise<T>, entry?: WorkspaceEntry): Promise<T>;
+  };
 };
+const settingsWrite: WorkspaceEntry = {
+  mode: "business",
+  requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+};
+function writing(d: EntityTypeDeps): EntityTypeDeps["uow"] {
+  return { run: (actor, fn) => d.uow.run(actor, fn, settingsWrite) };
+}
+function writingActions(d: SchemaMigrationActionDeps): SchemaMigrationActionDeps["uow"] {
+  return { run: (actor, fn) => d.uow.run(actor, fn, settingsWrite) };
+}
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   const result = schema.safeParse(raw);
   if (!result.success) {
@@ -109,7 +123,7 @@ export function startEntitySchemaMigration(
   }
   const i = parse(schemaMigrationStart, raw);
   return runWrite(
-    d.uow,
+    writing(d),
     a,
     "entity-schema-migration.start",
     [typeId, changeId],
@@ -133,10 +147,12 @@ export function listEntitySchemaMigrations(d: EntityTypeDeps, a: Actor, raw: unk
 export function cancelEntitySchemaMigration(d: SchemaMigrationActionDeps, a: Actor, id: string, raw: unknown) {
   parse(z.string().uuid(), id);
   const i = parse(schemaMigrationAction, raw);
-  return runWrite(d.uow, a, "entity-schema-migration.cancel", id, i, async (s) => {
-    const { job } = await s.loadMigrationAction(id);
-    // A locked terminal result wins over an outdated caller, including the commit winner.
-    if (["committing", "succeeded", "failed", "cancelled"].includes(job.status)) return s.getMigration(id);
+  return runWrite(writingActions(d), a, "entity-schema-migration.cancel", id, i, async (s) => {
+    const { job, generation_current } = await s.loadMigrationAction(id);
+    // A current commit winner remains final; an old epoch may only terminate.
+    if (
+      ["succeeded", "failed", "cancelled"].includes(job.status) || (job.status === "committing" && generation_current)
+    ) return s.getMigration(id);
     if (job.version !== i.expected_job_version) throw conflict("작업 상태가 변경되었습니다. 다시 조회하세요");
     return s.saveMigrationCancellation(job);
   });
@@ -144,7 +160,7 @@ export function cancelEntitySchemaMigration(d: SchemaMigrationActionDeps, a: Act
 export function retryEntitySchemaMigration(d: SchemaMigrationActionDeps, a: Actor, id: string, raw: unknown) {
   parse(z.string().uuid(), id);
   const i = parse(schemaMigrationAction, raw);
-  return runWrite(d.uow, a, "entity-schema-migration.retry", id, i, async (s) => {
+  return runWrite(writingActions(d), a, "entity-schema-migration.retry", id, i, async (s) => {
     const { job, schema_write_locked, observed_at } = await s.loadMigrationAction(id);
     if (schema_write_locked) {
       throw new AppError("schema_migration_in_progress", "마이그레이션 완료 후 다시 시도하세요");
@@ -181,7 +197,7 @@ export function createEntitySchemaRecovery(d: EntityTypeDeps, a: Actor, id: stri
     !schemaRecoveryCreate.safeParse(raw).success
   ) return replayRetainedSchemaRequest<EntitySchemaChange>(d, a, "entity-schema-migration.recovery", id, raw);
   const i = parse(schemaRecoveryCreate, raw);
-  return runWrite(d.uow, a, "entity-schema-migration.recovery", id, i, async (s) => {
+  return runWrite(writing(d), a, "entity-schema-migration.recovery", id, i, async (s) => {
     const context = await s.loadRecovery(id);
     const now = new Date(context.observed_at), type = context.evidence.type;
     if (assessRecovery(context.evidence, now).status === "expired") assertRecoveryFresh(context.evidence, now);

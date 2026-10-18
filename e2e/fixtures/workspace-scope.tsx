@@ -1,3 +1,4 @@
+import { WorkspaceCapabilitiesContext } from "../../src/features/workspaces/workspace-context.tsx";
 /** Explicit browser fixture adapters only. Production keeps SDK authentication and URL space scope. */
 import type { Session } from "@supabase/supabase-js";
 import { type ReactNode, useContext, useMemo } from "react";
@@ -42,7 +43,7 @@ export function FixtureWorkspace(
       <ApiSessionContext.Provider value={readSession}>
         <WorkspaceRouteContext.Provider value={fixtureWorkspaceId}>
           <WorkspacePathPrefixContext.Provider value={false}>
-            {children}
+            <WorkspaceCapabilitiesContext.Provider value={{ workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null }, grants: [{ target_kind: "settings", target_id: "*", access: "write" }], can_manage: true, membership_version: 1 }}>{children}</WorkspaceCapabilitiesContext.Provider>
           </WorkspacePathPrefixContext.Provider>
         </WorkspaceRouteContext.Provider>
       </ApiSessionContext.Provider>

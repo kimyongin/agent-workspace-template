@@ -34,7 +34,12 @@ export class SqlActorStore {
   async appendChange(input: ChangeInput) {
     const target = input.target, target_title = target.title;
     const settingsStore = new SqlBusinessSettingsStore(this.tx, this.actor);
-    const settings = (await settingsStore.get()).settings;
+    const settings = input.target_kind === "record" ? { record_templates: {} } : (await settingsStore.getForTarget({
+      model: input.target_kind,
+      action: input.action,
+      target_id: input.target.id,
+      entity_type_id: (input.after ?? input.before)?.entity_type_id,
+    })).settings;
     const ids = effectiveRecordTemplate(
       settings.record_templates,
       input.target_kind as "entity" | "task",

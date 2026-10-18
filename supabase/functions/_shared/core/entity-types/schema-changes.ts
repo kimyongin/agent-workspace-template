@@ -82,6 +82,15 @@ export interface SchemaChangeStore {
   lockSchemaApplicationBindings(context: SchemaApplicationContext): Promise<SchemaApplicationBindings>;
   saveSchemaPublication(context: SchemaApplicationContext, nextSchemaVersion: number): Promise<EntitySchemaChange>;
 }
+function writing(d: EntityTypeDeps): EntityTypeDeps["uow"] {
+  return {
+    run: (actor, fn) =>
+      d.uow.run(actor, fn, {
+        mode: "business",
+        requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      }),
+  };
+}
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   const r = schema.safeParse(raw);
   if (!r.success) {
@@ -103,7 +112,7 @@ export function createEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: st
     !schemaChangeCreate.safeParse(raw).success
   ) return replayRetainedSchemaRequest<EntitySchemaChange>(d, a, "entity-schema-change.create", typeId, raw);
   const i = parse(schemaChangeCreate, raw);
-  return runWrite(d.uow, a, "entity-schema-change.create", typeId, i, (s) => prepareSchemaChange(s, typeId, i));
+  return runWrite(writing(d), a, "entity-schema-change.create", typeId, i, (s) => prepareSchemaChange(s, typeId, i));
 }
 export function updateEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
   refs(typeId, id);
@@ -113,7 +122,7 @@ export function updateEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: st
   ) return replayRetainedSchemaRequest<EntitySchemaChange>(d, a, "entity-schema-change.update", [typeId, id], raw);
   const i = parse(schemaChangeUpdate, raw);
   return runWrite(
-    d.uow,
+    writing(d),
     a,
     "entity-schema-change.update",
     [typeId, id],
@@ -229,12 +238,19 @@ export function listEntitySchemaChanges(d: EntityTypeDeps, a: Actor, typeId: str
 export function analyzeEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
   refs(typeId, id);
   const i = parse(schemaChangeAction, raw);
-  return runWrite(d.uow, a, "entity-schema-change.analyze", [typeId, id], i, (s) => s.analyzeChange(typeId, id, i));
+  return runWrite(
+    writing(d),
+    a,
+    "entity-schema-change.analyze",
+    [typeId, id],
+    i,
+    (s) => s.analyzeChange(typeId, id, i),
+  );
 }
 export function applyEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
   refs(typeId, id);
   const i = parse(schemaChangeApply, raw);
-  return runWrite(d.uow, a, "entity-schema-change.apply", [typeId, id], i, async (s) => {
+  return runWrite(writing(d), a, "entity-schema-change.apply", [typeId, id], i, async (s) => {
     const context = await s.loadSchemaApplication(typeId, id, i.analysis_id);
     assertSchemaApplication(context, "compatible", i);
     await assertSchemaApplicationBindings(context, await s.lockSchemaApplicationBindings(context));
@@ -252,7 +268,7 @@ export function getEntitySchemaAnalysisRows(d: EntityTypeDeps, a: Actor, typeId:
 export function discardEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
   refs(typeId, id);
   const input = parse(schemaChangeAction, raw);
-  return runWrite(d.uow, a, "entity-schema-change.discard", [typeId, id], input, async (store) => {
+  return runWrite(writing(d), a, "entity-schema-change.discard", [typeId, id], input, async (store) => {
     const { change, migration_active } = await store.loadSchemaDiscard(typeId, id);
     if (change.status === "cancelled") return store.getChange(typeId, id);
     if (change.status === "applied") throw conflict("이미 적용한 변경은 폐기할 수 없습니다");

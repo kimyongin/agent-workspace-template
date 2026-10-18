@@ -18,7 +18,7 @@ export function unavailableTemplateTags(saved: TemplatesSaved | null, draft: Rec
   return [...new Set(selectedRecordTags(draft))].filter((id) => missing.has(id));
 }
 export function createRecordTemplatesDraft(api: ApiRequest): SettingsDraftAdapter<RecordTemplates, TemplatesSaved> {
-  const tagRead = createTagRead(api);
+  const tagRead = createTagRead(api, "record-template");
   return {
     initial: {},
     isConflict,

@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -122,6 +123,7 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
   onState?: (state: MaterialSectionState) => void;
   disabled?: boolean;
 }) {
+  const { canWrite } = useSettingsAccess();
   const api = useApi();
   const navigate = useNavigate(), location = useLocation();
   const { attempt, busy, uncertain } = useWriteAttempt();
@@ -139,6 +141,7 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
     };
   }, []);
   const create = async () => {
+    if (!canWrite || disabled || busy) return;
     setError("");
     try {
       await attempt.run(async () => {
@@ -184,7 +187,7 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="default"
 
-          disabled={busy || disabled || (!uncertain && job.recovery?.status !== "available")}
+          disabled={!canWrite || busy || disabled || (!uncertain && job.recovery?.status !== "available")}
           onClick={() => void create()}
         >
           {busy ? "복구안 생성 중…" : uncertain ? "같은 복구안 요청 다시 확인" : "원본 복구안 만들기"}

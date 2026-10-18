@@ -1,3 +1,4 @@
+import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi, useRequestScope, sameRequestScope } from "../../lib/api-context.tsx";
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
 
@@ -16,6 +17,10 @@ import { MemoHistoryBoundaryContext } from "./TemplateMemoEditor.tsx";
 type Target = { id: string; label: string; model: "entity" | "task"; typeId?: string };
 const taskTarget: Target = { id: "task", label: "할 일", model: "task" };
 export function RecordSettingsPage() {
+  return <WorkspaceSettingsBoundary><RecordSettingsPageContent /></WorkspaceSettingsBoundary>;
+}
+function RecordSettingsPageContent() {
+  const { canWrite } = useSettingsAccess();
   const catalog = useEntityTypes();
   const historyBoundary = useRef<HTMLElement | null>(null);
   const targets = useMemo<Target[]>(() => [...(catalog.types ?? []).map(type => ({ id: `type:${type.id}`, label: type.label, model: "entity" as const, typeId: type.id })), taskTarget], [catalog.types]);
@@ -23,7 +28,7 @@ export function RecordSettingsPage() {
   const [visited, setVisited] = useState(["task"]);
   const [states, setStates] = useState<Record<string, MaterialSectionState>>({});
   const report = useCallback((id: string, state: MaterialSectionState) => setStates(current => ({ ...current, [id]: state })), []);
-  const busy = Object.values(states).some(state => state.busy || state.uncertain);
+  const busy = Object.values(states).some(state => state.busy || canWrite && state.uncertain);
   const dirty = Object.values(states).some(state => state.dirty || state.uncertain);
   const blocker = usePageNavigationBlocker(dirty, busy);
   useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);

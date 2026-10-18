@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldSet } from "@/components/ui/field";
@@ -23,6 +24,7 @@ export function RelationDefinitionForm(
     onState: (s: { dirty: boolean; busy: boolean }) => void;
   },
 ) {
+  const { canWrite } = useSettingsAccess();
   const api = useApi();
   const [baseline, setBaseline] = useState(original),
     [ends, setEnds] = useState<EntityRelationDefinition["ends"]>(() =>
@@ -54,7 +56,7 @@ export function RelationDefinitionForm(
     setError(writeErrorMessage(e));
   };
   const save = async () => {
-    if (writing.busy || reading || conflict) return;
+    if (!canWrite || writing.busy || reading || conflict) return;
     if (!writing.uncertain && !relationDefinitionCreate.safeParse({ ends }).success) {
       setError("양쪽 자료 종류와 연결 이름을 입력하세요.");
       return;
@@ -77,7 +79,7 @@ export function RelationDefinitionForm(
     }
   };
   const remove = async () => {
-    if (!baseline) return;
+    if (!canWrite || !baseline) return;
     setConfirm(null);
     setError("");
     setOperation("delete");
@@ -110,7 +112,7 @@ export function RelationDefinitionForm(
       <p className="text-sm text-muted-foreground">
         자료는 연결 없이도 작성할 수 있습니다.
       </p>
-      <FieldSet disabled={writing.busy || writing.uncertain || reading} className="grid min-w-0 gap-6 lg:grid-cols-2">
+      <FieldSet disabled={!canWrite || writing.busy || writing.uncertain || reading} className="grid min-w-0 gap-6 lg:grid-cols-2">
         {ends.map((end, n) => {
           const prefix = n === 0 ? "첫 번째" : "두 번째";
           return (
@@ -232,7 +234,7 @@ export function RelationDefinitionForm(
           <Button variant="destructive"
 
             type="button"
-            disabled={writing.busy || reading || conflict || writing.uncertain && operation !== "delete"}
+            disabled={!canWrite || writing.busy || reading || conflict || writing.uncertain && operation !== "delete"}
             onClick={() => writing.uncertain ? void remove() : setConfirm("delete")}
           >
             {writing.uncertain && operation === "delete" ? "같은 삭제 다시 확인" : "삭제"}
@@ -249,7 +251,7 @@ export function RelationDefinitionForm(
         <Button variant="default"
 
           type="submit"
-          disabled={writing.busy || reading || conflict || writing.uncertain && operation !== "save" ||
+          disabled={!canWrite || writing.busy || reading || conflict || writing.uncertain && operation !== "save" ||
             !!baseline && !dirty && !writing.uncertain}
         >
           {writing.busy ? "처리 중…" : writing.uncertain ? "같은 저장 다시 확인" : baseline ? "저장" : "추가"}
