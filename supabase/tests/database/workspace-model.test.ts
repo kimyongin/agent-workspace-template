@@ -210,6 +210,10 @@ dbTest(
         (await assertRejects(() => getDataModelChange(modelDeps, reader, dataPlan.id), AppError)).code,
         "forbidden",
       );
+      assertEquals(
+        (await assertRejects(() => listDataModelChanges(modelDeps, reader, { limit: 100 }), AppError)).code,
+        "forbidden",
+      );
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
