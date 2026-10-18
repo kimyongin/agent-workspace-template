@@ -87,7 +87,7 @@ alter table app.entity_schema_migrations add column workspace_generation bigint,
 
 -- Server-derived execution facts are captured independently on every accepted job.
 create function private.capture_workspace_schema_actor() returns trigger language plpgsql set search_path='' as $$
-declare actor jsonb;parent uuid;kinds uuid[];
+declare actor jsonb;parent uuid;kinds uuid[];requirements jsonb;
 begin
  if tg_op='INSERT' then
   actor:=app.workspace_author();
@@ -104,6 +104,12 @@ begin
     jsonb_array_elements_text(coalesce(g.plan->'protected_kind_ids','[]'::jsonb))
     where g.workspace_id=new.workspace_id and g.id=parent) required;
   new.required_kind_ids:=kinds;
+  if tg_table_name in ('entity_schema_analyses','entity_schema_migrations') then
+   select jsonb_agg(jsonb_build_object('target_kind','entity_type','target_id',id::text,'access','write') order by id) into requirements from unnest(kinds) id;
+   perform app.authorize_workspace(requirements);
+   perform set_config('request.workspace_requirements',
+    (coalesce(nullif(current_setting('request.workspace_requirements',true),''),'[]')::jsonb||requirements)::text,true);
+  end if;
  else
   if new.workspace_generation is distinct from old.workspace_generation or new.required_kind_ids is distinct from old.required_kind_ids then
    raise exception 'schema_execution_scope_immutable' using errcode='23514';
@@ -116,7 +122,7 @@ begin
    if new.created_by is distinct from old.created_by or new.created_by_name is distinct from old.created_by_name then
     raise exception 'schema_author_immutable' using errcode='23514';
    end if;
-   if new.initiated_by is distinct from old.initiated_by and new.initiated_by is distinct from (actor->>'created_by')::uuid then
+   if new.initiated_by is distinct from old.initiated_by then
     raise exception 'schema_initiator_invalid' using errcode='23514';
    end if;
   end if;
