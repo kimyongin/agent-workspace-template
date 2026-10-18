@@ -139,3 +139,103 @@ dbTest(
     }
   },
 );
+
+// A single model publication owns all affected kinds, including compatible
+// selected-text changes. Revoking either kind fences every queued child source.
+dbTest(
+  "workspace entity search: compatible model publication retains its complete affected-kind footprint",
+  async () => {
+    const fixture = await businessWorkspaceFixture(admin, user);
+    try {
+      const first = await fixture.createKind("모델 첫 종류");
+      const second = await fixture.createKind("모델 두 번째 종류");
+      await fixture.grantKind(fixture.manager, first.id, "write");
+      await fixture.grantKind(fixture.manager, second.id, "write");
+      const model = { uow: new SqlDataModelUnitOfWork(user) };
+      async function publish(label: string) {
+        const document = await exportDataModel(model, fixture.manager);
+        for (const type of document.entity_types) {
+          type.schema.properties.prop_1["x-search-text"] = true;
+          type.schema.properties.prop_1.title = label;
+        }
+        const input = { mode: "update", document: JSON.stringify(document) };
+        const review = await previewDataModel(model, fixture.manager, input);
+        const change = await prepareDataModel(
+          model,
+          businessRequest(fixture.manager),
+          {
+            ...input,
+            preview_fingerprint: review.fingerprint,
+          },
+        );
+        assertEquals(
+          (await applyDataModel(
+            model,
+            businessRequest(fixture.manager),
+            change.id,
+            {
+              expected_version: change.version,
+            },
+          )).status,
+          "applied",
+        );
+      }
+      await publish("처음 검색 이름");
+      const entityDeps = { uow: new SqlEntityUnitOfWork(user) };
+      const original = await entities.createEntity(
+        entityDeps,
+        businessRequest(fixture.manager),
+        entityCreate.parse({
+          entity_type_id: first.id,
+          schema_version: 2,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "전체 모델 권한으로 준비한 자료" },
+        }),
+      );
+      await entities.createEntity(
+        entityDeps,
+        businessRequest(fixture.manager),
+        entityCreate.parse({
+          entity_type_id: second.id,
+          schema_version: 2,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "함께 게시한 다른 종류" },
+        }),
+      );
+      await publish("게시한 검색 이름");
+      await fixture.grantKind(fixture.manager, second.id, "none");
+      let sends = 0;
+      const result = await indexBatch(
+        new SqlIndexQueue(worker),
+        new DurablePassageEmbedder(new SqlExternalEffectLedger(worker), {
+          send() {
+            sends++;
+            return Promise.resolve({ state: "succeeded", vector });
+          },
+        }, "a".repeat(64)),
+        {
+          limit: 1,
+          workspace_id: fixture.workspaceId,
+          kind: "entity",
+          id: original.id,
+        },
+      );
+      assertEquals(result.claimed, 0);
+      assertEquals(sends, 0);
+      assertEquals(
+        (await entities.getEntity(entityDeps, fixture.manager, original.id))
+          .properties.prop_1,
+        "전체 모델 권한으로 준비한 자료",
+      );
+    } finally {
+      const ownedEffects =
+        await admin`select id from private.passage_effects where workspace_id=${fixture.workspaceId}`;
+      for (const effect of ownedEffects) {
+        await admin`delete from private.passage_effects where id=${effect.id}::uuid`;
+      }
+      await fixture.cleanup();
+    }
+  },
+);
