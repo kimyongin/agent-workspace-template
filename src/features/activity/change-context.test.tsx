@@ -9,6 +9,8 @@ it("shows stored historical snapshots, without implying missing snapshots descri
   const stamp = "2026-10-01T02:03:04Z";
   const record: WorkspaceRecord = {
     id: "record",
+    created_by: null,
+    created_by_name: null,
     body: "고객 수정",
     record_kind: "change",
     occurred_at: stamp,
@@ -52,6 +54,8 @@ it("reads saved changes as labeled values while preserving zero, false, null and
   const stamp = "2026-10-01T02:03:04Z";
   const record: WorkspaceRecord = {
     id: "record",
+    created_by: null,
+    created_by_name: null,
     body: "고객 수정",
     record_kind: "change",
     occurred_at: stamp,
