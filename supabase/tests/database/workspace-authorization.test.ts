@@ -496,3 +496,81 @@ dbTest("malformed permission targets are strictly false and rejected at the actu
     await f.cleanup();
   }
 });
+
+dbTest(
+  "invitation acceptance rejects missing or unverified Google identity, cancelled and expired invitations",
+  async () => {
+    const f = await fixture();
+    try {
+      const workspace = await f.create(f.a);
+      const invitation = await workspaces.inviteWorkspaceMember(deps, key(f.a), workspace.id, {
+        email: `workspace512-${f.b.userId}@example.test`,
+        grants: [taskRead],
+      });
+      const valid = { sub: f.b.userId, email: invitation.invitation.email, email_verified: true };
+      await admin`update auth.identities set provider='email' where user_id=${f.b.userId}`;
+      await denied(() => workspaces.acceptWorkspaceInvitation(deps, key(f.b), invitation.invitation.id));
+      await admin`update auth.identities set provider='google' where user_id=${f.b.userId}`;
+      for (
+        const invalid of [
+          { sub: f.b.userId, email_verified: true },
+          { sub: f.b.userId, email: invitation.invitation.email },
+          { ...valid, email_verified: false },
+        ]
+      ) {
+        await admin`update auth.identities set identity_data=${admin.json(invalid)} where user_id=${f.b.userId}`;
+        await denied(() => workspaces.acceptWorkspaceInvitation(deps, key(f.b), invitation.invitation.id));
+      }
+      await admin`update auth.identities set identity_data=${admin.json(valid)} where user_id=${f.b.userId}`;
+      await workspaces.cancelWorkspaceInvitation(deps, key(f.a), workspace.id, invitation.invitation.id, {
+        expected_version: invitation.invitation.version,
+      });
+      await denied(() => workspaces.acceptWorkspaceInvitation(deps, key(f.b), invitation.invitation.id));
+      const expired = await workspaces.inviteWorkspaceMember(deps, key(f.a), workspace.id, {
+        email: `workspace512-${f.c.userId}@example.test`,
+        grants: [settings],
+      });
+      await admin`update private.workspace_invitations set expires_at=clock_timestamp()-interval '1 second' where id=${expired.invitation.id}`;
+      await denied(() => workspaces.acceptWorkspaceInvitation(deps, key(f.c), expired.invitation.id));
+      await denied(() => workspaces.workspaceDetails(deps, f.b, workspace.id));
+      await denied(() => workspaces.workspaceDetails(deps, f.c, workspace.id));
+      assertEquals((await workspaces.listWorkspaceMembers(deps, f.a, workspace.id)).items.length, 1);
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "concurrent invitation acceptance remains unique and cannot inherit or overwrite another user's grants",
+  async () => {
+    const f = await fixture();
+    try {
+      const workspace = await f.create(f.a);
+      const invitation = await workspaces.inviteWorkspaceMember(deps, key(f.a), workspace.id, {
+        email: `workspace512-${f.b.userId}@example.test`,
+        grants: [taskRead],
+      });
+      const accepted = await Promise.all(
+        Array.from({ length: 3 }, () => workspaces.acceptWorkspaceInvitation(deps, key(f.b), invitation.invitation.id)),
+      );
+      for (const value of accepted) assertEquals(value.workspace, workspace);
+      assertEquals((await workspaces.listWorkspaceMembers(deps, f.a, workspace.id)).items.length, 2);
+      await Promise.all([
+        workspaces.updateWorkspaceMember(deps, key(f.a), workspace.id, f.b.userId, { expected_version: 1, grants: [] }),
+        workspaces.acceptWorkspaceInvitation(deps, key(f.b), invitation.invitation.id),
+      ]);
+      assertEquals((await workspaces.workspaceDetails(deps, f.b, workspace.id)).grants, []);
+      // Verified email equality is not a membership key and cannot transfer the accepted invite.
+      await admin`update auth.identities set identity_data=jsonb_set(identity_data,'{email}',${
+        admin.json(invitation.invitation.email)
+      }) where user_id=${f.c.userId}`;
+      await denied(() => workspaces.workspaceDetails(deps, f.c, workspace.id));
+      await denied(() => workspaces.acceptWorkspaceInvitation(deps, key(f.c), invitation.invitation.id));
+      assertEquals((await workspaces.listWorkspaceMembers(deps, f.a, workspace.id)).items.length, 2);
+      assertEquals((await workspaces.workspaceDetails(deps, f.b, workspace.id)).grants, []);
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
