@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
@@ -6,8 +6,10 @@ import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import * as workspaces from "../../functions/_shared/core/workspaces/application.ts";
 import { indexBatch, type IndexQueue } from "../../functions/_shared/core/search/index-worker.ts";
-import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
-import { connect, dbTest, urls } from "./_db.ts";
+import { DurablePassageEmbedder, hashPassage } from "../../functions/_shared/core/search/passage-embedder.ts";
+import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
+import { executePassageEffect } from "../../functions/_shared/core/search/external-effect.ts";
+import { connect, dbTest, outcome, urls } from "./_db.ts";
 import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 
 const admin = connect(urls.admin, { max: 1 });
@@ -160,3 +162,137 @@ for (const stage of stages) {
     });
   }
 }
+
+async function passageFixture() {
+  const fixture = await businessWorkspaceFixture(admin, user);
+  try {
+    await fixture.grant(fixture.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+    const task = await activity.createTask(
+      deps,
+      businessRequest(fixture.member),
+      taskCreate.parse({
+        kind: "once",
+        title: "확정되지 않은 전송 보존 검증",
+      }),
+    );
+    const { record } = await activity.completeTask(deps, businessRequest(fixture.member), task.id, {
+      expected_version: task.version,
+      body: "외부 작업의 시도와 세대 경계",
+    });
+    const queue = new SqlIndexQueue(worker);
+    const inputForCurrent = async () => {
+      const claims = await queue.claim({ limit: 1, workspace_id: fixture.workspaceId, kind: "record", id: record.id });
+      assertEquals(claims.length, 1);
+      return {
+        message_id: claims[0].msg_id,
+        pipeline: SEARCH_PIPELINE,
+        provider_scope: "c".repeat(64),
+        model: "llama-text-embed-v2",
+        dimensions: 1024,
+        start: 0,
+        end: [...record.body].length,
+        input_hash: await hashPassage(record.body),
+      };
+    };
+    return {
+      ...fixture,
+      record,
+      inputForCurrent,
+      ledger: new SqlExternalEffectLedger(worker),
+      cleanup: async () => {
+        const effects = await admin`select id from private.passage_effects where workspace_id=${fixture.workspaceId}`;
+        for (const effect of effects) await admin`delete from private.passage_effects where id=${effect.id}`;
+        await fixture.cleanup();
+      },
+    };
+  } catch (error) {
+    await fixture.cleanup();
+    throw error;
+  }
+}
+
+dbTest("workspace passage: unknown responses retain a durable five-send ceiling", async () => {
+  const fixture = await passageFixture();
+  try {
+    const input = await fixture.inputForCurrent();
+    let sends = 0;
+    const provider = {
+      send() {
+        sends++;
+        return Promise.reject(new Error("in-process uncertain response"));
+      },
+    };
+    let effectId: string | undefined;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const result = await executePassageEffect(fixture.ledger, provider, input, fixture.record.body);
+      assertEquals(result.state, "unknown");
+      assert("attempts" in result);
+      assertEquals(result.attempts, attempt);
+      assertEquals(sends, attempt);
+      const [effect] = await admin`select id,attempts,state,result is null as no_result from private.passage_effects
+        where workspace_id=${fixture.workspaceId} and record_id=${fixture.record.id}`;
+      effectId = effect.id as string;
+      assertEquals(effect.attempts, attempt);
+      assertEquals(effect.state, "unknown");
+      assertEquals(effect.no_result, true);
+      // Exact owned effect only: advance its retry clock without waiting minutes.
+      await admin`update private.passage_effects set next_attempt_at=clock_timestamp()-interval '1 second' where id=${effectId}`;
+    }
+    const held = await executePassageEffect(fixture.ledger, provider, input, fixture.record.body);
+    assertEquals(held, { state: "unknown", reason: "retry_exhausted", attempts: 5 });
+    assertEquals(sends, 5);
+    const [retained] = await admin`select state,attempts,reason from private.passage_effects where id=${effectId!}`;
+    assertEquals(retained, { state: "unknown", attempts: 5, reason: "retry_exhausted" });
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+dbTest("workspace passage: expired lease fences old completion and new source cannot reuse cached vector", async () => {
+  const fixture = await passageFixture();
+  try {
+    const input = await fixture.inputForCurrent();
+    const first = await fixture.ledger.claim(input);
+    assert(first.action === "send");
+    await admin`update private.passage_effects set lease_until=clock_timestamp()-interval '1 second' where id=${first.effect_id}`;
+    const second = await fixture.ledger.claim(input);
+    assert(second.action === "send");
+    assertEquals(second.effect_id, first.effect_id);
+    assertEquals(second.fence, first.fence + 1);
+    assertEquals(second.attempts, 2);
+    assertEquals(await fixture.ledger.complete(first, { state: "succeeded", vector }), false);
+    assertEquals(await fixture.ledger.complete(second, { state: "succeeded", vector }), true);
+    const cached = await fixture.ledger.claim(input);
+    assert(cached.action === "cached");
+    assertEquals(cached.vector, vector);
+    const changed = await activity.updateRecord(deps, businessRequest(fixture.member), fixture.record.id, {
+      expected_version: fixture.record.version,
+      body: "다른 본문으로 바꾼 뒤 다시 원문으로 되돌림",
+    });
+    await activity.updateRecord(deps, businessRequest(fixture.member), fixture.record.id, {
+      expected_version: changed.version,
+      body: fixture.record.body,
+    });
+    assertEquals((await fixture.ledger.claim(input)).action, "stale");
+    const current = await fixture.ledger.claim(await fixture.inputForCurrent());
+    assert(current.action === "send");
+    assert(current.effect_id !== first.effect_id);
+    assertEquals(current.attempts, 1);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+dbTest("workspace worker: public server and worker roles cannot bypass scoped RPC authority", async () => {
+  const fixture = await passageFixture();
+  try {
+    assert((await outcome(worker`select body from app.records limit 1`)).startsWith("42501 "));
+    assert((await outcome(worker`select result from private.passage_effects limit 1`)).startsWith("42501 "));
+    assert((await outcome(user.begin(async (tx) => {
+      await tx`set local role app_user`;
+      await tx`select * from app.claim_search_index(1,${fixture.workspaceId}::uuid,'record',${fixture.record.id})`;
+    }))).startsWith("42501 "));
+  } finally {
+    await fixture.cleanup();
+  }
+});
