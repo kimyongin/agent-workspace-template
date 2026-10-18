@@ -1702,7 +1702,7 @@ for (const mode of ["editor", "history"] as const) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await expect(rows).toHaveCount(2);
     }
-    await page.screenshot({ path: info.outputPath(`review-errors-${mode}.png`), fullPage: true });
+    await table.screenshot({ path: info.outputPath(`review-errors-${mode}.png`) });
     expect(writes).toEqual([]);
   });
 }

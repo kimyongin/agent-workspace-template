@@ -252,6 +252,7 @@ test("#203 320px·200% 펼친 연결 조작과 메인 목록이 넘치지 않음
     expect(rect.width).toBeGreaterThanOrEqual(88);
     expect(rect.height).toBeGreaterThanOrEqual(88);
   }
+  await form(page).getByRole("link", { name: "할 일 상세", exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: info.outputPath("expanded-zoom-200.png") });
   await go(page, "/tasks");
   await page.evaluate(() => document.documentElement.style.zoom = "2");
