@@ -55,7 +55,13 @@ class SqlTagStore extends SqlActorStore implements TagStore {
     // The UoW has already authorized the complete server-resolved footprint.
     // Lock known targets before the dictionary; its FK key lock then prevents
     // new connections, and a second ID-only snapshot detects arrivals safely.
-    for (const typeId of await this.deletionTypeIds(id)) await loadBusinessEntityDefinition(this.tx, typeId, true);
+    const typeIds = await this.deletionTypeIds(id);
+    for (const typeId of typeIds) await loadBusinessEntityDefinition(this.tx, typeId, true);
+    // A newly linked kind must restart with a complete sorted lock set rather
+    // than acquire a late kind lock behind already-held domain locks.
+    if (JSON.stringify(await this.deletionTypeIds(id)) !== JSON.stringify(typeIds)) {
+      throw conflict("태그 연결이 변경되었습니다. 최신 상태에서 다시 삭제하세요");
+    }
     this.deletionTargets = await this.targetIds(id);
     const entities = new SqlEntityStore(this.tx, this.actor), activity = new SqlTagTargets(this.tx, this.actor);
     for (const item of this.deletionTargets.entity) if (!await entities.get(item, true)) throw notFound();
@@ -72,6 +78,12 @@ class SqlTagStore extends SqlActorStore implements TagStore {
       lock && this.deletionTargets && JSON.stringify(await this.targetIds(id)) !== JSON.stringify(this.deletionTargets)
     ) {
       throw conflict("태그 연결이 변경되었습니다. 최신 상태에서 다시 삭제하세요");
+    }
+    if (lock && this.deletionTargets) {
+      // The dictionary lock excludes new FK connections. Resolve authority
+      // again now so the durable receipt covers every target we will change,
+      // including kinds that arrived after the initial request entry check.
+      await resolveDeleteRequirements(this.tx, id);
     }
     return r ? toTag(r) : null;
   }
@@ -154,8 +166,7 @@ export class SqlTagUnitOfWork {
     const actor = requireWorkspaceActor(a);
     return runInWorkspace(this.sql, actor, { mode: "business", requirements: [] }, async (tx) => {
       if (entry?.deleteTagId) {
-        const [resolved] = await tx`select app.workspace_tag_delete_requirements(${entry.deleteTagId}) as requirements`;
-        await tx`select set_config('request.workspace_requirements',${JSON.stringify(resolved.requirements)},true)`;
+        await resolveDeleteRequirements(tx, entry.deleteTagId);
       }
       if (entry?.connection) {
         if (entry.connection.target_kind !== "entity") {
@@ -175,4 +186,14 @@ export class SqlTagUnitOfWork {
       return fn(new SqlTagStore(tx, a));
     });
   }
+}
+
+/** Extend the same transaction's receipt authority after a fresh server check. */
+async function resolveDeleteRequirements(tx: postgres.TransactionSql, id: string) {
+  const [resolved] = await tx`select app.workspace_tag_delete_requirements(${id}) as requirements`;
+  await tx`select set_config('request.workspace_requirements',(
+    select coalesce(jsonb_agg(requirement order by requirement->>'target_kind',requirement->>'target_id'),'[]'::jsonb)::text
+    from (select distinct value requirement from jsonb_array_elements(
+      current_setting('request.workspace_requirements')::jsonb || ${tx.json(resolved.requirements)}::jsonb
+    )) required),true)`;
 }
