@@ -333,6 +333,9 @@ export function App() {
   const [router] = useState(() =>
     createBrowserRouter(
       createRoutesFromElements(
+        <>
+        {/* Logout owns one Auth operation across session removal, outside the actor-keyed business shell. */}
+        <Route path="logout" element={<main className="h-dvh min-h-0 overflow-y-auto"><LogoutPage /></main>} />
         <Route path="/*" element={<Layout />}>
           <Route index element={<Navigate to="/workspaces" replace />} />
           <Route path="workspaces" element={guarded(<WorkspacesPage />)} />
@@ -342,8 +345,6 @@ export function App() {
           />
           <Route path="settings" element={guarded(<SettingsPage />)} />
           <Route path="login" element={<LoginPage />} />
-          {/* 세션 해제 뒤 next=/logout으로 재로그인하는 루프를 만들지 않는다. */}
-          <Route path="logout" element={<LogoutPage />} />
           <Route path="oauth/consent" element={guarded(<ConsentPage />)} />
           <Route path="w/:workspaceId" element={guarded(<Outlet />)}>
             <Route index element={<WorkspaceLanding />} />
@@ -382,7 +383,8 @@ export function App() {
               </Empty>
             }
           />
-        </Route>,
+        </Route>
+        </>,
       ),
       { basename: import.meta.env.BASE_URL.replace(/\/$/, "") },
     )
