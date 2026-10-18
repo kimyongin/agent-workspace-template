@@ -179,11 +179,13 @@ export class SqlDataModelStore implements DataModelStore {
     );
   }
   async publishPreparedModel(plan: ModelPlan, id: string) {
-    const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
+    const [settings] = await this
+      .tx`select settings from app.user_business_settings where workspace_id=${this.workspaceId}::uuid and id='record_templates'`;
     for (const type of plan.target.entity_types) {
       assertSchemaTemplateReferences({ schema: type.schema }, settings?.settings ?? {}, type.schema["x-type-id"]);
     }
-    const [change] = await this.tx`select version from app.data_model_changes where id=${id}::uuid`;
+    const [change] = await this
+      .tx`select version from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
     const [row] = await this
       .tx`select app.publish_prepared_data_model(${id}::uuid,${change.version}::integer) as result`;
     return row.result as NonNullable<ModelChange["result"]>;
@@ -191,7 +193,7 @@ export class SqlDataModelStore implements DataModelStore {
   async complete(id: string, result: NonNullable<ModelChange["result"]>) {
     const [r] = await this.tx`update app.data_model_changes set status='applied',version=version+1,result=${
       this.tx.json(result)
-    } where id=${id}::uuid returning *`;
+    } where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid returning *`;
     const { plan: _p, ...value } = changeRow(r);
     return receiptChange(value);
   }
