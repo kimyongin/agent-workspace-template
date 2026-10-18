@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EntityField, EntitySchemaVersion, EntityType } from "@contracts/entity-type.ts";
@@ -10,7 +11,7 @@ import type {
   SchemaEdit,
 } from "@contracts/entity-schema-change.ts";
 import { entityFieldInput } from "@contracts/entity-schema-change.ts";
-import { api } from "../../lib/api.ts";
+
 import { ApiError } from "../../lib/api-error.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { migrationNumericValues, SchemaNumericDraftError, schemaNumericValues } from "./numeric-drafts.ts";
@@ -76,6 +77,7 @@ export function useSchemaChangeEditor(
     onInvalidField: (key: string, includeSelect: boolean, condition?: string) => void;
   },
 ) {
+  const api = useApi();
   const [startState, setStartState] = useState({ busy: false, uncertain: false });
   const startStateChange = useCallback((state: { busy: boolean; uncertain: boolean }) => setStartState(state), []);
   const [fieldError, setFieldError] = useState<string | null>(null);

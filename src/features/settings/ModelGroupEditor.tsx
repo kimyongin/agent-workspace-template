@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -5,7 +6,7 @@ import { Button } from "../../components/ui/button.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { ModelChange } from "@contracts/data-model.ts";
 import type { MigrationPlan } from "@contracts/entity-schema-change.ts";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { ConversionEditor } from "./ConversionEditor.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
@@ -51,6 +52,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
   onState: (id: string, state: ModelGroupState) => void;
   disabled: boolean;
 }) {
+  const api = useApi();
   const children = childrenFor(change);
   const [drafts, setDrafts] = useState<Record<string, MigrationPlan>>({});
   const [accepted, setAccepted] = useState<Record<string, MigrationPlan>>({});

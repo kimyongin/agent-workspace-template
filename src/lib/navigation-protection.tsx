@@ -9,7 +9,7 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import { type Blocker, type BlockerFunction, useBlocker } from "react-router";
+import { type Blocker, type BlockerFunction, useBlocker } from "./workspace-router.tsx";
 
 type Protection = { blocks: BlockerFunction; busy: () => boolean; priority: number };
 const idle: Blocker = { state: "unblocked", proceed: undefined, reset: undefined, location: undefined };

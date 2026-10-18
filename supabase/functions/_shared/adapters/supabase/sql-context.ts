@@ -1,3 +1,4 @@
+import { runInWorkspace } from "./workspace-context.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import { setTagLinks } from "./tag-links.ts";
@@ -87,11 +88,27 @@ export class SqlActorStore {
 }
 
 /** DB 오류를 업무 오류로 바꾼다. 내부 SQL·메시지는 밖으로 내보내지 않는다. */
-function translate(e: unknown): unknown {
+export function translate(e: unknown): unknown {
   if (e instanceof AppError) return e;
   const code = (e as { code?: string }).code ?? "";
   if (code === "42501" && (e as { message?: string }).message === "request_owner_missing") {
     return new AppError("unauthenticated", "계정을 확인할 수 없습니다");
+  }
+  const message = (e as { message?: string }).message;
+  if (code === "42501" && message === "workspace_denied") {
+    return new AppError("forbidden", "워크스페이스에 접근할 수 없습니다");
+  }
+  if (code === "P0001" && message === "workspace_version_conflict") {
+    return new AppError("conflict", "참여 정보가 변경되었습니다. 다시 조회하세요");
+  }
+  if (code === "23514" && message === "workspace_final_admin") {
+    return new AppError("conflict", "마지막 관리자는 권한을 넘기거나 공간을 삭제한 뒤 나갈 수 있습니다");
+  }
+  if (code === "22023" && message === "invitation_delivery_ambiguous") {
+    return new AppError(
+      "conflict",
+      "이메일 발송 여부를 확인할 수 없어 재발송할 수 없습니다. 초대를 취소하고 새 초대를 만드세요",
+    );
   }
   if (code === "40001" || code === "40P01" || code === "55P03" || code === "57014") {
     return new AppError("unavailable", "잠시 후 다시 시도하세요");
@@ -117,6 +134,16 @@ export async function runAsActor<T>(
   fn: (tx: postgres.TransactionSql) => Promise<T>,
   isolation?: "repeatable read" | "repeatable read read only",
 ): Promise<T> {
+  // Integration-only seam: #513–#517 replace owner SQL and declare their concrete requirements;
+  // #518 removes the unscoped branch. Explicit business transports never infer an owner workspace.
+  if (actor.workspaceId) {
+    return runInWorkspace(
+      sql,
+      { ...actor, workspaceId: actor.workspaceId },
+      { mode: "business", requirements: [] },
+      fn,
+    );
+  }
   try {
     const transaction = async (tx: postgres.TransactionSql) => {
       await tx`select set_config('request.jwt.claims', ${

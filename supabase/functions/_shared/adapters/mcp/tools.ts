@@ -1,3 +1,4 @@
+import { workspaceId } from "../../contracts/workspace.ts";
 // 기능별 도구가 함께 쓰는 schema 안내·응답과 오류 변환. 업무 규칙은 유스케이스에 있다.
 import type { McpServer, StandardSchemaWithJSON } from "@modelcontextprotocol/server";
 import { z } from "zod";
@@ -88,6 +89,20 @@ export function keyedTool(tool: ToolDef): ToolDef {
       const { request_key, ...input } = args;
       const key = parse(requestKey, request_key);
       return tool.handler(input, { ...actor, request: { key } });
+    },
+  };
+}
+
+/** Every business tool receives immutable explicit scope, including reads and preparation. */
+export function workspaceTool(tool: ToolDef): ToolDef {
+  const object = tool.input as z.ZodObject;
+  return {
+    ...tool,
+    input: z.strictObject({ ...object.shape, workspace_id: workspaceId }),
+    inputVariants: tool.inputVariants?.map((v) => v.extend({ workspace_id: workspaceId })),
+    handler: (args, actor) => {
+      const { workspace_id, ...input } = args;
+      return tool.handler(input, { ...actor, workspaceId: parse(workspaceId, workspace_id) });
     },
   };
 }

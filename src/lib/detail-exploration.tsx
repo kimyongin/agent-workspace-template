@@ -1,7 +1,7 @@
 import { activeSurface, scrollOwner, scrollTop, restoreScroll } from "./surface-dom.ts";
 import { detailListReturn } from "./entity-list-url.ts";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
-import { Link, useLocation, useNavigate, type LinkProps, type NavigateOptions, type To } from "react-router";
+import { Link, useLocation, useNavigate, type LinkProps, type NavigateOptions, type To } from "./workspace-router.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity } from "../features/details/workspace-context.ts";
 
 type Frame = { key: string; path: string; title: string; scroll: number; focusKey: string };

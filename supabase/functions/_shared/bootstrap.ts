@@ -122,3 +122,10 @@ let createAndLink: CreateAndLinkDeps | undefined;
 export function createAndLinkDeps(): CreateAndLinkDeps {
   return createAndLink ??= { uow: new SqlCreateAndLinkUnitOfWork(database()) };
 }
+
+import { SqlWorkspaceUnitOfWork } from "./adapters/supabase/workspace-store.ts";
+import type { WorkspaceDeps } from "./core/workspaces/application.ts";
+let workspaces: WorkspaceDeps | undefined;
+export function workspaceDeps(): WorkspaceDeps {
+  return workspaces ??= { uow: new SqlWorkspaceUnitOfWork(database()) };
+}

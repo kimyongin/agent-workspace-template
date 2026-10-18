@@ -1,10 +1,11 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { EntityDetail, EntitySummary, EntityValues } from "@contracts/entity.ts";
 import type { EntityRelationDefinition } from "@contracts/entity-relation.ts";
 import type { RelationMutationResult } from "@contracts/entity-relation-links.ts";
 import { entityPath } from "@contracts/entity-identity.ts";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Notice } from "../../components/Field.tsx";
 
@@ -24,6 +25,7 @@ export function CreateRelatedEntityForm(
     onSaved: (result: { entity: EntityValues; relation: RelationMutationResult }) => void;
   },
 ) {
+  const api = useApi();
   const [context, setContext] = useState<Context | null>(null),
     [error, setError] = useState(""),
     [reading, setReading] = useState(false),

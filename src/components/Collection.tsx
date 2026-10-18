@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode, createContext, useContext } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "../lib/workspace-router.tsx";
 import { useCollectionExpansion } from "./item-expansion.tsx";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group.tsx";
 import { Button } from "./ui/button.tsx";

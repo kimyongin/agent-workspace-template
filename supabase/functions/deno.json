@@ -3,7 +3,8 @@
     "./api",
     "./mcp",
     "./index-worker",
-    "./entity-schema-worker"
+    "./entity-schema-worker",
+    "./invitation-mail-worker"
   ],
   "nodeModulesDir": "none",
   "imports": {

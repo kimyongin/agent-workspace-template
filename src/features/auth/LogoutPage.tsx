@@ -52,7 +52,7 @@ export function LogoutPage() {
           ? <Button asChild size="lg"><Link to="/login">로그인으로 이동</Link></Button>
           : <>
             <Button type="button" variant="outline" size="lg" onClick={signOut}>다시 시도</Button>
-            <Button asChild variant="ghost" size="lg"><Link to="/tasks">할 일로 돌아가기</Link></Button>
+            <Button asChild variant="ghost" size="lg"><Link to="/workspaces">내 공간으로 돌아가기</Link></Button>
           </>}
       </CardFooter>}
     </Card>

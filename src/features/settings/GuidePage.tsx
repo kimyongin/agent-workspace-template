@@ -6,7 +6,7 @@ import { Button } from "../../components/ui/button.tsx";
 import { PageHeading } from "../../components/PageHeading.tsx";
 import { useState } from "react";
 
-import { Link } from "react-router";
+import { Link } from "../../lib/workspace-router.tsx";
 import { guideConfig } from "./guide-config.ts";
 
 export function GuidePage() {

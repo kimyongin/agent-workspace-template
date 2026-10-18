@@ -14,6 +14,7 @@ import {
   searchDeps,
   statusDeps,
   tagDeps,
+  workspaceDeps,
 } from "../_shared/bootstrap.ts";
 
 const resource = env.mcpUrl();
@@ -32,5 +33,6 @@ Deno.serve(
     entityRelationLinkDeps(),
     dataModelDeps(),
     createAndLinkDeps(),
+    workspaceDeps(),
   ),
 );

@@ -1,3 +1,4 @@
+import { useWorkspaceId } from "../../lib/workspace-route.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup, Field as ChoiceField, FieldTitle } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -39,6 +40,7 @@ export function SettingsPage() {
   return session ? <AccountSettings key={session.user.id} /> : null;
 }
 function AccountSettings() {
+  const workspaceId = useWorkspaceId();
   const { session, savePreferences } = useAuth();
   const metadata = session!.user.user_metadata;
   const preferences = accountPreferences(metadata);
@@ -252,7 +254,7 @@ function AccountSettings() {
           </CardContent>
         </Card>
       ))}
-      <NavigationSettings inline onStateChange={setNavigationState} />
+      {workspaceId && <NavigationSettings inline onStateChange={setNavigationState} />}
       <ConfirmDialog
         open={!anyBusy && blocker.state === "blocked"}
         title="변경을 버릴까요?"

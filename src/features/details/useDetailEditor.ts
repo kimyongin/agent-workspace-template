@@ -1,6 +1,6 @@
 import { detailModeLink } from "../../lib/entity-list-url.ts";
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "../../lib/workspace-router.tsx";
 import { useDetailNavigate } from "../../lib/detail-exploration.tsx";
 
 /** Owns ordinary edit mode. Business actions and return destinations stay with their callers. */

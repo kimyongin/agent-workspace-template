@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { APP_IDENTIFIER_RULE_ID, type EntityTypeIdentity, type IdentityDefaultType } from "@contracts/entity-issuer.ts";
 
 import { Field } from "../../components/Field.tsx";
-import { typeIdentityPort } from "./issuer-registry-api.ts";
+import { useTypeIdentityPort } from "./issuer-registry-api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 /** Resolve one blocking default while keeping the original registry draft open. */
 export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved, onState }: {
@@ -16,6 +16,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
   onSaved: () => void;
   onState: (busy: boolean, uncertain: boolean) => void;
 }) {
+  const typeIdentityPort = useTypeIdentityPort();
   const choice = useRef<HTMLSelectElement>(null);
   const [identity, setIdentity] = useState<EntityTypeIdentity | null>(null);
   const [source, setSource] = useState("");

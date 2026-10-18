@@ -1,10 +1,10 @@
 import type { RecordTemplates } from "@contracts/record-template.ts";
 import { createRecordTemplatesDraft } from "./business-settings-drafts.ts";
 import { createSettingsDraft } from "./settings-draft.ts";
-import { api } from "../../lib/api.ts";
+import type { ApiRequest } from "../../lib/api.ts";
 
 /** A kind owns only its overrides; the checked baseline preserves other settings. */
-export function createMaterialTemplateDraft(typeId: string) {
+export function createMaterialTemplateDraft(api: ApiRequest, typeId: string) {
   const adapter = createRecordTemplatesDraft(api);
   return createSettingsDraft({
     ...adapter,
@@ -25,7 +25,7 @@ export function createMaterialTemplateDraft(typeId: string) {
 export type MaterialTemplateResource = ReturnType<typeof createMaterialTemplateDraft>;
 
 /** Task defaults own only their settings; other targets remain in the checked baseline. */
-export function createTaskTemplateDraft() {
+export function createTaskTemplateDraft(api: ApiRequest) {
   const adapter = createRecordTemplatesDraft(api);
   return createSettingsDraft({
     ...adapter,

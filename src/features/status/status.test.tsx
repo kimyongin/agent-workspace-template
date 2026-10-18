@@ -1,7 +1,7 @@
 import { IndexingIssues } from "./IndexingIssues.tsx";
 import { expect, it, vi } from "vitest";
 vi.mock("../../lib/api.ts", () => ({
-  api: () => {
+  createScopedApi: () => () => {
     throw new Error("collapsed list must not fetch");
   },
 }));

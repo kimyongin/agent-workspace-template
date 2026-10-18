@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { PlusIcon } from "lucide-react";
@@ -11,12 +12,12 @@ import { FormModal } from "../../components/ContentForm.tsx";
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { TaskDataFields } from "./TaskDataFields.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
-import { api, ApiError, query } from "../../lib/api.ts";
+import { ApiError, query } from "../../lib/api.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { addDays, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, taskDraftFrom, TaskFormModal } from "./forms.tsx";
@@ -35,6 +36,7 @@ function requestedDialog(params: URLSearchParams): Dialog {
 }
 
 export function TaskDetailPage() {
+  const api = useApi();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
@@ -460,6 +462,7 @@ function TaskTransitionForm(
     onSaved: () => Promise<void>;
   },
 ) {
+  const api = useApi();
   const action = task.status === "active" ? "stop" : "resume", label = action === "stop" ? "중단" : "재개";
   return (
     <FormModal

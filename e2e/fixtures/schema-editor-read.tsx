@@ -1,3 +1,4 @@
+import { FixtureWorkspace } from "./workspace-scope.tsx";
 import { useState } from "react";
 import { type PropertyDraft, PropertyFields } from "../../src/features/entity/property-fields.tsx";
 import { createRoot } from "react-dom/client";
@@ -115,7 +116,7 @@ function ReviewActionsFixture() {
 const onState = () => {};
 const onApplied = async () => "";
 createRoot(document.getElementById("root")!).render(
-  <BrowserRouter>
+  <FixtureWorkspace actorId="fixture-actor"><BrowserRouter>
     <nav aria-label="Fixture navigation">
       <Link to="?change_id=a">변경안 A</Link>
       <Link to="?change_id=b">변경안 B</Link>
@@ -129,5 +130,5 @@ createRoot(document.getElementById("root")!).render(
           <SchemaEditor type={type} definition={definition} onState={onState} onApplied={onApplied} />
         </div>
       )}
-  </BrowserRouter>,
+  </BrowserRouter></FixtureWorkspace>,
 );

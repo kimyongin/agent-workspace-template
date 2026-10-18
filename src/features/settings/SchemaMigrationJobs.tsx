@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
@@ -8,10 +9,10 @@ import { materialSettingsPath } from "./material-settings-path.ts";
 import { type MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { RecoveryChangeCreate, recoveryErrorMessage } from "./SchemaRecovery.tsx";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "../../lib/workspace-router.tsx";
 import type { EntitySchemaMigration, SchemaMigrationAccepted } from "@contracts/entity-schema-migration.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
-import { api } from "../../lib/api.ts";
+
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 export const migrationLabels: Record<EntitySchemaMigration["status"], string> = {
   queued: "접수",
@@ -31,6 +32,7 @@ export function MigrationStart(
     onState?: (state: { busy: boolean; uncertain: boolean }) => void;
   },
 ) {
+  const api = useApi();
   const navigate = useNavigate(), location = useLocation(), { attempt, busy, uncertain } = useWriteAttempt();
   const [error, setError] = useState("");
   useLayoutEffect(() => {
@@ -82,6 +84,7 @@ export function MigrationStart(
   );
 }
 export function useMigrationHistory(typeId: string, selectedJob?: string) {
+  const api = useApi();
   const [list, setList] = useState({
     typeId,
     items: [] as EntitySchemaMigration[],
@@ -250,6 +253,7 @@ export function SchemaMigrationJob(
     disabled?: boolean;
   },
 ) {
+  const api = useApi();
   const applied = useRef(onApplied);
   applied.current = onApplied;
   const changed = useRef(onJobChange);

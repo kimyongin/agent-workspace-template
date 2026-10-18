@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldSet } from "@/components/ui/field";
@@ -7,7 +8,7 @@ import { entityPath } from "@contracts/entity-identity.ts";
 import { Notice } from "../../components/Field.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { useRecordConfirmation } from "../../components/RecordConfirmation.tsx";
-import { api } from "../../lib/api.ts";
+
 import { TagNames, TagPicker, type TagScope } from "./TagPicker.tsx";
 
 export function ReadonlyTags(
@@ -100,6 +101,7 @@ function TagConnectionDraft({ scope, target, onCancel, onSaved }: {
   onCancel: () => void;
   onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
 }) {
+  const api = useApi();
   const surface = useContext(SurfaceContext);
   const [draft, setDraft] = useState(target.tag_ids);
   const path = scope === "entity" ? entityPath(target.id) : `/${scope}s/${target.id}`;

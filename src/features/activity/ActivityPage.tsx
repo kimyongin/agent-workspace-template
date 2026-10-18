@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { NativeSelect } from "@/components/ui/native-select";
 import { NativeSelectOption } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import { StatusBadge } from "./shared.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
-import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router";
+import { Navigate, useLocation, useNavigate, useSearchParams } from "../../lib/workspace-router.tsx";
 import type { SearchItem } from "@contracts/search.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -33,7 +34,7 @@ import {
 } from "../../components/TabSearch.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
-import { api } from "../../lib/api.ts";
+
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { TagSelection } from "../tags/TagSelection.tsx";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
@@ -200,6 +201,7 @@ function ActivitySection(
 }
 
 export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
+  const api = useApi();
   const searchInput = useRef<HTMLInputElement>(null);
   const { timezone } = useDisplayTime();
   const [params, setParams] = useSearchParams(),

@@ -1,3 +1,4 @@
+import { FixtureWorkspace } from "./workspace-scope.tsx";
 import type { Session } from "@supabase/supabase-js";
 import { AuthContext } from "../../src/features/auth/auth-context.ts";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
@@ -71,4 +72,4 @@ function ModalDiscardFixture() {
     </FormModal>
   );
 }
-createRoot(document.getElementById("root")!).render(<AuthContext.Provider value={{session: {user: {id:"tag-fixture-owner"}} as Session, loading:false, savePreferences:async()=>{throw new Error("fixture");}}}><RouterProvider router={router} /></AuthContext.Provider>);
+createRoot(document.getElementById("root")!).render(<AuthContext.Provider value={{session: {user: {id:"tag-fixture-owner"}} as Session, loading:false, savePreferences:async()=>{throw new Error("fixture");}}}><FixtureWorkspace><RouterProvider router={router} /></FixtureWorkspace></AuthContext.Provider>);
