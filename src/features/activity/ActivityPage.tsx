@@ -269,7 +269,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
           tabIndex={-1}
           description={kind === "tasks"
             ? "할 일을 정리하고, 반복 일정과 수행 결과를 관리합니다."
-            : "메모와 참고 자료, 업무 변경 내역을 모아 봅니다."}
+            : "할 일 수행 결과와 업무 변경 내역을 모아 봅니다. 메모와 참고 내용은 자료로 등록하세요."}
         />
         <div className="flex min-w-0 flex-col gap-4">
           {params.has("legacy_activity") && (
