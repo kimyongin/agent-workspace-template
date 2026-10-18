@@ -1,4 +1,4 @@
-import { useApi } from "../../lib/api-context.tsx";
+import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { RotateCcwIcon, EyeIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select";
@@ -114,6 +114,7 @@ function RecordTemplateForm({
   >;
 }) {
   const api = useApi();
+  const requestScope = useRequestScope();
   const [variableQuery, setVariableQuery] = useState("");
   const { draft, dirty, busy, conflict, uncertain, latestReady } = editor;
   const saved = editor.saved?.settings;
@@ -301,7 +302,7 @@ function RecordTemplateForm({
             }
             setMessage("");
             if (await editor.resource.save()) {
-              window.dispatchEvent(new Event("workspace:record-settings-changed"));
+              window.dispatchEvent(new CustomEvent("workspace:record-settings-changed", { detail: requestScope }));
               setMessage("기록 자동 완성을 저장했습니다.");
               setFields({});
             }

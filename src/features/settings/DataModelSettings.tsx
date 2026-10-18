@@ -1,4 +1,4 @@
-import { useApi } from "../../lib/api-context.tsx";
+import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -303,6 +303,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
 
 export function DataModelSettings() {
   const api = useApi();
+  const requestScope = useRequestScope();
   const { session } = useAuth();
   const [document, setDocument] = useState(""),
     [mode, setMode] = useState<"update" | "copy">("update");
@@ -341,7 +342,7 @@ export function DataModelSettings() {
     setChanges((list) => list.map((item) => item.id === value.id && value.version >= item.version ? value : item));
     if (value.status === "applied") {
       setNotice(savedNotice(value));
-      if (session) invalidateEntityTypeCatalog(session.user.id);
+      if (session) invalidateEntityTypeCatalog(requestScope);
     }
   }, [session?.user.id]);
   const locked = busy || uncertain || reading || groupBusy || groupUncertain;
@@ -556,7 +557,7 @@ export function DataModelSettings() {
           publish(value);
           void loadDetail(value.id);
           setNotice(savedNotice(value));
-          if (session) invalidateEntityTypeCatalog(session.user.id);
+          if (session) invalidateEntityTypeCatalog(requestScope);
         }
       });
     } catch (e) {

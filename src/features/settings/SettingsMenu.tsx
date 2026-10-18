@@ -1,3 +1,4 @@
+import { useWorkspaceId } from "../../lib/workspace-route.tsx";
 import { hasActiveConfirmation } from "../../lib/surface-dom.ts";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "../../lib/workspace-router.tsx";
@@ -7,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
 import { settingsCategories } from "./SettingsNavigation.tsx";
 
 export function SettingsMenu() {
+  const workspaceId = useWorkspaceId();
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const location = useLocation();
@@ -25,7 +27,7 @@ export function SettingsMenu() {
       }
     }} onInteractOutside={event => { if (hasActiveConfirmation()) event.preventDefault(); }}>
       <DropdownMenuGroup>
-        {settingsCategories.map(({ to, label }) => <DropdownMenuItem key={to} asChild onSelect={event => event.preventDefault()}>
+        {settingsCategories.filter(category => workspaceId || category.to === "/settings").map(({ to, label }) => <DropdownMenuItem key={to} asChild onSelect={event => event.preventDefault()}>
           <Link to={to} aria-current={current(to) ? "page" : undefined} onClick={event => {
             if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey &&
               (to === `${location.pathname}${location.search}${location.hash}` || to === "/settings/materials" && current(to))) {

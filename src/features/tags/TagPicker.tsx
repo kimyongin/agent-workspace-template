@@ -1,4 +1,4 @@
-import { useApi } from "../../lib/api-context.tsx";
+import { useApi, useRequestScope, sameRequestScope } from "../../lib/api-context.tsx";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { scrollOwner, shiftScroll, surfaceFor } from "../../lib/surface-dom.ts";
@@ -23,6 +23,7 @@ type TagDictionary = {
 export const tagScopeLabels: Record<TagScope, string> = { entity: "자료", task: "할 일", record: "기록" };
 export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "record") {
   const api = useApi();
+  const requestScope = useRequestScope();
   const tagRead = createTagRead(api);
   const location = useLocation(), workspace = useContext(WorkspaceContext);
   const revision = workspace?.revision, navigationKey = workspace?.navigationKey;
@@ -65,7 +66,8 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
   };
   useEffect(() => {
     if (!enabled) return;
-    const refresh = () => {
+    const refresh = (event: Event) => {
+      if (event.type === "workspace:tags-changed" && !sameRequestScope(event, requestScope)) return;
       if (document.visibilityState === "visible") setRetry((n) => n + 1);
     };
     window.addEventListener("focus", refresh);

@@ -1,3 +1,5 @@
+import { WorkspaceSwitcher } from "../features/workspaces/WorkspaceSwitcher.tsx";
+import { useRequestScope } from "../lib/api-context.tsx";
 import { useApi } from "../lib/api-context.tsx";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "../lib/workspace-router.tsx";
@@ -47,7 +49,8 @@ export function Navigation({ brand }: { brand: string }) {
   const api = useApi();
   const location = useLocation();
   const { session } = useAuth();
-  const catalog = useEntityTypes(location.key);
+  const { workspaceId } = useRequestScope();
+  const catalog = useEntityTypes(location.key, !!workspaceId);
   const { preview } = useNavigationPreview();
   const preference = preview === undefined ? accountPreferences(session?.user.user_metadata ?? {}).navigation : preview;
   const entries = visibleNavigationEntries(resolveNavigationRefs(
@@ -77,8 +80,8 @@ export function Navigation({ brand }: { brand: string }) {
   const renderLink = (entry: (typeof entries)[number]) => <SidebarMenuItem key={entry.key}><SidebarMenuButton asChild isActive={isCurrent(entry)} className="min-h-[max(2.75rem,44px)]"><Link to={entry.to} aria-current={isCurrent(entry) ? "page" : undefined}><EntityTypeIcon id={entry.icon} /><span>{entry.label}</span></Link></SidebarMenuButton></SidebarMenuItem>;
   const destinations = [{ to: "/status", label: "상태", icon: ChartNoAxesCombinedIcon }, { to: "/settings", label: "설정", icon: SettingsIcon }, { to: "/guide", label: "사용 가이드", icon: BookOpenIcon }, { to: "/logout", label: "로그아웃", icon: LogOutIcon }];
   return <Sidebar collapsible={isMobile ? "offcanvas" : "none"} className="h-full min-w-0" aria-label="주 메뉴" role="navigation" id="workspace-navigation">
-    <SidebarHeader>{isMobile && <Button variant="ghost" size="icon" aria-label="메뉴 닫기" className="self-end" onClick={() => setOpenMobile(false)}><XIcon /></Button>}<SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild className="min-h-12"><Link to="/entities"><img className="size-6 shrink-0" src={appIcon} alt="" /><span>{brand}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarHeader>
-    <SidebarContent>
+    <SidebarHeader><WorkspaceSwitcher />{isMobile && <Button variant="ghost" size="icon" aria-label="메뉴 닫기" className="self-end" onClick={() => setOpenMobile(false)}><XIcon /></Button>}<SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild className="min-h-12"><Link to="/workspaces"><img className="size-6 shrink-0" src={appIcon} alt="" /><span>{brand}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarHeader>
+    <SidebarContent>{workspaceId && <>
       {!!entries.length && <SidebarGroup><SidebarGroupLabel>바로가기</SidebarGroupLabel><SidebarMenu>{entries.map(renderLink)}</SidebarMenu></SidebarGroup>}
       <SidebarGroup><SidebarGroupLabel>업무</SidebarGroupLabel><SidebarMenu>{builtin.filter(entry => !entries.some(pinned => pinned.key === entry.key)).map(renderLink)}</SidebarMenu></SidebarGroup>
       <SidebarGroup><SidebarGroupLabel>자료 종류</SidebarGroupLabel>
@@ -86,9 +89,9 @@ export function Navigation({ brand }: { brand: string }) {
         <SidebarMenu>{catalog.types?.filter(type => !entries.some(entry => entry.to === `/entities?entity_type_id=${type.id}`) && type.label.toLocaleLowerCase().includes(keyword.toLocaleLowerCase())).map(type => <SidebarMenuItem key={type.id}><SidebarMenuButton asChild className="min-h-[max(2.75rem,44px)]" isActive={current === "entities" && typeId === type.id}><Link to={`/entities?entity_type_id=${type.id}`} aria-current={current === "entities" && typeId === type.id ? "page" : undefined}><EntityTypeIcon id={type.icon_id} /><span>{type.label}{type.archived ? " · 보관" : ""}</span></Link></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu>
         {catalog.error && <Alert variant="destructive"><AlertDescription>자료 종류를 불러오지 못했습니다.</AlertDescription><Button variant="outline" onClick={catalog.retry}>다시 시도</Button></Alert>}
       </SidebarGroup>
-    </SidebarContent>
+    </>}</SidebarContent>
     <SidebarFooter><DropdownMenu><DropdownMenuTrigger asChild><SidebarMenuButton className="min-h-12" aria-label="내 프로필"><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><span className="min-w-0 flex-1 truncate">{profileName(session?.user.user_metadata)}</span><ChevronsUpDownIcon /></SidebarMenuButton></DropdownMenuTrigger>
-      <DropdownMenuContent ref={retainProfileFocusVisibility} side={isMobile ? "bottom" : "right"} align="end"><DropdownMenuLabel>{profileName(session?.user.user_metadata)}</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuGroup>{destinations.map(({ to, label, icon: Icon }) => <DropdownMenuItem asChild key={to}><Link to={to}><Icon /><span>{label}</span></Link></DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent>
+      <DropdownMenuContent ref={retainProfileFocusVisibility} side={isMobile ? "bottom" : "right"} align="end"><DropdownMenuLabel>{profileName(session?.user.user_metadata)}</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuGroup>{destinations.filter(destination => workspaceId || ["/settings", "/logout"].includes(destination.to)).map(({ to, label, icon: Icon }) => <DropdownMenuItem asChild key={to}><Link to={to}><Icon /><span>{label}</span></Link></DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent>
     </DropdownMenu></SidebarFooter>
   </Sidebar>;
 }

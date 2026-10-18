@@ -1,4 +1,4 @@
-import { useApi } from "../../lib/api-context.tsx";
+import { useApi, useRequestScope, sameRequestScope } from "../../lib/api-context.tsx";
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
 
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
@@ -44,11 +44,12 @@ export function RecordSettingsPage() {
 }
 function TargetEditor({ target, report }: { target: Target; report: (id: string, state: MaterialSectionState) => void }) {
   const api = useApi();
+  const requestScope = useRequestScope();
   const [resource] = useState(() => target.typeId ? createMaterialTemplateDraft(api, target.typeId) : createTaskTemplateDraft(api));
   const [state, setState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const onStateChange = useCallback((next: MaterialSectionState) => { setState(next); report(target.id, next); }, [report, target.id]);
   useEffect(() => {
-    const refresh = () => { void resource.read(); };
+    const refresh = (event: Event) => { if (sameRequestScope(event, requestScope)) void resource.read(); };
     window.addEventListener("workspace:tags-changed", refresh);
     window.addEventListener("workspace:record-settings-changed", refresh);
     return () => { window.removeEventListener("workspace:tags-changed", refresh); window.removeEventListener("workspace:record-settings-changed", refresh); resource.dispose(); };

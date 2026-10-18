@@ -1,4 +1,4 @@
-import { useApi } from "../../lib/api-context.tsx";
+import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -31,6 +31,7 @@ export function EntityTypeSettings() {
 }
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const api = useApi();
+  const requestScope = useRequestScope();
   const { session } = useAuth();
   const iconGroup = useId();
   const { type_id: activeTypeId, job_id } = useParams();
@@ -98,7 +99,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       await definitions.readLatestBasics();
       if (!mounted.current) return;
       attempt.reset();
-      if (session) invalidateEntityTypeCatalog(session.user.id);
+      if (session) invalidateEntityTypeCatalog(requestScope);
     } catch (error) {
       if (mounted.current) setError(error instanceof Error ? error.message : "최신 기본 정보를 읽지 못했습니다.");
     }
@@ -201,7 +202,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         )
       );
       if (!saved || !mounted.current) return;
-      if (session) invalidateEntityTypeCatalog(session.user.id);
+      if (session) invalidateEntityTypeCatalog(requestScope);
       if (type_id) {
         definitions.acceptBasicSave(saved);
       } else {

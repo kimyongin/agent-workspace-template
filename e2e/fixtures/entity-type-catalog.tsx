@@ -1,3 +1,4 @@
+import { FixtureWorkspace, fixtureWorkspaceId } from "./workspace-scope.tsx";
 import type { Session } from "@supabase/supabase-js";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -22,10 +23,10 @@ function Fixture() {
     <button onClick={() => setOwner("owner-a")}>계정 A</button>
     <button onClick={() => setOwner("owner-b")}>계정 B</button>
     <button onClick={() => setOwner(null)}>로그아웃</button>
-    <button onClick={() => invalidateEntityTypeCatalog("owner-a")}>계정 A 갱신</button>
-    <button onClick={() => invalidateEntityTypeCatalog("owner-b")}>계정 B 갱신</button>
+    <button onClick={() => invalidateEntityTypeCatalog({ actorId: "owner-a", workspaceId: fixtureWorkspaceId })}>계정 A 갱신</button>
+    <button onClick={() => invalidateEntityTypeCatalog({ actorId: "owner-b", workspaceId: fixtureWorkspaceId })}>계정 B 갱신</button>
     <button onClick={() => setVisible((value) => !value)}>읽기 화면 전환</button>
-    {visible && <Reader />}
+    {visible && <FixtureWorkspace><Reader /></FixtureWorkspace>}
   </AuthContext.Provider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);

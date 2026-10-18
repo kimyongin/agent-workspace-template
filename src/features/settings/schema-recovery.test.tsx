@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { WriteAttempt } from "../../lib/write-attempt.ts";
-vi.mock("../../lib/api.ts", () => ({ api: vi.fn() }));
+vi.mock("../../lib/api.ts", () => ({ createScopedApi: () => vi.fn() }));
 import {
   RecoveryAvailability,
   RecoveryChangeCreate,

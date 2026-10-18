@@ -1,3 +1,4 @@
+import { FixtureWorkspace } from "./workspace-scope.tsx";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Link, MemoryRouter } from "react-router";
@@ -40,4 +41,4 @@ function Screen() {
     </MemoryRouter>
   );
 }
-createRoot(document.getElementById("root")!).render(<Screen />);
+createRoot(document.getElementById("root")!).render(<FixtureWorkspace actorId="fixture-actor"><Screen /></FixtureWorkspace>);

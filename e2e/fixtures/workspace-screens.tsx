@@ -1,3 +1,4 @@
+import { FixtureWorkspace } from "./workspace-scope.tsx";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 import { WriteOutcomeNotice } from "../../src/components/WriteOutcomeNotice.tsx";
 import { AuthProvider } from "../../src/features/auth/AuthProvider.tsx";
@@ -24,4 +25,4 @@ const router=createBrowserRouter([{element:<FixtureLayout/>,children:[
   {path:"/records",element:<RecordsPage/>},{path:"/records/:id",element:<RecordDetailPage/>},
   {path:"/tags/:scope",element:<TagsPage/>},{path:"/tags/:scope/:id",element:<TagsPage/>},{path:"/search",element:<SearchPage/>},{path:"/guide",element:<GuidePage/>},
 ]}]);
-createRoot(document.getElementById("root")!).render(<AuthProvider><RouterProvider router={router}/></AuthProvider>);
+createRoot(document.getElementById("root")!).render(<AuthProvider><FixtureWorkspace><RouterProvider router={router}/></FixtureWorkspace></AuthProvider>);
