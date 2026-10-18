@@ -43,8 +43,8 @@ function RelationControls({
   const [owner] = useState(() => api);
   const canReadType = useEntityReadAccess();
   const active = owner === api && visible;
-  const authority = useRef({ active, canWrite });
-  authority.current = { active, canWrite };
+  const authority = useRef({ active, canWrite, canReadType });
+  authority.current = { active, canWrite, canReadType };
   const surface = useContext(SurfaceContext);
   const location = useLocation(), locationKey = useRef(location.key);
   locationKey.current = location.key;
@@ -67,6 +67,7 @@ function RelationControls({
       const latest = await api<TaskResult>("GET", `/tasks/${task?.id ?? item.id}`, undefined, controller.signal);
       if (controller.signal.aborted || locationKey.current !== startedKey || !authority.current.active || !authority.current.canWrite || surface?.editor.current) return;
       const entity = task ? item : { id: entityId!, title: entityTitle! }, ids = latest.entity_ids;
+      if (entity.type && !authority.current.canReadType(entity.type.id)) return;
       if (ids.includes(entity.id) === !remove) {
         onSaved(latest);
         return;
@@ -153,7 +154,7 @@ function RelationControls({
           onRouteDiscard={() => setMutation(null)}
           validate={() => null}
           onSubmit={async (requestKey, memo) => {
-            if (!authority.current.active || !authority.current.canWrite) throw new Error("현재 할 일 쓰기 권한이 없습니다.");
+            if (!authority.current.active || !authority.current.canWrite || mutation.entity.type && !authority.current.canReadType(mutation.entity.type.id)) throw new Error("현재 할 일 쓰기 권한이 없습니다.");
             const saved = await api<TaskResult>(
               "PATCH",
               `/tasks/${mutation.task.id}`,
@@ -175,8 +176,9 @@ function RelationControls({
 export function TaskEntityRelations(
   { task, onSaved, readOnly = false }: { task: TaskResult; readOnly?: boolean; onSaved: (saved?: TaskResult, before?: TaskResult) => void },
 ) {
+  const { canRead } = useTaskAccess();
   const canReadType = useEntityReadAccess();
-  const readable = task.entity_context.filter(item => item.type && canReadType(item.type.id));
+  const readable = task.entity_context.filter(item => canRead && item.type && canReadType(item.type.id));
   task = { ...task, entity_ids: task.entity_ids.filter(id => readable.some(item => item.id === id)), entity_context: readable };
   if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={task.entity_ids.length}>
     <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <CollectionItem key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></CollectionItem>)}</CollectionList>
@@ -212,6 +214,7 @@ export function TaskEntityRelations(
 
 /** The detail visit owns paging so viewing and editing share already-read links. */
 export function useEntityTaskRead(entity: EntityDetail | null) {
+  const { canRead } = useTaskAccess();
   const api = useApi();
   const previewKey = JSON.stringify(entity?.tasks);
   // The detail's five-row preview is not a cursor page: fetch page one only on expansion.
@@ -222,7 +225,7 @@ export function useEntityTaskRead(entity: EntityDetail | null) {
     }), [api, entity?.id, previewKey]);
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   useEffect(() => () => session.cancel(), [session]);
-  const preview = entity?.tasks.items ?? [];
+  const preview = canRead ? entity?.tasks.items ?? [] : [];
   const previewIds = new Set(preview.map((item) => item.id));
   const items = [...preview, ...state.page?.items.filter((item) => !previewIds.has(item.id)) ?? []];
   const loading = state.busy, failed = !!state.error;
@@ -232,11 +235,11 @@ export function useEntityTaskRead(entity: EntityDetail | null) {
     else void session.more();
   };
   return {
-    items,
-    loading,
+    items: canRead ? items : [],
+    loading: canRead && loading,
     failed,
     more,
-    canReadMore: failed || !!state.page?.next_cursor || !state.page && (entity?.tasks.count ?? 0) > items.length,
+    canReadMore: canRead && (failed || !!state.page?.next_cursor || !state.page && (entity?.tasks.count ?? 0) > items.length),
   };
 }
 
@@ -251,10 +254,10 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
   const canReadType = useEntityReadAccess();
   const visible = canRead && canReadType(entity.entity_type_id);
   const contents = (search?: ReactNode, action?: ReactNode, unlink?: (item: Candidate) => ReactNode) => (
-    <RelatedSection title="할 일" count={entity.tasks.count} views={!readOnly} action={action}>
+    <RelatedSection title="할 일" count={canRead ? entity.tasks.count : 0} views={!readOnly} action={action}>
       {search}
       <CollectionList columns={["제목"]}>
-        {read.items.map((item) => (
+        {(canRead ? read.items : []).map((item) => (
           <CollectionItem key={item.id}>
             {readOnly
               ? <RelatedItem title={item.title} />

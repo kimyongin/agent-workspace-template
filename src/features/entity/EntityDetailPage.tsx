@@ -251,9 +251,9 @@ export function EntityDetailPage() {
             />
             {entity.deleted_at && (
               <>
-                <RelatedSection title="할 일" count={entity.tasks.count}>
+                <RelatedSection title="할 일" count={taskAccess.canRead ? entity.tasks.count : 0}>
                   <CollectionList columns={["제목"]}>
-                    {entity.tasks.items.map((item) => (
+                    {(taskAccess.canRead ? entity.tasks.items : []).map((item) => (
                       <CollectionItem key={item.id}>
                         <RelatedTaskItem id={item.id} occurrence={null} />
                       </CollectionItem>
