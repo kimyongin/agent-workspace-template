@@ -1,5 +1,5 @@
 import { useApi } from "../../lib/api-context.tsx";
-import { useEffect, useId, useRef, useState } from "react";
+import { useContext, useEffect, useId, useRef, useState } from "react";
 import {
   type IndexingIssuesPage,
   indexingIssuesPage,
@@ -15,10 +15,20 @@ import { BusinessTable, BusinessRow, BusinessCell, BusinessDisclosureCell, Busin
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
+import { WorkspaceContext } from "../details/workspace-context.ts";
+import { readApiKey } from "./read-api-key.ts";
 
 
 export function IndexingIssues({ count, disabled = false }: { count: number; disabled?: boolean }) {
   const api = useApi();
+  const revision = useContext(WorkspaceContext)?.revision;
+  return <IndexingIssuesSession key={`${readApiKey(api)}:${revision ?? 0}`} count={count} disabled={disabled} />;
+}
+
+function IndexingIssuesSession({ count, disabled }: { count: number; disabled: boolean }) {
+  const api = useApi();
+  const revision = useContext(WorkspaceContext)?.revision;
+  const [focusRevision, setFocusRevision] = useState(0);
   const id = useId();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -28,7 +38,21 @@ export function IndexingIssues({ count, disabled = false }: { count: number; dis
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
+    const refresh = () => {
+      request.current?.abort();
+      setPage(null);
+      setExpanded([]);
+      setCursors([undefined]);
+      setPosition(0);
+      setFocusRevision((value) => value + 1);
+    };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
+  useEffect(() => {
     request.current?.abort();
+    setPage(null);
+    setBusy(false);
     if (!open || disabled) return;
     const controller = new AbortController();
     request.current = controller;
@@ -51,7 +75,7 @@ export function IndexingIssues({ count, disabled = false }: { count: number; dis
         if (!controller.signal.aborted) setBusy(false);
       });
     return () => controller.abort();
-  }, [open, disabled, cursors, position]);
+  }, [api, open, disabled, cursors, position, revision, focusRevision]);
   function toggle(nextOpen: boolean) {
     request.current?.abort();
     setOpen(nextOpen);

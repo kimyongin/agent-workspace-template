@@ -1,6 +1,6 @@
 import { useApi } from "../../lib/api-context.tsx";
 import { PageHeading } from "../../components/PageHeading.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import type { StatusOverview } from "@contracts/status.ts";
 
 import { StatusContent } from "./StatusContent.tsx";
@@ -9,10 +9,19 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { RefreshCwIcon } from "lucide-react";
+import { WorkspaceContext } from "../details/workspace-context.ts";
+import { readApiKey } from "./read-api-key.ts";
 import { IndexingIssues } from "./IndexingIssues.tsx";
 
 export function StatusPage() {
   const api = useApi();
+  const revision = useContext(WorkspaceContext)?.revision;
+  return <StatusSession key={`${readApiKey(api)}:${revision ?? 0}`} />;
+}
+
+function StatusSession() {
+  const api = useApi();
+  const revision = useContext(WorkspaceContext)?.revision;
   const [data, setData] = useState<StatusOverview | null>(null);
   const [busy, setBusy] = useState(true), [error, setError] = useState("");
   const [issuesRevision, setIssuesRevision] = useState(0);
@@ -21,6 +30,7 @@ export function StatusPage() {
     controller.current?.abort();
     const request = new AbortController();
     controller.current = request;
+    setData(null);
     setBusy(true);
     setIssuesRevision((revision) => revision + 1);
     setError("");
@@ -35,8 +45,13 @@ export function StatusPage() {
   }
   useEffect(() => {
     void refresh();
-    return () => controller.current?.abort();
-  }, []);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      controller.current?.abort();
+    };
+  }, [api, revision]);
   return (
     <section className="@container flex min-w-0 flex-col gap-6" aria-labelledby="status-title" aria-busy={busy}>
       <PageHeading title="상태" id="status-title" description="저장된 데이터와 검색 준비 상태를 확인합니다.">
