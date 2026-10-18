@@ -5,10 +5,7 @@ import { statusRoutes } from "../../functions/_shared/adapters/http/status-route
 import { statusTools } from "../../functions/_shared/adapters/mcp/status-tools.ts";
 import type { HttpEnv } from "../../functions/_shared/adapters/http/input.ts";
 import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
-import {
-  listIndexingIssues,
-  type StatusDeps,
-} from "../../functions/_shared/core/status/application.ts";
+import { listIndexingIssues, type StatusDeps } from "../../functions/_shared/core/status/application.ts";
 
 Deno.test("status HTTP and readonly MCP share owner, server time, validated timezone and the same overview", async () => {
   let expectedTimezone = "Asia/Seoul";
@@ -26,7 +23,7 @@ Deno.test("status HTTP and readonly MCP share owner, server time, validated time
           period: { from: "2026-09-12", to: "2026-10-11", days: 30 },
           entities: { total: 0, active: 0, deleted: 0 },
           tasks: { total: 0, open: 0, done: 0, active: 0, stopped: 0 },
-          records: { total: 0, user: 0, result: 0, change: 0 },
+          records: { total: 0, result: 0, change: 0 },
           indexing: {
             total: 0,
             indexed: 0,
@@ -38,6 +35,14 @@ Deno.test("status HTTP and readonly MCP share owner, server time, validated time
               oldest_waiting_since: null,
               threshold_minutes: 15,
             },
+          },
+          entity_indexing: {
+            total: 0,
+            indexed: 0,
+            preparing: 0,
+            attention: 0,
+            excluded: 0,
+            waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 },
           },
           daily: [],
         });
@@ -110,6 +115,8 @@ Deno.test("indexing issues HTTP/MCP: fixed five-row page, same readonly result a
         Promise.resolve(Array.from({ length: 6 }, (_, n) => ({
           id: `20261011-ABCDEF${n}${n}`,
           created_at: "2026-10-11T00:00:00.000Z",
+          kind: "record" as const,
+          path: `/records/20261011-ABCDEF${n}${n}`,
           title: "확인할 기록",
           reason: "provider_unknown" as const,
           attempts: 1,
@@ -138,9 +145,7 @@ Deno.test("indexing issues HTTP/MCP: fixed five-row page, same readonly result a
   const page = await response.json();
   assertEquals(page.items.length, 5);
   assertEquals(typeof page.next_cursor, "string");
-  const tool = statusTools(deps).find((t) =>
-    t.name === "list_indexing_issues"
-  )!;
+  const tool = statusTools(deps).find((t) => t.name === "list_indexing_issues")!;
   assertEquals(tool.readOnly, true);
   assertEquals(await tool.handler({}, actor), page);
   for (
@@ -181,9 +186,7 @@ Deno.test("entity issue cursors preserve Unicode originals and belong to the cap
         Promise.resolve(Array.from({ length: after ? 1 : 6 }, (_, n) => ({
           id: `app:00000000-0000-4000-8000-000000000001:한글 원본${n}`,
           kind: "entity" as const,
-          path: `/entities/app%3A00000000-0000-4000-8000-000000000001%3A${
-            encodeURIComponent(`한글 원본${n}`)
-          }`,
+          path: `/entities/app%3A00000000-0000-4000-8000-000000000001%3A${encodeURIComponent(`한글 원본${n}`)}`,
           created_at: "2026-10-11T00:00:00.000Z",
           title: "확인할 자료",
           reason: "provider_unknown" as const,
