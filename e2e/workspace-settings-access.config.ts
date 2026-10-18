@@ -11,7 +11,7 @@ export default defineConfig({
   }],
   webServer: {
     cwd: new URL("..", import.meta.url).pathname,
-    command: "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 55632 --strictPort",
+    command: "node node_modules/vite/bin/vite.js --config e2e/workspace-settings-access.vite.config.ts --host 127.0.0.1 --port 55632 --strictPort",
     url: "http://127.0.0.1:55632",
     reuseExistingServer: false,
     env: {

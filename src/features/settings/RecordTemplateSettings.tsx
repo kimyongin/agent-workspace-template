@@ -328,7 +328,7 @@ function RecordTemplateForm({
             </Notice>
           )}
           <FieldSet
-            disabled={!canWrite || busy || uncertain}
+            disabled={busy || uncertain}
             className="flex min-w-0 flex-col gap-5 border-0 p-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
           >
             <>
@@ -341,7 +341,7 @@ function RecordTemplateForm({
                         if (!modelActions(next).includes(action)) {
                           setAction("create");
                         }
-                      }} disabled={!canWrite || busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
+                      }} disabled={busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                       {TEMPLATE_MODELS.filter((key) => key !== "entity").map((key) => (
                         <SelectItem key={key} value={key}>
                           {templateModelNames[key]}
@@ -353,7 +353,7 @@ function RecordTemplateForm({
               )}
               <Field label="액션">
                 {(props) => (
-                  <Select value={action} onValueChange={(value) => setAction(value as TemplateAction)} disabled={!canWrite || busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
+                  <Select value={action} onValueChange={(value) => setAction(value as TemplateAction)} disabled={busy || uncertain}><SelectTrigger {...props}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                     {modelActions(model).map((key) => (
                       <SelectItem key={key} value={key}>
                         {templateActionNames[key]}
@@ -378,7 +378,7 @@ function RecordTemplateForm({
             )}
             <Field label="변수 삽입">
               {(props) => (
-                <Combobox<(typeof variables)[number]> items={variables} value={null} inputValue={variableQuery} onInputValueChange={setVariableQuery} itemToStringLabel={variable => variable.label} onValueChange={variable => { if(variable) text.current?.insert(variable.value); setVariableQuery(""); }} disabled={schemaUnavailable || busy || uncertain}>
+                <Combobox<(typeof variables)[number]> items={variables} value={null} inputValue={variableQuery} onInputValueChange={setVariableQuery} itemToStringLabel={variable => variable.label} onValueChange={variable => { if(variable) text.current?.insert(variable.value); setVariableQuery(""); }} disabled={!canWrite || schemaUnavailable || busy || uncertain}>
                   <ComboboxInput {...props} placeholder="변수를 선택하세요" /><ComboboxContent finalFocus={false}><ComboboxEmpty>일치하는 변수가 없습니다.</ComboboxEmpty><ComboboxList>{variable => <ComboboxItem key={variable.value} value={variable}>{variable.label}</ComboboxItem>}</ComboboxList></ComboboxContent>
                 </Combobox>
               )}
@@ -414,7 +414,7 @@ function RecordTemplateForm({
                       editorRef={text}
                       variables={variables}
                       disabled={busy}
-                      readOnly={uncertain}
+                      readOnly={!canWrite || uncertain}
                       value={stored?.memo ?? value.memo}
                       onChange={(memo) => setValue({ memo: model === "entity" && !memo.trim() ? null : memo })}
                     />
@@ -423,7 +423,7 @@ function RecordTemplateForm({
             </Field>
             {model === "entity" && !usingDefault && !schemaUnavailable && (
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                <Button variant="ghost" type="button"  onClick={() => setValue({ memo: null })}><RotateCcwIcon data-icon="inline-start" />
+                <Button variant="ghost" type="button" disabled={!canWrite} onClick={() => setValue({ memo: null })}><RotateCcwIcon data-icon="inline-start" />
                   기본 문구로 되돌리기
                 </Button>
               </div>
