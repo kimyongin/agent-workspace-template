@@ -474,7 +474,7 @@ create function app.workspace_schema_headers(p_kind text,p_id uuid default null,
  returns table(id uuid,requirements jsonb) language plpgsql security definer set search_path='' as $$
 begin
  perform app.authorize_workspace('[{"target_kind":"settings","target_id":"*","access":"read"}]'::jsonb);
- if p_limit not between 1 and 101 then raise exception 'invalid header limit' using errcode='22023';end if;
+ if p_limit is null or p_limit not between 1 and 101 then raise exception 'invalid header limit' using errcode='22023';end if;
  if p_kind='migration' then
   return query select j.id,j.required_permissions from app.entity_schema_migrations j
    where j.workspace_id=app.current_workspace_id() and (p_id is null or j.id=p_id) and (p_type is null or j.type_id=p_type)
