@@ -102,6 +102,8 @@ export interface ActivityWorkspaceFixture {
   schema: { entity_type_id: string; schema_version: number };
   clientA?: Client;
   clientB?: Client;
+  mcpTokenA?: string;
+  mcpTokenB?: string;
 }
 async function cleanup(owned: OwnedState) {
   const failures: unknown[] = [];
@@ -339,6 +341,7 @@ export async function withActivityWorkspace(
           }),
         );
         fixture[key] = client;
+        fixture[key === "clientA" ? "mcpTokenA" : "mcpTokenB"] = grant.access_token;
       }
     }
     await run(fixture);
