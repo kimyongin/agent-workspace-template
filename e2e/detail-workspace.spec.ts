@@ -505,9 +505,10 @@ test("desktop: creating a task from an entity prepares and saves its selected re
 
 test("desktop: pending writes block tab switching, close, hide and navigation", async ({ page }) => {
   const state = await fixture(page, { hold: true }); await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`)); await openTask(page);
-  const retainedUrl = page.url();
   await panel(page).getByRole("button", { name: "편집", exact: true, includeHidden: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("새 내용"); await panel(page).getByRole("button", { name: "저장", exact: true, includeHidden: true }).click();
   await executionDialog(page).getByRole("button", { name: "수정하고 저장" }).click(); await state.pending;
+  const retainedUrl = page.url();
+  expect(new URL(retainedUrl).searchParams.get("edit")).toBe("1");
   await page.getByRole("tab", { name: "등심 구매하기", exact: true, includeHidden: true }).dispatchEvent("keydown", { key: "ArrowLeft", ctrlKey: true, shiftKey: true, bubbles: true });
   expect(await page.getByRole("tab", { includeHidden: true }).allTextContents()).toEqual(["등심", "등심 구매하기"]);
   for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true, includeHidden: true }).evaluate((el: HTMLButtonElement) => el.click());
