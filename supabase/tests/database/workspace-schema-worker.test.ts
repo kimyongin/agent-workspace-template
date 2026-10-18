@@ -232,12 +232,18 @@ dbTest(
         kind.schema.properties.prop_1.maxLength = 1;
       }
       const input = { mode: "update", document: JSON.stringify(target) };
-      const preview = await previewDataModel(modelDeps, executor, input);
-      const saved = await prepareDataModel(modelDeps, key(executor), {
+      const preview = await previewDataModel(modelDeps, author, input);
+      const saved = await prepareDataModel(modelDeps, key(author), {
         ...input,
         preview_fingerprint: preview.fingerprint,
       });
       assertEquals(saved.status, "needs_conversion");
+      assertEquals(
+        (await admin`select initiated_by from app.data_model_changes where workspace_id=${workspaceId} and id=${saved.id}`)[
+          0
+        ].initiated_by,
+        a.userId,
+      );
       const analyzed = await analyzeDataModel(modelDeps, key(executor), saved.id, {
         expected_version: saved.version,
         conversions: target.entity_types.map((kind) => ({
@@ -270,6 +276,12 @@ dbTest(
       assertEquals(
         (await applyDataModel(modelDeps, key(executor), saved.id, { expected_version: ready.version })).status,
         "queued",
+      );
+      assertEquals(
+        (await admin`select initiated_by from app.data_model_changes where workspace_id=${workspaceId} and id=${saved.id}`)[
+          0
+        ].initiated_by,
+        b.userId,
       );
       // Each barrier proves the authorizer rechecks actors after that lock wait.
       // Privileged fixture substitution isolates the fence from retry API behavior.
@@ -409,7 +421,7 @@ dbTest(
   },
 );
 
-dbTest("shared manager retry creates a new immutable job after the original executor leaves", async () => {
+async function retryOrRestoreFixture(scenario: "retry" | "restore" | "coordinator") {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
   for (const actor of [a, b]) {
@@ -472,6 +484,60 @@ dbTest("shared manager retry creates a new immutable job after the original exec
     );
     const ready = await getDataModelChange(modelDeps, author, saved.id);
     await applyDataModel(modelDeps, key(author), saved.id, { expected_version: ready.version });
+    if (scenario === "coordinator") {
+      const error = await assertRejects(() =>
+        runInWorkspace(sql, executor, {
+          mode: "business",
+          requirements:
+            grants as import("../../functions/_shared/core/workspaces/application.ts").WorkspaceRequirement[],
+        }, (tx) =>
+          tx`update app.data_model_changes set initiated_by=${b.userId} where workspace_id=${executor.workspaceId} and id=${saved.id}`)
+      );
+      assertEquals((error as { code?: string }).code, "23514");
+      assertEquals(
+        (await admin`select initiated_by from app.data_model_changes where workspace_id=${workspaceId} and id=${saved.id}`)[
+          0
+        ].initiated_by,
+        a.userId,
+      );
+      return;
+    }
+    if (scenario === "restore") {
+      await workspaces.deleteWorkspace(workspaceDeps, key(a), workspaceId, { expected_generation: 1 });
+      await workspaces.restoreWorkspace(workspaceDeps, key(a), workspaceId, { expected_generation: 2 });
+      assertEquals((await worker`select app.claim_data_model_conversion() as batch`)[0].batch, null);
+      const stale = await getDataModelChange(modelDeps, executor, saved.id);
+      const cancelled = await changeDataModelGroup(modelDeps, key(executor), saved.id, {
+        expected_version: stale.version,
+      }, "cancel");
+      assertEquals(cancelled.status, "cancelled");
+      const [old] = await admin`select j.status,j.workspace_generation,j.initiated_by,t.schema_write_locked
+        from app.entity_schema_migrations j join app.entity_types t on t.workspace_id=j.workspace_id and t.id=j.type_id
+        where j.workspace_id=${workspaceId} and j.model_change_id=${saved.id}`;
+      assertEquals(old.status, "cancelled");
+      assertEquals(old.schema_write_locked, false);
+      assertEquals(Number(old.workspace_generation), 1);
+      assertEquals(old.initiated_by, a.userId);
+      const freshPreview = await previewDataModel(modelDeps, executor, input);
+      const fresh = await prepareDataModel(modelDeps, key(executor), {
+        ...input,
+        preview_fingerprint: freshPreview.fingerprint,
+      });
+      assertEquals(fresh.status, "needs_conversion");
+      await analyzeDataModel(modelDeps, key(executor), fresh.id, {
+        expected_version: fresh.version,
+        conversions: [{
+          type_ref: target.entity_types[0].ref,
+          migration: { rules: [], overrides: [{ entity_id: entityId, key: "prop_1", value: "X" }] },
+        }],
+      });
+      const [newAnalysis] = await worker`select app.claim_entity_schema_analysis() as batch`;
+      assertEquals(Boolean(newAnalysis.batch), true);
+      const [epoch] =
+        await admin`select workspace_generation from app.entity_schema_analyses where workspace_id=${workspaceId} and id=${newAnalysis.batch.id}`;
+      assertEquals(Number(epoch.workspace_generation), 3);
+      return;
+    }
     const [claim] = await worker`select app.claim_data_model_conversion() as batch`;
     assertEquals(Boolean(claim.batch?.child), true);
     const batch = claim.batch;
@@ -524,4 +590,18 @@ dbTest("shared manager retry creates a new immutable job after the original exec
     if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
     for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
   }
-});
+}
+
+dbTest(
+  "shared manager retry creates a new immutable job after the original executor leaves",
+  () => retryOrRestoreFixture("retry"),
+);
+dbTest(
+  "restored workspace cancels stale conversion and accepts a fresh generation plan",
+  () => retryOrRestoreFixture("restore"),
+);
+
+dbTest(
+  "queued conversion coordinator cannot inherit a different member's authority",
+  () => retryOrRestoreFixture("coordinator"),
+);
