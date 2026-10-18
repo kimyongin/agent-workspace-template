@@ -84,7 +84,21 @@ dbTest(
         expected_version: 1,
         grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
       });
-      const reviewInput = { mode: "copy", document: JSON.stringify(exported) };
+      const reviewInput = {
+        mode: "copy",
+        document: JSON.stringify({
+          ...exported,
+          relations: [{
+            id: crypto.randomUUID(),
+            version: 1,
+            archived: false,
+            ends: [
+              { type_ref: exported.entity_types[0].ref, label: "상위", cardinality: "many" },
+              { type_ref: exported.entity_types[0].ref, label: "하위", cardinality: "many" },
+            ],
+          }],
+        }),
+      };
       const [managerA, managerB] = await Promise.all([
         previewDataModel(modelDeps, first, reviewInput),
         previewDataModel(modelDeps, reader, reviewInput),
@@ -120,6 +134,10 @@ dbTest(
         expected_version: prepared.version,
       });
       assertEquals(applied.status, "applied");
+      assertEquals(
+        (await exportDataModel(modelDeps, first)).relations.map((v) => v.id),
+        Object.values(managerA.mapping.relations),
+      );
       assertEquals(
         new Set((await exportDataModel(modelDeps, first)).entity_types.map((v) => v.schema["x-type-id"])),
         new Set([left.id, ...Object.values(managerA.mapping.types)]),
