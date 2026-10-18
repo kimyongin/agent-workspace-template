@@ -52,12 +52,12 @@ export class SqlDataModelStore implements DataModelStore {
     return executeSqlRequest(this.tx, this.actor, r, fn);
   }
   protected async authorizeKinds(ids: string[], access: "read" | "write") {
-    if (!ids.length) return;
-    const requirements: WorkspaceRequirement[] = [...new Set(ids)].sort().map((id) => ({
-      target_kind: "entity_type",
-      target_id: id,
-      access,
-    }));
+    return this.authorizePermissions(
+      [...new Set(ids)].sort().map((id) => ({ target_kind: "entity_type", target_id: id, access })),
+    );
+  }
+  protected async authorizePermissions(requirements: WorkspaceRequirement[]) {
+    if (!requirements.length) return;
     await authorizeWorkspace(this.tx, requirements);
     await this.tx`select set_config('request.workspace_requirements',
       (current_setting('request.workspace_requirements',true)::jsonb||${
@@ -157,14 +157,16 @@ export class SqlDataModelStore implements DataModelStore {
     const [context] = await this.tx`select current_setting('request.workspace_requirements',true) as requirements`;
     const requirements = JSON.parse(context.requirements) as WorkspaceRequirement[];
     const protectedPermissions = new Map<string, WorkspaceRequirement>();
-    for (const requirement of requirements.filter((r) => r.target_kind === "entity_type")) {
-      if (protectedPermissions.get(requirement.target_id)?.access !== "write") {
-        protectedPermissions.set(requirement.target_id, requirement);
+    for (const requirement of requirements.filter((r) => r.target_kind !== "settings")) {
+      if (protectedPermissions.get(`${requirement.target_kind}:${requirement.target_id}`)?.access !== "write") {
+        protectedPermissions.set(`${requirement.target_kind}:${requirement.target_id}`, requirement);
       }
     }
     plan = {
       ...plan,
-      protected_kind_ids: [...protectedPermissions.values()].filter((r) => r.access === "write").map((r) => r.target_id)
+      protected_kind_ids: [...protectedPermissions.values()].filter((r) =>
+        r.target_kind === "entity_type" && r.access === "write"
+      ).map((r) => r.target_id)
         .sort(),
       protected_permissions: [...protectedPermissions.values()],
     };
@@ -176,10 +178,12 @@ export class SqlDataModelStore implements DataModelStore {
   }
   async get(id: string, lock = false) {
     const [targets] = await this
-      .tx`select coalesce((select jsonb_agg(p->'target_id') from jsonb_array_elements(plan->'protected_permissions') p),plan->'protected_kind_ids') as ids from app.data_model_changes
+      .tx`select coalesce(plan->'protected_permissions',(select jsonb_agg(jsonb_build_object('target_kind','entity_type','target_id',k.value,'access','read')) from jsonb_array_elements_text(plan->'protected_kind_ids') k(value)),'[]'::jsonb) as requirements from app.data_model_changes
       where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
     if (!targets) return null;
-    await this.authorizeKinds(targets.ids ?? [], "read");
+    await this.authorizePermissions(
+      (targets.requirements as WorkspaceRequirement[]).map((r) => ({ ...r, access: "read" })),
+    );
     const [r] = await this
       .tx`select * from app.data_model_changes where workspace_id=${this.workspaceId} and id=${id}::uuid ${
       lock ? this.tx`for update` : this.tx``
@@ -196,11 +200,15 @@ export class SqlDataModelStore implements DataModelStore {
       if (!anchor) throw invalidInput("cursor의 기준 이력이 없습니다. 목록을 다시 조회하세요");
     }
     const candidates = await this
-      .tx`select id,coalesce((select jsonb_agg(p->'target_id') from jsonb_array_elements(plan->'protected_permissions') p),plan->'protected_kind_ids') as ids from app.data_model_changes
+      .tx`select id,coalesce(plan->'protected_permissions',(select jsonb_agg(jsonb_build_object('target_kind','entity_type','target_id',k.value,'access','read')) from jsonb_array_elements_text(plan->'protected_kind_ids') k(value)),'[]'::jsonb) as requirements from app.data_model_changes
       where workspace_id=${this.workspaceId}::uuid and (${after}::uuid is null or id>${after}::uuid) order by id limit ${
       limit + 1
     }`;
-    await this.authorizeKinds(candidates.flatMap((r) => r.ids ?? []), "read");
+    await this.authorizePermissions(
+      candidates.flatMap((r) =>
+        (r.requirements as WorkspaceRequirement[]).map((p) => ({ ...p, access: "read" as const }))
+      ),
+    );
     const rows = candidates.length
       ? await this.tx`select * from app.data_model_changes
       where workspace_id=${this.workspaceId}::uuid and id=any(${candidates.map((r) => r.id)}::uuid[]) order by id`
