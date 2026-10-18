@@ -9,7 +9,7 @@ import {
   type ModelGroupAnalyze,
   type ModelReview,
 } from "../../contracts/data-model.ts";
-import { workspaceActor, type WorkspaceEntry } from "../workspaces/application.ts";
+import { workspaceActor, type WorkspaceEntry, type WorkspaceRequirement } from "../workspaces/application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { type RequestStore, runWrite } from "../shared/request.ts";
 import { AppError, invalidInput, notFound } from "../shared/errors.ts";
@@ -32,6 +32,7 @@ export type ModelPlan = {
   remove_keys?: Record<string, string[]>;
   /** Server-resolved kinds whose protected facts were used by this stored plan. */
   protected_kind_ids?: string[];
+  protected_permissions?: WorkspaceRequirement[];
 };
 export interface DataModelStore extends RequestStore {
   analyzeGroup?(id: string, input: ModelGroupAnalyze): Promise<ModelChange>;
