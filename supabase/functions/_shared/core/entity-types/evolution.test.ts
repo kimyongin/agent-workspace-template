@@ -89,3 +89,24 @@ Deno.test("decimal multipleOf expansion follows exact decimal divisibility", () 
   }], {});
   assertEquals(expanded.kind, "compatible");
 });
+
+Deno.test("archiving selected text clears selection and restore does not silently reselect", () => {
+  const source = initialEntityDefinition("이름");
+  source.schema.properties.prop_2 = { type: "string", "x-order": 20, "x-search-text": true };
+  const archived = resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_2" }], {});
+  assertEquals(archived.target.schema.properties.prop_2["x-search-text"], false);
+  const restored = resolveSchemaEdits(archived.target, [{ op: "restore_property", key: "prop_2" }], {});
+  assertEquals(restored.target.schema.properties.prop_2["x-search-text"], false);
+});
+
+Deno.test("explicit false search selection is compatible and equal to an omitted annotation", () => {
+  const source = initialEntityDefinition("이름");
+  const change = resolveSchemaEdits(source, [{
+    op: "update_property",
+    key: "prop_1",
+    required: true,
+    field: { ...source.schema.properties.prop_1, "x-search-text": false },
+  }], {});
+  assertEquals(change.diff, []);
+  assertEquals(change.kind, "compatible");
+});

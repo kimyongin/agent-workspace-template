@@ -97,8 +97,14 @@ export type EntityField = {
   "x-list-order"?: number;
   "x-representative"?: boolean;
   "x-show-in-list"?: boolean;
+  "x-search-text"?: boolean;
   default?: string | number | boolean | null;
 };
+/** Search accepts active free text only, including nullable text. */
+export function supportsEntitySearchText(field: EntityField): boolean {
+  const type = Array.isArray(field.type) ? field.type.find((value) => value !== "null") : field.type;
+  return type === "string" && !field.format && !field.oneOf && !field.deprecated;
+}
 export type EntitySchema = {
   $schema: typeof ENTITY_SCHEMA_DIALECT;
   "x-type-id": string;
