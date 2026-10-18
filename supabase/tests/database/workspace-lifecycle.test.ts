@@ -179,6 +179,18 @@ dbTest(
         () => workspaces.deleteWorkspace(deps, keyed(b), workspaceId, { expected_generation: 1 }),
         "conflict",
       );
+      await workspaces.deleteWorkspace(deps, keyed(b), workspaceId, { expected_generation: 3 });
+      const own = await workspaces.workspaceMembershipDetails(deps, c, workspaceId);
+      assertEquals(Object.keys(own).sort(), ["membership_version", "workspace"]);
+      assertEquals(Object.keys(own.workspace).sort(), ["deleted_at", "id", "name"]);
+      assertEquals(own.membership_version, 1);
+      assertEquals(
+        await workspaces.leaveWorkspace(deps, keyed(c), workspaceId, { expected_version: own.membership_version }),
+        { left: true },
+      );
+      await forbidden(() => workspaces.workspaceMembershipDetails(deps, c, workspaceId));
+      await workspaces.restoreWorkspace(deps, keyed(b), workspaceId, { expected_generation: 4 });
+      assertEquals((await workspaces.workspaceDetails(deps, b, workspaceId)).can_manage, true);
     } finally {
       if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
       for (const user of users) await admin`delete from auth.users where id=${user.userId}`;
