@@ -21,6 +21,7 @@ import {
 import { parse } from "smol-toml";
 import { recoverWorkspaceCreation, runWorkspaceCleanup } from "../scripts/workspace-fixture-cleanup.mjs";
 import { modelFixtureRoots } from "../scripts/workspace-model-fixture.mjs";
+import { restoreFixturePreferences } from "../scripts/fixture-preferences.mjs";
 
 export const env = parseEnv(
   readFileSync(
@@ -55,6 +56,8 @@ type Scope = {
   sessionIds: Set<string>;
   oauthClientIds: Set<string>;
   runId: string;
+  testId: string;
+  preferenceRestores: { run_id: string; source_revision: string | undefined; project_id: string; test_id: string; actor_id: string; original: { value: unknown; sqlNull: boolean }; expected: Record<string, unknown>; phase: "captured" | "restored"; digest: string }[];
   persist: () => void;
 };
 type OwnedWorkspace = {
@@ -131,6 +134,8 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
       sessionIds: new Set(),
       oauthClientIds: new Set(),
       runId: crypto.randomUUID(),
+      testId: testInfo.testId,
+      preferenceRestores: [],
       persist: () => {},
     };
     scope.persist = () =>
@@ -141,6 +146,8 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
             run: scope.runId,
             source_revision: process.env.WORKSPACE_E2E_SOURCE_REVISION ?? null,
             config_file: process.env.WORKSPACE_E2E_CONFIG ?? null,
+            test_id: testInfo.testId,
+            preference_restores: scope.preferenceRestores,
             actor_ids: [...scope.actors],
             session_ids: [...scope.sessionIds],
             oauth_client_ids: [...scope.oauthClientIds],
@@ -542,28 +549,38 @@ export async function ownedWorkspace(page: Page) {
     .toBeVisible();
   return {
     id: fixture.id,
-    preservePreferences: async () => {
+    preservePreferences: async (expected: Record<string, unknown>) => {
       ownedRuntime();
       const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
-      let original: unknown;
+      let original: { value: unknown; sqlNull: boolean };
       try {
-        const rows = await admin`select raw_user_meta_data from auth.users where id=${fixture.actorId}`;
+        const rows = await admin`select raw_user_meta_data,raw_user_meta_data is null as sql_null from auth.users where id=${fixture.actorId}`;
         expect(rows).toHaveLength(1);
-        original = rows[0].raw_user_meta_data;
+        original = { value: rows[0].raw_user_meta_data, sqlNull: rows[0].sql_null };
       } finally { await admin.end(); }
-      return async (expected: Record<string, unknown>) => {
+      const evidence = {
+        run_id: scope.runId,
+        source_revision: process.env.WORKSPACE_E2E_SOURCE_REVISION,
+        project_id: projectId,
+        test_id: scope.testId,
+        actor_id: fixture.actorId,
+        original,
+        expected: structuredClone(expected),
+      };
+      const receipt: Scope["preferenceRestores"][number] = {
+        ...evidence,
+        phase: "captured",
+        digest: createHash("sha256").update(JSON.stringify(evidence)).digest("hex"),
+      };
+      scope.preferenceRestores.push(receipt);
+      scope.persist();
+      return async () => {
         ownedRuntime();
         const restore = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
         try {
-          await restore.begin(async (tx) => {
-            const changed = await tx`update auth.users set raw_user_meta_data=${original === null ? null : JSON.stringify(original)}::jsonb
-              where id=${fixture.actorId} and raw_user_meta_data=${JSON.stringify(expected)}::jsonb returning id`;
-            if (!changed.length) {
-              const unchanged = await tx`select id from auth.users where id=${fixture.actorId}
-                and raw_user_meta_data is not distinct from ${original === null ? null : JSON.stringify(original)}::jsonb`;
-              if (unchanged.length !== 1) throw new Error("fixture preferences changed outside the tracked test; preserved current metadata");
-            }
-          });
+          await restoreFixturePreferences(restore, fixture.actorId, original, receipt.expected);
+          receipt.phase = "restored";
+          scope.persist();
         } finally { await restore.end(); }
       };
     },
