@@ -495,13 +495,21 @@ test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 
     await page.setViewportSize({ width, height: 1000 });
     await expect(navigation).toBeVisible();
     await expect(navigation.getByRole("tab", { name: "일괄 설정", exact: true })).toBeVisible();
-    const bounds = await navigation.boundingBox();
-    for (const tab of await navigation.getByRole("tab").all()) {
-      const target = await tab.boundingBox();
-      expect(target!.height).toBeGreaterThanOrEqual(44);
-      expect(target!.y).toBeGreaterThanOrEqual(bounds!.y);
-      expect(target!.y + target!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height + 1);
-    }
+    // Resize and menu-close reflow can move the whole group between protocol calls.
+    await expect.poll(() => navigation.evaluate(element => {
+      const bounds = element.getBoundingClientRect();
+      const tabs = [...element.querySelectorAll('[role="tab"]')];
+      const problems: string[] = [];
+      if (tabs.length !== 4) problems.push("Expected four settings tabs");
+      for (const tab of tabs) {
+        const target = tab.getBoundingClientRect();
+        if (target.height < 44) problems.push(`${tab.textContent}: target below44px`);
+        if (target.y < bounds.y || target.bottom > bounds.bottom + 1) {
+          problems.push(`${tab.textContent}: outside its current group`);
+        }
+      }
+      return problems;
+    })).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
   await page.setViewportSize({ width: info.project.name === "mobile" ? 320 : 1440, height: 1000 });
