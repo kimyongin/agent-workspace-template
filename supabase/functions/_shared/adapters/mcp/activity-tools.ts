@@ -94,7 +94,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     },
     {
       name: "delete_task",
-      description: "할 일만 지운다. 결과·회차 기록은 남고 할 일 연결만 비워진다.",
+      description: "할 일을 소프트 삭제한다. 결과·회차 기록의 소속과 수행 문맥을 유지하며 복원할 수 있다.",
       input: deleteInput,
       readOnly: false,
       destructive: true,
@@ -109,6 +109,24 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.change_tag_ids,
         );
         return { deleted: input.id };
+      },
+    },
+    {
+      name: "restore_task",
+      description:
+        "삭제된 할 일을 같은 ID와 결과·회차 문맥으로 복원한다. 현재 할 일 쓰기 권한과 expected_version이 필요하다.",
+      input: deleteInput,
+      readOnly: false,
+      handler: (args, actor) => {
+        const input = byIdDelete(args);
+        return activity.restoreTask(
+          deps,
+          actor,
+          input.id,
+          input.expected_version,
+          input.change_note,
+          input.change_tag_ids,
+        );
       },
     },
     {

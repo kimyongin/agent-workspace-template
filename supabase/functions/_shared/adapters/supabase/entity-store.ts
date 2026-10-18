@@ -226,7 +226,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       const tx = this.tx;
       const membership = table === "records"
         ? tx`entity_id=${id}`
-        : tx`app.workspace_task_associations(tasks.id)->'entity_ids' @> jsonb_build_array(${id}::text)`;
+        : tx`deleted_at is null and app.workspace_task_associations(tasks.id)->'entity_ids' @> jsonb_build_array(${id}::text)`;
       const [count] = await tx`select count(*)::integer as count from app.${
         tx(table)
       } where workspace_id=${this.workspaceId} and ${membership}`;

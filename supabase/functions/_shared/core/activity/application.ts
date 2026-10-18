@@ -1,5 +1,5 @@
 import { runWrite } from "../shared/request.ts";
-import { activityChangeTarget, recordChangeFacts, taskChangeFacts } from "./change.ts";
+import { activityChangeTarget, taskChangeFacts } from "./change.ts";
 // 할 일·기록 유스케이스. HTTP와 MCP가 같은 함수를 호출한다(ADR-0001).
 // 읽기 → 도메인 판단 → 저장 순서와 트랜잭션 경계, 색인 작업 등록, 요청 재전송 처리를 맡는다.
 import type { RecordCreate, RecordListQuery, RecordResult, RecordUpdate } from "../../contracts/record.ts";
@@ -45,6 +45,9 @@ async function toTaskResult(store: ActivityStore, raw: Task): Promise<TaskResult
   const task = store.visibleTask ? await store.visibleTask(raw) : raw;
   return {
     ...task,
+    deleted_at: task.deleted_at ?? null,
+    created_by: task.created_by ?? null,
+    created_by_name: task.created_by_name ?? null,
     entity_ids: task.entity_ids ?? [],
     entity_context: task.entity_context ?? [],
   };
@@ -66,9 +69,11 @@ async function requireTask(
   forUpdate = false,
   entityIds?: string[],
   selectionWrite = false,
+  allowDeleted = false,
 ): Promise<Task> {
   const task = await store.getTask(id, { forUpdate, entityIds, selectionWrite });
   if (!task) throw notFound();
+  if (forUpdate && task.deleted_at && !allowDeleted) throw conflict("삭제된 할 일입니다. 복원 후 변경하세요");
   return task;
 }
 
@@ -137,6 +142,7 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
       tag_ids: filter.tag_ids,
       entity_id: filter.entity_id,
       keyword: filter.keyword,
+      deleted: filter.deleted,
       limit: 5000,
     });
     const records = await store.occurrenceRecords(
@@ -213,7 +219,7 @@ export async function completeTask(
   });
 }
 
-/** 할 일만 삭제한다. 결과·회차 기록은 보존하고 task_id·occurrence_on을 비운다. */
+/** 소프트 삭제하며 결과·회차의 불변 소속과 수행 문맥을 보존한다. */
 export async function deleteTask(
   deps: ActivityDeps,
   actor: Actor,
@@ -222,15 +228,14 @@ export async function deleteTask(
   change_note?: string,
   change_tag_ids?: string[],
 ): Promise<void> {
-  await runWrite(deps.uow, actor, "task.delete", id, {
+  await runWrite(activityWork(deps, { access: "write" }), actor, "task.delete", id, {
     expected_version: expectedVersion,
     change_note,
     change_tag_ids,
   }, async (store) => {
-    const task = await requireTask(store, id, true, undefined, true);
+    const task = await requireTask(store, id, true);
     assertVersion(task, expectedVersion);
-    await store.detachRecords(id);
-    await store.deleteTask(id);
+    await store.updateTask(id, { deleted_at: deps.clock.now().toISOString() });
     await store.appendChange({
       target_kind: "task",
       target: activityChangeTarget(task),
@@ -241,6 +246,36 @@ export async function deleteTask(
       change_tag_ids,
     });
     return { deleted: true };
+  });
+}
+
+export function restoreTask(
+  deps: ActivityDeps,
+  actor: Actor,
+  id: string,
+  expectedVersion: number,
+  change_note?: string,
+  change_tag_ids?: string[],
+): Promise<TaskResult> {
+  return runWrite(activityWork(deps, { access: "write" }), actor, "task.restore", id, {
+    expected_version: expectedVersion,
+    change_note,
+    change_tag_ids,
+  }, async (store) => {
+    const task = await requireTask(store, id, true, undefined, false, true);
+    assertVersion(task, expectedVersion);
+    if (!task.deleted_at) throw conflict("삭제된 할 일만 복원할 수 있습니다");
+    const restored = await store.updateTask(id, { deleted_at: null });
+    await store.appendChange({
+      target_kind: "task",
+      target: activityChangeTarget(restored),
+      action: "restore",
+      before: null,
+      after: taskChangeFacts(restored),
+      change_note,
+      change_tag_ids,
+    });
+    return toTaskResult(store, restored);
   });
 }
 
@@ -428,25 +463,16 @@ export async function deleteRecord(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  await runWrite(deps.uow, actor, "record.delete", id, {
+  await runWrite(activityWork(deps, { access: "write", recordId: id }), actor, "record.delete", id, {
     expected_version: expectedVersion,
     change_note,
     change_tag_ids,
   }, async (store) => {
-    const record = await requireRecord(store, id, true, undefined, true);
+    const record = await requireRecord(store, id, true);
     assertVersion(record, expectedVersion);
     const owner = await store.taskWithResult(id);
     if (owner) await store.updateTask(owner.id, { result_record_id: null });
     await store.deleteRecord(id);
-    await store.appendChange({
-      target_kind: "record",
-      target: activityChangeTarget(record),
-      action: "delete",
-      before: recordChangeFacts(record),
-      after: null,
-      change_note,
-      change_tag_ids,
-    });
     return { deleted: true };
   });
 }

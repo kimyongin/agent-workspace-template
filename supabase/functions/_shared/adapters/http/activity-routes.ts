@@ -13,6 +13,19 @@ const versionBody = z.strictObject({ expected_version: expectedVersion, ...busin
 
 export function activityRoutes(deps: activity.ActivityDeps) {
   const app = new Hono<HttpEnv>();
+  app.post("/tasks/:id/restore", async (c) => {
+    const input = parse(versionBody, await json(c.req.raw));
+    return c.json(
+      await activity.restoreTask(
+        deps,
+        c.get("actor"),
+        idParam(c.req.param("id")),
+        input.expected_version,
+        input.change_note,
+        input.change_tag_ids,
+      ),
+    );
+  });
   app.post("/tasks/:id/delete", async (c) => {
     const i = parse(versionBody, await json(c.req.raw));
     await activity.deleteTask(

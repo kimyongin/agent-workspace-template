@@ -16,7 +16,9 @@ import type {
 import type { Actor } from "../../core/shared/actor.ts";
 import { SqlActorStore } from "./sql-context.ts";
 import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
-import { AppError } from "../../core/shared/errors.ts";
+import { AppError, notFound } from "../../core/shared/errors.ts";
+import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
+import { loadBusinessEntityDefinition } from "./entity-values.ts";
 import { hasAnyTag, hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
 
 type Tx = postgres.TransactionSql;
@@ -26,6 +28,9 @@ const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v === null ? 
 
 function toTask(r: Row): Task {
   return {
+    deleted_at: iso(r.deleted_at ?? null),
+    created_by: (r.created_by as string | null) ?? null,
+    created_by_name: (r.created_by_name as string | null) ?? null,
     entity_ids: (r.entity_ids as string[]) ?? [],
     entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     id: r.id as string,
@@ -70,7 +75,7 @@ const taskColumns = (tx: Tx) =>
   tx`id, array(select jsonb_array_elements_text(app.workspace_task_associations(tasks.id)->'entity_ids')) as entity_ids,
      app.workspace_task_associations(tasks.id)->'entity_context' as entity_context,
      kind, title, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
-     result_record_id, pauses, version, created_at, updated_at,
+     result_record_id, pauses, version, created_at, updated_at,deleted_at,created_by,created_by_name,
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
   tx`id, entity_id, entity_ids, entity_context, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
@@ -88,6 +93,7 @@ const TASK_WRITABLE = [
   "completed_at",
   "result_record_id",
   "pauses",
+  "deleted_at",
 ] as const;
 const RECORD_WRITABLE = ["body", "occurred_at"] as const;
 
@@ -144,7 +150,14 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const rows = await tx`
       select ${taskColumns(tx)} from app.tasks
-      where true
+      where workspace_id=${this.workspaceId}
+        ${
+      f.deleted === "include"
+        ? tx``
+        : f.deleted === "only"
+        ? tx`and deleted_at is not null`
+        : tx`and deleted_at is null`
+    }
         ${f.keyword ? tx`and position(lower(${f.keyword}) in lower(title))>0` : tx``}
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
         ${
@@ -312,14 +325,38 @@ export class SqlUnitOfWork implements UnitOfWork {
 
   run<T>(a: Actor, fn: (store: ActivityStore) => Promise<T>, entry?: ActivityEntry): Promise<T> {
     const actor = requireWorkspaceActor(a);
-    const requirements = entry?.access === "write"
+    const requirements: WorkspaceRequirement[] = entry?.access === "write" && !entry.recordId
       ? [{ target_kind: "tasks" as const, target_id: "*", access: "write" as const }]
       : [];
     return runInWorkspace(
       this.sql,
       actor,
       { mode: "business", requirements },
-      (tx) => fn(new SqlActivityStore(tx, actor)),
+      async (tx) => {
+        if (entry?.recordId) {
+          const [record] =
+            await tx`select entity_id,task_id from app.records where workspace_id=${actor.workspaceId} and id=${entry.recordId}`;
+          if (!record) throw notFound();
+          if (record.task_id) requirements.push({ target_kind: "tasks", target_id: "*", access: entry.access });
+          else {
+            const [parent] =
+              await tx`select entity_type_id from app.entities where workspace_id=${actor.workspaceId} and id=${record.entity_id}`;
+            if (!parent) throw notFound();
+            requirements.push({ target_kind: "entity_type", target_id: parent.entity_type_id, access: entry.access });
+          }
+          await authorizeWorkspace(tx, requirements);
+          await tx`select set_config('request.workspace_requirements',${JSON.stringify(requirements)},true)`;
+          if (entry.access === "write") {
+            if (record.task_id) {
+              await tx`select id from app.tasks where workspace_id=${actor.workspaceId} and id=${record.task_id} for update`;
+            } else {
+              await loadBusinessEntityDefinition(tx, requirements[0].target_id, true);
+              await tx`select id from app.entities where workspace_id=${actor.workspaceId} and id=${record.entity_id} for update`;
+            }
+          }
+        }
+        return fn(new SqlActivityStore(tx, actor));
+      },
     );
   }
 }

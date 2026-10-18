@@ -51,6 +51,7 @@ export interface Keyset {
 }
 
 export interface TaskFilter {
+  deleted?: "include" | "only";
   keyword?: string;
   tag_ids?: string[];
   entity_id?: string;

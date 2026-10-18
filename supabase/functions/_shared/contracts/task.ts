@@ -131,6 +131,7 @@ export const taskListQuery = z
     tag_id: id.optional(),
     tag_ids: tagFilterIds.optional(),
     entity_id: entityReferenceId.optional(),
+    deleted: z.enum(["include", "only"]).optional(),
     ...pageInput,
   })
   .refine((q) => !(q.due_from && q.due_to) || q.due_from <= q.due_to, {
@@ -152,6 +153,9 @@ export const pause = z.object({ stopped_on: isoDate, resumed_on: isoDate.nullabl
 
 export const taskResult = z.object({
   id,
+  deleted_at: isoDateTime.nullable(),
+  created_by: z.string().uuid().nullable(),
+  created_by_name: z.string().nullable(),
   entity_ids: z.array(entityReferenceId),
   entity_context: z.array(entityContext),
   tag_ids: z.array(id),

@@ -10,6 +10,9 @@ export type TaskKind = "once" | "recurring";
 export type TaskStatus = "open" | "done" | "active" | "stopped";
 
 export interface Task {
+  deleted_at?: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
   entity_ids?: string[];
   entity_context?: EntityContext[];
   id: string;
