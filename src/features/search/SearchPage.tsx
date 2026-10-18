@@ -19,7 +19,7 @@ import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { useSearchRead } from "./useSearchRead.ts";
 import { activityTags } from "../activity/activity-filters.ts";
-const kinds = { task: "할 일", record: "기록" } as const;
+const kinds = { entity: "자료", task: "할 일", record: "기록" } as const;
 export function SearchPage() {
   const { formatDateTime } = useDisplayTime();
   useDetailExploration();
@@ -72,19 +72,22 @@ export function SearchPage() {
       value ? next.set(name, value) : next.delete(name);
       return next;
     });
-  const tasks = useTagDictionary(selectedKind !== "record", false, "task"),
-    records = useTagDictionary(selectedKind !== "task", false, "record");
-  const dictionary = selectedKind === "task" ? tasks : selectedKind === "record" ? records : {
+  const entities = useTagDictionary(!selectedKind || selectedKind === "entity", false, "entity"),
+    tasks = useTagDictionary(!selectedKind || selectedKind === "task", false, "task"),
+    records = useTagDictionary(!selectedKind || selectedKind === "record", false, "record");
+  const dictionary = selectedKind === "entity" ? entities : selectedKind === "task" ? tasks : selectedKind === "record" ? records : {
     scope: "mixed" as const,
-    pending: tasks.pending || records.pending,
-    tags: tasks.tags && records.tags
+    pending: entities.pending || tasks.pending || records.pending,
+    tags: entities.tags && tasks.tags && records.tags
       ? [
+        ...entities.tags.map((tag) => ({ ...tag, name: `자료: ${tag.name}` })),
         ...tasks.tags.map((tag) => ({ ...tag, name: `할 일: ${tag.name}` })),
         ...records.tags.map((tag) => ({ ...tag, name: `기록: ${tag.name}` })),
       ]
       : null,
-    failed: tasks.failed || records.failed,
+    failed: entities.failed || tasks.failed || records.failed,
     retry: () => {
+      entities.retry();
       tasks.retry();
       records.retry();
     },
@@ -113,7 +116,7 @@ export function SearchPage() {
         title="검색"
         id="search-title"
         tabIndex={-1}
-        description="할 일·기록을 키워드나 의미로 찾아봅니다."
+        description="자료·기록은 키워드나 의미로, 할 일은 키워드로 찾아봅니다."
       />
       <div className="grid min-w-0 grid-cols-1 items-end gap-3 @min-[14rem]:grid-cols-[minmax(0,1fr)_auto]">
         <form
@@ -151,7 +154,7 @@ export function SearchPage() {
         </FieldGroup></form>
         {(params.has("status") || params.has("principle_view")) && (
           <Notice kind="error">
-            이 링크에는 지원하지 않는 검색 조건이 있습니다. 조건을 지운 뒤 할 일이나 기록을 검색하세요.{" "}
+            이 링크에는 지원하지 않는 검색 조건이 있습니다. 조건을 지운 뒤 자료·할 일·기록을 검색하세요.{" "}
             <Button variant="outline"
               type="button"
 
@@ -204,12 +207,12 @@ export function SearchPage() {
               </Field>
             </div>
             <p className="text-sm text-muted-foreground">
-              현재 자료는 자료 목록에서 확인하고, 과거 변경과 근거는 기록을 검색해 원문을 읽으세요.
+              자료는 종류에서 검색하도록 선택한 텍스트를, 기록은 당시 본문을 검색합니다. 결과 제목을 누르면 현재 권한으로 원문을 확인합니다.
             </p>
             {editing.draft.has("tag_ids") && (
               <FieldGroup className="flex min-w-0 flex-col gap-5">
                 <TagReadProvider dictionary={dictionary}>
-                  <TagNames scope={selectedKind === "task" ? "task" : "record"} ids={activityTags(editing.draft)} />
+                  <TagNames scope={selectedKind === "entity" ? "entity" : selectedKind === "task" ? "task" : "record"} ids={activityTags(editing.draft)} />
                 </TagReadProvider>
                 <Button variant="outline" type="button"  onClick={clearTags}>저장된 태그 조건 해제</Button>
               </FieldGroup>
@@ -261,7 +264,7 @@ export function SearchPage() {
       {result && (
         <>
           {result.search_state === "keyword_fallback" && (
-            <Notice>현재 키워드 검색 결과를 표시합니다. 의미 검색을 사용할 수 없습니다.</Notice>
+            <Notice>현재 키워드 검색 결과를 표시합니다. 자료와 기록의 의미 검색을 사용할 수 없습니다.</Notice>
           )}
           {!!(result.semantic_coverage.pending + result.semantic_coverage.excluded) && (
             <p className="text-sm text-muted-foreground">
@@ -270,7 +273,7 @@ export function SearchPage() {
           )}
           {!!result.semantic_coverage.pending && (
             <p className="text-sm text-muted-foreground">
-              대기 중인 기록은 의미 검색 결과에 빠질 수 있습니다.{" "}
+              색인 대기 중인 자료와 기록은 의미 검색 결과에 빠질 수 있습니다.{" "}
               <PageLink to="/status">상태에서 오래 갱신되지 않은 대기 확인</PageLink>{" "}
               후에도 계속되면 관리자에게 색인 서비스 점검을 요청하세요. 처리 실패로 확정된 상태는 아닙니다.
             </p>
@@ -289,7 +292,16 @@ export function SearchPage() {
                 </BusinessCell>
                 <BusinessCell index={1}>{kinds[r.kind]}</BusinessCell>
                 <BusinessCell index={2}>{formatDateTime(r.at)}</BusinessCell>
-                <BusinessCell index={3}><span className="whitespace-pre-wrap wrap-anywhere">{r.snippet !== r.title ? r.snippet : "—"}</span></BusinessCell>
+                <BusinessCell index={3}>
+                  <div className="flex min-w-0 flex-col gap-1">
+                    {r.kind === "entity" && r.source_fields?.some((field) => field.start < r.snippet_end && field.end > r.snippet_start) && (
+                      <span className="text-sm text-muted-foreground">
+                        {r.source_fields.filter((field) => field.start < r.snippet_end && field.end > r.snippet_start).map((field) => field.label).join(" · ")}
+                      </span>
+                    )}
+                    <span className="whitespace-pre-wrap wrap-anywhere">{r.snippet !== r.title ? r.snippet : "—"}</span>
+                  </div>
+                </BusinessCell>
                 <BusinessCell index={4}><SearchMatch item={r} /></BusinessCell>
               </BusinessRow>
             ))}
