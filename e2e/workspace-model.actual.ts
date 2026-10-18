@@ -203,6 +203,11 @@ test(
       await expect(page).toHaveURL(
         new RegExp(`/w/${w}/settings/entity-types/${kind.id}$`),
       );
+      await page.getByRole("button", { name: "기본 정보", exact: true })
+        .click();
+      await expect(
+        page.getByRole("textbox", { name: "자료 종류 이름", exact: true }),
+      ).toHaveValue(label);
       await page.screenshot({
         path: info.outputPath("actual-kind-created.png"),
         fullPage: true,
