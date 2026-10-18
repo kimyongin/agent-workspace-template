@@ -11,7 +11,8 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
 import { ReadonlyTags } from "../tags/TagConnections.tsx";
-import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
+import { RelationPicker } from "../relations/RelationPicker.tsx";
+import { useEntityReadAccess } from "../entity/entity-access.ts";
 import { occurrenceRecordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels, type TaskResult } from "@contracts/task.ts";
 
@@ -264,6 +265,7 @@ export function TaskFormModal(
 ) {
   const api = useApi();
   const { canRead, canWrite } = useTaskAccess();
+  const canReadEntityType = useEntityReadAccess();
   const [owner] = useState(() => api);
   const active = owner === api;
   const [initial] = useState(props.initial);
@@ -359,7 +361,9 @@ export function TaskFormModal(
           </FieldGroup>
           {props.mode === "create" && (
             <FieldGroup>
-              <EntityMultiPicker
+              <RelationPicker
+                kind="entity"
+                canReadEntityType={canReadEntityType}
                 disabled={frozen}
                 value={draft.entity_ids ?? []}
                 context={draft.entity_context}

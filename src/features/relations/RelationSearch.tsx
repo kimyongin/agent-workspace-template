@@ -1,3 +1,4 @@
+import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -63,6 +64,12 @@ export function RelationSearch(
   },
 ) {
   const api = useApi();
+  const capabilities = useWorkspaceCapabilities();
+  const permissionKey = JSON.stringify(capabilities?.grants ?? []);
+  const readable = (item: Candidate) => capabilities?.grants.some(grant =>
+    kind === "task" ? grant.target_kind === "tasks" && grant.target_id === "*" && (grant.access === "read" || grant.access === "write")
+      : !!item.type && grant.target_kind === "entity_type" && grant.target_id === item.type.id && (grant.access === "read" || grant.access === "write")
+  ) ?? false;
   const label = kind === "entity" ? "자료" : "할 일";
   const [view, setView] = useDetailViewState(
     `${draftMode ? "draft-" : ""}relation-search-${kind}${
@@ -115,6 +122,7 @@ export function RelationSearch(
       },
     }), [
     api,
+    permissionKey,
     keyword,
     composing,
     retry,
@@ -146,7 +154,7 @@ export function RelationSearch(
   }, [state.completion]);
   const result = state.page, pending = waiting || state.busy, failed = !!state.error;
   const more = () => session.more();
-  const candidates = result?.items.filter((item) => !item.type?.archived && !excluded(item)) ?? [];
+  const candidates = result?.items.filter((item) => !item.type?.archived && readable(item) && !excluded(item)) ?? [];
   return (
     <div className="flex min-w-0 flex-col gap-4" aria-busy={pending || undefined}>
       <Field label={`${label} 제목 검색`}>
@@ -184,7 +192,7 @@ export function RelationSearch(
         <div className="flex min-w-0 max-h-[28rem] flex-col gap-3 overflow-y-auto" role="group" aria-label={`${label} 검색 결과`}>
           {candidates.length > 0 && <CollectionList disclosureColumn={false} view="table" label={`${label} 검색 결과`} columns={kind === "entity" ? ["자료 이름", "자료 종류", "자료 식별", "선택"] : ["제목", "선택"]}>
             {candidates.map((item) => {
-              const choose = <Button variant="ghost" type="button" aria-disabled={disabled} aria-label={`${item.title} 연결`} onClick={() => { if (!disabled) onChoose(item); }}><LinkIcon data-icon="inline-start" />연결</Button>;
+              const choose = <Button variant="ghost" type="button" aria-disabled={disabled} aria-label={`${item.title} 연결`} onClick={() => { if (!disabled && readable(item)) onChoose(item); }}><LinkIcon data-icon="inline-start" />연결</Button>;
               return <CollectionItem key={item.id}><RelatedItem
                 to={draftMode ? undefined : `/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(item.id)}`}
                 restoreKey={`relation-candidate-${kind}-${item.id}`}
@@ -195,7 +203,7 @@ export function RelationSearch(
           </CollectionList>}
           {!candidates.length && !pending && !failed && (
             <p className="text-sm text-muted-foreground">
-              {!result.items.length
+              {!result.items.some(readable)
                 ? "검색 결과가 없습니다."
                 : result.next_cursor
                 ? "현재 결과에 연결할 수 있는 항목이 없습니다."
