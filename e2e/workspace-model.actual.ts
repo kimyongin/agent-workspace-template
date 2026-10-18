@@ -936,6 +936,7 @@ test(
       throw new AggregateError(
         errors,
         "actual durable model UI or exact owned cleanup failed",
+        { cause: errors[0] },
       );
     }
   },
