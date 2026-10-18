@@ -612,7 +612,7 @@ function DataModelSettingsContent() {
       )}
       {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
       <MaterialSettingsSection
-        title={canWrite ? "가져오기·내보내기" : "설정 내보내기"}
+        title={canWrite ? "가져오기·내보내기" : "설정 파일"}
         initialOpen
         state={{ dirty, busy: busy || reading, uncertain }}
       >
