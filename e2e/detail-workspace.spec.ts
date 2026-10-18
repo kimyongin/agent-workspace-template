@@ -1,7 +1,7 @@
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { openProfileMenu } from "./ui-actions.ts";
 import { baseWorkspace, detailDialog, executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
-import { fixtureIdentity, fixtureSchema } from "./support/workspace-data.ts";
+import { fixtureIdentity, fixtureSchema, fixtureType } from "./support/workspace-data.ts";
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import { entityKey } from "./support/workspace-data.ts";
 import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.ts";
@@ -9,7 +9,7 @@ import { entity, task, record,  id, stamp } from "./support/workspace-data.ts";
 import { saveOnce } from "./ui-actions.ts";
 
 async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<string, unknown> = {}) {
-  const t = { ...task(), title: "등심 구매하기", entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "등심", source: "selection" as const, captured_at: stamp }] };
+  const t = { ...task(), title: "등심 구매하기", entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "등심", type: fixtureType, schema_version: 1, source: "selection" as const, captured_at: stamp }] };
   const r = { ...record(), body: "구매 기준을 정리했습니다.", task_id: id(2) };
   const entityRecord = { ...record(34), body: "자료 변경 근거", entity_id: entityKey(1), task_id: null, record_kind: "change" as const };
   const e = { ...entity(1, { prop_1: "등심" }), tasks: { count: 1, items: [t] }, records: { count: 1, items: [entityRecord] } };
@@ -487,7 +487,6 @@ test("desktop: creating a task from an entity prepares and saves its selected re
   const input = {
     title: "다음 구매",
     body: "",
-    tag_ids: [],
     due_on: "2026-11-01",
     kind: "once",
     entity_ids: [entityKey(1)],
@@ -500,18 +499,24 @@ test("desktop: creating a task from an entity prepares and saves its selected re
     body: { ...input, change_note: "다음 구매 등록", change_tag_ids: [] },
   });
   expect(state.writes[0].body).not.toHaveProperty("expected_version");
+  expect(state.writes[0].body).not.toHaveProperty("tag_ids");
   expect(state.errors).toEqual([]);
 });
 
 test("desktop: pending writes block tab switching, close, hide and navigation", async ({ page }) => {
   const state = await fixture(page, { hold: true }); await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`)); await openTask(page);
+  const retainedUrl = page.url();
   await panel(page).getByRole("button", { name: "편집", exact: true, includeHidden: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("새 내용"); await panel(page).getByRole("button", { name: "저장", exact: true, includeHidden: true }).click();
   await executionDialog(page).getByRole("button", { name: "수정하고 저장" }).click(); await state.pending;
   await page.getByRole("tab", { name: "등심 구매하기", exact: true, includeHidden: true }).dispatchEvent("keydown", { key: "ArrowLeft", ctrlKey: true, shiftKey: true, bubbles: true });
   expect(await page.getByRole("tab", { includeHidden: true }).allTextContents()).toEqual(["등심", "등심 구매하기"]);
   for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true, includeHidden: true }).evaluate((el: HTMLButtonElement) => el.click());
   await page.getByRole("tab", { name: "등심", exact: true, includeHidden: true }).evaluate((el: HTMLButtonElement) => el.click());
-  await page.getByRole("navigation", { name: "주 메뉴", includeHidden: true }).getByRole("link", { name: "검사 자료", exact: true, includeHidden: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  const navigation = page.getByRole("navigation", { name: "주 메뉴", includeHidden: true }).getByRole("link", { name: "전체 자료", exact: true, includeHidden: true });
+  await expect(navigation).toHaveAttribute("href", fixtureWorkspacePath("/entities"));
+  await navigation.evaluate((el: HTMLAnchorElement) => el.click());
+  await expect(page).toHaveURL(retainedUrl);
+  expect(state.writes).toHaveLength(1);
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true, includeHidden: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[aria-label=\"상세 작업 영역\"]")).toBeVisible(); await expect(page.getByRole("tab", { includeHidden: true })).toHaveCount(2);
   state.release(); await expect(panel(page).getByRole("button", { name: "편집", exact: true, includeHidden: true })).toBeVisible(); expect(state.errors).toEqual([]);
