@@ -10,7 +10,7 @@ import {
 import type { DataModelDocument, ModelChange } from "../../contracts/data-model.ts";
 import { invalidInput } from "../../core/shared/errors.ts";
 import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
-import { executeWorkspaceRequest } from "./workspace-request-ledger.ts";
+import { executeSqlRequest } from "./request-ledger.ts";
 import { schemaDefinitionDiff } from "../../core/entity-types/evolution.ts";
 import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
 import type { WorkspaceEntry, WorkspaceRequirement } from "../../core/workspaces/application.ts";
@@ -48,26 +48,8 @@ export class SqlDataModelStore implements DataModelStore {
     return requireWorkspaceActor(this.actor).workspaceId;
   }
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
-  async executeRequest<T>(r: RequestIdentity, fn: () => Promise<T>) {
-    const declared = async (): Promise<WorkspaceRequirement[]> => {
-      const [row] = await this.tx`select current_setting('request.workspace_requirements',true) as requirements`;
-      return JSON.parse(row.requirements);
-    };
-    const footprint = await declared();
-    return executeWorkspaceRequest(this.tx, this.actor, r, footprint, async () => {
-      const result = await fn();
-      // The common protocol retains this same array at finish. Replay never
-      // enters this callback and checks the complete persisted footprint first.
-      for (const requirement of await declared()) {
-        if (
-          !footprint.some((r) =>
-            r.target_kind === requirement.target_kind &&
-            r.target_id === requirement.target_id && r.access === requirement.access
-          )
-        ) footprint.push(requirement);
-      }
-      return result;
-    });
+  executeRequest<T>(r: RequestIdentity, fn: () => Promise<T>) {
+    return executeSqlRequest(this.tx, this.actor, r, fn);
   }
   protected async authorizeKinds(ids: string[], access: "read" | "write") {
     if (!ids.length) return;
