@@ -42,6 +42,9 @@ test(
       if (kind === "deleted") await expect(surface.getByText("삭제된 할 일입니다.", { exact: false })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       if (kind === "deleted") {
+        await expect(surface.getByText(/불러오는 중…$/).filter({ visible: true })).toHaveCount(0);
+        await expect(surface.locator('[aria-busy="true"]').filter({ visible: true })).toHaveCount(0);
+        await page.evaluate(() => document.fonts.ready);
         const path = info.outputPath("deleted-task-readonly.png");
         await page.screenshot({ path, animations: "disabled", caret: "hide" });
         await info.attach("deleted-task-readonly", { path, contentType: "image/png" });
