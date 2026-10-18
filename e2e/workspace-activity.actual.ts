@@ -98,10 +98,13 @@ async function createInBrowser(page: Page, workspaceId: string, title: string) {
 async function snapshot(page: Page, info: TestInfo, name: string) {
   await page.evaluate(() => document.fonts.ready);
   await expect(
-    page.getByText(/^(불러오는 중…|공간을 확인하는 중…)$/).filter({
-      visible: true,
-    }),
+    page.getByText(/(?:불러오는 중…|공간을 확인하는 중…|기록 메모 준비 중…)$/)
+      .filter({
+        visible: true,
+      }),
   ).toHaveCount(0);
+  await expect(page.locator('[aria-busy="true"]').filter({ visible: true }))
+    .toHaveCount(0);
   expect(
     await page.evaluate(() =>
       document.documentElement.scrollWidth <= window.innerWidth + 1
