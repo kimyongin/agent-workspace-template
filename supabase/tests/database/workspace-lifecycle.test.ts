@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlWorkspaceUnitOfWork } from "../../functions/_shared/adapters/supabase/workspace-store.ts";
 import { createWorkspace } from "../../functions/_shared/core/workspaces/application.ts";
+import * as workspaces from "../../functions/_shared/core/workspaces/application.ts";
 import { lockWorkspace, workspaceAccount } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { connect, dbTest, outcome, urls } from "./_db.ts";
@@ -8,6 +9,67 @@ import { connect, dbTest, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 3 });
 const sql = connect(urls.direct, { max: 3, prepare: false });
 const deps = { uow: new SqlWorkspaceUnitOfWork(sql) };
+const keyed = (actor: { userId: string }) => ({ ...actor, request: { key: crypto.randomUUID() } });
+
+dbTest(
+  "public lifecycle use cases reject nonmanagers, isolate actor receipts and recheck revoked authority",
+  async () => {
+    const users = Array.from({ length: 3 }, () => ({ userId: crypto.randomUUID() }));
+    const [a, b, c] = users;
+    let workspaceId: string | undefined;
+    const forbidden = async (run: () => Promise<unknown>, expected = "forbidden") =>
+      assertEquals((await assertRejects(run, AppError)).code, expected);
+    for (const user of users) {
+      const email = `workspace517-${user.userId}@example.test`;
+      await admin`insert into auth.users(id,email) values(${user.userId},${email})`;
+      await admin`insert into auth.identities(id,user_id,provider,provider_id,identity_data) values(${crypto.randomUUID()},${user.userId},'google',${user.userId},${
+        admin.json({ sub: user.userId, email, email_verified: true })
+      })`;
+    }
+    try {
+      workspaceId = (await createWorkspace(deps, keyed(a), { name: "공개 공간 수명" })).workspace.id;
+      for (const user of [b, c]) {
+        const invite = await workspaces.inviteWorkspaceMember(deps, keyed(a), workspaceId, {
+          email: `workspace517-${user.userId}@example.test`,
+          grants: [{
+            target_kind: user === b ? "settings" : "tasks",
+            target_id: "*",
+            access: user === b ? "write" : "read",
+          }],
+        });
+        await workspaces.acceptWorkspaceInvitation(deps, keyed(user), invite.invitation.id);
+      }
+      await forbidden(() => workspaces.deleteWorkspace(deps, keyed(c), workspaceId, { expected_generation: 1 }));
+      const request = keyed(a), input = { expected_generation: 1 };
+      const deleted = await workspaces.deleteWorkspace(deps, request, workspaceId, input);
+      assertEquals(await workspaces.deleteWorkspace(deps, request, workspaceId, input), deleted);
+      assertEquals((await workspaces.listDeletedWorkspaces(deps, b)).items, [deleted.workspace]);
+      assertEquals((await workspaces.listDeletedWorkspaces(deps, c)).items, []);
+      await forbidden(() => workspaces.restoreWorkspace(deps, keyed(c), workspaceId, { expected_generation: 2 }));
+      await forbidden(
+        () => workspaces.deleteWorkspace(deps, { ...b, request: { key: request.request.key } }, workspaceId, input),
+        "conflict",
+      );
+      assertEquals(
+        (await workspaces.restoreWorkspace(deps, keyed(b), workspaceId, { expected_generation: 2 })).workspace
+          .lifecycle_generation,
+        3,
+      );
+      await workspaces.updateWorkspaceMember(deps, keyed(b), workspaceId, a.userId, {
+        expected_version: 1,
+        grants: [],
+      });
+      await forbidden(() => workspaces.deleteWorkspace(deps, request, workspaceId, input));
+      await forbidden(
+        () => workspaces.deleteWorkspace(deps, keyed(b), workspaceId, { expected_generation: 1 }),
+        "conflict",
+      );
+    } finally {
+      if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
+      for (const user of users) await admin`delete from auth.users where id=${user.userId}`;
+    }
+  },
+);
 
 dbTest("Auth invalidation cannot leave an active workspace without its final valid administrator", async () => {
   const actor = { userId: crypto.randomUUID(), request: { key: crypto.randomUUID() } };
