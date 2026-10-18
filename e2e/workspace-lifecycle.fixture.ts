@@ -77,6 +77,8 @@ test(
     expect(writes[1]).toEqual(writes[0]);
     await page.getByRole("button", { name: "복원", exact: true }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "공간 복원", exact: true }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect.poll(() => writes.length).toBe(3);
     await expect(page.getByRole("button", { name: "복원", exact: true })).toHaveCount(0);
     expect(writes[2]).toEqual({
       method: "POST",
