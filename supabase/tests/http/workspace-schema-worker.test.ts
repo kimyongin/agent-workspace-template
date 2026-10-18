@@ -221,13 +221,13 @@ httpTest(
       const rowPath =
         `/entity-types/${rowArgs.type_id}/schema-changes/${rowArgs.change_id}/rows?analysis_id=${rowArgs.analysis_id}`;
       const beforeRows = await scoped(b, w.id, "GET", rowPath);
-      assertEquals(beforeRows.status, 200);
+      assertEquals(beforeRows.status, 409);
       assertEquals(
-        await tool(client, "list_entity_schema_analysis_rows", {
+        (await tool(client, "list_entity_schema_analysis_rows", {
           workspace_id: w.id,
           ...rowArgs,
-        }),
-        beforeRows.body,
+        })).error.code,
+        "conflict",
       );
       // Keep settings WRITE and one kind WRITE: the affected second kind still controls
       // both historical model bytes and exact successful-request replay.
