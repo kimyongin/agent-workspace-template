@@ -169,9 +169,19 @@ test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=
   try{
     await page.goto(workspacePath(workspace.id, "/tags/record"));
     const title=unique("태그").slice(0,30),form=page.getByRole("form",{name:"태그 추가"});
-    await form.getByRole("textbox",{name:/태그 이름/}).fill(title);await form.getByRole("button",{name:"추가",exact:true}).click();
+    await form.getByRole("textbox",{name:/태그 이름/}).fill(title);
+    const creation = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/tags"));
+    await form.getByRole("button",{name:"추가",exact:true}).click();
+    const response = await creation;
+    expect(response.status()).toBe(201);
+    expect(response.request().headers()["x-workspace-id"]).toBe(workspace.id);
+    const created = await response.json();
+    expect(created).toMatchObject({name:title,scope:"record",version:1});
+    expect(created.id).toMatch(/^[0-9]{8}-[0-9A-Z]{8}$/);
+    await expect(page).toHaveURL(new URL(workspacePath(workspace.id, "/tags/record"), page.url()).href);
     await expect(page.getByRole("button",{name:`${title} 이름 변경`,exact:true})).toBeVisible();
     const list=await mcp.call("list_tags",{scope:"record",limit:100});const tag=list.items.find((t:{name:string})=>t.name===title);
+    expect(tag).toMatchObject({id:created.id,name:title,scope:"record",version:1});
     const renamed=unique("정정").slice(0,30);await mcp.call("rename_tag",{id:tag.id,expected_version:1,name:renamed});
     await page.reload();await page.getByRole("button",{name:`${renamed} 삭제`,exact:true}).click();
     await executionDialog(page).getByRole("button",{name:"삭제하고 기록",exact:true}).click();
