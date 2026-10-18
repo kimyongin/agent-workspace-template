@@ -1,7 +1,7 @@
 import { type CreateAndLinkInput, createAndLinkInput } from "../../contracts/create-and-link.ts";
 import type { EntityRelationDefinition } from "../../contracts/entity-relation.ts";
 import { createEntityInTransaction, type EntityStore } from "../entity/application.ts";
-import { type EntityRelationLinkStore, mutateRelationInTransaction } from "./links.ts";
+import { type EntityRelationLinkStore, mutateRelationInTransaction, type RelationEntry } from "./links.ts";
 import type { Actor } from "../shared/actor.ts";
 import { type RequestStore, runWrite } from "../shared/request.ts";
 import { AppError, conflict, invalidInput, notFound } from "../shared/errors.ts";
@@ -12,7 +12,7 @@ export interface CreateAndLinkStore extends RequestStore {
   prepare(definition: EntityRelationDefinition, input: CreateAndLinkInput): Promise<void>;
 }
 export interface CreateAndLinkDeps {
-  uow: { run<T>(actor: Actor, fn: (s: CreateAndLinkStore) => Promise<T>): Promise<T> };
+  uow: { run<T>(actor: Actor, fn: (s: CreateAndLinkStore) => Promise<T>, entry?: RelationEntry): Promise<T> };
 }
 export function createAndLinkEntity(d: CreateAndLinkDeps, a: Actor, raw: unknown) {
   const parsed = createAndLinkInput.safeParse(raw);
@@ -23,8 +23,17 @@ export function createAndLinkEntity(d: CreateAndLinkDeps, a: Actor, raw: unknown
     );
   }
   const i = parsed.data;
+  const uow: CreateAndLinkDeps["uow"] = {
+    run: (actor, fn) =>
+      d.uow.run(actor, fn, {
+        definitionId: i.definition_id,
+        typeIds: [i.entity.entity_type_id],
+        endpointIds: [i.origin_id, ...(i.previous_other_id ? [i.previous_other_id] : [])],
+        access: "write",
+      }),
+  };
   return runWrite(
-    d.uow,
+    uow,
     a,
     "entity-relation.create-and-link",
     { definition_id: i.definition_id, side: i.side, origin_id: i.origin_id },
@@ -70,6 +79,16 @@ export function createAndLinkEntity(d: CreateAndLinkDeps, a: Actor, raw: unknown
         throw conflict(
           "원점 자료가 변경되었습니다. 입력을 유지하고 현재 자료를 확인하세요",
         );
+      }
+      if (i.previous_other_id) {
+        const [previous] = await s.relations.endpoints([i.previous_other_id], false);
+        if (!previous) throw notFound();
+        if (
+          previous.entity_type_id !== def.ends[i.side === 0 ? 1 : 0].type_id ||
+          previous.version !== i.expected_previous_version
+        ) {
+          throw conflict("기존 연결 자료가 변경되었습니다. 현재 관계를 확인하세요");
+        }
       }
       let created;
       try {

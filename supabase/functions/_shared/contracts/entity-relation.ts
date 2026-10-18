@@ -18,6 +18,7 @@ export const relationDefinitionUpdate = z.strictObject({
 });
 export const relationDefinitionDelete = z.strictObject({ expected_version: expectedVersion });
 export const relationDefinitionQuery = z.strictObject({
+  purpose: z.literal("business").optional(),
   type_id: z.string().uuid().optional(),
   q: text(0, 100).optional(),
   archived: z.enum(["active", "archived", "all"]).default("active"),

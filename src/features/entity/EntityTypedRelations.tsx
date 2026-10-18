@@ -47,7 +47,7 @@ export function EntityTypedRelations(
         const page: EntityRelationDefinitionPage = await api(
           "GET",
           `/entity-relation-definitions${
-            query({ type_id: entity.entity_type_id, archived: "all", limit: 100, cursor })
+            query({ purpose: "business", type_id: entity.entity_type_id, archived: "all", limit: 100, cursor })
           }`,
           undefined,
           c.signal,
@@ -151,7 +151,7 @@ export function EntityRelationSection(
       const [origin, other, latest, page] = await Promise.all([
         api<EntityDetail>("GET", entityPath(entity.id), undefined, c.signal),
         api<EntityDetail>("GET", entityPath(item.id), undefined, c.signal),
-        api<EntityRelationDefinition>("GET", `/entity-relation-definitions/${def.id}`, undefined, c.signal),
+        api<EntityRelationDefinition>("GET", `/entity-relation-definitions/${def.id}?purpose=business`, undefined, c.signal),
         api<LinkPage>("GET", `${base}/links`, undefined, c.signal),
       ]);
       if (!c.signal.aborted && started === locationKey.current && !surface?.editor.current) {

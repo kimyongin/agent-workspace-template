@@ -16,7 +16,8 @@ export function entityRelationDefinitionRoutes(d: EntityRelationDefinitionDeps) 
   );
   app.get(
     "/entity-relation-definitions/:id",
-    async (c) => c.json(await getEntityRelationDefinition(d, c.get("actor"), c.req.param("id"))),
+    async (c) =>
+      c.json(await getEntityRelationDefinition(d, c.get("actor"), c.req.param("id"), c.req.query("purpose"))),
   );
   app.post(
     "/entity-relation-definitions",
