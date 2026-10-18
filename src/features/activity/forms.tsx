@@ -16,7 +16,7 @@ import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels, type TaskResult } from "@contracts/task.ts";
 
 import { type ReactNode, useState } from "react";
-import { Field } from "../../components/Field.tsx";
+import { Field, Notice } from "../../components/Field.tsx";
 import { FormModal, type TextDraft } from "../../components/ContentForm.tsx";
 import { browserTimezone, fieldErrors, fromLocalInput, todayIn, toLocalInput } from "../../lib/format.ts";
 import type { EntityContext } from "@contracts/entity-links.ts";
@@ -145,7 +145,8 @@ export function RecordFormModal(props: {
           </Field>
         );
         return (
-          <>
+          <FieldSet disabled={frozen || props.readonly}>
+            {props.readonly && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
             {props.intro}
             {props.record
               ? (
@@ -163,7 +164,7 @@ export function RecordFormModal(props: {
               )}
             {props.editing && <FieldGroup><ReadonlyTags scope="record" ids={props.record?.tag_ids ?? []} /></FieldGroup>}
             {props.details}
-          </>
+          </FieldSet>
         );
       }}
     </FormModal>
@@ -326,7 +327,8 @@ export function TaskFormModal(
       }}
     >
       {(errors, frozen) => (
-        <>
+        <FieldSet disabled={frozen || !canWrite}>
+          {!canWrite && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
           {props.mode === "create" && (
             <FieldSet disabled={frozen}>
               <FieldLegend>{taskLabels.kind}</FieldLegend>
@@ -368,7 +370,7 @@ export function TaskFormModal(
           )}
           {props.mode === "edit" && <FieldGroup><ReadonlyTags scope="task" ids={props.initial.tag_ids} /></FieldGroup>}
           {props.details}
-        </>
+        </FieldSet>
       )}
     </FormModal>
   );
