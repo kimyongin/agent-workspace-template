@@ -46,6 +46,33 @@ const resendConfig = {
   webOrigin: "https://workspace.example.test",
 };
 
+dbTest("workspace deletion fences claimed invitations and restoration never restarts their old delivery", async () => {
+  const f = await fixture();
+  try {
+    const { invitation } = await f.invite();
+    const claim = await store.claim(invitation.id);
+    assert(claim);
+    const mailer = createInvitationMailer(resendConfig)!;
+    assert(await store.prepare(invitation.id, claim.fence, mailer.prepare(claim)));
+    await workspaces.deleteWorkspace(deps, keyed(f.userId), f.workspace.id, { expected_generation: 1 });
+    assertEquals(await store.startSend(invitation.id, claim.fence), false);
+    assertEquals(await store.finish(invitation.id, claim.fence, "sent"), false);
+    await workspaces.restoreWorkspace(deps, keyed(f.userId), f.workspace.id, { expected_generation: 2 });
+    assertEquals(await store.claim(invitation.id), null);
+    assertEquals(
+      (await workspaces.retryWorkspaceInvitationDelivery(deps, keyed(f.userId), f.workspace.id, invitation.id, {
+        expected_version: invitation.version,
+      })).delivery.status,
+      "failed",
+    );
+    assertEquals(await store.claim(invitation.id), null);
+    const fresh = await f.invite();
+    assert(await store.claim(fresh.invitation.id));
+  } finally {
+    await f.cleanup();
+  }
+});
+
 dbTest(
   "invitation creation enqueues once, reports unconfigured, and explicitly retries exact provider payload after ambiguity",
   async () => {
