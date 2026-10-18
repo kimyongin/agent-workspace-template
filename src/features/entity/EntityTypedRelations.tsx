@@ -35,6 +35,7 @@ export function EntityTypedRelations(
   },
 ) {
   const api = useApi();
+  const capability = useWorkspaceCapabilities();
   const [definitions, setDefinitions] = useState<EntityRelationDefinition[]>([]),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0);
@@ -61,7 +62,7 @@ export function EntityTypedRelations(
       if (!c.signal.aborted) setError(e.message);
     });
     return () => c.abort();
-  }, [api, entity.entity_type_id, entity.version, retry]);
+  }, [api, capability, entity.entity_type_id, entity.version, retry]);
   return (
     <>
       {error && (
@@ -69,7 +70,9 @@ export function EntityTypedRelations(
           관계 정의를 읽지 못했습니다.<Button variant="ghost" type="button" onClick={() => setRetry((n) => n + 1)}>관계 다시 조회</Button>
         </Notice>
       )}
-      {definitions.flatMap((def) =>
+      {definitions.filter(def => def.ends.every(end => capability?.grants.some(grant =>
+        grant.target_kind === "entity_type" && grant.target_id === end.type_id && (grant.access === "read" || grant.access === "write")
+      ))).flatMap((def) =>
         def.ends.map((end, side) =>
           end.type_id === entity.entity_type_id
             ? (
