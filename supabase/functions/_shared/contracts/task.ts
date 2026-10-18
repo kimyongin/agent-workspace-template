@@ -6,7 +6,7 @@ import { z } from "zod";
 import { businessMeta } from "./change.ts";
 import { body, expectedVersion, id, isoDate, isoDateTime, page, pageInput, recordBody, title } from "./common.ts";
 import { recordResult } from "./record.ts";
-import { tagFilterIds, tagIds } from "./tag.ts";
+import { tagFilterIds } from "./tag.ts";
 
 export const TASK_KINDS = ["once", "recurring"] as const;
 export const TASK_STATUSES = ["open", "done", "active", "stopped"] as const;
@@ -57,7 +57,6 @@ export const taskCreate = z.discriminatedUnion("kind", [
     kind: z.literal("once"),
     ...businessMeta,
     ...entitySelection,
-    tag_ids: tagIds.optional(),
     title,
     body: body.default(""),
     due_on: isoDate.optional().describe("kind=once 전용 선택 마감일. recurring에서는 생략한다."),
@@ -71,7 +70,6 @@ export const taskCreate = z.discriminatedUnion("kind", [
     kind: z.literal("recurring"),
     ...businessMeta,
     ...entitySelection,
-    tag_ids: tagIds.optional(),
     title,
     body: body.default(""),
     recurrence: recurrence.optional().nonoptional({ error: "kind=recurring에는 recurrence를 입력하세요" })
@@ -93,7 +91,6 @@ export const taskUpdate = z
     ...businessMeta,
     expected_version: expectedVersion,
     ...entitySelection,
-    tag_ids: tagIds.optional(),
     title: title.optional(),
     body: body.optional(),
     due_on: isoDate.nullable().optional(),
@@ -112,7 +109,6 @@ export const versionOnly = z.strictObject({ expected_version: expectedVersion, .
 
 /** 일회성 할 일 완료: 결과 기록 내용과 함께 한 트랜잭션으로 저장한다. */
 export const taskComplete = z.strictObject({
-  tag_ids: tagIds.optional(),
   expected_version: expectedVersion,
   body: recordBody,
   occurred_at: isoDateTime.optional(),

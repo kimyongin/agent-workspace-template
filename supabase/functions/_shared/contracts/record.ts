@@ -1,31 +1,25 @@
 import { entityReferenceId } from "./entity-identity.ts";
-import { entitySelection } from "./entity-links.ts";
 // 활동 기록(ActivityRecord) 계약.
 import { z } from "zod";
 import { changeMetadata } from "./change.ts";
-import { tagFilterIds, tagIds } from "./tag.ts";
+import { tagFilterIds } from "./tag.ts";
 import { expectedVersion, id, isoDate, isoDateTime, page, pageInput, recordBody } from "./common.ts";
 
-/** 직접 작성과 반복 할 일의 회차 기록이 같은 입력을 쓴다. */
-export const recordCreate = z.strictObject({
-  ...entitySelection,
-  tag_ids: tagIds.optional(),
+/** The occurrence route owns the immutable task and date. */
+export const occurrenceRecordCreate = z.strictObject({
   body: recordBody,
   occurred_at: isoDateTime.optional(),
-  task_id: id.optional(),
 });
-export type RecordCreate = z.infer<typeof recordCreate>;
-/** The occurrence route owns the task and date; content cannot override them. */
-export const occurrenceRecordCreate = recordCreate.omit({ task_id: true });
+export type OccurrenceRecordCreate = z.infer<typeof occurrenceRecordCreate>;
 
 export const recordUpdate = z
   .strictObject({
     expected_version: expectedVersion,
-    ...entitySelection,
-    tag_ids: tagIds.optional(),
     body: recordBody.optional(),
     occurred_at: isoDateTime.optional(),
-  }); // Automatic change records allow editing their body.
+  }).refine((value) => value.body !== undefined || value.occurred_at !== undefined, {
+    message: "바꿀 필드가 없습니다",
+  });
 export type RecordUpdate = z.infer<typeof recordUpdate>;
 
 export const recordListQuery = z
@@ -33,7 +27,7 @@ export const recordListQuery = z
     occurred_from: isoDateTime.optional(),
     occurred_to: isoDateTime.optional(),
     task_id: id.optional(),
-    record_kind: z.enum(["user", "result", "change"]).optional(),
+    record_kind: z.enum(["result", "change"]).optional(),
     tag_id: id.optional(),
     tag_ids: tagFilterIds.optional(),
     entity_id: entityReferenceId.optional(),

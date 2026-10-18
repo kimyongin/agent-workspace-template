@@ -1,4 +1,3 @@
-import type { EntityContext } from "../../contracts/entity-links.ts";
 // 할 일·기록 유스케이스가 쓰는 저장 계약. SQL·SDK 타입을 노출하지 않는다.
 import type { RequestStore } from "../shared/request.ts";
 import type { Actor } from "../shared/actor.ts";
@@ -8,11 +7,9 @@ import type { IndexJob } from "../shared/store.ts";
 import type { NewTask, Task } from "./domain.ts";
 
 export interface ActivityRecord {
-  entity_id?: string | null;
-  record_kind?: "user" | "result" | "change";
+  entity_id: string | null;
+  record_kind: "result" | "change";
   change?: ChangeMetadata | null;
-  entity_ids?: string[];
-  entity_context?: EntityContext[];
   tag_ids: string[];
   id: string;
   body: string;
@@ -25,22 +22,16 @@ export interface ActivityRecord {
 }
 
 export interface NewRecord {
-  /** Trusted inheritance from an actor-scoped task, never accepted from client input. */
-  inherit_task_entities?: boolean;
-  record_kind?: "user" | "result";
-  entity_ids?: string[];
-  entity_context?: EntityContext[];
-  tag_ids?: string[];
   body: string;
   occurred_at: string | null;
-  task_id: string | null;
+  task_id: string;
   occurrence_on: string | null;
 }
 
 export type RecordChanges = Partial<
   Pick<
     ActivityRecord,
-    "body" | "occurred_at" | "tag_ids" | "entity_ids"
+    "body" | "occurred_at"
   >
 >;
 
@@ -66,7 +57,7 @@ export interface TaskFilter {
 
 export interface RecordFilter {
   tag_ids?: string[];
-  record_kind?: "user" | "result" | "change";
+  record_kind?: "result" | "change";
   entity_id?: string;
   tag_id?: string;
   occurred_from?: string;
@@ -90,11 +81,10 @@ export interface ActivityStore extends ChangeStore, RequestStore {
   insertTask(task: NewTask): Promise<Task>;
   /** 버전을 1 올리고 updated_at을 갱신한다. */
   updateTask(id: string, changes: Partial<Task>): Promise<Task>;
-  deleteTask(id: string): Promise<void>;
 
   getRecord(
     id: string,
-    opts?: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean },
+    opts?: { forUpdate?: boolean },
   ): Promise<ActivityRecord | null>;
   getRecordBodies(ids: string[]): Promise<Pick<ActivityRecord, "id" | "body">[]>;
   listRecords(filter: RecordFilter): Promise<ActivityRecord[]>;
@@ -107,8 +97,6 @@ export interface ActivityStore extends ChangeStore, RequestStore {
   insertRecord(record: NewRecord): Promise<ActivityRecord>;
   updateRecord(id: string, changes: RecordChanges): Promise<ActivityRecord>;
   deleteRecord(id: string): Promise<void>;
-  /** 할 일 삭제 전 연결된 기록의 task_id·occurrence_on을 비우고 version을 1 올리며 updated_at을 갱신한다. */
-  detachRecords(taskId: string): Promise<void>;
   /** 이 기록을 결과로 가진 일회성 할 일. */
   taskWithResult(recordId: string): Promise<Task | null>;
 

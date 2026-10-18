@@ -16,13 +16,15 @@ export class SqlTagTargets {
   async record(id: string, lock = false): Promise<ActivityRecord | null> {
     const workspace = requireWorkspaceActor(this.actor).workspaceId;
     if (lock) await this.tx`select id from app.records where workspace_id=${workspace} and id=${id} for update`;
-    const [row] = await this.tx`select id,body,record_kind,occurred_at,task_id,occurrence_on::text as occurrence_on,
+    const [row] = await this
+      .tx`select id,entity_id,body,record_kind,occurred_at,task_id,occurrence_on::text as occurrence_on,
       version,created_at,updated_at,${
       tagIdsColumn(this.tx, "record")
     } from app.records where workspace_id=${workspace} and id=${id}`;
     return row
       ? {
         id: String(row.id),
+        entity_id: row.entity_id as string | null,
         body: String(row.body),
         record_kind: row.record_kind as ActivityRecord["record_kind"],
         occurred_at: (row.occurred_at as Date).toISOString(),
@@ -33,8 +35,6 @@ export class SqlTagTargets {
         updated_at: (row.updated_at as Date).toISOString(),
         tag_ids: row.tag_ids as string[],
         change: null,
-        entity_ids: [],
-        entity_context: [],
       }
       : null;
   }

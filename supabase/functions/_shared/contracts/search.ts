@@ -6,7 +6,7 @@ export const searchKind = z.enum(["task", "record"]);
 export const searchInput = z.strictObject({
   task_kind: z.enum(["once", "recurring"]).optional(),
   task_status: z.enum(["open", "done", "active", "stopped"]).optional(),
-  record_kind: z.enum(["user", "result", "change"]).optional(),
+  record_kind: z.enum(["result", "change"]).optional(),
   query: text(1, 200),
   kinds: z.array(searchKind).min(1).max(2).refine((v) => new Set(v).size === v.length).default([
     "task",
@@ -39,7 +39,7 @@ export const searchItem = z.object({
   index_state: z.enum(["indexed", "pending", "excluded"]),
   path: z.string(),
   task_status: z.enum(["open", "done", "active", "stopped"]).nullable().optional(),
-  record_kind: z.enum(["user", "result", "change"]).nullable().optional(),
+  record_kind: z.enum(["result", "change"]).nullable().optional(),
 });
 export type SearchItem = z.infer<typeof searchItem>;
 export const searchResult = z.object({
