@@ -62,7 +62,7 @@ test("actual independent contexts: two browser workspaces and a third MCP worksp
   };
   await change("none");
   await expect(page.getByText(firstTitle, { exact: true }).filter({ visible: true })).toHaveCount(0);
-  await expect(page.getByText("이 내용을 읽을 권한이 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("이 내용을 읽을 권한이 없습니다.", { exact: true }).filter({ visible: true }).first()).toBeVisible();
   await expect(otherPage.getByRole("heading", { name: secondTitle, exact: true })).toBeVisible();
   expect((await mcp.call("get_task", { id: thirdTask.id })).title).toBe(thirdTitle);
   await page.screenshot({ path: info.outputPath("independent-context-permission-none.png"), fullPage: true, animations: "disabled" });

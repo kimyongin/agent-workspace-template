@@ -1,4 +1,5 @@
 import { useRecordAccess } from "./record-access.ts";
+import { WorkspacePermissionNotice } from "../workspaces/WorkspacePermissionNotice.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "@/components/ui/button";
 import { useDetailResource } from "../details/useDetailResource.ts";
@@ -95,6 +96,8 @@ export function RecordDetailPage() {
     </div>
   );
   return (
+    <>
+    {!canRead && <WorkspacePermissionNotice />}
     <DetailSurface
       ready={!detail.loading}
       visible={canRead}
@@ -182,5 +185,6 @@ export function RecordDetailPage() {
         />
       )}
     </DetailSurface>
+    </>
   );
 }

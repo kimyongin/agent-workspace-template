@@ -33,6 +33,7 @@ import {
   useFilterDraft,
 } from "../../components/TabSearch.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
+import { WorkspacePermissionNotice } from "../workspaces/WorkspacePermissionNotice.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
@@ -270,6 +271,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   }
   return (
     <>
+      {kind === "tasks" && !canRead && <WorkspacePermissionNotice />}
       <section hidden={kind === "tasks" && !canRead} className="@container flex min-w-0 flex-col gap-5" aria-labelledby={`${kind}-title`}>
         <PageHeading
           title={label}

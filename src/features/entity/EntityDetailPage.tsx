@@ -182,6 +182,8 @@ export function EntityDetailPage() {
     </div>
   );
   return (
+    <>
+    {entity && !canRead && <WorkspacePermissionNotice />}
     <DetailSurface visible={!entity || canRead} ready={!detail.loading}
       title={entity && canRead ? entity.type.label : "자료"}
       description="속성과 연결된 자료·할 일·기록을 확인하고 수정합니다."
@@ -388,5 +390,7 @@ export function EntityDetailPage() {
         </div>
       )}
     </DetailSurface>
+    </>
   );
 }
+import { WorkspacePermissionNotice } from "../workspaces/WorkspacePermissionNotice.tsx";

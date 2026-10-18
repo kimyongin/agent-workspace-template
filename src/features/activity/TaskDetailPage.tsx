@@ -1,4 +1,5 @@
 import { useTaskAccess } from "./task-access.ts";
+import { WorkspacePermissionNotice } from "../workspaces/WorkspacePermissionNotice.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -267,6 +268,8 @@ export function TaskDetailPage() {
     </>
   );
   return (
+    <>
+    {!canRead && <WorkspacePermissionNotice />}
     <DetailSurface
       visible={canRead}
       ready={!detail.loading}
@@ -453,6 +456,7 @@ export function TaskDetailPage() {
         />
       )}
     </DetailSurface>
+    </>
   );
 }
 
