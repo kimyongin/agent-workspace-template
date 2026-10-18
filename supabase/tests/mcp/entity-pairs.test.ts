@@ -1,9 +1,9 @@
-import { assertEquals, assertRejects } from "@std/assert";
-import { call, httpTest, signIn } from "../http/_client.ts";
-import { connectMcp, mcpToken } from "./_mcp.ts";
-httpTest("unconfigured relation tools, HTTP routes and candidate inputs are removed", async () => {
-  const token = await signIn("A"), client = await connectMcp(await mcpToken(token));
-  try {
+import { assert, assertEquals, assertRejects } from "@std/assert";
+import { activityWorkspaceSuite, scopedHttp } from "../http/_workspace-activity-fixture.ts";
+activityWorkspaceSuite(
+  "unconfigured relation tools, HTTP routes and candidate inputs are removed",
+  async ({ A: token, workspaceA: w, clientA: client }) => {
+    assert(client);
     const names = (await client.listTools()).tools.map((v) => v.name);
     for (const name of ["list_entity_links", "link_entities", "unlink_entities"]) {
       assertEquals(names.includes(name), false);
@@ -14,18 +14,24 @@ httpTest("unconfigured relation tools, HTTP routes and candidate inputs are remo
       );
     }
     const id = encodeURIComponent("app:10000000-0000-4000-8000-000000000001:legacy");
-    assertEquals((await call(token, "GET", `/entities/${id}/links`)).status, 404);
+    assertEquals((await scopedHttp(token, w, "GET", `/entities/${id}/links`)).status, 404);
     assertEquals(
-      (await call(token, "POST", `/entities/${id}/links`, { other_id: decodeURIComponent(id) }, crypto.randomUUID()))
+      (await scopedHttp(
+        token,
+        w,
+        "POST",
+        `/entities/${id}/links`,
+        { other_id: decodeURIComponent(id) },
+        crypto.randomUUID(),
+      ))
         .status,
       404,
     );
     assertEquals(
-      (await call(token, "POST", `/entities/${id}/links/${id}/delete`, {}, crypto.randomUUID())).status,
+      (await scopedHttp(token, w, "POST", `/entities/${id}/links/${id}/delete`, {}, crypto.randomUUID())).status,
       404,
     );
-    assertEquals((await call(token, "GET", `/entities?link_candidate_for=${id}`)).status, 400);
-  } finally {
-    await client.close();
-  }
-});
+    assertEquals((await scopedHttp(token, w, "GET", `/entities?link_candidate_for=${id}`)).status, 400);
+  },
+  { mcp: true },
+);
