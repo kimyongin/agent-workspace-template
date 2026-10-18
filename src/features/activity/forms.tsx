@@ -22,16 +22,15 @@ import { browserTimezone, fieldErrors, fromLocalInput, todayIn, toLocalInput } f
 import type { EntityContext } from "@contracts/entity-links.ts";
 import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 
-// ---------- 기록 폼(직접 작성·완료 결과·회차 기록·편집) ----------
+// ---------- 결과 기록 폼(완료 결과·회차 기록·편집) ----------
 
 export interface RecordDraft {
   body: string;
-  tag_ids: string[];
   occurred_at: DateTimeDraft;
   original_occurred_at?: string;
 }
 
-export const emptyRecord = (): RecordDraft => ({ body: "", occurred_at: { date: "", time: "" }, tag_ids: [] });
+export const emptyRecord = (): RecordDraft => ({ body: "", occurred_at: { date: "", time: "" } });
 
 export function recordDraftFrom(
   r: { body: string; occurred_at: string; tag_ids?: string[] },
@@ -42,7 +41,6 @@ export function recordDraftFrom(
     body: r.body,
     occurred_at: { date, time },
     original_occurred_at: r.occurred_at,
-    tag_ids: r.tag_ids ?? [],
   };
 }
 
@@ -163,7 +161,7 @@ export function RecordFormModal(props: {
                   {!props.systemRecord && occurredAt}
                 </FieldGroup>
               )}
-            {props.editing && <FieldGroup><ReadonlyTags scope="record" ids={props.initial.tag_ids} /></FieldGroup>}
+            {props.editing && <FieldGroup><ReadonlyTags scope="record" ids={props.record?.tag_ids ?? []} /></FieldGroup>}
             {props.details}
           </>
         );

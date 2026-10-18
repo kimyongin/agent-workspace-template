@@ -26,6 +26,7 @@ function RelationControls({
   entityId,
   entityTitle,
   revision,
+  visible = true,
   children,
   onSaved,
 }: {
@@ -33,13 +34,15 @@ function RelationControls({
   entityId?: string;
   entityTitle?: string;
   revision?: EntityDetail["tasks"];
+  visible?: boolean;
   children: (controls: { search: ReactNode; button: ReactNode; unlink: (item: Candidate) => ReactNode }) => ReactNode;
   onSaved: (saved?: TaskResult, before?: TaskResult) => void;
 }) {
   const api = useApi();
   const { canWrite } = useTaskAccess();
   const [owner] = useState(() => api);
-  const active = owner === api;
+  const canReadType = useEntityReadAccess();
+  const active = owner === api && visible;
   const authority = useRef({ active, canWrite });
   authority.current = { active, canWrite };
   const surface = useContext(SurfaceContext);
@@ -126,8 +129,8 @@ function RelationControls({
         <FormModal
           open
           confirmationOnly
-          visible={active}
-          submitDisabled={!active || !canWrite}
+          visible={active && (!mutation.entity.type || canReadType(mutation.entity.type.id))}
+          submitDisabled={!active || !canWrite || !!mutation.entity.type && !canReadType(mutation.entity.type.id)}
           title={mutation.remove ? "해제" : "연결"}
           submitLabel="저장"
           dirty={false}
@@ -188,6 +191,7 @@ export function TaskEntityRelations(
               const item = {
                 id,
                 title: task.entity_context.find((item) => item.id === id)?.title ?? "자료",
+                type: task.entity_context.find((item) => item.id === id)?.type,
               };
               return (
                 <CollectionItem key={id}>
@@ -243,7 +247,9 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
   onCreate?: () => void;
   onSaved?: (saved?: TaskResult, before?: TaskResult) => void;
 }) {
-  const { canWrite } = useTaskAccess();
+  const { canRead, canWrite } = useTaskAccess();
+  const canReadType = useEntityReadAccess();
+  const visible = canRead && canReadType(entity.entity_type_id);
   const contents = (search?: ReactNode, action?: ReactNode, unlink?: (item: Candidate) => ReactNode) => (
     <RelatedSection title="할 일" count={entity.tasks.count} views={!readOnly} action={action}>
       {search}
@@ -268,6 +274,7 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
   return (
     <RelationControls
       key={entity.id}
+      visible={visible}
       entityId={entity.id}
       entityTitle={entity.title}
       revision={entity.tasks}
@@ -277,7 +284,7 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
         contents(
           search,
           <div className="flex flex-wrap items-center gap-2">
-            {canWrite && <Button variant="ghost" type="button" aria-label="할 일 작성" onClick={onCreate}><PlusIcon data-icon="inline-start" />작성</Button>}
+            {visible && canWrite && <Button variant="ghost" type="button" aria-label="할 일 작성" onClick={onCreate}><PlusIcon data-icon="inline-start" />작성</Button>}
             {button}
           </div>,
           unlink,

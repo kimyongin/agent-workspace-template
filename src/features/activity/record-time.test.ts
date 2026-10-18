@@ -15,10 +15,10 @@ it("an explicit user time change is saved; a new blank time still lets the serve
   expect(recordDraftTime({ ...draft, occurred_at: { date: "", time: "" } })).toBeUndefined();
 });
 
-it("result content drafts omit parent selections while retaining saved classification", () => {
+it("result content drafts omit parent and classification selections", () => {
   const saved = { body: "수행 결과", occurred_at: "2026-10-05T20:58:48.277Z", tag_ids: ["tag"], entity_ids: ["protected-material"] };
   const draft = recordDraftFrom(saved);
-  expect(draft.tag_ids).toEqual(["tag"]);
+  expect(draft).not.toHaveProperty("tag_ids");
   expect(draft).not.toHaveProperty("entity_ids");
   expect(draft).not.toHaveProperty("entity_context");
   expect(draft).not.toHaveProperty("task_id");

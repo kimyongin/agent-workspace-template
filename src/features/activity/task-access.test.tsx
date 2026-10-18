@@ -32,7 +32,7 @@ it("task READ keeps associations viewable without mutation actions", () => {
   expect(html).not.toContain('aria-label="할 일 연결"');
 });
 it("task WRITE admits creation and linking", () => {
-  const html = render([{ target_kind: "tasks", target_id: "*", access: "write" }]);
+  const html = render([{ target_kind: "tasks", target_id: "*", access: "write" }, { target_kind: "entity_type", target_id: "type", access: "read" }]);
   expect(html).toContain('aria-label="할 일 작성"');
   expect(html).toContain('aria-label="할 일 연결"');
 });
