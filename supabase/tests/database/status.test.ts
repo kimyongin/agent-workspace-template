@@ -190,9 +190,8 @@ dbTest(
           kind: "recurring",
           title: "repeat",
           recurrence: {
-            frequency: "daily",
-            interval: 1,
-            start_on: "2026-10-11",
+            freq: "daily",
+            starts_on: "2026-10-11",
           },
           timezone: "Asia/Seoul",
         }),

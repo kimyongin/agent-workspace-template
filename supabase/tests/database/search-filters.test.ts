@@ -27,6 +27,9 @@ dbTest(
       const kind = await f.createKind("검색 조건 자료");
       await f.grantKind(actor, kind.id, "write");
       const entityDeps = { uow: new SqlEntityUnitOfWork(sql) };
+      const tagDeps = { uow: new SqlTagUnitOfWork(sql) };
+      const tag =
+        (await tags.createTag(tagDeps, businessRequest(actor), { scope: "record", name: "조건 검증 원본" })).id;
       const entity = await entities.createEntity(
         entityDeps,
         businessRequest(actor),
@@ -75,6 +78,7 @@ dbTest(
           schema_version: 1,
           properties: { prop_1: "수정" },
           change_note: token,
+          change_tag_ids: [tag],
         }),
       );
       const changes = await activity.listRecords(
@@ -84,17 +88,12 @@ dbTest(
       );
       const change = changes.items.find((item) => item.body === token)!;
       assert(change);
-      const tagDeps = { uow: new SqlTagUnitOfWork(sql) };
-      const tag =
-        (await tags.createTag(tagDeps, businessRequest(actor), { scope: "record", name: "조건 검증 원본" })).id;
-      for (const record of [completed.record, change]) {
-        await tags.setTagConnections(tagDeps, businessRequest(actor), {
-          target_kind: "record",
-          target_id: record.id,
-          expected_version: record.version,
-          tag_ids: [tag],
-        });
-      }
+      await tags.setTagConnections(tagDeps, businessRequest(actor), {
+        target_kind: "record",
+        target_id: completed.record.id,
+        expected_version: completed.record.version,
+        tag_ids: [tag],
+      });
       assertEquals(completed.record.entity_id, null);
       assertEquals(change.task_id, null);
       const q = (extra: { kinds?: readonly string[]; [key: string]: unknown }) =>

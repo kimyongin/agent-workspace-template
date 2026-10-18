@@ -7,7 +7,7 @@ import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { searchInputHash } from "../../functions/_shared/core/shared/operations.ts";
-import { connect, dbTest, outcome, urls } from "./_db.ts";
+import { asUser, connect, dbTest, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { max: 3, prepare: false });
 const fixture = await businessWorkspaceFixture(admin, sql);
 await fixture.grant(fixture.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
@@ -62,13 +62,9 @@ dbTest(
     );
     assertMatch(
       await outcome(
-        runInWorkspace(
+        asUser(
           sql,
-          A,
-          {
-            mode: "business",
-            requirements: [{ target_kind: "tasks", target_id: "*", access: "write" }],
-          },
+          A.userId,
           (tx) =>
             tx`update app.search_index_state set state='indexed' where workspace_id=${A.workspaceId} and kind='record' and id=${item.id}`,
         ),
