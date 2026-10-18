@@ -132,9 +132,17 @@ dbTest("Entity DB: cross-workspace 참조 거부·삭제 링크 보존·원문/�
   const current = await activity.getRecord(a, A, completed.record.id);
   assertEquals([current.body, current.entity_id, current.task_id, current.version], ["완료 결과", null, task.id, 1]);
   assertEquals(
-    (await admin`select count(*)::integer as n from app.search_index_state where workspace_id=${A.workspaceId} and id::text=${e.id}`)[
-      0
-    ].n,
+    [...await admin`select state,reason,message_id from app.search_index_state where workspace_id=${A.workspaceId} and kind='entity' and id=${e.id}`],
+    [{ state: "excluded", reason: "invalid_input", message_id: null }],
+  );
+  assertEquals(
+    (await admin`select id from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='entity' and source_id=${e.id}`)
+      .length,
+    0,
+  );
+  assertEquals(
+    (await admin`select msg_id from pgmq.q_search_index where message->>'workspace_id'=${A.workspaceId} and message->>'kind'='entity' and message->>'id'=${e.id}`)
+      .length,
     0,
   );
   await activity.deleteTask(a, businessRequest(A), task.id, completed.task.version);

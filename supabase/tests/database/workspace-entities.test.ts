@@ -20,6 +20,15 @@ const typeDeps = { uow: new SqlEntityTypeUnitOfWork(sql) };
 const deps = { uow: new SqlEntityUnitOfWork(sql) };
 const key = (actor: Actor): Actor => ({ ...actor, request: { key: crypto.randomUUID() } });
 
+async function searchSnapshot(workspaceId: string) {
+  return {
+    state: await admin`select * from app.search_index_state where workspace_id=${workspaceId} order by kind,id`,
+    chunks:
+      await admin`select to_jsonb(c) as row from app.search_chunks c where workspace_id=${workspaceId} order by to_jsonb(c)::text`,
+    queue: await admin`select * from pgmq.q_search_index where message->>'workspace_id'=${workspaceId} order by msg_id`,
+  };
+}
+
 dbTest("workspace entities public create shares values with kind writer and atomically owns its change", async () => {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   const owned: string[] = [], seeded: string[] = [];
@@ -175,6 +184,10 @@ dbTest("workspace record producer hides existing and missing sources after kind 
       expected_version: 1,
       grants: [],
     });
+    const searchBefore = await searchSnapshot(workspaceId);
+    assertEquals(searchBefore.state.length, 1, "the seeded entity already owns current search state");
+    assertEquals(searchBefore.chunks.length, 0);
+    assertEquals(searchBefore.queue.length, 0);
     for (const id of [recordId, "19990101-000000000000"]) {
       await runInWorkspace(sql, reader, { mode: "business", requirements: [] }, async (tx) => {
         const denied = await assertRejects(() =>
@@ -185,16 +198,7 @@ dbTest("workspace record producer hides existing and missing sources after kind 
         assertEquals([(denied as { code?: string }).code, (denied as Error).message], ["42501", "workspace_denied"]);
       });
     }
-    assertEquals(
-      Number((await admin`select count(*) n from app.search_index_state where workspace_id=${workspaceId}`)[0].n),
-      0,
-    );
-    assertEquals(
-      Number(
-        (await admin`select count(*) n from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`)[0].n,
-      ),
-      0,
-    );
+    assertEquals(await searchSnapshot(workspaceId), searchBefore);
   } finally {
     if (workspaceId) {
       await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`;

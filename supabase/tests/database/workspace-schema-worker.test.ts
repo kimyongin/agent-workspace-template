@@ -23,6 +23,15 @@ const workspaceDeps = { uow: new SqlWorkspaceUnitOfWork(sql) };
 const typeDeps = { uow: new SqlEntityTypeUnitOfWork(sql) };
 const key = (actor: Actor): Actor => ({ ...actor, request: { key: crypto.randomUUID() } });
 
+async function searchSnapshot(workspaceId: string) {
+  return {
+    state: await admin`select * from app.search_index_state where workspace_id=${workspaceId} order by kind,id`,
+    chunks:
+      await admin`select to_jsonb(c) as row from app.search_chunks c where workspace_id=${workspaceId} order by to_jsonb(c)::text`,
+    queue: await admin`select * from pgmq.q_search_index where message->>'workspace_id'=${workspaceId} order by msg_id`,
+  };
+}
+
 dbTest("shared schema analysis captures the actual initiator and immutable workspace generation", async () => {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
@@ -385,6 +394,13 @@ async function twoKindPublicationFixture(injectLateFailure: boolean, expireGroup
               })
             })`;
           });
+          const searchBefore = await searchSnapshot(workspaceId);
+          assertEquals(
+            new Set(searchBefore.state.map((row) => `${row.kind}:${row.id}`)),
+            new Set(entities.map((id) => `entity:${id}`)),
+          );
+          assertEquals(searchBefore.chunks.length, 0);
+          assertEquals(searchBefore.queue.length, 0);
           await admin.begin(async (tx) => {
             await tx`select private.validate_data_model_group(${executor.workspaceId},${batch.id},${batch.fence})`;
             const error = await assertRejects(() =>
@@ -439,21 +455,7 @@ async function twoKindPublicationFixture(injectLateFailure: boolean, expireGroup
             ),
             0,
           );
-          assertEquals(
-            Number(
-              (await admin`select count(*) count from app.search_index_state where workspace_id=${workspaceId}`)[0]
-                .count,
-            ),
-            0,
-          );
-          assertEquals(
-            Number(
-              (await admin`select count(*) count from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`)[
-                0
-              ].count,
-            ),
-            0,
-          );
+          assertEquals(await searchSnapshot(workspaceId), searchBefore);
           assertEquals(
             Number(
               (await admin`select count(*) count from private.data_model_commit_context where workspace_id=${workspaceId}`)[
