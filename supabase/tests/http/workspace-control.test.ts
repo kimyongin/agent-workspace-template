@@ -37,11 +37,52 @@ httpTest(
       assertEquals((await call(a, "GET", "/tasks")).status, 400);
       const absent = await tool(client, "list_tasks", {});
       assertEquals(absent.error.code, "invalid_input");
-      // Actual issued token remains valid, but current workspace state blocks both transports and saved creation body.
-      await admin`update app.workspaces set deleted_at=clock_timestamp() where id=${workspace.id}`;
+      const lifecycle = await call(a, "GET", `/workspaces/${workspace.id}/lifecycle`);
+      assertEquals(lifecycle.body.workspace.lifecycle_generation, 1);
+      const deleteKey = crypto.randomUUID(), deleteInput = { expected_generation: 1 };
+      const deletion = await call(a, "DELETE", `/workspaces/${workspace.id}`, deleteInput, deleteKey);
+      assertEquals(deletion.status, 200);
+      assertEquals(deletion.body.workspace.lifecycle_generation, 2);
+      assertEquals(
+        (await tool(client, "delete_workspace", { workspace_id: workspace.id, ...deleteInput, request_key: deleteKey }))
+          .workspace,
+        deletion.body.workspace,
+      );
+      assertEquals(
+        (await call(a, "DELETE", `/workspaces/${workspace.id}`, deleteInput, deleteKey)).headers.get(
+          "Idempotency-Replayed",
+        ),
+        "true",
+      );
+      assertEquals(
+        (await call(b, "POST", `/workspaces/${workspace.id}/restore`, { expected_generation: 2 })).status,
+        403,
+      );
+      const deletedList = await call(a, "GET", "/workspaces/deleted");
+      assert(deletedList.body.items.some((item: { id: string }) => item.id === workspace.id));
+      assert(
+        !(await call(b, "GET", "/workspaces/deleted")).body.items.some((item: { id: string }) =>
+          item.id === workspace.id
+        ),
+      );
+      assertEquals((await tool(client, "list_deleted_workspaces", {})).items, deletedList.body.items);
+      // Both transports refuse ordinary access while the current manager can recover the exact lifecycle request.
       assertEquals((await call(a, "GET", `/workspaces/${workspace.id}`)).status, 403);
       assertEquals((await call(a, "POST", "/workspaces", input, requestKey)).status, 403);
       assertEquals((await tool(client, "get_workspace", { workspace_id: workspace.id })).error.code, "forbidden");
+      const restoreKey = crypto.randomUUID();
+      const restored = await tool(client, "restore_workspace", {
+        workspace_id: workspace.id,
+        expected_generation: 2,
+        request_key: restoreKey,
+      });
+      assertEquals(restored.workspace.lifecycle_generation, 3);
+      assertEquals(
+        (await call(a, "POST", `/workspaces/${workspace.id}/restore`, { expected_generation: 2 }, restoreKey)).body
+          .workspace,
+        restored.workspace,
+      );
+      assertEquals((await call(a, "GET", `/workspaces/${workspace.id}`)).body.can_manage, true);
     } finally {
       await client.close();
       const secret = Deno.env.get("LOCAL_SUPABASE_SECRET_KEY");
