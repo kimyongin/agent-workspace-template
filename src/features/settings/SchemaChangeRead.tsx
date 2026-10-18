@@ -84,18 +84,30 @@ export function SchemaChangeRead(
             </div>
           </dl>
           {change.analysis.failure_reason && <p className="text-sm text-destructive">{change.analysis.failure_reason}</p>}
-          {change.analysis.errors.map((result) => (
-            <div key={result.entity_id}>
-              <strong>{schemaEntityLabel(result.entity_id)}</strong>
-              <ul>
-                {result.fields.map((field, i) => (
-                  <li key={i}>{schemaDiffLabel(field.path, change.target, definition)}: {field.message}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <SchemaAnalysisErrors change={change} definition={definition} />
         </CollapsibleContent></Collapsible>
       )}
     </section>
   );
+}
+
+
+/** Both current review and historical jobs show the same complete per-material problems. */
+export function SchemaAnalysisErrors({ change, definition }: {
+  change: EntitySchemaChange;
+  definition: EntitySchemaVersion;
+}) {
+  if (!change.analysis?.errors.length) return null;
+  return <BusinessTable label="자료별 검토 문제" columns={["자료", "검토 문제"]} disclosureColumn={false}>
+    {change.analysis.errors.map(result => <BusinessRow key={result.entity_id}>
+      <BusinessCell index={0}>{schemaEntityLabel(result.entity_id)}</BusinessCell>
+      <BusinessCell index={1}>
+        <ul role="list" className="min-w-0 space-y-2 wrap-anywhere">
+          {result.fields.map((field, index) => <li key={index}>
+            {schemaDiffLabel(field.path, change.target, definition)}: {field.message}
+          </li>)}
+        </ul>
+      </BusinessCell>
+    </BusinessRow>)}
+  </BusinessTable>;
 }

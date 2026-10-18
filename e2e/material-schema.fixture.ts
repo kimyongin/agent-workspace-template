@@ -1659,3 +1659,50 @@ test("복구 충돌 대상 표는 기존 자료 링크·21개 제한·좁은 화
   expect(await conflicts.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
+
+
+for (const mode of ["editor", "history"] as const) {
+  test(`자료별 검토 오류 표 ${mode}: 긴 자료 번호·모든 사유·좁은 배율을 보존한다`, async ({ page }, info) => {
+    const number = "긴자료번호-".repeat(30);
+    const first = `crm:${id(9)}:${number}`;
+    const current = { ...linkedChange(), status: "invalid", analysis: {
+      id: id(501), status: "succeeded", total: 2, processed: 2, failed: 2,
+      change_version: 1, snapshot_fingerprint: "fixture", definition_fingerprint: "fixture",
+      changed: 0, unchanged: 0, removed: 0, replacements: 0,
+      retryable: false, failure_reason: null, created_at: "2026-10-13T00:00:00Z",
+      errors: [
+        { entity_id: first, fields: [{ path: "properties.prop_1.required", message: "필수 값을 입력하세요" }, { path: "properties.prop_1.maxLength", message: "허용 길이를 초과했습니다" }] },
+        { entity_id: "이전형식-자료번호", fields: [{ path: "properties.prop_1.type", message: "문자열 값이 필요합니다" }] },
+      ],
+    } };
+    const writes: string[] = [];
+    await page.route(`**/api/entity-types/${materials.id}/schema-changes**`, route => {
+      if (route.request().method() !== "GET") writes.push(route.request().method());
+      if (new URL(route.request().url()).pathname.endsWith("/rows")) return route.fulfill({ json: { analysis_id: id(501), items: [], next_after: null } });
+      return route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema-changes") ? { items: [current], next_before: null } : current });
+    });
+    await page.route("**/api/entity-schema-migrations**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith(id(20)) ? job(20) : { items: [job(20)], next_before: null } }));
+    await page.goto(`/settings/entity-types/${materials.id}?${mode === "editor" ? `change_id=${id(500)}` : `job_id=${id(20)}`}`);
+    await revealSetting(page, "입력 항목");
+    const owner = mode === "editor" ? page : page.getByRole("region", { name: "변환 작업의 변경 내용", exact: true });
+    await owner.getByRole("button", { name: mode === "editor" ? "자료별 결과" : "검토 결과", exact: true }).click();
+    const table = owner.getByRole("table", { name: "자료별 검토 문제", exact: true });
+    await expect(table).toBeVisible();
+    const rows = businessRows(table);
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0).getByRole("cell").nth(0)).toHaveText(`crm · ${number}`);
+    await expect(rows.nth(1).getByRole("cell").nth(0)).toHaveText("이전형식-자료번호");
+    await expect(rows.nth(0).getByRole("listitem")).toHaveText(["이름 · 필수 입력: 필수 값을 입력하세요", "이름 · 최대 길이: 허용 길이를 초과했습니다"]);
+    await expect(rows.nth(1).getByRole("listitem")).toHaveText(["이름 · 타입: 문자열 값이 필요합니다"]);
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+      const bounds = await table.evaluate(node => ({ width: node.clientWidth, scroll: node.scrollWidth }));
+      expect(bounds.scroll, JSON.stringify(bounds)).toBeLessThanOrEqual(bounds.width + 1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await expect(rows).toHaveCount(2);
+    }
+    await page.screenshot({ path: info.outputPath(`review-errors-${mode}.png`), fullPage: true });
+    expect(writes).toEqual([]);
+  });
+}

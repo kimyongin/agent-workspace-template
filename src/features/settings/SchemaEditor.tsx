@@ -17,7 +17,7 @@ import { schemaPresentation } from "../../lib/schema-document.ts";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
-import { fieldTypeLabel, schemaChangeLabels, schemaDiffLabel, schemaDiffValueLabel } from "./schema-labels.ts";
+import { fieldTypeLabel, schemaChangeLabels, schemaDiffValueLabel } from "./schema-labels.ts";
 import { SchemaRepresentativeSetting } from "./SchemaRepresentativeSetting.tsx";
 import {
   migrationActive,
@@ -42,7 +42,7 @@ import { fieldInputPolicy } from "./field-input-policy.ts";
 import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { SchemaVersionRead } from "./SchemaVersionRead.tsx";
-import { SchemaChangeDiff, SchemaChangeRead } from "./SchemaChangeRead.tsx";
+import { SchemaAnalysisErrors, SchemaChangeDiff, SchemaChangeRead } from "./SchemaChangeRead.tsx";
 import { schemaHistoryRows } from "./schema-history.ts";
 import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
@@ -1124,22 +1124,7 @@ export function SchemaEditor(
                                 변경 {plan.analysis.changed}개 · 무변경 {plan.analysis.unchanged}개 · 값 제거{" "}
                                 {plan.analysis.removed}개 · 값 보완 {plan.analysis.replacements}개
                               </p>
-                              {plan.analysis.errors.map((result) => (
-                                <div key={result.entity_id}>
-                                  <strong>{result.entity_id}</strong>
-                                  <ul>
-                                    {result.fields.map((field, index) => (
-                                      <li key={index}>
-                                        {schemaDiffLabel(
-                                          field.path,
-                                          plan.target,
-                                          definition,
-                                        )}: {field.message}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              ))}
+                              <SchemaAnalysisErrors change={plan} definition={definition} />
                             </CollapsibleContent></Collapsible>
                           )}
                           {actions.conversionVisible
