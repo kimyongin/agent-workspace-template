@@ -74,8 +74,8 @@ httpTest(
       assertEquals(replay.headers.get("Idempotency-Replayed"), "true");
       const history = await scoped(b, owned.id, "GET", `/records?task_id=${task.body.id}`);
       assertEquals(history.status, 200);
-      const event = history.body.items.find((item: { change_metadata?: { action: string } }) =>
-        item.change_metadata?.action === "delete"
+      const event = history.body.items.find((item: { change?: { action: string } }) =>
+        item.change?.action === "delete"
       );
       assert(event);
       assertEquals(event.body, input.change_note);
