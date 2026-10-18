@@ -47,7 +47,15 @@ for (const kind of ["entity", "task"] as const) {
         await expect(form(page).getByRole("heading", { name: /^변경 대상/ })).toHaveCount(0);
         await expect(changed.getByRole("button", { name: "다른 연결 엔터티", exact: true })).toHaveCount(0);
         await changed.getByRole("button", { name: "당시 대상", exact: true }).click();
-        if (deleted) {
+        if (deleted && kind === "task") {
+          await expect(changed.getByText("삭제됨", { exact: true })).toBeVisible();
+          await expect(changed.locator("dt", { hasText: /^현재 제목$/ }).locator("../dd")).toHaveText(state.rows.tasks[0].title);
+          await expect(changed).toContainText(state.rows.tasks[0].body);
+          await expect(changed.locator("dt", { hasText: /^상태$/ }).locator("../dd")).toHaveText("진행 중");
+          const original = changed.getByRole("link", { name: "당시 대상 상세", exact: true });
+          await expect(original).toHaveAttribute("href", `/tasks/${targetId}`);
+          await expect(changed.getByRole("link")).toHaveCount(1);
+        } else if (deleted) {
           await expect(changed).toContainText("삭제된 항목입니다.");
           await expect(changed.getByRole("link", { name: "당시 대상 상세", exact: true })).toHaveCount(0);
         } else {await expect(changed.getByRole("button", { name: "당시 대상", exact: true })).toHaveAttribute(
