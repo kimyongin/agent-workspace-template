@@ -418,6 +418,7 @@ dbTest(
       assertEquals(tools.some((t) => t.name === "allocate_data_id"), false);
       const removed = await app.request("/api/ids/allocate", {
         method: "POST",
+        headers: { "X-Workspace-Id": f.workspaceId },
       });
       assertEquals(removed.status, 404);
       await removed.body?.cancel();
