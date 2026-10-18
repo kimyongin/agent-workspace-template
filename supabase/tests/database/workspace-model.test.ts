@@ -214,6 +214,28 @@ dbTest(
         (await assertRejects(() => listDataModelChanges(modelDeps, reader, { limit: 100 }), AppError)).code,
         "forbidden",
       );
+      for (const [actor, version] of [[a, 1], [b, 4]] as const) {
+        await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], actor.userId, {
+          expected_version: version,
+          grants: [
+            { target_kind: "settings", target_id: "*", access: "write" },
+            { target_kind: "entity_type", target_id: left.id, access: "write" },
+          ],
+        });
+      }
+      const externalId = crypto.randomUUID(), entityId = `app:${left.id}:${externalId}`;
+      await runInWorkspace(sql, first, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "write" }],
+      }, async (tx) => {
+        await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
+          values(${owned[0]}::uuid,${entityId},'app',${externalId},${left.id}::uuid,1,${
+          tx.json({ prop_1: "공유 값" })
+        })`;
+      });
+      const sharedValuesReview = await previewDataModel(modelDeps, reader, dataInput);
+      assertEquals(sharedValuesReview.items.find((item) => item.ref === `type_${left.id}`)?.kind, "migration_required");
+      assertEquals((await exportDataModel(modelDeps, second)).entity_types.length, 1);
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
