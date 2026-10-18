@@ -1382,7 +1382,10 @@ Deno.test({
                   .request_key,
               }
               : properties;
-            const props = { ...keyedProps, workspace_id: json(workspaceId) };
+            const props = {
+              ...keyedProps,
+              workspace_id: json(z.strictObject({ workspace_id: workspaceId })).properties.workspace_id,
+            };
             assert(
               byName[name].required.includes("workspace_id"),
               `${name} requires explicit workspace`,
