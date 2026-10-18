@@ -222,8 +222,11 @@ begin
  if not found then return false;end if;
  perform set_config('request.workspace_id',p_workspace::text,true);
  perform set_config('request.workspace_lock_mode','business',true);
- -- Actors can be replaced by an explicit failed-attempt retry while this call
- -- waits for an account lock. Re-read after W; never acquire a new account after W.
+ -- Serialize activation/retry before checking the locked executor set. Callers
+ -- may repeat these transaction-local domain locks reentrantly.
+ perform private.lock_data_model_owner(p_workspace);
+ -- Actors can be replaced while waiting for account or domain locks.
+ -- Re-read after both; never acquire a new account after W.
  select array_agg(distinct executor order by executor) into current_executors from (
   select j.initiated_by executor from app.data_model_children c join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
    where c.workspace_id=p_workspace and c.model_id=p_id
