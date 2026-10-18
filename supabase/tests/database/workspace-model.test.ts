@@ -1,4 +1,10 @@
-import { exportDataModel, previewDataModel } from "../../functions/_shared/core/data-model/application.ts";
+import {
+  exportDataModel,
+  getDataModelChange,
+  listDataModelChanges,
+  prepareDataModel,
+  previewDataModel,
+} from "../../functions/_shared/core/data-model/application.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import * as issuers from "../../functions/_shared/core/entity-issuers/application.ts";
 import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
@@ -73,6 +79,42 @@ dbTest(
       assertEquals(error.code, "forbidden");
       const wrong = await assertRejects(() => types.getEntityType(typeDeps, second, left.id), AppError);
       assertEquals(wrong.code, "not_found");
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
+        expected_version: 1,
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      });
+      const reviewInput = { mode: "copy", document: JSON.stringify(exported) };
+      const [managerA, managerB] = await Promise.all([
+        previewDataModel(modelDeps, first, reviewInput),
+        previewDataModel(modelDeps, reader, reviewInput),
+      ]);
+      assertEquals(managerA.mapping, managerB.mapping);
+      assertEquals(managerA.fingerprint, managerB.fingerprint);
+      const prepared = await prepareDataModel(modelDeps, key(first), {
+        ...reviewInput,
+        preview_fingerprint: managerA.fingerprint,
+      });
+      assertEquals(prepared.status, "ready");
+      assertEquals((await getDataModelChange(modelDeps, reader, prepared.id)).id, prepared.id);
+      const secondPrepared = await prepareDataModel(modelDeps, key(first), {
+        ...reviewInput,
+        preview_fingerprint: managerA.fingerprint,
+      });
+      const secondReview = await previewDataModel(modelDeps, second, reviewInput);
+      await prepareDataModel(modelDeps, key(second), { ...reviewInput, preview_fingerprint: secondReview.fingerprint });
+      const page = await listDataModelChanges(modelDeps, first, { limit: 1 });
+      assertEquals(page.items.length, 1);
+      assertEquals(typeof page.next_cursor, "string");
+      const rest = await listDataModelChanges(modelDeps, first, { limit: 1, cursor: page.next_cursor! });
+      assertEquals(new Set([...page.items, ...rest.items].map((v) => v.id)), new Set([prepared.id, secondPrepared.id]));
+      const crossed = await assertRejects(
+        () => listDataModelChanges(modelDeps, second, { limit: 1, cursor: page.next_cursor! }),
+        AppError,
+      );
+      assertEquals(crossed.code, "invalid_input");
+      const wrongPlan = await assertRejects(() => getDataModelChange(modelDeps, second, prepared.id), AppError);
+      assertEquals(wrongPlan.code, "not_found");
+      assertEquals((await types.listEntityTypes(typeDeps, first)).items.map((v) => v.id), [left.id]);
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
@@ -138,3 +180,58 @@ dbTest(
     }
   },
 );
+
+dbTest("business memo preparation uses only its permitted workspace target without settings read", async () => {
+  const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
+  for (const actor of [a, b]) {
+    const email = `memo513-${actor.userId}@example.test`;
+    await admin`insert into auth.users(id,email) values(${actor.userId},${email})`;
+    await admin`insert into auth.identities(id,user_id,provider,provider_id,identity_data) values(${crypto.randomUUID()},${actor.userId},'google',${actor.userId},${
+      admin.json({ sub: actor.userId, email, email_verified: true })
+    })`;
+  }
+  const owned: string[] = [];
+  const deps = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
+  try {
+    for (const memo of ["첫 공간 준비", "다른 공간 준비"]) {
+      const id = (await workspaces.createWorkspace(workspaceDeps, key(a), { name: memo })).workspace.id;
+      owned.push(id);
+      await settings.updateBusinessSettings(deps, key({ ...a, workspaceId: id }), {
+        id: "record_templates",
+        expected_version: 0,
+        value: {
+          task: { create: { memo, tag_ids: [] }, update: { memo: "공개하지 않을 다른 동작 설정", tag_ids: [] } },
+        },
+      });
+      const invitation = await workspaces.inviteWorkspaceMember(workspaceDeps, key(a), id, {
+        email: `memo513-${b.userId}@example.test`,
+        grants: [{ target_kind: "tasks", target_id: "*", access: "write" }],
+      });
+      await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(b), invitation.invitation.id);
+    }
+    const prepare = (id: string) =>
+      settings.prepareBusinessRecord(deps, { ...b, workspaceId: id }, {
+        model: "task",
+        action: "create",
+        input: { kind: "once", title: "업무" },
+      });
+    for (const id of owned) {
+      const error = await assertRejects(() => settings.getBusinessSettings(deps, { ...b, workspaceId: id }), AppError);
+      assertEquals(error.code, "forbidden");
+    }
+    const first = await prepare(owned[0]), second = await prepare(owned[1]);
+    assertEquals(first.change_note, "첫 공간 준비");
+    assertEquals(second.change_note, "다른 공간 준비");
+    assertEquals(Object.hasOwn(first, "settings"), false);
+    assertEquals(JSON.stringify(first).includes("공개하지 않을 다른 동작 설정"), false);
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
+      expected_version: 1,
+      grants: [],
+    });
+    const error = await assertRejects(() => prepare(owned[0]), AppError);
+    assertEquals(error.code, "forbidden");
+  } finally {
+    for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
+    for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
+  }
+});

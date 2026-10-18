@@ -17,7 +17,11 @@ import type { WorkspaceEntry } from "../workspaces/application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { conflict, notFound } from "../shared/errors.ts";
-import { type PreparedRecordMemo, prepareRecordMemo } from "../../contracts/record-preparation.ts";
+import {
+  type PreparedRecordMemo,
+  type PrepareRecordMemo,
+  prepareRecordMemo,
+} from "../../contracts/record-preparation.ts";
 import {
   effectiveRecordTemplate,
   modelActions,
@@ -36,6 +40,9 @@ export interface BusinessSettingsStore extends RequestStore {
   getTypeIdentity?(typeId: string, lock?: boolean): Promise<EntityTypeIdentity | null>;
   definition?: EntityDefinitions["definition"];
   get(): Promise<BusinessSettingsResult>;
+  getForTarget?(
+    input: Pick<PrepareRecordMemo, "model" | "action" | "target_id"> & { entity_type_id?: string },
+  ): Promise<BusinessSettingsResult>;
   update(input: BusinessSettingsUpdate): Promise<BusinessSettingsResult>;
   recordTags(ids: string[]): Promise<string[]>;
   target?(
@@ -61,7 +68,13 @@ export function prepareBusinessRecord(
     throw invalidInput("입력 크기가 너무 큽니다");
   }
   return d.uow.run(actor, async (store) => {
-    const saved = await store.get();
+    if (!store.getForTarget) throw invalidInput("업무 기본 문구 준비 저장소가 필요합니다");
+    const saved = await store.getForTarget({
+      model: input.model,
+      action: input.action,
+      target_id: input.target_id,
+      entity_type_id: typeof input.input.entity_type_id === "string" ? input.input.entity_type_id : undefined,
+    });
     let before: ChangeFacts | null = null;
     if (input.action !== "create") {
       if (!input.target_id || !input.expected_version) throw invalidInput("대상과 expected_version이 필요합니다");
@@ -257,7 +270,7 @@ export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor, input
     const settings = resolvedBusinessSettings(saved.settings);
     if (id) return { settings: { [id]: settings[id] }, versions: { [id]: saved.versions[id] } };
     return { ...saved, settings };
-  });
+  }, { mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "read" }] });
 }
 export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, input: unknown) {
   const parsed = businessSettingsUpdate.safeParse(input);

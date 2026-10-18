@@ -1,7 +1,11 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { previewDataModel } from "./application.ts";
 import type { DataModelDeps } from "./application.ts";
-const actor = { userId: "10000000-0000-4000-8000-000000000001", source: "http" as const };
+const actor = {
+  userId: "10000000-0000-4000-8000-000000000001",
+  workspaceId: "20000000-0000-4000-8000-000000000001",
+  source: "http" as const,
+};
 const empty = {
   format: "workspace-data-model",
   format_version: 1,
@@ -195,7 +199,7 @@ Deno.test("whole model review rejects changing a used relationship endpoint kind
   assertEquals(plan.review.can_apply, false);
 });
 
-Deno.test("identical empty-owner previews bind copy IDs and review fingerprints to their owner namespace", async () => {
+Deno.test("identical empty-workspace previews bind copy IDs and review fingerprints to their workspace namespace", async () => {
   const snapshot = { document: empty as DataModelDocument, types: {} };
   const a = await resolveModel(snapshot, example(), "copy", actor.userId);
   const b = await resolveModel(snapshot, example(), "copy", "10000000-0000-4000-8000-000000000002");

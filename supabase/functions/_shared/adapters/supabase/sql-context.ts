@@ -34,7 +34,12 @@ export class SqlActorStore {
   async appendChange(input: ChangeInput) {
     const target = input.target, target_title = target.title;
     const settingsStore = new SqlBusinessSettingsStore(this.tx, this.actor);
-    const settings = (await settingsStore.get()).settings;
+    const settings = input.target_kind === "record" ? { record_templates: {} } : (await settingsStore.getForTarget({
+      model: input.target_kind,
+      action: input.action,
+      target_id: input.target.id,
+      entity_type_id: (input.after ?? input.before)?.entity_type_id,
+    })).settings;
     const ids = effectiveRecordTemplate(
       settings.record_templates,
       input.target_kind as "entity" | "task",
@@ -95,6 +100,9 @@ export function translate(e: unknown): unknown {
     return new AppError("unauthenticated", "계정을 확인할 수 없습니다");
   }
   const message = (e as { message?: string }).message;
+  if (code === "P0001" && message === "workspace_lifecycle_conflict") {
+    return new AppError("conflict", "공간 상태가 변경되었습니다. 최신 상태를 다시 조회하세요");
+  }
   if (code === "42501" && message === "workspace_denied") {
     return new AppError("forbidden", "워크스페이스에 접근할 수 없습니다");
   }

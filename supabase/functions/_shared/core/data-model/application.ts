@@ -9,7 +9,7 @@ import {
   type ModelGroupAnalyze,
   type ModelReview,
 } from "../../contracts/data-model.ts";
-import type { WorkspaceEntry } from "../workspaces/application.ts";
+import { workspaceActor, type WorkspaceEntry } from "../workspaces/application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { type RequestStore, runWrite } from "../shared/request.ts";
 import { AppError, invalidInput, notFound } from "../shared/errors.ts";
@@ -398,12 +398,21 @@ export function exportDataModel(d: DataModelDeps, a: Actor) {
 }
 export function previewDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelInput, raw), document = parseModel(i.document);
-  return d.uow.run(a, async (s) => (await resolveModel(await s.snapshot(), document, i.mode, a.userId)).review, true);
+  return d.uow.run(
+    a,
+    async (s) =>
+      (await resolveModel(await s.snapshot(), document, i.mode, workspaceActor(a, a.workspaceId).workspaceId)).review,
+    true,
+    {
+      mode: "business",
+      requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+    },
+  );
 }
 export function prepareDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelPrepare, raw), document = parseModel(i.document);
   return runWrite(d.uow, a, "data-model.prepare", null, i, async (s) => {
-    const plan = await resolveModel(await s.snapshot(), document, i.mode, a.userId);
+    const plan = await resolveModel(await s.snapshot(), document, i.mode, workspaceActor(a, a.workspaceId).workspaceId);
     if (plan.review.fingerprint !== i.preview_fingerprint) {
       throw new AppError("schema_plan_stale", "모델이 변경되었습니다. 입력을 유지하고 다시 검토하세요");
     }

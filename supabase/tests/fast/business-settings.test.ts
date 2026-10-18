@@ -35,6 +35,9 @@ Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유�
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () => Promise.resolve(value),
           update: ({ id, expected_version, value: section }) => {
             if (value.versions[id] !== expected_version) throw new AppError("conflict", "다른 설정이 저장되었습니다");
@@ -79,6 +82,9 @@ Deno.test("기록 준비: 생성 할 일의 실제 기본 상태·빈 본문·�
       run: (_a, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },
@@ -108,6 +114,9 @@ Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
           target: () => Promise.resolve(null),
           getTypeIdentity: () => Promise.resolve(identityFixture(entity_type_id)),
@@ -151,6 +160,9 @@ Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리�
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
           update: () => Promise.reject(new Error("읽기만")),
           recordTags: () => Promise.resolve([]),
@@ -182,6 +194,9 @@ Deno.test("기록 준비: 해석 후 메모가 본문 제한을 넘으면 쓰기
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },
@@ -210,6 +225,9 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },
@@ -280,6 +298,9 @@ Deno.test("기록 준비: 반복 중단·재개의 기간은 실제 상태 전�
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },
