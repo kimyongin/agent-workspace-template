@@ -34,7 +34,9 @@ for (const kind of ["entity", "task"] as const) {
         if (deleted) {
           await page.route(
             `**/api/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(targetId)}`,
-            (route) => route.fulfill({ status: 404, json: { code: "not_found", message: "항목을 찾을 수 없습니다" } }),
+            (route) => route.fulfill({ json: {
+              ...(kind === "entity" ? state.rows.entities[0] : state.rows.tasks[0]), deleted_at: stamp,
+            } }),
           );
         }
         await page.setViewportSize({ width: 390, height: 844 });
