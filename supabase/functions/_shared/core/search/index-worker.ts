@@ -38,7 +38,7 @@ export interface IndexClaim {
 }
 export interface IndexScope {
   limit: number;
-  owner_id?: string;
+  workspace_id?: string;
   kind?: string;
   id?: string;
 }
