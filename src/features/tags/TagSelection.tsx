@@ -147,8 +147,19 @@ function TagPickerDialog(
   const heading = useRef<HTMLHeadingElement>(null),
     footer = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
+  const [revealed, setRevealed] = useState(visible);
   useLayoutEffect(() => {
-    if (!open || !visible || !element) return;
+    if (!visible) {
+      setRevealed(false);
+      return;
+    }
+    // Restore the nested portal after its parent dialog has reattached and isolated its siblings.
+    const frame = requestAnimationFrame(() => setRevealed(true));
+    return () => cancelAnimationFrame(frame);
+  }, [visible]);
+  const shown = visible && revealed;
+  useLayoutEffect(() => {
+    if (!open || !shown || !element) return;
     setSearch("");
     return registerSurface(
       element,
@@ -163,13 +174,13 @@ function TagPickerDialog(
         ready: true,
       }),
     );
-  }, [open, visible, label, element]);
+  }, [open, shown, label, element]);
   const choices = (tags ?? []).filter((tag) =>
     tag.id !== excludeId && tag.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
   );
   return (
     <Dialog
-      open={open && visible}
+      open={open && shown}
       onOpenChange={(next) => {
         if (next && disabled) return;
         if (next) setSearch("");
