@@ -214,7 +214,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   await expect(page).toHaveURL(/\/tasks\?create=1$/);
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   release();
-  await expect.poll(() => new URL(page.url()).pathname === `/tasks/${current.id}`).toBe(true);
+  await expect.poll(() => new URL(page.url()).pathname).toBe(fixtureWorkspacePath(`/tasks/${current.id}`));
   await expect(form).not.toBeVisible();
   await closeDetail(page,"생성 결과");
   await openListEditor(page,"생성 결과");
