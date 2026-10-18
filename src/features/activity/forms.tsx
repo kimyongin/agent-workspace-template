@@ -59,6 +59,8 @@ export function recordDraftTime(draft: RecordDraft, timezone = browserTimezone()
 
 export function RecordFormModal(props: {
   title: string;
+  visible?: boolean;
+  readonly?: boolean;
   submitLabel: string;
   open: boolean;
   initial: RecordDraft;
@@ -75,6 +77,9 @@ export function RecordFormModal(props: {
     requestKey: () => string,
   ) => Promise<void>;
 }) {
+  const api = useApi();
+  const [owner] = useState(() => api);
+  const active = owner === api;
   const displayTime = useDisplayTime();
   const [timezone] = useState(displayTime.timezone);
   const [initial] = useState(props.initial);
@@ -87,6 +92,8 @@ export function RecordFormModal(props: {
   return (
     <FormModal
       domain="기록"
+      visible={active && props.visible !== false}
+      submitDisabled={!active || props.readonly}
       description={props.systemRecord
         ? "업무 변경 당시 정보는 유지하고 기록 내용을 수정합니다."
         : "메모·참고 자료·수행 결과를 작성하고 저장합니다."}
@@ -107,6 +114,7 @@ export function RecordFormModal(props: {
         return r.success ? null : fieldErrors(r.error.issues);
       }}
       onSubmit={(requestKey) => {
+        if (!active || props.readonly) throw new Error("현재 기록 쓰기 권한이 없습니다.");
         const parsed = recordCreate.parse(value());
         return props.onSave(props.systemRecord ? { body: parsed.body } : parsed, requestKey);
       }}

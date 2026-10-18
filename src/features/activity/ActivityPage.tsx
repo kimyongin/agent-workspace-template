@@ -1,5 +1,4 @@
 import { useTaskAccess } from "./task-access.ts";
-import { useApi } from "../../lib/api-context.tsx";
 import { NativeSelect } from "@/components/ui/native-select";
 import { NativeSelectOption } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
@@ -22,7 +21,6 @@ import { Navigate, useLocation, useNavigate, useSearchParams } from "../../lib/w
 import type { SearchItem } from "@contracts/search.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
-import type { RecordResult } from "@contracts/record.ts";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 import {
   applyFilterParams,
@@ -203,7 +201,6 @@ function ActivitySection(
 }
 
 export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
-  const api = useApi();
   const searchInput = useRef<HTMLInputElement>(null);
   const { timezone } = useDisplayTime();
   const [params, setParams] = useSearchParams(),

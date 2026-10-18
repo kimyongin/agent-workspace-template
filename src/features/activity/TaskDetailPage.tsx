@@ -1,3 +1,4 @@
+import { useTaskAccess } from "./task-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -10,8 +11,8 @@ import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams } from "../../lib/workspace-router.tsx";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { TaskDataFields } from "./TaskDataFields.tsx";
@@ -36,6 +37,8 @@ function requestedDialog(params: URLSearchParams): Dialog {
 
 export function TaskDetailPage() {
   const api = useApi();
+  const { canRead, canWrite } = useTaskAccess();
+  const location = useLocation();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
@@ -83,6 +86,15 @@ export function TaskDetailPage() {
   });
   const editor = useDetailEditor(detail.editClosed);
   const { value: task, editReady } = detail;
+  const admittedEdit = useRef<{ api: typeof api; id: string; key: string } | null>(null);
+  const editing = editor.active && !dialog && editReady && (canWrite ||
+    admittedEdit.current?.api === api && admittedEdit.current.id === id && admittedEdit.current.key === location.key);
+  useLayoutEffect(() => {
+    if (!editor.active || admittedEdit.current?.api !== api || admittedEdit.current.id !== id ||
+      admittedEdit.current.key !== location.key) admittedEdit.current = null;
+    if (editor.active && !dialog && editReady && canWrite) admittedEdit.current = { api, id, key: location.key };
+  }, [api, id, location.key, editor.active, dialog, editReady, canWrite]);
+
   const loadError = detail.error
     ? detail.error instanceof ApiError && detail.error.code === "not_found"
       ? "할 일을 찾을 수 없습니다."
@@ -96,7 +108,7 @@ export function TaskDetailPage() {
   const occurrenceGeneration = useRef(0);
   useEffect(() => () => {
     occurrenceGeneration.current++;
-  }, [id]);
+  }, [api, id]);
   const loadOccurrences = useCallback(async (t: TaskResult, end: string | null) => {
     const started = ++occurrenceGeneration.current;
     try {
@@ -114,7 +126,7 @@ export function TaskDetailPage() {
       setOccurrences(null);
       setActionError("회차를 불러오지 못했습니다.");
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     if (task?.kind === "recurring") loadOccurrences(task, rangeEnd);
@@ -176,6 +188,8 @@ export function TaskDetailPage() {
           onDraftClosed={detail.editClosed}
           scope="task"
           target={task}
+          readonly={!canWrite}
+          visible={canRead}
           onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
         />
         {task.kind === "once" && task.status === "done" && !task.result_record && (
@@ -231,7 +245,7 @@ export function TaskDetailPage() {
                   <BusinessCell index={1}><OccurrenceBadge status={o.status} /></BusinessCell>
                   <BusinessCell index={2}>{o.record_ids.length > 0 ? `기록 ${o.record_ids.length}개` : "기록 없음"}</BusinessCell>
                   <BusinessCell index={3}>
-                  {!readOnly && o.in_rule && o.status !== "upcoming" && (
+                  {!readOnly && canWrite && o.in_rule && o.status !== "upcoming" && (
                     <Button
                       variant="ghost"
                       type="button"
@@ -252,14 +266,15 @@ export function TaskDetailPage() {
   );
   return (
     <DetailSurface
+      visible={canRead}
       ready={!detail.loading}
       title="할 일"
       description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다."
-      tabTitle={task.title}
+      tabTitle={canRead ? task.title : "할 일"}
       onClose={() => navigate(back)}
       onError={detail.failed}
       busy={busy}
-      footer={
+      footer={canWrite &&
         <>
           <Button variant="outline" type="button" disabled={busy} onClick={editor.start}>편집</Button>
           {task.kind === "once" && task.status === "open" && (
@@ -305,7 +320,7 @@ export function TaskDetailPage() {
           {occurrenceSection()}
         </div>
       </div>
-      {editor.active && !dialog && editReady && (
+      {editing && (
         <TaskFormModal
           mode="edit"
           target={task}
@@ -323,7 +338,7 @@ export function TaskDetailPage() {
               </div>
             </>
           }
-          deletion={{
+          deletion={!canWrite ? undefined : {
             target: task.title,
             preparation: () => ({
               model: "task",
@@ -374,6 +389,8 @@ export function TaskDetailPage() {
       {dialog === "complete" && (
         <RecordFormModal
           title="할 일 완료"
+          visible={canRead}
+          readonly={!canWrite}
           submitLabel="완료하고 기록 저장"
           open
           initial={emptyRecord()}
@@ -396,6 +413,8 @@ export function TaskDetailPage() {
       {dialog && typeof dialog === "object" && (
         <RecordFormModal
           title={`${dialog.occurrence} 회차 기록`}
+          visible={canRead}
+          readonly={!canWrite}
           submitLabel="기록 저장"
           open
           initial={emptyRecord()}
@@ -431,10 +450,15 @@ function TaskTransitionForm(
   },
 ) {
   const api = useApi();
+  const { canRead, canWrite } = useTaskAccess();
+  const [owner] = useState(() => api);
+  const active = owner === api;
   const action = task.status === "active" ? "stop" : "resume", label = action === "stop" ? "중단" : "재개";
   return (
     <FormModal
       open={open}
+      visible={active && canRead}
+      submitDisabled={!active || !canWrite}
       title={`반복 할 일 ${label}`}
       submitLabel={label}
       dirty={false}
@@ -451,6 +475,7 @@ function TaskTransitionForm(
       onRouteDiscard={onClose}
       validate={() => null}
       onSubmit={async (requestKey, memo) => {
+        if (!active || !canWrite) throw new Error("현재 할 일 쓰기 권한이 없습니다.");
         await api(
           "POST",
           `/tasks/${task.id}/${action}`,
