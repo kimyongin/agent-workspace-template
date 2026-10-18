@@ -3,7 +3,10 @@ import {
   businessPath,
   WorkspaceRouteContext,
 } from "../lib/workspace-route.tsx";
-import { WorkspaceGate } from "../features/workspaces/workspace-context.tsx";
+import {
+  WorkspaceCapabilitiesProvider,
+  WorkspaceGate,
+} from "../features/workspaces/workspace-context.tsx";
 import {
   InvitationPage,
   WorkspacesPage,
@@ -152,7 +155,9 @@ function Layout() {
   }`;
   return (
     <WorkspaceRouteContext.Provider value={workspaceId}>
-      <ScopedLayout key={scope} scope={scope} workspaceId={workspaceId} />
+      <WorkspaceCapabilitiesProvider key={scope}>
+        <ScopedLayout scope={scope} workspaceId={workspaceId} />
+      </WorkspaceCapabilitiesProvider>
     </WorkspaceRouteContext.Provider>
   );
 }
