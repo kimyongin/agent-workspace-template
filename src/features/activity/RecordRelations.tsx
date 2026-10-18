@@ -46,15 +46,16 @@ function ChangedRelation(
   const missingError = probe.error instanceof ApiError &&
     probe.error.status === 404 && probe.error.code === "not_found";
   const value = probe.value;
+  const retainedTask = change.target_kind === "task" && !!value && "deleted_at" in value && !!value.deleted_at;
   const state = probe.loading
     ? "loading"
     : probe.error
     ? missingError ? "missing" : "failed"
     : value
-    ? "deleted_at" in value && value.deleted_at ? "missing" : "exists"
+    ? !retainedTask && "deleted_at" in value && value.deleted_at ? "missing" : "exists"
     : "loading";
   const missing = state === "missing";
-  const deleted = missing && change.action === "delete";
+  const deleted = retainedTask || missing && change.action === "delete";
   const fallback = missing
     ? (
       <p className="text-sm text-muted-foreground">
@@ -99,7 +100,7 @@ function ChangedRelation(
         metadata={
           <>
             {occurrenceData}
-            {missing && (
+            {(missing || retainedTask) && (
               <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
                 <div>
                   <dt>조회 상태</dt>
@@ -120,7 +121,7 @@ function ChangedRelation(
       to={path}
       restoreKey="change-target"
       title={change.target_title}
-      titleBadge={missing ? <Badge variant="secondary">{deleted ? "삭제됨" : "조회 불가"}</Badge> : undefined}
+      titleBadge={deleted || missing ? <Badge variant="secondary">{deleted ? "삭제됨" : "조회 불가"}</Badge> : undefined}
       metadata={occurrenceData}
       fallback={fallback}
     />
@@ -141,7 +142,7 @@ function ReadonlyTask(
             <div>
               <dt>상태</dt>
               <dd>
-                <StatusBadge status={task.status} />
+                {task.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : <StatusBadge status={task.status} />}
               </dd>
             </div>
             {occurrence && (
