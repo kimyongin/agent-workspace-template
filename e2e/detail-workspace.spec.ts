@@ -1313,13 +1313,13 @@ test("task responsive parity: resized panel and 200% text enlargement preserve t
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
 
-for (const width of [320, 1440]) for (const kind of ["user", "result", "change"] as const) {
-  test(`record data parity: ${kind} ${width}px keeps context and only saves permitted values`, async ({page}, info) => {
+for (const width of [320, 1440]) for (const [kind, parent] of [["result", "task"], ["change", "task"], ["change", "entity"]] as const) {
+  test(`record data parity: ${kind} ${parent} ${width}px keeps context and only saves permitted values`, async ({page}, info) => {
     await page.setViewportSize({width,height:900});
     const state = await fixture(page);
     const row = state.rows.records[0];
-    Object.assign(row, {record_kind:kind, occurred_at:"2026-10-01T02:03:04.567Z", occurrence_on:kind === "result" ? "2026-10-01" : null,
-      change:kind === "change" ? {event_id:id(450),target_kind:"entity",target_id:entityKey(1),target_title:"당시 등심",action:"update",source:"http",before:{properties:{prop_1:0,prop_2:false,prop_3:null},property_labels:{prop_1:"당시 수량",prop_2:"당시 사용",prop_3:"당시 메모"}},after:{title:"등심"},path:null}:null});
+    Object.assign(row, {record_kind:kind, entity_id: parent === "entity" ? entityKey(1) : null, task_id: parent === "task" ? id(2) : null, occurred_at:"2026-10-01T02:03:04.567Z", occurrence_on:kind === "result" ? "2026-10-01" : null,
+      change:kind === "change" ? {event_id:id(450),target_kind:parent,target_id:parent === "entity" ? entityKey(1) : id(2),target_title:"당시 등심",action:"update",source:"http",before:{properties:{prop_1:0,prop_2:false,prop_3:null},property_labels:{prop_1:"당시 수량",prop_2:"당시 사용",prop_3:"당시 메모"}},after:{title:"등심"},path:null}:null});
     await page.goto(`/records/${row.id}`);
     const surface=width<1100?openDialogs(page).first():panel(page);
     const labels=()=>surface.locator('dt:visible, [data-slot="field-label"]:visible').allTextContents();
@@ -1328,10 +1328,10 @@ for (const width of [320, 1440]) for (const kind of ["user", "result", "change"]
     expect((await labels()).slice(0,expected.length)).toEqual(expected);
     await surface.getByRole("button",{name:"편집",exact:true}).click();
     expect((await labels()).slice(0,expected.length).map(s=>s.replace(/\*\(필수\)/g,""))).toEqual(expected);
-    await expect(surface.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toContainText(kind==="change"?"당시 등심":"등심");
-    await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true})).toContainText("등심 구매하기");
-    await expect(surface.getByRole("region",{name:"연결된 자료 (1개)",exact:true}).getByRole("button")).toHaveCount(0);
-    await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true}).getByRole("button")).toHaveCount(0);
+    const parentRegion = surface.getByRole("region", { name: parent === "entity" ? "자료 (1개)" : "할 일 (1개)", exact: true });
+    await expect(parentRegion).toContainText(kind === "change" ? "당시 등심" : "등심 구매하기");
+    await expect(parentRegion.getByRole("button")).toHaveCount(0);
+    await expect(surface.getByRole("region", { name: parent === "entity" ? "할 일 (1개)" : "자료 (1개)", exact: true })).toHaveCount(0);
     await expect(surface.getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
     if(kind==="result") await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true}).locator("dt").filter({hasText:/^회차$/}).locator("../dd")).toHaveText("2026-10-01");
     if(kind==="change") {
@@ -1343,12 +1343,12 @@ for (const width of [320, 1440]) for (const kind of ["user", "result", "change"]
       const historicalKey=surface.locator("dt:visible").filter({hasText:"당시 수량"});
       expect((await historicalKey.boundingBox())!.x).toBeCloseTo((await surface.locator("label:visible").filter({hasText:/^본문/}).boundingBox())!.x,0);
       await surface.locator("dt:visible").filter({hasText:"당시 메모"}).scrollIntoViewIfNeeded();
-      await page.screenshot({path:info.outputPath(`record-change-${width}-history.png`)});
+      await page.screenshot({path:info.outputPath(`record-change-${parent}-${width}-history.png`)});
     } else {
       await expect(surface.getByRole("textbox", { name: "수행 시각 날짜", exact: true })).toBeVisible();
       await expect(surface.getByLabel("수행 시각 시간", { exact: true })).toBeVisible();
     }
-    await page.screenshot({path:info.outputPath(`record-${kind}-${width}-edit.png`)});
+    await page.screenshot({path:info.outputPath(`record-${kind}-${parent}-${width}-edit.png`)});
     await surface.getByLabel("본문").fill("정정한 본문");
     await surface.getByRole("button",{name:"저장",exact:true}).click();
     await expect(surface.getByRole("button",{name:"편집",exact:true})).toBeVisible();

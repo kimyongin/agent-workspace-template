@@ -1,3 +1,6 @@
+import { WorkspaceCapabilitiesContext } from "../../src/features/workspaces/workspace-context.tsx";
+import { fixtureWorkspaceId } from "../support/workspace-scope.ts";
+import { fixtureType } from "../support/workspace-data.ts";
 import { FixtureWorkspace } from "./workspace-scope.tsx";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 import { WriteOutcomeNotice } from "../../src/components/WriteOutcomeNotice.tsx";
@@ -25,4 +28,6 @@ const router=createBrowserRouter([{element:<FixtureLayout/>,children:[
   {path:"/records",element:<RecordsPage/>},{path:"/records/:id",element:<RecordDetailPage/>},
   {path:"/tags/:scope",element:<TagsPage/>},{path:"/tags/:scope/:id",element:<TagsPage/>},{path:"/search",element:<SearchPage/>},{path:"/guide",element:<GuidePage/>},
 ]}]);
-createRoot(document.getElementById("root")!).render(<AuthProvider><FixtureWorkspace><RouterProvider router={router}/></FixtureWorkspace></AuthProvider>);
+createRoot(document.getElementById("root")!).render(<AuthProvider><FixtureWorkspace><WorkspaceCapabilitiesContext.Provider value={{ workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null },
+  grants: [{ target_kind: "settings", target_id: "*", access: "write" }, { target_kind: "tasks", target_id: "*", access: "write" }, { target_kind: "entity_type", target_id: fixtureType.id, access: "write" }],
+  can_manage: true, membership_version: 1 }}><RouterProvider router={router}/></WorkspaceCapabilitiesContext.Provider></FixtureWorkspace></AuthProvider>);
