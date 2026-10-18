@@ -96,6 +96,8 @@ test(
       element.scrollTop = 0;
     });
     await page.screenshot({ path: testInfo.outputPath("settings-readonly-definition.png"), fullPage: true });
+    await page.getByRole("region", { name: "입력 항목 정의", exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath("settings-readonly-constraints.png"), fullPage: true });
     await page.goto(`/w/${space}/settings/data-model`);
     await expect(page.getByText("저장한 설정 변경 내용이 없습니다.")).toBeVisible();
     await expect(page.getByRole("button", { name: "설정 내보내기", exact: true })).toBeEnabled();
@@ -166,7 +168,7 @@ test(
     await page.getByRole("button", { name: "상품 번호 보기", exact: true }).click();
     const definition = page.getByRole("region", { name: "번호 종류 보기", exact: true });
     await expect(definition.getByText("판매처에 등록된 고유 상품 번호", { exact: true })).toBeVisible();
-    await expect(definition.getByRole("textbox", { name: "번호 종류 이름", exact: true })).toBeDisabled();
+    await expect(definition.getByRole("textbox", { name: "번호 종류 이름 (필수)", exact: true })).toBeDisabled();
     await expect(definition.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await definition.scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath("settings-readonly-registry.png"), fullPage: true });
