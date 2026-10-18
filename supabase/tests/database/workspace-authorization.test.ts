@@ -285,3 +285,59 @@ dbTest("application roles cannot bypass workspace storage or expose permission/r
   assertEquals(acl, { server_read: false, user_write: false, direct_control: false, direct_receipt: false });
   assert(roles.length === 3);
 });
+
+dbTest("all scoped legacy store delegates use workspace receipts for normal and retained replay", async () => {
+  const f = await fixture();
+  try {
+    const first = await f.create(f.a), second = await f.create(f.a);
+    await workspaces.updateWorkspaceMember(deps, key(f.a), first.id, f.a.userId, {
+      expected_version: 1,
+      grants: [settings, taskRead],
+    });
+    const actor = { ...key(f.a), workspaceId: first.id };
+    const request = await requestIdentity(actor, "scoped.delegate.probe", null, {});
+    const { SqlActorStore } = await import("../../functions/_shared/adapters/supabase/sql-context.ts");
+    const { replayRetainedSqlRequest } = await import("../../functions/_shared/adapters/supabase/request-ledger.ts");
+    let executions = 0;
+    const execute = () =>
+      runInWorkspace(
+        sql,
+        actor,
+        { mode: "business", requirements: [taskRead] },
+        (tx) =>
+          new SqlActorStore(tx, actor).executeRequest(
+            request,
+            () => Promise.resolve({ body: "첫 공간", attempt: ++executions }),
+          ),
+      );
+    assertEquals(await execute(), { body: "첫 공간", attempt: 1 });
+    assertEquals(await execute(), { body: "첫 공간", attempt: 1 });
+    const other = { ...actor, workspaceId: second.id };
+    const otherRequest = await requestIdentity(other, "scoped.delegate.probe", null, {});
+    assertEquals(
+      await runInWorkspace(
+        sql,
+        other,
+        { mode: "business", requirements: [] },
+        (tx) => new SqlActorStore(tx, other).executeRequest(otherRequest, () => Promise.resolve({ body: "둘째 공간" })),
+      ),
+      { body: "둘째 공간" },
+    );
+    await workspaces.updateWorkspaceMember(deps, key(f.a), first.id, f.a.userId, {
+      expected_version: 2,
+      grants: [settings],
+    });
+    await denied(execute);
+    await denied(() =>
+      runInWorkspace(
+        sql,
+        actor,
+        { mode: "business", requirements: [] },
+        (tx) => replayRetainedSqlRequest(tx, actor, request),
+      )
+    );
+    assertEquals(executions, 1);
+  } finally {
+    await f.cleanup();
+  }
+});

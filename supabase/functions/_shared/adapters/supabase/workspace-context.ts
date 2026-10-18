@@ -37,6 +37,7 @@ export function runInWorkspace<T>(
     await lockWorkspace(tx, actor.workspaceId, entry.mode);
     // Separate statement deliberately obtains the post-lock READ COMMITTED snapshot.
     await authorizeWorkspace(tx, entry.requirements);
+    await tx`select set_config('request.workspace_requirements',${JSON.stringify(entry.requirements)},true)`;
     return await fn(tx);
   });
 }

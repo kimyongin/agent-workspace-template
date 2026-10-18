@@ -82,10 +82,17 @@ export function listWorkspaces(deps: WorkspaceDeps, actor: Actor) {
 export async function createWorkspace(deps: WorkspaceDeps, actor: Actor, input: unknown) {
   requireRequestKey(actor);
   const value = parsed(workspaceCreate, input);
-  return deps.uow.account(actor, (s) => write(s, actor, "workspace.create", null, value, () => s.create(value.name)));
+  return await deps.uow.account(
+    actor,
+    (s) => write(s, actor, "workspace.create", null, value, () => s.create(value.name)),
+  );
 }
 export async function workspaceDetails(deps: WorkspaceDeps, actor: Actor, id: unknown) {
-  return deps.uow.workspace(workspaceActor(actor, id), { mode: "business", requirements: [] }, (s) => s.details());
+  return await deps.uow.workspace(
+    workspaceActor(actor, id),
+    { mode: "business", requirements: [] },
+    (s) => s.details(),
+  );
 }
 export function listWorkspaceMembers(deps: WorkspaceDeps, actor: Actor, id: unknown) {
   return deps.uow.workspace(workspaceActor(actor, id), management, (s) => s.members());
