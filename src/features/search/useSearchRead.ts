@@ -1,6 +1,6 @@
 import { useApi } from "../../lib/api-context.tsx";
 import { restoreScroll } from "../../lib/surface-dom.ts";
-import { useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "../../lib/workspace-router.tsx";
 import type { SearchResult } from "@contracts/search.ts";
 
@@ -20,7 +20,12 @@ const subscribeIdle = () => () => {};
 export function useSearchRead(params: URLSearchParams, retry: number) {
   const api = useApi();
   const revision = useContext(WorkspaceContext)?.revision;
-  const previousRevision = useRef(revision);
+  const [focusRevision, setFocusRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setFocusRevision((value) => value + 1);
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
   const location = useLocation(), navigate = useNavigate(), latest = useRef(location);
   latest.current = location;
   const scope = new URLSearchParams(params);
@@ -40,18 +45,12 @@ export function useSearchRead(params: URLSearchParams, retry: number) {
     } catch {
       return { read: null, invalid: true };
     }
-  }, [key, retry]);
+  }, [api, key, retry, revision, focusRevision]);
   const read = session.read;
   const state = useSyncExternalStore(read?.subscribe ?? subscribeIdle, read?.snapshot ?? (() => idle));
   useEffect(() => {
     void read?.restore(pages, location.hash);
   }, [read, pages, location.hash]);
-  useEffect(() => {
-    if (previousRevision.current !== revision) {
-      previousRevision.current = revision;
-      void read?.restart();
-    }
-  }, [read, revision]);
   useEffect(() => () => read?.cancel(), [read]);
   useEffect(() => {
     if (state.completion?.source !== "more") return;

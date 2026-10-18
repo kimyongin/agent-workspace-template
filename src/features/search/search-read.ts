@@ -37,7 +37,7 @@ export function createSearchRead(
     subscribe: list.subscribe,
     more: list.more,
     retry: list.retry,
-    restart: list.refresh,
+    restart: () => list.refresh({ clear: true }),
     cancel: list.cancel,
     restore: (pages: number, hash: string) => {
       anchor = searchAnchor(hash);
