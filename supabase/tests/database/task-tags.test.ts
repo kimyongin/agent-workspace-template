@@ -127,7 +127,10 @@ dbTest("할 일 태그: 교차 공간·없는 태그·구 입력·중복·10개 
     const input = { target_kind: "task", target_id: saved.id, expected_version: saved.version };
     assertEquals(tagConnectionInput.safeParse({ ...input, tag_ids: [tag.id, tag.id] }).success, false);
     assertEquals(
-      tagConnectionInput.safeParse({ ...input, tag_ids: Array.from({ length: 11 }, () => "20261011-ZZZZZZZZ") })
+      tagConnectionInput.safeParse({
+        ...input,
+        tag_ids: Array.from({ length: 11 }, (_, index) => "20261011-" + String(index).padStart(8, "0")),
+      })
         .success,
       false,
     );
