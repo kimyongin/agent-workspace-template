@@ -14,6 +14,7 @@ import { businessRequest, businessWorkspaceFixture } from "./_workspace-business
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import type { WorkspaceActor } from "../../functions/_shared/core/workspaces/application.ts";
 const admin = connect(urls.admin, { max: 1 });
+const sql = connect(urls.direct, { max: 1, prepare: false });
 const rootUrl = new URL(urls.admin);
 rootUrl.username = "postgres";
 rootUrl.password = "postgres";
@@ -29,7 +30,7 @@ async function deterministic(
     resultTask: { id: string; version: number },
   ) => Promise<void>,
 ) {
-  const f = await businessWorkspaceFixture(admin, admin), rollback = new Error("rollback deterministic RNG");
+  const f = await businessWorkspaceFixture(admin, sql), rollback = new Error("rollback deterministic RNG");
   try {
     const kind = await f.createKind("번호 충돌 검사");
     await f.grant(f.member, [
@@ -38,7 +39,7 @@ async function deterministic(
     ]);
     const schema = { entity_type_id: kind.id, schema_version: 1 };
     const resultTask = await activity.createTask(
-      { uow: new SqlUnitOfWork(admin), clock: { now: () => new Date() } },
+      { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } },
       businessRequest(f.member),
       taskCreate.parse({ kind: "once", title: "결과 번호의 소속" }),
     );

@@ -202,10 +202,21 @@ dbTest("Entity DB: representative cursors preserve Unicode and workspace/filter 
     );
     assertEquals(
       (await assertRejects(() => entity.listEntities(d, B, { ...q, cursor }), AppError)).code,
-      "invalid_input",
+      "forbidden",
     );
     await assertRejects(() => entity.listEntities(d, A, { ...q, keyword: marker + "다", cursor }), AppError);
   }
+  const crossWorkspaceQuery = entityListQuery.parse({ keyword: marker, limit: 1 });
+  const scopedPage = await entity.listEntities(d, A, crossWorkspaceQuery);
+  assertEquals(typeof scopedPage.next_cursor, "string");
+  assertEquals(A.userId, B.userId);
+  assertEquals(
+    (await assertRejects(
+      () => entity.listEntities(d, B, { ...crossWorkspaceQuery, cursor: scopedPage.next_cursor! }),
+      AppError,
+    )).code,
+    "invalid_input",
+  );
   for (const item of items) await entity.deleteEntity(d, businessRequest(A), item.id, item.version);
 });
 Deno.test({
@@ -235,7 +246,7 @@ Deno.test({
       assertEquals(ids, sort === "updated_at" ? items.map((e) => e.id).reverse() : items.map((e) => e.id));
       assertEquals(
         (await assertRejects(() => entity.listEntities(d, B, { ...q, cursor }), AppError)).code,
-        "invalid_input",
+        "forbidden",
       );
       await assertRejects(() =>
         entity.listEntities(
@@ -259,6 +270,16 @@ Deno.test({
         }),
       )).items.map((e) => e.id),
       [items[1].id],
+    );
+    const crossWorkspaceQuery = entityListQuery.parse({ keyword: marker, limit: 1 });
+    const scopedPage = await entity.listEntities(d, A, crossWorkspaceQuery);
+    assertEquals(typeof scopedPage.next_cursor, "string");
+    assertEquals(
+      (await assertRejects(
+        () => entity.listEntities(d, B, { ...crossWorkspaceQuery, cursor: scopedPage.next_cursor! }),
+        AppError,
+      )).code,
+      "invalid_input",
     );
     for (const e of items) await entity.deleteEntity(d, businessRequest(A), e.id, 1);
   },
