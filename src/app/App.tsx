@@ -9,6 +9,7 @@ import {
   WorkspacesPage,
 } from "../features/workspaces/WorkspacesPage.tsx";
 import { WorkspaceManagementPage } from "../features/workspaces/WorkspaceManagementPage.tsx";
+import { WorkspaceLanding } from "../features/workspaces/WorkspaceLanding.tsx";
 import { deferView } from "../components/DeferredView.tsx";
 import { registerScrollOwner } from "../lib/surface-dom.ts";
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar.tsx";
@@ -313,6 +314,7 @@ function WorkspaceRoutes({ location }: { location: Location }) {
     <Routes
       location={{ ...location, pathname: businessPath(location.pathname) }}
     >
+      <Route index element={<WorkspaceLanding />} />
       {baseRoutes.map((route) => <Route key={route.path} {...route} />)}
       {materialSettingsRoutes.map((path) => (
         <Route key={path} path={path} element={<EntityTypeSettings />} />
@@ -339,7 +341,7 @@ export function App() {
           <Route path="logout" element={<LogoutPage />} />
           <Route path="oauth/consent" element={guarded(<ConsentPage />)} />
           <Route path="w/:workspaceId" element={guarded(<Outlet />)}>
-            <Route index element={<Navigate to="tasks" replace />} />
+            <Route index element={<WorkspaceLanding />} />
             {baseRoutes.map((route) => (
               <Route
                 key={route.path}

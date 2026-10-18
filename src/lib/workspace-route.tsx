@@ -7,7 +7,7 @@ export function useWorkspacePathPrefix() {
 export function useWorkspaceId() {
   return useContext(WorkspaceRouteContext);
 }
-export function workspacePath(workspaceId: string, path = "/tasks") {
+export function workspacePath(workspaceId: string, path = "") {
   return `/w/${encodeURIComponent(workspaceId)}${path}`;
 }
 export function businessPath(path: string) {
