@@ -1,7 +1,12 @@
 -- #512: current workspace authorization. Legacy business rows remain unchanged until #513–#518.
 -- Private membership/grant tables have no application DML grants. Explicit helpers own control changes.
-alter role app_user nosuperuser nobypassrls;
-alter role app_server nosuperuser nobypassrls;
+-- Role attributes are provisioned by the existing role migration. Managed postgres may
+-- inspect them but must not elevate itself to alter SUPERUSER/BYPASSRLS attributes.
+do $$ begin
+  if exists(select 1 from pg_catalog.pg_roles where rolname in ('app_user','app_server','app_worker') and (rolsuper or rolbypassrls)) then
+    raise exception 'workspace execution roles must not bypass RLS';
+  end if;
+end $$;
 create table app.workspaces (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(btrim(name)) between 1 and 100),
