@@ -75,7 +75,8 @@ export async function installWorkspaceApi(
       const workspace = key ? workspaces[key] : null;
       if (!key) return route.fulfill({ json: { items: Object.entries(workspaces).map(([id, value]) => ({ id, name: value.name, deleted_at: null, can_manage: true })) } });
       if (!workspace) return route.fulfill({ status: 404, json: { code: "not_found", message: "공간을 찾을 수 없습니다." } });
-      if (action === "lifecycle") return route.fulfill({ json: { generation: 1 } });
+      if (action === "lifecycle") return route.fulfill({ json: { workspace: { id: key, name: workspace.name, deleted_at: null, lifecycle_generation: 1 } } });
+      if (action === "membership") return route.fulfill({ json: { workspace: { id: key, name: workspace.name, deleted_at: null }, membership_version: 1 } });
       if (action === "grant-targets") return route.fulfill({ json: { items: [{ id: fixtureType.id, label: fixtureType.label }] } });
       if (action === "members" || action === "invitations") return route.fulfill({ json: { items: [] } });
       return route.fulfill({ json: { workspace: { id: key, name: workspace.name, deleted_at: null }, membership_version: 1, grants: [{ target_kind: "settings", target_id: "*", access: "write" }], can_manage: true } });
