@@ -21,6 +21,7 @@ import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
 import { fieldTypeLabel, schemaChangeLabels, schemaDiffValueLabel } from "./schema-labels.ts";
+import { SchemaSearchTextSetting } from "./SchemaSearchTextSetting.tsx";
 import { SchemaRepresentativeSetting } from "./SchemaRepresentativeSetting.tsx";
 import {
   migrationActive,
@@ -441,6 +442,7 @@ export function SchemaEditor(
                                       "x-list-order": f["x-list-order"],
                                       "x-representative": f["x-representative"],
                                       "x-show-in-list": f["x-show-in-list"],
+                                      ...(value === "string" ? { "x-search-text": f["x-search-text"] } : {}),
                                       deprecated: f.deprecated,
                                       readOnly: f.readOnly,
                                       examples: f.examples,
@@ -534,6 +536,11 @@ export function SchemaEditor(
                               </p>
                             </div>
                           )}
+                          <SchemaSearchTextSetting
+                            field={f}
+                            disabled={Boolean(plan?.recovery)}
+                            onChange={(field) => editField(key, field)}
+                          />
                           <SchemaRepresentativeSetting
                             draft={draft}
                             propertyKey={key}

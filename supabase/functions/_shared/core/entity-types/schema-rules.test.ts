@@ -93,15 +93,28 @@ Deno.test("published definitions retain explicit selected text through label ren
   assertEquals(published.schema.properties.prop_1, { ...d.schema.properties.prop_1 });
   published.schema.properties.prop_1.title = "바뀐 이름";
   assertEquals(validateEntityDefinition(published).schema.properties.prop_1, {
-    ...d.schema.properties.prop_1, title: "바뀐 이름",
+    ...d.schema.properties.prop_1,
+    title: "바뀐 이름",
   });
-  for (const field of [
-    { type: "number" }, { type: "boolean" }, { format: "date" },
-    { oneOf: [{ const: "a", title: "선택" }] }, { deprecated: true },
-  ]) {
-    assertThrows(() => validateEntityDefinition({ schema: { ...d.schema, properties: {
-      ...d.schema.properties,
-      prop_2: { type: "string", "x-order": 20, "x-search-text": true, ...field },
-    } } }));
+  for (
+    const field of [
+      { type: "number" },
+      { type: "boolean" },
+      { format: "date" },
+      { oneOf: [{ const: "a", title: "선택" }] },
+      { deprecated: true },
+    ]
+  ) {
+    assertThrows(() =>
+      validateEntityDefinition({
+        schema: {
+          ...d.schema,
+          properties: {
+            ...d.schema.properties,
+            prop_2: { type: "string", "x-order": 20, "x-search-text": true, ...field },
+          },
+        },
+      })
+    );
   }
 });

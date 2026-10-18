@@ -10,6 +10,7 @@ import {
   type EntitySchemaVersion,
   entityTypeIcon,
   propertyKey,
+  supportsEntitySearchText,
 } from "../../contracts/entity-type.ts";
 import { invalidInput } from "../shared/errors.ts";
 function propertyErrorMessage(keyword: string, params: Record<string, unknown>): string {
@@ -64,6 +65,7 @@ function validator() {
       "x-list-order",
       "x-representative",
       "x-show-in-list",
+      "x-search-text",
     ]
   ) ajv.addKeyword({ keyword });
   return ajv;
@@ -155,6 +157,9 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
   if (!keys.length || keys.length > limits.fields) fail("schema.properties", "속성은 1~64개입니다");
   for (const [key, f] of Object.entries(schema.properties)) {
     const type = typeOf(f);
+    if (f["x-search-text"] && !supportsEntitySearchText(f)) {
+      fail(`schema.properties.${key}.x-search-text`, "검색에는 사용 중인 텍스트 항목만 선택할 수 있습니다");
+    }
     if (Array.isArray(f.type) && (new Set(f.type).size !== 2 || !f.type.includes("null"))) {
       fail(`schema.properties.${key}.type`, "nullable은 한 데이터 타입과 null의 조합입니다");
     }

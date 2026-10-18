@@ -35,7 +35,7 @@ function draftFingerprint(value: unknown): string {
         Object.entries(item)
           .filter(([name, value]) =>
             value !== undefined &&
-            !(value === false && ["deprecated", "readOnly", "x-representative", "x-show-in-list"].includes(name))
+            !(value === false && ["deprecated", "readOnly", "x-representative", "x-show-in-list", "x-search-text"].includes(name))
           )
           .sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => [name, normalize(value, name)]),
       );
@@ -294,7 +294,11 @@ export function useSchemaChangeEditor(
           ...d.schema,
           properties: {
             ...d.schema.properties,
-            [key]: { ...d.schema.properties[key], [name === "archived" ? "deprecated" : "x-show-in-list"]: value },
+            [key]: {
+              ...d.schema.properties[key],
+              [name === "archived" ? "deprecated" : "x-show-in-list"]: value,
+              ...(name === "archived" && value ? { "x-search-text": false } : {}),
+            },
           },
         },
       };
