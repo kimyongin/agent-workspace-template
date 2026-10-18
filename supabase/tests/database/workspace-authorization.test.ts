@@ -437,7 +437,10 @@ dbTest("scoped kind anchors reject direct owner-policy escapes and cross-workspa
           tx`insert into app.entity_types(owner_id,workspace_id) values(${f.a.userId},${foreign.id}) returning id`,
       ),
     );
-    assert(injected.startsWith("42501"));
+    assertEquals(injected, "23514 workspace_model_anchor_required");
+    const [unchanged] =
+      await admin`select count(*)::int as count from app.entity_types where workspace_id=${foreign.id}`;
+    assertEquals(unchanged.count, 0);
     await denied(
       () =>
         workspaces.updateWorkspaceMember(deps, key(f.a), second.id, f.a.userId, {
