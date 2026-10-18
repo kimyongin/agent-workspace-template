@@ -1,3 +1,5 @@
+import * as tags from "../../functions/_shared/core/tags/application.ts";
+import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -336,5 +338,69 @@ dbTest("workspace entity lists bind readable kinds and cursors while lifecycle r
       await admin`delete from app.workspaces where id=${id}`;
     }
     for (const id of seeded) await admin`delete from auth.users where id=${id}`;
+  }
+});
+
+dbTest("workspace entity saved tag connection preserves content and owns its independent change", async () => {
+  const actor = { userId: crypto.randomUUID() };
+  let seeded = false;
+  let workspaceId: string | undefined;
+  try {
+    await admin`insert into auth.users(id,email) values(${actor.userId},${`tag514-${actor.userId}@example.test`})`;
+    seeded = true;
+    workspaceId =
+      (await workspaces.createWorkspace(workspaceDeps, key(actor), { name: "독립 태그 공간" })).workspace.id;
+    const author = { ...actor, workspaceId };
+    const kind = await types.createEntityType(typeDeps, key(author), { label: "태그 자료" });
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(actor), workspaceId, actor.userId, {
+      expected_version: 1,
+      grants: [{ target_kind: "entity_type", target_id: kind.id, access: "write" }],
+    });
+    const created = await entities.createEntity(
+      deps,
+      key(author),
+      entityCreate.parse({ entity_type_id: kind.id, schema_version: 1, properties: { prop_1: "연결과 무관한 원문" } }),
+    );
+    const tagDeps = { uow: new SqlTagUnitOfWork(sql) };
+    const tag = await tags.createTag(tagDeps, key(author), { scope: "entity", name: "보기에서 연결" });
+    // Start with the current public module so the missing command is a runtime
+    // feature failure, rather than a type/import-only failure before the DB seam.
+    const set = (tags as unknown as {
+      setTagConnections(
+        d: tags.TagDeps,
+        a: Actor,
+        input: unknown,
+      ): Promise<{ tag_ids: string[]; version: number; updated_at: string }>;
+    }).setTagConnections;
+    const request = key(author);
+    const input = { target_kind: "entity", target_id: created.id, expected_version: 1, tag_ids: [tag.id] };
+    const linked = await set(tagDeps, request, input);
+    assertEquals([linked.tag_ids, linked.version], [[tag.id], 2]);
+    assertEquals(await set(tagDeps, request, input), linked);
+    const saved = await entities.updateEntity(
+      deps,
+      key(author),
+      created.id,
+      entityUpdate.parse({ expected_version: 2, schema_version: 1, properties: { prop_1: "내용만 수정" } }),
+    );
+    assertEquals([saved.properties.prop_1, saved.tag_ids, saved.version], ["내용만 수정", [tag.id], 3]);
+    const unlinked = await set(tagDeps, key(author), {
+      target_kind: "entity",
+      target_id: created.id,
+      expected_version: 3,
+      tag_ids: [],
+    });
+    assertEquals([unlinked.tag_ids, unlinked.version], [[], 4]);
+    const after = await entities.getEntity(deps, author, created.id);
+    assertEquals([after.properties.prop_1, after.records.count], ["내용만 수정", 4]);
+    assertEquals((await tags.listTags(tagDeps, author, { scope: "entity", limit: 100 })).items.map((row) => row.id), [
+      tag.id,
+    ]);
+  } finally {
+    if (workspaceId) {
+      await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`;
+      await admin`delete from app.workspaces where id=${workspaceId}`;
+    }
+    if (seeded) await admin`delete from auth.users where id=${actor.userId}`;
   }
 });
