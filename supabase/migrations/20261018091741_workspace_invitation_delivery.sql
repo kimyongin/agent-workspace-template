@@ -46,15 +46,15 @@ begin
   end if;
   select * into d from private.workspace_invitation_deliveries where invitation_id=p_invitation for update;
   if not found then raise exception using errcode='22023',message='invitation_delivery_missing'; end if;
-  if d.status='running' and d.lease_until<=clock_timestamp() then d.status:='unknown'; end if;
+  if d.status='running' and d.lease_until<=clock_timestamp() then d.status:='unknown'; d.ambiguous:=true; end if;
   -- Mailpit has no provider deduplication promise. Ambiguous outcomes are never repeated.
   if d.status='unknown' and (d.prepared->>'provider' is distinct from 'resend' or d.first_send_at is null
-    or d.first_send_at+interval '24 hours'<=clock_timestamp()) then
+    or d.first_send_at+interval '23 hours 59 minutes'<=clock_timestamp()) then
     raise exception using errcode='22023',message='invitation_delivery_ambiguous';
   end if;
   if d.status in ('failed','unconfigured','unknown') then
     -- Never move the real original initiator: authorization is rechecked on claim and pre-send.
-    update private.workspace_invitation_deliveries set status='pending',fence=null,lease_until=null,updated_at=clock_timestamp()
+    update private.workspace_invitation_deliveries set status='pending',ambiguous=d.ambiguous,fence=null,lease_until=null,updated_at=clock_timestamp()
       where invitation_id=p_invitation;
     return 'pending';
   end if;
@@ -124,8 +124,8 @@ declare d private.workspace_invitation_deliveries%rowtype;
 begin
   d:=private.lock_workspace_invitation_delivery(p_invitation);
   if d.invitation_id is null or d.status<>'running' or d.fence is distinct from p_fence or d.lease_until<=clock_timestamp() or d.prepared is null or d.started_in_lease then return false; end if;
-  -- Once external I/O may have started, repeat only inside Resend's documented 24h window.
-  if d.ambiguous and d.first_send_at is not null and (d.prepared->>'provider'<>'resend' or d.first_send_at+interval '24 hours'<=clock_timestamp()) then
+  -- Reserve one minute for HTTP timeout/transport inside Resend's documented 24h window.
+  if d.ambiguous and d.first_send_at is not null and (d.prepared->>'provider'<>'resend' or d.first_send_at+interval '23 hours 59 minutes'<=clock_timestamp()) then
     update private.workspace_invitation_deliveries set status='unknown',fence=null,lease_until=null,updated_at=clock_timestamp() where invitation_id=p_invitation;
     return false;
   end if;
