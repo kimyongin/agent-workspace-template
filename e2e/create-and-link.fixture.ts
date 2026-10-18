@@ -166,15 +166,15 @@ test(
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await response;
     };
-    await expect(page.getByLabel("제목 (필수)", { exact: true })).toHaveValue("새 품목");
+    await expect(executionDialog(page).getByText("새 품목", { exact: true })).toBeVisible();
     await refresh("read");
-    await expect(page.getByLabel("제목 (필수)", { exact: true })).toHaveValue("새 품목");
+    await expect(executionDialog(page).getByText("새 품목", { exact: true })).toBeVisible();
     await expect(executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
     await refresh("none");
     await expect(page.getByRole("textbox", { name: "제목 (필수)", exact: true })).toHaveCount(0);
     await expect(executionDialog(page)).not.toBeVisible();
     await refresh("read");
-    await expect(page.getByLabel("제목 (필수)", { exact: true })).toHaveValue("새 품목");
+    await expect(executionDialog(page).getByText("새 품목", { exact: true })).toBeVisible();
     await expect(executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
     expect(writes).toHaveLength(1);
     await refresh("write");
