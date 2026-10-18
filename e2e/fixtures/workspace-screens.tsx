@@ -5,7 +5,8 @@ import { FixtureWorkspace } from "./workspace-scope.tsx";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 import { WriteOutcomeNotice } from "../../src/components/WriteOutcomeNotice.tsx";
 import { AuthProvider } from "../../src/features/auth/AuthProvider.tsx";
-import { useState } from "react";
+import { useContext, useState } from "react";
+import { AuthContext } from "../../src/features/auth/auth-context.ts";
 import { DetailNavigationProvider } from "../../src/lib/detail-exploration.tsx";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Link, Outlet, RouterProvider } from "react-router";
@@ -28,6 +29,12 @@ const router=createBrowserRouter([{element:<FixtureLayout/>,children:[
   {path:"/records",element:<RecordsPage/>},{path:"/records/:id",element:<RecordDetailPage/>},
   {path:"/tags/:scope",element:<TagsPage/>},{path:"/tags/:scope/:id",element:<TagsPage/>},{path:"/search",element:<SearchPage/>},{path:"/guide",element:<GuidePage/>},
 ]}]);
-createRoot(document.getElementById("root")!).render(<AuthProvider><FixtureWorkspace><WorkspaceCapabilitiesContext.Provider value={{ workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null },
+// Match the real protected entry: no business request starts before Auth hydration.
+function AuthenticatedWorkspace() {
+  const { session, loading } = useContext(AuthContext);
+  if (loading || !session) return null;
+  return <FixtureWorkspace><WorkspaceCapabilitiesContext.Provider value={{ workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null },
   grants: [{ target_kind: "settings", target_id: "*", access: "write" }, { target_kind: "tasks", target_id: "*", access: "write" }, { target_kind: "entity_type", target_id: fixtureType.id, access: "write" }],
-  can_manage: true, membership_version: 1 }}><RouterProvider router={router}/></WorkspaceCapabilitiesContext.Provider></FixtureWorkspace></AuthProvider>);
+  can_manage: true, membership_version: 1 }}><RouterProvider router={router}/></WorkspaceCapabilitiesContext.Provider></FixtureWorkspace>;
+}
+createRoot(document.getElementById("root")!).render(<AuthProvider><AuthenticatedWorkspace /></AuthProvider>);
