@@ -63,6 +63,8 @@ function fixture() {
         ...input,
         entity_id: null,
         record_kind: "result",
+        created_by: null,
+        created_by_name: null,
         change: null,
         id: crypto.randomUUID(),
         occurred_at: input.occurred_at ?? now,
