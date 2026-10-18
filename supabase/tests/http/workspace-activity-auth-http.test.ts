@@ -388,8 +388,29 @@ httpTest(
       assert(!memo.error);
       assertEquals(memo.tag_ids, [resultTag.id]);
       assertEquals((await scoped(b, w.id, "GET", `/records?task_id=${task.id}`)).body.items.length, recordsBefore);
-      const deleteInput = {
+      const resultUnlinked = await tool(client, "set_tag_connections", {
+        workspace_id: w.id,
+        target_kind: "record",
+        target_id: record.id,
+        expected_version: memo.version,
+        tag_ids: [],
+        request_key: crypto.randomUUID(),
+      });
+      assert(!resultUnlinked.error);
+      assertEquals(resultUnlinked.tag_ids, []);
+      assertEquals((await scoped(b, w.id, "GET", `/records?task_id=${task.id}`)).body.items.length, recordsBefore);
+      const taskUnlinked = await scoped(b, w.id, "POST", "/tag-connections", {
+        target_kind: "task",
+        target_id: task.id,
         expected_version: completed.task.version,
+        tag_ids: [],
+        change_note: "계획 분류만 독립 해제",
+      });
+      assertEquals(taskUnlinked.status, 200);
+      assertEquals(taskUnlinked.body.tag_ids, []);
+      assertEquals((await scoped(b, w.id, "GET", `/records?task_id=${task.id}`)).body.items.length, recordsBefore + 1);
+      const deleteInput = {
+        expected_version: taskUnlinked.body.version,
         change_note: "결과를 보존하며 삭제",
         change_tag_ids: [resultTag.id],
       };
@@ -445,6 +466,52 @@ httpTest(
       );
       assertEquals((await scoped(b, w.id, "POST", "/records", { body: "구 일반 기록" })).status, 404);
       assert(!(await client.listTools()).tools.some((entry) => entry.name === "create_record"));
+      assertEquals(
+        (await scoped(
+          b,
+          w.id,
+          "DELETE",
+          `${recordPath}?expected_version=${resultUnlinked.version}&change_note=ignored`,
+        )).status,
+        400,
+      );
+      assertEquals(
+        (await tool(client, "delete_record", {
+          workspace_id: w.id,
+          id: record.id,
+          expected_version: resultUnlinked.version,
+          change_note: "ignored",
+        })).error.code,
+        "invalid_input",
+      );
+      const beforeRecordDelete = (await scoped(b, w.id, "GET", `/records?task_id=${task.id}`)).body.items.length;
+      const recordDeleteKey = crypto.randomUUID();
+      assertEquals(
+        (await scoped(
+          b,
+          w.id,
+          "DELETE",
+          `${recordPath}?expected_version=${resultUnlinked.version}`,
+          undefined,
+          recordDeleteKey,
+        )).status,
+        204,
+      );
+      assertEquals(
+        await tool(client, "delete_record", {
+          workspace_id: w.id,
+          id: record.id,
+          expected_version: resultUnlinked.version,
+          request_key: recordDeleteKey,
+        }),
+        { deleted: record.id },
+      );
+      assertEquals(
+        (await scoped(b, w.id, "GET", `/records?task_id=${task.id}`)).body.items.length,
+        beforeRecordDelete - 1,
+      );
+      const taskAfterResultDelete = (await scoped(b, w.id, "GET", path)).body;
+      assertEquals([taskAfterResultDelete.status, taskAfterResultDelete.result_record], ["done", null]);
       const today = new Date().toISOString().slice(0, 10);
       const recurring = await tool(client, "create_task", {
         workspace_id: w.id,
