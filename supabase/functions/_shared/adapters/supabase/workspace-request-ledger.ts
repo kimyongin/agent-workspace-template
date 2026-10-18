@@ -70,7 +70,7 @@ export async function executeWorkspaceRequest<T>(
   if (receipt.found) return receipt.result as T;
   await tx`select set_config('lock_timeout','5s',true)`;
   const result = await execute();
-  const savedFootprint: WorkspaceRequirement[] = account && request.operation === "workspace.create"
+  const savedFootprint: WorkspaceRequirement[] = lifecycle || account && request.operation === "workspace.create"
     ? [{ target_kind: "settings", target_id: "*", access: "write" }]
     : footprint;
   const json = JSON.stringify(result ?? null);
