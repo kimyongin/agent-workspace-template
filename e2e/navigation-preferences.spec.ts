@@ -2,29 +2,23 @@ import { businessRows } from "./table-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { test, devLogin, env, requiredEnv } from "./support.ts";
+import { test, devLogin, ownedWorkspace, workspacePath } from "./support.ts";
 // Serial real Auth metadata round trip, run by the integration owner.
 test("personal navigation partial save survives reload and login without changing other profile metadata", async ({ page }) => {
   await devLogin(page);
-  const authenticate = async () => {
-    const response = await page.request.post(`${requiredEnv("VITE_SUPABASE_URL")}/auth/v1/token?grant_type=password`, {
-      headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY") },
-      data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
-    });
-    expect(response.ok(), `Auth test session creation failed (HTTP ${response.status()})`).toBe(true);
-    return await response.json() as { access_token: string; user: { id: string } };
-  };
-  const original = await authenticate();
-  const headers = { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY"), authorization: `Bearer ${original.access_token}` };
-  const read = async () => {
-    const response = await page.request.get(`${requiredEnv("VITE_SUPABASE_URL")}/auth/v1/user`, { headers });
-    expect(response.ok()).toBe(true);
-    return (await response.json()).user_metadata as Record<string, unknown>;
-  };
+  const workspace = await ownedWorkspace(page);
+  const read = () => page.evaluate(async () => {
+    const path = "/src/lib/supabase.ts", { supabase } = await import(path);
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return data.user!.user_metadata as Record<string, unknown>;
+  });
   const before = await read();
+  const restoreEmpty = await workspace.preservePreferences({ ...before, workspace_navigation: { version: 1, refs: [] } });
+  let restoreTarget: (() => Promise<void>) | undefined;
   let bodyFailed = false;
   try {
-    await page.goto("/settings");
+    await page.goto(workspacePath(workspace.id, "/settings"));
     const list = page.getByRole("table", { name: "선택한 바로가기" });
     await expect(list).toBeVisible();
     while (await businessRows(list).count()) await list.getByRole("button", { name: /숨기기$/ }).first().click();
@@ -33,6 +27,10 @@ test("personal navigation partial save survives reload and login without changin
       await save.click();
       await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
     }
+    const cleared = await read();
+    restoreTarget = await workspace.preservePreferences({ ...cleared, workspace_navigation: {
+      version: 1, refs: [{ kind: "builtin", id: "records" }, { kind: "builtin", id: "tasks" }],
+    } });
     for (const label of ["기록", "할 일"]) {
       await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), label);
       await page.getByRole("button", { name: `${label} 추가`, exact: true }).click();
@@ -55,6 +53,7 @@ test("personal navigation partial save survives reload and login without changin
     await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
     await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
     await devLogin(page);
+    await page.goto(workspacePath(workspace.id, "/tasks"));
     await openMainNavigation(page);
     await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link"))
       .toHaveText(["기록", "할 일"]);
@@ -63,15 +62,9 @@ test("personal navigation partial save survives reload and login without changin
     throw cause;
   } finally {
     try {
-      // Global sign-out revokes every earlier password-granted session, including the reader above.
-      // Obtain a fresh session solely for restoration, then verify that it belongs to the original account.
-      const cleanup = await authenticate();
-      expect(cleanup.user.id === original.user.id, "Navigation restoration must use the original account").toBe(true);
-      const restored = await page.request.put(`${requiredEnv("VITE_SUPABASE_URL")}/auth/v1/user`, {
-        headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY"), authorization: `Bearer ${cleanup.access_token}` },
-        data: { data: { workspace_navigation: before.workspace_navigation ?? null } },
-      });
-      expect(restored.ok(), `Navigation restoration failed (HTTP ${restored.status()})`).toBe(true);
+      // Unwind only exact captured states, in reverse write order; concurrent metadata is never overwritten.
+      if (restoreTarget) await restoreTarget();
+      await restoreEmpty();
     } catch (cause) {
       if (!bodyFailed) throw cause;
       // Preserve the original assertion and separately flag incomplete restoration, without printing Auth payloads.
