@@ -1017,9 +1017,9 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
   await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: {
     workspace: { id: fixtureWorkspaceId, name: "태그 권한 전환 공간", deleted_at: null },
     can_manage: false, membership_version: membership,
-    grants: [{ target_kind: "entity_type", target_id: fixtureType.id, access }],
+    grants: access === "none" ? [] : [{ target_kind: "entity_type", target_id: fixtureType.id, access }],
   } }));
-  let current = { ...makeEntity(351, { prop_1: "권한 갱신 자료" }), tag_ids: [] as string[] };
+  let current = { ...makeEntity(351, { prop_1: "권한 갱신 자료" }), tag_ids: [tags[0].id] };
   await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
   await page.route("**/api/entities**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/links") ? { items: [], next_cursor: null } : { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } }));
   let release = () => {}, arrived = () => {};
@@ -1032,7 +1032,7 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
       await new Promise<void>(resolve => release = resolve);
       return route.abort();
     }
-    current = { ...current, tag_ids: [tags[0].id], version: 2 };
+    current = { ...current, tag_ids: route.request().postDataJSON().tag_ids, version: 2 };
     return route.fulfill({ json: current });
   });
   const refresh = async (next: string) => {
@@ -1048,9 +1048,15 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
     await region.getByRole("button", { name: "태그 연결", exact: true }).click();
     const picker = region.getByRole("button", { name: "태그 선택", exact: true });
     await picker.click();
-    await page.getByRole("option", { name: "첫 태그", exact: true }).click();
-    await refresh("read");
     const chooser = page.getByRole("dialog", { name: "태그 선택", exact: true });
+    await expect(chooser.getByRole("option", { name: "첫 태그", exact: true })).toHaveAttribute("aria-checked", "true");
+    await refresh("none");
+    await expect(chooser).not.toBeVisible();
+    await expect(page.getByRole("option", { name: "첫 태그", exact: true })).toHaveCount(0);
+    expect(writes).toHaveLength(0);
+    await refresh("read");
+    await expect(chooser).toBeVisible();
+    await expect(chooser.getByRole("option", { name: "첫 태그", exact: true })).toHaveAttribute("aria-checked", "true");
     await expect(chooser.getByRole("option", { name: "다른 태그", exact: true })).toBeDisabled();
     await page.keyboard.press("Escape");
     await expect(chooser).toHaveCount(0);
@@ -1071,11 +1077,11 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
     await region.getByRole("button", { name: "연결 취소", exact: true }).click();
     await expect(region).toBeFocused();
     await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toHaveCount(0);
-    await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+    await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
     await refresh("write");
     await region.getByRole("button", { name: "태그 연결", exact: true }).click();
     await picker.click();
-    await page.getByRole("option", { name: "첫 태그", exact: true }).click();
+    await page.getByRole("option", { name: "다른 태그", exact: true }).click();
     await page.getByRole("button", { name: "선택 완료", exact: true }).click();
     await region.getByRole("button", { name: "연결 적용", exact: true }).click();
     await confirmation.getByRole("button", { name: "연결하고 저장", exact: true }).click();
