@@ -14,7 +14,8 @@ import type { Keyset } from "../../core/shared/store.ts";
 import { conflict } from "../../core/shared/errors.ts";
 import { SqlActorStore } from "./sql-context.ts";
 import { SqlEntityStore } from "./entity-store.ts";
-import { SqlActivityStore } from "./activity-store.ts";
+import { SqlTagTargets } from "./tag-targets.ts";
+import { setTagLinks } from "./tag-links.ts";
 const toTag = (r: Record<string, unknown>): TagResult => ({
   scope: r.scope as TagResult["scope"],
   id: r.id as string,
@@ -56,11 +57,11 @@ class SqlTagStore extends SqlActorStore implements TagStore {
     // new connections, and a second ID-only snapshot detects arrivals safely.
     for (const typeId of await this.deletionTypeIds(id)) await loadBusinessEntityDefinition(this.tx, typeId, true);
     this.deletionTargets = await this.targetIds(id);
-    const entities = new SqlEntityStore(this.tx, this.actor), activity = new SqlActivityStore(this.tx, this.actor);
+    const entities = new SqlEntityStore(this.tx, this.actor), activity = new SqlTagTargets(this.tx, this.actor);
     for (const item of this.deletionTargets.entity) if (!await entities.get(item, true)) throw notFound();
-    if (this.deletionTargets.task.length) throw invalidInput("할 일 태그 삭제 저장소가 필요합니다");
+    for (const item of this.deletionTargets.task) if (!await activity.task(item)) throw notFound();
     for (const item of this.deletionTargets.record) {
-      if (!await activity.getRecord(item, { forUpdate: true })) throw notFound();
+      if (!await activity.record(item, true)) throw notFound();
     }
   }
   async get(id: string, lock = false) {
@@ -96,19 +97,19 @@ class SqlTagStore extends SqlActorStore implements TagStore {
         .tx`update app.tags set name=${name},version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id} returning *`
     );
   }
-  async *uses(id: string): AsyncIterable<TagUse> {
-    const entities = new SqlEntityStore(this.tx, this.actor), activity = new SqlActivityStore(this.tx, this.actor);
+  async *uses(_id: string): AsyncIterable<TagUse> {
+    const entities = new SqlEntityStore(this.tx, this.actor), activity = new SqlTagTargets(this.tx, this.actor);
     if (!this.deletionTargets) throw invalidInput("태그 삭제 대상을 먼저 확인하세요");
     for (const id of this.deletionTargets.entity) {
       const value = await entities.get(id);
       if (value) yield { kind: "entity", value };
     }
     for (const id of this.deletionTargets.task) {
-      const value = await activity.getTask(id);
+      const value = await activity.task(id);
       if (value) yield { kind: "task", value };
     }
     for (const id of this.deletionTargets.record) {
-      const value = await activity.getRecord(id);
+      const value = await activity.record(id);
       if (value) yield { kind: "record", value };
     }
   }
@@ -120,9 +121,12 @@ class SqlTagStore extends SqlActorStore implements TagStore {
         value: await entities.setTags(use.value.id, tag_ids),
       };
     }
-    const activity = new SqlActivityStore(this.tx, this.actor);
-    if (use.kind === "task") return { kind: "task", value: await activity.updateTask(use.value.id, { tag_ids }) };
-    const value = await activity.updateRecord(use.value.id, { tag_ids });
+    const activity = new SqlTagTargets(this.tx, this.actor);
+    await setTagLinks(this.tx, this.actor, use.kind, use.value.id, tag_ids);
+    if (use.kind === "task") return { kind: "task", value: (await activity.task(use.value.id, true))! };
+    await this
+      .tx`update app.records set version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${use.value.id}`;
+    const value = (await activity.record(use.value.id))!;
     await this.enqueueIndex({ kind: "record", id: value.id, input_hash: await searchInputHash(value.body) });
     return { kind: "record", value };
   }
