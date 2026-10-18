@@ -63,7 +63,7 @@ function ActivitySection(
     dictionary: ReturnType<typeof useTagDictionary>;
   },
 ) {
-  const { canWrite } = useTaskAccess();
+  const { canRead, canWrite } = useTaskAccess();
   const [view, changeView] = useMainCollectionView(kind === "records");
   const { formatDateTime, timezone } = useDisplayTime();
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
@@ -94,6 +94,7 @@ function ActivitySection(
       />
     );
   };
+  if (kind === "tasks" && !canRead) return <Notice>이 공간의 할 일을 읽을 권한이 없습니다.</Notice>;
   return (
     <ListExpansionProvider readiness={list.readiness}>
       <section
@@ -202,6 +203,7 @@ function ActivitySection(
 }
 
 export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
+  const { canRead } = useTaskAccess();
   const searchInput = useRef<HTMLInputElement>(null);
   const { timezone } = useDisplayTime();
   const [params, setParams] = useSearchParams(),
@@ -263,7 +265,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   }
   return (
     <>
-      <section className="@container flex min-w-0 flex-col gap-5" aria-labelledby={`${kind}-title`}>
+      <section hidden={kind === "tasks" && !canRead} className="@container flex min-w-0 flex-col gap-5" aria-labelledby={`${kind}-title`}>
         <PageHeading
           title={label}
           id={`${kind}-title`}
@@ -401,6 +403,8 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
               </div>
               {filterError && <Notice kind="error">{filterError}</Notice>}
               <TagSelection
+                visible={kind !== "tasks" || canRead}
+                disabled={kind === "tasks" && !canRead}
                 label={`${label} 태그`}
                 tags={dictionary.tags}
                 value={draftTags}

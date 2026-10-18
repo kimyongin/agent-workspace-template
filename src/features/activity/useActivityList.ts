@@ -1,3 +1,4 @@
+import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { useEffect, useRef } from "react";
@@ -20,6 +21,8 @@ export function useActivityList(kind: WorkspaceListKind, {
   tags, bounds, layoutReady,
 }: { tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; layoutReady: boolean }) {
   const api = useApi();
+  const capabilities = useWorkspaceCapabilities();
+  const permissionKey = JSON.stringify(capabilities?.grants ?? []);
   const [params] = useSearchParams();
   const location = useLocation(), { hash } = location;
   const latestLocation = useRef(location);
@@ -34,7 +37,7 @@ export function useActivityList(kind: WorkspaceListKind, {
     ...(tags.length ? { tag_ids: tags } : {}), ...(entity ? { entity_id: entity } : {}), ...(kind === "records" ? bounds : {}) };
   const path = `/${kind}${query({ limit: 20, entity_id: entity, tag_ids: tags.length ? tags.join(",") : undefined,
     ...filters, ...(kind === "tasks" && filters.deleted && q ? { keyword: q } : {}), ...(kind === "records" ? { occurred_from: bounds.from, occurred_to: bounds.to } : {}) })}`;
-  const scope = semanticSearching ? `${kind}|${JSON.stringify(input)}` : path;
+  const scope = `${permissionKey}|${semanticSearching ? `${kind}|${JSON.stringify(input)}` : path}`;
   const errorMessage = `${kind === "tasks" ? "할 일" : "기록"}을 불러오지 못했습니다. 다시 시도하세요.`;
   const navigate = useNavigate();
   const publishPages = (count: number) => {
