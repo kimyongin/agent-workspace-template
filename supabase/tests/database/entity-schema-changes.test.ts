@@ -54,20 +54,22 @@ dbTest(
     workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
     const worker = connect(workerUrl.href, { prepare: false, max: 1 });
     const admin = connect(urls.admin), sql = connect(urls.direct, { max: 4 });
-    const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
+    const a = await businessWorkspaceFixture(admin, sql), b = await businessWorkspaceFixture(admin, sql);
     const d = { uow: new SqlEntityTypeUnitOfWork(sql) }, e = { uow: new SqlEntityUnitOfWork(sql) };
     try {
-      const type = await createEntityType(d, requestActor(a.actor), { label: "商品" });
-      const other = await createEntityType(d, requestActor(a.actor), { label: "別" });
-      const initial = await getEntitySchema(d, a.actor, { type_id: type.id });
-      const entity = await createEntity(e, requestActor(a.actor), {
+      const type = await a.createKind("商品");
+      await a.grantKind(a.manager, type.id, "write");
+      const other = await a.createKind("別");
+      await a.grantKind(a.manager, other.id, "write");
+      const initial = await getEntitySchema(d, a.manager, { type_id: type.id });
+      const entity = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 1,
         source: "app",
         external_id: crypto.randomUUID(),
         properties: { prop_1: "旧資料" },
       });
-      const prototype = await createEntitySchemaChange(d, requestActor(a.actor), other.id, {
+      const prototype = await createEntitySchemaChange(d, requestActor(a.manager), other.id, {
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
@@ -85,7 +87,7 @@ dbTest(
       const labels: Record<string, string> = JSON.parse(
         '{"__proto__":"특수 코드","constructor":"생성 코드","toString":"문자 코드"}',
       );
-      const options = await createEntitySchemaChange(d, requestActor(a.actor), other.id, {
+      const options = await createEntitySchemaChange(d, requestActor(a.manager), other.id, {
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
@@ -94,7 +96,7 @@ dbTest(
           required: false,
         }],
       });
-      const withLabels = await updateEntitySchemaChange(d, requestActor(a.actor), other.id, options.id, {
+      const withLabels = await updateEntitySchemaChange(d, requestActor(a.manager), other.id, options.id, {
         expected_schema_version: 1,
         expected_change_version: 1,
         edits: [{
@@ -115,7 +117,7 @@ dbTest(
         "특수 코드",
       );
       assertEquals(
-        (await getEntitySchemaChange(d, a.actor, other.id, options.id)).target.schema
+        (await getEntitySchemaChange(d, a.manager, other.id, options.id)).target.schema
           .properties[options.reservations.options].oneOf,
         Object.entries(labels).map(([value, title]) => ({ const: value, title })),
       );
@@ -128,7 +130,7 @@ dbTest(
           required: false,
         }],
       };
-      const actor = requestActor(a.actor);
+      const actor = requestActor(a.manager);
       const change = await createEntitySchemaChange(d, actor, type.id, input);
       assertEquals(change.reservations, { cost: "prop_2" });
       assertEquals(await createEntitySchemaChange(d, actor, type.id, input), change);
@@ -154,11 +156,11 @@ dbTest(
         "invalid_input",
       );
       assertEquals(
-        (await assertRejects(async () => await getEntitySchemaChange(d, b.actor, type.id, change.id), AppError)).code,
+        (await assertRejects(async () => await getEntitySchemaChange(d, b.manager, type.id, change.id), AppError)).code,
         "not_found",
       );
-      assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema_version, 1);
-      const updated = await updateEntitySchemaChange(d, requestActor(a.actor), type.id, change.id, {
+      assertEquals((await getEntitySchema(d, a.manager, { type_id: type.id })).schema_version, 1);
+      const updated = await updateEntitySchemaChange(d, requestActor(a.manager), type.id, change.id, {
         ...input,
         expected_change_version: 1,
         edits: [{ ...input.edits[0], field: { ...input.edits[0].field, "x-show-in-list": true } }, {
@@ -168,7 +170,7 @@ dbTest(
           required: true,
         }],
       });
-      const analyzeActor = requestActor(a.actor);
+      const analyzeActor = requestActor(a.manager);
       const accepted = await analyzeEntitySchemaChange(d, analyzeActor, type.id, change.id, {
         expected_change_version: updated.version,
       });
@@ -180,55 +182,58 @@ dbTest(
         }),
         accepted,
       );
-      assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema_version, 1);
+      assertEquals((await getEntitySchema(d, a.manager, { type_id: type.id })).schema_version, 1);
       await consume(worker);
-      const ready = await getEntitySchemaChange(d, a.actor, type.id, change.id);
+      const ready = await getEntitySchemaChange(d, a.manager, type.id, change.id);
       assertEquals(ready.status, "ready");
       assertEquals(ready.analysis?.failed, 0);
       const applyInput = { expected_change_version: ready.version, analysis_id: ready.analysis!.id };
       const outcomes = await Promise.allSettled(
-        [1, 2].map(() => applyEntitySchemaChange(d, requestActor(a.actor), type.id, change.id, applyInput)),
+        [1, 2].map(() => applyEntitySchemaChange(d, requestActor(a.manager), type.id, change.id, applyInput)),
       );
       assertEquals(outcomes.filter((r) => r.status === "fulfilled").length, 1);
-      assertEquals((await getEntityType(d, a.actor, other.id)).schema_version, 1);
-      const current = await getEntity(e, a.actor, entity.id);
+      assertEquals((await getEntityType(d, a.manager, other.id)).schema_version, 1);
+      const current = await getEntity(e, a.manager, entity.id);
       assertEquals(current.schema_version, 1);
       assertEquals(current.version, entity.version);
       assertEquals(current.title, "旧資料");
-      assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema.properties.prop_1.title, "商品名");
+      assertEquals(
+        (await getEntitySchema(d, a.manager, { type_id: type.id })).schema.properties.prop_1.title,
+        "商品名",
+      );
       assertEquals(
         (await assertRejects(async () =>
-          await updateEntity(e, requestActor(a.actor), entity.id, {
+          await updateEntity(e, requestActor(a.manager), entity.id, {
             expected_version: entity.version,
             schema_version: 1,
             properties: { prop_1: "stale" },
           }), AppError)).code,
         "schema_changed",
       );
-      const next = await createEntitySchemaChange(d, requestActor(a.actor), type.id, {
+      const next = await createEntitySchemaChange(d, requestActor(a.manager), type.id, {
         expected_schema_version: 2,
         edits: [{ op: "add_property", client_ref: "next", field: { "x-order": 30, type: "string" }, required: false }],
       });
       assertEquals(next.reservations, { next: "prop_3" });
-      const analyzed = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, next.id, {
+      const analyzed = await analyzeEntitySchemaChange(d, requestActor(a.manager), type.id, next.id, {
         expected_change_version: 1,
       });
       await consume(worker);
-      await updateEntity(e, requestActor(a.actor), entity.id, {
+      await updateEntity(e, requestActor(a.manager), entity.id, {
         expected_version: entity.version,
         schema_version: 2,
         properties: { prop_2: 0 },
       });
-      assertEquals((await getEntitySchemaChange(d, a.actor, type.id, next.id)).status, "stale");
+      assertEquals((await getEntitySchemaChange(d, a.manager, type.id, next.id)).status, "stale");
       assertEquals(
         (await assertRejects(async () =>
-          await applyEntitySchemaChange(d, requestActor(a.actor), type.id, next.id, {
+          await applyEntitySchemaChange(d, requestActor(a.manager), type.id, next.id, {
             expected_change_version: 1,
             analysis_id: analyzed.analysis_id,
           }), AppError)).code,
         "schema_plan_stale",
       );
-      const reservationRemoved = await updateEntitySchemaChange(d, requestActor(a.actor), type.id, next.id, {
+      const reservationRemoved = await updateEntitySchemaChange(d, requestActor(a.manager), type.id, next.id, {
         expected_schema_version: 2,
         expected_change_version: 1,
         edits: [{
@@ -239,12 +244,12 @@ dbTest(
         }],
       });
       assertEquals(reservationRemoved.reservations, { next: "prop_3" });
-      const reservedAfterDrop = await createEntitySchemaChange(d, requestActor(a.actor), type.id, {
+      const reservedAfterDrop = await createEntitySchemaChange(d, requestActor(a.manager), type.id, {
         expected_schema_version: 2,
         edits: [{ op: "add_property", client_ref: "after", field: { "x-order": 40, type: "string" }, required: false }],
       });
       assertEquals(reservedAfterDrop.reservations, { after: "prop_4" });
-      const narrowed = await createEntitySchemaChange(d, requestActor(a.actor), type.id, {
+      const narrowed = await createEntitySchemaChange(d, requestActor(a.manager), type.id, {
         expected_schema_version: 2,
         edits: [{
           op: "update_property",
@@ -254,13 +259,13 @@ dbTest(
         }],
       });
       assertEquals(narrowed.change_kind, "migration_required");
-      await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, narrowed.id, { expected_change_version: 1 });
+      await analyzeEntitySchemaChange(d, requestActor(a.manager), type.id, narrowed.id, { expected_change_version: 1 });
       await consume(worker);
-      const failures = await getEntitySchemaChange(d, a.actor, type.id, narrowed.id);
+      const failures = await getEntitySchemaChange(d, a.manager, type.id, narrowed.id);
       assertEquals(failures.analysis?.failed, 1);
       assertEquals(failures.analysis?.errors[0].entity_id, entity.id);
       const settings = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
-      await updateBusinessSettings(settings, requestActor(a.actor), {
+      await updateBusinessSettings(settings, requestActor(a.manager), {
         id: "record_templates",
         expected_version: 0,
         value: { entity_types: { [type.id]: { update: { memo: "$엔터티.이후.prop_2$", tag_ids: [] } } } },
@@ -268,7 +273,7 @@ dbTest(
       for (const op of ["archive_property", "remove_property"]) {
         const error = await assertRejects(
           async () =>
-            await createEntitySchemaChange(d, requestActor(a.actor), type.id, {
+            await createEntitySchemaChange(d, requestActor(a.manager), type.id, {
               expected_schema_version: 2,
               edits: [{ op, key: "prop_2" }],
             }),
@@ -296,14 +301,16 @@ dbTest(
     const worker = connect(workerUrl.href, { prepare: false, max: 1 }),
       admin = connect(urls.admin),
       sql = connect(urls.direct, { max: 4 });
-    const owner = await fixtureOwner(admin);
+    const owner = await businessWorkspaceFixture(admin, sql);
     const d = { uow: new SqlEntityTypeUnitOfWork(sql) }, e = { uow: new SqlEntityUnitOfWork(sql) };
     try {
-      const type = await createEntityType(d, requestActor(owner.actor), { label: "競争対象" });
-      const other = await createEntityType(d, requestActor(owner.actor), { label: "独立対象" });
+      const type = await owner.createKind("競争対象");
+      await owner.grantKind(owner.manager, type.id, "write");
+      const other = await owner.createKind("独立対象");
+      await owner.grantKind(owner.manager, other.id, "write");
       const drafts = await Promise.all(
         ["first", "second"].map((ref) =>
-          createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+          createEntitySchemaChange(d, requestActor(owner.manager), type.id, {
             expected_schema_version: 1,
             edits: [{
               op: "add_property",
@@ -315,7 +322,7 @@ dbTest(
         ),
       );
       assertEquals(drafts.map((change) => Object.values(change.reservations)[0]).sort(), ["prop_2", "prop_3"]);
-      const independent = await createEntitySchemaChange(d, requestActor(owner.actor), other.id, {
+      const independent = await createEntitySchemaChange(d, requestActor(owner.manager), other.id, {
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
@@ -325,8 +332,8 @@ dbTest(
         }],
       });
       assertEquals(independent.reservations, { independent: "prop_2" });
-      const initial = await getEntitySchema(d, owner.actor, { type_id: type.id });
-      const removed = await updateEntitySchemaChange(d, requestActor(owner.actor), type.id, drafts[0].id, {
+      const initial = await getEntitySchema(d, owner.manager, { type_id: type.id });
+      const removed = await updateEntitySchemaChange(d, requestActor(owner.manager), type.id, drafts[0].id, {
         expected_schema_version: 1,
         expected_change_version: 1,
         edits: [{
@@ -338,7 +345,7 @@ dbTest(
       });
       assertEquals(Object.keys(removed.target.schema.properties), ["prop_1"]);
       assertEquals(removed.reservations, drafts[0].reservations);
-      const after = await createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+      const after = await createEntitySchemaChange(d, requestActor(owner.manager), type.id, {
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
@@ -348,12 +355,12 @@ dbTest(
         }],
       });
       assertEquals(after.reservations, { "after-drop": "prop_4" });
-      const entity = await createEntity(e, requestActor(owner.actor), {
+      const entity = await createEntity(e, requestActor(owner.manager), {
         entity_type_id: type.id,
         schema_version: 1,
         properties: { prop_1: "original value" },
       });
-      const publication = await createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+      const publication = await createEntitySchemaChange(d, requestActor(owner.manager), type.id, {
         expected_schema_version: 1,
         edits: [{
           op: "update_property",
@@ -362,25 +369,25 @@ dbTest(
           required: true,
         }],
       });
-      const accepted = await analyzeEntitySchemaChange(d, requestActor(owner.actor), type.id, publication.id, {
+      const accepted = await analyzeEntitySchemaChange(d, requestActor(owner.manager), type.id, publication.id, {
         expected_change_version: publication.version,
       });
       await consume(worker);
-      assertEquals((await getEntitySchemaChange(d, owner.actor, type.id, publication.id)).status, "ready");
+      assertEquals((await getEntitySchemaChange(d, owner.manager, type.id, publication.id)).status, "ready");
       const results = await Promise.allSettled([
-        applyEntitySchemaChange(d, requestActor(owner.actor), type.id, publication.id, {
+        applyEntitySchemaChange(d, requestActor(owner.manager), type.id, publication.id, {
           expected_change_version: publication.version,
           analysis_id: accepted.analysis_id,
         }),
-        updateEntity(e, requestActor(owner.actor), entity.id, {
+        updateEntity(e, requestActor(owner.manager), entity.id, {
           schema_version: 1,
           expected_version: entity.version,
           properties: { prop_1: "racing value" },
         }),
       ]);
       assertEquals(results.filter((result) => result.status === "fulfilled").length, 1);
-      const current = await getEntity(e, owner.actor, entity.id),
-        schema = await getEntitySchema(d, owner.actor, { type_id: type.id });
+      const current = await getEntity(e, owner.manager, entity.id),
+        schema = await getEntitySchema(d, owner.manager, { type_id: type.id });
       const failed = results.find((result) => result.status === "rejected");
       if (!failed || failed.status !== "rejected" || !(failed.reason instanceof AppError)) {
         throw new Error("race must return one public business conflict");
@@ -422,13 +429,14 @@ dbTest(
     const worker = connect(workerUrl.href, { prepare: false, max: 1 }),
       admin = connect(urls.admin),
       sql = connect(urls.direct);
-    const a = await fixtureOwner(admin),
-      b = await fixtureOwner(admin),
+    const a = await businessWorkspaceFixture(admin, sql),
+      b = await businessWorkspaceFixture(admin, sql),
       d = { uow: new SqlEntityTypeUnitOfWork(sql) },
       e = { uow: new SqlEntityUnitOfWork(sql) };
     try {
-      const type = await createEntityType(d, requestActor(a.actor), { label: "Preview" });
-      const entity = await createEntity(e, requestActor(a.actor), {
+      const type = await a.createKind("Preview");
+      await a.grantKind(a.manager, type.id, "write");
+      const entity = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 1,
         properties: { prop_1: "001" },
@@ -450,44 +458,44 @@ dbTest(
         }],
         migration: { rules: [], overrides: [] },
       };
-      const plan = await createEntitySchemaChange(d, requestActor(a.actor), type.id, input);
-      const accepted = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+      const plan = await createEntitySchemaChange(d, requestActor(a.manager), type.id, input);
+      const accepted = await analyzeEntitySchemaChange(d, requestActor(a.manager), type.id, plan.id, {
         expected_change_version: plan.version,
       });
       await assertRejects(() =>
-        getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, { analysis_id: accepted.analysis_id })
+        getEntitySchemaAnalysisRows(d, a.manager, type.id, plan.id, { analysis_id: accepted.analysis_id })
       );
       await consume(worker);
-      const ready = await getEntitySchemaChange(d, a.actor, type.id, plan.id);
+      const ready = await getEntitySchemaChange(d, a.manager, type.id, plan.id);
       assertEquals(ready.analysis?.total, 1);
       assertEquals(ready.analysis?.failed, 1);
       assertEquals(ready.executable, false);
-      const page = await getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, {
+      const page = await getEntitySchemaAnalysisRows(d, a.manager, type.id, plan.id, {
         analysis_id: accepted.analysis_id,
         failures_only: true,
       });
       assertEquals(page.items[0].before, { prop_1: "001" });
       assertEquals(page.items[0].after, { prop_1: "001" });
       await assertRejects(() =>
-        getEntitySchemaAnalysisRows(d, b.actor, type.id, plan.id, { analysis_id: accepted.analysis_id })
+        getEntitySchemaAnalysisRows(d, b.manager, type.id, plan.id, { analysis_id: accepted.analysis_id })
       );
-      const fixed = await updateEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+      const fixed = await updateEntitySchemaChange(d, requestActor(a.manager), type.id, plan.id, {
         ...input,
         expected_change_version: plan.version,
         migration: { rules: [], overrides: [{ entity_id: entity.id, key: "prop_1", value: "01" }] },
       });
       assertEquals(fixed.version, 2);
       assertEquals(fixed.analysis, null);
-      await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+      await analyzeEntitySchemaChange(d, requestActor(a.manager), type.id, plan.id, {
         expected_change_version: fixed.version,
       });
       await consume(worker);
-      const result = await getEntitySchemaChange(d, a.actor, type.id, plan.id);
+      const result = await getEntitySchemaChange(d, a.manager, type.id, plan.id);
       assertEquals(result.executable, true);
       assertEquals(result.analysis?.changed, 1);
       assertEquals(result.analysis?.replacements, 1);
-      assertEquals((await getEntity(e, a.actor, entity.id)).properties, { prop_1: "001" });
-      assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema_version, 1);
+      assertEquals((await getEntity(e, a.manager, entity.id)).properties, { prop_1: "001" });
+      assertEquals((await getEntitySchema(d, a.manager, { type_id: type.id })).schema_version, 1);
     } finally {
       await a.cleanup();
       await b.cleanup();
