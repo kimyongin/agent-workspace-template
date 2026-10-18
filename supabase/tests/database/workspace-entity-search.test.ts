@@ -471,7 +471,7 @@ for (const failLate of [false, true]) {
           chunks:
             await admin`select * from app.search_chunks where workspace_id=${fixture.workspaceId} order by source_kind,source_id,ordinal`,
           receipts:
-            await admin`select * from private.request_results where owner_id=${fixture.manager.userId} order by request_key`,
+            await admin`select * from private.workspace_request_results where workspace_id=${fixture.workspaceId} and executor_id=${fixture.manager.userId} order by request_key`,
         });
         const beforeCommit = await snapshot();
         const beforeRecords = (await admin`select id from app.records where workspace_id=${fixture.workspaceId}`)
