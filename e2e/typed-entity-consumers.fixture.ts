@@ -477,3 +477,43 @@ test.describe("date-only values independent of browser timezone", () => {
     await expect(input).toHaveValue("2011-12-30");
   });
 });
+
+test("calendar loading failure keeps the raw editor draft available for manual correction", async ({ page }) => {
+  const blocked = "**/src/components/DateCalendar.tsx*";
+  await page.route(blocked, (route) => route.abort("failed"));
+  let current = entity();
+  const patches: Record<string, unknown>[] = [];
+  await page.route("**/api/entities/*", (route) => {
+    if (route.request().method() === "PATCH") {
+      const patch = route.request().postDataJSON();
+      patches.push(patch);
+      current = { ...current, title: patch.properties.prop_1, properties: { ...current.properties, ...patch.properties }, version: current.version + 1 };
+    }
+    return route.fulfill({ json: current });
+  });
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/") && request.method() !== "GET") writes.push(request.method());
+  });
+  await page.goto(`/entities/${encodeURIComponent(entity().id)}`);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
+  const title = form.getByRole("textbox", { name: /^제목/ });
+  await title.fill("로딩 실패에도 남길 초안");
+  const date = form.getByLabel("날짜", { exact: true });
+  await date.fill("2024-02-29");
+  await form.getByRole("button", { name: "날짜 달력 열기", exact: true }).click();
+  const calendar = page.getByRole("dialog", { name: "날짜 달력", exact: true });
+  await expect(calendar.getByRole("alert")).toContainText("달력 화면을 불러오지 못했습니다");
+  await expect(title).toHaveValue("로딩 실패에도 남길 초안");
+  await expect(date).toHaveValue("2024-02-29");
+  expect(writes).toEqual([]);
+  await calendar.press("Escape");
+  await expect(date).toBeFocused();
+  await expect(title).toHaveValue("로딩 실패에도 남길 초안");
+  expect(writes).toEqual([]);
+  await date.fill("2024-03-01");
+  await saveOnce(page, form);
+  await expect.poll(() => patches.length).toBe(1);
+  expect((patches[0].properties as Record<string, unknown>).prop_3).toBe("2024-03-01");
+});

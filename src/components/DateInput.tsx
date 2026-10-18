@@ -1,11 +1,12 @@
-import { type ComponentProps, lazy, Suspense, useEffect, useRef, useState } from "react";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { CalendarIcon } from "lucide-react";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "./ui/input-group.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.tsx";
-import { Spinner } from "./ui/spinner.tsx";
+import { deferView } from "./DeferredView.tsx";
 import { ScrollArea } from "./ui/scroll-area.tsx";
 
-const DateCalendar = lazy(() => import("./DateCalendar.tsx"));
+type CalendarProps = Parameters<typeof import("./DateCalendar.tsx").default>[0];
+const DateCalendar = deferView<CalendarProps>(() => import("./DateCalendar.tsx"), "달력");
 
 type DateInputProps = Omit<ComponentProps<typeof InputGroupInput>, "type" | "value" | "onChange" | "ref"> & {
   label: string;
@@ -63,17 +64,15 @@ export function DateInput({ label, value, onValueChange, disabled, readOnly, ...
           }}
         >
           <ScrollArea className="max-h-(--radix-popover-content-available-height) [&>[data-slot=scroll-area-viewport]]:max-h-(--radix-popover-content-available-height)">
-            <Suspense fallback={<Spinner aria-label="달력 불러오는 중" />}>
-              <DateCalendar
-                value={value}
-                onSelect={(next) => {
-                  if (!frozen) {
-                    onValueChange(next);
-                    setOpen(false);
-                  }
-                }}
-              />
-            </Suspense>
+            <DateCalendar
+              value={value}
+              onSelect={(next) => {
+                if (!frozen) {
+                  onValueChange(next);
+                  setOpen(false);
+                }
+              }}
+            />
           </ScrollArea>
         </PopoverContent>
       )}
