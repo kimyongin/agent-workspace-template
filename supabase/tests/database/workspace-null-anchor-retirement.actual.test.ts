@@ -122,7 +122,7 @@ dbTest(
             records:
               (await tx`select id from app.records where id=any(${
                 currentOnly ? [record.id] : [legacyRecord, record.id]
-              }::uuid[]) order by id`).map(
+              }::text[]) order by id`).map(
                 (r) => r.id,
               ),
             entityTags:
