@@ -33,6 +33,14 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
     return executeSqlRequest(this.tx, this.actor, request, execute);
   }
+  async getForTarget(
+    input: Parameters<NonNullable<BusinessSettingsStore["getForTarget"]>>[0],
+  ): Promise<BusinessSettingsResult> {
+    const [row] = await this.tx`select app.workspace_business_template(${input.model},${input.action},${
+      input.target_id ?? null
+    },${input.entity_type_id ?? null}::uuid) as result`;
+    return row.result as BusinessSettingsResult;
+  }
   async get(): Promise<BusinessSettingsResult> {
     const rows = await this
       .tx`select id,version,settings from app.user_business_settings where workspace_id=${this.workspaceId} and id='record_templates'`;
@@ -124,7 +132,7 @@ export class SqlBusinessSettingsUnitOfWork {
     fn: (store: BusinessSettingsStore) => Promise<T>,
     entry: WorkspaceEntry = {
       mode: "business",
-      requirements: [{ target_kind: "settings", target_id: "*", access: "read" }],
+      requirements: [],
     },
   ): Promise<T> {
     return runInWorkspace(
