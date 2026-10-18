@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion, isoDate } from "../../contracts/common.ts";
-import { occurrenceRecordCreate, recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
+import { occurrenceRecordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
 import * as activity from "../../core/activity/application.ts";
 import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
@@ -97,10 +97,6 @@ export function activityRoutes(deps: activity.ActivityDeps) {
     return c.json(await activity.recordOccurrence(deps, c.get("actor"), id, date, input), 201);
   });
 
-  app.post("/records", async (c) => {
-    const input = parse(recordCreate, await json(c.req.raw));
-    return c.json(await activity.createRecord(deps, c.get("actor"), input), 201);
-  });
   app.get("/records", async (c) => {
     const raw = c.req.query();
     const query = parse(recordListQuery, {

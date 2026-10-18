@@ -8,15 +8,13 @@ import { AppError } from "../../core/shared/errors.ts";
 export class SqlEntityLinks {
   constructor(private readonly tx: postgres.TransactionSql) {}
 
-  /** All old/new/inherited membership types are locked before any task/record row. */
-  async prepareSelection(ids: string[] = [], taskId?: string, recordId?: string) {
+  /** Readable old/new task association kinds lock before the task row. */
+  async prepareSelection(ids: string[] = [], taskId?: string) {
     const rows = await this.tx<
       { entity_type_id: string }[]
     >`select distinct e.entity_type_id from app.entities e where e.workspace_id=app.current_workspace_id() and (e.id=any(${ids}::text[]) or e.id in (
       select jsonb_array_elements_text(app.workspace_task_associations(t.id)->'entity_ids') from app.tasks t
-      where t.workspace_id=app.current_workspace_id() and (t.id=${taskId ?? null} or t.result_record_id=${
-      recordId ?? null
-    })
+      where t.workspace_id=app.current_workspace_id() and t.id=${taskId ?? null}
     ))`;
     const requirements = rows.map((row) => ({
       target_kind: "entity_type" as const,
@@ -50,17 +48,6 @@ export class SqlEntityLinks {
       this.tx.json(requirements)
     }::jsonb)
       ) required),true)`;
-  }
-
-  async recordSelection(ids?: string[], existingRecordId?: string, inheritedTaskId?: string) {
-    if (ids === undefined) return {};
-    await this.prepareSelection(ids, inheritedTaskId, existingRecordId);
-    const [prior] = existingRecordId === undefined ? [] : await this.tx<{ entity_context: EntityContext[] }[]>`
-        select entity_context from app.records where id=${existingRecordId}`;
-    const [task] = inheritedTaskId === undefined ? [] : await this.tx<
-      { entity_context: EntityContext[] }[]
-    >`select app.workspace_task_associations(${inheritedTaskId})->'entity_context' as entity_context`;
-    return this.fields(ids, await this.capture(ids, prior?.entity_context ?? task?.entity_context ?? []));
   }
 
   async changeSelection(input: Pick<ChangeInput, "target_kind" | "target" | "action">) {

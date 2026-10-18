@@ -19,7 +19,7 @@ import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./wor
 import { AppError, notFound } from "../../core/shared/errors.ts";
 import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import { loadBusinessEntityDefinition } from "./entity-values.ts";
-import { hasAnyTag, hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
+import { hasAnyTag, hasTag, tagIdsColumn } from "./tag-links.ts";
 
 type Tx = postgres.TransactionSql;
 type Row = Record<string, unknown>;
@@ -54,10 +54,8 @@ function toTask(r: Row): Task {
 function toRecord(r: Row): ActivityRecord {
   return {
     entity_id: (r.entity_id as string | null) ?? null,
-    record_kind: r.record_kind as "user" | "result" | "change",
+    record_kind: r.record_kind as "result" | "change",
     change: (r.change_metadata as ActivityRecord["change"]) ?? null,
-    entity_ids: (r.entity_ids as string[]) ?? [],
-    entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
     body: r.body as string,
@@ -78,7 +76,7 @@ const taskColumns = (tx: Tx) =>
      result_record_id, pauses, version, created_at, updated_at,deleted_at,created_by,created_by_name,
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
-  tx`id, entity_id, entity_ids, entity_context, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+  tx`id, entity_id, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
     record_kind,change_metadata,
     ${tagIdsColumn(tx, "record")}`;
 
@@ -188,12 +186,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const row = await insertWithIdRetry(() =>
       tx`insert into app.tasks ${tx(values)} on conflict (id) do nothing returning id`
     );
-    await this.setTaskTags(row.id as string, task.tag_ids);
     return (await this.getTask(row.id as string))!;
-  }
-
-  async setTaskTags(taskId: string, ids: string[]) {
-    await setTagLinks(this.tx, this.actor, "task", taskId, ids);
   }
 
   async updateTask(id: string, changes: Partial<Task>) {
@@ -202,8 +195,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       ...pick(tx, changes, TASK_WRITABLE),
       ...await this.entityLinks.taskSelection(changes.entity_ids, id),
     };
-    if (changes.tag_ids !== undefined) await this.setTaskTags(id, changes.tag_ids);
-    if (Object.keys(values).length === 0 && changes.tag_ids === undefined && changes.entity_ids === undefined) {
+    if (Object.keys(values).length === 0 && changes.entity_ids === undefined) {
       throw new AppError("invalid_input", "바꿀 필드가 없습니다");
     }
     // set 도우미는 바로 앞의 `set` 문맥이 필요하므로 같은 템플릿에 둔다.
@@ -216,13 +208,8 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     return toTask(row);
   }
 
-  async deleteTask(id: string) {
-    await this.tx`delete from app.tasks where id = ${id}`;
-  }
-
-  async getRecord(id: string, opts: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean } = {}) {
+  async getRecord(id: string, opts: { forUpdate?: boolean } = {}) {
     if (opts.forUpdate) {
-      if (opts.selectionWrite) await this.entityLinks.prepareSelection(opts.entityIds, undefined, id);
       const rows = await this.tx`select id from app.records where id=${id} for update`;
       if (!rows.length) return null;
     }
@@ -244,7 +231,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       where true
         ${f.task_id ? tx`and task_id = ${f.task_id}` : tx``}
         ${f.record_kind ? tx`and record_kind=${f.record_kind}` : tx``}
-        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::text[]` : tx``}
+        ${f.entity_id ? tx`and entity_id=${f.entity_id}` : tx``}
         ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "record", f.tag_id)}` : tx``}
         ${
       f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "record", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``
@@ -286,11 +273,9 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const values = {
       ...pick(tx, changes, RECORD_WRITABLE),
-      ...await this.entityLinks.recordSelection(changes.entity_ids, id),
     };
-    if (changes.tag_ids !== undefined) await setTagLinks(tx, this.actor, "record", id, changes.tag_ids);
     if (
-      Object.keys(values).length === 0 && changes.tag_ids === undefined
+      Object.keys(values).length === 0
     ) {
       throw new AppError("invalid_input", "바꿀 필드가 없습니다");
     }
@@ -305,12 +290,6 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async deleteRecord(id: string) {
     await this.tx`delete from app.records where id = ${id}`;
-  }
-
-  async detachRecords(taskId: string) {
-    await this.tx`
-      update app.records set task_id = null, occurrence_on = null, version = version + 1, updated_at = now()
-      where task_id = ${taskId}`;
   }
 
   async taskWithResult(recordId: string) {

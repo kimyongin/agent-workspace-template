@@ -2,7 +2,7 @@ import { runWrite } from "../shared/request.ts";
 import { activityChangeTarget, taskChangeFacts } from "./change.ts";
 // 할 일·기록 유스케이스. HTTP와 MCP가 같은 함수를 호출한다(ADR-0001).
 // 읽기 → 도메인 판단 → 저장 순서와 트랜잭션 경계, 색인 작업 등록, 요청 재전송 처리를 맡는다.
-import type { RecordCreate, RecordListQuery, RecordResult, RecordUpdate } from "../../contracts/record.ts";
+import type { OccurrenceRecordCreate, RecordListQuery, RecordResult, RecordUpdate } from "../../contracts/record.ts";
 import type {
   TaskComplete,
   TaskCreate,
@@ -54,11 +54,10 @@ async function toTaskResult(store: ActivityStore, raw: Task): Promise<TaskResult
 }
 
 function toRecordResult(record: ActivityRecord): RecordResult {
-  const { entity_ids: _ids, entity_context: _context, ...content } = record;
   return {
-    ...content,
+    ...record,
     entity_id: record.entity_id ?? null,
-    record_kind: record.record_kind === "change" ? "change" : "result",
+    record_kind: record.record_kind,
     change: record.change ?? null,
   };
 }
@@ -81,10 +80,8 @@ async function requireRecord(
   store: ActivityStore,
   id: string,
   forUpdate = false,
-  entityIds?: string[],
-  selectionWrite = false,
 ): Promise<ActivityRecord> {
-  const record = await store.getRecord(id, { forUpdate, entityIds, selectionWrite });
+  const record = await store.getRecord(id, { forUpdate });
   if (!record) throw notFound();
   return record;
 }
@@ -207,7 +204,6 @@ export async function completeTask(
     const task = await requireTask(store, id, true);
     const decided = decideComplete(task, input.expected_version, now);
     const record = await store.insertRecord({
-      record_kind: "result",
       body: input.body,
       occurred_at: input.occurred_at ?? null,
       task_id: task.id,
@@ -357,7 +353,7 @@ export async function recordOccurrence(
   actor: Actor,
   id: string,
   date: string,
-  input: Omit<RecordCreate, "task_id">,
+  input: OccurrenceRecordCreate,
 ): Promise<RecordResult> {
   return await runWrite(
     activityWork(deps, { access: "write" }),
@@ -370,7 +366,6 @@ export async function recordOccurrence(
       const task = await requireTask(store, id, true);
       assertRecordableOccurrence(task, date, deps.clock.now());
       const record = await store.insertRecord({
-        record_kind: "result",
         body: input.body,
         occurred_at: input.occurred_at ?? null,
         task_id: id,
@@ -383,23 +378,6 @@ export async function recordOccurrence(
 }
 
 // ---------- 기록 ----------
-
-export async function createRecord(deps: ActivityDeps, actor: Actor, input: RecordCreate): Promise<RecordResult> {
-  return await runWrite(deps.uow, actor, "record.create", null, input, async (store) => {
-    const task = input.task_id ? await requireTask(store, input.task_id, true, input.entity_ids, true) : null;
-    const record = await store.insertRecord({
-      inherit_task_entities: input.entity_ids === undefined,
-      entity_ids: input.entity_ids ?? task?.entity_ids ?? [],
-      body: input.body,
-      occurred_at: input.occurred_at ?? null,
-      task_id: task?.id ?? null,
-      occurrence_on: null,
-      tag_ids: input.tag_ids,
-    });
-    await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
-    return toRecordResult(record);
-  });
-}
 
 export async function getRecord(deps: ActivityDeps, actor: Actor, id: string): Promise<RecordResult> {
   return await deps.uow.run(actor, async (store) => toRecordResult(await requireRecord(store, id)));
@@ -427,28 +405,35 @@ export async function updateRecord(
   id: string,
   patch: RecordUpdate,
 ): Promise<RecordResult> {
-  return await runWrite(deps.uow, actor, "record.update", id, patch, async (store) => {
-    const record = await requireRecord(store, id, true, patch.entity_ids, patch.entity_ids !== undefined);
-    assertVersion(record, patch.expected_version);
-    if (
-      record.record_kind === "change" &&
-      ["entity_ids", "tag_ids", "occurred_at"].some((k) => k in patch)
-    ) {
-      throw invalidInput("변경 기록은 본문만 정정할 수 있습니다");
-    }
-    const { expected_version: _v, ...changes } = patch;
-    if (
-      !changed(record, changes)
-    ) return toRecordResult(record);
-    const updated = await store.updateRecord(id, {
-      ...changes,
-    });
-    if (updated.body !== record.body) {
-      await store.enqueueIndex({ kind: "record", id, input_hash: await searchInputHash(updated.body) });
-    }
-    // Records are editable knowledge. Editing their memo does not create another event.
-    return toRecordResult(updated);
-  });
+  return await runWrite(
+    activityWork(deps, { access: "write", recordId: id }),
+    actor,
+    "record.update",
+    id,
+    patch,
+    async (store) => {
+      const record = await requireRecord(store, id, true);
+      assertVersion(record, patch.expected_version);
+      if (
+        record.record_kind === "change" &&
+        "occurred_at" in patch
+      ) {
+        throw invalidInput("변경 기록은 본문만 정정할 수 있습니다");
+      }
+      const { expected_version: _v, ...changes } = patch;
+      if (
+        !changed(record, changes)
+      ) return toRecordResult(record);
+      const updated = await store.updateRecord(id, {
+        ...changes,
+      });
+      if (updated.body !== record.body) {
+        await store.enqueueIndex({ kind: "record", id, input_hash: await searchInputHash(updated.body) });
+      }
+      // Records are editable knowledge. Editing their memo does not create another event.
+      return toRecordResult(updated);
+    },
+  );
 }
 
 /**

@@ -20,7 +20,6 @@ export function recordChangeFacts(record: ActivityRecord): ChangeFacts {
   return {
     body: record.body,
     tag_ids: record.tag_ids,
-    ...(record.entity_ids === undefined ? {} : { entity_ids: record.entity_ids }),
   };
 }
 
