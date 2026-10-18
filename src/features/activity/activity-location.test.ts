@@ -42,3 +42,11 @@ test("record list create URLs discard the removed general creation entry", () =>
   expect(result.params.has("create")).toBe(false);
   expect(result.params.get("pages")).toBe("2");
 });
+
+test("deleted task visibility stays scoped to the task list", () => {
+  const task = activityLocation("tasks", new URLSearchParams("deleted=only&q=보관"), "");
+  expect(task.params.get("deleted")).toBe("only");
+  const records = activityLocation("records", new URLSearchParams("deleted=only&q=보관"), "");
+  expect(records.params.has("deleted")).toBe(false);
+  expect(records.params.get("q")).toBe("보관");
+});
