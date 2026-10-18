@@ -109,7 +109,7 @@ export class SqlEntityLinks {
       join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version
       where e.workspace_id=app.current_workspace_id() and e.deleted_at is null and not coalesce((v.schema->>'deprecated')::boolean,false) and e.id in ${
         this.tx(uncaptured)
-      } order by e.id for key share of e`
+      } order by e.id`
       : [];
     return ids.map((id) => {
       const captured = prior.find((entity) => entity.id === id);
