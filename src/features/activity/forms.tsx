@@ -264,7 +264,8 @@ export function TaskFormModal(
   } & ({ mode: "create"; target?: never } | { mode: "edit"; target: TaskResult }),
 ) {
   const api = useApi();
-  const { canRead, canWrite } = useTaskAccess();
+  const access = useTaskAccess();
+  const canRead = access.canRead, canWrite = access.canWrite && (props.mode === "create" || !props.target.deleted_at);
   const canReadEntityType = useEntityReadAccess();
   const [owner] = useState(() => api);
   const active = owner === api;

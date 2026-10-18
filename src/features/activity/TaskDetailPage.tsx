@@ -25,10 +25,10 @@ import { OccurrenceBadge } from "./shared.tsx";
 import { TagConnections } from "../tags/TagConnections.tsx";
 import { TaskEntityRelations } from "../entity/TaskEntityRelations.tsx";
 
-type Dialog = null | "complete" | "transition" | { occurrence: string };
+type Dialog = null | "complete" | "transition" | "restore" | { occurrence: string };
 function requestedDialog(params: URLSearchParams): Dialog {
   const action = params.get("action");
-  return action === "complete" || action === "transition"
+  return action === "complete" || action === "transition" || action === "restore"
     ? action
     : params.has("occurrence")
     ? { occurrence: params.get("occurrence")! }
@@ -87,13 +87,13 @@ export function TaskDetailPage() {
   const editor = useDetailEditor(detail.editClosed);
   const { value: task, editReady } = detail;
   const admittedEdit = useRef<{ api: typeof api; id: string; key: string } | null>(null);
-  const editing = editor.active && !dialog && editReady && (canWrite ||
+  const editing = editor.active && !dialog && editReady && (canWrite && !task?.deleted_at ||
     admittedEdit.current?.api === api && admittedEdit.current.id === id && admittedEdit.current.key === location.key);
   useLayoutEffect(() => {
     if (!editor.active || admittedEdit.current?.api !== api || admittedEdit.current.id !== id ||
       admittedEdit.current.key !== location.key) admittedEdit.current = null;
-    if (editor.active && !dialog && editReady && canWrite) admittedEdit.current = { api, id, key: location.key };
-  }, [api, id, location.key, editor.active, dialog, editReady, canWrite]);
+    if (editor.active && !dialog && editReady && canWrite && !task?.deleted_at) admittedEdit.current = { api, id, key: location.key };
+  }, [api, id, location.key, editor.active, dialog, editReady, canWrite, task?.deleted_at]);
 
   const loadError = detail.error
     ? detail.error instanceof ApiError && detail.error.code === "not_found"
@@ -183,12 +183,13 @@ export function TaskDetailPage() {
             <Button variant="outline" type="button" onClick={reload}>조회 다시 시도</Button>
           </>
         )}
+        {task.deleted_at && <Notice>삭제된 할 일입니다. 내용과 결과·회차 기록은 보존되어 있습니다.</Notice>}
         <TaskDataFields task={task} />
         <TagConnections
           onDraftClosed={detail.editClosed}
           scope="task"
           target={task}
-          readonly={!canWrite}
+          readonly={!canWrite || !!task.deleted_at}
           visible={canRead}
           onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
         />
@@ -245,7 +246,7 @@ export function TaskDetailPage() {
                   <BusinessCell index={1}><OccurrenceBadge status={o.status} /></BusinessCell>
                   <BusinessCell index={2}>{o.record_ids.length > 0 ? `기록 ${o.record_ids.length}개` : "기록 없음"}</BusinessCell>
                   <BusinessCell index={3}>
-                  {!readOnly && canWrite && o.in_rule && o.status !== "upcoming" && (
+                  {!readOnly && canWrite && !task.deleted_at && o.in_rule && o.status !== "upcoming" && (
                     <Button
                       variant="ghost"
                       type="button"
@@ -275,7 +276,7 @@ export function TaskDetailPage() {
       onError={detail.failed}
       busy={busy}
       footer={canWrite &&
-        <>
+        task.deleted_at ? <Button type="button" disabled={busy} onClick={() => manage("restore")}>복원</Button> : <>
           <Button variant="outline" type="button" disabled={busy} onClick={editor.start}>편집</Button>
           {task.kind === "once" && task.status === "open" && (
             <Button
@@ -338,7 +339,7 @@ export function TaskDetailPage() {
               </div>
             </>
           }
-          deletion={!canWrite ? undefined : {
+          deletion={!canWrite || task.deleted_at ? undefined : {
             target: task.title,
             preparation: () => ({
               model: "task",
@@ -349,7 +350,7 @@ export function TaskDetailPage() {
             }),
             message: (
               <p>
-                이 할 일을 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
+                이 할 일을 삭제 상태로 보관합니다. 내용과 결과·회차 기록, 기존 연결은 유지합니다.
               </p>
             ),
             onConfirm: (reason, tags, requestKey) =>
@@ -373,6 +374,19 @@ export function TaskDetailPage() {
           }}
         />
       )}
+      {dialog === "restore" && (
+        <TaskRestoreForm
+          key={task.id}
+          task={task}
+          onClose={closeManagement}
+          onSaved={async (saved) => {
+            detail.confirm(current => current ? { ...current, ...saved } : current);
+            closeManagement();
+            setMessage("복원했습니다.");
+            await reload();
+          }}
+        />
+      )}
       {task.kind === "recurring" && dialog === "transition" && (
         <TaskTransitionForm
           key={task.id}
@@ -390,7 +404,7 @@ export function TaskDetailPage() {
         <RecordFormModal
           title="할 일 완료"
           visible={canRead}
-          readonly={!canWrite}
+          readonly={!canWrite || !!task.deleted_at}
           submitLabel="완료하고 기록 저장"
           open
           initial={emptyRecord()}
@@ -414,7 +428,7 @@ export function TaskDetailPage() {
         <RecordFormModal
           title={`${dialog.occurrence} 회차 기록`}
           visible={canRead}
-          readonly={!canWrite}
+          readonly={!canWrite || !!task.deleted_at}
           submitLabel="기록 저장"
           open
           initial={emptyRecord()}
@@ -459,7 +473,7 @@ function TaskTransitionForm(
     <FormModal
       open={open}
       visible={active && canRead}
-      submitDisabled={!active || !canWrite}
+      submitDisabled={!active || !canWrite || !!task.deleted_at}
       title={`반복 할 일 ${label}`}
       submitLabel={label}
       dirty={false}
@@ -476,7 +490,7 @@ function TaskTransitionForm(
       onRouteDiscard={onClose}
       validate={() => null}
       onSubmit={async (requestKey, memo) => {
-        if (!active || !canWrite) throw new Error("현재 할 일 쓰기 권한이 없습니다.");
+        if (!active || !canWrite || task.deleted_at) throw new Error("이 할 일을 현재 변경할 수 없습니다.");
         await api(
           "POST",
           `/tasks/${target.id}/${action}`,
@@ -490,4 +504,35 @@ function TaskTransitionForm(
       {() => null}
     </FormModal>
   );
+}
+
+function TaskRestoreForm({ task, onClose, onSaved }: {
+  task: TaskResult;
+  onClose: () => void;
+  onSaved: (saved: TaskResult) => Promise<void>;
+}) {
+  const api = useApi();
+  const { canRead, canWrite } = useTaskAccess();
+  const [owner] = useState(() => api);
+  const [target] = useState(task);
+  const active = owner === api;
+  return <FormModal
+    open
+    visible={active && canRead}
+    submitDisabled={!active || !canWrite || !task.deleted_at}
+    title="할 일 복원"
+    submitLabel="복원"
+    dirty={false}
+    confirmationOnly
+    preparation={() => ({ model: "task", action: "restore", target_id: target.id, expected_version: target.version, input: {} })}
+    mutation={{ target: target.title, action: "복원", message: "같은 할 일을 복원합니다. 보관된 내용과 결과·회차 기록, 기존 연결을 유지합니다." }}
+    onClose={onClose}
+    onRouteDiscard={onClose}
+    validate={() => null}
+    onSubmit={async (requestKey, memo) => {
+      if (!active || !canWrite || !task.deleted_at) throw new Error("이 할 일을 현재 복원할 수 없습니다.");
+      const saved = await api<TaskResult>("POST", `/tasks/${target.id}/restore`, { expected_version: target.version, ...memo }, undefined, requestKey());
+      await onSaved(saved);
+    }}
+  >{() => null}</FormModal>;
 }

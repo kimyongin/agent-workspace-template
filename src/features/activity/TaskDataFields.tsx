@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "../../components/DateInput.tsx";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,7 +95,9 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
         value.body ? <MarkdownContent text={value.body} /> : "—",
         true,
       )}
-      {task && pair(taskLabels.status, <StatusBadge status={task.status} />)}
+      {task && pair(taskLabels.status, task.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : <StatusBadge status={task.status} />)}
+      {task && pair("작성자", task.created_by_name ?? "알 수 없음")}
+      {task?.deleted_at && pair("삭제 시각", formatDateTime(task.deleted_at))}
       {task && pair(taskLabels.kind, taskLabels[task.kind])}
       {value.kind === "once"
         ? draft ? field(taskLabels.due_on, "due_on", "date") : pair(taskLabels.due_on, task!.due_on ?? "—")

@@ -39,7 +39,8 @@ function RelationControls({
   onSaved: (saved?: TaskResult, before?: TaskResult) => void;
 }) {
   const api = useApi();
-  const { canRead, canWrite } = useTaskAccess();
+  const access = useTaskAccess();
+  const canRead = access.canRead, canWrite = access.canWrite && !task?.deleted_at;
   const [owner] = useState(() => api);
   const canReadType = useEntityReadAccess();
   const active = owner === api && visible && canRead;
@@ -66,6 +67,7 @@ function RelationControls({
     try {
       const latest = await api<TaskResult>("GET", `/tasks/${task?.id ?? item.id}`, undefined, controller.signal);
       if (controller.signal.aborted || locationKey.current !== startedKey || !authority.current.active || !authority.current.canWrite || surface?.editor.current) return;
+      if (latest.deleted_at) throw new Error("삭제된 할 일은 복원 후 연결을 변경할 수 있습니다.");
       const entity = task ? item : { id: entityId!, title: entityTitle! }, ids = latest.entity_ids;
       if (entity.type && !authority.current.canReadType(entity.type.id)) return;
       if (ids.includes(entity.id) === !remove) {
