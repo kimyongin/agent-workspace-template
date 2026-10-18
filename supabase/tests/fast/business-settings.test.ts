@@ -334,3 +334,44 @@ Deno.test("기록 준비: 반복 중단·재개의 기간은 실제 상태 전�
   facts = { ...facts, kind: "once", status: "open", recurrence: null, timezone: null, pauses: [] };
   await assertRejects(() => prepareBusinessRecord(d, actor, { ...input, action: "stop" }), AppError, "반복 할 일에만");
 });
+
+Deno.test("saved tag connection prepares its memo without a content update input", async () => {
+  const targetId = crypto.randomUUID(), tagId = crypto.randomUUID();
+  const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-18T00:00:00Z") },
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          getForTarget: () =>
+            Promise.resolve({
+              versions: { record_templates: 1 },
+              settings: { record_templates: { task: { update: { memo: "태그 분류 변경", tag_ids: [] } } } },
+            }),
+          get: () => Promise.resolve({ versions: { record_templates: 1 }, settings: {} }),
+          update: () => Promise.reject(new Error("preparation is read only")),
+          recordTags: () => Promise.resolve([]),
+          target: () => Promise.resolve({ version: 2, facts: { title: "저장된 업무", tag_ids: [] } }),
+        }),
+    },
+  };
+  const result = await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+    intent: "tag-connections",
+    model: "task",
+    action: "update",
+    target_id: targetId,
+    expected_version: 2,
+    input: { tag_ids: [tagId] },
+  });
+  assertEquals(result.prepared_input, { tag_ids: [tagId], expected_version: 2 });
+  assertEquals(result.change_note, "태그 분류 변경");
+  const invalid = await assertRejects(() =>
+    prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+      intent: "tag-connections",
+      model: "task",
+      action: "update",
+      target_id: targetId,
+      expected_version: 2,
+      input: { tag_ids: [tagId], title: "content cannot enter a link command" },
+    }), AppError);
+  assertEquals(invalid.code, "invalid_input");
+});
