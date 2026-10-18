@@ -10,7 +10,7 @@ import { test, expect } from "@playwright/test";
 import { beginTabAction } from "./ui-actions.ts";
 const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 test.beforeEach(async({page})=>{await page.route("http://127.0.0.1:55580/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55580/e2e/fixtures/activity.html"});await route.fulfill({response});}else await route.continue();});});
-const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),body:`기록 ${n}`,occurred_at,task_id:id(100),entity_id:null,occurrence_on:null,tag_ids:[],record_kind:"result",change:null,version:1,created_at:occurred_at,updated_at:occurred_at});
+const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),created_by:null,created_by_name:null,body:`기록 ${n}`,occurred_at,task_id:id(100),entity_id:null,occurrence_on:null,tag_ids:[],record_kind:"result",change:null,version:1,created_at:occurred_at,updated_at:occurred_at});
 
 for(const width of [390,1024])test(`변경 기록 metadata ${width}px: 종류·출처·시각·대상은 이름과 값으로 정렬되고 긴 값도 읽힌다`,async({page},info)=>{
   const items=["수정","삭제"].map((action,i)=>({...record(i+1),task_id:id(20+i),body:`할 일 ${action}`,record_kind:"change",change:{event_id:id(10+i),target_kind:"task",target_id:id(20+i),target_title:i?"긴 할 일 이름 ".repeat(20):"할 일",action:i?"delete":"update",source:"mcp",before:null,after:null,path:"/tasks/example"}}));
