@@ -186,3 +186,28 @@ test(
     expect(state.errors).toEqual([]);
   },
 );
+
+test("business relation reader sees linked preview without settings or mutation controls", async ({ page }, info) => {
+  const origin = entity(21, { prop_1: "읽기 원점" }), peer = entity(22, { prop_1: "읽을 상대" });
+  const { fixtureWorkspaceId } = await import("./support/workspace-scope.ts");
+  await installWorkspaceApi(page, "http://127.0.0.1:56906", { entities: [origin, peer], tasks: [], records: [], tags: [] });
+  const user = { id: id(999), aud: "authenticated", app_metadata: {}, user_metadata: {} };
+  await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
+  await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
+  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: { workspace: { id: fixtureWorkspaceId, name: "업무 읽기 공간", deleted_at: null }, can_manage: false, membership_version: 1, grants: [{ target_kind: "entity_type", target_id: fixtureType.id, access: "read" }] } }));
+  const definition: EntityRelationDefinition = { id: id(701), version: 1, archived: false, ends: [{ type_id: fixtureType.id, label: "읽기 연결", cardinality: "one" }, { type_id: fixtureType.id, label: "반대 연결", cardinality: "many" }] };
+  await page.route("**/api/entity-relation-definitions**", route => {
+    expect(new URL(route.request().url()).searchParams.get("purpose")).toBe("business");
+    expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
+    return route.fulfill({ json: { items: [definition], next_cursor: null } });
+  });
+  await page.route("**/api/entity-relations/**", route => route.fulfill({ json: { definition, side: 0, origin_id: origin.id, items: [peer], next_cursor: null } }));
+  await page.goto(`/w/${fixtureWorkspaceId}/entities/${encodeURIComponent(origin.id)}`);
+  const section = page.getByLabel("읽기 연결 관계", { exact: true }).filter({ visible: true });
+  await expect(section.getByRole("link", { name: peer.title, exact: true })).toBeVisible();
+  await expect(section.getByRole("button", { name: "읽기 연결 작성해서 연결", exact: true })).toHaveCount(0);
+  await expect(section.getByRole("button", { name: "변경", exact: true })).toHaveCount(0);
+  await expect(section.getByRole("button", { name: "해제", exact: true })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => document.getAnimations().filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
+  await info.attach("business-relation-readonly-preview", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+});
