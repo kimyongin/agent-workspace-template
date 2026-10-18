@@ -643,6 +643,31 @@ export async function ownedWorkspace(page: Page) {
     .toBeVisible();
   return {
     id: fixture.id,
+    preservePreferences: async () => {
+      ownedRuntime();
+      const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+      let original: unknown;
+      try {
+        const rows = await admin`select raw_user_meta_data from auth.users where id=${fixture.actorId}`;
+        expect(rows).toHaveLength(1);
+        original = rows[0].raw_user_meta_data;
+      } finally { await admin.end(); }
+      return async (expected: Record<string, unknown>) => {
+        ownedRuntime();
+        const restore = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+        try {
+          await restore.begin(async (tx) => {
+            const changed = await tx`update auth.users set raw_user_meta_data=${original === null ? null : JSON.stringify(original)}::jsonb
+              where id=${fixture.actorId} and raw_user_meta_data=${JSON.stringify(expected)}::jsonb returning id`;
+            if (!changed.length) {
+              const unchanged = await tx`select id from auth.users where id=${fixture.actorId}
+                and raw_user_meta_data is not distinct from ${original === null ? null : JSON.stringify(original)}::jsonb`;
+              if (unchanged.length !== 1) throw new Error("fixture preferences changed outside the tracked test; preserved current metadata");
+            }
+          });
+        } finally { await restore.end(); }
+      };
+    },
     fetch: (method: string, path: string, data?: unknown, key = crypto.randomUUID()) => {
       if (!path.startsWith("/") || path.startsWith("//")) throw new Error("fixture API path must be relative to its owned local service");
       fixture.requestKeys.push(key);

@@ -5,18 +5,29 @@ import { beginTabAction, saveOnce } from "./ui-actions.ts";
 // 화면 폭별 가로 넘침, 조작 영역 44px, 200% 확대(폭 절반), 키보드만으로 작성·닫기, 대화상자 초점.
 import { expect, type Page } from "@playwright/test";
 
-import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique , ownedWorkspace, workspacePath} from "./support.ts";
+
+async function readableKind(page: Page, workspace: Awaited<ReturnType<typeof ownedWorkspace>>) {
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
+  try {
+    const kind = await mcp.call("create_entity_type", { label: unique("레이아웃 자료") });
+    await workspace.grantKind(kind.id);
+  } finally { await mcp.close(); }
+}
 
 const WIDTHS = [320,360,390,639,640,768,1024,1440];
 
 test("사용자 바로가기와 별도로 탐색 메뉴에서 전체 업무 화면에 접근한다",async({page})=>{
-  await devLogin(page);await page.goto("/entities");
+  await devLogin(page);
+  const workspace = await ownedWorkspace(page);
+  await readableKind(page, workspace);
+  await page.goto(workspacePath(workspace.id, "/entities"));
   const navigation = page.getByRole("navigation",{name:"주 메뉴"});
   await openMainNavigation(page);
   const menu = navigation;
   for (const [path, label] of [["/entities","전체 자료"],["/tasks","할 일"],["/records","기록"]]) {
     const link = menu.getByRole("link", { name: label, exact: true });
-    await expect(link).toHaveAttribute("href", path);
+    await expect(link).toHaveAttribute("href", workspacePath(workspace.id, path));
     await expect(link).toHaveAccessibleName(label);
     await expect(link).toBeVisible();
   }
@@ -59,6 +70,7 @@ test.describe("화면 폭별 배치", () => {
 
   for(const width of WIDTHS) test(`${width}px 목록·상세·작성 대화상자에 가로 넘침과 작은 조작 영역이 없다`, async ({ page }) => {
     await devLogin(page);
+  const workspace = await ownedWorkspace(page);
     // 긴 공백 없는 제목으로 줄바꿈 처리도 함께 본다.
     await beginTabAction(page,"할 일 추가");
     const dialog = page.getByRole("dialog", { name: "할 일 추가" });
@@ -70,27 +82,27 @@ test.describe("화면 폭별 배치", () => {
     await expect(detailDialog(page).getByRole("heading", { name: longTitle, exact: true })).toBeVisible();
     const taskDetail = page.url();
 
-    // 기록 상세도 함께 본다.
-    await page.goto("/records");
-    await beginTabAction(page,"기록 작성");
-    const recordDialog = page.getByRole("dialog", { name: "기록 작성" });
-    const recordTitle = unique("긴기록" + "나".repeat(40));
-    await recordDialog.getByLabel("본문").fill(recordTitle+"\n"+"b".repeat(150));
-    await recordDialog.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/\/records\/[^/?]+/);
-    await expect(page.locator('[role="dialog"] [data-slot="dialog-title"]')).toHaveText("기록");
+    // A saved task produces the record; no general record creation remains.
+    const taskId = new URL(taskDetail).pathname.split("/").at(-1)!;
+    const completed = await workspace.fetch("POST", `/tasks/${taskId}/complete`, {
+      expected_version: 1, body: unique("긴기록"+"나".repeat(40))+"\n"+"b".repeat(150),
+    });
+    expect(completed.status()).toBe(200);
+    const record = (await completed.json()).record;
+    await page.goto(workspacePath(workspace.id, `/records/${record.id}`));
+    await expect(detailDialog(page).getByRole("heading", {name:"기록",exact:true})).toBeVisible();
     const recordDetail = page.url();
 
 
       await page.setViewportSize({ width, height: 900 });
       for (const path of ["/tasks", taskDetail, "/records", recordDetail,"/tags",`/search?q=${encodeURIComponent(longTitle)}&mode=keyword`]) {
-        await page.goto(path);
+        await page.goto(path.startsWith("http") ? path : workspacePath(workspace.id, path));
         const detail=detailDialog(page);
         if(/\/(tasks|records)\/[^/?]+/.test(new URL(path,"http://fixture.invalid").pathname))await expect(detail.locator("[data-slot=\"dialog-title\"]")).toBeVisible();
         else await expect(page.getByRole("heading",{level:1})).toBeVisible();
         await expect.poll(() => layoutProblems(page), { message: `${width}px ${path}` }).toEqual([]);
       }
-      await page.goto("/tasks");
+      await page.goto(workspacePath(workspace.id, "/tasks"));
       await beginTabAction(page,"할 일 추가");
       await expect(page.getByRole("dialog", { name: "할 일 추가" })).toBeVisible();
       await expect.poll(() => layoutProblems(page), { message: `${width}px 작성 대화상자` }).toEqual([]);
@@ -104,10 +116,11 @@ test.describe("화면 폭별 배치", () => {
 
   test("200% 확대(폭 절반)에서 넘침·누름 영역·루트 글자 크기가 유지된다", async ({ page }) => {
     await devLogin(page);
+  const workspace = await ownedWorkspace(page);
     // 1280px 화면의 200% 확대는 CSS 폭 640px과 같다. 루트 글자 크기를 줄이지 않는다.
     await page.setViewportSize({ width: 640, height: 400 });
     for (const path of ["/tasks", "/records"]) {
-      await page.goto(path);
+      await page.goto(path.startsWith("http") ? path : workspacePath(workspace.id, path));
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       expect(await layoutProblems(page), path).toEqual([]);
       const rootFont = await page.evaluate(() => getComputedStyle(document.documentElement).fontSize);
@@ -119,6 +132,7 @@ test.describe("화면 폭별 배치", () => {
 test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫기 전에 확인한다", async ({ page, isMobile }) => {
   test.skip(isMobile, "키보드 흐름은 데스크톱에서 본다");
   await devLogin(page);
+  const workspace = await ownedWorkspace(page);
   const add = page.getByRole("button", { name: "할 일 등록" });
   await add.focus();
   await page.keyboard.press("Enter");
@@ -165,6 +179,7 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
 
 test("보조 글자와 상태 표시의 대비가 검수 목표 이상이다", async ({ page }, info) => {
   await devLogin(page);
+  const workspace = await ownedWorkspace(page);
   const results: { label: string; ratio: number; foreground: string; background: number[]; target: number }[] = [];
   const check = async (node: import("@playwright/test").Locator, label: string, kind: "text" | "boundary" | "focus" = "text", unfocusedShadow = "none") => {
     await expect(node).toBeVisible();
@@ -237,7 +252,8 @@ test("보조 글자와 상태 표시의 대비가 검수 목표 이상이다", a
     results.push({ label, ...measured, target });
     expect.soft(measured.ratio, `${label}: ${measured.ratio.toFixed(2)}:1 (target ${target}:1)`).toBeGreaterThanOrEqual(target);
   };
-  await page.goto("/entities");
+  await readableKind(page, workspace);
+  await page.goto(workspacePath(workspace.id, "/entities"));
   await check(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true }), "App primary text");
   // Existing public samples render the same official components, including all validation/status states.
   await page.goto("/design-samples/index.html?content=1");
