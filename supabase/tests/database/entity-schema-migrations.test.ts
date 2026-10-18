@@ -769,14 +769,21 @@ dbTest(
         (tx) =>
           tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.workspaceId},'app:'||${type.id}::text||':'||n,'app',n::text,${type.id},1,jsonb_build_object('prop_1','item '||n) from generate_series(1,2000) n`,
       );
-      const plan = await analyze(d, a.actor, type.id, worker),
-        job = await startEntitySchemaMigration(
-          d,
-          requestActor(a.actor),
-          type.id,
-          plan.change.id,
-          plan.input,
-        );
+      const plan = await analyze(d, a.actor, type.id, worker);
+      const snapshotStarted = performance.now();
+      const job = await startEntitySchemaMigration(
+        d,
+        requestActor(a.actor),
+        type.id,
+        plan.change.id,
+        plan.input,
+      ).finally(() =>
+        console.log(JSON.stringify({
+          migration_targets: 2000,
+          start_snapshot_ms: Math.round(performance.now() - snapshotStarted),
+          statement_timeout_ms: 15000,
+        }))
+      );
       for (let i = 0; i < 60; i++) {
         const b = await claim(worker);
         if (b.status === "committing") {
