@@ -380,17 +380,24 @@ dbTest("business memo preparation uses only its permitted workspace target witho
       admin.json({ sub: actor.userId, email, email_verified: true })
     })`;
   }
-  const owned: string[] = [];
+  const owned: string[] = [], tagIds: string[] = [];
   const deps = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
   try {
     for (const memo of ["첫 공간 준비", "다른 공간 준비"]) {
       const id = (await workspaces.createWorkspace(workspaceDeps, key(a), { name: memo })).workspace.id;
       owned.push(id);
+      const tagId = await admin.begin(async (tx) => {
+        await tx`select set_config('request.workspace_id',${id},true)`;
+        const [tag] =
+          await tx`insert into app.tags(workspace_id,scope,name) values(${id}::uuid,'record','준비 문구 태그') returning id`;
+        return tag.id as string;
+      });
+      tagIds.push(tagId);
       await settings.updateBusinessSettings(deps, key({ ...a, workspaceId: id }), {
         id: "record_templates",
         expected_version: 0,
         value: {
-          task: { create: { memo, tag_ids: [] }, update: { memo: "공개하지 않을 다른 동작 설정", tag_ids: [] } },
+          task: { create: { memo, tag_ids: [tagId] }, update: { memo: "공개하지 않을 다른 동작 설정", tag_ids: [] } },
         },
       });
       const invitation = await workspaces.inviteWorkspaceMember(workspaceDeps, key(a), id, {
@@ -412,6 +419,21 @@ dbTest("business memo preparation uses only its permitted workspace target witho
     const first = await prepare(owned[0]), second = await prepare(owned[1]);
     assertEquals(first.change_note, "첫 공간 준비");
     assertEquals(second.change_note, "다른 공간 준비");
+    assertEquals(first.change_tag_ids, [tagIds[0]]);
+    assertEquals(second.change_tag_ids, [tagIds[1]]);
+    assertEquals(first.missing_tag_ids, []);
+    const foreignTag = await assertRejects(
+      () =>
+        settings.updateBusinessSettings(deps, key({ ...a, workspaceId: owned[0] }), {
+          id: "record_templates",
+          expected_version: 1,
+          value: { task: { create: { memo: "다른 공간 태그는 연결하지 않음", tag_ids: [tagIds[1]] } } },
+        }),
+      AppError,
+    );
+    assertEquals(foreignTag.code, "invalid_input");
+    assertEquals((await prepare(owned[0])).change_tag_ids, [tagIds[0]]);
+
     assertEquals(Object.hasOwn(first, "settings"), false);
     assertEquals(JSON.stringify(first).includes("공개하지 않을 다른 동작 설정"), false);
     await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {

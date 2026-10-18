@@ -20,6 +20,7 @@ import type { ChangeFacts } from "../../core/shared/changes.ts";
 import { entityPresentationRow, loadEntityDefinition } from "./entity-values.ts";
 
 export class SqlBusinessSettingsStore implements BusinessSettingsStore {
+  private templateTarget?: Parameters<NonNullable<BusinessSettingsStore["getForTarget"]>>[0];
   private get workspaceId(): string {
     return requireWorkspaceActor(this.actor).workspaceId;
   }
@@ -39,6 +40,7 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     const [row] = await this.tx`select app.workspace_business_template(${input.model},${input.action},${
       input.target_id ?? null
     },${input.entity_type_id ?? null}::uuid) as result`;
+    this.templateTarget = input;
     return row.result as BusinessSettingsResult;
   }
   async get(): Promise<BusinessSettingsResult> {
@@ -92,8 +94,10 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   }
   async recordTags(ids: string[]): Promise<string[]> {
     if (!ids.length) return [];
-    const rows = await this.tx`select id from app.tags where scope='record' and id=any(${ids}::text[])`;
-    return rows.map((row) => row.id as string);
+    const [row] = await this.tx`select app.workspace_record_template_tag_ids(${ids}::text[],${
+      this.tx.json((this.templateTarget ?? null) as never)
+    }::jsonb) as ids`;
+    return row.ids as string[];
   }
   async target(model: TemplateModel, id: string) {
     const table = model === "entity" ? "entities" : "tasks";
