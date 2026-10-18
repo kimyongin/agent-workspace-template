@@ -83,6 +83,31 @@ httpTest(
         restored.workspace,
       );
       assertEquals((await call(a, "GET", `/workspaces/${workspace.id}`)).body.can_manage, true);
+      // A final manager exits only after deleting the space. Removing membership
+      // does not delete the root or allow its old receipt to bypass membership.
+      const removedAgain = await tool(client, "delete_workspace", {
+        workspace_id: workspace.id,
+        expected_generation: 3,
+        request_key: crypto.randomUUID(),
+      });
+      assertEquals(removedAgain.workspace.lifecycle_generation, 4);
+      const membership = await call(a, "GET", `/workspaces/${workspace.id}/membership`);
+      assertEquals(membership.status, 200);
+      const leaveKey = crypto.randomUUID(), leaveInput = { expected_version: membership.body.membership_version };
+      assertEquals(
+        await tool(client, "leave_workspace", { workspace_id: workspace.id, ...leaveInput, request_key: leaveKey }),
+        { left: true },
+      );
+      assertEquals((await call(a, "POST", `/workspaces/${workspace.id}/leave`, leaveInput, leaveKey)).status, 403);
+      assertEquals(
+        (await call(a, "GET", "/workspaces/deleted")).body.items.some((item: { id: string }) =>
+          item.id === workspace.id
+        ),
+        false,
+      );
+      const [preserved] =
+        await admin`select deleted_at is not null as deleted from app.workspaces where id=${workspace.id}`;
+      assertEquals(preserved, { deleted: true });
     } finally {
       await client.close();
       const secret = Deno.env.get("LOCAL_SUPABASE_SECRET_KEY");
