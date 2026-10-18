@@ -1,7 +1,6 @@
 import { authorizeWorkspace } from "./workspace-context.ts";
 import type postgres from "postgres";
 import type { EntityContext } from "../../contracts/entity-links.ts";
-import type { ChangeInput } from "../../core/shared/changes.ts";
 import { AppError } from "../../core/shared/errors.ts";
 
 /** Actor-scoped selection storage and deletion effects share the caller's transaction. */
@@ -56,20 +55,6 @@ export class SqlEntityLinks {
       this.tx.json(requirements)
     }::jsonb)
       ) required),true)`;
-  }
-
-  async changeSelection(input: Pick<ChangeInput, "target_kind" | "target" | "action">) {
-    const target = input.target;
-
-    const context = input.target_kind === "entity"
-      ? target.entity_context.length ? target.entity_context : [{
-        id: target.id,
-        title: target.title,
-        captured_at: new Date().toISOString(),
-        source: "selection" as const,
-      }]
-      : await this.capture(target.entity_ids, target.entity_context);
-    return this.fields(target.entity_ids, context);
   }
 
   private fields(ids: string[], context: EntityContext[]) {

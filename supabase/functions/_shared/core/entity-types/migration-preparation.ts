@@ -71,7 +71,7 @@ export function migrationRecordRenderer(
     const input: ChangeInput = {
       target_kind: "entity",
       action: "update",
-      target: { id: row.entity_id, title, entity_ids: [row.entity_id], entity_context: context },
+      target: { id: row.entity_id, title },
       before: facts(row.properties, batch.source_definition),
       after: facts(row.after, batch.target),
     };

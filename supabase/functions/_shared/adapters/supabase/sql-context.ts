@@ -1,4 +1,4 @@
-import { runInWorkspace } from "./workspace-context.ts";
+import { requireWorkspaceActor } from "./workspace-context.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import { setTagLinks } from "./tag-links.ts";
@@ -32,12 +32,13 @@ export class SqlActorStore {
 
   /** Explicit user commands call this once, never the internal insert itself. */
   async appendChange(input: ChangeInput) {
-    if (this.actor.workspaceId && input.target_kind === "record") {
+    const actor = requireWorkspaceActor(this.actor);
+    if (input.target_kind === "record") {
       throw new AppError("invalid_input", "기록 변경은 추가 변경 기록을 만들지 않습니다");
     }
     const target = input.target, target_title = target.title;
-    const settingsStore = new SqlBusinessSettingsStore(this.tx, this.actor);
-    const settings = input.target_kind === "record" ? { record_templates: {} } : (await settingsStore.getForTarget({
+    const settingsStore = new SqlBusinessSettingsStore(this.tx, actor);
+    const settings = (await settingsStore.getForTarget({
       model: input.target_kind,
       action: input.action,
       target_id: input.target.id,
@@ -45,7 +46,7 @@ export class SqlActorStore {
     })).settings;
     const ids = effectiveRecordTemplate(
       settings.record_templates,
-      input.target_kind as "entity" | "task",
+      input.target_kind,
       input.action,
       (input.after ?? input.before)?.entity_type_id,
     ).tag_ids;
@@ -66,12 +67,8 @@ export class SqlActorStore {
         : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${encodeURIComponent(target.id)}`,
     };
     const values = {
-      ...(this.actor.workspaceId
-        ? {
-          workspace_id: this.actor.workspaceId,
-          ...(input.target_kind === "entity" ? { entity_id: target.id } : { task_id: target.id }),
-        }
-        : { owner_id: this.actor.userId, ...await this.entityLinks.changeSelection(input) }),
+      workspace_id: actor.workspaceId,
+      ...(input.target_kind === "entity" ? { entity_id: target.id } : { task_id: target.id }),
       body,
       record_kind: "change",
     };
@@ -141,39 +138,4 @@ export function translate(e: unknown): unknown {
   }
   console.error("db error", code, (e as Error)?.message);
   return new AppError("internal", "서버 오류가 발생했습니다");
-}
-
-export async function runAsActor<T>(
-  sql: postgres.Sql,
-  actor: Actor,
-  fn: (tx: postgres.TransactionSql) => Promise<T>,
-  isolation?: "repeatable read" | "repeatable read read only",
-): Promise<T> {
-  // Integration-only seam: #513–#517 replace owner SQL and declare their concrete requirements;
-  // #518 removes the unscoped branch. Explicit business transports never infer an owner workspace.
-  if (actor.workspaceId) {
-    return runInWorkspace(
-      sql,
-      { ...actor, workspaceId: actor.workspaceId },
-      { mode: "business", requirements: [] },
-      fn,
-    );
-  }
-  try {
-    const transaction = async (tx: postgres.TransactionSql) => {
-      await tx`select set_config('request.jwt.claims', ${
-        JSON.stringify({ sub: actor.userId, role: "authenticated" })
-      }, true),
-        set_config('lock_timeout', '5s', true), set_config('statement_timeout', '15s', true)`;
-      await tx`set local role app_user`;
-      return await fn(tx);
-    };
-    return await (isolation === "repeatable read"
-      ? sql.begin("isolation level repeatable read", transaction)
-      : isolation === "repeatable read read only"
-      ? sql.begin("isolation level repeatable read read only", transaction)
-      : sql.begin(transaction)) as T;
-  } catch (e) {
-    throw translate(e);
-  }
 }

@@ -27,7 +27,5 @@ export function activityChangeTarget(target: Task | ActivityRecord): ChangeTarge
   return {
     id: target.id,
     title: "title" in target ? target.title : Array.from(target.body).slice(0, 100).join(""),
-    entity_ids: [],
-    entity_context: [],
   };
 }

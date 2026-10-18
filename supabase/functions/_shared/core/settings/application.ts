@@ -237,7 +237,7 @@ export function prepareBusinessRecord(
       {
         target_kind: input.model,
         action: input.action,
-        target: { id: input.target_id ?? "", title, entity_ids: [], entity_context: [] },
+        target: { id: input.target_id ?? "", title },
         before,
         after,
         change_note: input.change_note,

@@ -16,18 +16,9 @@ export function entityChangeFacts(
 }
 
 export function entityChangeTarget(entity: EntityValues): ChangeTarget {
-  // The event concerns this entity itself; SQL captures the selection, or retains it on deletion.
+  // The change record has this entity as its single immutable parent.
   return {
     id: entity.id,
     title: entity.title,
-    entity_ids: [entity.id],
-    entity_context: [{
-      id: entity.id,
-      title: entity.title,
-      type: entity.type,
-      schema_version: entity.current_schema_version,
-      captured_at: new Date().toISOString(),
-      source: "selection",
-    }],
   };
 }
