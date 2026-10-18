@@ -20,6 +20,8 @@ import { AppError, notFound } from "../../core/shared/errors.ts";
 import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import { loadBusinessEntityDefinition } from "./entity-values.ts";
 import { hasAnyTag, hasTag, tagIdsColumn } from "./tag-links.ts";
+import type { RequestIdentity } from "../../core/shared/request.ts";
+import { replayRetainedSqlRequest } from "./request-ledger.ts";
 
 type Tx = postgres.TransactionSql;
 type Row = Record<string, unknown>;
@@ -106,6 +108,18 @@ function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: rea
 }
 
 export class SqlActivityStore extends SqlActorStore implements ActivityStore {
+  constructor(tx: Tx, actor: Actor, private readonly missingRecord = false) {
+    super(tx, actor);
+  }
+
+  override async executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
+    if (!this.missingRecord) return super.executeRequest(request, execute);
+    // A hard-deleted record has no live authority metadata. The existing ledger
+    // checks the immutable saved footprint before returning any retained body.
+    const retained = await replayRetainedSqlRequest<T>(this.tx, this.actor, request);
+    if (!retained.found) throw notFound();
+    return retained.result as T;
+  }
   private get workspaceId() {
     return requireWorkspaceActor(this.actor).workspaceId;
   }
@@ -315,7 +329,7 @@ export class SqlUnitOfWork implements UnitOfWork {
         if (entry?.recordId) {
           const [record] =
             await tx`select entity_id,task_id from app.records where workspace_id=${actor.workspaceId} and id=${entry.recordId}`;
-          if (!record) throw notFound();
+          if (!record) return fn(new SqlActivityStore(tx, actor, true));
           if (record.task_id) requirements.push({ target_kind: "tasks", target_id: "*", access: entry.access });
           else {
             const [parent] =
