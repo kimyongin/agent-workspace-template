@@ -1,6 +1,8 @@
+import type postgres from "postgres";
 import { assertEquals, assertRejects } from "@std/assert";
-import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { asUser, connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
 import { SqlEntityRelationDefinitionUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-relation-definition-store.ts";
 import { SqlEntityRelationLinkUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-relation-link-store.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
@@ -21,14 +23,17 @@ dbTest(
   async () => {
     const admin = connect(urls.admin),
       sql = connect(urls.direct, { max: 4 }),
-      a = await fixtureOwner(admin),
-      b = await fixtureOwner(admin);
+      fixture = await businessWorkspaceFixture(admin, sql),
+      foreign = await fixture.addWorkspace("관계 타 공간 검증"),
+      a = { actor: fixture.manager },
+      b = { actor: foreign.manager };
     const definitions = { uow: new SqlEntityRelationDefinitionUnitOfWork(sql) },
       d = { uow: new SqlEntityRelationLinkUnitOfWork(sql) },
       types = { uow: new SqlEntityTypeUnitOfWork(sql) },
       entities = { uow: new SqlEntityUnitOfWork(sql) };
     try {
       const type = await createEntityType(types, requestActor(a.actor), { label: "상품" });
+      await fixture.grantKind(a.actor, type.id, "write");
       const def = await createEntityRelationDefinition(definitions, requestActor(a.actor), {
         ends: [{ type_id: type.id, label: "원본", cardinality: "one" }, {
           type_id: type.id,
@@ -86,11 +91,11 @@ dbTest(
         "conflict",
       );
       await assertRejects(() =>
-        asUser(
+        asWorkspaceUser(
           sql,
-          a.actor.userId,
+          a.actor,
           (tx) =>
-            tx`insert into app.entity_relation_links(owner_id,definition_id,left_entity_id,right_entity_id) values(${a.actor.userId},${def.id},${
+            tx`insert into app.entity_relation_links(workspace_id,definition_id,left_entity_id,right_entity_id) values(${a.actor.workspaceId},${def.id},${
               items[2].id
             },${items[1].id})`,
         )
@@ -159,8 +164,7 @@ dbTest(
         1,
       );
     } finally {
-      await a.cleanup();
-      await b.cleanup();
+      await fixture.cleanup();
       await sql.end();
       await admin.end();
     }
@@ -172,14 +176,17 @@ dbTest(
   async () => {
     const admin = connect(urls.admin),
       sql = connect(urls.direct),
-      a = await fixtureOwner(admin),
-      b = await fixtureOwner(admin);
+      fixture = await businessWorkspaceFixture(admin, sql),
+      foreign = await fixture.addWorkspace("관계 타 공간 검증"),
+      a = { actor: fixture.manager },
+      b = { actor: foreign.manager };
     const definitions = { uow: new SqlEntityRelationDefinitionUnitOfWork(sql) },
       d = { uow: new SqlEntityRelationLinkUnitOfWork(sql) },
       types = { uow: new SqlEntityTypeUnitOfWork(sql) },
       entities = { uow: new SqlEntityUnitOfWork(sql) };
     try {
       const type = await createEntityType(types, requestActor(a.actor), { label: "재료" });
+      await fixture.grantKind(a.actor, type.id, "write");
       const ends = [{ type_id: type.id, label: "구성", cardinality: "many" }, {
         type_id: type.id,
         label: "사용처",
@@ -192,11 +199,11 @@ dbTest(
         schema_version: 1,
         properties: { prop_1: "원점" },
       });
-      const baseline = await asUser(
+      const baseline = await asWorkspaceUser(
         sql,
-        a.actor.userId,
+        a.actor,
         async (tx) =>
-          (await tx`select app.entity_schema_reference_baseline(${a.actor.userId},${type.id}) as value`)[0].value,
+          (await tx`select app.entity_schema_reference_baseline(${a.actor.workspaceId},${type.id}) as value`)[0].value,
       );
       let first: string | undefined;
       for (let n = 0; n < 101; n++) {
@@ -257,17 +264,16 @@ dbTest(
         expected_version: 102,
         expected_other_version: 2,
       });
-      const after = await asUser(
+      const after = await asWorkspaceUser(
         sql,
-        a.actor.userId,
+        a.actor,
         async (tx) =>
-          (await tx`select app.entity_schema_reference_baseline(${a.actor.userId},${type.id}) as value`)[0].value,
+          (await tx`select app.entity_schema_reference_baseline(${a.actor.workspaceId},${type.id}) as value`)[0].value,
       );
       assertEquals(baseline.typed_links, []);
       assertEquals(after.typed_links.length, 102);
     } finally {
-      await a.cleanup();
-      await b.cleanup();
+      await fixture.cleanup();
       await sql.end();
       await admin.end();
     }
@@ -278,13 +284,17 @@ import { updateEntityRelationDefinition } from "../../functions/_shared/core/ent
 dbTest(
   "direct competing reverse single slots serialize and archived definitions preserve explicit unlink",
   async () => {
-    const admin = connect(urls.admin), sql = connect(urls.direct, { max: 3 }), a = await fixtureOwner(admin);
+    const admin = connect(urls.admin),
+      sql = connect(urls.direct, { max: 3 }),
+      fixture = await businessWorkspaceFixture(admin, sql),
+      a = { actor: fixture.manager };
     const definitions = { uow: new SqlEntityRelationDefinitionUnitOfWork(sql) },
       d = { uow: new SqlEntityRelationLinkUnitOfWork(sql) },
       types = { uow: new SqlEntityTypeUnitOfWork(sql) },
       entities = { uow: new SqlEntityUnitOfWork(sql) };
     try {
       const type = await createEntityType(types, requestActor(a.actor), { label: "주문" });
+      await fixture.grantKind(a.actor, type.id, "write");
       const def = await createEntityRelationDefinition(definitions, requestActor(a.actor), {
         ends: [{ type_id: type.id, label: "연결", cardinality: "many" }, {
           type_id: type.id,
@@ -304,11 +314,11 @@ dbTest(
       }
       const results = await Promise.allSettled(
         items.slice(0, 2).map((origin) =>
-          asUser(
+          asWorkspaceUser(
             sql,
-            a.actor.userId,
+            a.actor,
             (tx) =>
-              tx`insert into app.entity_relation_links(owner_id,definition_id,left_entity_id,right_entity_id) values(${a.actor.userId},${def.id},${origin.id},${
+              tx`insert into app.entity_relation_links(workspace_id,definition_id,left_entity_id,right_entity_id) values(${a.actor.workspaceId},${def.id},${origin.id},${
                 items[2].id
               })`,
           )
@@ -350,9 +360,22 @@ dbTest(
         [],
       );
     } finally {
-      await a.cleanup();
+      await fixture.cleanup();
       await sql.end();
       await admin.end();
     }
   },
 );
+
+/** Keep raw SQLSTATE assertions at app_user while supplying explicit current workspace authorization. */
+function asWorkspaceUser<T>(
+  sql: postgres.Sql,
+  actor: { userId: string; workspaceId: string },
+  fn: (tx: postgres.TransactionSql) => Promise<T>,
+) {
+  return asUser(sql, actor.userId, async (tx) => {
+    await tx`select set_config('request.workspace_id',${actor.workspaceId},true)`;
+    await tx`select app.authorize_workspace('[]'::jsonb)`;
+    return fn(tx);
+  });
+}

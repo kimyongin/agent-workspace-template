@@ -47,11 +47,11 @@ for (const uncertain of [false, true]) {
   });
 }
 
-test("#181 일반 기록: 취소한 삭제 메모의 검증이 본문 저장을 막지 않는다", async ({ page }) => {
+test("#181 수행 결과: 메모 없는 삭제 취소가 본문 저장을 막지 않는다", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, `/records/${id(3)}?edit=1&edit_from=view`);
   await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-  await form(page).getByLabel("기록 메모", { exact: true }).fill("x".repeat(22001));
+  await expect(form(page).getByLabel("기록 메모", { exact: true })).toHaveCount(0);
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
   await form(page).getByLabel("본문", { exact: false }).fill("유효한 본문");
   await saveOnce(page, form(page));
@@ -107,7 +107,7 @@ test("#181 응답 유실은 확인 입력을 고정하고 같은 ID/version·메
   expect(state.errors).toEqual([]);
 });
 
-test("#181 일반 기록은 바로 저장하고 삭제만 작은 메모·태그 확인을 사용", async ({ page }) => {
+test("#181 수행 결과는 바로 저장하고 삭제 확인에 새 변경 메모를 만들지 않는다", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, `/records/${id(3)}?edit=1&edit_from=view`);
   await form(page).getByLabel("본문", { exact: false }).fill("직접 기록 정정");
@@ -116,12 +116,12 @@ test("#181 일반 기록은 바로 저장하고 삭제만 작은 메모·태그 
   expect(state.writes[0].body.change_note).toBeUndefined();
   await form(page).getByRole("button", { name: "편집", exact: true }).click();
   await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-  await expect(form(page).getByLabel("기록 메모")).toBeVisible();
+  await expect(form(page).getByLabel("기록 메모")).toHaveCount(0);
+  await expect(form(page).getByRole("group", { name: "기록 태그", exact: true })).toHaveCount(0);
   await expect(openDialogs(page)).toHaveCount(2);
-  await form(page).getByLabel("기록 메모").fill("중복 자료 삭제");
   await form(page).getByRole("button", { name: "삭제하고 기록", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(2);
-  expect(state.writes[1].params.get("change_note")).toBe("중복 자료 삭제");
+  expect(state.writes[1].params.has("change_note")).toBe(false);
   expect(state.errors).toEqual([]);
 });
 
@@ -229,8 +229,8 @@ for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const
 
 test("#229 할 일의 업무 단계가 직접 편집보다 우선하고 취소 후 편집으로 복귀", async ({ page }) => {
   const state = await fixtures(page);
-  await go(page, `/tasks/${id(2)}?edit=1&action=record&tag_id=${id(9)}`);
-  await expect(form(page)).toHaveAccessibleName("기록 작성");
+  await go(page, `/tasks/${id(2)}?edit=1&action=complete&tag_id=${id(9)}`);
+  await expect(form(page)).toHaveAccessibleName("할 일 완료");
   await expect(form(page).getByRole("textbox", { name: "제목 (필수)", exact: true })).toHaveCount(0);
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByRole("textbox", { name: "제목 (필수)", exact: true })).toBeVisible();
@@ -278,16 +278,17 @@ test("#229 업무 확인의 서버 메모 오류는 해당 입력에 표시하�
 });
 
 for (const [kind, label] of [["entities", "자료 태그"], ["tasks", "할 일 태그"], ["records", "기록 태그"]] as const) {
-  test(`${kind}: new registration tag clear stays outside choices, keeps the group name and only updates the draft`, async ({ page }) => {
+  test(`${kind}: tag connection clear stays outside choices, keeps the group name and only updates the draft`, async ({ page }) => {
     const state = await fixtures(page);
-    await go(page, `/${kind}?create=1`);
-    const picker = form(page).getByRole("group", { name: label, exact: true });
+    await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(1)) : id(kind === "tasks" ? 2 : 3)}`);
+    await form(page).getByRole("button", { name: "태그 연결", exact: true }).click();
+    const picker = form(page).getByRole("group", { name: "태그", exact: true });
     const choice = picker.getByRole("button", { name: "같은 이름 선택 해제", exact: true });
     const clear = picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
     await expect(clear).toHaveCount(0);
     await chooseTag(page, picker, "같은 이름");
     await expect(choice).toHaveCount(1);
-    await expect(picker).toHaveAccessibleName(label);
+    await expect(picker).toHaveAccessibleName("태그");
     await expect(picker.locator('[aria-label="선택한 태그"]').getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
     await clear.click();
     await expect(clear).toHaveCount(0);
@@ -300,7 +301,9 @@ for (const [kind, label] of [["entities", "자료 태그"], ["tasks", "할 일 �
 
 test("failed tag lookup still permits clearing existing draft selections", async ({ page }) => {
   const state = await fixtures(page);
-  await go(page, "/records?create=1");
+  await go(page, `/tasks/${id(2)}?edit=1`);
+  await form(page).getByRole("textbox", { name: /^제목/ }).fill("태그 초안 검사");
+  await form(page).getByRole("button", { name: "저장", exact: true }).click();
   const picker = form(page).getByRole("group", { name: "기록 태그", exact: true });
   const choice = picker.getByRole("button", { name: "같은 이름 선택 해제", exact: true });
   await chooseTag(page, picker, "같은 이름");

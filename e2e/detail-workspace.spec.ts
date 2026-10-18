@@ -9,9 +9,10 @@ import { saveOnce } from "./ui-actions.ts";
 
 async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<string, unknown> = {}) {
   const t = { ...task(), title: "등심 구매하기", entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "등심", source: "selection" as const, captured_at: stamp }] };
-  const r = { ...record(), body: "구매 기준을 정리했습니다.", task_id: id(2), entity_ids: [entityKey(1)], entity_context: t.entity_context };
-  const e = { ...entity(1, { prop_1: "등심" }), tasks: { count: 1, items: [t] }, records: { count: 1, items: [r] } };
-  const state = await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [e, entity(6, { prop_1: "버섯" })], tasks: [t], records: [r],  tags: [] }, options);
+  const r = { ...record(), body: "구매 기준을 정리했습니다.", task_id: id(2) };
+  const entityRecord = { ...record(34), body: "자료 변경 근거", entity_id: entityKey(1), task_id: null, record_kind: "change" as const };
+  const e = { ...entity(1, { prop_1: "등심" }), tasks: { count: 1, items: [t] }, records: { count: 1, items: [entityRecord] } };
+  const state = await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [e, entity(6, { prop_1: "버섯" })], tasks: [t], records: [r, entityRecord],  tags: [] }, options);
   const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: metadata };
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
@@ -908,33 +909,33 @@ test("#335 준비 충돌: 패널 숨김은 초안 보존, 탭 닫기 승인 뒤 
   expect(state.errors).toEqual([]);
 });
 
-test("#341 일반 기록 저장은 작성 URL을 제거하고 새로고침 후 상세를 유지한다", async ({ page }) => {
+test("#341 수행 결과 저장은 작성 URL을 제거하고 새로고침 후 상세를 유지한다", async ({ page }) => {
   const state = await fixture(page);
   await page.goto(`/tasks/${id(2)}`);
-  await panel(page).getByRole("button", { name: "기록 작성", exact: true }).click();
-  await panel(page).getByRole("textbox", { name: /^본문/ }).fill("새로고침해도 다시 작성하지 않을 메모");
-  await panel(page).getByRole("button", { name: "저장", exact: true }).click();
+  await panel(page).getByRole("button", { name: "완료하고 기록", exact: true }).click();
+  await page.getByRole("dialog", { name: "할 일 완료", exact: true }).getByRole("textbox", { name: /^본문/ }).fill("새로고침해도 다시 작성하지 않을 메모");
+  await page.getByRole("dialog", { name: "할 일 완료", exact: true }).getByRole("button", { name: "완료하고 기록 저장", exact: true }).click();
   await expect(panel(page).getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
-  await expect(page).not.toHaveURL(/action=record/);
+  await expect(page).not.toHaveURL(/action=complete/);
   await page.reload();
   await expect(panel(page).getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
-  await expect(panel(page).getByRole("textbox", { name: /^본문/ })).toHaveCount(0);
-  expect(state.writes.filter(write => write.method === "POST" && write.path.endsWith("/records"))).toHaveLength(1);
+  await expect(page.getByRole("dialog", { name: "할 일 완료", exact: true }).getByRole("textbox", { name: /^본문/ })).toHaveCount(0);
+  expect(state.writes.filter(write => write.method === "POST" && write.path.endsWith("/complete"))).toHaveLength(1);
   expect(state.errors).toEqual([]);
 });
 
 test("#341 기록 저장 대기는 이동을 막고 응답 뒤에만 작성 모드를 종료한다", async ({ page }) => {
   const state = await fixture(page,{hold:true});
   await page.goto(`/tasks/${id(2)}`);
-  await panel(page).getByRole("button",{name:"기록 작성",exact:true}).click();
-  await panel(page).getByRole("textbox",{name:/^본문/}).fill("대기 중에도 보호할 메모");
-  await panel(page).getByRole("button",{name:"저장",exact:true}).click(); await state.pending;
+  await panel(page).getByRole("button",{name:"완료하고 기록",exact:true}).click();
+  await page.getByRole("dialog", { name: "할 일 완료", exact: true }).getByRole("textbox",{name:/^본문/}).fill("대기 중에도 보호할 메모");
+  await page.getByRole("dialog", { name: "할 일 완료", exact: true }).getByRole("button",{name:"완료하고 기록 저장",exact:true}).click(); await state.pending;
   await page.getByRole("navigation",{name:"주 메뉴"}).getByRole("link",{name:"기록",exact:true}).click();
-  await expect(page).toHaveURL(/action=record/);
-  await expect(panel(page).getByRole("button",{name:"처리 중…",exact:true})).toBeDisabled();
+  await expect(page).toHaveURL(/action=complete/);
+  await expect(page.getByRole("dialog", { name: "할 일 완료", exact: true }).getByRole("button",{name:"처리 중…",exact:true})).toBeDisabled();
   state.release();
   await expect(panel(page).getByRole("heading",{name:"등심 구매하기",exact:true})).toBeVisible();
-  await expect(page).not.toHaveURL(/action=record/);
+  await expect(page).not.toHaveURL(/action=complete/);
   expect(state.errors).toEqual([]);
 });
 
@@ -1312,13 +1313,13 @@ test("task responsive parity: resized panel and 200% text enlargement preserve t
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
 
-for (const width of [320, 1440]) for (const kind of ["user", "result", "change"] as const) {
-  test(`record data parity: ${kind} ${width}px keeps context and only saves permitted values`, async ({page}, info) => {
+for (const width of [320, 1440]) for (const [kind, parent] of [["result", "task"], ["change", "task"], ["change", "entity"]] as const) {
+  test(`record data parity: ${kind} ${parent} ${width}px keeps context and only saves permitted values`, async ({page}, info) => {
     await page.setViewportSize({width,height:900});
     const state = await fixture(page);
     const row = state.rows.records[0];
-    Object.assign(row, {record_kind:kind, occurred_at:"2026-10-01T02:03:04.567Z", occurrence_on:kind === "result" ? "2026-10-01" : null,
-      change:kind === "change" ? {event_id:id(450),target_kind:"entity",target_id:entityKey(1),target_title:"당시 등심",action:"update",source:"http",before:{properties:{prop_1:0,prop_2:false,prop_3:null},property_labels:{prop_1:"당시 수량",prop_2:"당시 사용",prop_3:"당시 메모"}},after:{title:"등심"},path:null}:null});
+    Object.assign(row, {record_kind:kind, entity_id: parent === "entity" ? entityKey(1) : null, task_id: parent === "task" ? id(2) : null, occurred_at:"2026-10-01T02:03:04.567Z", occurrence_on:kind === "result" ? "2026-10-01" : null,
+      change:kind === "change" ? {event_id:id(450),target_kind:parent,target_id:parent === "entity" ? entityKey(1) : id(2),target_title:"당시 등심",action:"update",source:"http",before:{properties:{prop_1:0,prop_2:false,prop_3:null},property_labels:{prop_1:"당시 수량",prop_2:"당시 사용",prop_3:"당시 메모"}},after:{title:"등심"},path:null}:null});
     await page.goto(`/records/${row.id}`);
     const surface=width<1100?openDialogs(page).first():panel(page);
     const labels=()=>surface.locator('dt:visible, [data-slot="field-label"]:visible').allTextContents();
@@ -1327,10 +1328,10 @@ for (const width of [320, 1440]) for (const kind of ["user", "result", "change"]
     expect((await labels()).slice(0,expected.length)).toEqual(expected);
     await surface.getByRole("button",{name:"편집",exact:true}).click();
     expect((await labels()).slice(0,expected.length).map(s=>s.replace(/\*\(필수\)/g,""))).toEqual(expected);
-    await expect(surface.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toContainText(kind==="change"?"당시 등심":"등심");
-    await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true})).toContainText("등심 구매하기");
-    await expect(surface.getByRole("region",{name:"연결된 자료 (1개)",exact:true}).getByRole("button")).toHaveCount(0);
-    await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true}).getByRole("button")).toHaveCount(0);
+    const parentRegion = surface.getByRole("region", { name: parent === "entity" ? "자료 (1개)" : "할 일 (1개)", exact: true });
+    await expect(parentRegion).toContainText(kind === "change" ? "당시 등심" : "등심 구매하기");
+    await expect(parentRegion.getByRole("button")).toHaveCount(0);
+    await expect(surface.getByRole("region", { name: parent === "entity" ? "할 일 (1개)" : "자료 (1개)", exact: true })).toHaveCount(0);
     await expect(surface.getByRole("button",{name:"태그 선택",exact:true})).toHaveCount(0);
     if(kind==="result") await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true}).locator("dt").filter({hasText:/^회차$/}).locator("../dd")).toHaveText("2026-10-01");
     if(kind==="change") {
@@ -1342,12 +1343,12 @@ for (const width of [320, 1440]) for (const kind of ["user", "result", "change"]
       const historicalKey=surface.locator("dt:visible").filter({hasText:"당시 수량"});
       expect((await historicalKey.boundingBox())!.x).toBeCloseTo((await surface.locator("label:visible").filter({hasText:/^본문/}).boundingBox())!.x,0);
       await surface.locator("dt:visible").filter({hasText:"당시 메모"}).scrollIntoViewIfNeeded();
-      await page.screenshot({path:info.outputPath(`record-change-${width}-history.png`)});
+      await page.screenshot({path:info.outputPath(`record-change-${parent}-${width}-history.png`)});
     } else {
       await expect(surface.getByRole("textbox", { name: "수행 시각 날짜", exact: true })).toBeVisible();
       await expect(surface.getByLabel("수행 시각 시간", { exact: true })).toBeVisible();
     }
-    await page.screenshot({path:info.outputPath(`record-${kind}-${width}-edit.png`)});
+    await page.screenshot({path:info.outputPath(`record-${kind}-${parent}-${width}-edit.png`)});
     await surface.getByLabel("본문").fill("정정한 본문");
     await surface.getByRole("button",{name:"저장",exact:true}).click();
     await expect(surface.getByRole("button",{name:"편집",exact:true})).toBeVisible();
@@ -1433,26 +1434,27 @@ test("review: readonly entity representative keeps the full-width emphasized val
 
 test("review: captured entity labels retain their historical meaning in record edit", async ({ page }, info) => {
   const state = await fixture(page);
-  state.rows.records[0].entity_context = [{
-    ...state.rows.records[0].entity_context[0],
-    type: { ...state.rows.entities[0].type, label: "당시 상품" },
-    schema_version: 7,
-  }];
+  Object.assign(state.rows.records[0], {
+    record_kind: "change", entity_id: entityKey(1), task_id: null,
+    change: { event_id: id(30), target_kind: "entity", target_id: entityKey(1), target_title: "당시 상품",
+      action: "update", source: "http", path: null,
+      before: { schema_version: 7, property_labels: { prop_1: "당시 상품명" }, properties: { prop_1: "등심" } },
+      after: { schema_version: 8, property_labels: { prop_1: "당시 상품명" }, properties: { prop_1: "버섯" } },
+    },
+  });
   await page.goto(`/records/${state.rows.records[0].id}`);
   const surface = panel(page);
-  const linked = surface.getByRole("region", { name: "연결된 자료 (1개)", exact: true });
-  await linked.getByRole("button", { name: "등심", exact: true }).click();
-  await expect(linked.locator("dt", { hasText: /^당시 자료 종류$/ }).locator("../dd")).toContainText("당시 상품");
-  await expect(linked.locator("dt", { hasText: /^당시 입력 항목 버전$/ }).locator("../dd")).toHaveText("7");
-  await expect(linked.locator("dt", { hasText: /^자료 식별$/ }).locator("../dd")).toHaveText(entityKey(1));
+  const linked = surface.getByRole("region", { name: "자료 (1개)", exact: true });
+  await expect(linked.getByRole("button", { name: "당시 상품", exact: true })).toBeVisible();
+  await expect(surface).toContainText("당시 상품명");
+  await expect(surface).toContainText("등심");
+  await expect(surface).toContainText("버섯");
+  await expect(surface.locator("dt", { hasText: /^입력 항목 버전$/ }).locator("../dd")).toHaveText(["7", "8"]);
   await surface.getByRole("button", { name: "편집", exact: true }).click();
-  await expect(linked.locator("dt:visible", { hasText: /^당시 자료 종류$/ }).locator("../dd")).toContainText(
-    "당시 상품",
-  );
-  await expect(linked.locator("dt:visible", { hasText: /^당시 입력 항목 버전$/ }).locator("../dd")).toHaveText("7");
-  await expect(linked.locator("dt:visible", { hasText: /^자료 식별$/ }).locator("../dd")).toHaveText(entityKey(1));
+  await expect(linked).toContainText("당시 상품");
   await expect(linked.getByRole("button")).toHaveCount(0);
-  await linked.locator("dt:visible", { hasText: /^자료 식별$/ }).scrollIntoViewIfNeeded();
+  await expect(surface).toContainText("당시 상품명");
+  await expect(surface.locator("dt:visible", { hasText: /^입력 항목 버전$/ }).locator("../dd")).toHaveText(["7", "8"]);
   await page.screenshot({ path: info.outputPath("record-captured-entity-edit.png") });
   expect(state.writes).toEqual([]);
 });

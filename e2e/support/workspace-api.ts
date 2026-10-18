@@ -1,3 +1,5 @@
+import { taskComplete } from "../../supabase/functions/_shared/contracts/task.ts";
+import { occurrenceRecordCreate, recordUpdate } from "../../supabase/functions/_shared/contracts/record.ts";
 import { fixtureWorkspaceId } from "./workspace-scope.ts";
 import { entitySummary } from "../../supabase/functions/_shared/contracts/entity.ts";
 import { entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
@@ -79,7 +81,7 @@ export async function installWorkspaceApi(
       if (action === "membership") return route.fulfill({ json: { workspace: { id: key, name: workspace.name, deleted_at: null }, membership_version: 1 } });
       if (action === "grant-targets") return route.fulfill({ json: { items: [{ id: fixtureType.id, label: fixtureType.label }] } });
       if (action === "members" || action === "invitations") return route.fulfill({ json: { items: [] } });
-      return route.fulfill({ json: { workspace: { id: key, name: workspace.name, deleted_at: null }, membership_version: 1, grants: [{ target_kind: "settings", target_id: "*", access: "write" }], can_manage: true } });
+      return route.fulfill({ json: { workspace: { id: key, name: workspace.name, deleted_at: null }, membership_version: 1, grants: [{ target_kind: "settings", target_id: "*", access: "write" }, { target_kind: "tasks", target_id: "*", access: "write" }, { target_kind: "entity_type", target_id: fixtureType.id, access: "write" }], can_manage: true } });
     }
     if (!workspaceId) return route.fulfill({ status: 400, json: { code: "validation", message: "공간이 필요합니다." } });
     if (!workspaces[workspaceId]) return route.fulfill({ status: 404, json: { code: "not_found", message: "공간을 찾을 수 없습니다." } });
@@ -132,6 +134,13 @@ export async function installWorkspaceApi(
         settings: { record_templates: {} },
       });
     }
+    if (kind === "tag-connections" && method === "POST") {
+      const targetKind = String(body.target_kind), target = storage[targetKind === "entity" ? "entities" : `${targetKind}s`]?.find(row => row.id === body.target_id);
+      if (!target) return reply({ code: "not_found", message: "연결 대상 없음" }, 404);
+      writes.push({ workspaceId, method, path: url.pathname, body, requestKey: req.headers()["idempotency-key"], params: url.searchParams });
+      Object.assign(target, { tag_ids: body.tag_ids, version: target.version + 1, updated_at: stamp });
+      return reply({ tag_ids: target.tag_ids, version: target.version, updated_at: stamp });
+    }
     if (kind === "records" && key === "prepare") {
       const model = String(body.model),
         target = (storage[model === "entity" ? "entities" : `${model}s`] ?? []).find((row) =>
@@ -183,6 +192,9 @@ export async function installWorkspaceApi(
     if (!storage[kind]) {
       return reply({ code: "invalid_input", message: `Unexpected fixture endpoint ${url.pathname}` }, 400);
     }
+    if (kind === "records" && method === "POST" && !key) {
+      return reply({ code: "not_found", message: "수행 결과는 할 일에서 작성합니다." }, 404);
+    }
     if (method === "GET") {
       if (key) {
         const found = storage[kind].find((r) => r.id === key);
@@ -201,6 +213,11 @@ export async function installWorkspaceApi(
       }
       if (kind === "tags") items = items.filter((r) => r.scope === (url.searchParams.get("scope") ?? "record"));
 
+      if (url.searchParams.get("entity_id") && (kind === "entities" || kind === "tasks" || kind === "records")) {
+        const parent = url.searchParams.get("entity_id");
+        items = items.filter((r) => kind === "records" ? r.entity_id === parent : kind === "tasks" ?
+          (r.entity_ids as string[]).includes(parent!) : r.id === parent);
+      }
       if (kind === "records" && url.searchParams.get("task_id")) {
         items = items.filter((r) => r.task_id === url.searchParams.get("task_id"));
       }
@@ -212,6 +229,13 @@ export async function installWorkspaceApi(
         items: kind === "entities" ? items.slice(offset, offset + size).map((row) => entitySummary.parse(row)) : items.slice(offset, offset + size),
         next_cursor: items.length > offset + size ? String(offset + size) : null,
       });
+    }
+    if (kind === "records" && method === "PATCH" && !recordUpdate.safeParse(body).success) {
+      return reply({ code: "invalid_input", message: "기록 수정 계약을 확인하세요." }, 400);
+    }
+    if (kind === "tasks" && method === "POST" && (action === "complete" || action === "occurrences" && parts[4] === "records")) {
+      const input = action === "complete" ? taskComplete.safeParse(body) : occurrenceRecordCreate.safeParse(body);
+      if (!input.success) return reply({ code: "invalid_input", message: "수행 결과 계약을 확인하세요." }, 400);
     }
     writes.push({ workspaceId,
       method,
@@ -232,6 +256,17 @@ export async function installWorkspaceApi(
       return options.failWrite === "unknown"
         ? route.abort("connectionreset")
         : reply({ code: "conflict", message: "다른 곳에서 수정했습니다." }, 409);
+    }
+    if (kind === "tasks" && method === "POST" && (action === "complete" || action === "occurrences" && parts[4] === "records")) {
+      const target = storage.tasks.find((r) => r.id === key);
+      if (!target) return reply({ code: "not_found", message: "할 일 없음" }, 404);
+      const saved = { ...record(sequence++), ...body, entity_id: null, task_id: key!, record_kind: "result",
+        occurrence_on: action === "occurrences" ? parts[3] : null };
+      delete (saved as Record<string, unknown>).expected_version;
+      storage.records.unshift(saved);
+      if (action === "complete") Object.assign(target, { status: "done", completed_at: stamp,
+        result_record_id: saved.id, result_record: { id: saved.id, body: saved.body }, version: target.version + 1 });
+      return reply(action === "complete" ? target : saved, action === "complete" ? 200 : 201);
     }
     if (method === "DELETE" || action === "delete") {
       if (kind === "entities") {

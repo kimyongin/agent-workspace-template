@@ -1683,9 +1683,10 @@ for (const mode of ["editor", "history"] as const) {
     });
     await page.route("**/api/entity-schema-migrations**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith(id(20)) ? job(20) : { items: [job(20)], next_before: null } }));
     await page.goto(`/settings/entity-types/${materials.id}?${mode === "editor" ? `change_id=${id(500)}` : `job_id=${id(20)}`}`);
-    await revealSetting(page, "입력 항목");
     const owner = mode === "editor" ? page : page.getByRole("region", { name: "변환 작업의 변경 내용", exact: true });
-    await owner.getByRole("button", { name: mode === "editor" ? "자료별 결과" : "검토 결과", exact: true }).click();
+    const results = owner.getByRole("button", { name: mode === "editor" ? "자료별 결과" : "검토 결과", exact: true });
+    await revealSetting(results);
+    await results.click();
     const table = owner.getByRole("table", { name: "자료별 검토 문제", exact: true });
     await expect(table).toBeVisible();
     const rows = businessRows(table);

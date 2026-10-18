@@ -1,6 +1,7 @@
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
-import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
 import { SqlCreateAndLinkUnitOfWork } from "../../functions/_shared/adapters/supabase/create-and-link-store.ts";
 import { SqlEntityRelationDefinitionUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-relation-definition-store.ts";
 import { SqlEntityRelationLinkUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-relation-link-store.ts";
@@ -32,8 +33,10 @@ dbTest(
   async () => {
     const admin = connect(urls.admin),
       sql = connect(urls.direct, { max: 3 }),
-      a = await fixtureOwner(admin),
-      b = await fixtureOwner(admin);
+      fixture = await businessWorkspaceFixture(admin, sql),
+      foreign = await fixture.addWorkspace("관계 타 공간 검증"),
+      a = { actor: fixture.manager },
+      b = { actor: foreign.manager };
     const d = { uow: new SqlCreateAndLinkUnitOfWork(sql) },
       definitions = { uow: new SqlEntityRelationDefinitionUnitOfWork(sql) },
       links = { uow: new SqlEntityRelationLinkUnitOfWork(sql) },
@@ -43,6 +46,8 @@ dbTest(
     try {
       const order = await createEntityType(types, requestActor(a.actor), { label: "주문" }),
         line = await createEntityType(types, requestActor(a.actor), { label: "주문품목" });
+      await fixture.grantKind(a.actor, order.id, "write");
+      await fixture.grantKind(a.actor, line.id, "write");
       const draft = await createEntitySchemaChange(types, requestActor(a.actor), line.id, {
         expected_schema_version: 1,
         edits: [{
@@ -161,8 +166,7 @@ dbTest(
         1,
       );
     } finally {
-      await a.cleanup();
-      await b.cleanup();
+      await fixture.cleanup();
       await sql.end();
       await admin.end();
     }
@@ -170,7 +174,10 @@ dbTest(
 );
 
 dbTest("failed create-and-link restoration retains deleted child and both existing single relationships", async () => {
-  const admin = connect(urls.admin), sql = connect(urls.direct), a = await fixtureOwner(admin);
+  const admin = connect(urls.admin),
+    sql = connect(urls.direct),
+    fixture = await businessWorkspaceFixture(admin, sql),
+    a = { actor: fixture.manager };
   const d = { uow: new SqlCreateAndLinkUnitOfWork(sql) },
     definitions = { uow: new SqlEntityRelationDefinitionUnitOfWork(sql) },
     links = { uow: new SqlEntityRelationLinkUnitOfWork(sql) },
@@ -179,6 +186,7 @@ dbTest("failed create-and-link restoration retains deleted child and both existi
     activity = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
   try {
     const type = await createEntityType(types, requestActor(a.actor), { label: "자료" });
+    await fixture.grantKind(a.actor, type.id, "write");
     const def = await createEntityRelationDefinition(definitions, requestActor(a.actor), {
       ends: [{ type_id: type.id, label: "상대", cardinality: "one" }, {
         type_id: type.id,
@@ -240,7 +248,7 @@ dbTest("failed create-and-link restoration retains deleted child and both existi
       before,
     );
   } finally {
-    await a.cleanup();
+    await fixture.cleanup();
     await sql.end();
     await admin.end();
   }

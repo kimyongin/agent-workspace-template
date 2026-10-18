@@ -1,5 +1,4 @@
 import { executionDialog } from "./ui-actions.ts";
-import { chooseTag } from "./ui-actions.ts";
 import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
@@ -62,21 +61,28 @@ test("태그 scoped 상세/편집·legacy ID 직접 링크 호환", async ({ pag
 for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
   test(`${kind}: 생성·보기·편집 메모·태그·삭제 이유`, async ({ page }) => {
     const state = await fixtures(page);
-    await go(page, `/${kind}`);
-    await beginTabAction(page, kind === "records" ? "기록 작성" : `${label} 추가`);
-    if (kind === "entities") await form(page).getByLabel("제목", { exact: false }).fill("새 엔터티");
-    else await fillText(page, `새 ${label}`);
-    await chooseTag(page, form(page), "같은 이름");
-    await saveOnce(page, form(page), kind === "tasks" ? "추가" : "저장");
+    if (kind === "records") {
+      state.rows.records[0].tag_ids = [id(11)];
+      await go(page, `/records/${state.rows.records[0].id}`);
+    } else {
+      await go(page, `/${kind}`);
+      await beginTabAction(page, `${label} 추가`);
+      if (kind === "entities") await form(page).getByLabel("제목", { exact: false }).fill("새 엔터티");
+      else await fillText(page, `새 ${label}`);
+      await saveOnce(page, form(page), kind === "tasks" ? "추가" : "저장");
+    }
     await expect(page).toHaveURL(new RegExp(`/${kind}/`));
     await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
     const createdPath = new URL(page.url()).pathname;
+    const initial = state.rows[kind as "entities" | "tasks" | "records"].find(row => row.id === decodeURIComponent(createdPath.split("/").at(-1)!))!;
+    initial.tag_ids = [id(kind === "entities" ? 10 : kind === "tasks" ? 12 : 11)];
+    await page.reload();
     const tagRegion=form(page).getByRole("region",{name:"태그 연결",exact:true});
     await tagRegion.getByRole("button",{name:"같은 이름 연결 해제",exact:true}).click();
     await tagRegion.getByRole("button",{name:"연결 적용",exact:true}).click();
     if(kind!=="records") await executionDialog(page).getByRole("button",{name:"연결하고 저장",exact:true}).click();
     await expect(tagRegion.getByRole("button",{name:"태그 연결",exact:true})).toBeVisible();
-    const tagWrite=state.writes.find(w=>w.method==="PATCH")!;
+    const tagWrite=state.writes.find(w=>w.path==="/api/tag-connections")!;
     expect(tagWrite.body.tag_ids).toEqual([]);
     expect(tagWrite.body).not.toHaveProperty("body");
     await compatibleEdit(page);
@@ -104,24 +110,26 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
     expect(created?.tag_ids).toEqual([]);
     await form(page).getByRole("button", { name: "삭제", exact: true }).click();
     const confirm = executionDialog(page);
-    await confirm.getByLabel("기록 메모").fill("중복 자료 정리");
+    if (kind !== "records") await confirm.getByLabel("기록 메모").fill("중복 자료 정리");
+    else await expect(confirm.getByLabel("기록 메모")).toHaveCount(0);
     await saveOnce(page, confirm, "삭제 확인");
     await expect(page).toHaveURL(
       `http://127.0.0.1:55580/${kind}${kind === "entities" ? `#entity-${createdPath.split("/").at(-1)}` : ""}`,
     );
-    if (kind === "records") expect(state.writes.at(-1)?.params.get("change_note")).toBe("중복 자료 정리");
+    if (kind === "records") expect(state.writes.at(-1)?.params.has("change_note")).toBe(false);
     else expect(state.writes.at(-1)?.body.change_note).toBe("중복 자료 정리");
     expect(state.errors).toEqual([]);
   });
 }
 
-test("새 기록은 원칙 연관키 선택 없이 본문 근거를 저장한다", async ({ page }) => {
+test("수행 결과는 원칙 연관키 선택 없이 할 일에 귀속된다", async ({ page }) => {
   const state = await fixtures(page);
-  await go(page, "/records?create=1");
-  await fillText(page, "독립 기록");
+  await go(page, `/tasks/${id(2)}?action=complete`);
+  await fillText(page, "수행 결과");
   await expect(form(page).getByText("적용한 원칙", { exact: true })).toHaveCount(0);
-  await saveOnce(page, form(page));
+  await form(page).getByRole("button", { name: "완료하고 기록 저장", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(1);
+  expect(state.writes[0].path).toBe(`/api/tasks/${id(2)}/complete`);
   expect(state.writes[0].body).not.toHaveProperty("applied_principle_ids");
   expect(state.errors).toEqual([]);
 });

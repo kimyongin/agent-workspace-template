@@ -102,8 +102,9 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     Object.assign(state.rows.records[0], {
       record_kind: "change",
       body: "변경에 대한 보충 메모",
-      entity_ids: [entityKey(1)],
-      entity_context: [{ id: entityKey(1), title: "연결된 엔터티", source: "selection", captured_at: stamp }],
+      entity_id: entityKey(1), task_id: null,
+      change: { event_id: id(30), target_kind: "entity", target_id: entityKey(1), target_title: "연결된 엔터티",
+        action: "update", source: "http", before: null, after: null, path: null },
     });
     await page.reload();
     const memo = form(page).locator(".markdown");
@@ -329,31 +330,27 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       body: "상담 결과 " + "긴본문대표문구".repeat(18),
       record_kind: "result",
       task_id: t.id,
-      entity_ids: [entityKey(1)],
-      entity_context: [{
-        id: entityKey(1),
-        title: "고객 " + "긴이름".repeat(25),
-        source: "selection",
-        captured_at: stamp,
-      }],
+      entity_id: null,
     });
     Object.assign(t, {
-      entity_ids: r.entity_ids,
-      entity_context: r.entity_context,
+      entity_ids: [entityKey(1)],
+      entity_context: [{ id: entityKey(1), title: "고객 " + "긴이름".repeat(25), source: "selection", captured_at: stamp }],
       status: "done",
       completed_at: stamp,
       result_record_id: r.id,
       result_record: { id: r.id, body: r.body },
     });
-    Object.assign(state.rows.entities[0], { tasks: { count: 1, items: [t] }, records: { count: 1, items: [r] } });
+    const entityRecord = { ...r, id: id(33), record_kind: "change" as const, entity_id: entityKey(1), task_id: null };
+    state.rows.records.push(entityRecord);
+    Object.assign(state.rows.entities[0], { tasks: { count: 1, items: [t] }, records: { count: 1, items: [entityRecord] } });
     await page.setViewportSize({ width, height: 900 });
     const styles: string[] = [];
     for (const path of [`/entities/${encodeURIComponent(entityKey(1))}`, `/tasks/${t.id}`, `/records/${r.id}`]) {
       await go(page, path);
       const links = businessRows(form(page).getByRole("table"));
-      await expect(links).toHaveCount(2);
+      await expect(links).toHaveCount(path.startsWith("/records/") ? 1 : 2);
       const lastRows = form(page).getByRole("table").locator(":scope > tbody > tr:last-child");
-      await expect(lastRows).toHaveCount(2);
+      await expect(lastRows).toHaveCount(path.startsWith("/records/") ? 1 : 2);
       for (const row of await lastRows.all()) await expect(row).toBeVisible();
       const first = links.first();
       await settleSurface(form(page));
@@ -422,12 +419,9 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(row.getByRole("cell")).not.toHaveCount(0);
       const table = page.getByRole("region", { name: / 목록$/ }).getByRole("table").first();
       await expect(table.getByRole("columnheader")).not.toHaveCount(0);
-      await expect(
-        page.getByRole("button", {
-          name: kind === "entities" ? "검사 자료 추가" : kind === "tasks" ? "할 일 등록" : "기록 작성",
-          exact: true,
-        }),
-      ).toBeVisible();
+      const create = page.getByRole("button", { name: kind === "entities" ? "검사 자료 추가" : kind === "tasks" ? "할 일 등록" : "기록 작성", exact: true });
+      if (kind === "records") await expect(create).toHaveCount(0);
+      else await expect(create).toBeVisible();
       await openTabFilters(page);
       const grid = page.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "필터", exact: true }) });
       for (const name of kind === "entities" ? ["정렬"] : kind === "tasks" ? ["할 일 종류", "할 일 상태"] : ["기록 종류", "기록 시작일", "기록 종료일"]) {

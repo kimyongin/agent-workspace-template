@@ -7,7 +7,7 @@ import { connectedTarget, fixtures, form, go, targetCases } from "./support/work
 for (const kind of ["entity", "task"] as const) {
   for (const deleted of [false, true]) {
     test(
-      `#183 ${kind}: 사건 대상·기존 연결을 한 카드로 통합${deleted ? "·삭제된 대상" : ""}`,
+      `#183 ${kind}: 불변 귀속만 한 카드로 표시${deleted ? "·삭제된 대상" : ""}`,
       async ({ page }, info) => {
         const state = await fixtures(page),
           r = state.rows.records[0],
@@ -15,15 +15,9 @@ for (const kind of ["entity", "task"] as const) {
         state.rows.entities.push(entity(5, { prop_1: "다른 연결 엔터티" }));
         Object.assign(r, {
           record_kind: "change",
-          task_id: id(2),
-          occurrence_on: "2026-10-04",
-          entity_ids: [entityKey(1), entityKey(1), entityKey(5)],
-          entity_context: [{ id: entityKey(1), title: "중복된 연결 제목", source: "selection", captured_at: stamp }, {
-            id: entityKey(5),
-            title: "다른 연결 엔터티",
-            source: "selection",
-            captured_at: stamp,
-          }],
+          task_id: kind === "task" ? targetId : null,
+          entity_id: kind === "entity" ? targetId : null,
+          occurrence_on: kind === "task" ? "2026-10-04" : null,
           change: {
             event_id: id(30),
             target_kind: kind,
@@ -45,19 +39,12 @@ for (const kind of ["entity", "task"] as const) {
         }
         await page.setViewportSize({ width: 390, height: 844 });
         await go(page, `/records/${r.id}`);
-        const entities = form(page).getByRole("region", { name: "연결된 자료 (2개)", exact: true }),
-          tasks = connectedTarget(page, "task");
-        await expect(entities).toHaveCount(1);
-        await expect(businessRows(entities.getByRole("table"))).toHaveCount(2);
-        await expect(businessRows(tasks.getByRole("table"))).toHaveCount(1);
+        const changed = connectedTarget(page, kind);
+        await expect(businessRows(changed.getByRole("table"))).toHaveCount(1);
+        await expect(connectedTarget(page, kind === "entity" ? "task" : "entity")).toHaveCount(0);
         await expect(form(page).getByRole("heading", { name: /^변경 대상/ })).toHaveCount(0);
-        const changed = kind === "entity" ? entities : tasks;
-        await expect(businessRows(changed.getByRole("table")).filter({ hasText: "당시 대상" })).toHaveCount(1);
+        await expect(changed.getByRole("button", { name: "다른 연결 엔터티", exact: true })).toHaveCount(0);
         await changed.getByRole("button", { name: "당시 대상", exact: true }).click();
-        await expect(entities.getByRole("button", { name: "다른 연결 엔터티", exact: true })).toHaveAttribute(
-          "aria-expanded",
-          "false",
-        );
         if (deleted) {
           await expect(changed).toContainText("삭제된 항목입니다.");
           await expect(changed.getByRole("link", { name: "당시 대상 상세", exact: true })).toHaveCount(0);
@@ -66,8 +53,8 @@ for (const kind of ["entity", "task"] as const) {
             "true",
           );}
         if (kind === "task") {
-          await expect(tasks.locator("dt").filter({hasText:/^회차$/}).first().locator("../dd")).toHaveText("2026-10-04");
-          if (!deleted) await expect(tasks).toContainText("진행 중");
+          await expect(changed.locator("dt").filter({hasText:/^회차$/}).first().locator("../dd")).toHaveText("2026-10-04");
+          if (!deleted) await expect(changed).toContainText("진행 중");
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         await page.screenshot({ path: info.outputPath(`record-relations-${kind}-${deleted}.png`) });
@@ -95,7 +82,7 @@ for (const [kind, route, n] of targetCases) {
         after: { title: "수정 후" },
         path: `/${route}/${routeId}`,
       };
-      Object.assign(r, { record_kind: "change", body: "당시 편집 근거", change });
+      Object.assign(r, { record_kind: "change", entity_id: kind === "entity" ? change.target_id : null, task_id: kind === "task" ? change.target_id : null, body: "당시 편집 근거", change });
       const original = JSON.stringify(r);
       let reads = 0, fail = outcome === "failed";
       await page.route(
@@ -153,7 +140,7 @@ for (const failure of [401, 403, 500, "network", "other404"] as const) {
   test(`변경 대상 조회 ${failure}: 삭제로 오인하지 않고 GET 재시도`, async ({ page }) => {
     const state = await fixtures(page), r = state.rows.records[0];
     Object.assign(r, {
-      record_kind: "change",
+      record_kind: "change", entity_id: entityKey(1), task_id: null,
       change: {
         event_id: id(30),
         target_kind: "entity",
@@ -200,9 +187,10 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
     after: { prop1: "첫 대상" },
     path: `/entities/${encodeURIComponent(entityKey(1))}`,
   };
-  Object.assign(r, { record_kind: "change", change: historical });
+  Object.assign(r, { record_kind: "change", entity_id: entityKey(1), task_id: null, change: historical });
   const second = {
     ...record(32),
+    entity_id: entityKey(99), task_id: null,
     record_kind: "change" as const,
     change: {
       ...historical,
@@ -242,3 +230,29 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
+
+// Captured event targets cannot introduce a second navigable parent.
+for (const outcome of ["exists", "deleted", "foreign", "failed"] as const) {
+  test(`기록 대상 이력 ${outcome}: 현재 귀속 이외의 기록은 탐색하지 않는다`, async ({ page }) => {
+    const state = await fixtures(page), r = state.rows.records[0];
+    Object.assign(r, { record_kind: "change", change: {
+      event_id: id(30), target_kind: "record", target_id: id(31), target_title: "당시 기록",
+      action: "update", source: "http", before: { body: "수정 전" }, after: { body: "수정 후" }, path: `/records/${id(31)}`,
+    } });
+    let reads = 0;
+    await page.route(`**/api/records/${id(31)}`, route => {
+      reads++;
+      return route.fulfill({ status: outcome === "exists" ? 200 : outcome === "failed" ? 503 : 404, json: record(31) });
+    });
+    await go(page, `/records/${r.id}`);
+    await expect(connectedTarget(page, "task")).toBeVisible();
+    await expect(form(page)).toContainText("당시 기록");
+    await expect(form(page)).toContainText("수정 전");
+    await expect(form(page)).toContainText("수정 후");
+    await expect(form(page).getByRole("button", { name: "당시 기록", exact: true })).toHaveCount(0);
+    await expect(form(page).getByRole("link", { name: "당시 기록 상세", exact: true })).toHaveCount(0);
+    expect(reads).toBe(0);
+    expect(state.writes).toHaveLength(0);
+    expect(state.errors).toEqual([]);
+  });
+}

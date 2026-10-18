@@ -4,11 +4,11 @@ import { expect, type Page } from "@playwright/test";
 import { base, entity, fixtureType, id,  record, stamp, task, type WorkspaceRows } from "./workspace-data.ts";
 import { installWorkspaceApi } from "./workspace-api.ts";
 
-export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2], ["record", "records", 31]] as const;
+export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2]] as const;
 
 export const connectedTarget = (page: Page, kind: typeof targetCases[number][0]) =>
   form(page).getByRole("region", {
-    name: `${{ entity: "연결된 자료", task: "할 일", record: "기록" }[kind]} (1개)`,
+    name: `${{ entity: "자료", task: "할 일", record: "기록" }[kind]} (1개)`,
     exact: true,
   });
 
@@ -66,19 +66,19 @@ export const go = async (page: Page, path: string) => {
 export const form = (page: Page) => page.getByRole("dialog").filter({ visible: true }).last();
 
 export function linkedFixture(state: Awaited<ReturnType<typeof fixtures>>) {
+  const entityRecord = { ...record(34), entity_id: entityKey(1), task_id: null, record_kind: "change" as const,
+    change: { event_id: id(35), target_kind: "entity" as const, target_id: entityKey(1), target_title: "자료",
+      action: "update" as const, source: "http" as const, before: null, after: null, path: null } };
+  state.rows.records.push(entityRecord);
   Object.assign(state.rows.entities[0], {
     tasks: { count: 1, items: [{ id: id(2), title: "할 일", updated_at: stamp }] },
-    records: { count: 1, items: [record()] },
+    records: { count: 1, items: [entityRecord] },
   });
   Object.assign(state.rows.tasks[0], {
     entity_ids: [entityKey(1)],
     entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
   });
-  Object.assign(state.rows.records[0], {
-    entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
-    task_id: id(2),
-  });
+  Object.assign(state.rows.records[0], { entity_id: null, task_id: id(2) });
 }
 
 export async function compatibleEdit(page: Page) {

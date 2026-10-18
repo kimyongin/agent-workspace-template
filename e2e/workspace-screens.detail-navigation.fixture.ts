@@ -141,7 +141,7 @@ test("#203 연결 보기 순환 뒤 처음 대상·목록 조건·펼침을 유�
   await go(page, "/entities?keyword=" + encodeURIComponent("자료") + "&pages=1");
   await openListDetail(page, "자료");
   const root = page.url(), source = new URL(root).searchParams.get("list")!;
-  for (const title of ["할 일", "기록", "자료"]) {
+  for (const title of ["할 일", "자료"]) {
     await form(page).getByRole("button", { name: title, exact: true }).click();
     await form(page).getByRole("link", { name: title + " 상세", exact: true }).click();
   }
@@ -257,11 +257,11 @@ test("#193 기록과 할 일에서 엔터티 펼침·편집, 실패 재시도·�
   await form(page).getByRole("link", { name: "자료 상세", exact: true }).click();
   await form(page).getByRole("button", { name: /^이전:/ }).click();
   await expect(page).toHaveURL(url);
-  await go(page, `/records/${id(3)}`);
+  await go(page, `/records/${id(34)}`);
   await form(page).getByRole("button", { name: "자료", exact: true }).click();
   await form(page).getByRole("link", { name: "자료 상세", exact: true }).click();
   await form(page).getByRole("button", { name: /^이전:/ }).click();
-  await expect(page).toHaveURL(new RegExp(`/records/${id(3)}$`));
+  await expect(page).toHaveURL(new RegExp(`/records/${id(34)}$`));
   state.rows.entities = [];
   await form(page).getByRole("button", { name: "자료", exact: true }).click();
   await form(page).getByRole("button", { name: "자료", exact: true }).click();
@@ -271,14 +271,14 @@ test("#193 기록과 할 일에서 엔터티 펼침·편집, 실패 재시도·�
   expect(state.writes).toHaveLength(0);
 });
 
-test("엔터티 상세: 편집·할 일 작성·기록 작성 뒤 성공 알림과 수정 시각 없음", async ({ page }, info) => {
+test("엔터티 상세: 편집·할 일 작성 뒤 성공 알림과 수정 시각 없음", async ({ page }, info) => {
   const state = await fixtures(page);
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
   await form(page).getByRole("button", { name: "편집", exact: true }).click();
   await form(page).getByLabel("수량", { exact: false }).fill("25");
   await saveOnce(page, form(page));
   await expect(form(page).getByLabel("수량", { exact: false })).toHaveCount(0);
-  for (const [label, body, submit] of [["할 일 작성", "새 업무", "추가"], ["기록 작성", "새 상담", "저장"]]) {
+  for (const [label, body, submit] of [["할 일 작성", "새 업무", "추가"]]) {
     await form(page).getByRole("button", { name: label, exact: true }).click();
     await fillText(page, body);
     await saveOnce(page, form(page), submit);
@@ -291,7 +291,8 @@ test("엔터티 상세: 편집·할 일 작성·기록 작성 뒤 성공 알림�
     await page.setViewportSize({ width, height: 900 });
     await page.screenshot({ path: info.outputPath(`entity171-detail-${width}.png`) });
   }
-  expect(state.writes).toHaveLength(3);
+  await expect(form(page).getByRole("button", { name: "기록 작성", exact: true })).toHaveCount(0);
+  expect(state.writes).toHaveLength(2);
   expect(state.errors).toEqual([]);
 });
 
@@ -300,8 +301,7 @@ test("상세 탐색: 같은 엔터티는 한 행으로 합치고 역사 제목�
   const state = await fixtures(page);
   Object.assign(state.rows.records[0], {
     record_kind: "change",
-    entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "연결 제목", source: "selection", captured_at: stamp }],
+    entity_id: entityKey(1), task_id: null,
     change: {
       event_id: id(30),
       target_kind: "entity",
@@ -343,12 +343,12 @@ test("상세 탐색: 계정 전환 뒤 이전 계정의 편집 문맥을 무시"
 test("상세 탐색: 관련 편집 닫기도 처음 기록 목록 조건 복원", async ({ page }) => {
   const state = await fixtures(page);
   linkedFixture(state);
-  await go(page, "/records?record_kind=user");
+  await go(page, "/records?record_kind=result");
   await openListDetail(page, "기록");
   await form(page).getByRole("button", { name: "할 일", exact: true }).click();
   await form(page).getByRole("link", { name: "할 일 상세", exact: true }).click();
   await form(page).getByRole("button", { name: "닫기", exact: true }).click();
-  expect(new URL(page.url()).searchParams.get("record_kind")).toBe("user");
+  expect(new URL(page.url()).searchParams.get("record_kind")).toBe("result");
   await expect(page.locator(`#activity-records-${id(3)}`)).toBeFocused();
   expect(state.errors).toEqual([]);
 });
