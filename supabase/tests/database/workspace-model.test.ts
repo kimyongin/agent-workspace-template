@@ -650,3 +650,37 @@ dbTest("business memo preparation uses only its permitted workspace target witho
     for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
   }
 });
+
+dbTest("workspace settings writer without kind data grant can change kind record templates", async () => {
+  const actor = { userId: crypto.randomUUID() };
+  let seeded = false;
+  let workspaceId: string | undefined;
+  try {
+    await admin`insert into auth.users(id,email) values(${actor.userId},${`template514-${actor.userId}@example.test`})`;
+    seeded = true;
+    workspaceId =
+      (await workspaces.createWorkspace(workspaceDeps, key(actor), { name: "설정 문구 공간" })).workspace.id;
+    const manager = { ...actor, workspaceId };
+    const kind = await types.createEntityType(typeDeps, key(manager), { label: "새 종류" });
+    assertEquals((await workspaces.workspaceDetails(workspaceDeps, actor, workspaceId)).grants, [
+      { target_kind: "settings", target_id: "*", access: "write" },
+    ]);
+    const deps = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
+    const saved = await settings.updateBusinessSettings(deps, key(manager), {
+      id: "record_templates",
+      expected_version: 0,
+      value: { entity_types: { [kind.id]: { create: { memo: "설정 담당자가 고친 작성 문구", tag_ids: [] } } } },
+    });
+    assertEquals(
+      saved.settings.record_templates?.entity_types?.[kind.id]?.create?.memo,
+      "설정 담당자가 고친 작성 문구",
+    );
+    assertEquals((await settings.getBusinessSettings(deps, manager)).versions.record_templates, 1);
+    assertEquals((await workspaces.workspaceDetails(workspaceDeps, actor, workspaceId)).grants, [
+      { target_kind: "settings", target_id: "*", access: "write" },
+    ]);
+  } finally {
+    if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
+    if (seeded) await admin`delete from auth.users where id=${actor.userId}`;
+  }
+});
