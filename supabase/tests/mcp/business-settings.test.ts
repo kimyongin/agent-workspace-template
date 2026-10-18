@@ -79,7 +79,10 @@ activityWorkspaceSuite(
     const stale = await scopedTool(client, w, "prepare_record_memo", { ...request, expected_version: 99 });
     assertEquals(stale.error.code, "conflict");
     const unavailable = await scopedHttp(b, otherW, "POST", "/records/prepare", request);
-    assertEquals(unavailable.status, 404);
+    // Target-specific preparation rejects a missing current-workspace task
+    // before reading its template or values (SQL FK input failure).
+    assertEquals(unavailable.status, 400);
+    assertEquals(unavailable.body.code, "invalid_input");
   },
   { mcp: true },
 );

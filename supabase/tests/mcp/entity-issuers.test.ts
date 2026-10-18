@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { call } from "../http/_client.ts";
 import { activityWorkspaceSuite, scopedHttp, scopedTool } from "../http/_workspace-activity-fixture.ts";
+import { claimsOf } from "./_mcp.ts";
 
 activityWorkspaceSuite(
   "issuer HTTP/MCP parity: policy impacts, workspace isolation, unused deletion and logical replay",
@@ -11,6 +12,17 @@ activityWorkspaceSuite(
     const created = await scopedHttp(a, w, "POST", "/entity-types", { label: `발급처 정리 ${crypto.randomUUID()}` });
     assertEquals(created.status, 201);
     const typeId = created.body.id;
+    // Removing a source assignment is a definition change affecting this kind;
+    // settings authority alone never grants its business WRITE permission.
+    const current = await call(a, "GET", `/workspaces/${w}`);
+    assertEquals(current.status, 200);
+    assertEquals(
+      (await call(a, "PATCH", `/workspaces/${w}/members/${claimsOf(a).sub}`, {
+        expected_version: current.body.membership_version,
+        grants: [...current.body.grants, { target_kind: "entity_type", target_id: typeId, access: "write" }],
+      })).status,
+      200,
+    );
     assertEquals(
       (await scopedHttp(a, w, "POST", "/entity-issuers", { code: source, label: "오등록 검사" })).status,
       201,
@@ -51,13 +63,14 @@ activityWorkspaceSuite(
     const linked = await scopedHttp(a, w, "DELETE", `/entity-identifier-rules/${rule.id}`, { expected_version: 1 });
     assertEquals(linked.status, 400);
     assertEquals(linked.body.code, "invalid_input");
-    await scopedTool(client, w, "update_entity_type_identity", {
+    const detached = await scopedTool(client, w, "update_entity_type_identity", {
       type_id: typeId,
       label: identity.label,
       default_source: "app",
       expected_version: identity.version,
       sources: sources.filter((s) => s.code === "app"),
     });
+    assertEquals(detached.version, identity.version + 1);
     const ruleKey = crypto.randomUUID();
     const removed = await scopedHttp(
       a,
