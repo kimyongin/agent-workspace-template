@@ -23,7 +23,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     });
     entityIds.push(existing.id);
     const oldPage = await context.newPage();
-    await oldPage.goto(`/entities/${encodeURIComponent(existing.id)}`);
+    await oldPage.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(existing.id)}`));
     await oldPage.getByRole("button", { name: "편집", exact: true }).click();
     const oldForm = oldPage.getByRole("dialog", {
       name: `${type.label} 편집`,
