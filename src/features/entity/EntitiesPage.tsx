@@ -445,7 +445,7 @@ export function EntitiesPage() {
             enabled={!!page?.items.some((e) => (e as EntitySummary & { tag_ids?: string[] }).tag_ids?.length)}
           >
             <CollectionList
-              view={view === "calendar" ? "list" : view}
+              view={view === "calendar" ? "table" : view}
               label={`${label} 목록`}
               numericColumns={displaySchema
                 ? schemaPresentation(displaySchema).list_columns.filter((key) =>

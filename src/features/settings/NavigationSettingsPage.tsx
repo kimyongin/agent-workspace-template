@@ -1,3 +1,4 @@
+import { BusinessCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
@@ -151,19 +152,21 @@ export function NavigationSettings(
         }}
       >
         <FieldSet className="min-w-0" disabled={busy}>
-          <ol className="flex min-w-0 flex-col divide-y divide-border" aria-label="선택한 바로가기">
+          <BusinessTable disclosureColumn={false} label="선택한 바로가기" columns={["메뉴", "순서와 표시"]}>
             {refs.map((ref, index) => {
               const entry = resolveNavigationRefs([ref], types)[0];
               const label = entry?.label ?? "사용할 수 없는 자료 종류";
               return (
-                <li key={key(ref)}>
+                <BusinessRow key={key(ref)}>
+                  <BusinessCell index={0}>
                   <span className="flex min-w-0 flex-1 items-center gap-2 [overflow-wrap:anywhere]">
                     <EntityTypeIcon id={entry?.icon ?? "box"} />
                     {label}
                     {entry?.archived ? " · 보관" : ""}
                     {!entry ? catalog.types === null && !catalog.error ? " · 확인 중" : " · 참조 유지" : ""}
                   </span>
-                  <NavigationRowActions
+                  </BusinessCell>
+                  <BusinessCell index={1}><NavigationRowActions
                     label={label}
                     index={index}
                     count={refs.length}
@@ -173,17 +176,17 @@ export function NavigationSettings(
                       edit(next);
                     }}
                     onRemove={(event) => {
-                      const row = event.currentTarget.closest("li");
+                      const row = event.currentTarget.closest("tr");
                       const next = (row?.nextElementSibling ?? row?.previousElementSibling)
                         ?.querySelector<HTMLButtonElement>('button[title="바로가기에서 제거"]');
                       edit(refs.filter((_, position) => position !== index));
                       requestAnimationFrame(() => (next ?? addSelect.current)?.focus());
                     }}
-                  />
-                </li>
+                  /></BusinessCell>
+                </BusinessRow>
               );
             })}
-          </ol>
+          </BusinessTable>
           {refs.length === 0 && <p className="text-sm text-muted-foreground">바로가기를 표시하지 않습니다.</p>}
           <div className="flex flex-wrap items-end gap-3">
             <Combobox items={available} value={selected ?? null} isItemEqualToValue={(a,b) => a.key === b.key} itemToStringLabel={entry => entry.label} onValueChange={entry => setCandidate(entry?.key ?? "")} disabled={busy || refs.length >= 4 || available.length === 0}>

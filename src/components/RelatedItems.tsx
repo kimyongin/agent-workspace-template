@@ -3,9 +3,9 @@ import { DetailLink, useDetailViewState } from "../lib/detail-exploration.tsx";
 import { CollectionHeading, type ItemView, RelatedCollectionView, useItemLayout } from "./Collection.tsx";
 import { Button } from "./ui/button.tsx";
 import { Item, ItemContent, ItemHeader, ItemActions } from "./ui/item.tsx";
-import { TableRow, TableCell } from "./ui/table.tsx";
+import { BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "./BusinessTable.tsx";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "./ui/collapsible.tsx";
-import { ChevronUpIcon, ChevronDownIcon } from "lucide-react";
+import { ChevronRightIcon, ChevronDownIcon } from "lucide-react";
 import { cn } from "../lib/utils.ts";
 import { ExpansionGroupProvider, ItemExpansion } from "./item-expansion.tsx";
 import { useContext } from "react";
@@ -23,7 +23,8 @@ export function RelatedSection(
   },
 ) {
   const heading = useId();
-  const [view, setView] = useDetailViewState<ItemView>(`collection-view-${title}`, "list");
+  const [storedView, setView] = useDetailViewState<unknown>(`collection-view-${title}`, "table");
+  const view: ItemView = storedView === "cards" ? "cards" : "table";
   return (
     <RelatedCollectionView.Provider value={view}>
       <ExpansionGroupProvider>
@@ -105,12 +106,12 @@ export function RelatedItem(
   const layout = useItemLayout(), table = layout?.view === "table";
   const label = titleLabel ?? (layout?.columns[0] !== "내용" ? layout?.columns[0] : undefined) ??
     (to?.startsWith("/records/") ? "본문 대표 문구" : to?.startsWith("/tasks/") ? "제목" : "자료 이름");
-  const titleButton = <Button data-list-anchor={id ? "" : undefined} id={heading} type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] min-w-0 flex-1 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+  const titleButton = <Button data-list-anchor={id ? "" : undefined} id={heading} type="button" variant="link" className="h-auto min-h-[max(2.75rem,44px)] min-w-0 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
     aria-expanded={disclosure?.expanded} aria-controls={disclosure ? panel : undefined} onClick={table ? disclosure?.toggle : undefined}>{title}</Button>;
   const titleContent = disclosure ? (table ? titleButton : <CollapsibleTrigger asChild>{titleButton}</CollapsibleTrigger>)
     : to ? <Button asChild variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"><DetailLink data-list-anchor={id ? "" : undefined} id={heading} to={to} aria-label={title} restoreKey={restoreKey}>{title}</DetailLink></Button>
     : <span id={heading} className="font-medium wrap-anywhere">{title}</span>;
-  const Icon = disclosure?.expanded ? ChevronUpIcon : ChevronDownIcon;
+  const Icon = disclosure?.expanded ? ChevronDownIcon : ChevronRightIcon;
   const toggle = disclosure && <Button type="button" variant="ghost" size="icon" aria-label={`${title} ${disclosure.expanded ? "접기" : "열기"}`}
     title={disclosure.expanded ? "접기" : "열기"} aria-expanded={disclosure.expanded} aria-controls={panel} onClick={table ? disclosure.toggle : undefined}><Icon /></Button>;
   const actions = (action || disclosure) && <ItemActions className="max-w-full shrink-0 flex-wrap">
@@ -121,13 +122,14 @@ export function RelatedItem(
   const previewContent = disclosure?.expanded && disclosure.content;
   const titleData = <dl className="min-w-0 flex-1"><div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="flex min-w-0 flex-wrap items-center gap-2">{titleContent}{titleBadge}</dd></div></dl>;
   if (table) return <>
-    <TableRow data-expanded={disclosure?.expanded || undefined}>
-      <TableCell className="w-2/5 min-w-48 whitespace-normal"><div className="flex min-w-0 flex-wrap items-start gap-2">{titleData}{actions}</div></TableCell>
-      {layout.columns.slice(1).map((column, index) => <TableCell key={column} className={cn("whitespace-normal wrap-anywhere", layout.numericColumns.includes(index + 1) && "text-right tabular-nums")}>{cells[index] ?? "—"}</TableCell>)}
-    </TableRow>
-    {(disclosure?.expanded || metadata && !disclosure) && <TableRow><TableCell colSpan={layout.columns.length} className="whitespace-normal">
-      <div id={panel} aria-labelledby={heading} className="flex min-w-0 flex-col gap-4">{metadataContent}{previewContent}</div>
-    </TableCell></TableRow>}
+    <BusinessRow data-expanded={disclosure?.expanded || undefined}>
+      <BusinessDisclosureCell>{toggle}</BusinessDisclosureCell>
+      <BusinessCell index={0}><div className="flex min-w-0 flex-wrap items-center gap-2">{titleContent}{titleBadge}{!disclosure && action}</div></BusinessCell>
+      {layout.columns.slice(1).map((column, index) => <BusinessCell key={index} index={index + 1}>{cells[index] ?? "—"}</BusinessCell>)}
+    </BusinessRow>
+    {(disclosure?.expanded || metadata && !disclosure) && <BusinessDetails id={panel} aria-labelledby={heading}>
+      {metadataContent}{previewContent}{disclosure && action && <div className="flex flex-wrap items-center gap-2">{action}</div>}
+    </BusinessDetails>}
   </>;
   const item = <Item variant={layout?.view === "cards" ? "outline" : "default"} className="@container min-w-0 flex-col items-stretch">
     <ItemHeader className="flex-wrap items-start">{titleData}{actions}</ItemHeader>

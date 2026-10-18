@@ -1,5 +1,5 @@
 import { FieldGroup } from "@/components/ui/field";
-import { Item, ItemActions, ItemContent, ItemGroup } from "@/components/ui/item";
+import { BusinessCell, BusinessDisclosureCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Button } from "../../components/ui/button.tsx";
@@ -414,21 +414,19 @@ export function TagManagement(
             </EmptyHeader>
           </Empty>
         )}
-        <ItemGroup>
+        <BusinessTable disclosureColumn={false} label={`${tagScopeLabels[scope]} 태그 목록`} columns={["태그 이름", "작업"]}>
           {(draft?.initial && !page?.items.some((t) => t.id === draft.initial?.id)
             ? [draft.initial, ...(page?.items ?? [])]
             : page?.items ?? []).map((tag) => (
-              <Item role="listitem" key={tag.id} variant="outline" className="min-w-0 flex-wrap">
-                <ItemContent className="min-w-0 basis-full @min-[28rem]:basis-0">
+              <BusinessRow key={tag.id}>
+                <BusinessDisclosureCell />
+                <BusinessCell index={0}>
                   {draft?.initial?.id === tag.id ? editor(tag) : (
-                    <dl className="min-w-0">
-                      <dt className="text-sm text-muted-foreground">태그 이름</dt>
-                      <dd className="wrap-anywhere font-medium">{tag.name}</dd>
-                    </dl>
+                    <span className="font-medium wrap-anywhere">{tag.name}</span>
                   )}
-                </ItemContent>
-                {draft?.initial?.id !== tag.id && (
-                  <ItemActions className="w-full flex-wrap justify-end @min-[28rem]:w-auto">
+                </BusinessCell>
+                <BusinessCell index={1}>{draft?.initial?.id !== tag.id && (
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <Button
                       variant="ghost"
                       type="button"
@@ -440,11 +438,11 @@ export function TagManagement(
                       이름 변경
                     </Button>
                     {deleteAction(tag)}
-                  </ItemActions>
-                )}
-              </Item>
+                  </div>
+                )}</BusinessCell>
+              </BusinessRow>
             ))}
-        </ItemGroup>
+        </BusinessTable>
         {page?.next_cursor && (
           <Button
             variant="ghost"

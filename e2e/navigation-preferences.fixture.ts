@@ -123,6 +123,7 @@ test("shortcut editing has its own section with compact rows, bounded selection 
   await page.goto("/settings/navigation");
   await expect(page).toHaveURL(/\/settings#settings-navigation$/);
   const section = page.getByRole("region", { name: "메뉴 바로가기", exact: true });
+  await expect(section.getByRole("table", { name: "선택한 바로가기", exact: true })).toBeVisible();
   const display = page.getByRole("region", { name: "화면 표시", exact: true });
   await expect(display.getByRole("form")).toHaveCount(1);
   await expect(display.getByRole("region", { name: "메뉴 바로가기" })).toHaveCount(0);

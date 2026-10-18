@@ -13,7 +13,7 @@ export function NavigationRowActions({ label, index, count, disabled = false, on
   onRemove: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
-    <div className="ml-auto flex shrink-0 gap-1">
+    <div className="flex min-w-0 flex-wrap items-center gap-1">
       {([
         { name: "위로 이동", icon: ArrowUpIcon, unavailable: index === 0, move: -1 },
         { name: "아래로 이동", icon: ArrowDownIcon, unavailable: index === count - 1, move: 1 },

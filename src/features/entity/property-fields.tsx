@@ -84,7 +84,11 @@ export function displayedProperty(field: EntityField, value: unknown, labels: Re
   if (value === null) return fieldChoiceTitle(field, null) ?? "값 없음";
   if (typeof value === "boolean") return value ? "참" : "거짓";
   const choices = { ...fieldChoiceLabels(field), ...labels };
-  return Object.hasOwn(choices, String(value)) ? choices[String(value)] : String(value);
+  if (Object.hasOwn(choices, String(value))) return choices[String(value)];
+  if (typeof value === "number" && ["integer", "number"].includes(fieldType(field) ?? "")) {
+    return new Intl.NumberFormat("ko-KR", { maximumSignificantDigits: 21 }).format(value);
+  }
+  return String(value);
 }
 export function PropertyFields(
   { definition, values, onChange, errors, disabled = false, part = "all" }: {

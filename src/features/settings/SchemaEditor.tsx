@@ -1,6 +1,7 @@
+import { BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 import { RadioGroup } from "@/components/ui/radio-group";
-import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
-import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
+import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -122,7 +123,7 @@ export function SchemaEditor(
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   const propertiesHeading = useRef<HTMLHeadingElement>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
-  const fieldElements = useRef<Record<string, HTMLElement | null>>({});
+  const fieldElements = useRef<Record<string, { row?: HTMLElement | null; body?: HTMLElement | null }>>({});
   const onFieldKeysChanged = (replacements: Record<string, string>) => {
     setOpenFields((keys) => keys.map((key) => replacements[key] ?? key));
     setAdvancedFields((keys) => keys.map((key) => replacements[key] ?? key));
@@ -136,7 +137,7 @@ export function SchemaEditor(
     setAdvancedFields((keys) => keys.includes(key) ? keys : [...keys, key]);
     setOpenFields((keys) => keys.includes(key) ? keys : [...keys, key]);
     requestAnimationFrame(() => {
-      const element = fieldElements.current[key];
+      const element = fieldElements.current[key]?.body;
       element?.scrollIntoView({ block: "nearest" });
       if (!element) return;
       const input = [...element.querySelectorAll<HTMLInputElement>("[data-schema-setting]")].find((input) =>
@@ -254,7 +255,7 @@ export function SchemaEditor(
   const moveInput = (key: string, offset: number) => {
     moveField(key, offset);
     requestAnimationFrame(() => {
-      const element = fieldElements.current[key];
+      const element = fieldElements.current[key]?.row;
       const buttons = element?.querySelectorAll<HTMLButtonElement>(
         "[data-schema-order-actions] button",
       );
@@ -331,7 +332,7 @@ export function SchemaEditor(
                 startState.uncertain}
             >
               <RadioGroup value={schemaPresentation(draft).representative} onValueChange={editor.chooseRepresentative} aria-label="자료 이름으로 사용할 항목">
-              <CollectionList view="list" label="입력 항목 목록">
+              <CollectionList view="table" label="입력 항목 목록" columns={["입력 항목", "설정", "순서"]}>
                 {schemaPresentation(draft).order.map((key, index) => {
                   const f = draft.schema.properties[key],
                     scalar = fieldType(f) ?? "string";
@@ -360,60 +361,22 @@ export function SchemaEditor(
                   );
                   return (
                     <CollectionItem key={key}>
-                      <Card role="region"
-                        className="min-w-0"
-                        data-expanded={openFields.includes(key) || undefined}
-                        aria-label={`${f.title || "새 항목"} 입력 항목`}
-                        ref={(element) => {
-                          fieldElements.current[key] = element;
-                        }}
-                      >
-                        <CardHeader><div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <CardTitle className="min-w-0 [overflow-wrap:anywhere]" role="heading" aria-level={3}>
-                            {expanded
-                              ? (
-                                <div className="flex min-w-0 flex-1 flex-col items-start gap-2 text-left">
-                                  <Field fullWidth label="항목 이름">
-                                    {(nameProps) => (
-                                      <Input
-                                        {...nameProps}
-
-                                        maxLength={80}
-                                        data-schema-setting="title"
-                                        value={f.title ?? ""}
-                                        disabled={Boolean(plan?.recovery)}
-                                        onChange={(event) => editField(key, { ...f, title: event.target.value })}
-                                      />
-                                    )}
-                                  </Field>
-                                  {fieldSummary}
-                                </div>
-                              )
-                              : (
-                                <Button variant="outline"
-                                  className="flex h-auto min-h-[max(2.75rem,44px)] max-w-full min-w-0 flex-1 flex-col items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left [overflow-wrap:anywhere]"
-                                  type="button"
-                                  aria-label={`${f.title || "새 항목"} 입력 항목 편집`}
-                                  aria-expanded={expanded}
-                                  aria-controls={`schema-field-${key}`}
-                                  onClick={() => {
-                                    toggleField();
-                                    requestAnimationFrame(() => {
-                                      const element = fieldElements.current[key];
-                                      (element?.querySelector<HTMLInputElement>(
-                                        'input[data-schema-setting="title"]:not(:disabled)',
-                                      ) ?? element?.querySelector<HTMLButtonElement>(
-                                        "[data-schema-disclosure]:not(:disabled)",
-                                      ))?.focus({ preventScroll: true });
-                                    });
-                                  }}
-                                >
-                                  <span className="max-w-full">{f.title || "새 항목"}</span>
-                                  {fieldSummary}
-                                </Button>
-                              )}
-                          </CardTitle>
-                          <div data-schema-order-actions className="ml-auto flex shrink-0 gap-1">
+                      <BusinessRow aria-label={`${f.title || "새 항목"} 입력 항목`} data-expanded={expanded || undefined}
+                        ref={element => { fieldElements.current[key] = { ...fieldElements.current[key], row: element }; }}>
+                        <BusinessDisclosureCell><Button size="icon" data-schema-disclosure variant="ghost" type="button"
+                          aria-label={`${f.title || "새 항목"} 항목 ${expanded ? "접기" : "펼치기"}`} aria-expanded={expanded} aria-controls={`schema-field-${key}`} onClick={toggleField}>
+                          {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                        </Button></BusinessDisclosureCell>
+                        <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-[max(2.75rem,44px)] max-w-full min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                          aria-label={`${f.title || "새 항목"} 입력 항목 편집`} aria-expanded={expanded} aria-controls={`schema-field-${key}`}
+                          onClick={() => {
+                            toggleField();requestAnimationFrame(() => {
+                              const input = fieldElements.current[key]?.body?.querySelector<HTMLInputElement>('input[data-schema-setting="title"]:not(:disabled)');
+                              (input ?? fieldElements.current[key]?.row?.querySelector<HTMLButtonElement>('[data-schema-disclosure]:not(:disabled)'))?.focus({preventScroll:true});
+                            });
+                          }}><span className="min-w-0 wrap-anywhere">{f.title || "새 항목"}</span></Button></h3></BusinessCell>
+                        <BusinessCell index={1}>{fieldSummary}</BusinessCell>
+                        <BusinessCell index={2}>                          <div data-schema-order-actions className="flex min-w-0 flex-wrap gap-1">
                             <Button variant="ghost"
                               type="button"
 
@@ -433,15 +396,23 @@ export function SchemaEditor(
                               <ArrowDownIcon />
                             </Button>
                           </div>
-                          <Button size="icon" data-schema-disclosure variant="outline"
-                            type="button"
+</BusinessCell>
+                      </BusinessRow>
+                      <BusinessDetails hidden={!expanded} role="region" aria-label={`${f.title || "새 항목"} 입력 항목`}
+                        ref={element => { fieldElements.current[key] = { ...fieldElements.current[key], body: element }; }}>
+                                  <Field fullWidth label="항목 이름">
+                                    {(nameProps) => (
+                                      <Input
+                                        {...nameProps}
 
-                            aria-label={`${f.title || "새 항목"} 항목 ${openFields.includes(key) ? "접기" : "펼치기"}`}
-                            aria-expanded={openFields.includes(key)}
-                            aria-controls={`schema-field-${key}`}
-                            onClick={toggleField}
-                          ><ChevronDownIcon /></Button>
-                        </div></CardHeader><CardContent hidden={!expanded}>
+                                        maxLength={80}
+                                        data-schema-setting="title"
+                                        value={f.title ?? ""}
+                                        disabled={Boolean(plan?.recovery)}
+                                        onChange={(event) => editField(key, { ...f, title: event.target.value })}
+                                      />
+                                    )}
+                                  </Field>
                         <FieldSet
                           className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
                           id={`schema-field-${key}`}
@@ -829,7 +800,7 @@ export function SchemaEditor(
                             </FieldGroup>
                           </CollapsibleContent></Collapsible>
                         </FieldSet>
-                      </CardContent></Card>
+                      </BusinessDetails>
                     </CollectionItem>
                   );
                 })}
@@ -908,7 +879,7 @@ export function SchemaEditor(
       >
         <SchemaExport definition={definition} current />
         <div className="flex min-w-0 flex-col gap-4">
-          <CollectionList view="list" label="입력 항목 변경 이력">
+          <CollectionList view="cards" label="입력 항목 변경 이력">
             {historyRows.map((row) => {
               const c = row.change;
               const rowJob = row.jobs.find((job) => job.id === selectedJob) ??

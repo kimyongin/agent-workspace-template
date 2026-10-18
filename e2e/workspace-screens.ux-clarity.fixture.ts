@@ -49,9 +49,10 @@ for (const width of [320, 1440]) {
       await editor.getByRole("button", { name: "자료 연결", exact: true }).click();
       await editor.getByRole("searchbox", { name: "자료 제목 검색", exact: true }).fill("상품");
       const results = editor.getByRole("group", { name: "자료 검색 결과", exact: true });
+      await expect(results.getByRole("table", { name: "자료 검색 결과", exact: true })).toBeVisible();
       await results.getByRole("button", { name: "같은 상품 연결", exact: true }).click();
       await expect(results.getByText("현재 결과에 연결할 수 있는 항목이 없습니다.", { exact: true })).toBeVisible();
-      const selected = editor.getByRole("list", { name: "선택한 자료", exact: true });
+      const selected = editor.getByRole("table", { name: "선택한 자료", exact: true });
       await expect(selected).toContainText("쿠팡 · 000Ab-21");
       await expect(selected).not.toContainText(first.id);
       await results.getByRole("button", { name: "검색 결과 더 보기", exact: true }).click();
@@ -78,7 +79,7 @@ for (const width of [320, 1440]) {
     await form(page).getByRole("button", { name: "기록 작성", exact: true }).click();
     await form(page).getByLabel("본문", { exact: false }).fill("보존할 기록 초안");
     await expect(form(page).getByRole("alert")).toContainText("선택한 자료 정보를 확인하지 못했습니다");
-    const selected = form(page).getByRole("list", { name: "선택한 자료", exact: true });
+    const selected = form(page).getByRole("table", { name: "선택한 자료", exact: true });
     await expect(selected).toContainText("같은 상품");
     await expect(selected).not.toContainText(item.id);
     await form(page).getByRole("button", { name: "다시 조회", exact: true }).click();

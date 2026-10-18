@@ -969,12 +969,13 @@ test(
     await expect(
       properties.getByRole("button", { name: "변경 검토", exact: true }),
     ).toBeDisabled();
-    await expect(page.getByRole("list", { name: "입력 항목 목록", exact: true })).toHaveCount(1);
-    await expect(properties.getByRole("list", { name: "입력 항목 목록", exact: true })).toBeVisible();
+    await expect(page.getByRole("table", { name: "입력 항목 목록", exact: true })).toHaveCount(1);
+    await expect(properties.getByRole("table", { name: "입력 항목 목록", exact: true })).toBeVisible();
     const quantity = properties.getByRole("region", { name: "수량 입력 항목", exact: true });
-    const layout = await quantity.evaluate((el) => {
+    const quantityRow = properties.getByRole("row", { name: "수량 입력 항목", exact: true }).filter({ has: page.getByRole("button", { name: /^수량 항목 (?:펼치기|접기)$/ }) });
+    const layout = await quantityRow.evaluate((el) => {
       const row = el.getBoundingClientRect();
-      const header = el.querySelector("[data-slot=\"card-header\"]")!.getBoundingClientRect();
+      const details = el.nextElementSibling!.getBoundingClientRect();
       const buttons = [...el.querySelectorAll("[data-schema-order-actions] button, [data-schema-disclosure]")].map(
         (button) => ({
           x: button.getBoundingClientRect().x,
@@ -983,9 +984,10 @@ test(
           height: button.getBoundingClientRect().height,
         }),
       );
-      return { rowHeight: row.height, headerHeight: header.height, buttons };
+      return { rowBottom: row.bottom, detailsTop: details.top, detailsHeight: details.height, buttons };
     });
-    expect(layout.rowHeight).toBeGreaterThan(layout.headerHeight);
+    expect(layout.detailsTop).toBeGreaterThanOrEqual(layout.rowBottom);
+    expect(layout.detailsHeight).toBeGreaterThan(0);
     expect(layout.buttons).toHaveLength(3);
     expect(layout.buttons[0].right).toBeLessThanOrEqual(layout.buttons[1].x);
     expect(layout.buttons[1].right).toBeLessThanOrEqual(layout.buttons[2].x);
@@ -1004,7 +1006,7 @@ test(
       expect(target!.width).toBeGreaterThanOrEqual(44);
       expect(target!.height).toBeGreaterThanOrEqual(44);
     }
-    await expect(quantity.getByRole("heading")).toBeVisible();
+    await expect(quantityRow.getByRole("heading")).toBeVisible();
     const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
     await expect(deletion).toHaveAttribute("data-variant", "destructive");
     await quantity.getByText("추가 설정", { exact: true }).click();
@@ -1036,7 +1038,7 @@ test(
       await expect(properties.getByRole("button", { name: /위로$/ }).first()).toBeVisible();
     }
     await properties.locator(
-      "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
+      "[role=\"row\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
     ).focus();
     await page.keyboard.press("Enter");
     await expect(
