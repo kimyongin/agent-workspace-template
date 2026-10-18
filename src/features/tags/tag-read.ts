@@ -1,17 +1,18 @@
 import type { TagResult } from "@contracts/tag.ts";
 
 type Scope = TagResult["scope"];
+export type TagReadPurpose = "record-template";
 type Page = { items: TagResult[]; next_cursor: string | null };
 
 /** Scope-local reads own traversal; callers own their selection, baseline and visible lifecycle. */
-export function createTagRead(request: (method: "GET", path: string, body: undefined, signal?: AbortSignal) => Promise<Page>) {
+export function createTagRead(request: (method: "GET", path: string, body: undefined, signal?: AbortSignal) => Promise<Page>, purpose?: TagReadPurpose) {
   async function* pages(scope: Scope, signal?: AbortSignal) {
     let cursor: string | null = null;
     do {
       signal?.throwIfAborted();
       const page: Page = await request(
         "GET",
-        `/tags?scope=${scope}&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        `/tags?scope=${scope}&limit=100${purpose ? `&purpose=${purpose}` : ""}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
         undefined,
         signal,
       );

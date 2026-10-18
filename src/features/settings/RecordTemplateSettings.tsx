@@ -434,6 +434,7 @@ function RecordTemplateForm({
                 disabled={!canWrite || busy || uncertain}
                 label="기본 기록 태그"
                 scope="record"
+                purpose="record-template"
                 value={value.tag_ids}
                 onChange={(tag_ids) => setValue({ tag_ids })}
               />
