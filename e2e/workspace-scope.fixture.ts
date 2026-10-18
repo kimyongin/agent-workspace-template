@@ -59,6 +59,7 @@ async function fixture(page: Page) {
   return api;
 }
 async function choose(page: Page, name: string) {
+  await openMainNavigation(page);
   await page.getByRole("button", { name: "공간 선택", exact: true }).click();
   await page.getByRole("menuitem", { name, exact: true }).click();
 }
