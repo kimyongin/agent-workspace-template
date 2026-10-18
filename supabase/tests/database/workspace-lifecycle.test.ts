@@ -98,6 +98,49 @@ dbTest(
 );
 
 dbTest(
+  "deleted workspace discovery and lifecycle receipts require current management without reopening business replay",
+  async () => {
+    const actor = { userId: crypto.randomUUID(), request: { key: crypto.randomUUID() } };
+    let workspaceId: string | undefined;
+    await admin`insert into auth.users(id,email) values(${actor.userId},${`workspace517-${actor.userId}@example.test`})`;
+    const fingerprint = "a".repeat(64), requestKey = crypto.randomUUID();
+    try {
+      workspaceId = (await createWorkspace(deps, actor, { name: "삭제 재확인" })).workspace.id;
+      const execute = () =>
+        workspaceAccount(sql, actor, async (tx) => {
+          await lockWorkspace(tx, workspaceId!, "control");
+          const [started] =
+            await tx`select app.begin_workspace_lifecycle_request(${requestKey}::uuid,'workspace.delete',${fingerprint}) as receipt`;
+          if (started.receipt.state === "replay") return started.receipt.result;
+          assertEquals(started.receipt.state, "new");
+          const [deleted] = await tx`select app.workspace_set_deleted(1,true) as result`;
+          await tx`select app.finish_workspace_request(${requestKey}::uuid,${
+            tx.json(deleted.result)
+          },'[]'::jsonb,false)`;
+          return deleted.result;
+        });
+      const result = await execute();
+      assertEquals(await execute(), result);
+      const listed = await workspaceAccount(
+        sql,
+        actor,
+        async (tx) => (await tx`select app.deleted_workspaces() as result`)[0].result,
+      );
+      assertEquals(listed.items, [result.workspace]);
+      const denied = await assertRejects(() =>
+        workspaceAccount(sql, actor, async (tx) => {
+          await lockWorkspace(tx, workspaceId!, "control");
+          await tx`select app.begin_workspace_request(${requestKey}::uuid,'workspace.delete',${fingerprint},'[]'::jsonb)`;
+        }), AppError);
+      assertEquals(denied.code, "forbidden");
+    } finally {
+      if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
+      await admin`delete from auth.users where id=${actor.userId}`;
+    }
+  },
+);
+
+dbTest(
   "workspace lifecycle preserves membership, denies ordinary access and restores only through current management",
   async () => {
     const actor = { userId: crypto.randomUUID(), request: { key: crypto.randomUUID() } };
