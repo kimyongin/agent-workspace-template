@@ -1,6 +1,6 @@
-import { assertEquals } from "@std/assert";
-import { admin, API, call, httpTest, signIn } from "../http/_client.ts";
-import { connectMcp, mcpToken, tool } from "./_mcp.ts";
+import { assert, assertEquals } from "@std/assert";
+import { admin, API, call, httpTest, signIn, SUPABASE_URL } from "../http/_client.ts";
+import { claimsOf, connectMcp, MCP_URL, mcpToken, tool } from "./_mcp.ts";
 httpTest(
   "typed relation HTTP/MCP parity: roles, candidates, exact replay, conflict and explicit replacement",
   async () => {
@@ -121,9 +121,10 @@ httpTest(
 );
 
 httpTest("workspace relation real HTTP MCP share business metadata keyed writes and create replace", async () => {
-  const token = await signIn("A"), client = await connectMcp(await mcpToken(token));
-  const actor = JSON.parse(atob(token.split(".")[1].replaceAll("-", "+").replaceAll("_", "/"))).sub as string;
-  const owned: string[] = [];
+  let token = "", actor: string | undefined;
+  let client: Awaited<ReturnType<typeof connectMcp>> | undefined;
+  const auth: { clientId?: string; tokens: string[] } = { tokens: [] };
+  const owned: { id: string; name: string }[] = [], errors: unknown[] = [];
   const request = async (
     workspace: string,
     method: string,
@@ -140,14 +141,20 @@ httpTest("workspace relation real HTTP MCP share business metadata keyed writes 
         "Idempotency-Key": key,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
     });
     return { status: response.status, body: await response.json(), headers: response.headers };
   };
   try {
-    const made = await call(token, "POST", "/workspaces", { name: `관계 transport ${crypto.randomUUID()}` });
+    token = await signIn("A");
+    auth.tokens.push(token);
+    actor = String(claimsOf(token).sub);
+    client = await connectMcp(await trackedRelationMcpToken(token, auth));
+    const name = `relation514-${crypto.randomUUID()}`;
+    const made = await call(token, "POST", "/workspaces", { name });
+    if (typeof made.body?.workspace?.id === "string") owned.push({ id: made.body.workspace.id, name });
     assertEquals(made.status, 201);
     const workspace = made.body.workspace.id as string;
-    owned.push(workspace);
     const kind = await request(workspace, "POST", "/entity-types", { label: `전송 자료 ${crypto.randomUUID()}` });
     assertEquals(kind.status, 201);
     const typeId = kind.body.id as string;
@@ -240,18 +247,181 @@ httpTest("workspace relation real HTTP MCP share business metadata keyed writes 
     });
     assertEquals(removed.changed, true);
     assertEquals((await request(workspace, "GET", `${base}/links`)).body.items, []);
-    const foreign = await call(token, "POST", "/workspaces", { name: `다른 transport ${crypto.randomUUID()}` });
+    const foreignName = `relation514-other-${crypto.randomUUID()}`;
+    const foreign = await call(token, "POST", "/workspaces", { name: foreignName });
+    if (typeof foreign.body?.workspace?.id === "string") {
+      owned.push({ id: foreign.body.workspace.id, name: foreignName });
+    }
     assertEquals(foreign.status, 201);
-    owned.push(foreign.body.workspace.id);
     assertEquals((await request(foreign.body.workspace.id, "GET", `${base}/links`)).status, 404);
+  } catch (error) {
+    errors.push(error);
   } finally {
     try {
-      await client.close();
-    } finally {
-      for (const workspace of owned) {
-        await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${workspace}`;
-        await admin`delete from app.workspaces where id=${workspace}`;
+      await client?.close();
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await admin.begin(async (tx) => {
+        for (const workspace of owned) {
+          const [root] = await tx`select name,created_by from app.workspaces where id=${workspace.id} for update`;
+          assertEquals(root, { name: workspace.name, created_by: actor });
+          const members = await tx`select user_id from private.workspace_members where workspace_id=${workspace.id}`;
+          assert(members.every((member) => member.user_id === actor));
+          await tx`delete from pgmq.q_search_index where message->>'workspace_id'=${workspace.id}`;
+          await tx`delete from pgmq.a_search_index where message->>'workspace_id'=${workspace.id}`;
+          await tx`delete from app.workspaces where id=${workspace.id}`;
+          assertEquals((await tx`select id from app.workspaces where id=${workspace.id}`).length, 0);
+        }
+      });
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      if (auth.clientId) {
+        const secret = Deno.env.get("LOCAL_SUPABASE_SECRET_KEY");
+        assert(secret);
+        const removed = await fetch(
+          `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${encodeURIComponent(auth.clientId)}`,
+          {
+            method: "DELETE",
+            headers: { apikey: secret, authorization: `Bearer ${secret}` },
+            signal: AbortSignal.timeout(15000),
+          },
+        );
+        await removed.body?.cancel();
+        assert(removed.ok || removed.status === 404);
       }
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      const sessions = auth.tokens.map((value) => claimsOf(value).session_id).filter((id): id is string =>
+        typeof id === "string"
+      );
+      if (sessions.length) {
+        await admin`delete from auth.sessions where id=any(${sessions}::uuid[])`;
+        assertEquals(
+          Number((await admin`select count(*) n from auth.sessions where id=any(${sessions}::uuid[])`)[0].n),
+          0,
+        );
+      }
+    } catch (error) {
+      errors.push(error);
     }
   }
+  if (errors.length) throw new AggregateError(errors, "workspace relation transport or exact fixture cleanup failed");
 });
+
+// Keep this fixture local until #518 owns a shared tracked OAuth bootstrap. The
+// ordinary helper cannot expose a registered client if consent/exchange fails.
+async function trackedRelationMcpToken(
+  session: string,
+  owned: { clientId?: string; tokens: string[] },
+): Promise<string> {
+  const registeredResponse = await fetch(`${SUPABASE_URL}/auth/v1/oauth/clients/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      client_name: "workspace-relation-test",
+      redirect_uris: ["http://127.0.0.1:55390/callback"],
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const registered = { status: registeredResponse.status, body: await registeredResponse.json() };
+  if (typeof registered.body.client_id === "string") {
+    owned.clientId = registered.body.client_id;
+  }
+  assertEquals(registered.status, 201);
+  assert(owned.clientId);
+  const encode = (bytes: Uint8Array) =>
+    btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const verifier = encode(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = encode(
+    new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
+    ),
+  );
+  const state = encode(crypto.getRandomValues(new Uint8Array(16)));
+  const redirect = "http://127.0.0.1:55390/callback";
+  const authUrl = `${SUPABASE_URL}/auth/v1`;
+  const authorize = new URL(`${authUrl}/oauth/authorize`);
+  for (
+    const [key, value] of Object.entries({
+      response_type: "code",
+      client_id: owned.clientId,
+      redirect_uri: redirect,
+      state,
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      resource: MCP_URL,
+      scope: "openid email",
+    })
+  ) authorize.searchParams.set(key, value);
+  const step = await fetch(authorize, {
+    redirect: "manual",
+    signal: AbortSignal.timeout(15000),
+  });
+  await step.body?.cancel();
+  const authorization = new URL(
+    step.headers.get("location") ?? "",
+    SUPABASE_URL,
+  ).searchParams.get("authorization_id");
+  assert(authorization, "local OAuth consent authorization is present");
+  const publishable = Deno.env.get("VITE_SUPABASE_PUBLISHABLE_KEY");
+  assert(publishable);
+  const headers = {
+    apikey: publishable,
+    authorization: `Bearer ${session}`,
+    "content-type": "application/json",
+  };
+  const details = await fetch(
+    `${authUrl}/oauth/authorizations/${authorization}`,
+    { headers, signal: AbortSignal.timeout(15000) },
+  );
+  const detail = await details.json();
+  assert(details.ok, "local OAuth authorization details succeed");
+  let callback = detail.redirect_url;
+  if (!callback) {
+    const consent = await fetch(
+      `${authUrl}/oauth/authorizations/${authorization}/consent`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ action: "approve" }),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    const approved = await consent.json();
+    assert(consent.ok, "local OAuth consent succeeds");
+    callback = approved.redirect_url;
+  }
+  const result = new URL(callback);
+  assertEquals(result.searchParams.get("state"), state);
+  const exchange = await fetch(`${authUrl}/oauth/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code: result.searchParams.get("code") ?? "",
+      redirect_uri: redirect,
+      client_id: owned.clientId,
+      code_verifier: verifier,
+      resource: MCP_URL,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const token = await exchange.json();
+  // Track any minted session before assertions or SDK connection can fail.
+  if (typeof token.access_token === "string") {
+    owned.tokens.push(token.access_token);
+  }
+  assert(exchange.ok, "local OAuth code exchange succeeds");
+  assert(typeof token.access_token === "string");
+  return token.access_token;
+}
