@@ -73,7 +73,15 @@ export function CreateRelatedEntityForm(
     return () => request.current?.abort();
   }, [api, originId, definitionId, side]);
   const writable = context?.definition.ends.every(end => capability?.grants.some(grant => grant.target_kind === "entity_type" && grant.target_id === end.type_id && grant.access === "write"));
-  if (!context || !writable) {
+  const writableNow = useRef(false);
+  writableNow.current = !!writable;
+  const admitted = useRef<{ api: typeof api; base: string } | null>(null);
+  const retained = admitted.current?.api === api && admitted.current.base === base;
+  useLayoutEffect(() => {
+    if (admitted.current?.api !== api || admitted.current.base !== base) admitted.current = null;
+    if (context && writable) admitted.current = { api, base };
+  }, [api, base, context, writable]);
+  if (!context || (!writable && !retained)) {
     return (
       <FormModal
         open
@@ -125,11 +133,13 @@ export function CreateRelatedEntityForm(
     <EntityForm
       initialTypeId={typeId}
       fixedType
+      readonly={!writable}
       context={notice}
       submitLabel="작성하고 연결"
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
       onSave={async (entity, key) => {
+        if (!writableNow.current) throw new ApiError(403, "forbidden", "양쪽 자료 종류의 쓰기 권한이 필요합니다.");
         if (reading || contextChanged) {
           throw new ApiError(
             409,

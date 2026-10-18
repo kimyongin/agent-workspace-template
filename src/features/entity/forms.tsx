@@ -20,7 +20,7 @@ import { useEntityTypes } from "./useEntityTypes.ts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { Field } from "../../components/Field.tsx";
+import { Field, Notice } from "../../components/Field.tsx";
 
 import { fieldErrors } from "../../lib/format.ts";
 import { ReadonlyTags } from "../tags/TagConnections.tsx";
@@ -37,6 +37,7 @@ export function EntityForm({
   initialTypeId,
   initialTypeLabel,
   fixedType = false,
+  readonly = false,
   context,
   submitLabel = "저장",
   details,
@@ -50,6 +51,7 @@ export function EntityForm({
   initialTypeId?: string;
   initialTypeLabel?: string;
   fixedType?: boolean;
+  readonly?: boolean;
   context?: ReactNode;
   submitLabel?: string;
   details?: ReactNode;
@@ -70,7 +72,7 @@ export function EntityForm({
     [identityReload, setIdentityReload] = useState(0),
     [nextType, setNextType] = useState<string | null>(null);
   const { types, error: catalogError, retry: retryCatalog } = useEntityTypes();
-  const canWrite = canWriteType(typeId);
+  const canWrite = !readonly && canWriteType(typeId);
   const writableTypes = types?.filter((type) => !type.archived && canWriteType(type.id));
   const [archived, setArchived] = useState<EntityDetail | null>(initial?.deleted_at ? initial : null),
     [identityMessage, setIdentityMessage] = useState(""),
