@@ -310,6 +310,7 @@ test(
       await grantAndRefresh(2, "none");
       await expect(savedChooser).not.toBeVisible();
       await expect(bPage.getByText(`${original} 수정`, { exact: true }).filter({ visible: true })).toHaveCount(0);
+      await expect(bPage.getByText("불러오는 중…", { exact: true }).filter({ visible: true })).toHaveCount(0);
       await bPage.screenshot({ path: info.outputPath("actual-entity-none-tag-chooser.png"), fullPage: true });
       await grantAndRefresh(3, "read");
       await expect(savedChooser).toBeVisible();
@@ -350,6 +351,7 @@ test(
       await expect(detailDialog(bPage).getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
       await expect(detailDialog(bPage).getByText("속성 정의를 불러오는 중…", { exact: true })).toHaveCount(0);
       await expect(detailDialog(bPage).getByText(`${original} 수정`, { exact: true })).toBeVisible();
+      await expect(bPage.getByText("불러오는 중…", { exact: true }).filter({ visible: true })).toHaveCount(0);
       await bPage.screenshot({ path: info.outputPath("actual-entity-readonly.png"), fullPage: true });
       expect(
         (await request(a.token, "PATCH", `/workspaces/${w}/members/${b.id}`, { expected_version: 6, grants: [] }))
