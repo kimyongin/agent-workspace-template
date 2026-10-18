@@ -4,8 +4,8 @@ import { CollectionItem, CollectionList  } from "./Collection.tsx";
 import { RelatedItem } from "./RelatedItems.tsx";
 
 describe("collection data across views", () => {
-  it("keeps selected values with their keys in list and cards, including zero", () => {
-    for (const view of ["list", "cards"] as const) {
+  it("keeps selected values with their keys in cards, including zero", () => {
+    for (const view of ["cards"] as const) {
       const html = renderToStaticMarkup(
         <CollectionList view={view} columns={["품명", "수량", "검사"]}>
           <CollectionItem>
@@ -34,6 +34,6 @@ it("table headers remain keys for the same ordered values", () => {
   expect(html).toContain('<th');
   expect(html).toMatch(/<th[^>]*>수량<\/th>/);
   expect(html).toMatch(/<th[^>]*>검사<\/th>/);
-  expect(html.indexOf("자료 A")).toBeLessThan(html.indexOf(">0</td>"));
-  expect(html.indexOf(">0</td>")).toBeLessThan(html.indexOf(">거짓</td>"));
+  expect(html.indexOf("자료 A")).toBeLessThan(html.indexOf(">0</div>"));
+  expect(html.indexOf(">0</div>")).toBeLessThan(html.indexOf(">거짓</div>"));
 });

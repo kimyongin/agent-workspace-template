@@ -263,7 +263,10 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
       if (width === 1024 && fontSize === 48) {
         const views = page.getByRole("radiogroup", { name: "할 일 보기 방식", exact: true });
         const choices = views.getByRole("radio");
-        await expect(choices).toHaveCount(3);
+        await expect(choices).toHaveCount(2);
+        await expect(views.getByRole("radio", { name: "테이블", exact: true })).toHaveCount(1);
+        await expect(views.getByRole("radio", { name: "카드", exact: true })).toHaveCount(1);
+        await expect(views.getByRole("radio", { name: "리스트", exact: true })).toHaveCount(0);
         expect(await choices.evaluateAll(elements => elements.every(element => {
           const target = element.getBoundingClientRect(), main = element.closest("main")!.getBoundingClientRect();
           return target.width >= 44 && target.height >= 44 && target.left >= main.left - 1 && target.right <= main.right + 1;

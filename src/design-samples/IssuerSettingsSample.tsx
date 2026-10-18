@@ -1,3 +1,7 @@
+import { Fragment } from "react";
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { BusinessTable, BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "../components/BusinessTable.tsx";
+import { CollectionList } from "../components/Collection.tsx";
 import { FieldLabel } from "../components/ui/field.tsx";
 import { FieldGroup, FieldSet } from "../components/ui/field.tsx";
 import { PlusIcon } from "lucide-react";
@@ -59,7 +63,7 @@ export function IssuerSettingsSample(
         </Button>
       </div>
       {message && <p role="status">{message}</p>}
-      <div className="flex min-w-0 flex-col gap-4">
+      <CollectionList view="table" label="번호 출처 예시" columns={["번호 출처", "상태"]}>
         {sources.map((source, index) => (
           <IssuerRow
             key={index}
@@ -78,35 +82,22 @@ export function IssuerSettingsSample(
             onToggle={() => setSelected(selected === index ? null : index)}
           >
             {source.numbers.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
-            <div className="flex min-w-0 flex-col gap-4">
+            <BusinessTable label="번호 종류 예시" columns={["번호 종류 이름", "입력 방식", "사용"]} disclosureColumn={!source.system}>
               {source.numbers.map((number, numberIndex) => {
                 const expanded = numberEdit?.source === index &&
                   numberEdit.number === numberIndex;
                 return (
-                  <div className="flex min-w-0 flex-col gap-4" key={numberIndex}>
-                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                      {!expanded && <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere min-w-0 flex-1">
-                        <div><dt>번호 종류 이름</dt><dd>{number.label}</dd></div>
-                        <div><dt>입력 방식</dt><dd>{source.system ? "자동 생성" : "직접 입력"}</dd></div>
-                        <div><dt>사용</dt><dd>{number.active ? "사용 중" : "사용 중지"}</dd></div>
-                      </dl>}
-                      {!source.system && (
-                        <Button variant="ghost" type="button"
-                          className="self-start"
-                          aria-label={`${number.label} 편집`}
-                          aria-expanded={expanded}
-                          disabled={!!numberEdit}
-                          onClick={() =>
-                            setNumberEdit({
-                              source: index,
-                              number: numberIndex,
-                            })}
-                        >
-                          편집
-                        </Button>
-                      )}
-                    </div>
+                  <Fragment key={numberIndex}>
+                    <BusinessRow>
+                      <BusinessDisclosureCell>{!source.system && <Button variant="ghost" type="button" size="icon" aria-label={`${number.label} 편집`} aria-expanded={expanded} aria-controls={`sample-number-${index}-${numberIndex}`} disabled={!!numberEdit} onClick={() => setNumberEdit({ source: index, number: numberIndex })}>
+                        {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                      </Button>}</BusinessDisclosureCell>
+                      <BusinessCell index={0}>{number.label}</BusinessCell>
+                      <BusinessCell index={1}>{source.system ? "자동 생성" : "직접 입력"}</BusinessCell>
+                      <BusinessCell index={2}>{number.active ? "사용 중" : "사용 중지"}</BusinessCell>
+                    </BusinessRow>
                     {expanded && (
+                      <BusinessDetails id={`sample-number-${index}-${numberIndex}`}>
                       <SampleNumberEditor
                         number={number}
                         onClose={() => setNumberEdit(null)}
@@ -137,11 +128,12 @@ export function IssuerSettingsSample(
                           setNumberEdit(null);
                         }}
                       />
+                      </BusinessDetails>
                     )}
-                  </div>
+                  </Fragment>
                 );
               })}
-            </div>
+            </BusinessTable>
             {!source.system && (
               <div>
                 <Button variant="ghost" type="button"
@@ -154,7 +146,7 @@ export function IssuerSettingsSample(
             )}
           </IssuerRow>
         ))}
-      </div>
+      </CollectionList>
       <p className="text-sm text-muted-foreground">
         실제 상품 번호·주문 번호 값은 각 자료에 입력합니다.
       </p>

@@ -1,3 +1,4 @@
+import { businessRows } from "./table-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect, type Page, test } from "@playwright/test";
@@ -123,6 +124,7 @@ test("shortcut editing has its own section with compact rows, bounded selection 
   await page.goto("/settings/navigation");
   await expect(page).toHaveURL(/\/settings#settings-navigation$/);
   const section = page.getByRole("region", { name: "메뉴 바로가기", exact: true });
+  await expect(section.getByRole("table", { name: "선택한 바로가기", exact: true })).toBeVisible();
   const display = page.getByRole("region", { name: "화면 표시", exact: true });
   await expect(display.getByRole("form")).toHaveCount(1);
   await expect(display.getByRole("region", { name: "메뉴 바로가기" })).toHaveCount(0);
@@ -165,7 +167,7 @@ test("shortcut editing has its own section with compact rows, bounded selection 
 test("explicit empty configuration saves only navigation and survives reload; default can be restored", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
   await page.goto("/settings/navigation");
-  await expect(page.getByRole("list", { name: "선택한 바로가기" }).locator("li")).toHaveCount(4);
+  await expect(businessRows(page.getByRole("table", { name: "선택한 바로가기" }))).toHaveCount(4);
   for (const label of ["재료", "상품", "할 일", "기록"]) {
     await page.getByRole("button", { name: `${label} 숨기기`, exact: true }).click();
   }
@@ -257,7 +259,7 @@ test("unknown refs remain explicit and live rename archive restore do not rewrit
   await expect(page.getByText("사용할 수 없는 자료 종류 · 참조 유지")).toBeVisible();
   state.setTypes([{ ...material, label: "새 재료 이름", archived: true }, product]);
   await page.reload();
-  await expect(page.getByRole("list", { name: "선택한 바로가기" }).getByRole("listitem").first()).toContainText("새 재료 이름 · 보관");
+  await expect(businessRows(page.getByRole("table", { name: "선택한 바로가기" })).first()).toContainText("새 재료 이름 · 보관");
   await openNavigation(page); await expect(shortcuts(page).filter({ hasText: "새 재료 이름" })).toHaveCount(0); await closeNavigation(page);
   expect(state.metadata().workspace_navigation).toEqual(preference);
   expect(state.writes).toEqual([]);
@@ -299,7 +301,7 @@ test(
     const state = await fixture(page, baseURL!, preference);
     state.setTypes(types);
     await page.goto("/settings/navigation");
-    await expect(page.getByRole("list", { name: "선택한 바로가기" }).getByRole("listitem").first()).toContainText(types[11].label);
+    await expect(businessRows(page.getByRole("table", { name: "선택한 바로가기" })).first()).toContainText(types[11].label);
     await page.setViewportSize({ width: 320, height: 300 });
     await page.evaluate(() => document.documentElement.style.fontSize = "200%");
     await expectShortcuts(page, [types[11].label, "할 일", "기록", "전체 자료"]);

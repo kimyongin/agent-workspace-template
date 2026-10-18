@@ -1,3 +1,4 @@
+import { BusinessTable, BusinessRow, BusinessCell } from "../components/BusinessTable.tsx";
 import { useState } from "react";
 import { FilterPanel } from "../components/TabSearch.tsx";
 import { Notice } from "../components/Field.tsx";
@@ -109,13 +110,9 @@ export function FilterSamples() {
       </div>
       <section aria-label="적용된 조건의 자료 목록">
         <h3 className="text-base font-semibold">자료 · {rows.length}개</h3>
-        <ul className="flex min-w-0 flex-col gap-3">
-          {rows.map((row) => (
-            <li className="min-w-0" key={row.id}>
-              <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>이름</dt><dd>{row.prop_1}</dd></div></dl>
-            </li>
-          ))}
-        </ul>
+        <BusinessTable label="필터 결과 예시" columns={["이름"]} disclosureColumn={false}>
+          {rows.map(row => <BusinessRow key={row.id}><BusinessCell index={0}>{row.prop_1}</BusinessCell></BusinessRow>)}
+        </BusinessTable>
         {!rows.length && <p className="text-sm text-muted-foreground">조건에 맞는 자료가 없습니다.</p>}
       </section>
     </div>

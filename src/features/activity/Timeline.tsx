@@ -4,7 +4,7 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { groupRecords } from "./timeline.ts";
 /** Chronological display of loaded pages; server cursor retains its own order. */
 export function Timeline<T extends { id: string }>(
-  { items, at, children, kind, view = "list" }: {
+  { items, at, children, kind, view = "table" }: {
     items: T[];
     at: (item: T) => string;
     children: (item: T) => ReactNode;
@@ -16,7 +16,7 @@ export function Timeline<T extends { id: string }>(
   const dated = items.map((item) => ({ ...item, occurred_at: at(item) })).sort((a, b) =>
     b.occurred_at.localeCompare(a.occurred_at)
   );
-  if (view !== "list") {
+  if (view === "cards") {
     return (
       <CollectionList
         view={view}

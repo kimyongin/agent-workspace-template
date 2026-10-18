@@ -1,3 +1,4 @@
+import { BusinessCell, BusinessRow, BusinessTable } from "../components/BusinessTable.tsx";
 import { CardFooter } from "../components/ui/card.tsx";
 import { Card, CardHeader, CardTitle, CardContent, CardAction } from "../components/ui/card.tsx";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group.tsx";
@@ -131,16 +132,18 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
             setMessage("메뉴 설정을 저장했습니다.");
           }}
         ><FieldGroup>
-          <ol className="flex min-w-0 flex-col gap-3" aria-label="선택한 바로가기">
+          <BusinessTable disclosureColumn={false} label="선택한 바로가기" columns={["메뉴", "순서와 표시"]}>
             {menus.map((id, index) => {
               const entry = menuChoices.find((choice) => choice.id === id)!;
               return (
-                <li className="flex min-w-0 flex-wrap items-center gap-3" key={id}>
+                <BusinessRow key={id}>
+                  <BusinessCell index={0}>
                   <span className="flex min-w-0 flex-1 items-center gap-2 wrap-anywhere">
                     <EntityTypeIcon id={entry.icon} />
                     {entry.label}
                   </span>
-                  <NavigationRowActions
+                  </BusinessCell>
+                  <BusinessCell index={1}><NavigationRowActions
                     label={entry.label}
                     index={index}
                     count={menus.length}
@@ -150,17 +153,17 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
                       setMenus(next);
                     }}
                     onRemove={(event) => {
-                      const row = event.currentTarget.closest("li");
+                      const row = event.currentTarget.closest("tr");
                       const next = (row?.nextElementSibling ?? row?.previousElementSibling)
                         ?.querySelector<HTMLButtonElement>('button[title="바로가기에서 제거"]');
                       setMenus(menus.filter((value) => value !== id));
                       requestAnimationFrame(() => (next ?? addSelect.current)?.focus());
                     }}
-                  />
-                </li>
+                  /></BusinessCell>
+                </BusinessRow>
               );
             })}
-          </ol>
+          </BusinessTable>
           {menus.length === 0 && <p className="text-sm text-muted-foreground">내 프로필만 표시합니다.</p>}
           <div className="flex min-w-0 flex-wrap items-end gap-3">
             <NativeSelect

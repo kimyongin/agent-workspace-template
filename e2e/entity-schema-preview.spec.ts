@@ -1,3 +1,4 @@
+import { businessRows, entryDetails } from "./table-actions.ts";
 import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
@@ -38,16 +39,15 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).analysis?.status;
     }, { timeout: 30000 }).toBe("succeeded");
-    const row = page.locator("article").filter({
-      has: page.getByRole("heading", {
-        name: `${entity.title} · ${entity.source} · ${entity.external_id} · 변환 실패`,
-        exact: true,
-      }),
+    const row = businessRows(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true })).filter({
+      has: page.getByRole("cell", { name: `${entity.title} · ${entity.source} · ${entity.external_id}`, exact: true }),
     });
+    await expect(row.getByText("변환 실패", { exact: true })).toBeVisible();
+    const correction = entryDetails(row);
     await expect(row).toBeVisible();
     await expect(row).toContainText("001");
-    await row.getByRole("button", { name: "보완값 지정", exact: true }).click();
-    await row.getByRole("textbox", { name: "보완값", exact: true }).fill("01");
+    await correction.getByRole("button", { name: "보완값 지정", exact: true }).click();
+    await correction.getByRole("textbox", { name: "보완값", exact: true }).fill("01");
     const beforeNavigation = page.url();
     await openMainNavigation(page);
     const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
@@ -58,7 +58,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(page).toHaveURL(beforeNavigation);
     await closeMainNavigation(page);
-    await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
+    await expect(correction.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
     const reviewed = page.waitForResponse((response) =>
       response.url().endsWith("/analyze") && response.request().method() === "POST" && response.status() === 202
     );
@@ -174,26 +174,24 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
     await expect.poll(() => intercepted).toBe(true);
     await page.getByLabel("실패한 자료만 보기").check();
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
-    const articles = page.getByRole("article");
-    const failedHeading = articles.getByRole("heading", {
-      name: `${bad.title} · ${bad.source} · ${bad.external_id} · 변환 실패`,
-      exact: true,
-    });
-    const unchangedHeading = articles.getByRole("heading", {
-      name: `${good.title} · ${good.source} · ${good.external_id} · 무변경`,
-      exact: true,
-    });
-    await expect(articles).toHaveCount(1);
-    await expect(failedHeading).toBeVisible();
-    await expect(unchangedHeading).toHaveCount(0);
+    const resultRows = businessRows(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true }));
+    const failedRow = resultRows.filter({ has: page.getByRole("cell", {
+      name: `${bad.title} · ${bad.source} · ${bad.external_id}`, exact: true,
+    }) });
+    const unchangedRow = resultRows.filter({ has: page.getByRole("cell", {
+      name: `${good.title} · ${good.source} · ${good.external_id}`, exact: true,
+    }) });
+    await expect(resultRows).toHaveCount(1);
+    await expect(failedRow.getByRole("cell", { name: "변환 실패", exact: true })).toBeVisible();
+    await expect(unchangedRow).toHaveCount(0);
     release();
     await delayedFinished;
     await page.evaluate(() =>
       new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     );
-    await expect(articles).toHaveCount(1);
-    await expect(failedHeading).toBeVisible();
-    await expect(unchangedHeading).toHaveCount(0);
+    await expect(resultRows).toHaveCount(1);
+    await expect(failedRow.getByRole("cell", { name: "변환 실패", exact: true })).toBeVisible();
+    await expect(unchangedRow).toHaveCount(0);
   } finally {
     release();
     await mcp.close();

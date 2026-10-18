@@ -1,3 +1,4 @@
+import { CollectionList } from "../components/Collection.tsx";
 import { FieldGroup, FieldSet } from "../components/ui/field.tsx";
 import { PlusIcon } from "lucide-react";
 import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
@@ -37,7 +38,7 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
         관계 추가
       </Button>
       {message && <p role="status">{message}</p>}
-      <div className="flex min-w-0 flex-col gap-4">
+      <CollectionList view="table" label="연결 설정 예시" columns={["연결 설정", "설정 요약"]}>
         <IssuerRow
           label={creating
             ? "새 관계"
@@ -123,7 +124,7 @@ export function RelationSettingsSample({ standalone = false }: { standalone?: bo
             </div>
           </FieldGroup></form>
         </IssuerRow>
-      </div>
+      </CollectionList>
       <TypedRelationsSample />
     </section>
   );

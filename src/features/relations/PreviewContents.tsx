@@ -30,7 +30,7 @@ export function PreviewContents(
     if (main && kind === "entities") onPropertiesReady(true);
   }, [kind, main, onPropertiesReady]);
   const tags = (scope: "entity" | "task" | "record", ids: string[]) => (
-    <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere col-span-full">
+    <dl className="min-w-0 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere col-span-full">
       <div>
         <dt>태그</dt>
         <dd>
@@ -53,7 +53,7 @@ export function PreviewContents(
             onRepresentativeLabel={onRepresentativeLabel}
           />
         )}
-        <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+        <dl className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
           <div>
             <dt>자료 종류</dt>
             <dd>{entity.type.label}</dd>
@@ -81,7 +81,7 @@ export function PreviewContents(
     const task = item as TaskResult;
     return (
       <>
-        <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+        <dl className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
           {!main && task.title !== shownTitle && (
             <div className="col-span-full">
               <dt>현재 제목</dt>
@@ -124,7 +124,7 @@ export function PreviewContents(
     return (
       <>
         {record.body && (
-          <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+          <dl className="min-w-0 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
             <div>
               <dt>본문</dt>
               <dd>

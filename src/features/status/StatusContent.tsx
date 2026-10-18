@@ -169,12 +169,12 @@ function DailyChart({ title, days, series, stacked = false }: {
                 <ChevronRightIcon />
               </Button>
             </div>
-            <Table aria-label={`${title} 날짜별 수치`} aria-describedby={id}>
-              <TableBody>
+            <Table role="table" aria-label={`${title} 날짜별 수치`} aria-describedby={id} className="@max-[24rem]/daily:block">
+              <TableBody role="rowgroup" className="@max-[24rem]/daily:block">
                 {series.map((s) => (
-                  <TableRow key={s.key}>
-                    <TableHead scope="row">{s.label}</TableHead>
-                    <TableCell className="text-right tabular-nums">
+                  <TableRow key={s.key} role="row" className="@max-[24rem]/daily:grid @max-[24rem]/daily:grid-cols-1">
+                    <TableHead role="rowheader" scope="row" className="font-normal text-muted-foreground whitespace-normal wrap-anywhere @max-[24rem]/daily:h-auto @max-[24rem]/daily:pt-2">{s.label}</TableHead>
+                    <TableCell role="cell" className="text-right tabular-nums whitespace-normal wrap-anywhere @max-[24rem]/daily:text-left">
                       {s.value(current).toLocaleString("ko-KR")}건
                     </TableCell>
                   </TableRow>

@@ -1,3 +1,4 @@
+import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { entityTypeIcons } from "@contracts/entity-type.ts";
 import { fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
@@ -14,48 +15,10 @@ export function SchemaDefinitionRead(
       ...Object.keys(definition.schema.properties),
     ]),
   ];
-  return (
-    <section aria-label="입력 항목 정의" className="flex min-w-0 flex-col gap-4">
-      <h3 className="text-base font-semibold">
-        입력 항목 <span className="text-sm text-muted-foreground">읽기 전용</span>
-      </h3>
-      <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
-        <div>
-          <dt>종류 이름</dt>
-          <dd>{definition.schema.title ?? "당시 이름 기록 없음"}</dd>
-        </div>
-        <div>
-          <dt>아이콘</dt>
-          <dd>
-            {definition.schema["x-icon"]
-              ? entityTypeIcons.find((icon) => icon.id === definition.schema["x-icon"])?.label ?? "기본 아이콘"
-              : "당시 아이콘 기록 없음"}
-          </dd>
-        </div>
-        <div>
-          <dt>보관 상태</dt>
-          <dd>
-            {definition.schema.deprecated === undefined && !definition.schema.title
-              ? "당시 상태 기록 없음"
-              : definition.schema.deprecated
-              ? "보관"
-              : "사용 중"}
-          </dd>
-        </div>
-        {definition.schema.description && (
-          <div className="col-span-full">
-            <dt>종류 설명</dt>
-            <dd>{definition.schema.description}</dd>
-          </div>
-        )}
-      </dl>
-      {!definition.schema.title && (
-        <p className="text-sm text-muted-foreground">이 과거 버전에는 당시 종류 이름·아이콘·보관 상태가 기록되지 않았습니다.</p>
-      )}
-      {keys.map((key) => {
+  const rows = keys.flatMap((key) => {
         const field = definition.schema.properties[key];
         if (!field) {
-          return null;
+          return [];
         }
         const optionLabel = (value: string | null) =>
           fieldChoiceTitle(field, value) ??
@@ -118,25 +81,56 @@ export function SchemaDefinitionRead(
               : schemaValueLabel(field.default),
           ]);
         }
-        return (
-          <section
-            key={key}
-            aria-label={`${field.title || "이름 없는 항목"} 정의`}
-          >
-            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
-              {values.map(([label, value]) => (
-                <div
-                  key={label}
-                  className={["설명", "입력 예시", "선택 항목"].includes(label) ? "col-span-full" : undefined}
-                >
-                  <dt>{label}</dt>
-                  <dd>{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        );
-      })}
+    return [{ key, title: field.title || "이름 없는 항목", values: new Map(values) }];
+  });
+  const columns = [...new Set(rows.flatMap((row) => [...row.values.keys()]))];
+  return (
+    <section aria-label="입력 항목 정의" className="flex min-w-0 flex-col gap-4">
+      <h3 className="text-base font-semibold">
+        입력 항목 <span className="text-sm text-muted-foreground">읽기 전용</span>
+      </h3>
+      <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+        <div>
+          <dt>종류 이름</dt>
+          <dd>{definition.schema.title ?? "당시 이름 기록 없음"}</dd>
+        </div>
+        <div>
+          <dt>아이콘</dt>
+          <dd>
+            {definition.schema["x-icon"]
+              ? entityTypeIcons.find((icon) => icon.id === definition.schema["x-icon"])?.label ?? "기본 아이콘"
+              : "당시 아이콘 기록 없음"}
+          </dd>
+        </div>
+        <div>
+          <dt>보관 상태</dt>
+          <dd>
+            {definition.schema.deprecated === undefined && !definition.schema.title
+              ? "당시 상태 기록 없음"
+              : definition.schema.deprecated
+              ? "보관"
+              : "사용 중"}
+          </dd>
+        </div>
+        {definition.schema.description && (
+          <div className="col-span-full">
+            <dt>종류 설명</dt>
+            <dd>{definition.schema.description}</dd>
+          </div>
+        )}
+      </dl>
+      {!definition.schema.title && (
+        <p className="text-sm text-muted-foreground">이 과거 버전에는 당시 종류 이름·아이콘·보관 상태가 기록되지 않았습니다.</p>
+      )}
+      <BusinessTable label="입력 항목 정의 목록" columns={columns} disclosureColumn={false}>
+        {rows.map((row) => (
+          <BusinessRow key={row.key} aria-label={`${row.title} 정의`}>
+            {columns.map((column, index) => (
+              <BusinessCell key={column} index={index}>{row.values.get(column) ?? (column === "사용 상태" ? "사용 중" : "설정 안 함")}</BusinessCell>
+            ))}
+          </BusinessRow>
+        ))}
+      </BusinessTable>
     </section>
   );
 }

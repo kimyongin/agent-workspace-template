@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { detailDialog } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail } from "./ui-actions.ts";
 // T02-2 완료 조건: 웹 작성 → MCP 조회·완료 → 웹 결과 확인, 그리고 반대 방향.
@@ -39,7 +40,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   await expect(detailDialog(page).getByText("완료", { exact: true })).toBeVisible();
   const result=page.getByRole("button", { name: "초안 공유 완료", exact:true });await result.click();
   await expect(result).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(taskUrl);
-  await expect(page.locator('[data-slot="collapsible-content"] .markdown')).toContainText("초안 공유 완료");
+  await expect((await disclosureContent(page, result)).locator(".markdown")).toContainText("초안 공유 완료");
 });
 
 test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 고치면 MCP가 바뀐 값을 본다", async ({ page }) => {
@@ -74,7 +75,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
 
     // 웹: 반복 할 일의 오늘 회차가 기록함
     await page.goto(`/tasks/${task.id}`);
-    const todayRow = page.getByRole("listitem").filter({ hasText: `${today} (오늘)` });
+    const todayRow = businessRows(page.getByRole("table")).filter({ hasText: `${today} (오늘)` });
     await expect(todayRow.getByText("기록함")).toBeVisible();
 
     // MCP가 웹의 수정을 본다

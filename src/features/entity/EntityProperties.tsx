@@ -21,6 +21,12 @@ export function EntityProperties(
   const [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);
+  const gridClassName = cn(
+    "grid min-w-0 gap-4 [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere",
+    selection === "list"
+      ? "grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] [&_dt]:text-xs"
+      : "grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] [&_dt]:text-sm",
+  );
   const key = `${entity.entity_type_id}:${entity.current_schema_version}:${retry}`;
   const [readKey, setReadKey] = useState(key);
   if (readKey !== key) {
@@ -57,13 +63,13 @@ export function EntityProperties(
       <>
         <Notice kind="error">속성 정의를 불러오지 못했습니다.</Notice>
         <Button variant="outline"  onClick={() => setRetry((n) => n + 1)}>속성 정의 다시 조회</Button>
-        {identity && <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">{identity}</dl>}
+        {identity && <dl className={gridClassName}>{identity}</dl>}
       </>
     );
   }
   if (!definition) return <p role="status">속성 정의를 불러오는 중…</p>;
   return (
-    <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+    <dl className={gridClassName}>
       {(selection === "list"
         ? [
           schemaPresentation(definition).representative,

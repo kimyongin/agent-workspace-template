@@ -146,7 +146,7 @@ function ActivitySection(
             {kind === "tasks"
               ? (
                 <CollectionList
-                  view={view === "calendar" ? "list" : view}
+                  view={view === "calendar" ? "table" : view}
                   label="할 일 목록"
                   columns={["제목", "상태", "종류", "기한"]}
                   numericColumns={[3]}

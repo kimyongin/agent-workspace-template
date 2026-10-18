@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
@@ -588,17 +589,17 @@ test("definition history reads beyond the first hundred versions and opens the i
   await expect(page.getByRole("button", { name: "이전 적용 버전 더 보기", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "이전 적용 버전 더 보기", exact: true }).click();
   const history = page.getByRole("region", { name: "변경 이력", exact: true });
-  await expect(history.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem")).toHaveCount(101);
-  const oldest = history.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({ hasText: "버전 1 · 적용됨" });
-  await oldest.getByRole("button", { name: /^최초 생성/ }).click();
+  await expect(businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true }))).toHaveCount(101);
+  const oldest = businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({ hasText: "버전 1 · 적용됨" });
+  await oldest.getByRole("button", { name: /^최초 생성 시각/ }).click();
   await expect(page).toHaveURL(/schema_version=1/);
-  const definition = oldest.getByRole("region", { name: "입력 항목 정의", exact: true });
+  const oldestContent = await disclosureContent(page, oldest.getByRole("button", { name: /^최초 생성 시각/ }));
+  const definition = oldestContent.getByRole("region", { name: "입력 항목 정의", exact: true });
   await expect(definition.getByRole("term").filter({ hasText: /^종류 이름$/ }).locator("..").getByRole("definition")).toHaveText("최초 이름");
-  const field = definition.getByRole("region", { name: "최초 이름 정의", exact: true });
-  await expect(field.locator("dl > div").filter({ has: page.getByText("자료 이름으로 사용", { exact: true }) }).locator("dd"))
-    .toHaveText("사용");
+  const field = definition.getByRole("row", { name: "최초 이름 정의", exact: true });
+  await expect((await valueCell(field, "자료 이름으로 사용")).getByText("사용", { exact: true })).toBeVisible();
   await expect(definition.locator("input,select,textarea")).toHaveCount(0);
-  await expect(oldest.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
+  await expect(oldestContent.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
   expect(readVersions).toContain(101);
   expect(readVersions).toContain(1);
   expect(readVersions).not.toContain(0);
@@ -926,9 +927,10 @@ test("history selection preserves basic drafts and survives reload", async ({ pa
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("유지할 기본 정보");
   page.on("dialog", (dialog) => dialog.accept());
   await page.reload();
-  const first = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({ has: page.getByRole("button", { name: /^최초 생성/ }) });
-  await expect(first.getByRole("region", { name: "입력 항목 정의", exact: true })).toBeVisible();
-  await expect(first.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
+  const first = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({ has: page.getByRole("button", { name: /^최초 생성 시각/ }) });
+  const firstContent = await disclosureContent(page, first.getByRole("button", { name: /^최초 생성 시각/ }));
+  await expect(firstContent.getByRole("region", { name: "입력 항목 정의", exact: true })).toBeVisible();
+  await expect(firstContent.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
 });
 
 test(

@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { detailDialog } from "./ui-actions.ts";
 import { entity as makeEntity, fixtureType, fixtureSchema, entityKey } from "./support/workspace-data.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
@@ -15,10 +16,11 @@ for(const width of [390,1024])test(`변경 기록 metadata ${width}px: 종류·�
   const items=["수정","삭제"].map((action,i)=>({...record(i+1),body:`할 일 ${action}`,record_kind:"change",change:{event_id:id(10+i),target_kind:"task",target_id:id(20+i),target_title:i?"긴 할 일 이름 ".repeat(20):"할 일",action:i?"delete":"update",source:"mcp",before:null,after:null,path:"/tasks/example"}}));
   await page.route("http://127.0.0.1:55581/api/**",async route => {if(await fulfillPreparation(route))return;const path=new URL(route.request().url()).pathname;return route.fulfill({json:path.endsWith("/records")?{items,next_cursor:null}:items.find(item=>path.endsWith("/"+item.id))??{items:[],next_cursor:null}});});
   await page.setViewportSize({width,height:900});await page.goto("/e2e/fixtures/activity.html?route=/records");
-  const rows=page.getByRole("region", {name:"기록 목록",exact:true}).getByRole("listitem");await expect(rows).toHaveCount(2);
+  const rows=businessRows(page.getByRole("region", {name:"기록 목록",exact:true}).getByRole("table"));await expect(rows).toHaveCount(2);
   for(const [index, row] of (await rows.all()).entries()){
     await row.getByRole("button",{name:/^할 일 (수정|삭제)$/,exact:true}).click();
-    const properties = row.locator("[data-slot=collapsible-content] dl").filter({has:page.getByRole("term").filter({hasText:/^(종류|출처|수행 시각|변경 대상|행동)$/})});
+    const preview = await disclosureContent(page, row.getByRole("button", { name: /^할 일 (수정|삭제)$/, exact: true }));
+    const properties = preview.locator("dl").filter({has:page.getByRole("term").filter({hasText:/^(종류|출처|수행 시각|변경 대상|행동)$/})});
     await expect(properties.locator("dt")).toHaveText(["종류", "출처", "수행 시각", "변경 대상", "행동"]);
     await expect(properties.locator("dd").nth(0)).toHaveText("변경 기록");
     await expect(properties.locator("dd").nth(1)).toHaveText("에이전트");
@@ -134,7 +136,7 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   // 14:00Z and 16:00Z share a UTC day; only Seoul crosses midnight.
   const utc = info.project.use.timezoneId === "UTC";
   await expect(page.getByRole("region",{name:/^2026-10-\d{2} 기록$/})).toHaveCount(utc ? 1 : 2);
-  await expect(older.getByRole("listitem")).toHaveCount(utc ? 3 : 1);
+  await expect(businessRows(older.getByRole("table"))).toHaveCount(utc ? 3 : 1);
   await expect(page.getByRole("button",{name:"기록 1",exact:true})).toHaveCount(1);
   await expect(older).toBeVisible();await expect(older.getByRole("heading").getByRole("button")).toHaveCount(0);
   await openListEditor(page,"기록 2");
@@ -231,7 +233,7 @@ test("긴 제목·태그와 편집 조작은 대표 폭에서 읽기 순서와 �
     await page.setViewportSize({width,height:900});
     await expect(page.locator('[aria-label="태그"]')).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-    const actions = page.locator("[data-slot=item-actions]").getByRole("link");
+    const actions = page.getByRole("table").getByRole("link", { name: / 상세$/ });
     expect(await actions.count()).toBeGreaterThan(0);
     for(const action of await actions.all()) {
       const box=(await action.boundingBox())!;
@@ -383,12 +385,12 @@ for(const kind of ["records","tasks"]){
     const y=await title.evaluate(el=>el.getBoundingClientRect().top);
     await page.getByRole("button",{name:"태그 다시 시도",exact:true}).first().evaluate((el:HTMLButtonElement)=>el.click());
     await expect.poll(()=>attempts).toBe(2);
-    await expect(section.getByRole("listitem")).toHaveCount(20);
+    await expect(businessRows(section.getByRole("table"))).toHaveCount(20);
     await expect(title).toBeFocused();
     expect(await title.evaluate(el=>el.getBoundingClientRect().top)).toBeCloseTo(y,0);
     release();
     await expect(page.locator('[aria-label="태그"]').first()).toHaveText("한".repeat(30));
-    await expect(section.getByRole("listitem")).toHaveCount(20);
+    await expect(businessRows(section.getByRole("table"))).toHaveCount(20);
     await expect(title).toBeFocused();
     expect(await title.evaluate(el=>el.getBoundingClientRect().top)).toBeCloseTo(y,0);
   });

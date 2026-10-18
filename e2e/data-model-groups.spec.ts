@@ -62,13 +62,13 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     const change = await mcp.call("prepare_data_model", { ...update, preview_fingerprint: review.fingerprint });
     expect(change.status).toBe("needs_conversion");
     await page.goto("/settings/data-model");
-    await page.getByRole("button", { name: new RegExp(target.title) }).click();
+    await page.getByRole("heading", { name: `${target.title} 값 변환 필요`, exact: true }).getByRole("button").click();
     const group = page.getByRole("region", { name: "기존 자료 값 변환" });
     await expect(group).toBeVisible();
     for (const t of target.entity_types) {
       const child = group.getByRole("region", { name: `${t.schema.title} 변환`, exact: true });
       if (!await child.getByLabel("수량 변환 방식").isVisible()) {
-        await child.getByRole("button", { name: new RegExp(`${t.schema.title} 변환`) }).click();
+        await group.getByRole("button", { name: `${t.schema.title} 변환 열기`, exact: true }).click();
       }
       await child.getByLabel("수량 변환 방식").selectOption("convert");
     }
@@ -115,12 +115,12 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
       expect(current.properties.prop_2).toBe(index + 8);
     }
     await page.goto("/settings/data-model");
-    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toHaveAccessibleName(/설정 적용 완료/);
-    await page.getByRole("button", { name: new RegExp(target.title) }).click();
+    await expect(page.getByRole("heading", { name: `${target.title} 설정 적용 완료`, exact: true }).getByRole("button")).toHaveAccessibleName(/설정 적용 완료/);
+    await page.getByRole("heading", { name: `${target.title} 설정 적용 완료`, exact: true }).getByRole("button").click();
     await expect(page.getByRole("region", { name: target.title, exact: true }).getByText("적용 완료", { exact: true }))
       .toBeVisible();
     await page.reload();
-    await expect(page.getByRole("button", { name: new RegExp(target.title) })).toHaveAccessibleName(/설정 적용 완료/);
+    await expect(page.getByRole("heading", { name: `${target.title} 설정 적용 완료`, exact: true }).getByRole("button")).toHaveAccessibleName(/설정 적용 완료/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
     await stopWorker(runner);

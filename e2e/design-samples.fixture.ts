@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { openDialogs } from "./ui-actions.ts";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
@@ -41,6 +42,7 @@ test("issuer sample opens flat rows and separates saved issuer from optional fir
 test("number sample edits a kind in place and preserves the draft after cancelled discard", async ({ page }, info) => {
   await page.goto("/design-samples/index.html?screen=issuers");
   await page.getByRole("button", { name: "쿠팡", exact: true }).click();
+  await expect(page.getByRole("region", { name: "쿠팡", exact: true }).getByRole("table", { name: "번호 종류 예시", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "상품 번호 편집", exact: true }).click();
   const editor = page.getByRole("form", { name: "번호 종류 편집" });
   await editor.getByLabel("번호 종류 이름").fill("마켓 상품 번호");
@@ -72,13 +74,13 @@ test("account settings sample keeps independent drafts and clear row actions", a
   await display.getByRole("button", { name: "저장", exact: true }).click();
   await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
   await navigation.getByRole("button", { name: "기록 위로 이동", exact: true }).click();
-  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText([
+  await expect(businessRows(navigation.getByRole("table", { name: "선택한 바로가기" })).locator(":scope > td:first-child")).toHaveText([
     "상품",
     "기록",
     "할 일",
   ]);
   await navigation.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText([
+  await expect(businessRows(navigation.getByRole("table", { name: "선택한 바로가기" })).locator(":scope > td:first-child")).toHaveText([
     "상품",
     "할 일",
     "기록",
@@ -88,7 +90,7 @@ test("account settings sample keeps independent drafts and clear row actions", a
   await navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption("products");
   await navigation.getByRole("button", { name: "추가", exact: true }).click();
   await navigation.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(navigation.getByRole("list", { name: "선택한 바로가기" }).locator(":scope > li > span")).toHaveText([
+  await expect(businessRows(navigation.getByRole("table", { name: "선택한 바로가기" })).locator(":scope > td:first-child")).toHaveText([
     "할 일",
     "기록",
     "상품",
@@ -148,6 +150,7 @@ test("review captures a read-only definition; apply and discard preserve later d
   const item = workspace.getByRole("textbox", { name: "항목 이름" });
   await item.fill("재고 수량 A");
   await workspace.getByRole("button", { name: "변경 검토", exact: true }).click();
+  await expect(history.getByRole("table", { name: "변경 이력 예시", exact: true }).getByRole("row").filter({ has: page.getByRole("button", { name: /입력 항목 변경.*검토 완료/ }) })).toBeVisible();
   await expect(history.getByText("재고 수량 A", { exact: true }).first()).toContainText("재고 수량 A");
   await expect(history.locator("input,select,textarea")).toHaveCount(0);
   await item.fill("재고 수량 B");
@@ -163,7 +166,7 @@ test("review captures a read-only definition; apply and discard preserve later d
   await workspace.getByRole("button", { name: "변경 검토", exact: true }).click();
   await history.getByRole("button", { name: "폐기", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "변경안 폐기" }).click();
-  await expect(history.getByText("상태 버전 3 · 폐기됨", { exact: true })).toBeVisible();
+  await expect(history.getByText("버전 3 · 폐기됨", { exact: true })).toBeVisible();
   await expect(item).toHaveValue("재고 수량 B");
   await workspace.getByRole("button", { name: /입력 항목 미저장/ }).click();
   await expect(workspace.getByRole("button", { name: "변경 검토", exact: true })).toBeHidden();
@@ -256,9 +259,10 @@ test("preview width changes keep the same live draft and dialog", async ({ page 
 test("invalid closed fields expand and focus; move controls retain the expanded row", async ({ page }) => {
   await page.goto(direct);
   const workspace = page.locator("#workspace");
+  await expect(workspace.getByRole("table", { name: "입력 항목 예시", exact: true }).getByRole("row").filter({ has: page.getByRole("button", { name: "상품명 텍스트 · 필수 · 자료 이름", exact: true }) })).toBeVisible();
   await workspace.getByRole("button", { name: "상품명 텍스트 · 필수 · 자료 이름", exact: true }).focus();
   await page.keyboard.press("Enter");
-  const row = workspace.locator('[data-property-id="prop_1"]');
+  const row = workspace.locator("#sample-prop_1-body");
   await expect(row.getByRole("textbox", { name: "항목 이름" })).toBeFocused();
   const field = workspace.locator("#sample-prop_1-body");
   await field.getByRole("button", { name: "추가 설정", exact: true }).click();
@@ -458,12 +462,12 @@ test("tag modal preserves unknown and excluded selections and supports single re
 test("property choices and official disclosures share production touch targets", async ({ page }) => {
   await page.goto(direct);
   const workspace = page.locator("#workspace");
-  const row = workspace.locator('[data-property-id="prop_2"]');
-  const disclosure = row.getByRole("button", { name: /펼치기$/ });
-  if (await disclosure.count()) await disclosure.click();
-  const summary = row.getByRole("button", { name: "추가 설정", exact: true });
+  const disclosure = workspace.getByRole("button", { name: /^재고 수량 (접기|펼치기)$/ });
+  if (await disclosure.getAttribute("aria-expanded") === "false") await disclosure.click();
+  const panel = await disclosureContent(page, disclosure);
+  const summary = panel.getByRole("button", { name: "추가 설정", exact: true });
   await summary.click();
-  const input = row.getByRole("checkbox", { name: "필수 입력", exact: true });
+  const input = panel.getByRole("checkbox", { name: "필수 입력", exact: true });
   const label = input.locator("..");
   await expect(label).toBeVisible();
   expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -503,6 +507,7 @@ test("single-choice and record-action samples preserve keyboard meaning and hidd
 test("filter sample keeps drafts until common apply and reuses the tag modal", async ({ page }, info) => {
   await page.goto("/design-samples/index.html?screen=filters");
   const list = page.getByRole("region", { name: "적용된 조건의 자료 목록", exact: true });
+  await expect(list.getByRole("table", { name: "필터 결과 예시", exact: true })).toBeVisible();
   await expect(list.getByRole("heading")).toHaveText("자료 · 3개");
   const apply = page.getByRole("button", { name: "필터 적용", exact: true });
   await apply.click();

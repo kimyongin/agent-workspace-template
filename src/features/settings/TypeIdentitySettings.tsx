@@ -1,3 +1,4 @@
+import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { LinkIcon, PlusIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -182,6 +183,7 @@ export function TypeIdentitySettings(
               </AlertDescription></Alert>
             )}
             <RadioGroup value={active.some(source => source.code === draft.default_source) ? draft.default_source : ""} onValueChange={code => update(v => ({...v, default_source:code}))} disabled={busy || uncertain || disabled} aria-label="기본 번호 출처" className="flex min-w-0 flex-col gap-3">
+              <BusinessTable label="사용할 번호 출처 목록" columns={["번호 출처", "번호 종류", "기본", "조작"]} disclosureColumn={false}>
               {draft.sources.map((source) => {
                 const metadata = saved.sources.find((s) => s.code === source.code),
                   issuer = issuers.find((i) => i.code === source.code),
@@ -190,8 +192,8 @@ export function TypeIdentitySettings(
                   locked = metadata?.referenced || issuer?.system || source.code === "app",
                   available = isAvailable(source.code, source.rule_id);
                 return (
-                  <div key={source.code} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-border py-3">
-                    <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                  <BusinessRow key={source.code}>
+                    <BusinessCell index={0}>                    <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                       <Checkbox
 
                         checked={source.active}
@@ -205,14 +207,10 @@ export function TypeIdentitySettings(
                           }))}
                       />
                       {sourceName(source.code)}
-                    </FieldLabel>
-                    <div className="col-span-full">
-                      {locked || options.length <= 1
+                    </FieldLabel></BusinessCell>
+                    <BusinessCell index={1}>                      {locked || options.length <= 1
                         ? (
-                          <dl className="grid min-w-0 gap-3 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
-                            <div>
-                              <dt>번호 종류</dt>
-                              <dd>
+                          <span>
                                 {source.code === "app"
                                   ? "자동 발급"
                                   : rule?.label ?? metadata?.rule_label ?? "번호 종류"}
@@ -221,12 +219,10 @@ export function TypeIdentitySettings(
                                     · 변경 불가
                                   </span>
                                 )}
-                              </dd>
-                            </div>
-                          </dl>
+                          </span>
                         )
                         : (
-                          <Field label="번호 종류">
+                          <Field label="번호 종류" hideLabel>
                             {(props) => (
                               <NativeSelect
                                 {...props}
@@ -249,7 +245,9 @@ export function TypeIdentitySettings(
                           </Field>
                         )}
                       {!available && <span className="text-sm text-muted-foreground">· 사용 중지</span>}
-                      {issuer && !issuer.system && (
+</BusinessCell>
+                    <BusinessCell index={2}>                      <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3"><RadioGroupItem disabled={!source.active || !available} value={source.code} aria-label={`${sourceName(source.code)} 기본 번호 출처`} /><span className="sr-only">기본</span></FieldLabel></BusinessCell>
+                    <BusinessCell index={3}>                      {issuer && !issuer.system && (
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <Button variant="ghost" type="button"
                             aria-label={`${sourceName(source.code)} 편집`}
@@ -274,13 +272,11 @@ export function TypeIdentitySettings(
                           )}
                         </div>
                       )}
-                    </div>
-
-                      <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3"><RadioGroupItem disabled={!source.active || !available} value={source.code} aria-label={`${sourceName(source.code)} 기본 번호 출처`} />기본</FieldLabel>
-
-                  </div>
+</BusinessCell>
+                  </BusinessRow>
                 );
               })}
+              </BusinessTable>
             </RadioGroup>
             {!active.some((source) => source.code === draft.default_source) && (
               <p className="text-sm text-destructive">기본 번호 출처를 선택하세요.</p>

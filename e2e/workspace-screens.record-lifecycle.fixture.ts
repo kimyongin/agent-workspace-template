@@ -129,6 +129,7 @@ test("새 기록은 원칙 연관키 선택 없이 본문 근거를 저장한다
 test("태그 인라인 편집: 취소는 목록으로 복귀·삭제 실패는 동일 입력과 버전으로 재시도", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, `/tags/entity?edit=${id(10)}`);
+  await expect(page.getByRole("table", { name: "자료 태그 목록", exact: true })).toBeVisible();
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("button", { name: "같은 이름 이름 변경", exact: true })).toBeFocused();
   await page.getByRole("button", { name: "같은 이름 이름 변경", exact: true }).click();

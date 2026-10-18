@@ -1,3 +1,4 @@
+import { businessRows } from "./table-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { expect, test } from "@playwright/test";
 import { entity, id, record, stamp } from "./support/workspace-data.ts";
@@ -47,11 +48,11 @@ for (const kind of ["entity", "task"] as const) {
         const entities = form(page).getByRole("region", { name: "연결된 자료 (2개)", exact: true }),
           tasks = connectedTarget(page, "task");
         await expect(entities).toHaveCount(1);
-        await expect(entities.getByRole("listitem")).toHaveCount(2);
-        await expect(tasks.getByRole("listitem")).toHaveCount(1);
+        await expect(businessRows(entities.getByRole("table"))).toHaveCount(2);
+        await expect(businessRows(tasks.getByRole("table"))).toHaveCount(1);
         await expect(form(page).getByRole("heading", { name: /^변경 대상/ })).toHaveCount(0);
         const changed = kind === "entity" ? entities : tasks;
-        await expect(changed.getByRole("listitem").filter({ hasText: "당시 대상" })).toHaveCount(1);
+        await expect(businessRows(changed.getByRole("table")).filter({ hasText: "당시 대상" })).toHaveCount(1);
         await changed.getByRole("button", { name: "당시 대상", exact: true }).click();
         await expect(entities.getByRole("button", { name: "다른 연결 엔터티", exact: true })).toHaveAttribute(
           "aria-expanded",

@@ -4,19 +4,19 @@ import { useCollectionExpansion } from "./item-expansion.tsx";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group.tsx";
 import { Button } from "./ui/button.tsx";
 import { ItemGroup } from "./ui/item.tsx";
-import { Table, TableHeader, TableRow, TableHead, TableBody } from "./ui/table.tsx";
-import { ListIcon, LayoutGridIcon, TableIcon, CalendarDaysIcon, ChevronsUpIcon, ChevronsDownIcon } from "lucide-react";
+import { BusinessDetails, BusinessTable } from "./BusinessTable.tsx";
+import { LayoutGridIcon, TableIcon, CalendarDaysIcon, ChevronsUpIcon, ChevronsDownIcon } from "lucide-react";
 import { cn } from "../lib/utils.ts";
 
-export type CollectionView = "list" | "cards" | "table" | "calendar";
+export type CollectionView = "cards" | "table" | "calendar";
 export type ItemView = Exclude<CollectionView, "calendar">;
-const names: Record<CollectionView, string> = { list: "리스트", cards: "카드", table: "테이블", calendar: "캘린더" };
-const icons = { list: ListIcon, cards: LayoutGridIcon, table: TableIcon, calendar: CalendarDaysIcon };
+const names: Record<CollectionView, string> = { cards: "카드", table: "테이블", calendar: "캘린더" };
+const icons = { cards: LayoutGridIcon, table: TableIcon, calendar: CalendarDaysIcon };
 
 export function ViewPicker({ label, value, onChange, calendar = false }: {
   label: string; value: CollectionView; onChange: (view: CollectionView) => void; calendar?: boolean;
 }) {
-  const choices: CollectionView[] = calendar ? ["list", "cards", "table", "calendar"] : ["list", "cards", "table"];
+  const choices: CollectionView[] = calendar ? ["table", "cards", "calendar"] : ["table", "cards"];
   return <ToggleGroup type="single" variant="outline" spacing={1} value={value} className="max-w-full flex-wrap"
     aria-label={`${label} 보기 방식`} onValueChange={next => { if (choices.includes(next as CollectionView)) onChange(next as CollectionView); }}>
     {choices.map(view => { const Icon = icons[view]; return <ToggleGroupItem key={view} value={view} aria-label={names[view]} title={names[view]}>
@@ -56,10 +56,10 @@ export function useMainCollectionView(calendar = false) {
   const raw = params.get("view"),
     view: CollectionView = raw === "cards" || raw === "table" || calendar && raw === "calendar"
       ? raw as CollectionView
-      : "list";
+      : "table";
   const change = (next: CollectionView) => {
     const updated = new URLSearchParams(params);
-    next === "list" ? updated.delete("view") : updated.set("view", next);
+    updated.set("view", next);
     void navigate({ pathname: location.pathname, search: updated.toString(), hash: location.hash }, {
       replace: true,
       preventScrollReset: true,
@@ -68,7 +68,7 @@ export function useMainCollectionView(calendar = false) {
   return [view, change] as const;
 }
 
-export const RelatedCollectionView = createContext<ItemView>("list");
+export const RelatedCollectionView = createContext<ItemView>("table");
 const ItemLayout = createContext<{ view: ItemView; columns: string[]; numericColumns: number[] } | null>(null);
 export function useItemLayout() {
   return useContext(ItemLayout);
@@ -80,14 +80,18 @@ export function CollectionItem({ children, className, ...props }: React.Componen
   return layout?.view === "table" ? <Fragment>{children}</Fragment> : <li {...props} className={cn("min-w-0", className)}>{children}</li>;
 }
 
-export function CollectionList({ children, view: explicit, columns = ["내용"], numericColumns = [], label = "목록" }: {
-  children: ReactNode; view?: ItemView; columns?: string[]; numericColumns?: number[]; label?: string;
+export function CollectionList({ children, view: explicit, columns = ["내용"], numericColumns = [], label = "목록", disclosureColumn = true }: {
+  children: ReactNode; view?: ItemView; columns?: string[]; numericColumns?: number[]; label?: string; disclosureColumn?: boolean;
 }) {
   const inherited = useContext(RelatedCollectionView), view = explicit ?? inherited;
   return <ItemLayout.Provider value={{ view, columns, numericColumns }}>
-    {view === "table" ? <Table aria-label={label}>
-      <TableHeader><TableRow>{columns.map((column, index) => <TableHead key={column} className={numericColumns.includes(index) ? "text-right" : undefined}>{column}</TableHead>)}</TableRow></TableHeader>
-      <TableBody>{children}</TableBody>
-    </Table> : <ItemGroup asChild><ul aria-label={label} className={cn("min-w-0", view === "cards" && "grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] items-start")}>{children}</ul></ItemGroup>}
+    {view === "table" ? <BusinessTable disclosureColumn={disclosureColumn} columns={columns} numericColumns={numericColumns} label={label}>{children}</BusinessTable> : <ItemGroup asChild><ul aria-label={label} className={cn("min-w-0", view === "cards" && "grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] items-start")}>{children}</ul></ItemGroup>}
   </ItemLayout.Provider>;
+}
+
+/** Keep loading and unavailable entries inside valid cells in every collection view. */
+export function CollectionMessage(props: React.ComponentProps<"p">) {
+  const table = useItemLayout()?.view === "table";
+  const message = <p {...props} />;
+  return table ? <BusinessDetails>{message}</BusinessDetails> : message;
 }

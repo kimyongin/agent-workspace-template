@@ -1,4 +1,4 @@
-import { Item, ItemContent, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { PlusIcon } from "lucide-react";
 import { useDetailResource } from "../details/useDetailResource.ts";
@@ -216,20 +216,20 @@ export function TaskDetailPage() {
             <p className="text-sm text-muted-foreground">이 기간에는 회차가 없습니다.</p>
           )}
           {occurrences && occurrences.items.length > 0 && (
-            <ItemGroup>
+            <BusinessTable label="반복 할 일 회차 목록" columns={["회차", "상태", "기록", "조작"]} disclosureColumn={false}>
               {occurrences.items.map((o) => (
-                <Item role="listitem" key={o.date} variant="outline">
-                  <ItemContent>
-                    <ItemTitle>
+                <BusinessRow key={o.date}>
+                  <BusinessCell index={0}>
+                    <span>
                       {o.date}
                       {o.date === occurrences.today ? " (오늘)" : ""}
-                    </ItemTitle>
+                    </span>
                     {!o.in_rule && <span className="text-sm text-muted-foreground">규칙 밖 기록</span>}
-                    {o.record_ids.length > 0 && (
-                      <span className="text-sm text-muted-foreground">기록 {o.record_ids.length}개</span>
-                    )}
-                  </ItemContent>
-                  <OccurrenceBadge status={o.status} />
+
+                  </BusinessCell>
+                  <BusinessCell index={1}><OccurrenceBadge status={o.status} /></BusinessCell>
+                  <BusinessCell index={2}>{o.record_ids.length > 0 ? `기록 ${o.record_ids.length}개` : "기록 없음"}</BusinessCell>
+                  <BusinessCell index={3}>
                   {!readOnly && o.in_rule && o.status !== "upcoming" && (
                     <Button
                       variant="ghost"
@@ -240,9 +240,10 @@ export function TaskDetailPage() {
                       기록
                     </Button>
                   )}
-                </Item>
+                  </BusinessCell>
+                </BusinessRow>
               ))}
-            </ItemGroup>
+            </BusinessTable>
           )}
         </section>
       )}

@@ -1,3 +1,4 @@
+import { businessRows } from "./table-actions.ts";
 import { openProfileMenu } from "./ui-actions.ts";
 import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
@@ -165,11 +166,11 @@ test("추가 페이지 태그의 편집 취소·충돌·저장 뒤 목록과 초
     for(let i=0;i<21;i++)tags.push(await mcp.call("create_tag",{name:unique(`보존 ${i}`).slice(0,30)}));
     const oldest=tags[0];await page.goto("/tags/record");
     const trigger=page.getByRole("button",{name:`${oldest.name} 이름 변경`,exact:true});
-    await expect(page.getByRole("listitem").filter({ has: page.getByRole("button", { name: / 이름 변경$/ }) }).first()).toBeVisible();
+    await expect(businessRows(page.getByRole("table")).filter({ has: page.getByRole("button", { name: / 이름 변경$/ }) }).first()).toBeVisible();
     while(await trigger.count()===0){
-      const before=await page.getByRole("listitem").filter({ has: page.getByRole("button", { name: / 이름 변경$/ }) }).count();
+      const before=await businessRows(page.getByRole("table")).filter({ has: page.getByRole("button", { name: / 이름 변경$/ }) }).count();
       await page.getByRole("button",{name:"더 보기",exact:true}).click();
-      await expect.poll(()=>page.getByRole("listitem").filter({ has: page.getByRole("button", { name: / 이름 변경$/ }) }).count()).toBeGreaterThan(before);
+      await expect.poll(()=>businessRows(page.getByRole("table")).filter({ has: page.getByRole("button", { name: / 이름 변경$/ }) }).count()).toBeGreaterThan(before);
     }
     await trigger.click();let form=page.getByRole("form",{name:"태그 이름 변경"});
     await form.getByRole("button", {name:"취소",exact:true}).click();await expect(trigger).toBeFocused();
@@ -213,7 +214,7 @@ test("#370 MCP 태그 생성·정정 뒤 유지한 웹 목록과 상세가 최�
     });
     // A filter navigation receives fresh rows without reloading the page.
     await page.getByRole("textbox", { name: "자료 제목 검색", exact: true }).fill(title);
-    const list = page.getByRole("list", { name: `${type.label} 목록`, exact: true });
+    const list = page.getByRole("table", { name: `${type.label} 목록`, exact: true });
     await list.getByRole("button", { name: title, exact: true }).click();
     await expect(list.locator('[aria-label="태그"]').getByText(name, { exact: true })).toBeVisible();
     await expect(list.getByText("삭제된 태그", { exact: true })).toHaveCount(0);

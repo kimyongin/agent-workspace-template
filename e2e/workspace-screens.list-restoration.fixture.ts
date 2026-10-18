@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { listHeader } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
@@ -60,7 +61,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(filters.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true })).toBeHidden();
       await expect(filters.getByRole("combobox")).toHaveCount(0);
       if (kind === "entities") await expect(listHeader(page).getByLabel("자료 종류", { exact: true })).toBeVisible();
-      await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first()).toBeVisible();
+      await expect(businessRows(page.getByRole("region", { name: / 목록$/ }).getByRole("table")).first()).toBeVisible();
       const beforeReads = reads;
       await summary.focus();
       await summary.press("Enter");
@@ -573,7 +574,7 @@ for (const outcome of ["success", "failed"] as const) {
       await arrived;
       const toggle = page.getByRole("button", { name: target.title, exact: true });
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
-      const preview = toggle.locator("xpath=ancestor::li[1]");
+      const preview = await disclosureContent(page, toggle);
       await expect(preview.getByRole("status")).toHaveText("불러오는 중…");
       // Flush the restoration animation frame while the actual preview read remains gated.
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -581,7 +582,7 @@ for (const outcome of ["success", "failed"] as const) {
       release();
       if (outcome === "success") {
         await expect(preview.getByRole("term").filter({ hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(target.external_id);
-        await expect(preview.getByRole("term").filter({ hasText: /^수량$/ }).locator("../dd")).toHaveText("1234");
+        await expect(await valueCell(toggle.locator("xpath=ancestor::tr[1]"), "수량")).toHaveText("수량1,234");
       } else {
         await expect(preview.getByRole("alert")).toHaveText("내용을 불러오지 못했습니다.");
         await expect(preview.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();

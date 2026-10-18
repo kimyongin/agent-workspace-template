@@ -72,12 +72,14 @@ test("차트 선택은 새로고침·화면 크기·개인 배율 변경에도 �
       await page.setViewportSize({ width, height: 900 });
       await expect(values.getByRole("cell")).toHaveText(["1건"]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      for (const table of await page.getByRole("table", { name: /날짜별 수치$/ }).all()) expect(await table.evaluate(el => ({ table: el.scrollWidth <= el.clientWidth + 1, container: el.parentElement!.scrollWidth <= el.parentElement!.clientWidth + 1 })), `${width}px ${scale}%`).toEqual({ table: true, container: true });
       await page.screenshot({ path: info.outputPath(`status-${width}-${scale}.png`), fullPage: true });
     }
   }
   await page.setViewportSize({ width: 320, height: 1000 });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  for (const table of await page.getByRole("table", { name: /날짜별 수치$/ }).all()) expect(await table.evaluate(el => ({ table: el.scrollWidth <= el.clientWidth + 1, container: el.parentElement!.scrollWidth <= el.parentElement!.clientWidth + 1 })), "320px text200%").toEqual({ table: true, container: true });
   await page.screenshot({ path: info.outputPath("status-320-text200.png"), fullPage: true });
   data.daily = data.daily.slice(2);
   await page.getByRole("button", { name: "새로고침", exact: true }).click();
@@ -168,4 +170,42 @@ test.describe("차트 직접 선택", () => {
       }
     }
   });
+});
+
+test("색인 문제 표는 지연 조회·실패 재시도·페이지·좁은 화면의 상세를 유지한다", async ({ page }, info) => {
+  const requests: string[] = [];
+  let fail = true;
+  const item = (n: number) => ({ id: `20261011-ABCDEF${n}${n}`, created_at: "2026-10-11T00:00:00.000Z", title: `문제${n} ` + "긴제목".repeat(24), reason: "provider_unknown", attempts: 5, chunks: { total: 2, succeeded: 1, preparing: 0, unknown: 1, failed: 0 } });
+  await fixture(page);
+  await page.route("**/api/status/indexing/issues**", route => {
+    requests.push(route.request().url());
+    if (fail) { fail = false; return route.fulfill({ status: 503, json: { code: "unavailable", message: "fixture failure" } }); }
+    const last = new URL(route.request().url()).searchParams.has("cursor");
+    return route.fulfill({ json: { items: last ? [item(5)] : Array.from({ length: 5 }, (_, n) => item(n)), next_cursor: last ? null : "last-page" } });
+  });
+  expect(requests).toHaveLength(0);
+  await page.getByRole("button", { name: /^색인 문제/ }).click();
+  await expect(page.getByRole("alert")).toContainText("색인 문제를 조회하지 못했습니다");
+  expect(requests).toHaveLength(1);
+  await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+  const table = page.getByRole("table", { name: "색인 문제 항목", exact: true });
+  await expect(table).toBeVisible();
+  await expect(table.getByRole("button", { name: /^문제\d/ })).toHaveCount(5);
+  const trigger = table.getByRole("button", { name: /^문제0/ });
+  await trigger.press("Enter");
+  await expect(table).toContainText("실패나 성공으로 확정할 수 없습니다");
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(await table.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  }
+  await table.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("indexing-issues-table.png"), fullPage: true });
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(table.getByRole("button", { name: /^문제\d/ })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "다음", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "이전", exact: true }).click();
+  await expect(table.getByRole("button", { name: /^문제\d/ })).toHaveCount(5);
+  expect(requests).toHaveLength(4);
 });

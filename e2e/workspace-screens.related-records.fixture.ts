@@ -1,3 +1,4 @@
+import { businessRows } from "./table-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { openListDetail } from "./ui-actions.ts";
@@ -29,7 +30,7 @@ test("할 일 연결 기록: 결과와 전체 기간 회차·페이지 오류 �
   await expect(related.getByRole("button", { name: first.body, exact: true })).toBeVisible();
   await related.getByRole("button", { name: "기록 다시 시도" }).click();
   await expect(related.getByRole("button", { name: old.body, exact: true })).toBeVisible();
-  await expect(related.getByRole("listitem")).toHaveCount(2);
+  await expect(businessRows(related.getByRole("table"))).toHaveCount(2);
   state.rows.records.push(old);
   await related.getByRole("button", { name: old.body, exact: true }).click();
   await form(page).getByRole("link", { name: old.body + " 상세", exact: true }).click();
@@ -171,8 +172,8 @@ for (const width of [320, 1440]) {
       exact: true,
     }).click();
     expect(state.writes).toHaveLength(0);
-    await expect(draft.getByRole("list", { name: "선택한 할 일" }).getByRole("listitem")).toHaveCount(1);
-    await expect(draft.getByRole("list", { name: "선택한 자료" }).getByRole("listitem")).toHaveCount(1);
+    await expect(businessRows(draft.getByRole("table", { name: "선택한 할 일" }))).toHaveCount(1);
+    await expect(businessRows(draft.getByRole("table", { name: "선택한 자료" }))).toHaveCount(1);
     await expect(draft.getByRole("group", { name: "자료 검색 결과", exact: true }).getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
     await draft.getByRole("button", { name: "자료 해제", exact: true }).click();
     await expect(entitySearch).toBeFocused();
@@ -185,7 +186,7 @@ for (const width of [320, 1440]) {
     ).toBe(true);
     await draft.getByRole("button", { name: "할 일 검색 닫기", exact: true }).click();
     await expect(taskSearch).toHaveCount(0);
-    await expect(draft.getByRole("list", { name: "선택한 할 일" })).toContainText("할 일");
+    await expect(draft.getByRole("table", { name: "선택한 할 일" })).toContainText("할 일");
     await draft.getByRole("button", { name: "자료 검색 닫기", exact: true }).click();
     await expect(entitySearch).toHaveCount(0);
     await draft.getByRole("button", { name: "자료 해제", exact: true }).click();
@@ -221,15 +222,15 @@ test("#191 할 일에서 일반 기록 작성: 귀속 미리 선택·변경·엔
   await form(page).getByRole("button", { name: "기록 작성", exact: true }).click();
   const draft = form(page);
   await draft.getByRole("textbox", { name: /^본문/ }).fill("추가 관찰");
-  await expect(draft.getByRole("list", { name: "선택한 할 일" })).toContainText("할 일");
+  await expect(draft.getByRole("table", { name: "선택한 할 일" })).toContainText("할 일");
   await draft.getByRole("button", { name: "할 일 연결", exact: true }).click();
   await draft.getByRole("searchbox", { name: "할 일 제목 검색" }).fill("다른");
   await draft.getByRole("group", { name: "할 일 검색 결과" }).getByRole("button", {
     name: "다른 할 일 연결",
     exact: true,
   }).click();
-  await expect(draft.getByRole("list", { name: "선택한 할 일" }).getByRole("listitem")).toHaveCount(1);
-  await expect(draft.getByRole("list", { name: "선택한 자료" })).toContainText("자료");
+  await expect(businessRows(draft.getByRole("table", { name: "선택한 할 일" }))).toHaveCount(1);
+  await expect(draft.getByRole("table", { name: "선택한 자료" })).toContainText("자료");
   await draft.getByRole("button", { name: "저장", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(1);
   expect(state.writes[0].body).toMatchObject({ task_id: id(82), entity_ids: [entityKey(1)] });
@@ -261,26 +262,57 @@ test("#227 엔터티 할 일: 5건 미리보기 뒤 첫 페이지·중복 제거
   const section = form(page).getByRole("heading", { name: "할 일 (25개)", exact: true }).locator(
     "xpath=ancestor::section[1]",
   );
-  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(5);
+  await expect(businessRows(section.getByRole("table")).filter({ visible: true })).toHaveCount(5);
   expect(reads).toEqual([]);
   await section.getByRole("button", { name: "할 일 더 보기", exact: true }).click();
-  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(20);
+  await expect(businessRows(section.getByRole("table")).filter({ visible: true })).toHaveCount(20);
   await form(page).getByRole("button", { name: "편집", exact: true }).click();
   await expect(form(page).getByRole("textbox", { name: /^제목/ })).toBeVisible();
-  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(20);
+  await expect(businessRows(section.getByRole("table")).filter({ visible: true })).toHaveCount(20);
   await expect(section.getByRole("button", { name: /연결|작성|해제/ })).toHaveCount(0);
   await expect(section.getByRole("button", { name: "할 일 더 보기", exact: true })).toBeVisible();
   await section.getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await expect(section.getByRole("alert")).toBeVisible();
-  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(20);
+  await expect(businessRows(section.getByRole("table")).filter({ visible: true })).toHaveCount(20);
   await section.getByRole("button", { name: "할 일 다시 시도", exact: true }).click();
-  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(25);
+  await expect(businessRows(section.getByRole("table")).filter({ visible: true })).toHaveCount(25);
   await section.getByText("배치 업무 24", { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: info.outputPath("readonly-tasks-late-page.png") });
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
-  await expect(section.getByRole("listitem").filter({ visible: true })).toHaveCount(25);
+  await expect(businessRows(section.getByRole("table")).filter({ visible: true })).toHaveCount(25);
   expect(reads).toEqual([null, "next", "next"]);
   expect(state.writes).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("반복 회차 표는 좁은 화면에서도 날짜·상태·기록 조작을 보존한다", async ({ page }, info) => {
+  const state = await fixtures(page);
+  Object.assign(state.rows.tasks[0], { kind: "recurring", status: "active", timezone: "Asia/Seoul", recurrence: { freq: "daily", starts_on: "2026-10-01", ends_on: null } });
+  await page.route("**/api/tasks/*/occurrences?**", route => route.fulfill({ json: { today: "2026-10-07", items: [
+    { date: "2026-10-07", status: "due", record_ids: [], in_rule: true },
+    { date: "2026-10-06", status: "done", record_ids: [id(3)], in_rule: false },
+    { date: "2026-10-08", status: "upcoming", record_ids: [], in_rule: true },
+  ] } }));
+  await go(page, `/tasks/${id(2)}`);
+  const table = form(page).getByRole("table", { name: "반복 할 일 회차 목록", exact: true });
+  await expect(table).toBeVisible();
+  await expect(table.getByRole("row")).toHaveCount(4);
+  await expect(table).toContainText("규칙 밖 기록");
+  await expect(table).toContainText("기록 1개");
+  await expect(table.getByRole("button", { name: "2026-10-08 회차 기록", exact: true })).toHaveCount(0);
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(table.getByRole("button", { name: "2026-10-07 회차 기록", exact: true })).toBeVisible();
+    expect(await table.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  }
+  await table.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("occurrences-320.png"), fullPage: true });
+  await table.getByRole("button", { name: "2026-10-07 회차 기록", exact: true }).click();
+  await expect(form(page)).toHaveAccessibleName("2026-10-07 회차 기록");
+  await form(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(table.getByRole("button", { name: "2026-10-07 회차 기록", exact: true })).toBeFocused();
+  expect(state.writes).toEqual([]);
   expect(state.errors).toEqual([]);
 });

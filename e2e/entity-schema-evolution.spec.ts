@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
@@ -142,12 +143,13 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await page.goto(`/entities/${encodeURIComponent(created.id)}`);
     await assertCurrentProperties(created.title, "0");
     await page.goto(`/settings/entity-types/${typeId}/versions`);
-    const initialVersion = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({
+    const initialVersion = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
     });
     await initialVersion.getByRole("button", { name: /버전 2 · 적용됨$/ })
       .click();
-    await expect(initialVersion.locator("input, select, textarea")).toHaveCount(
+    const initialContent = await disclosureContent(page, initialVersion.getByRole("button", { name: /버전 2 · 적용됨$/ }));
+    await expect(initialContent.locator("input, select, textarea")).toHaveCount(
       0,
     );
     await expect(page.getByRole("region", { name: "버전 차이", exact: true }))
@@ -213,14 +215,16 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     ]);
     expect((await mcp.call("get_entity_schema", { type_id: type.id })).schema_version).toBe(1);
     await page.reload();
-    const discarded = page.getByRole("list", { name: "입력 항목 변경 이력", exact: true }).getByRole("listitem").filter({
-      has: page.locator(`a[href*="change_id=${change.id}"]`),
+    const discarded = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
+      has: page.getByRole("button", { name: /상태 폐기됨$/ }),
     });
     await expect(discarded).toHaveCount(1);
     await expect(discarded.getByRole("button", { name: /상태 폐기됨$/ })).toHaveAttribute("aria-expanded", "true");
+    const discardedContent = await disclosureContent(page, discarded.getByRole("button", { name: /상태 폐기됨$/ }));
+    await expect(discardedContent.locator(`a[href*="change_id=${change.id}"]`)).toHaveCount(1);
     await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-    await expect(page.getByRole("list", { name: "입력 항목 목록", exact: true }).getByRole("listitem"))
+    await expect(businessRows(page.getByRole("table", { name: "입력 항목 목록", exact: true })))
       .toHaveCount(1);
     await expect(page.getByRole("region", { name: "메모 입력 항목", exact: true })).toHaveCount(0);
   } finally {

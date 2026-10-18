@@ -30,7 +30,7 @@ for (const [kind, label, title] of [["entities", "전체 자료", entity.title],
   const modes = list.getByRole("radiogroup", { name: `${label} 보기 방식` });
   await expect(list.getByRole("heading", { name: `${label} (1개)`, exact: true })).toBeVisible();
   const readCount = state.reads.filter(url => new URL(url).pathname === `/api/${kind}`).length;
-  for (const mode of ["카드", "테이블", "리스트"]) {
+  for (const mode of ["카드", "테이블"]) {
     await modes.getByRole("radio", { name: mode, exact: true }).click();
     await expect(modes.getByRole("radio", { name: mode, exact: true })).toHaveAttribute("aria-checked", "true");
     await expect(list.getByRole("button", { name: title, exact: true })).toBeVisible();
@@ -61,6 +61,8 @@ for (const [kind, label, title] of [["entities", "전체 자료", entity.title],
 });
 
 test("related sections switch independently and return from a linked detail", async ({ page }) => {
+  const invalidMarkup: string[] = [];
+  page.on("console", message => { if (message.type() === "error" && /cannot (be a child|contain)|In HTML/.test(message.text())) invalidMarkup.push(message.text()); });
   const state = await fixture(page);
   await page.goto(`/entities/${entity.id}`);
   const dialog = page.getByRole("dialog"), tasks = dialog.getByRole("region", { name: "할 일 (1개)" }), records = dialog.getByRole("region", { name: "기록 (1개)" });
@@ -75,6 +77,7 @@ test("related sections switch independently and return from a linked detail", as
   await expect(dialog.getByRole("radiogroup", { name: "연결된 자료 보기 방식" })).toBeVisible();
   await expect(dialog.getByRole("radiogroup", { name: "할 일 보기 방식" })).toBeVisible();
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+  expect(invalidMarkup).toEqual([]);
 });
 
 test("empty and failed lists keep truthful counts and retry in every view", async ({ page }) => {
@@ -120,7 +123,7 @@ test("calendar uses display dates, keyboard month edges, partial pages and saved
   await expect(page).toHaveURL(/calendar_day=2026-10-08/);
   await expect(day).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "2026-10-01, 불러온 기록 20개", exact: true }).click();
-  await page.getByRole("radio", { name: "리스트", exact: true }).click();
+  await page.getByRole("radio", { name: "테이블", exact: true }).click();
   await page.getByRole("button", { name: "기록 0", exact: true }).click();
   await page.getByRole("radio", { name: "캘린더", exact: true }).click();
   await expect(day).toHaveAttribute("aria-pressed", "true");
@@ -144,7 +147,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
         expect(target!.width).toBeGreaterThanOrEqual(44); expect(target!.height).toBeGreaterThanOrEqual(44);
       }
       if (view === "table") for (const cell of await page.locator('[data-slot="table-cell"][class*="tabular-nums"]').all()) {
-        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe("right");
+        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe(width === 1440 ? "right" : "left");
         expect(await cell.evaluate(el => getComputedStyle(el).fontVariantNumeric)).toBe("tabular-nums");
       }
       await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
@@ -155,8 +158,8 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
   const modes = page.getByRole("radiogroup", { name: "할 일 보기 방식" });
   await modes.getByRole("radio", { name: "테이블" }).press("Home");
-  await expect(modes.getByRole("radio", { name: "리스트" })).toBeFocused();
-  const style = await modes.getByRole("radio", { name: "리스트" }).evaluate(el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; });
+  await expect(modes.getByRole("radio", { name: "테이블" })).toBeFocused();
+  const style = await modes.getByRole("radio", { name: "테이블" }).evaluate(el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; });
   expect(style.width).toBeGreaterThanOrEqual(44); expect(style.height).toBeGreaterThanOrEqual(44);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
@@ -167,17 +170,28 @@ test("table rows and headers share the same columns across wrapper types and vie
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 900 }); await page.goto(`/${kind}?view=table`);
     const table = page.getByRole("table").first();
-    await expect(table.getByRole("columnheader").first()).toBeVisible();
+    await expect(table.getByRole("columnheader").first()).toHaveCount(1);
     const geometry = await table.evaluate(table => {
-      const box = (el: Element) => ({ left: el.getBoundingClientRect().left, width: el.getBoundingClientRect().width });
-      return { columns: Array.from(table.querySelectorAll("thead th")).map(box), rows: Array.from(table.querySelectorAll("tbody tr")).filter(row => !row.querySelector("td[colspan]")).map(row => Array.from(row.children).map(box)) };
+      const box = (el: Element) => { const rect = el.getBoundingClientRect(); return { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width }; };
+      const headers = [...table.querySelectorAll<HTMLTableCellElement>("thead th")];
+      return { columns: headers.map(box), rows: [...table.querySelectorAll("tbody tr")].filter(row => !row.querySelector("td[colspan]")).map(row => ({ cells: [...row.children].map(box), labels: [...row.querySelectorAll<HTMLTableCellElement>(":scope > td")].slice(1).map((cell, index) => ({ actual: cell.headers, expected: headers[index + 1].id })) })) };
     });
     expect(geometry.rows.length).toBeGreaterThan(0);
     for (const row of geometry.rows) {
-      expect(row).toHaveLength(geometry.columns.length);
-      for (const [index, cell] of row.entries()) {
-        expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
-        expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
+      expect(row.cells).toHaveLength(geometry.columns.length);
+      for (const relation of row.labels) expect(relation.actual).toBe(relation.expected);
+      if (width === 1440) {
+        for (const [index, cell] of row.cells.entries()) {
+          expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
+          expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
+        }
+      } else {
+        const title = row.cells[1];
+        for (const [index, cell] of row.cells.slice(2).entries()) {
+          expect(Math.abs(cell.left - title.left)).toBeLessThan(1);
+          expect(Math.abs(cell.width - title.width)).toBeLessThan(1);
+          expect(cell.top).toBeGreaterThanOrEqual(row.cells[index + 1].bottom);
+        }
       }
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
@@ -186,8 +200,8 @@ test("table rows and headers share the same columns across wrapper types and vie
   const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
   await section.getByRole("radio", { name: "테이블", exact: true }).click();
   const table = section.getByRole("table");
-  await expect(table.getByRole("columnheader").first()).toBeVisible();
-  expect(await table.locator("thead tr").evaluate(el => Math.abs(el.getBoundingClientRect().width - el.closest("table")!.querySelector("tbody tr")!.getBoundingClientRect().width))).toBeLessThan(1);
+  await expect(table.getByRole("columnheader")).toHaveCount(2);
+  expect(await table.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
@@ -233,7 +247,7 @@ for (const action of ["delete", "create"] as const) test(`unavailable change tar
   const badge=action==="delete"?"삭제됨":"조회 불가";
   await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
   await expect(detail.getByRole("region",{name:"연결된 자료 (1개)"})).toBeVisible();
-  for(const view of ["리스트","카드","테이블"]){
+  for(const view of ["테이블","카드"]){
     await tasks.getByRole("radio",{name:view,exact:true}).click();
     await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
     const toggle=tasks.getByRole("button",{name:task.title,exact:true});
@@ -337,7 +351,7 @@ test("selected entity fields stay identical in every layout and expansion withou
   state.rows.entities.splice(0,state.rows.entities.length,selected);
   await page.route("**/api/entity-types/*/schema{,?**}",route=>route.fulfill({json:schema}));
   await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
-  for(const view of ["리스트","카드","테이블"]) {
+  for(const view of ["테이블","카드"]) {
     await page.getByRole("radio",{name:view,exact:true}).click();
     const collection = page.getByRole("region", { name: / 목록$/ });
     const row = view === "테이블"
@@ -433,4 +447,104 @@ test("calendar loads only when selected and retains keyboard control after loadi
     expect(state.writes).toEqual([]);
     expect(state.errors).toEqual([]);
   } finally { release(); }
+});
+
+
+test("business tables: legacy list URLs keep context and disclosure columns stay stable", async ({ page }) => {
+  const state = await fixture(page);
+  await page.goto("/entities?view=list&keyword=김민수");
+  const collection = page.getByRole("region", { name: "전체 자료 목록", exact: true });
+  await expect(collection.getByRole("radio", { name: "테이블", exact: true })).toHaveAttribute("aria-checked", "true");
+  await expect(collection.getByRole("radio", { name: "리스트", exact: true })).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.get("keyword")).toBe("김민수");
+  const table = collection.getByRole("table", { name: "전체 자료 목록", exact: true });
+  const title = table.getByRole("button", { name: entity.title, exact: true });
+  const row = table.getByRole("row").filter({ has: page.getByRole("button", { name: entity.title, exact: true }) });
+  const toggle = row.getByRole("button", { name: /^김민수 (열기|접기)$/ });
+  const before = await row.evaluate(el => [...el.querySelectorAll("td")].map(cell => {const r=cell.getBoundingClientRect();return {x:r.x,width:r.width};}));
+  await toggle.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(table.getByRole("link", { name: entity.title + " 상세", exact: true })).toBeVisible();
+  const after = await row.evaluate(el => [...el.querySelectorAll("td")].map(cell => {const r=cell.getBoundingClientRect();return {x:r.x,width:r.width};}));
+  expect(after).toEqual(before);
+  const arrowCell = await toggle.evaluate(el => el.closest("td")?.cellIndex);
+  const titleCell = await title.evaluate(el => el.closest("td")?.cellIndex);
+  expect(arrowCell).toBe(0);expect(titleCell).toBe(1);
+  await toggle.press("Enter");await expect(toggle).toBeFocused();
+  expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+});
+
+
+test("business tables: selected values reflow without horizontal scrolling at width and scale changes", async ({ page }, info) => {
+  const state = await fixture(page);
+  const schema = structuredClone(fixtureSchema);
+  for (const key of ["prop_2", "prop_3", "prop_4"]) schema.schema.properties[key]["x-show-in-list"] = true;
+  schema.schema.properties.prop_5 = { type: "boolean", title: "확인 상태를 나타내는 긴 라벨", "x-order": 50, "x-show-in-list": true };
+  await page.route("**/api/entity-types/*/schema**", route => route.fulfill({ json: schema }));
+  state.rows.entities[0].display_properties = { prop_1: entity.title, prop_2: 240000, prop_3: "2026-10-08", prop_4: "a", prop_5: false };
+  await page.goto("/entities?entity_type_id=" + fixtureType.id);
+  const table = page.getByRole("table", { name: "검사 자료 목록", exact: true });
+  const title = table.getByRole("button", { name: entity.title, exact: true });
+  const row = table.getByRole("row").filter({ has: page.getByRole("button", { name: entity.title, exact: true }) });
+  await expect(row.getByText("240,000", { exact: true })).toBeVisible();
+  await expect(row.getByText("거짓", { exact: true })).toBeVisible();
+  await expect(row.getByText("2026-10-08", { exact: true })).toBeVisible();
+  const toggle = row.getByRole("button", { name: /^김민수 (열기|접기)$/ });
+  await toggle.focus();
+  for (const [width, scale] of [[1440, 100], [390, 100], [320, 100], [390, 200]]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(scale => document.documentElement.style.fontSize = scale + "%", scale);
+    await expect(toggle).toBeFocused();await expect(title).toBeVisible();
+    await expect.poll(() => table.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    if (width < 1440) {
+      const axes = await row.evaluate(el => [...el.querySelectorAll("td")].slice(2).map(cell => ({label:cell.querySelector("span")!.getBoundingClientRect().x,value:cell.querySelector("div")!.getBoundingClientRect().x})));
+      expect(axes.every(axis => Math.abs(axis.label - axes[0].label) < 1)).toBe(true);
+      expect(axes.every(axis => Math.abs(axis.value - axes[0].value) < 1)).toBe(true);
+      await expect(row.getByText("확인 상태를 나타내는 긴 라벨", { exact: true })).toBeVisible();
+    }
+    await table.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath(`business-values-${width}-font${scale}.png`) });
+  }
+  expect(state.reads.filter(url => new URL(url).pathname === "/api/entities/" + encodeURIComponent(entity.id))).toHaveLength(0);
+  expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+});
+
+
+test("business tables: search results retain snippets and return context at narrow widths", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/search?q=상담&kind=task&mode=keyword");
+  const table = page.getByRole("table", { name: "검색 결과", exact: true });
+  const link = table.getByRole("link", { name: task.title, exact: true });
+  await expect(link).toBeVisible();await expect(table.getByText(task.body, { exact: true })).toBeVisible();
+  await expect(table.getByText("키워드", { exact: true })).toBeVisible();
+  await expect.poll(() => table.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await link.click();await expect(page.getByRole("dialog")).toBeVisible();
+  await closeDetail(page, task.title);
+  await expect(link).toBeFocused();
+  expect(new URL(page.url()).searchParams.get("q")).toBe("상담");
+  expect(new URL(page.url()).searchParams.get("kind")).toBe("task");
+  expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+});
+
+
+test("business tables: many selected columns keep dates readable and never omit values", async ({ page }) => {
+  const state = await fixture(page);
+  const schema = structuredClone(fixtureSchema);
+  const projected: Record<string, string> = { prop_1: entity.title };
+  for (let n=2;n<=15;n++) {
+    schema.schema.properties[`prop_${n}`] = { type:"string",format:"date",title:`날짜 ${n}`,"x-order":n*10,"x-show-in-list":true };
+    projected[`prop_${n}`] = `2026-10-${String(n).padStart(2,"0")}`;
+  }
+  state.rows.entities[0].display_properties = projected;
+  await page.route("**/api/entity-types/*/schema**", route=>route.fulfill({json:schema}));
+  await page.setViewportSize({width:1440,height:1000});await page.goto("/entities?entity_type_id="+fixtureType.id);
+  const row = page.getByRole("row").filter({has:page.getByRole("button",{name:entity.title,exact:true})});
+  await expect(row.getByRole("cell")).toHaveCount(16);
+  const date = row.getByText("2026-10-02",{exact:true});await expect(date).toBeVisible();
+  expect(await date.evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return range.getClientRects().length;})).toBe(1);
+  for(let n=2;n<=15;n++)await expect(row.getByText(projected[`prop_${n}`],{exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
 });

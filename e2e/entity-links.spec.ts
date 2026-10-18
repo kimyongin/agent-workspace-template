@@ -1,3 +1,4 @@
+import { businessRows, entryDetails } from "./table-actions.ts";
 import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { expect } from "@playwright/test";
 import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -33,19 +34,21 @@ test("general record selects two entities in web; MCP, both related views and de
     const edit = page.getByRole("dialog", { name: "기록 편집", exact: true });
     const connected = edit.getByRole("region", { name: "연결된 자료 (2개)", exact: true });
     await expect(connected).toBeVisible();
-    await expect(connected.getByRole("listitem")).toHaveCount(2);
+    await expect(businessRows(connected.getByRole("table"))).toHaveCount(2);
     for (const target of [first, second]) {
       const capture = read.entity_context.find((value: { id: string }) => value.id === target.id);
       expect(capture?.type).toBeTruthy();
       expect(capture?.schema_version).toBeDefined();
-      const row = connected.getByRole("listitem").filter({ has: page.getByText(target.title, { exact: true }) });
+      const row = businessRows(connected.getByRole("table")).filter({ has: page.getByText(target.title, { exact: true }) });
       await expect(row).toHaveCount(1);
+      const context = entryDetails(row);
+      await expect(context).toBeVisible();
       for (const [label, value] of [
         ["당시 자료 종류", capture.type.label],
         ["당시 입력 항목 버전", String(capture.schema_version)],
         ["자료 식별", target.id],
       ]) {
-        const term = row.getByRole("term").and(row.getByText(label, { exact: true }));
+        const term = context.getByRole("term").and(context.getByText(label, { exact: true }));
         await expect(term.locator("..").getByRole("definition")).toHaveText(value);
       }
     }

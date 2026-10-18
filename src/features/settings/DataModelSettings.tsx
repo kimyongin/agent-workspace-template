@@ -1,3 +1,5 @@
+import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
+import { CollectionList } from "../../components/Collection.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { FieldLabel, FieldGroup, FieldSet } from "@/components/ui/field";
@@ -61,17 +63,17 @@ export function DataModelResult({ result }: { result: NonNullable<ModelChange["r
     <div>
       <Alert role="status"><AlertDescription>{result.changed === false ? "변경 없음. 검토 이력만 보존했습니다." : "적용 완료"}</AlertDescription></Alert>
       {result.counts && (
-        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+        <BusinessTable label="설정 적용 집계" columns={["대상", "추가", "수정", "변경 없음"]} numericColumns={[1, 2, 3]} disclosureColumn={false}>
           {groups.map(([key, label]) => {
             const count = result.counts![key];
-            return (
-              <div className="col-span-full" key={key}>
-                <dt>{label}</dt>
-                <dd>추가 {count.added}개 · 수정 {count.updated}개 · 변경 없음 {count.unchanged}개</dd>
-              </div>
-            );
+            return <BusinessRow key={key}>
+              <BusinessCell index={0}>{label}</BusinessCell>
+              <BusinessCell index={1}>{count.added.toLocaleString("ko-KR")}</BusinessCell>
+              <BusinessCell index={2}>{count.updated.toLocaleString("ko-KR")}</BusinessCell>
+              <BusinessCell index={3}>{count.unchanged.toLocaleString("ko-KR")}</BusinessCell>
+            </BusinessRow>;
           })}
-        </dl>
+        </BusinessTable>
       )}
       <Link to="/settings/materials">자료 설정</Link> · <Link to="/settings/relations">연결 설정으로 이동</Link>
     </div>
@@ -90,44 +92,44 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
       <h3 className="text-base font-semibold">{review.title}</h3>
       <Collapsible>
         <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">파일과 현재 설정의 연결 정보</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
-        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+        <BusinessTable label="설정 연결 정보 목록" columns={["구분", "연결 정보"]} disclosureColumn={false}>
           {Object.entries(review.mapping.types).map(([source, target]) => (
-            <div className="col-span-full" key={`type:${source}`}>
-              <dt>
+            <BusinessRow key={`type:${source}`}>
+              <BusinessCell index={0}>
                 자료 종류 · {review.items.find((i) =>
                   i.ref === source
                 )?.label ?? source}
-              </dt>
-              <dd>{review.items.find((i) => i.ref === source)?.source_type_id ?? source} → {target}</dd>
-            </div>
+              </BusinessCell>
+              <BusinessCell index={1}>{review.items.find((i) => i.ref === source)?.source_type_id ?? source} → {target}</BusinessCell>
+            </BusinessRow>
           ))}
           {Object.entries(review.mapping.properties).flatMap(([type, properties]) =>
             Object.entries(properties).map(([source, target]) => (
-              <div className="col-span-full" key={`${type}:${source}`}>
-                <dt>
+              <BusinessRow key={`${type}:${source}`}>
+                <BusinessCell index={0}>
                   입력 항목 · {review.items.find((i) =>
                     i.ref === type
                   )?.label ?? type}
-                </dt>
-                <dd>{source} → {target}</dd>
-              </div>
+                </BusinessCell>
+                <BusinessCell index={1}>{source} → {target}</BusinessCell>
+              </BusinessRow>
             ))
           )}
           {Object.entries(review.mapping.rules).map(([source, target]) => (
-            <div className="col-span-full" key={`rule:${source}`}>
-              <dt>번호 종류</dt>
-              <dd>{source} → {target}</dd>
-            </div>
+            <BusinessRow key={`rule:${source}`}>
+              <BusinessCell index={0}>번호 종류</BusinessCell>
+              <BusinessCell index={1}>{source} → {target}</BusinessCell>
+            </BusinessRow>
           ))}
           {Object.entries(review.mapping.relations).map(([source, target]) => (
-            <div className="col-span-full" key={`relation:${source}`}>
-              <dt>연결 설정</dt>
-              <dd>{source} → {target}</dd>
-            </div>
+            <BusinessRow key={`relation:${source}`}>
+              <BusinessCell index={0}>연결 설정</BusinessCell>
+              <BusinessCell index={1}>{source} → {target}</BusinessCell>
+            </BusinessRow>
           ))}
-        </dl>
+        </BusinessTable>
       </CollapsibleContent></Collapsible>
-      <div className="flex min-w-0 flex-col gap-4">
+      <CollectionList view="table" label="모델 검토 목록" columns={["변경 대상", "검토 상태"]}>
         {review.items.map((item) => (
           <ReviewRow
             key={item.ref}
@@ -137,7 +139,7 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
             disabled={disabled}
           />
         ))}
-      </div>
+      </CollectionList>
       {!settled && !review.can_apply && (
         <p className="text-sm text-muted-foreground">
           충돌 또는 값 변환이 필요한 항목을 확인하세요. 일부 항목만 적용하지 않습니다.
@@ -192,13 +194,15 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
               <dt>기본 번호 출처</dt>
               <dd>{item.identity.default_source}</dd>
             </div>
-            {item.identity.sources.map((source) => (
-              <div key={source.code}>
-                <dt>{source.code}</dt>
-                <dd>{source.rule_id} · {source.active ? "사용" : "중지"}</dd>
-              </div>
-            ))}
+
           </dl>
+          <BusinessTable label="가져올 번호 출처 목록" columns={["번호 출처", "번호 종류", "사용"]} disclosureColumn={false}>
+            {item.identity.sources.map(source => <BusinessRow key={source.code}>
+              <BusinessCell index={0}>{source.code}</BusinessCell>
+              <BusinessCell index={1}>{source.rule_id}</BusinessCell>
+              <BusinessCell index={2}>{source.active ? "사용" : "중지"}</BusinessCell>
+            </BusinessRow>)}
+          </BusinessTable>
           {item.current_identity && (
             <Collapsible>
               <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">현재 번호 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
@@ -211,13 +215,15 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
                   <dt>기본 번호 출처</dt>
                   <dd>{item.current_identity.default_source}</dd>
                 </div>
-                {item.current_identity.sources.map((source) => (
-                  <div key={source.code}>
-                    <dt>{source.code}</dt>
-                    <dd>{source.rule_id} · {source.active ? "사용" : "중지"}</dd>
-                  </div>
-                ))}
+
               </dl>
+              <BusinessTable label="현재 번호 출처 목록" columns={["번호 출처", "번호 종류", "사용"]} disclosureColumn={false}>
+                {item.current_identity.sources.map(source => <BusinessRow key={source.code}>
+                  <BusinessCell index={0}>{source.code}</BusinessCell>
+                  <BusinessCell index={1}>{source.rule_id}</BusinessCell>
+                  <BusinessCell index={2}>{source.active ? "사용" : "중지"}</BusinessCell>
+                </BusinessRow>)}
+              </BusinessTable>
             </CollapsibleContent></Collapsible>
           )}
         </section>
@@ -267,15 +273,15 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
         </div>
       )}
       {item.diff.length > 0 && (
-        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+<BusinessTable label="모델 변경값 목록" columns={["설정", "변경 전후"]} disclosureColumn={false}>
           {item.diff.map((d, i) => (
-            <div key={i}>
-              <dt>
+            <BusinessRow key={i}>
+              <BusinessCell index={0}>
                 {item.schema
                   ? schemaDiffLabel(d.path, { schema: item.schema }, { schema: item.current_schema ?? item.schema })
                   : d.path}
-              </dt>
-              <dd>
+              </BusinessCell>
+              <BusinessCell index={1}>
                 {d.before_present
                   ? item.schema
                     ? schemaDiffValueLabel(d.path, d.before, { schema: item.current_schema ?? item.schema })
@@ -285,10 +291,10 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
                     ? schemaDiffValueLabel(d.path, d.after, { schema: item.schema })
                     : JSON.stringify(d.after)
                   : "설정 안 함"}
-              </dd>
-            </div>
+              </BusinessCell>
+            </BusinessRow>
           ))}
-        </dl>
+        </BusinessTable>
       )}
     </IssuerRow>
   );
@@ -755,7 +761,7 @@ export function DataModelSettings() {
           {!loading && !historyError && changes.length === 0 && (
             <p className="text-sm text-muted-foreground">저장한 설정 변경 내용이 없습니다.</p>
           )}
-          <div className="flex min-w-0 flex-col gap-4">
+          <CollectionList view="table" label="자료 모델 변경 이력" columns={["변경", "상태"]}>
             {changes.map((change) => (
               <IssuerRow
                 key={change.id}
@@ -818,7 +824,7 @@ export function DataModelSettings() {
                 {change.result && <DataModelResult result={change.result} />}
               </IssuerRow>
             ))}
-          </div>
+          </CollectionList>
           {nextCursor && (
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button variant="outline"  disabled={locked || loading} onClick={() => void history(undefined, nextCursor)}>

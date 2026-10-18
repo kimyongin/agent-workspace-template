@@ -1,4 +1,4 @@
-import { ItemGroup, Item, ItemContent } from "../../components/ui/item.tsx";
+import { BusinessCell, BusinessDisclosureCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { Empty, EmptyHeader, EmptyDescription } from "../../components/ui/empty.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
 import { FieldGroup } from "../../components/ui/field.tsx";
@@ -276,29 +276,24 @@ export function SearchPage() {
             </p>
           )}
           {!result.items.length && <Empty><EmptyHeader><EmptyDescription>검색 결과가 없습니다.</EmptyDescription></EmptyHeader></Empty>}
-          <ItemGroup asChild><ul className="min-w-0">
-            {result.items.map((r) => {
-              return (
-                <Item asChild variant="outline" key={`${r.kind}:${r.id}`}><li className="min-w-0">
-                  <ItemContent className="min-w-0">
-                    <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-                      <div className="col-span-full"><dt>{r.kind === "record" ? "본문 대표 문구" : "제목"}</dt><dd>
-                        <Button asChild variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere">
-                          <Link data-list-anchor="" id={`search-${r.kind}-${r.id}`} to={r.path}>
-                            <span className="wrap-anywhere">{r.title}</span>
-                          </Link>
-                        </Button>
-                      </dd></div>
-                      {r.snippet !== r.title && <div className="col-span-full"><dt>일치 구간</dt><dd className="whitespace-pre-wrap wrap-anywhere">{r.snippet}</dd></div>}
-                      <div><dt>종류</dt><dd>{kinds[r.kind]}</dd></div>
-                      <div><dt>시각</dt><dd>{formatDateTime(r.at)}</dd></div>
-                    </dl>
-                    <SearchMatch item={r} />
-                  </ItemContent>
-                </li></Item>
-              );
-            })}
-          </ul></ItemGroup>
+          <BusinessTable disclosureColumn={false} label="검색 결과" columns={["제목 / 본문 대표 문구", "종류", "시각", "일치 구간", "검색 상태"]}>
+            {result.items.map((r) => (
+              <BusinessRow key={`${r.kind}:${r.id}`}>
+                <BusinessDisclosureCell />
+                <BusinessCell index={0}>
+                  <Button asChild variant="link" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere">
+                    <Link data-list-anchor="" id={`search-${r.kind}-${r.id}`} to={r.path}>
+                      <span className="wrap-anywhere">{r.title}</span>
+                    </Link>
+                  </Button>
+                </BusinessCell>
+                <BusinessCell index={1}>{kinds[r.kind]}</BusinessCell>
+                <BusinessCell index={2}>{formatDateTime(r.at)}</BusinessCell>
+                <BusinessCell index={3}><span className="whitespace-pre-wrap wrap-anywhere">{r.snippet !== r.title ? r.snippet : "—"}</span></BusinessCell>
+                <BusinessCell index={4}><SearchMatch item={r} /></BusinessCell>
+              </BusinessRow>
+            ))}
+          </BusinessTable>
           {result.next_cursor && <Button variant="ghost" type="button" disabled={busy} onClick={() => more?.()}>더 보기</Button>}
         </>
       )}

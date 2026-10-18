@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { openDialogs } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { openDetailEditor, openListDetail, openListEditor } from "./ui-actions.ts";
@@ -35,11 +36,12 @@ for (const [kind, title] of [["entities", "자료"], ["tasks", "할 일"], ["rec
     test(`#203 ${kind} ${exit}: 상세 버튼은 보기·편집은 모드 전환·한 dialog`, async ({ page }) => {
       const state = await fixtures(page);
       await go(page, `/${kind}?pages=1`);
-      const row = page.getByRole("region", { name: / 목록$/ }).getByRole("listitem").first();
+      const row = businessRows(page.getByRole("region", { name: / 목록$/ }).getByRole("table")).first();
+      const preview = await disclosureContent(page, row.getByRole("button", { name: title, exact: true }));
       await row.getByRole("button", { name: title, exact: true }).click();
       await expect(row.getByRole("link", { name: title + " 편집", exact: true })).toHaveCount(0);
-      await expect(row.getByRole("link", { name: title + " 상세", exact: true })).toHaveText("상세");
-      await row.getByRole("link", { name: title + " 상세", exact: true }).click();
+      await expect(preview.getByRole("link", { name: title + " 상세", exact: true })).toHaveText("상세");
+      await preview.getByRole("link", { name: title + " 상세", exact: true }).click();
       await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
       expect(new URL(page.url()).searchParams.has("edit")).toBe(false);
       await form(page).evaluate((el) => el.dataset.sameDialog = "yes");
@@ -109,7 +111,10 @@ for (const width of [320, 1440]) {
     await expect(form(page).getByRole("link", { name: "할 일 편집", exact: true })).toHaveCount(0);
     const viewBox = (await view.boundingBox())!,
       chevronBox = (await form(page).getByRole("button", { name: "할 일 접기", exact: true }).boundingBox())!;
-    expect(viewBox.x + viewBox.width).toBeLessThanOrEqual(chevronBox.x);
+    const titleBox = (await toggle.boundingBox())!;
+    expect(chevronBox.x + chevronBox.width).toBeLessThanOrEqual(titleBox.x);
+    expect(viewBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
+    expect((await view.locator("..").boundingBox())!.x).toBeCloseTo(titleBox.x, 0);
     await view.click();
     await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
     await expect(openDialogs(page)).toHaveCount(1);
@@ -310,7 +315,7 @@ test("상세 탐색: 같은 엔터티는 한 행으로 합치고 역사 제목�
   });
   await go(page, `/records/${id(3)}`);
   const group = connectedTarget(page, "entity");
-  await expect(group.getByRole("listitem")).toHaveCount(1);
+  await expect(businessRows(group.getByRole("table"))).toHaveCount(1);
   const toggle = group.getByRole("button", { name: "당시 엔터티", exact: true });
   await toggle.click();
   await expect(group.getByRole("button", { name: "연결 제목", exact: true })).toHaveCount(0);
@@ -454,7 +459,7 @@ for (
       await go(page, `/${kind}`);
       await expect(page.getByRole("link", { name: title + " 상세", exact: true })).toHaveCount(0);
       const titleLink = page.getByRole("button", { name: title, exact: true }),
-        row = page.getByRole("listitem").filter({ has: page.getByRole("button", { name: title, exact: true }) }).first();
+        row = businessRows(page.getByRole("table")).filter({ has: page.getByRole("button", { name: title, exact: true }) }).first();
       const t = (await titleLink.boundingBox())!, r = (await row.boundingBox())!;
       expect(t.width).toBeLessThan(r.width - 40);
       await row.click({ position: { x: 4, y: 4 } });

@@ -1,9 +1,12 @@
+import { Fragment } from "react";
+import { BusinessTable, BusinessRow, BusinessCell, BusinessDetails } from "../../components/BusinessTable.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldSet, FieldGroup, FieldLabel, FieldLegend } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select.tsx";
 import { Input } from "../../components/ui/input.tsx";
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
@@ -56,38 +59,48 @@ function analysisRowTitle(row: SchemaAnalysisRow, target: SchemaDefinition, sour
   return title ? `${title} · ${identifier}` : identifier;
 }
 function Literal(
-  { field, value, onChange, optionLabels = {} }: {
+  { field, value, onChange, disabled, optionLabels = {} }: {
     field: EntityField;
     value: unknown;
     onChange: (v: unknown) => void;
     optionLabels?: Record<string, string>;
+    disabled: boolean;
   },
 ) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
   const scalar = fieldType(field);
   const nullable = Array.isArray(field.type) && field.type.includes("null");
   return (
     <>
       <Field label="보완값 상태">
         {(props) => (
-          <NativeSelect
-            {...props}
-
-            aria-label="보완값 상태"
+          <Select disabled={disabled} open={open && !disabled} onOpenChange={setOpen}
             value={value === null ? "null" : "value"}
-            onChange={(e) =>
+            onValueChange={(next) => {
+              if (disabled) return;
               onChange(
-                e.target.value === "null"
+                next === "null"
                   ? null
                   : scalar === "boolean"
                   ? false
                   : scalar === "integer" || scalar === "number"
                   ? 0
                   : "",
-              )}
+              );
+            }}
           >
-            <NativeSelectOption value="value">값 지정</NativeSelectOption>
-            {nullable && <NativeSelectOption value="null">명시적 값 없음</NativeSelectOption>}
-          </NativeSelect>
+            <SelectTrigger {...props} aria-label="보완값 상태"
+              className="w-full data-[size=default]:h-auto whitespace-normal @max-[16rem]/business:flex-col @max-[16rem]/business:px-1 [&_[data-slot=select-value]]:line-clamp-none [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:wrap-anywhere">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectGroup>
+                <SelectItem value="value">값 지정</SelectItem>
+                {nullable && <SelectItem value="null">명시적 값 없음</SelectItem>}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         )}
       </Field>
       {value !== null && (
@@ -320,6 +333,7 @@ export function ConversionEditor(
                           </FieldLabel>
                           {rule && (rule.op === "fill" || rule.op === "replace_failure") && (
                             <Literal
+                              disabled={disabled}
                               field={f}
                               optionLabels={schemaPresentation(plan.target).option_labels[key]}
                               value={rule.value}
@@ -414,20 +428,23 @@ export function ConversionEditor(
             </FieldLabel>
           </FilterPanel>
           {page?.items.length === 0 && <p>표시할 자료가 없습니다. 전체 대상 {plan.analysis.total}개</p>}
+          <BusinessTable label="자료 값 변환 결과 목록" columns={["자료", "결과", "입력값 변경"]} disclosureColumn={false}>
           {page?.items.map((row) => (
-            <article className="min-w-0" key={row.entity_id}>
-              <h4 className="min-w-0 [overflow-wrap:anywhere]">
-                {analysisRowTitle(row, plan.target, sourceDefinition)} ·{" "}
-                {row.errors.length ? "변환 실패" : row.changed ? "변경" : "무변경"}
-              </h4>
-              <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+            <Fragment key={row.entity_id}>
+            <BusinessRow>
+              <BusinessCell index={0}>
+                {analysisRowTitle(row, plan.target, sourceDefinition)}
+              </BusinessCell>
+              <BusinessCell index={1}>{row.errors.length ? "변환 실패" : row.changed ? "변경" : "무변경"}</BusinessCell>
+              <BusinessCell index={2}>
+<BusinessTable label={`${analysisRowTitle(row, plan.target, sourceDefinition)} 입력값 변경`} columns={["입력 항목", "변경 전후"]} disclosureColumn={false}>
                 {previewKeys(row).map((key) => (
-                  <div key={key}>
-                    <dt>
+                  <BusinessRow key={key}>
+                    <BusinessCell index={0}>
                       {plan.target.schema.properties[key]?.title ?? sourceDefinition?.schema.properties[key]?.title ??
                         "삭제한 입력 항목"}
-                    </dt>
-                    <dd style={{ overflowWrap: "anywhere" }}>
+                    </BusinessCell>
+                    <BusinessCell index={1}>
                       {plan.recovery ? "현재 값" : "원본"} {Object.hasOwn(row.before, key)
                         ? propertyValue(
                           row.before[key],
@@ -445,10 +462,13 @@ export function ConversionEditor(
                           Object.hasOwn(row.before, key) && typeof row.before[key] !== typeof row.after[key],
                         )
                         : "제거"}
-                    </dd>
-                  </div>
+                    </BusinessCell>
+                  </BusinessRow>
                 ))}
-              </dl>
+              </BusinessTable>
+              </BusinessCell>
+            </BusinessRow>
+            {row.errors.length > 0 && <BusinessDetails>
               {row.errors.map((e, i) => (
                 <Alert variant="destructive" role="alert" className="text-sm text-destructive" key={i}><AlertDescription>
                   {schemaDiffLabel(e.path, plan.target, sourceDefinition ?? plan.target)}: {e.message}
@@ -460,9 +480,9 @@ export function ConversionEditor(
                 ).map((key) => {
                   const o = migration.overrides.find((o) => o.entity_id === row.entity_id && o.key === key);
                   return (
-                    <FieldSet disabled={disabled} key={key}>
+                    <FieldSet className="min-w-0" disabled={disabled} key={key}>
                       <FieldLegend>{plan.target.schema.properties[key]?.title ?? "입력 항목"} 직접 보완</FieldLegend>
-                      <Button variant="ghost" type="button"
+                      <Button variant="ghost" type="button" className="h-auto min-h-11 max-w-full whitespace-normal @max-[16rem]/business:px-1"
                         onClick={() =>
                           setOverride(
                             row,
@@ -480,12 +500,13 @@ export function ConversionEditor(
                       {o && (
                         <>
                           <Literal
+                            disabled={disabled}
                             field={plan.target.schema.properties[key]}
                             optionLabels={schemaPresentation(plan.target).option_labels[key]}
                             value={o.value}
                             onChange={(v) => setOverride(row, key, v)}
                           />
-                          <Button variant="ghost" type="button"
+                          <Button variant="ghost" type="button" className="h-auto min-h-11 max-w-full whitespace-normal @max-[16rem]/business:px-1"
                             onClick={() =>
                               onChange({
                                 ...migration,
@@ -499,10 +520,12 @@ export function ConversionEditor(
                     </FieldSet>
                   );
                 })}
-            </article>
+            </BusinessDetails>}
+            </Fragment>
           ))}
-          {page?.next_after && <Button variant="ghost" type="button" onClick={() => void load(page.next_after!)}>다음 결과</Button>}
-          <Button variant="ghost" type="button"  onClick={() => void load()}><RotateCcwIcon data-icon="inline-start" />첫 결과 다시 조회</Button>
+          </BusinessTable>
+          {page?.next_after && <Button variant="ghost" type="button" className="h-auto min-h-11 max-w-full whitespace-normal @max-[16rem]/business:px-1" onClick={() => void load(page.next_after!)}>다음 결과</Button>}
+          <Button variant="ghost" type="button" className="h-auto min-h-11 max-w-full whitespace-normal @max-[16rem]/business:px-1"  onClick={() => void load()}><RotateCcwIcon data-icon="inline-start" />첫 결과 다시 조회</Button>
         </>
       )}
       {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}

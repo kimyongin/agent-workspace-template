@@ -1,3 +1,4 @@
+import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { RotateCcwIcon, UnlinkIcon } from "lucide-react";
@@ -118,40 +119,22 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
             />
           )}
         </div>
-        <ul className="flex min-w-0 flex-col gap-3" aria-label={`선택한 ${label}`}>
-          {value.map((id) => (
-            <li key={id}>
-              <RelatedItem
-                title={names.get(id) ?? label}
-                titleLabel={kind === "task" ? "제목" : "자료 이름"}
-                metadata={kind === "entity"
-                  ? (
-                    <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-                      {types.get(id) && <div><dt>자료 종류</dt><dd><EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label}</dd></div>}
-                      {identities.has(id) && <div><dt>자료 식별</dt><dd>{identities.get(id)}</dd></div>}
-                      {pending.has(id) && <div><dt>조회 상태</dt><dd role="status">확인 중…</dd></div>}
-                      {failed.has(id) && <div><dt>조회 상태</dt><dd>정보 확인 필요</dd></div>}
-                    </dl>
-                  )
-                  : undefined}
-                action={
-                  <Button variant="ghost" type="button"
-
-                    disabled={disabled}
-                    data-selection={id}
-                    aria-label={`${names.get(id) ?? label} 해제`}
-                    onClick={() => {
-                      nextFocus.current = "";
-                      onChange(value.filter((value) => value !== id));
-                    }}
-                  ><UnlinkIcon data-icon="inline-start" />
-                    해제
-                  </Button>
-                }
-              />
-            </li>
-          ))}
-        </ul>
+        <CollectionList disclosureColumn={false} view="table" label={`선택한 ${label}`} columns={kind === "entity" ? ["자료 이름", "자료 종류", "자료 식별", "선택"] : ["제목", "선택"]}>
+          {value.map((id) => {
+            const remove = <Button variant="ghost" type="button" disabled={disabled} data-selection={id}
+              aria-label={`${names.get(id) ?? label} 해제`} onClick={() => { nextFocus.current = ""; onChange(value.filter(value => value !== id)); }}>
+              <UnlinkIcon data-icon="inline-start" />해제
+            </Button>;
+            const identity = <>
+              {identities.get(id) ?? "—"}
+              {pending.has(id) && <p role="status">조회 상태: 확인 중…</p>}
+              {failed.has(id) && <p>조회 상태: 정보 확인 필요</p>}
+            </>;
+            return <CollectionItem key={id}><RelatedItem title={names.get(id) ?? label}
+              cells={kind === "entity" ? [types.get(id) ? <span><EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label}</span> : "—", identity, remove] : [remove]}
+            /></CollectionItem>;
+          })}
+        </CollectionList>
       </RelatedSection>
     </FieldGroup>
   );

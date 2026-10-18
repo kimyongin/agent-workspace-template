@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList, CollectionMessage } from "../../components/Collection.tsx";
 import type { RecordResult } from "@contracts/record.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
@@ -249,12 +249,12 @@ function ReadonlyTask(
     );
   }
   return (
-    <p className="text-sm text-muted-foreground" role={cause ? undefined : "status"}>
+    <CollectionMessage className="text-sm text-muted-foreground" role={cause ? undefined : "status"}>
       {cause
         ? cause instanceof ApiError && cause.status === 404
           ? "삭제된 할 일 또는 접근할 수 없는 할 일입니다."
           : "연결된 할 일을 불러오지 못했습니다."
         : "불러오는 중…"}
-    </p>
+    </CollectionMessage>
   );
 }

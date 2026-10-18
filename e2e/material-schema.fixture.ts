@@ -1,3 +1,4 @@
+import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { fixtureIdentity } from "./support/workspace-data.ts";
 import { revealSetting } from "./ui-actions.ts";
@@ -176,10 +177,11 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
   );
   await page.getByRole("button", { name: "이름 입력 항목 편집", exact: true }).focus();
   await page.keyboard.press("Enter");
-  const title = page.locator("[data-slot=\"card-header\"]").getByLabel("항목 이름", { exact: true });
+  const title = page.getByRole("region", { name: "이름 입력 항목", exact: true }).getByRole("textbox", { name: "항목 이름", exact: true });
   await expect(title).toHaveCount(1);
   await expect(title).toBeFocused();
   await title.fill("남길 속성 입력");
+  await expect(page.getByRole("table", { name: "변경별 값 변환 실행 목록", exact: true })).toBeVisible();
   await page.getByRole("link", { name: / · 완료$/ }).and(
     page.locator(`a[href*="${id(21)}"]`),
   ).click();
@@ -534,8 +536,9 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
   await expect(page.getByRole("alert")).toContainText(
     "값 변환은 완료되었습니다. 최신 입력 항목 조회에 실패",
   );
-  await expect(page.getByRole("button", { name: /^입력 항목 변경/ }))
-    .toContainText("적용됨");
+  const applied = page.getByRole("button", { name: /^입력 항목 변경 시각.*적용됨$/ });
+  await expect(applied).toBeVisible();
+  await expect(businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({ has: applied }).getByRole("cell").last()).toContainText("적용됨");
   await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status").getByRole("definition"))
     .toHaveText(["완료", "10/10개 준비"]);
   await page.getByRole("button", { name: "최신 입력 항목 다시 조회", exact: true })
@@ -969,12 +972,15 @@ test(
     await expect(
       properties.getByRole("button", { name: "변경 검토", exact: true }),
     ).toBeDisabled();
-    await expect(page.getByRole("list", { name: "입력 항목 목록", exact: true })).toHaveCount(1);
-    await expect(properties.getByRole("list", { name: "입력 항목 목록", exact: true })).toBeVisible();
+    await expect(page.getByRole("table", { name: "입력 항목 목록", exact: true })).toHaveCount(1);
+    await expect(properties.getByRole("table", { name: "입력 항목 목록", exact: true })).toBeVisible();
     const quantity = properties.getByRole("region", { name: "수량 입력 항목", exact: true });
-    const layout = await quantity.evaluate((el) => {
+    const quantityRow = properties.getByRole("row", { name: "수량 입력 항목", exact: true }).filter({ has: page.getByRole("button", { name: /^수량 항목 (?:펼치기|접기)$/ }) });
+    const controlledQuantity = await disclosureContent(page, quantityRow.getByRole("button", { name: /^수량 항목 (?:펼치기|접기)$/ }));
+    await expect(controlledQuantity.getByRole("textbox", { name: "항목 이름", exact: true })).toHaveValue("수량");
+    const layout = await quantityRow.evaluate((el) => {
       const row = el.getBoundingClientRect();
-      const header = el.querySelector("[data-slot=\"card-header\"]")!.getBoundingClientRect();
+      const details = el.nextElementSibling!.getBoundingClientRect();
       const buttons = [...el.querySelectorAll("[data-schema-order-actions] button, [data-schema-disclosure]")].map(
         (button) => ({
           x: button.getBoundingClientRect().x,
@@ -983,9 +989,10 @@ test(
           height: button.getBoundingClientRect().height,
         }),
       );
-      return { rowHeight: row.height, headerHeight: header.height, buttons };
+      return { rowBottom: row.bottom, detailsTop: details.top, detailsHeight: details.height, buttons };
     });
-    expect(layout.rowHeight).toBeGreaterThan(layout.headerHeight);
+    expect(layout.detailsTop).toBeGreaterThanOrEqual(layout.rowBottom);
+    expect(layout.detailsHeight).toBeGreaterThan(0);
     expect(layout.buttons).toHaveLength(3);
     expect(layout.buttons[0].right).toBeLessThanOrEqual(layout.buttons[1].x);
     expect(layout.buttons[1].right).toBeLessThanOrEqual(layout.buttons[2].x);
@@ -1004,7 +1011,7 @@ test(
       expect(target!.width).toBeGreaterThanOrEqual(44);
       expect(target!.height).toBeGreaterThanOrEqual(44);
     }
-    await expect(quantity.getByRole("heading")).toBeVisible();
+    await expect(quantityRow.getByRole("heading")).toBeVisible();
     const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
     await expect(deletion).toHaveAttribute("data-variant", "destructive");
     await quantity.getByText("추가 설정", { exact: true }).click();
@@ -1036,7 +1043,7 @@ test(
       await expect(properties.getByRole("button", { name: /위로$/ }).first()).toBeVisible();
     }
     await properties.locator(
-      "[role=\"region\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
+      "[role=\"row\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
     ).focus();
     await page.keyboard.press("Enter");
     await expect(
@@ -1183,10 +1190,11 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
   await page.goto(
     `/settings/entity-types/${materials.id}?change_id=${planId}&job_id=${jobId}`,
   );
-  const row = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
+  const row = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
     has: page.getByRole("button", { name: /값 변환 중 ·/ }),
   });
-  await expect(row.getByRole("button", { name: "변환 취소", exact: true }))
+  const content = await disclosureContent(page, row.getByRole("button", { name: /값 변환 중 ·/ }));
+  await expect(content.getByRole("button", { name: "변환 취소", exact: true }))
     .toBeVisible();
   await expect(page.getByRole("button", { name: "폐기", exact: true }))
     .toHaveCount(0);
@@ -1194,7 +1202,7 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
     .toHaveCount(0);
   await expect(page.getByRole("heading", { name: "값 변환 작업", exact: true }))
     .toHaveCount(0);
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
+  await expect(businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true }))).toHaveCount(2);
   await row.getByRole("button", { name: /값 변환 중 ·/ }).click();
   await expect(page.getByRole("button", { name: "변환 취소", exact: true })).toBeHidden();
   complete = true;
@@ -1202,8 +1210,8 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
   const applied = page.getByRole("button", { name: /버전 2 · 적용됨$/ });
   await expect(applied).toHaveCount(1);
   await expect(applied).toHaveAttribute("aria-expanded", "false");
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
-  await expect(page.getByRole("button", { name: /^최초 생성/ })).toHaveCount(1);
+  await expect(businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true }))).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /^최초 생성 시각/ })).toHaveCount(1);
   await applied.click();
   const conversion = page.getByRole("region", { name: "값 변환 상세", exact: true });
   for (const [label, value] of [["새 입력 항목 버전", "2"], ["적용", "10개 적용"], ["값 변경", "6개 값 변경"]]) {
@@ -1274,19 +1282,25 @@ test("적용 변경과 최초 생성은 한 목록에서 각 버전 정의와 �
   await page.goto(
     `/settings/entity-types/${materials.id}/versions?schema_version=1`,
   );
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
-  await expect(page.getByRole("button", { name: /버전 2 · 적용됨$/ }))
-    .toHaveCount(1);
-  const first = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
-    has: page.getByRole("button", { name: /^최초 생성/ }),
-  });
-  await expect(first.getByRole("region", { name: "변경 결과", exact: true }))
-    .toContainText("1 · 최초 생성");
-  await expect(first.locator("input, select, textarea")).toHaveCount(0);
-  await first.getByRole("button", { name: /^최초 생성/ }).click();
-  await expect(first.getByRole("region", { name: "변경 결과", exact: true }))
-    .toBeHidden();
+  const history = page.getByRole("table", { name: "입력 항목 변경 이력", exact: true });
+  await expect(history).toBeVisible();
+  const rows = history.getByRole("row").filter({ has: page.getByRole("button", { name: /^(최초 생성|입력 항목 변경) 시각/ }) });
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /버전 2 · 적용됨$/ })).toHaveCount(1);
+  const first = rows.filter({ has: page.getByRole("button", { name: /^최초 생성 시각/ }) });
+  const trigger = first.getByRole("button", { name: /^최초 생성 시각/ });
+  const panelId = await trigger.getAttribute("aria-controls");
+  expect(panelId).toBeTruthy();
+  const content = page.locator(`[id="${panelId}"]`);
+  await expect(content.getByRole("region", { name: "변경 결과", exact: true })).toContainText("1 · 최초 생성");
+  await expect(content.locator("input, select, textarea")).toHaveCount(0);
+  await trigger.click();
+  await expect(content).toBeHidden();
   await expect(page).not.toHaveURL(/schema_version=/);
+  await page.getByRole("button", { name: /버전 2 · 적용됨$/ }).click();
+  const differences = page.getByRole("table", { name: "버전 변경 목록", exact: true });
+  await expect(differences).toBeVisible();
+  await expect(differences.getByRole("row").filter({ has: page.getByText("수정된 이름", { exact: true }) }).filter({ hasText: "이름 → 수정된 이름" })).toBeVisible();
 });
 
 test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는 해당 행에서 읽는다", async ({ page }) => {
@@ -1340,6 +1354,7 @@ test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는
     exact: true,
   });
   await expect(detail.getByRole("status")).toContainText("실패");
+  await expect(page.getByRole("region", { name: "변환 작업의 변경 내용", exact: true }).getByRole("table", { name: "변경안 차이 목록", exact: true })).toBeVisible();
   await expect(
     page.getByRole("region", { name: "변환 작업의 변경 내용", exact: true }),
   ).toContainText(
@@ -1352,7 +1367,7 @@ test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는
   await expect(
     page.getByRole("alert").filter({ hasText: "변환 목록 조회 실패" }),
   ).toBeVisible();
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(1);
+  await expect(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true }).getByRole("row").filter({ has: page.getByRole("button", { name: /^입력 항목 변경 시각/ }) })).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "변환 이력 다시 조회", exact: true }),
   ).toBeVisible();
@@ -1379,6 +1394,7 @@ test(
     }));
 
     target.schema.properties["prop_2"]["x-show-in-list"] = true;
+    target.schema.properties.prop_4.deprecated = true;
     let mismatch = true;
     await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
       if (new URL(route.request().url()).pathname.endsWith("/identity")) {
@@ -1426,7 +1442,7 @@ test(
       await expect(section.getByRole("heading").first()).toContainText(name);
     }
     await page.getByRole("button", { name: /^변경 이력/ }).click();
-    const row = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
+    const row = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
     });
     for (const width of [320, 390, 768]) {
@@ -1435,50 +1451,54 @@ test(
         await page.evaluate((value) => {
           document.documentElement.style.fontSize = value;
         }, scale);
-        const layout = await row.locator("button[aria-controls^=\"schema-history-\"]").evaluate((el) => {
-          const heading = el.querySelector(":scope > span:first-child")!;
-          const title = heading.firstElementChild!.getBoundingClientRect();
-          const date = heading.querySelector("time")!.getBoundingClientRect();
-          const status = el.querySelector(":scope > span:last-child")!.getBoundingClientRect();
-          const button = el.getBoundingClientRect();
+        const layout = await row.evaluate(el => {
+          const cells = [...el.querySelectorAll<HTMLTableCellElement>(":scope > td")];
+          const [title, date, status] = cells.slice(1).map(cell => cell.getBoundingClientRect());
+          const bounds = el.getBoundingClientRect();
+          const values = cells.slice(2).map(cell => cell.querySelector(":scope > div")!.getBoundingClientRect());
           return {
             dateBelow: date.top >= title.bottom,
-            statusSeparate: status.left >= heading.getBoundingClientRect().right || status.top >= heading.getBoundingClientRect().bottom,
-            labelsContained: [title, date, status].every(rect => rect.left >= button.left && rect.right <= button.right + 1 && rect.top >= button.top && rect.bottom <= button.bottom + 1),
+            statusSeparate: status.top >= date.bottom,
+            labelsContained: [title, date, status].every(rect => rect.left >= bounds.left && rect.right <= bounds.right + 1),
+            valueAxes: Math.abs(values[0].left - values[1].left),
             overflowPixels: el.scrollWidth - el.clientWidth,
           };
         });
         expect(layout, `${width}px ${scale}`).toMatchObject({ dateBelow: true, statusSeparate: true, labelsContained: true });
+        expect(layout.valueAxes).toBeLessThan(1);
         expect(layout.overflowPixels).toBeLessThanOrEqual(2);
       }
     }
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "";
     });
+    const content = await disclosureContent(page, row.getByRole("button", { name: /버전 2 · 적용됨$/ }));
     await row.getByRole("button", { name: /버전 2 · 적용됨$/ }).click();
-    await expect(row.getByRole("alert")).toContainText("요청한 입력 항목 버전");
+    await expect(content.getByRole("alert")).toContainText("요청한 입력 항목 버전");
     await row.getByRole("button", { name: /버전 2 · 적용됨$/ }).click();
     await expect(page.getByRole("region", { name: "변경 이력", exact: true }).locator("h2").first().getByRole("button"))
       .toContainText("오류");
     mismatch = false;
     await row.getByRole("button", { name: /버전 2 · 적용됨$/ }).click();
     await expect(
-      row.getByRole("region", { name: "입력 항목 정의", exact: true }),
+      content.getByRole("region", { name: "입력 항목 정의", exact: true }),
     ).toBeVisible();
-    const definition = row.getByRole("region", {
+    const definition = content.getByRole("region", {
       name: "입력 항목 정의",
       exact: true,
     });
     await expect(definition.locator("input, select, textarea")).toHaveCount(0);
     await expect(definition).not.toContainText("prop_");
     await expect(
-      definition.getByRole("region", { name: "재고 정의", exact: true }),
+      definition.getByRole("row", { name: "재고 정의", exact: true }),
     ).toContainText("최소값0");
     await expect(
-      definition.getByRole("region", { name: "판매 가능 정의", exact: true }),
+      definition.getByRole("row", { name: "판매 가능 정의", exact: true }),
     ).toContainText("아니오");
-    await expect(definition.getByRole("region", { name: "단위 정의", exact: true })).toContainText("킬로그램");
-    await expect(definition.getByRole("region", { name: "단위 정의", exact: true })).toContainText("그램");
+    await expect(definition.getByRole("row", { name: "단위 정의", exact: true })).toContainText("킬로그램");
+    await expect(definition.getByRole("row", { name: "단위 정의", exact: true })).toContainText("그램");
+    await expect((await valueCell(definition.getByRole("row", { name: "재고 정의", exact: true }), "사용 상태")).getByText("사용 중", { exact: true })).toBeVisible();
+    await expect((await valueCell(definition.getByRole("row", { name: "단위 정의", exact: true }), "사용 상태")).getByText("사용 중지", { exact: true })).toBeVisible();
     await expect(definition).not.toContainText("(kg)");
     await expect(definition).not.toContainText("(g)");
     for (const heading of await definition.getByRole("heading").all()) await expect(heading).toBeVisible();
@@ -1492,9 +1512,9 @@ test(
     for (const pair of pairs) {
       expect(pair.keyBottom).toBeLessThanOrEqual(pair.valueTop + 1);
     }
-    await expect(row.getByRole("region", { name: "변경 결과", exact: true }))
+    await expect(content.getByRole("region", { name: "변경 결과", exact: true }))
       .toContainText("1 → 2");
-    const result = row.getByRole("region", { name: "변경 결과", exact: true });
+    const result = content.getByRole("region", { name: "변경 결과", exact: true });
     await expect(result.getByRole("heading")).toHaveCount(1);
     await expect(result.getByRole("heading", { name: "변경 결과", exact: true })).toBeVisible();
     await expect(result.locator("strong")).toHaveCount(0);
@@ -1547,11 +1567,12 @@ test("다른 완료 변경을 열면 버전과 해당 변환 작업을 함께 �
   await page.getByRole("button", { name: /버전 3 · 적용됨$/ }).click();
   await expect(page).toHaveURL(new RegExp(`job_id=${id(31)}`));
   await expect(page).toHaveURL(/schema_version=3/);
-  const row = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
+  const row = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
     has: page.getByRole("button", { name: /버전 3 · 적용됨$/ }),
   });
-  await expect(row.getByRole("region", { name: "값 변환 상세", exact: true })).toBeVisible();
-  await expect(row.getByRole("region", { name: "변경 결과", exact: true })).toContainText("2 → 3");
+  const content = await disclosureContent(page, row.getByRole("button", { name: /버전 3 · 적용됨$/ }));
+  await expect(content.getByRole("region", { name: "값 변환 상세", exact: true })).toBeVisible();
+  await expect(content.getByRole("region", { name: "변경 결과", exact: true })).toContainText("2 → 3");
 });
 
 test(
@@ -1621,3 +1642,67 @@ test(
     });
   },
 );
+
+test("복구 충돌 대상 표는 기존 자료 링크·21개 제한·좁은 화면을 유지한다", async ({ page }) => {
+  const source = { ...job(20), source_expires_at: "2026-11-13T00:00:00Z", recovery: { status: "conflict", reason: "이후 변경 확인 필요", current_schema_version: 1, conflicts: Array.from({ length: 22 }, (_, n) => ({ path: `entities.app:${materials.id}:${id(70 + n)}`, message: `다른 사용자가 변경했습니다 ${n}` })) } };
+  await page.route("**/api/entity-schema-migrations/**", route => route.fulfill({ json: source }));
+  await page.goto(`/settings/entity-types/${materials.id}/migrations/${source.id}`);
+  const conflicts = page.getByRole("table", { name: "복구 충돌 대상 목록", exact: true });
+  await expect(conflicts).toBeVisible();
+  await expect(conflicts.getByRole("row")).toHaveCount(22);
+  await expect(conflicts.getByRole("link")).toHaveCount(21);
+  await expect(conflicts.getByRole("link").first()).toHaveAttribute("href", `/entities/${encodeURIComponent(`app:${materials.id}:${id(70)}`)}`);
+  await expect(conflicts.getByText("다른 사용자가 변경했습니다 20", { exact: true })).toBeVisible();
+  await expect(conflicts.getByText("다른 사용자가 변경했습니다 21", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("한 번에 최대 21개 사유를 표시합니다.", { exact: false })).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(await conflicts.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+
+for (const mode of ["editor", "history"] as const) {
+  test(`자료별 검토 오류 표 ${mode}: 긴 자료 번호·모든 사유·좁은 배율을 보존한다`, async ({ page }, info) => {
+    const number = "긴자료번호-".repeat(30);
+    const first = `crm:${id(9)}:${number}`;
+    const current = { ...linkedChange(), status: "invalid", analysis: {
+      id: id(501), status: "succeeded", total: 2, processed: 2, failed: 2,
+      change_version: 1, snapshot_fingerprint: "fixture", definition_fingerprint: "fixture",
+      changed: 0, unchanged: 0, removed: 0, replacements: 0,
+      retryable: false, failure_reason: null, created_at: "2026-10-13T00:00:00Z",
+      errors: [
+        { entity_id: first, fields: [{ path: "properties.prop_1.required", message: "필수 값을 입력하세요" }, { path: "properties.prop_1.maxLength", message: "허용 길이를 초과했습니다" }] },
+        { entity_id: "이전형식-자료번호", fields: [{ path: "properties.prop_1.type", message: "문자열 값이 필요합니다" }] },
+      ],
+    } };
+    const writes: string[] = [];
+    await page.route(`**/api/entity-types/${materials.id}/schema-changes**`, route => {
+      if (route.request().method() !== "GET") writes.push(route.request().method());
+      if (new URL(route.request().url()).pathname.endsWith("/rows")) return route.fulfill({ json: { analysis_id: id(501), items: [], next_after: null } });
+      return route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema-changes") ? { items: [current], next_before: null } : current });
+    });
+    await page.route("**/api/entity-schema-migrations**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith(id(20)) ? job(20) : { items: [job(20)], next_before: null } }));
+    await page.goto(`/settings/entity-types/${materials.id}?${mode === "editor" ? `change_id=${id(500)}` : `job_id=${id(20)}`}`);
+    await revealSetting(page, "입력 항목");
+    const owner = mode === "editor" ? page : page.getByRole("region", { name: "변환 작업의 변경 내용", exact: true });
+    await owner.getByRole("button", { name: mode === "editor" ? "자료별 결과" : "검토 결과", exact: true }).click();
+    const table = owner.getByRole("table", { name: "자료별 검토 문제", exact: true });
+    await expect(table).toBeVisible();
+    const rows = businessRows(table);
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0).getByRole("cell").nth(0)).toHaveText(`crm · ${number}`);
+    await expect(rows.nth(1).getByRole("cell").nth(0)).toHaveText("이전형식-자료번호");
+    await expect(rows.nth(0).getByRole("listitem")).toHaveText(["이름 · 필수 입력: 필수 값을 입력하세요", "이름 · 최대 길이: 허용 길이를 초과했습니다"]);
+    await expect(rows.nth(1).getByRole("listitem")).toHaveText(["이름 · 타입: 문자열 값이 필요합니다"]);
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+      const bounds = await table.evaluate(node => ({ width: node.clientWidth, scroll: node.scrollWidth }));
+      expect(bounds.scroll, JSON.stringify(bounds)).toBeLessThanOrEqual(bounds.width + 1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await expect(rows).toHaveCount(2);
+    }
+    await table.screenshot({ path: info.outputPath(`review-errors-${mode}.png`) });
+    expect(writes).toEqual([]);
+  });
+}
