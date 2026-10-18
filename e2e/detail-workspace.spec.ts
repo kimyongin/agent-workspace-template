@@ -1262,18 +1262,26 @@ test("desktop: entity pairs follow resized panel width and keep the same edit ax
 for (const kind of ["once", "recurring", "done"] as const) {
   test(`task data parity: ${kind} retains labeled fields and static context during editing`, async ({ page }, info) => {
     const state = await fixture(page);
+    const author = kind === "once" ? "알 수 없음" : kind === "recurring" ? "공유 작성자" : "보관된 작성자";
+    Object.assign(state.rows.tasks[0], { created_by: kind === "recurring" ? id(77) : null, created_by_name: kind === "once" ? null : author });
     Object.assign(state.rows.tasks[0], kind === "recurring" ? {
       kind: "recurring", status: "active", recurrence: { freq: "weekly", weekdays: [1, 5], starts_on: "2026-10-04" }, timezone: "Asia/Seoul",
     } : { due_on: null, ...(kind === "done" ? { status: "done", completed_at: stamp } : {}) });
     await page.route(/\/api\/tasks\/[^/]+\/occurrences\?/, route => route.fulfill({ json: { today: "2026-10-11", items: [] } }));
     await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
     const surface = panel(page);
-    const expected = ["제목", "본문", "상태", "종류", ...(kind === "recurring" ? ["반복 규칙", "요일", "시작일", "시간대"] : ["기한"]), ...(kind === "done" ? ["완료 시각"] : [])];
+    const expected = ["제목", "본문", "상태", "작성자", "종류", ...(kind === "recurring" ? ["반복 규칙", "요일", "시작일", "시간대"] : ["기한"]), ...(kind === "done" ? ["완료 시각"] : [])];
     await expect(surface.locator("dt").filter({ hasText: /^제목$/ })).toHaveCount(1);
     const labels = async () => surface.locator('dt:visible, [data-slot="field-label"]:visible').allTextContents();
     expect((await labels()).slice(0, expected.length)).toEqual(expected);
+    const authorKey = surface.getByRole("term").filter({ hasText: /^작성자$/ });
+    await expect(authorKey).toHaveCount(1);
+    await expect(authorKey.locator("../dd")).toHaveText(author);
     await surface.getByRole("button", { name: "편집", exact: true }).click();
     expect((await labels()).slice(0, expected.length).map(s => s.replace(/\*\(필수\)/g, ""))).toEqual(expected);
+    await expect(authorKey).toHaveCount(1);
+    await expect(authorKey.locator("../dd")).toHaveText(author);
+    await expect(surface.getByRole("textbox", { name: "작성자", exact: true }).or(surface.getByRole("combobox", { name: "작성자", exact: true }))).toHaveCount(0);
     await expect(surface.getByRole("region", { name: "연결된 자료 (1개)", exact: true })).toContainText("등심");
     await expect(surface.getByRole("region", { name: "기록 (1개)", exact: true })).toContainText("구매 기준을 정리했습니다.");
     await expect(surface.getByRole("button", { name: /연결|해제|펼치기|기록 작성/ })).toHaveCount(0);
@@ -1335,16 +1343,24 @@ for (const width of [320, 1440]) for (const [kind, parent] of [["result", "task"
     await page.setViewportSize({width,height:900});
     const state = await fixture(page);
     const row = state.rows.records[0];
+    const author = kind === "result" ? "—" : "보관된 기록 작성자";
+    Object.assign(row, { created_by: null, created_by_name: kind === "result" ? null : author });
     Object.assign(row, {record_kind:kind, entity_id: parent === "entity" ? entityKey(1) : null, task_id: parent === "task" ? id(2) : null, occurred_at:"2026-10-01T02:03:04.567Z", occurrence_on:kind === "result" ? "2026-10-01" : null,
       change:kind === "change" ? {event_id:id(450),target_kind:parent,target_id:parent === "entity" ? entityKey(1) : id(2),target_title:"당시 등심",action:"update",source:"http",before:{properties:{prop_1:0,prop_2:false,prop_3:null},property_labels:{prop_1:"당시 수량",prop_2:"당시 사용",prop_3:"당시 메모"}},after:{title:"등심"},path:null}:null});
     await page.goto(fixtureWorkspacePath(`/records/${row.id}`));
     const surface=width<1100?openDialogs(page).first():panel(page);
     const labels=()=>surface.locator('dt:visible, [data-slot="field-label"]:visible').allTextContents();
-    const expected=["본문","종류",...(kind==="change"?["출처"]:[]),"수행 시각",...(kind==="change"?["변경 대상","행동"]:[])];
+    const expected=["본문","작성자","종류",...(kind==="change"?["출처"]:[]),"수행 시각",...(kind==="change"?["변경 대상","행동"]:[])];
     await expect(surface.locator("dt:visible").filter({hasText:/^본문$/})).toHaveCount(1);
     expect((await labels()).slice(0,expected.length)).toEqual(expected);
+    const authorKey = surface.getByRole("term").filter({ hasText: /^작성자$/ });
+    await expect(authorKey).toHaveCount(1);
+    await expect(authorKey.locator("../dd")).toHaveText(author);
     await surface.getByRole("button",{name:"편집",exact:true}).click();
     expect((await labels()).slice(0,expected.length).map(s=>s.replace(/\*\(필수\)/g,""))).toEqual(expected);
+    await expect(authorKey).toHaveCount(1);
+    await expect(authorKey.locator("../dd")).toHaveText(author);
+    await expect(surface.getByRole("textbox", { name: "작성자", exact: true }).or(surface.getByRole("combobox", { name: "작성자", exact: true }))).toHaveCount(0);
     const parentRegion = surface.getByRole("region", { name: parent === "entity" ? "자료 (1개)" : "할 일 (1개)", exact: true });
     await expect(parentRegion).toContainText(kind === "change" ? "당시 등심" : "등심 구매하기");
     await expect(parentRegion.getByRole("button")).toHaveCount(0);
