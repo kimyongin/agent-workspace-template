@@ -69,6 +69,10 @@ export class SqlWorkspaceStore implements WorkspaceStore {
     }) as result`;
     return r.result;
   }
+  async retryInvitationDelivery(id: string, expectedVersion: number) {
+    const [r] = await this.tx`select app.workspace_retry_invitation_delivery(${id}::uuid,${expectedVersion}) as result`;
+    return r.result;
+  }
   async cancelInvitation(id: string, expectedVersion: number) {
     const [r] = await this.tx`select app.workspace_cancel_invitation(${id}::uuid,${expectedVersion}) as result`;
     return r.result;

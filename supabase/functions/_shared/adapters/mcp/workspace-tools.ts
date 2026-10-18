@@ -16,6 +16,7 @@ import {
   listWorkspaceMembers,
   listWorkspaces,
   removeWorkspaceMember,
+  retryWorkspaceInvitationDelivery,
   updateWorkspaceMember,
   type WorkspaceDeps,
   workspaceDetails,
@@ -113,6 +114,15 @@ export function workspaceTools(deps: WorkspaceDeps): ToolDef[] {
       input: z.strictObject({ invitation_id: workspaceId }),
       readOnly: false,
       handler: (i, a) => acceptWorkspaceInvitation(deps, a, i.invitation_id),
+    },
+    {
+      name: "retry_workspace_invitation_delivery",
+      description:
+        "관리자가 현재 버전의 초대 이메일 전달을 명시 재시도합니다. 결과 불명은 공급자 중복 방지 기간에만 재시도하며 발송 접수와 수신 확인을 구분합니다.",
+      input: z.strictObject({ ...scope, invitation_id: workspaceId, ...workspaceVersion.shape }),
+      readOnly: false,
+      handler: ({ workspace_id, invitation_id, ...i }, a) =>
+        retryWorkspaceInvitationDelivery(deps, a, workspace_id, invitation_id, i),
     },
   ];
   return tools.map((t) => t.readOnly ? t : keyedTool(t));
