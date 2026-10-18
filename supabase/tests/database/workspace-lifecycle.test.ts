@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlWorkspaceUnitOfWork } from "../../functions/_shared/adapters/supabase/workspace-store.ts";
 import { createWorkspace } from "../../functions/_shared/core/workspaces/application.ts";
 import { lockWorkspace, workspaceAccount } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
@@ -42,21 +42,38 @@ dbTest(
     await admin`insert into auth.users(id,email) values(${actor.userId},${`workspace517-${actor.userId}@example.test`})`;
     let creation: Promise<unknown> | undefined;
     let invalidation: Promise<string> | undefined;
+    const invalidator = await admin.reserve();
+    const [connection] = await invalidator`select pg_backend_pid() as pid`;
+    let creatorPid = 0;
     try {
-      creation = deps.uow.account(actor, async (store) => {
-        workspaceId = (await store.create("동시 생성 공간")).workspace.id;
+      creation = workspaceAccount(sql, actor, async (tx) => {
+        const [creator] = await tx`select pg_backend_pid() as pid,app.workspace_create('동시 생성 공간') as result`;
+        creatorPid = creator.pid;
+        workspaceId = creator.result.workspace.id;
         entered();
         await held;
       });
       await ready;
       let settled = false;
-      invalidation = outcome(admin`update auth.users set deleted_at=clock_timestamp() where id=${actor.userId}`).then(
-        (result) => {
-          settled = true;
-          return result;
-        },
-      );
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      invalidation = outcome(invalidator`update auth.users set deleted_at=clock_timestamp() where id=${actor.userId}`)
+        .then(
+          (result) => {
+            settled = true;
+            return result;
+          },
+        );
+      let blockedByCreator = false;
+      const deadline = Date.now() + 3000;
+      while (!settled && Date.now() < deadline) {
+        const [waiting] =
+          await admin`select ${creatorPid}::integer=any(pg_blocking_pids(${connection.pid})) as blocked`;
+        if (waiting.blocked) {
+          blockedByCreator = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert(blockedByCreator, "Auth UPDATE must actually wait on the uncommitted creator connection");
       assertEquals(settled, false);
       release();
       await creation;
@@ -73,6 +90,7 @@ dbTest(
       release();
       await creation?.catch(() => {});
       await invalidation?.catch(() => {});
+      invalidator.release();
       if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
       await admin`delete from auth.users where id=${actor.userId}`;
     }
