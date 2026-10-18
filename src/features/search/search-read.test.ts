@@ -78,3 +78,18 @@ test("검색 복귀 대상을 바꾸면 이전 읽기를 취소하고 늦은 결
   expect(load.mock.calls[1][0].anchor).toEqual({ kind: "record", id: dated });
   expect(read.snapshot().page?.items.map((item) => item.kind)).toEqual(["record"]);
 });
+
+test("권한 재확인은 이전 결과와 커서를 즉시 숨기고 거부 응답 뒤에도 복원하지 않는다", async () => {
+  let reject!: (reason: Error) => void;
+  const denied = new Promise<SearchResult>((_, fail) => { reject = fail; });
+  const load = vi.fn().mockResolvedValueOnce(page([row("task")], "old-grant-cursor")).mockReturnValueOnce(denied);
+  const read = createSearchRead(new URLSearchParams("q=근거"), load);
+  await read.restore(1, "");
+  const refresh = read.restart();
+  expect(read.snapshot().page).toBeNull();
+  expect(load.mock.calls[1][0]).not.toHaveProperty("cursor");
+  reject(new Error("forbidden"));
+  await refresh;
+  expect(read.snapshot().page).toBeNull();
+  expect(read.snapshot().error).toBeTruthy();
+});
