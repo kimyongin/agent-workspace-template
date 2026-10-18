@@ -220,3 +220,64 @@ test("business relation reader sees linked preview without settings or mutation 
   await expect(section).toHaveCount(0);
   await expect(page.getByRole("heading",{name:origin.title,exact:true}).filter({visible:true})).toBeVisible();
 });
+
+test("open relation confirmation respects WRITE to READ refresh and retains the original uncertain attempt", async ({ page }) => {
+  const origin = entity(31, { prop_1: "권한 원점" }), peer = entity(32, { prop_1: "권한 상대" });
+  await installWorkspaceApi(page, "http://127.0.0.1:56906", { entities: [origin, peer], tasks: [], records: [], tags: [] });
+  const user = { id: id(999), aud: "authenticated", app_metadata: {}, user_metadata: {} };
+  await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
+  await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
+  let access = "write", membership = 1;
+  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: { workspace: { id: fixtureWorkspaceId, name: "관계 권한 전환 공간", deleted_at: null }, can_manage: false, membership_version: membership, grants: [{ target_kind: "entity_type", target_id: fixtureType.id, access }] } }));
+  const definition: EntityRelationDefinition = { id: id(731), version: 1, archived: false, ends: [{ type_id: fixtureType.id, label: "확인 연결", cardinality: "one" }, { type_id: fixtureType.id, label: "확인 반대", cardinality: "many" }] };
+  await page.route("**/api/entity-relation-definitions**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith(definition.id) ? definition : { items: [definition], next_cursor: null } }));
+  const writes: { body: unknown; key?: string }[] = [];
+  let release = () => {}, arrived = () => {}, connected = true;
+  const started = new Promise<void>(resolve => arrived = resolve);
+  await page.route("**/api/entity-relations/**", async route => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { definition, side: 0, origin_id: origin.id, items: connected ? [peer] : [], next_cursor: null } });
+    writes.push({ body: route.request().postDataJSON(), key: route.request().headers()["idempotency-key"] });
+    if (writes.length === 1) {
+      arrived();
+      await new Promise<void>(resolve => release = resolve);
+      return route.abort();
+    }
+    connected = false;
+    return route.fulfill({ json: { changed: true, definition_id: definition.id, side: 0, origin_id: origin.id, other_id: peer.id, endpoint_versions: [{ id: origin.id, version: 2 }, { id: peer.id, version: 2 }] } });
+  });
+  const refresh = async (next: string) => {
+    access = next; membership++;
+    const response = page.waitForResponse(response => new URL(response.url()).pathname === `/api/workspaces/${fixtureWorkspaceId}`);
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await response;
+  };
+  try {
+    await page.goto(`/w/${fixtureWorkspaceId}/entities/${encodeURIComponent(origin.id)}`);
+    const section = page.getByLabel("확인 연결 관계", { exact: true }).filter({ visible: true });
+    await section.getByRole("button", { name: "해제", exact: true }).click();
+    const confirmation = executionDialog(page);
+    await expect(confirmation.getByRole("button", { name: "해제하고 저장", exact: true })).toBeEnabled();
+    await refresh("read");
+    await expect(confirmation.getByRole("button", { name: "해제하고 저장", exact: true })).toBeDisabled();
+    await expect(confirmation.getByRole("textbox", { name: "기록 메모", exact: true })).toBeDisabled();
+    expect(writes).toHaveLength(0);
+    await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(section.getByRole("link", { name: peer.title, exact: true })).toBeVisible();
+    await expect(section.getByRole("button", { name: "해제", exact: true })).toHaveCount(0);
+    await refresh("write");
+    await section.getByRole("button", { name: "해제", exact: true }).click();
+    await confirmation.getByRole("button", { name: "해제하고 저장", exact: true }).click();
+    await started;
+    await refresh("read");
+    release();
+    await expect(confirmation.getByText(/저장 여부를 알 수 없습니다/)).toBeVisible();
+    await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
+    expect(writes).toHaveLength(1);
+    await refresh("write");
+    await confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
+    await expect(confirmation).toHaveCount(0);
+    expect(writes).toHaveLength(2);
+    expect(writes[1]).toEqual(writes[0]);
+  } finally { release(); }
+});

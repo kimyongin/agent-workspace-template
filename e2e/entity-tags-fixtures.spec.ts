@@ -927,6 +927,8 @@ test("태그 연결 처리 중과 응답 불명은 Escape·뒤로가기를 막�
     expect(requests[1]).toEqual(requests[0]);
     await page.getByRole("dialog").filter({visible:true}).getByRole("button", { name: "닫기", exact: true }).click();
     await expect(region).toHaveCount(0);
+    await expect(page).toHaveURL(/\/records$/);
+    await expect(page.getByRole("heading", { name: "기록 목록 fixture", exact: true })).toBeVisible();
     await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
   } finally {
     release();
@@ -1007,4 +1009,85 @@ test("전체 자료 작성의 종류 선택은 설정 WRITE와 별개로 종류 
   await expect(page.getByRole("option", { name: readable.label, exact: true })).toHaveCount(0);
   await page.getByRole("option", { name: fixtureType.label, exact: true }).click();
   await expect(page.getByRole("dialog", { name: `${fixtureType.label} 추가`, exact: true }).getByLabel("제목", { exact: false })).toBeEnabled();
+});
+
+
+test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미확정 요청은 같은 시도만 보존한다", async ({ page }) => {
+  let access = "write", membership = 1;
+  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: {
+    workspace: { id: fixtureWorkspaceId, name: "태그 권한 전환 공간", deleted_at: null },
+    can_manage: false, membership_version: membership,
+    grants: [{ target_kind: "entity_type", target_id: fixtureType.id, access }],
+  } }));
+  let current = { ...makeEntity(351, { prop_1: "권한 갱신 자료" }), tag_ids: [] as string[] };
+  await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
+  await page.route("**/api/entities**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/links") ? { items: [], next_cursor: null } : { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } }));
+  let release = () => {}, arrived = () => {};
+  const started = new Promise<void>(resolve => arrived = resolve);
+  const writes: { body: unknown; key?: string }[] = [];
+  await page.route("**/api/tag-connections", async route => {
+    writes.push({ body: route.request().postDataJSON(), key: route.request().headers()["idempotency-key"] });
+    if (writes.length === 1) {
+      arrived();
+      await new Promise<void>(resolve => release = resolve);
+      return route.abort();
+    }
+    current = { ...current, tag_ids: [tags[0].id], version: 2 };
+    return route.fulfill({ json: current });
+  });
+  const refresh = async (next: string) => {
+    access = next; membership++;
+    const response = page.waitForResponse(response => new URL(response.url()).pathname === `/api/workspaces/${fixtureWorkspaceId}`);
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await response;
+  };
+  try {
+    await page.goto("/e2e/fixtures/entity-tags-app.html");
+    await page.goto(`/w/${fixtureWorkspaceId}/entities/${encodeURIComponent(current.id)}`);
+    const region = page.getByRole("region", { name: "태그 연결" });
+    await region.getByRole("button", { name: "태그 연결", exact: true }).click();
+    const picker = region.getByRole("button", { name: "태그 선택", exact: true });
+    await picker.click();
+    await page.getByRole("option", { name: "첫 태그", exact: true }).click();
+    await page.getByRole("button", { name: "선택 완료", exact: true }).click();
+    await refresh("read");
+    await expect(picker).toBeDisabled();
+    await expect(region.getByRole("button", { name: "연결 적용", exact: true })).toBeDisabled();
+    expect(writes).toHaveLength(0);
+    await refresh("write");
+    await region.getByRole("button", { name: "연결 적용", exact: true }).click();
+    const confirmation = executionDialog(page);
+    await expect(confirmation.getByRole("button", { name: "연결하고 저장", exact: true })).toBeEnabled();
+    await refresh("read");
+    await expect(confirmation.getByRole("button", { name: "연결하고 저장", exact: true })).toBeDisabled();
+    await expect(confirmation.getByRole("textbox", { name: "기록 메모", exact: true })).toBeDisabled();
+    await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(picker).toBeDisabled();
+    await region.getByRole("button", { name: "연결 취소", exact: true }).click();
+    await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toHaveCount(0);
+    await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+    await refresh("write");
+    await region.getByRole("button", { name: "태그 연결", exact: true }).click();
+    await picker.click();
+    await page.getByRole("option", { name: "첫 태그", exact: true }).click();
+    await page.getByRole("button", { name: "선택 완료", exact: true }).click();
+    await region.getByRole("button", { name: "연결 적용", exact: true }).click();
+    await confirmation.getByRole("button", { name: "연결하고 저장", exact: true }).click();
+    await started;
+    await refresh("read");
+    expect(writes).toHaveLength(1);
+    release();
+    await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
+    await expect(confirmation.getByText(/저장 여부를 알 수 없습니다/)).toBeVisible();
+    await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(region.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(region).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/w/${fixtureWorkspaceId}/entities/`));
+    await refresh("write");
+    await region.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
+    await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
+    expect(writes).toHaveLength(2);
+    expect(writes[1]).toEqual(writes[0]);
+  } finally { release(); }
 });
