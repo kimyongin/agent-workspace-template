@@ -1,47 +1,57 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { requestIdentity } from "../../functions/_shared/core/shared/request.ts";
-import { admin, call, httpTest, signIn } from "../http/_client.ts";
-import { connectMcp, mcpToken, tool } from "./_mcp.ts";
+import { admin } from "../http/_client.ts";
+import { activityWorkspaceSuite, scopedHttp, scopedTool } from "../http/_workspace-activity-fixture.ts";
+import { claimsOf } from "./_mcp.ts";
 
-httpTest("retired schema writes only replay exact retained success through HTTP and MCP", async () => {
-  const token = await signIn("A"), other = await signIn("B"), client = await connectMcp(await mcpToken(token));
-  const owner = JSON.parse(atob(token.split(".")[1].replaceAll("-", "+").replaceAll("_", "/"))).sub;
-  const key = crypto.randomUUID();
-  let id: string | undefined;
-  try {
-    const created = (await call(token, "POST", "/entity-types", { label: "retained " + key })).body;
-    id = created.id;
+activityWorkspaceSuite(
+  "retired schema writes only replay exact retained success through HTTP and MCP",
+  async ({ A: token, B: other, workspaceA: w, workspaceB: otherW, clientA: client }) => {
+    assert(client);
+    const owner = String(claimsOf(token).sub);
+    const key = crypto.randomUUID();
+
+    const created = (await scopedHttp(token, w, "POST", "/entity-types", { label: "retained " + key })).body;
+    const id = created.id;
     const input = { expected_type_version: 1, label: "retained historic result" };
     const oldResult = { ...created, label: input.label, version: 2, schema_version: 1 };
-    const identity = await requestIdentity({ userId: owner, request: { key } }, "entity-type.update", id, input);
-    await admin`insert into private.request_results(owner_id,request_key,operation,fingerprint,result,completed_at)
-      values(${owner},${key},${identity.operation},${identity.fingerprint},${
+    const identity = await requestIdentity(
+      { userId: owner, workspaceId: w, request: { key } },
+      "entity-type.update",
+      id,
+      input,
+    );
+    await admin`insert into private.workspace_request_results(executor_id,workspace_id,request_key,operation,fingerprint,footprint,result,completed_at)
+      values(${owner},${w},${key},${identity.operation},${identity.fingerprint},'[{"target_kind":"settings","target_id":"*","access":"write"}]'::jsonb,${
       admin.json(oldResult)
     },now()-interval '1 hour')`;
     const [before] =
-      await admin`select completed_at,result from private.request_results where owner_id=${owner} and request_key=${key}`;
-    const replay = await call(token, "PATCH", `/entity-types/${id}`, input, key);
+      await admin`select completed_at,result from private.workspace_request_results where executor_id=${owner} and workspace_id=${w} and request_key=${key}`;
+    const replay = await scopedHttp(token, w, "PATCH", `/entity-types/${id}`, input, key);
     assertEquals(replay.status, 200);
     assertEquals(replay.body, oldResult);
     assertEquals(replay.headers.get("Idempotency-Replayed"), "true");
-    assertEquals(await tool(client, "update_entity_type", { type_id: id, ...input, request_key: key }), oldResult);
-    assertEquals((await call(token, "GET", `/entity-types/${id}`)).body, created);
-    assertEquals((await call(token, "GET", `/entity-types/${id}/schemas`)).body.items.length, 1);
-    assertEquals((await call(token, "PATCH", `/entity-types/${id}`, input)).status, 400);
-    assertEquals((await call(other, "PATCH", `/entity-types/${id}`, input, key)).status, 400);
-    const changed = await call(token, "PATCH", `/entity-types/${id}`, { ...input, label: "different old intent" }, key);
+    assertEquals(
+      await scopedTool(client, w, "update_entity_type", { type_id: id, ...input, request_key: key }),
+      oldResult,
+    );
+    assertEquals((await scopedHttp(token, w, "GET", `/entity-types/${id}`)).body, created);
+    assertEquals((await scopedHttp(token, w, "GET", `/entity-types/${id}/schemas`)).body.items.length, 1);
+    assertEquals((await scopedHttp(token, w, "PATCH", `/entity-types/${id}`, input)).status, 400);
+    assertEquals((await scopedHttp(other, otherW, "PATCH", `/entity-types/${id}`, input, key)).status, 400);
+    const changed = await scopedHttp(token, w, "PATCH", `/entity-types/${id}`, {
+      ...input,
+      label: "different old intent",
+    }, key);
     assertEquals(changed.status, 409);
     assertEquals(changed.body.code, "idempotency_key_reused");
     const [after] =
-      await admin`select completed_at,result from private.request_results where owner_id=${owner} and request_key=${key}`;
+      await admin`select completed_at,result from private.workspace_request_results where executor_id=${owner} and workspace_id=${w} and request_key=${key}`;
     assertEquals(after, before);
-    await admin`update private.request_results set completed_at=now()-interval '31 days' where owner_id=${owner} and request_key=${key}`;
-    const expired = await call(token, "PATCH", `/entity-types/${id}`, input, key);
+    await admin`update private.workspace_request_results set completed_at=now()-interval '31 days' where executor_id=${owner} and workspace_id=${w} and request_key=${key}`;
+    const expired = await scopedHttp(token, w, "PATCH", `/entity-types/${id}`, input, key);
     assertEquals(expired.status, 410);
     assertEquals(expired.body.code, "result_expired");
-  } finally {
-    await client.close();
-    await admin`delete from private.request_results where owner_id=${owner} and request_key=${key}`;
-    if (id) await admin`delete from app.entity_types where id=${id}`;
-  }
-});
+  },
+  { mcp: true },
+);
