@@ -13,13 +13,11 @@ export class SqlEntityLinks {
     const rows = await this.tx<
       { entity_type_id: string }[]
     >`select distinct e.entity_type_id from app.entities e where e.workspace_id=app.current_workspace_id() and (e.id=any(${ids}::text[]) or e.id in (
-      select unnest(t.entity_ids) from app.tasks t where t.id=${taskId ?? null} or t.result_record_id=${
+      select jsonb_array_elements_text(app.workspace_task_associations(t.id)->'entity_ids') from app.tasks t
+      where t.workspace_id=app.current_workspace_id() and (t.id=${taskId ?? null} or t.result_record_id=${
       recordId ?? null
-    }
-      union select unnest(r.entity_ids) from app.records r where r.id=${recordId ?? null} or r.task_id=${taskId ?? null}
-      union select unnest(t.entity_ids) from app.tasks t join app.records r on r.task_id=t.id where r.id=${
-      recordId ?? null
-    }))`;
+    })
+    ))`;
     const requirements = rows.map((row) => ({
       target_kind: "entity_type" as const,
       target_id: row.entity_type_id,
@@ -35,19 +33,14 @@ export class SqlEntityLinks {
   async taskSelection(ids?: string[], existingTaskId?: string) {
     if (ids === undefined) return {};
     await this.prepareSelection(ids, existingTaskId);
-    const [prior] = existingTaskId === undefined ? [] : await this.tx<
-      { entity_ids: string[]; entity_context: EntityContext[] }[]
-    >`select entity_ids,entity_context from app.tasks where workspace_id=app.current_workspace_id() and id=${existingTaskId}`;
-    const visible = prior?.entity_ids.length
-      ? await this.tx<
-        { id: string }[]
-      >`select id from app.entities where workspace_id=app.current_workspace_id() and id=any(${prior.entity_ids}::text[])`
-      : [];
-    // A client edits its visible selection. It cannot silently unlink references
-    // concealed by current kind grants, and ordinary body edits never touch them.
-    const hidden = (prior?.entity_ids ?? []).filter((id) => !visible.some((row) => row.id === id));
-    const selected = [...new Set([...ids, ...hidden])].sort();
-    return this.fields(selected, await this.capture(selected, prior?.entity_context ?? []));
+    if (existingTaskId === undefined) return this.fields(ids, await this.capture(ids));
+    const [row] = await this.tx`select app.workspace_task_associations(${existingTaskId}) as associations`;
+    const context = await this.capture(ids, row.associations?.entity_context ?? []);
+    // Raw hidden context never leaves storage, including through UPDATE RETURNING.
+    await this.tx`select app.set_workspace_task_associations(${existingTaskId},${ids}::text[],${
+      this.tx.json(context)
+    })`;
+    return {};
   }
 
   private async remember(requirements: { target_kind: "entity_type"; target_id: string; access: "read" }[]) {
@@ -66,7 +59,7 @@ export class SqlEntityLinks {
         select entity_context from app.records where id=${existingRecordId}`;
     const [task] = inheritedTaskId === undefined ? [] : await this.tx<
       { entity_context: EntityContext[] }[]
-    >`select entity_context from app.tasks where id=${inheritedTaskId}`;
+    >`select app.workspace_task_associations(${inheritedTaskId})->'entity_context' as entity_context`;
     return this.fields(ids, await this.capture(ids, prior?.entity_context ?? task?.entity_context ?? []));
   }
 

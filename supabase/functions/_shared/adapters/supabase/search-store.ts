@@ -10,13 +10,12 @@ class SqlSearchStore implements SearchStore {
   constructor(private readonly tx: postgres.TransactionSql) {}
   sources() {
     const tx = this.tx;
-    const originals =
-      tx`select owner_id,'task'::text as kind,id,title,body,updated_at as at,status,entity_ids,kind as task_kind,null::text as record_kind,${
-        tagIdsColumn(tx, "task")
-      } from app.tasks
+    const originals = tx`select owner_id,'task'::text as kind,id,title,body,updated_at as at,status,
+      array(select jsonb_array_elements_text(app.workspace_task_associations(tasks.id)->'entity_ids')) as entity_ids,
+      kind as task_kind,null::text as record_kind,${tagIdsColumn(tx, "task")} from app.tasks
       union all select owner_id,'record',id,body,body,occurred_at,null::text,entity_ids,null::text,record_kind,${
-        tagIdsColumn(tx, "record")
-      } from app.records`;
+      tagIdsColumn(tx, "record")
+    } from app.records`;
     return tx`select s.*,i.generation,case
       when s.kind<>'record' then 'excluded'
       when i.input_hash=encode(extensions.digest(s.body,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}

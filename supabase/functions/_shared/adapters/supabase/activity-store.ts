@@ -67,7 +67,9 @@ function toRecord(r: Row): ActivityRecord {
 
 // 날짜 컬럼은 문자열(YYYY-MM-DD)로 받는다.
 const taskColumns = (tx: Tx) =>
-  tx`id, entity_ids, entity_context, kind, title, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
+  tx`id, array(select jsonb_array_elements_text(app.workspace_task_associations(tasks.id)->'entity_ids')) as entity_ids,
+     app.workspace_task_associations(tasks.id)->'entity_context' as entity_context,
+     kind, title, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
      result_record_id, pauses, version, created_at, updated_at,
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
@@ -145,7 +147,11 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       where true
         ${f.keyword ? tx`and position(lower(${f.keyword}) in lower(title))>0` : tx``}
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
-        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::text[]` : tx``}
+        ${
+      f.entity_id
+        ? tx`and app.workspace_task_associations(tasks.id)->'entity_ids' @> jsonb_build_array(${f.entity_id}::text)`
+        : tx``
+    }
         ${f.status ? tx`and status = ${f.status}` : tx``}
         ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "task", f.tag_id)}` : tx``}
         ${f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "task", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``}
@@ -184,7 +190,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       ...await this.entityLinks.taskSelection(changes.entity_ids, id),
     };
     if (changes.tag_ids !== undefined) await this.setTaskTags(id, changes.tag_ids);
-    if (Object.keys(values).length === 0 && changes.tag_ids === undefined) {
+    if (Object.keys(values).length === 0 && changes.tag_ids === undefined && changes.entity_ids === undefined) {
       throw new AppError("invalid_input", "바꿀 필드가 없습니다");
     }
     // set 도우미는 바로 앞의 `set` 문맥이 필요하므로 같은 템플릿에 둔다.
