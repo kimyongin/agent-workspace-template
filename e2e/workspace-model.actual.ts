@@ -786,8 +786,8 @@ test(
       );
       const cancelReceipt = await click("변경 취소", "cancel");
       // Mutation receipts intentionally carry counts and an empty child list.
-      // Compare that public response with full GET before reopening terminal
-      // history; an immediate receipt screenshot cannot prove its projection.
+      // The UI must hydrate full terminal details after accepting the receipt,
+      // without requiring a reload or another history selection.
       expect(cancelReceipt.group.children).toHaveLength(0);
       const cancelledDetail = await read();
       expect(cancelledDetail.status).toBe("cancelled");
@@ -796,11 +796,12 @@ test(
         retried.group.children[0].job.id,
       );
       expect(cancelledDetail.group.children[0].job.status).toBe("cancelled");
-      await reopenSettledDetail(
-        "취소됨",
-        retried.group.children[0].job.id,
-        "cancelled",
-      );
+      await expect(actorPage.getByText("변경안 상세를 읽는 중…", { exact: true }))
+        .toHaveCount(0);
+      await expect(actorPage.getByRole("row", {
+        name: `${kind.label} 변환`,
+        exact: true,
+      })).toBeVisible();
       await expect(
         actorPage.getByRole("button", { name: `${title} 취소됨`, exact: true }),
       ).toBeVisible();

@@ -65,6 +65,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
   const [pending, setPending] = useState(""), [notice, setNotice] = useState("");
   const { attempt, busy, uncertain } = useWriteAttempt();
   const alive = useRef(true), current = useRef({ onChange, onState });
+  const pollRequest = useRef<AbortController | null>(null);
   current.current = { onChange, onState };
   const readEpoch = useRef(0);
   const active = activeStatuses.includes(change.status);
@@ -73,7 +74,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
     JSON.stringify(drafts[child.type_ref] ?? child.change.migration) !==
       JSON.stringify(accepted[child.type_ref] ?? child.change.migration)
   );
-  const locked = disabled || busy || uncertain;
+  const locked = disabled || busy || uncertain || reading;
   useEffect(() => {
     current.current.onState(change.id, { dirty, busy, uncertain });
   }, [change.id, dirty, busy, uncertain]);
@@ -87,8 +88,10 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
+    pollRequest.current = controller;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
+      if (controller.signal.aborted) return;
       const epoch = ++readEpoch.current;
       try {
         const value = await api<GroupChange>("GET", `/data-model/changes/${change.id}`, undefined, controller.signal);
@@ -106,6 +109,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
     timer = setTimeout(poll, 800);
     return () => {
       controller.abort();
+      if (pollRequest.current === controller) pollRequest.current = null;
       clearTimeout(timer);
     };
   }, [change.id, active, pollRevision]);
@@ -128,7 +132,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
     }
   };
   const perform = async (action: string) => {
-    if (disabled || busy || uncertain && pending !== action) return;
+    if (disabled || busy || reading || uncertain && pending !== action) return;
     let conversions: { type_ref: string; migration: MigrationPlan }[] = [];
     try {
       if (action === "analyze") {
@@ -145,6 +149,8 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
     setPending(action);
     setError("");
     setNotice("");
+    pollRequest.current?.abort();
+    readEpoch.current++;
     try {
       await attempt.run(async () => {
         const value = await api<GroupChange>(
@@ -175,16 +181,20 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
             ? "변경 취소 결과를 확인했습니다."
             : "같은 값 변환 작업을 다시 접수했습니다.",
         );
-        void refresh();
+        await refresh();
       });
     } catch (e) {
-      if (alive.current) setError(writeErrorMessage(e));
+      if (alive.current) {
+        setError(writeErrorMessage(e));
+        setPollRevision((value) => value + 1);
+      }
     }
   };
   return (
     <section aria-label="기존 자료 값 변환" className="min-w-0">
       {notice && !["applied", "cancelled"].includes(change.status) && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
       {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {reading && <Alert role="status"><AlertDescription>변경안 상세를 읽는 중…</AlertDescription></Alert>}
       {readError && (
         <Alert variant="destructive" role="alert"><AlertDescription>
           <p className="text-sm text-destructive">{readError} 접수된 작업은 유지됩니다.</p>
