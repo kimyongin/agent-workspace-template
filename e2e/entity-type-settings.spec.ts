@@ -18,7 +18,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
     const creation = page.getByRole("form", { name: "자료 종류 만들기", exact: true });
     await expect(creation).toBeVisible();
-    await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveCount(0);
     await creation.getByRole("radio", { name: "별", exact: true }).check();
     const beforeNavigation = page.url();
     await openMainNavigation(page);
@@ -61,6 +61,8 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveCount(0);
     releaseDestination!();
+    await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(typeId!);
+    await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option:checked")).toHaveText(label);
     await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
     const changedLabel = unique("이름 변경");
