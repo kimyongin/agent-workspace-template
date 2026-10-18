@@ -1,3 +1,5 @@
+import * as issuers from "../../functions/_shared/core/entity-issuers/application.ts";
+import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import * as settings from "../../functions/_shared/core/settings/application.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { assertEquals, assertRejects } from "@std/assert";
@@ -108,6 +110,12 @@ dbTest(
       );
       const error = await assertRejects(() => settings.updateBusinessSettings(deps, request, input), AppError);
       assertEquals(error.code, "forbidden");
+      const issuerDeps = { uow: new SqlEntityIssuerUnitOfWork(sql) };
+      const deniedRegistry = await assertRejects(
+        () => issuers.createEntityIssuer(issuerDeps, key(first), { code: "external", label: "원본" }),
+        AppError,
+      );
+      assertEquals(deniedRegistry.code, "forbidden");
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
