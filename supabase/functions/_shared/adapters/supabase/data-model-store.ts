@@ -1,17 +1,21 @@
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
-import type { DataModelStore, ModelPlan, ModelSnapshot } from "../../core/data-model/application.ts";
+import {
+  type DataModelStore,
+  type ModelPlan,
+  type ModelSnapshot,
+  resolveModel,
+} from "../../core/data-model/application.ts";
 import type { DataModelDocument, ModelChange } from "../../contracts/data-model.ts";
 import { invalidInput } from "../../core/shared/errors.ts";
 import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
-import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
-import { executeSqlRequest } from "./request-ledger.ts";
+import { executeWorkspaceRequest } from "./workspace-request-ledger.ts";
+import { schemaDefinitionDiff } from "../../core/entity-types/evolution.ts";
 import { requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
-import type { WorkspaceEntry } from "../../core/workspaces/application.ts";
+import type { WorkspaceEntry, WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import { decodeCursor, paginate, scopeOf } from "../../core/shared/operations.ts";
 import { z } from "zod";
-const ref = (id: string) => "type_" + id;
 function changeRow(r: postgres.Row): ModelChange & { plan: ModelPlan } {
   return {
     id: r.id,
@@ -44,102 +48,115 @@ export class SqlDataModelStore implements DataModelStore {
     return requireWorkspaceActor(this.actor).workspaceId;
   }
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
-  executeRequest<T>(r: RequestIdentity, fn: () => Promise<T>) {
-    return executeSqlRequest(this.tx, this.actor, r, fn);
+  async executeRequest<T>(r: RequestIdentity, fn: () => Promise<T>) {
+    const declared = async (): Promise<WorkspaceRequirement[]> => {
+      const [row] = await this.tx`select current_setting('request.workspace_requirements',true) as requirements`;
+      return JSON.parse(row.requirements);
+    };
+    const footprint = await declared();
+    return executeWorkspaceRequest(this.tx, this.actor, r, footprint, async () => {
+      const result = await fn();
+      // The common protocol retains this same array at finish. Replay never
+      // enters this callback and checks the complete persisted footprint first.
+      for (const requirement of await declared()) {
+        if (
+          !footprint.some((r) =>
+            r.target_kind === requirement.target_kind &&
+            r.target_id === requirement.target_id && r.access === requirement.access
+          )
+        ) footprint.push(requirement);
+      }
+      return result;
+    });
   }
   async exportDocument(): Promise<DataModelDocument> {
     const [row] = await this.tx`select app.export_workspace_data_model() as document`;
     return row.document as DataModelDocument;
   }
-  async snapshot(): Promise<ModelSnapshot> {
-    const tx = this.tx, issuers = new SqlEntityIssuerStore(tx, this.actor);
-    const rows =
-      await tx`select t.id,t.next_property_number,t.schema_write_locked,v.schema,(select count(*)::int from app.entities e where e.workspace_id=t.workspace_id and e.entity_type_id=t.id) as count,app.entity_schema_membership(t.workspace_id,t.id) as membership from app.entity_types t join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version order by t.id`;
-    const types: ModelSnapshot["types"] = {};
-    const entity_types: DataModelDocument["entity_types"] = [];
-    const identity_usage: NonNullable<ModelSnapshot["identity_usage"]> = {};
-    for (const row of rows) {
-      const i = (await issuers.getTypeIdentity(row.id))!;
-      const rawSources =
-        await tx`select code,rule_id,active,referenced from app.entity_type_identity_sources where type_id=${row.id}::uuid order by code`;
-      identity_usage[row.id] = Object.fromEntries(
-        rawSources.filter((s) => s.referenced).map((s) => [String(s.code), String(s.rule_id)]),
-      );
-      entity_types.push({
-        ref: ref(row.id),
-        schema: row.schema,
-        identity: {
-          version: i.version,
-          label: i.label,
-          default_source: i.default_source,
-          sources: rawSources.map((s) => ({
-            code: String(s.code),
-            rule_id: String(s.rule_id),
-            active: Boolean(s.active),
-          })),
-        },
-      });
-      types[row.id] = {
-        next_property_number: Number(row.next_property_number),
-        count: Number(row.count),
-        locked: row.schema_write_locked,
-        ...{ membership: row.membership },
-      };
-    }
-    const relations =
-      await tx`select * from app.entity_relation_definitions where workspace_id=${this.workspaceId} order by id`;
-    const ir =
-      await tx`select id,source,label,meaning,generation,active,version from app.entity_identifier_rules order by id`;
-    const document: DataModelDocument = {
-      format: "workspace-data-model",
-      format_version: 1,
-      title: "자료 모델",
-      entity_types,
-      relations: relations.map((r) => ({
-        id: r.id,
-        version: r.version,
-        archived: r.archived,
-        ends: [{ type_ref: ref(r.left_type_id), label: r.left_label, cardinality: r.left_cardinality }, {
-          type_ref: ref(r.right_type_id),
-          label: r.right_label,
-          cardinality: r.right_cardinality,
-        }],
-      })),
-      identity_definitions: {
-        issuers: await issuers.listIssuers(),
-        rules: ir.map((r) => ({
-          id: r.id,
-          source: r.source,
-          label: r.label,
-          meaning: r.meaning,
-          generation: r.generation,
-          active: r.active,
-          version: r.version,
-        })),
-      },
-    };
-    const used =
-      await tx`select r.id,exists(select 1 from app.entity_type_identity_sources s where s.rule_id=r.id and s.referenced) as referenced from app.entity_identifier_rules r`;
-    const usage = await tx`select d.id,
-      (select count(*)::int from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id) as links,
-      exists(select 1 from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id group by l.left_entity_id having count(*)>1) as left_many,
-      exists(select 1 from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id group by l.right_entity_id having count(*)>1) as right_many
-      from app.entity_relation_definitions d where d.workspace_id=${this.workspaceId}::uuid`;
-    return {
+  async snapshot(intent?: { document: DataModelDocument; mode: "update" | "copy" }): Promise<ModelSnapshot> {
+    const document = await this.exportDocument();
+    const rows = await this.tx`select id,next_property_number,schema_write_locked from app.entity_types
+      where workspace_id=${this.workspaceId}::uuid order by id`;
+    const snapshot: ModelSnapshot = {
       document,
-      types,
-      identity_usage,
-      relation_usage: Object.fromEntries(
-        usage.map(
-          (r) => [String(r.id), {
-            links: Number(r.links),
-            left_many: Boolean(r.left_many),
-            right_many: Boolean(r.right_many),
-          }],
-        ),
-      ),
-      rule_usage: Object.fromEntries(used.map((r) => [String(r.id), Boolean(r.referenced)])),
+      types: Object.fromEntries(rows.map((r) => [r.id, {
+        next_property_number: Number(r.next_property_number),
+        count: 0,
+        locked: r.schema_write_locked,
+      }])),
+      identity_usage: {},
+      rule_usage: {},
+      relation_usage: {},
     };
+    if (!intent || intent.mode === "copy") return snapshot;
+    const mapped = await resolveModel(snapshot, intent.document, intent.mode, this.workspaceId);
+    const kinds = new Set<string>(), relations = new Set<string>(), rules = new Set<string>();
+    for (const target of mapped.target.entity_types) {
+      const id = target.schema["x-type-id"], old = document.entity_types.find((t) => t.schema["x-type-id"] === id);
+      if (!old) continue;
+      if (
+        schemaDefinitionDiff({ schema: old.schema }, { schema: target.schema }).some((d) =>
+          d.kind === "migration_required"
+        ) ||
+        old.identity.sources.some((source) =>
+          !target.identity.sources.some((n) => n.code === source.code && n.rule_id === source.rule_id)
+        )
+      ) {
+        kinds.add(id);
+      }
+    }
+    for (const target of mapped.target.identity_definitions.rules) {
+      const old = document.identity_definitions.rules.find((r) => r.id === target.id);
+      if (!old || old.meaning === target.meaning) continue;
+      rules.add(old.id);
+      for (const type of document.entity_types) {
+        if (type.identity.sources.some((source) => source.rule_id === old.id)) kinds.add(type.schema["x-type-id"]);
+      }
+    }
+    const ends = (r: DataModelDocument["relations"][number], d: DataModelDocument) =>
+      r.ends.map((e) => ({
+        type: d.entity_types.find((t) => t.ref === e.type_ref)?.schema["x-type-id"],
+        cardinality: e.cardinality,
+      }));
+    for (const target of mapped.target.relations) {
+      const old = document.relations.find((r) => r.id === target.id);
+      if (!old || JSON.stringify(ends(old, document)) === JSON.stringify(ends(target, mapped.target))) continue;
+      relations.add(old.id);
+      for (const e of [...ends(old, document), ...ends(target, mapped.target)]) {
+        if (e.type && snapshot.types[e.type]) kinds.add(e.type);
+      }
+    }
+    if (!kinds.size) return snapshot;
+    const ids = [...kinds].sort();
+    // Resolve targets from current stored definitions, then authorize before
+    // count, membership, reference flags or link cardinality reveal values.
+    await this.tx`select private.authorize_workspace_model_kinds(${ids}::uuid[])`;
+    const facts = await this.tx`select t.id,
+      (select count(*)::int from app.entities e where e.workspace_id=t.workspace_id and e.entity_type_id=t.id) as count,
+      app.entity_schema_membership(t.workspace_id,t.id) as membership
+      from app.entity_types t where t.workspace_id=${this.workspaceId}::uuid and t.id=any(${ids}::uuid[]) order by t.id`;
+    for (const row of facts) {
+      Object.assign(snapshot.types[row.id], { count: Number(row.count), membership: row.membership });
+    }
+    const sources = await this.tx`select type_id,code,rule_id,referenced from app.entity_type_identity_sources
+      where workspace_id=${this.workspaceId}::uuid and type_id=any(${ids}::uuid[]) order by type_id,code`;
+    for (const source of sources) {
+      if (source.referenced) (snapshot.identity_usage![source.type_id] ??= {})[source.code] = source.rule_id;
+      if (source.referenced && rules.has(source.rule_id)) snapshot.rule_usage![source.rule_id] = true;
+    }
+    if (relations.size) {
+      const usage = await this.tx`select d.id,
+        (select count(*)::int from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id) as links,
+        exists(select 1 from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id group by l.left_entity_id having count(*)>1) as left_many,
+        exists(select 1 from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id group by l.right_entity_id having count(*)>1) as right_many
+        from app.entity_relation_definitions d where d.workspace_id=${this.workspaceId}::uuid and d.id=any(${[
+        ...relations,
+      ]}::uuid[])`;
+      for (const r of usage) {
+        snapshot.relation_usage![r.id] = { links: Number(r.links), left_many: r.left_many, right_many: r.right_many };
+      }
+    }
+    return snapshot;
   }
   async save(plan: ModelPlan) {
     const [r] = await this.tx`insert into app.data_model_changes(workspace_id,status,plan) values(${this.workspaceId},${

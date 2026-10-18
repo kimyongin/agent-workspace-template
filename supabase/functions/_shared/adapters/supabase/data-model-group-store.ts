@@ -44,7 +44,9 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     return { ...c, group };
   }
   async analyzeGroup(id: string, input: ModelGroupAnalyze) {
-    const c = (await this.get(id, true))!, plan = c.plan as GroupPlan, snapshot = await this.snapshot();
+    const c = (await this.get(id, true))!,
+      plan = c.plan as GroupPlan,
+      snapshot = await this.snapshot({ document: plan.target, mode: "update" });
     if (
       canonical(snapshot.document) !== canonical(plan.source) ||
       (!plan.conversion_refs && await definitionFingerprint(snapshot) !== plan.baseline)
@@ -104,7 +106,7 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
         .tx`update app.data_model_children set analysis_id=${accepted.analysis_id}::uuid where model_id=${id}::uuid and type_ref=${ref}`;
     }
     plan.conversion_refs = refs;
-    plan.baseline = await definitionFingerprint(await this.snapshot());
+    plan.baseline = await definitionFingerprint(await this.snapshot({ document: plan.target, mode: "update" }));
     await this.tx`update app.data_model_changes set plan=${
       this.tx.json(plan as never)
     },status='analyzing',version=version+1,retryable=false,failure_reason=null where id=${id}::uuid`;
@@ -116,7 +118,7 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     if (c.status !== "ready" || !plan.conversion_refs?.length) {
       throw invalidInput("전체 종류의 최신 성공 분석을 준비하세요");
     }
-    if (await definitionFingerprint(await this.snapshot()) !== plan.baseline) {
+    if (await definitionFingerprint(await this.snapshot({ document: plan.target, mode: "update" })) !== plan.baseline) {
       throw new AppError("schema_plan_stale", "분석 후 모델 또는 자료가 변경되었습니다. 다시 분석하세요");
     }
     const store = new SqlSchemaMigrationStore(this.tx, this.actor, id);
@@ -185,7 +187,9 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
     if (c.status !== "failed" || !parent.retryable) {
       throw invalidInput("재시도 가능한 전체 실패 작업만 재개할 수 있습니다");
     }
-    if (await definitionFingerprint(await this.snapshot()) !== c.plan.baseline) {
+    if (
+      await definitionFingerprint(await this.snapshot({ document: c.plan.target, mode: "update" })) !== c.plan.baseline
+    ) {
       throw new AppError("schema_plan_stale", "원본이 바뀌었습니다. 새 분석을 준비하세요");
     }
     const store = new SqlSchemaMigrationStore(this.tx, this.actor, id);

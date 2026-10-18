@@ -36,7 +36,7 @@ export interface DataModelStore extends RequestStore {
   startGroup?(id: string): Promise<ModelChange>;
   cancelGroup?(id: string): Promise<ModelChange>;
   retryGroup?(id: string): Promise<ModelChange>;
-  snapshot(): Promise<ModelSnapshot>;
+  snapshot(intent?: { document: DataModelDocument; mode: "update" | "copy" }): Promise<ModelSnapshot>;
   exportDocument(): Promise<DataModelDocument>;
   save(plan: ModelPlan): Promise<ModelChange>;
   get(id: string, lock?: boolean): Promise<(ModelChange & { plan: ModelPlan }) | null>;
@@ -401,7 +401,12 @@ export function previewDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   return d.uow.run(
     a,
     async (s) =>
-      (await resolveModel(await s.snapshot(), document, i.mode, workspaceActor(a, a.workspaceId).workspaceId)).review,
+      (await resolveModel(
+        await s.snapshot({ document, mode: i.mode }),
+        document,
+        i.mode,
+        workspaceActor(a, a.workspaceId).workspaceId,
+      )).review,
     true,
     {
       mode: "business",
@@ -412,7 +417,12 @@ export function previewDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
 export function prepareDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   const i = parse(dataModelPrepare, raw), document = parseModel(i.document);
   return runWrite(d.uow, a, "data-model.prepare", null, i, async (s) => {
-    const plan = await resolveModel(await s.snapshot(), document, i.mode, workspaceActor(a, a.workspaceId).workspaceId);
+    const plan = await resolveModel(
+      await s.snapshot({ document, mode: i.mode }),
+      document,
+      i.mode,
+      workspaceActor(a, a.workspaceId).workspaceId,
+    );
     if (plan.review.fingerprint !== i.preview_fingerprint) {
       throw new AppError("schema_plan_stale", "모델이 변경되었습니다. 입력을 유지하고 다시 검토하세요");
     }
@@ -464,7 +474,9 @@ export function applyDataModel(d: DataModelDeps, a: Actor, id: string, raw: unkn
       if (!s.startGroup) throw invalidInput("전체 작업 실행 저장소가 준비되지 않았습니다");
       return s.startGroup(id);
     }
-    if (await definitionFingerprint(await s.snapshot()) !== c.plan.baseline) {
+    if (
+      await definitionFingerprint(await s.snapshot({ document: c.plan.target, mode: "update" })) !== c.plan.baseline
+    ) {
       throw new AppError("schema_plan_stale", "검토 후 모델이나 자료가 변경되었습니다. 다시 검토하세요");
     }
     return s.complete(id, await s.publishPreparedModel(c.plan, c.id));
