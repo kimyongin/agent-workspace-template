@@ -103,6 +103,8 @@ test(
         (value) => document.documentElement.style.setProperty("--display-scale", String(value / 100)),
         scale,
       );
+      await expect.poll(() => page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)))
+        .toBeCloseTo(16 * scale / 100, 1);
       await expect(date).toHaveAttribute("datetime", selectedDate!);
       for (const table of await page.getByRole("table", { name: /날짜별 수치$/ }).all()) {
         expect(await table.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
