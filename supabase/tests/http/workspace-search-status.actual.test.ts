@@ -109,7 +109,7 @@ activityWorkspaceSuite(
     const revoked = await scopedHttp(A, workspace, "POST", "/search", input);
     assertEquals(revoked.status, 200);
     assertEquals(revoked.body.items, []);
-    assertEquals(revoked.body.semantic_coverage, { pending: 0, excluded: 0 });
+    assertEquals(revoked.body.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
     assertEquals(await scopedTool(clientA, workspace, "search", input), revoked.body);
     assertEquals((await scopedHttp(A, workspace, "GET", `/records/${record.id}`)).status, 404);
   },
