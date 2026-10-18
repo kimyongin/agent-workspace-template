@@ -5,11 +5,7 @@ import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
-import {
-  changeConfiguredRelation,
-  configuredRelationFixture,
-  listConfiguredLinks,
-} from "./_configured-relations.ts";
+import { changeConfiguredRelation, configuredRelationFixture, listConfiguredLinks } from "./_configured-relations.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import {
   createEntityType as createPublicEntityType,
@@ -48,10 +44,7 @@ import { jsonbText } from "../../functions/_shared/core/entity-types/schema-rule
 import { prepareMigrationBatch } from "../../functions/_shared/core/entity-types/migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
-import {
-  createTag,
-  setTagConnections,
-} from "../../functions/_shared/core/tags/application.ts";
+import { createTag, setTagConnections } from "../../functions/_shared/core/tags/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { SchemaEdit } from "../../functions/_shared/contracts/entity-schema-change.ts";
 import { businessWorkspaceFixture } from "./_workspace-business.ts";
@@ -101,8 +94,7 @@ async function fixture() {
       expected_change_version: version,
     });
     for (let n = 0; n < 100; n++) {
-      const [r] =
-        await worker`select app.claim_entity_schema_analysis() as batch`;
+      const [r] = await worker`select app.claim_entity_schema_analysis() as batch`;
       if (!r.batch) break;
       const batch = r.batch,
         transform = compileMigration(
@@ -115,20 +107,17 @@ async function fixture() {
         new TextEncoder().encode(jsonbText(batch.rows)).byteLength <= 524288,
         "analysis claim must bound current and owned recovery properties together",
       );
-      const [completed] =
-        await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
-          worker.json(
-            batch.rows.map((
-              row: {
-                entity_id: string;
-                properties: Record<string, unknown>;
-                recovery_properties: Record<string, unknown>;
-              },
-            ) =>
-              transform(row.entity_id, row.properties, row.recovery_properties)
-            ),
-          )
-        }) as completed`;
+      const [completed] = await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
+        worker.json(
+          batch.rows.map((
+            row: {
+              entity_id: string;
+              properties: Record<string, unknown>;
+              recovery_properties: Record<string, unknown>;
+            },
+          ) => transform(row.entity_id, row.properties, row.recovery_properties)),
+        )
+      }) as completed`;
       assert(completed.completed);
       if (batch.rows.length === 0) {
         const change = await getEntitySchemaChange(d, a.actor, type, id);
@@ -153,8 +142,7 @@ async function fixture() {
   }
   async function finish(id: string) {
     for (let n = 0; n < 100; n++) {
-      const [r] =
-        await worker`select app.claim_entity_schema_migration() as batch`;
+      const [r] = await worker`select app.claim_entity_schema_migration() as batch`;
       assert(r.batch);
       const batch = r.batch;
       assertEquals(batch.id, id);
@@ -179,10 +167,9 @@ async function fixture() {
         new TextEncoder().encode(jsonbText(prep.results)).byteLength <= 1048576,
       );
       const before = await getEntitySchemaMigration(d, a.actor, id);
-      const [staged] =
-        await worker`select app.stage_entity_schema_migration(${id},${batch.fence},${
-          worker.json(prep.results)
-        }) as staged`;
+      const [staged] = await worker`select app.stage_entity_schema_migration(${id},${batch.fence},${
+        worker.json(prep.results)
+      }) as staged`;
       assert(staged.staged);
       const after = await getEntitySchemaMigration(d, a.actor, id);
       assert(
@@ -448,8 +435,7 @@ dbTest(
         f.sql,
         f.a.actor,
         { mode: "business", requirements: [] },
-        (tx) =>
-          tx`select id,body,entity_context from app.records where workspace_id=${f.a.workspaceId} order by id`,
+        (tx) => tx`select id,body,entity_context from app.records where workspace_id=${f.a.workspaceId} order by id`,
       );
       const key = f.actor(), c = await f.recovery(o.job.job_id, key);
       assertEquals(c.status, "draft");
@@ -565,9 +551,7 @@ dbTest(
         sort: "updated_at",
       });
       assert(
-        list.items.every((r) =>
-          r.entity_type_id === o.type.id && r.current_schema_version === 5
-        ),
+        list.items.every((r) => r.entity_type_id === o.type.id && r.current_schema_version === 5),
       );
       const filtered = await listEntities(f.e, f.a.actor, {
         entity_type_id: o.type.id,
@@ -1146,9 +1130,7 @@ dbTest(
       try {
         const o = await f.original(phase),
           before = await getEntity(f.e, f.a.actor, o.x.id);
-        const c = phase === "template-start"
-          ? await f.recovery(o.job.job_id)
-          : null;
+        const c = phase === "template-start" ? await f.recovery(o.job.job_id) : null;
         const ready = c ? await f.analyze(o.type.id, c.id, c.version) : null;
         const [counts] = await f
           .admin`select (select count(*)::int from app.entity_schema_changes where type_id=${o.type.id}) changes,(select count(*)::int from app.entity_schema_migrations where type_id=${o.type.id}) jobs`;

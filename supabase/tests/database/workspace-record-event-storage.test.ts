@@ -2,16 +2,10 @@ import { assertEquals } from "@std/assert";
 import type postgres from "postgres";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
-import {
-  recordListQuery,
-  recordUpdate,
-} from "../../functions/_shared/contracts/record.ts";
+import { recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 import { connect, dbTest, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 });

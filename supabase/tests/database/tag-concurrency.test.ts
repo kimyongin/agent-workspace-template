@@ -4,14 +4,8 @@ import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { tagCreate } from "../../functions/_shared/contracts/tag.ts";
-import {
-  entityCreate,
-  entityUpdate,
-} from "../../functions/_shared/contracts/entity.ts";
-import {
-  taskCreate,
-  taskUpdate,
-} from "../../functions/_shared/contracts/task.ts";
+import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
+import { taskCreate, taskUpdate } from "../../functions/_shared/contracts/task.ts";
 import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import * as t from "../../functions/_shared/core/tags/application.ts";
 import * as e from "../../functions/_shared/core/entity/application.ts";
@@ -139,13 +133,9 @@ for (
         };
         const patch = {
           expected_version: parent.version,
-          ...(kind === "entity"
-            ? { schema_version: schema.schema_version }
-            : {}),
+          ...(kind === "entity" ? { schema_version: schema.schema_version } : {}),
           ...(kind === "record" ? {} : {
-            change_note: scenario === "edit content"
-              ? "edit content"
-              : "remove both",
+            change_note: scenario === "edit content" ? "edit content" : "remove both",
           }),
           ...(scenario === "edit content"
             ? (kind === "entity"
@@ -235,8 +225,7 @@ for (
         // typed writer locks first, then release its idle held transaction.
         let waited = false;
         for (let n = 0; n < 100; n++) {
-          const rows =
-            await admin`select waiter.pid from pg_stat_activity waiter
+          const rows = await admin`select waiter.pid from pg_stat_activity waiter
             where waiter.application_name=${applicationName} and waiter.wait_event_type='Lock'
             and exists(select 1 from pg_stat_activity holder where holder.application_name=${applicationName}
               and holder.state='idle in transaction' and holder.pid=any(pg_blocking_pids(waiter.pid)))`;
@@ -296,10 +285,9 @@ for (
             "delete dictionary entry",
           )
         );
-        const events =
-          (await admin`select id,body,change_metadata from app.records where workspace_id=${f.workspaceId}
+        const events = (await admin`select id,body,change_metadata from app.records where workspace_id=${f.workspaceId}
         and change_metadata->>'target_id'=${parent.id} and change_metadata->>'action'='update' order by occurred_at`)
-            .filter((row) => !baselineEventIds.has(String(row.id)));
+          .filter((row) => !baselineEventIds.has(String(row.id)));
         if (scenario === "delete parent") {
           if (kind === "entity" || kind === "task") {
             const retained = kind === "entity"
@@ -312,9 +300,7 @@ for (
             return;
           }
           assertEquals(
-            (await admin`select id from ${
-              admin(`app.${kind}s`)
-            } where id=${parent.id}`).length,
+            (await admin`select id from ${admin(`app.${kind}s`)} where id=${parent.id}`).length,
             0,
           );
           assertEquals(events.length, 0);
@@ -338,9 +324,7 @@ for (
           );
           assertEquals(events.length, kind === "record" ? 0 : 2);
           if (kind !== "record") {
-            const unlink = events.find((r) =>
-              r.body === "delete dictionary entry"
-            )!;
+            const unlink = events.find((r) => r.body === "delete dictionary entry")!;
             assertEquals([
               unlink.change_metadata.before,
               unlink.change_metadata.after,

@@ -2,20 +2,9 @@ import { requestActor } from "../_request.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
-import {
-  entityCreate,
-  entityUpdate,
-} from "../../functions/_shared/contracts/entity.ts";
-import {
-  taskComplete,
-  taskCreate,
-  taskUpdate,
-} from "../../functions/_shared/contracts/task.ts";
-import {
-  recordListQuery,
-  recordResult,
-  recordUpdate,
-} from "../../functions/_shared/contracts/record.ts";
+import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
+import { taskComplete, taskCreate, taskUpdate } from "../../functions/_shared/contracts/task.ts";
+import { recordListQuery, recordResult, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import * as e from "../../functions/_shared/core/entity/application.ts";
 import * as a from "../../functions/_shared/core/activity/application.ts";
 import { connect, dbTest, urls } from "./_db.ts";
@@ -167,9 +156,7 @@ dbTest(
         change_note: "실측",
       });
       const updated = await e.updateEntity(ed, requestActor(A), entity.id, i);
-      await assertRejects(() =>
-        e.updateEntity(ed, requestActor(A), entity.id, i)
-      );
+      await assertRejects(() => e.updateEntity(ed, requestActor(A), entity.id, i));
       assertEquals(await count(), 2);
       const rows = await a.listRecords(
         ad,
@@ -282,9 +269,7 @@ dbTest(
         ad,
         A,
         recordListQuery.parse({ record_kind: "change" }),
-      )).items.find((r) =>
-        r.change?.target_kind === "entity" && r.change.action === "delete"
-      )!;
+      )).items.find((r) => r.change?.target_kind === "entity" && r.change.action === "delete")!;
       assertEquals(deleted.change!.path, null);
       assertEquals([deleted.change!.before, deleted.change!.after], [
         null,
@@ -400,15 +385,9 @@ dbTest(
           expected_version: 1,
           body: "새 관찰",
         });
-      await assertRejects(() =>
-        e.updateEntity(badE, requestActor(A), entity.id, ei)
-      );
-      await assertRejects(() =>
-        a.updateTask(badA, requestActor(A), task.id, ti)
-      );
-      await assertRejects(() =>
-        a.updateRecord(badRecord, requestActor(A), record.id, ri)
-      );
+      await assertRejects(() => e.updateEntity(badE, requestActor(A), entity.id, ei));
+      await assertRejects(() => a.updateTask(badA, requestActor(A), task.id, ti));
+      await assertRejects(() => a.updateRecord(badRecord, requestActor(A), record.id, ri));
       assertEquals((await e.getEntity(ed, A, entity.id)).version, 1);
       assertEquals((await a.getTask(ad, A, task.id)).title, task.title);
       assertEquals((await a.getRecord(ad, A, record.id)).body, record.body);

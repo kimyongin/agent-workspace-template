@@ -2,21 +2,12 @@
 // Public projections deliberately omit private/legacy storage columns.
 import { assertEquals } from "@std/assert";
 import type { z } from "zod";
-import {
-  occurrenceRecordCreate,
-  recordResult,
-} from "../../functions/_shared/contracts/record.ts";
-import {
-  taskCreate,
-  taskResult,
-} from "../../functions/_shared/contracts/task.ts";
+import { occurrenceRecordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
+import { taskCreate, taskResult } from "../../functions/_shared/contracts/task.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 import { connect, dbTest, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 });

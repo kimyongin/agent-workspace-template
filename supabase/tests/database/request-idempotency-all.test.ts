@@ -138,10 +138,8 @@ dbTest(
             body: "edited",
           }),
       );
-      await replay(f.actor, (a) =>
-        activity.deleteRecord(ad, a, created.id, updated.version));
-      await code(() =>
-        activity.getRecord(ad, f.actor, created.id), "not_found");
+      await replay(f.actor, (a) => activity.deleteRecord(ad, a, created.id, updated.version));
+      await code(() => activity.getRecord(ad, f.actor, created.id), "not_found");
       assertEquals(
         (await activity.getRecord(ad, f.actor, done.record.id)).body,
         "performed",
@@ -515,9 +513,7 @@ dbTest(
       if (timer !== undefined) clearTimeout(timer);
       release.resolve();
       await Promise.allSettled(
-        [holder, waiting, unrelated].filter((p): p is Promise<unknown> =>
-          p !== undefined
-        ),
+        [holder, waiting, unrelated].filter((p): p is Promise<unknown> => p !== undefined),
       );
       await f.cleanup();
     }

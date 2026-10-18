@@ -1,23 +1,14 @@
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
-import {
-  createTag,
-  deleteTag,
-  renameTag,
-  setTagConnections,
-} from "../../functions/_shared/core/tags/application.ts";
+import { createTag, deleteTag, renameTag, setTagConnections } from "../../functions/_shared/core/tags/application.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type postgres from "postgres";
 import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
-import {
-  changeConfiguredRelation,
-  configuredRelationFixture,
-  listConfiguredLinks,
-} from "./_configured-relations.ts";
+import { changeConfiguredRelation, configuredRelationFixture, listConfiguredLinks } from "./_configured-relations.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import {
   createEntityType as createPublicEntityType,
@@ -116,8 +107,7 @@ async function analyze(
     expected_change_version: change.version,
   });
   for (let i = 0; i < 60; i++) {
-    const [r] =
-      await worker`select app.claim_entity_schema_analysis() as batch`;
+    const [r] = await worker`select app.claim_entity_schema_analysis() as batch`;
     if (!r.batch) break;
     const b = r.batch, convert = compileMigration(b.target, b.migration);
     await worker`select app.complete_entity_schema_analysis_batch(${b.id},${b.fence},${
@@ -151,10 +141,9 @@ async function stage(worker: postgres.Sql, b: MigrationWorkerBatch) {
     new Date("2026-10-12T00:00:00Z"),
   );
   assert(!prepared.stale);
-  const [r] =
-    await worker`select app.stage_entity_schema_migration(${b.id},${b.fence},${
-      worker.json(prepared.results)
-    }) as accepted`;
+  const [r] = await worker`select app.stage_entity_schema_migration(${b.id},${b.fence},${
+    worker.json(prepared.results)
+  }) as accepted`;
   return r.accepted;
 }
 async function commit(worker: postgres.Sql, b: MigrationWorkerBatch) {
@@ -247,17 +236,15 @@ dbTest(
         title: "과거 수행 원본",
         body: "",
       });
-      const record =
-        (await completeTask(activity, requestActor(a.actor), resultRoot.id, {
-          expected_version: resultRoot.version,
-          body: "선택 원문",
-        })).record;
+      const record = (await completeTask(activity, requestActor(a.actor), resultRoot.id, {
+        expected_version: resultRoot.version,
+        body: "선택 원문",
+      })).record;
       const history = await runInWorkspace(
         sql,
         a.actor,
         { mode: "business", requirements: [] },
-        (tx) =>
-          tx`select id,body,entity_context from app.records where workspace_id=${a.workspaceId} order by id`,
+        (tx) => tx`select id,body,entity_context from app.records where workspace_id=${a.workspaceId} order by id`,
       );
       const plan = await analyze(d, a.actor, type.id, worker),
         acceptActor = requestActor(a.actor);
@@ -490,9 +477,7 @@ dbTest(
       );
       assertEquals(
         Array.from(old),
-        history.map((r) =>
-          r.id === record.id ? { ...r, body: "permitted body" } : r
-        ),
+        history.map((r) => r.id === record.id ? { ...r, body: "permitted body" } : r),
       );
       const [effects] =
         await admin`select count(*)::int as records,count(s.id)::int as indexes from app.records r left join app.search_index_state s on s.workspace_id=r.workspace_id and s.id=r.id where r.workspace_id=${a.workspaceId} and r.change_metadata->>'schema_migration_id'=${accepted.job_id}`;
@@ -738,9 +723,7 @@ dbTest(
       if (readerFailure) throw readerFailure;
       for (const o of observations) {
         assert(
-          o.schema === 1
-            ? o.value === undefined
-            : o.schema === 2 && o.value === 7,
+          o.schema === 1 ? o.value === undefined : o.schema === 2 && o.value === 7,
         );
       }
       const after = await getEntity(e, a.actor, entity.id);
@@ -799,8 +782,7 @@ dbTest(
               migration_targets: 2000,
               final_commit_ms: Math.round(performance.now() - started),
               statement_timeout_ms: 15000,
-              includes:
-                "pointer, properties, all versions, records, index intents, recovery baseline, success result",
+              includes: "pointer, properties, all versions, records, index intents, recovery baseline, success result",
             }),
           );
           break;

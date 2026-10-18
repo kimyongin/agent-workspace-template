@@ -1,7 +1,4 @@
-import {
-  Client,
-  StreamableHTTPClientTransport,
-} from "@modelcontextprotocol/client";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import {
   dataModelAction,
   dataModelInput,
@@ -36,25 +33,11 @@ import { requestKey } from "../../functions/_shared/contracts/request.ts";
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
-import {
-  businessMeta,
-  mutationMeta,
-} from "../../functions/_shared/contracts/change.ts";
+import { businessMeta, mutationMeta } from "../../functions/_shared/contracts/change.ts";
 import { id, isoDate } from "../../functions/_shared/contracts/common.ts";
-import {
-  occurrenceRecordCreate,
-  recordListQuery,
-  recordUpdate,
-} from "../../functions/_shared/contracts/record.ts";
-import {
-  tagCreate,
-  tagListQuery,
-  tagRename,
-} from "../../functions/_shared/contracts/tag.ts";
-import {
-  searchInput,
-  searchResult,
-} from "../../functions/_shared/contracts/search.ts";
+import { occurrenceRecordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import { tagCreate, tagListQuery, tagRename } from "../../functions/_shared/contracts/tag.ts";
+import { searchInput, searchResult } from "../../functions/_shared/contracts/search.ts";
 import {
   occurrenceRange,
   taskComplete,
@@ -62,14 +45,7 @@ import {
   taskListQuery,
   taskUpdate,
 } from "../../functions/_shared/contracts/task.ts";
-import {
-  admin,
-  API,
-  call,
-  seoulDate,
-  signIn,
-  SUPABASE_URL,
-} from "../http/_client.ts";
+import { admin, API, call, seoulDate, signIn, SUPABASE_URL } from "../http/_client.ts";
 import { claimsOf, MCP_URL, refreshMcp, registerClient, tool } from "./_mcp.ts";
 import { workspaceId } from "../../functions/_shared/contracts/workspace.ts";
 import { tagConnectionInput } from "../../functions/_shared/contracts/tag-connection.ts";
@@ -152,14 +128,12 @@ async function cleanupOwned() {
   for (const workspace of owned.workspaces) {
     try {
       await admin.begin(async (tx) => {
-        const [root] =
-          await tx`select name,created_by from app.workspaces where id=${workspace.id} for update`;
+        const [root] = await tx`select name,created_by from app.workspaces where id=${workspace.id} for update`;
         assertEquals(root, {
           name: workspace.name,
           created_by: workspace.creator,
         });
-        const members =
-          await tx`select user_id from private.workspace_members where workspace_id=${workspace.id}`;
+        const members = await tx`select user_id from private.workspace_members where workspace_id=${workspace.id}`;
         assert(members.every((row) => row.user_id === workspace.creator));
         await tx`delete from pgmq.q_search_index where message->>'workspace_id'=${workspace.id}`;
         await tx`delete from pgmq.a_search_index where message->>'workspace_id'=${workspace.id}`;
@@ -179,9 +153,7 @@ async function cleanupOwned() {
       const secret = Deno.env.get("LOCAL_SUPABASE_SECRET_KEY");
       assert(secret);
       const response = await fetch(
-        `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${
-          encodeURIComponent(clientId)
-        }`,
+        `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${encodeURIComponent(clientId)}`,
         {
           method: "DELETE",
           headers: { apikey: secret, authorization: `Bearer ${secret}` },
@@ -437,9 +409,7 @@ Deno.test({
               sessionA,
               workspaceA,
               "GET",
-              `/tasks?keyword=${
-                encodeURIComponent(title)
-              }&occurrence_on=${date}`,
+              `/tasks?keyword=${encodeURIComponent(title)}&occurrence_on=${date}`,
             )).body,
           );
         },
@@ -579,9 +549,7 @@ Deno.test({
           });
           const createdEvent = history.items.find((
             item: { change?: { target_id: string; action: string } },
-          ) =>
-            item.change?.target_id === r.id && item.change?.action === "create"
-          );
+          ) => item.change?.target_id === r.id && item.change?.action === "create");
           assertEquals(createdEvent, undefined);
           const found = searchResult.parse(
             await businessTool(mcpA, workspaceA, "search", q),
@@ -955,9 +923,7 @@ Deno.test({
             });
             assertEquals(
               new Set(
-                [...mcp.items, ...second.items].map((row: { id: string }) =>
-                  row.id
-                ),
+                [...mcp.items, ...second.items].map((row: { id: string }) => row.id),
               ),
               new Set(rows.map((row) => row.id)),
             );
@@ -1408,16 +1374,14 @@ Deno.test({
             },
           };
           for (const [name, properties] of Object.entries(expected)) {
-            const keyedProps =
-              /^(create_|update_|delete_|rename_|complete_|stop_|resume_|restore_|record_occurrence$)/
-                  .test(name)
-                ? {
-                  ...properties,
-                  request_key:
-                    json(z.strictObject({ request_key: requestKey })).properties
-                      .request_key,
-                }
-                : properties;
+            const keyedProps = /^(create_|update_|delete_|rename_|complete_|stop_|resume_|restore_|record_occurrence$)/
+                .test(name)
+              ? {
+                ...properties,
+                request_key: json(z.strictObject({ request_key: requestKey })).properties
+                  .request_key,
+              }
+              : properties;
             const props = { ...keyedProps, workspace_id: json(workspaceId) };
             assert(
               byName[name].required.includes("workspace_id"),
@@ -1443,8 +1407,7 @@ Deno.test({
             );
           }
           // 할 일 생성: MCP는 최상위 object로 펼쳐 알리므로 두 종류(once·recurring) 입력 필드의 합집합과 같아야 한다.
-          const branches =
-            (json(taskCreate).oneOf ?? json(taskCreate).anyOf) as JsonSchema[];
+          const branches = (json(taskCreate).oneOf ?? json(taskCreate).anyOf) as JsonSchema[];
           assertEquals(
             byName.create_task.oneOf,
             taskCreate.options.map((branch) =>
@@ -1465,9 +1428,7 @@ Deno.test({
             Object.keys(byName.create_task.properties).sort(),
             [...union].sort(),
           );
-          const requiredEverywhere = branches.map((b) =>
-            new Set(b.required as string[])
-          )
+          const requiredEverywhere = branches.map((b) => new Set(b.required as string[]))
             .reduce((a, b) => new Set([...a].filter((k) => b.has(k))));
           requiredEverywhere.add("request_key");
           requiredEverywhere.add("workspace_id");
@@ -1603,9 +1564,7 @@ Deno.test({
           });
           assertEquals(extra.error.code, "invalid_input");
           assert(
-            extra.error.fields.some((f: { path: string }) =>
-              f.path === "status"
-            ),
+            extra.error.fields.some((f: { path: string }) => f.path === "status"),
           );
           assertEquals(
             extra.error,
@@ -1709,12 +1668,8 @@ Deno.test({
             "\n\n",
           )[0];
           assert(table, "스킬의 도구 안내 표가 없음");
-          const toolColumns = table.split("\n").map((line) =>
-            line.split("|")[2] ?? ""
-          ).join("\n");
-          const mentioned = [...toolColumns.matchAll(/`([a-z_]+)`/g)].map((m) =>
-            m[1]
-          );
+          const toolColumns = table.split("\n").map((line) => line.split("|")[2] ?? "").join("\n");
+          const mentioned = [...toolColumns.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]);
           const { tools } = await mcpA.listTools();
           const names = new Set(tools.map((t) => t.name));
           for (const n of new Set(mentioned)) {

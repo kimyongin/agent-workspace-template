@@ -1,23 +1,14 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import * as tags from "../../functions/_shared/core/tags/application.ts";
-import {
-  taskComplete,
-  taskCreate,
-} from "../../functions/_shared/contracts/task.ts";
-import {
-  occurrenceRecordCreate,
-  recordListQuery,
-} from "../../functions/_shared/contracts/record.ts";
+import { taskComplete, taskCreate } from "../../functions/_shared/contracts/task.ts";
+import { occurrenceRecordCreate, recordListQuery } from "../../functions/_shared/contracts/record.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
 import type { IndexJob } from "../../functions/_shared/core/shared/store.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 import { connect, dbTest, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 });
@@ -58,10 +49,8 @@ function failingProducer(reached: () => void): activity.ActivityDeps {
 
 async function storedFootprint(workspaceId: string) {
   return {
-    records:
-      await admin`select * from app.records where workspace_id=${workspaceId} order by id`,
-    state:
-      await admin`select * from app.search_index_state where workspace_id=${workspaceId} order by kind,id`,
+    records: await admin`select * from app.records where workspace_id=${workspaceId} order by id`,
+    state: await admin`select * from app.search_index_state where workspace_id=${workspaceId} order by kind,id`,
     queue:
       await admin`select msg_id,message from pgmq.q_search_index where message->>'workspace_id'=${workspaceId} order by msg_id`,
   };
@@ -70,9 +59,7 @@ async function noReceipt(actor: Actor) {
   assertEquals(
     (await admin`select count(*)::int n from private.workspace_request_results
     where workspace_id=${actor
-      .workspaceId!} and executor_id=${actor.userId} and request_key=${
-      actor.request!.key
-    }`)[0].n,
+      .workspaceId!} and executor_id=${actor.userId} and request_key=${actor.request!.key}`)[0].n,
     0,
   );
 }
@@ -218,9 +205,7 @@ dbTest(
                       };
                     }
                     const value = Reflect.get(target, property, target);
-                    return typeof value === "function"
-                      ? value.bind(target)
-                      : value;
+                    return typeof value === "function" ? value.bind(target) : value;
                   },
                 }),
               ), entry),

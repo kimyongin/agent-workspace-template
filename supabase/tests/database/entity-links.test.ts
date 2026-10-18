@@ -4,10 +4,7 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
-import {
-  taskCreate,
-  taskListQuery,
-} from "../../functions/_shared/contracts/task.ts";
+import { taskCreate, taskListQuery } from "../../functions/_shared/contracts/task.ts";
 import * as entity from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { connect, dbTest, urls } from "./_db.ts";
@@ -83,9 +80,7 @@ dbTest(
           [task.id],
         );
         assertEquals(
-          (await entity.getEntity(ed, actor, id)).tasks.items.map((row) =>
-            row.id
-          ),
+          (await entity.getEntity(ed, actor, id)).tasks.items.map((row) => row.id),
           [task.id],
         );
       }
@@ -160,11 +155,10 @@ dbTest(
         requestActor(actor),
         taskCreate.parse({ kind: "once", title: "고정 수행 원본" }),
       );
-      const record =
-        (await activity.completeTask(ad, requestActor(actor), resultRoot.id, {
-          expected_version: resultRoot.version,
-          body: "당시 수행 결과",
-        })).record;
+      const record = (await activity.completeTask(ad, requestActor(actor), resultRoot.id, {
+        expected_version: resultRoot.version,
+        body: "당시 수행 결과",
+      })).record;
       await entity.deleteEntity(ed, requestActor(actor), ids[1], 1);
       const remaining = await activity.getTask(ad, actor, task.id);
       assertEquals([remaining.entity_ids, remaining.entity_context], [
@@ -219,11 +213,10 @@ dbTest(
         requestActor(f.member),
         taskCreate.parse({ kind: "once", title: "결과 원본" }),
       );
-      const record =
-        (await activity.completeTask(ad, requestActor(f.member), root.id, {
-          expected_version: root.version,
-          body: "고정 소속 결과",
-        })).record;
+      const record = (await activity.completeTask(ad, requestActor(f.member), root.id, {
+        expected_version: root.version,
+        body: "고정 소속 결과",
+      })).record;
       for (
         const invalid of [{ entity_ids: [] }, { task_id: root.id }, {
           entity_id: null,
@@ -260,9 +253,7 @@ dbTest(
                       };
                     }
                     const value = Reflect.get(target, key, target);
-                    return typeof value === "function"
-                      ? value.bind(target)
-                      : value;
+                    return typeof value === "function" ? value.bind(target) : value;
                   },
                 }),
               ), entry),
@@ -272,9 +263,7 @@ dbTest(
         expected_version: record.version,
         body: "같은 결과 메모 정정",
       });
-      await assertRejects(() =>
-        activity.updateRecord(broken, requestActor(f.member), record.id, patch)
-      );
+      await assertRejects(() => activity.updateRecord(broken, requestActor(f.member), record.id, patch));
       assertEquals(await activity.getRecord(ad, f.member, record.id), record);
       const corrected = await activity.updateRecord(
         ad,
@@ -338,11 +327,10 @@ dbTest(
         requestActor(actor),
         taskCreate.parse({ kind: "once", title: "보존할 결과 원본" }),
       );
-      const record =
-        (await activity.completeTask(ad, requestActor(actor), resultRoot.id, {
-          expected_version: resultRoot.version,
-          body: "과거 수행 결과",
-        })).record;
+      const record = (await activity.completeTask(ad, requestActor(actor), resultRoot.id, {
+        expected_version: resultRoot.version,
+        body: "과거 수행 결과",
+      })).record;
       const before = await entity.getEntity(ed, actor, target.id);
       const taskBefore = await activity.getTask(ad, actor, task.id);
       const recordBefore = await activity.getRecord(ad, actor, record.id);
@@ -385,9 +373,7 @@ dbTest(
         target.version,
         undefined,
       );
-      await assertRejects(() =>
-        entity.deleteEntity(ed, requestActor(actor), target.id, target.version)
-      );
+      await assertRejects(() => entity.deleteEntity(ed, requestActor(actor), target.id, target.version));
       const detached = await activity.getTask(ad, actor, task.id);
       const historical = await activity.getRecord(ad, actor, record.id);
       assertEquals([

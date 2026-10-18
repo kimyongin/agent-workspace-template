@@ -1,17 +1,10 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
-import {
-  taskComplete,
-  taskCreate,
-  taskListQuery,
-} from "../../functions/_shared/contracts/task.ts";
+import { taskComplete, taskCreate, taskListQuery } from "../../functions/_shared/contracts/task.ts";
 import { recordListQuery } from "../../functions/_shared/contracts/record.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 import { connect, dbTest, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 });

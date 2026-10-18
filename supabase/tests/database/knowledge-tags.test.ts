@@ -5,18 +5,12 @@ import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activit
 import { tagListQuery } from "../../functions/_shared/contracts/tag.ts";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
-import {
-  recordListQuery,
-  recordUpdate,
-} from "../../functions/_shared/contracts/record.ts";
+import { recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import * as tags from "../../functions/_shared/core/tags/application.ts";
 import * as entities from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 import { connect, dbTest, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 });
@@ -50,12 +44,8 @@ dbTest(
         name: "분류",
       });
       assertThrows(() => tagListQuery.parse({ scope: "activity" }));
-      assertThrows(() =>
-        taskCreate.parse({ kind: "once", title: "초기 태그 거절", tag_ids: [] })
-      );
-      assertThrows(() =>
-        recordUpdate.parse({ expected_version: 1, tag_ids: [] })
-      );
+      assertThrows(() => taskCreate.parse({ kind: "once", title: "초기 태그 거절", tag_ids: [] }));
+      assertThrows(() => recordUpdate.parse({ expected_version: 1, tag_ids: [] }));
       assertEquals(
         (await assertRejects(() =>
           tags.createTag(td, businessRequest(actor), {
@@ -209,9 +199,7 @@ dbTest(
         actor,
         recordListQuery.parse({ entity_id: entity.id, record_kind: "change" }),
       );
-      const changed = changes.items.find((record) =>
-        record.change?.action === "update"
-      )!;
+      const changed = changes.items.find((record) => record.change?.action === "update")!;
       assertEquals([changed.change!.before, changed.change!.after], [
         null,
         null,
