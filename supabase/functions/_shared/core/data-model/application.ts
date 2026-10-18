@@ -30,6 +30,8 @@ export type ModelPlan = {
   baseline: string;
   source: DataModelDocument;
   remove_keys?: Record<string, string[]>;
+  /** Server-resolved kinds whose protected facts were used by this stored plan. */
+  protected_kind_ids?: string[];
 };
 export interface DataModelStore extends RequestStore {
   analyzeGroup?(id: string, input: ModelGroupAnalyze): Promise<ModelChange>;

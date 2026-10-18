@@ -12,7 +12,7 @@ import { invalidInput } from "../../core/shared/errors.ts";
 import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
 import { executeWorkspaceRequest } from "./workspace-request-ledger.ts";
 import { schemaDefinitionDiff } from "../../core/entity-types/evolution.ts";
-import { requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
 import type { WorkspaceEntry, WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import { decodeCursor, paginate, scopeOf } from "../../core/shared/operations.ts";
 import { z } from "zod";
@@ -68,6 +68,19 @@ export class SqlDataModelStore implements DataModelStore {
       }
       return result;
     });
+  }
+  protected async authorizeKinds(ids: string[], access: "read" | "write") {
+    if (!ids.length) return;
+    const requirements: WorkspaceRequirement[] = [...new Set(ids)].sort().map((id) => ({
+      target_kind: "entity_type",
+      target_id: id,
+      access,
+    }));
+    await authorizeWorkspace(this.tx, requirements);
+    await this.tx`select set_config('request.workspace_requirements',
+      (current_setting('request.workspace_requirements',true)::jsonb||${
+      this.tx.json(requirements as never)
+    }::jsonb)::text,true)`;
   }
   async exportDocument(): Promise<DataModelDocument> {
     const [row] = await this.tx`select app.export_workspace_data_model() as document`;
@@ -130,7 +143,7 @@ export class SqlDataModelStore implements DataModelStore {
     const ids = [...kinds].sort();
     // Resolve targets from current stored definitions, then authorize before
     // count, membership, reference flags or link cardinality reveal values.
-    await this.tx`select private.authorize_workspace_model_kinds(${ids}::uuid[])`;
+    await this.authorizeKinds(ids, "write");
     const facts = await this.tx`select t.id,
       (select count(*)::int from app.entities e where e.workspace_id=t.workspace_id and e.entity_type_id=t.id) as count,
       app.entity_schema_membership(t.workspace_id,t.id) as membership
@@ -159,6 +172,14 @@ export class SqlDataModelStore implements DataModelStore {
     return snapshot;
   }
   async save(plan: ModelPlan) {
+    const [context] = await this.tx`select current_setting('request.workspace_requirements',true) as requirements`;
+    const requirements = JSON.parse(context.requirements) as WorkspaceRequirement[];
+    plan = {
+      ...plan,
+      protected_kind_ids: [
+        ...new Set(requirements.filter((r) => r.target_kind === "entity_type").map((r) => r.target_id)),
+      ].sort(),
+    };
     const [r] = await this.tx`insert into app.data_model_changes(workspace_id,status,plan) values(${this.workspaceId},${
       plan.review.can_apply ? "ready" : "needs_conversion"
     },${this.tx.json(plan as never)}) returning *`;
@@ -166,6 +187,10 @@ export class SqlDataModelStore implements DataModelStore {
     return receiptChange(value);
   }
   async get(id: string, lock = false) {
+    const [targets] = await this.tx`select plan->'protected_kind_ids' as ids from app.data_model_changes
+      where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
+    if (!targets) return null;
+    await this.authorizeKinds(targets.ids ?? [], "read");
     const [r] = await this
       .tx`select * from app.data_model_changes where workspace_id=${this.workspaceId} and id=${id}::uuid ${
       lock ? this.tx`for update` : this.tx``
@@ -181,10 +206,15 @@ export class SqlDataModelStore implements DataModelStore {
         .tx`select id from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${after}::uuid`;
       if (!anchor) throw invalidInput("cursor의 기준 이력이 없습니다. 목록을 다시 조회하세요");
     }
-    const rows = await this
-      .tx`select * from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and (${after}::uuid is null or id>${after}::uuid) order by id limit ${
+    const candidates = await this.tx`select id,plan->'protected_kind_ids' as ids from app.data_model_changes
+      where workspace_id=${this.workspaceId}::uuid and (${after}::uuid is null or id>${after}::uuid) order by id limit ${
       limit + 1
     }`;
+    await this.authorizeKinds(candidates.flatMap((r) => r.ids ?? []), "read");
+    const rows = candidates.length
+      ? await this.tx`select * from app.data_model_changes
+      where workspace_id=${this.workspaceId}::uuid and id=any(${candidates.map((r) => r.id)}::uuid[]) order by id`
+      : [];
     return paginate(
       rows.map((r) => {
         const { plan: _p, ...value } = changeRow(r);
