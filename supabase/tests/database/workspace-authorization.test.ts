@@ -59,7 +59,16 @@ dbTest(
   async () => {
     const f = await fixture();
     try {
-      const actor = key(f.a), first = await workspaces.createWorkspace(deps, actor, { name: "첫 공간" });
+      const actor = key(f.a);
+      const created = await Promise.all(
+        Array.from(
+          { length: 3 },
+          () =>
+            workspaces.createWorkspace(deps, { ...actor, request: { key: actor.request.key } }, { name: "첫 공간" }),
+        ),
+      );
+      const first = created[0];
+      for (const result of created) assertEquals(result, first);
       // This test created an extra root through the public API; track it for exact cleanup.
       const second = await f.create(f.a, "다른 공간");
       try {
@@ -337,6 +346,54 @@ dbTest("all scoped legacy store delegates use workspace receipts for normal and 
     );
     assertEquals(executions, 1);
   } finally {
+    await f.cleanup();
+  }
+});
+
+dbTest("pooled connection clears actor and workspace after commit and rollback before another scope", async () => {
+  const f = await fixture(), reused = connect(urls.direct, { max: 1, prepare: false });
+  try {
+    const a = await f.create(f.a), b = await f.create(f.b);
+    const inspect = async (actor: Actor, id: string) =>
+      await runInWorkspace(
+        reused,
+        { ...actor, workspaceId: id },
+        { mode: "business", requirements: [] },
+        async (tx) => {
+          const [row] =
+            await tx`select current_user as role,app.current_workspace_id()::text as workspace,current_setting('request.jwt.claims')::jsonb->>'sub' as actor`;
+          return row;
+        },
+      );
+    assertEquals(await inspect(f.a, a.id), { role: "app_user", workspace: a.id, actor: f.a.userId });
+    assertEquals(await inspect(f.b, b.id), { role: "app_user", workspace: b.id, actor: f.b.userId });
+    await denied(
+      () =>
+        runInWorkspace(
+          reused,
+          { ...f.a, workspaceId: a.id },
+          { mode: "business", requirements: [] },
+          () => Promise.reject(new AppError("conflict", "rollback")),
+        ),
+      "conflict",
+    );
+    const [after] =
+      await reused`select current_user as role,current_setting('request.workspace_id',true) as workspace,current_setting('request.jwt.claims',true) as actor`;
+    assertEquals(after.role, "app_server");
+    assert(!after.workspace);
+    assert(!after.actor);
+    await denied(
+      async () =>
+        await Promise.resolve(
+          runInWorkspace(reused, { ...f.a, workspaceId: "" }, { mode: "business", requirements: [] }, () =>
+            Promise.resolve()),
+        ),
+      "invalid_input",
+    );
+    await denied(() => inspect(f.b, a.id));
+    assertEquals(await inspect(f.b, b.id), { role: "app_user", workspace: b.id, actor: f.b.userId });
+  } finally {
+    await reused.end();
     await f.cleanup();
   }
 });
