@@ -3,7 +3,7 @@ import { expect } from "@playwright/test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import { readFileSync } from "node:fs";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv , ownedWorkspace, workspacePath} from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 import type { DataModelDocument } from "../supabase/functions/_shared/contracts/data-model.ts";
 
@@ -23,7 +23,8 @@ async function stopWorker(child: ChildProcess | undefined) {
 
 test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→독립 runner→재방문·새로고침", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   let runner: ChildProcess | undefined;
   try {
     const initial = JSON.parse(
@@ -42,6 +43,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     const installed = await mcp.call("apply_data_model", { id: prepared.id, expected_version: prepared.version });
     expect(installed.status).toBe("applied");
     const ids = Object.values(preview.mapping.types) as string[];
+    for (const id of ids) await workspace.grantKind(id);
     const entities = [];
     for (const [index, id] of ids.entries()) {
       entities.push(
@@ -61,7 +63,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     const review = await mcp.call("preview_data_model", update);
     const change = await mcp.call("prepare_data_model", { ...update, preview_fingerprint: review.fingerprint });
     expect(change.status).toBe("needs_conversion");
-    await page.goto("/settings/data-model");
+    await page.goto(workspacePath(workspace.id, "/settings/data-model"));
     await page.getByRole("heading", { name: `${target.title} 값 변환 필요`, exact: true }).getByRole("button").click();
     const group = page.getByRole("region", { name: "기존 자료 값 변환" });
     await expect(group).toBeVisible();
@@ -91,7 +93,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     for (const entity of entities) expect((await mcp.call("get_entity", { id: entity.id })).schema_version).toBe(1);
     await openMainNavigation(page);
     const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
-    await expect(tasksLink).toHaveAttribute("href", "/tasks");
+    await expect(tasksLink).toHaveAttribute("href", workspacePath(workspace.id, "/tasks"));
     await tasksLink.click();
     await expect(page).toHaveURL(/\/tasks(?:[?#]|$)/);
     const origin = new URL(requiredEnv("VITE_SUPABASE_URL"));
@@ -114,7 +116,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
       expect(current.schema_version).toBe(2);
       expect(current.properties.prop_2).toBe(index + 8);
     }
-    await page.goto("/settings/data-model");
+    await page.goto(workspacePath(workspace.id, "/settings/data-model"));
     await expect(page.getByRole("heading", { name: `${target.title} 설정 적용 완료`, exact: true }).getByRole("button")).toHaveAccessibleName(/설정 적용 완료/);
     await page.getByRole("heading", { name: `${target.title} 설정 적용 완료`, exact: true }).getByRole("button").click();
     await expect(page.getByRole("region", { name: target.title, exact: true }).getByText("적용 완료", { exact: true }))

@@ -1,18 +1,21 @@
 import { businessRows } from "./table-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv , ownedWorkspace, workspacePath} from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 
 test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결·현재 이름 유지·320px·만료", async ({ page }) => {
   test.setTimeout(120_000);
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id }),
     admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
   const types: string[] = [], entities: string[] = [], relations: string[] = [];
   try {
     const type = await mcp.call("create_entity_type", { label: unique("원본 복구"), icon_id: "leaf" }),
       peerType = await mcp.call("create_entity_type", { label: unique("연결 자료") });
+    await workspace.grantKind(peerType.id);
+    await workspace.grantKind(type.id);
     types.push(type.id, peerType.id);
     const entity = await mcp.call("create_entity", {
         entity_type_id: type.id,
@@ -84,10 +87,10 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
       label,
       icon_id: "star",
     });
-    await page.goto(`/settings/entity-types/${peerType.id}/migrations/${started.job_id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${peerType.id}/migrations/${started.job_id}`));
     await expect(page.getByRole("alert")).toContainText("이 자료 종류의 작업이 아닙니다");
     await expect(page.getByRole("button", { name: "원본 복구안 만들기", exact: true })).toHaveCount(0);
-    await page.goto(`/settings/entity-types/${type.id}/migrations/${started.job_id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}/migrations/${started.job_id}`));
     await expect(page.getByLabel("자료 종류 선택")).toHaveValue(type.id);
     await expect(page.getByLabel("자료 종류 선택").locator("option:checked")).toHaveText(label);
     expect((await mcp.call("get_entity_type", { type_id: type.id })).icon_id).toBe("star");
@@ -137,7 +140,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
       analysis_id: recoveryReady.analysis.id,
       fingerprint: recoveryReady.fingerprint,
     });
-    await page.goto(`/settings/entity-types/${type.id}/migrations/${accepted.job_id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}/migrations/${accepted.job_id}`));
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     await expect.poll(async () => {
       await schemaAnalysisTick();
@@ -173,7 +176,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Expire only this test fixture after its successful GET; the actual write must report 410.
     await expect(create).toBeEnabled();
-    await admin`update app.entity_schema_migrations set source_expires_at=now()-interval '1 second' where id=${accepted.job_id}`;
+    await admin`update app.entity_schema_migrations set source_expires_at=now()-interval '1 second' where workspace_id=${workspace.id} and id=${accepted.job_id}`;
     const expiredResponse = page.waitForResponse((r) =>
       r.url().endsWith(`/entity-schema-migrations/${accepted.job_id}/recovery-changes`) &&
       r.request().method() === "POST"
@@ -188,19 +191,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     await expect(create).toBeDisabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
-    try {
-      await admin.begin(async (tx) => {
-        if (entities.length) await tx`delete from app.records where entity_ids&&${entities}::text[]`;
-        if (relations.length) await tx`delete from app.entity_relation_definitions where id=any(${relations}::uuid[])`;
-        if (entities.length) await tx`delete from app.entities where id=any(${entities}::text[])`;
-        if (types.length) await tx`delete from app.entity_types where id=any(${types}::uuid[])`;
-      });
-    } finally {
-      try {
-        await mcp.close();
-      } finally {
-        await admin.end();
-      }
-    }
+    await mcp.close();
+    await admin.end();
   }
 });
