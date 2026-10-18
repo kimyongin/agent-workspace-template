@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import postgres from "postgres";
 import { admin } from "../http/_client.ts";
 import { activityWorkspaceSuite, scopedHttp, scopedTool } from "../http/_workspace-activity-fixture.ts";
@@ -136,7 +136,9 @@ activityWorkspaceSuite(
           expected_job_version: failed.version,
         }, retryKey);
       assertEquals(retried.status, 202);
-      assertEquals(retried.body.job_id, secondId);
+      const retryId = retried.body.job_id;
+      assertNotEquals(retryId, secondId);
+      assertEquals((await scopedHttp(token, w, "GET", `/entity-schema-migrations/${secondId}`)).body.status, "failed");
       assertEquals(
         await scopedTool(client, w, "retry_entity_schema_migration", {
           job_id: secondId,
@@ -147,7 +149,7 @@ activityWorkspaceSuite(
       );
       for (let i = 0; i < 4; i++) {
         const [r] = await worker`select app.claim_entity_schema_migration() as batch`;
-        assertEquals(r.batch.id, secondId);
+        assertEquals(r.batch.id, retryId);
         const b = r.batch;
         if (b.status === "committing") {
           await worker`select app.commit_entity_schema_migration(${b.id},${b.fence},${b.source_template_fingerprint},${SEARCH_PIPELINE})`;
@@ -156,9 +158,9 @@ activityWorkspaceSuite(
         const prepared = await prepareMigrationBatch(b, new Date("2026-10-12T00:00:00Z"));
         await worker`select app.stage_entity_schema_migration(${b.id},${b.fence},${worker.json(prepared.results)})`;
       }
-      const done = (await scopedHttp(token, w, "GET", `/entity-schema-migrations/${secondId}`)).body;
+      const done = (await scopedHttp(token, w, "GET", `/entity-schema-migrations/${retryId}`)).body;
       assertEquals(done.status, "succeeded");
-      assertEquals(await scopedTool(client, w, "get_entity_schema_migration", { job_id: secondId }), done);
+      assertEquals(await scopedTool(client, w, "get_entity_schema_migration", { job_id: retryId }), done);
       const replay = await scopedHttp(token, w, "POST", path, input, secondKey);
       assertEquals(replay.status, 202);
       assertEquals(replay.body, second.body);
@@ -167,7 +169,7 @@ activityWorkspaceSuite(
         prop_1: "source",
         prop_2: false,
       });
-      const recoveryPath = `/entity-schema-migrations/${secondId}/recovery-changes`;
+      const recoveryPath = `/entity-schema-migrations/${retryId}/recovery-changes`;
       const refs = {
         expected_job_version: done.version,
 
@@ -183,7 +185,7 @@ activityWorkspaceSuite(
       assertEquals(draft.body.status, "draft");
       assertEquals(
         await scopedTool(client, w, "create_entity_schema_recovery", {
-          job_id: secondId,
+          job_id: retryId,
           ...refs,
           request_key: recoveryKey,
         }),
