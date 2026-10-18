@@ -43,7 +43,7 @@ async function job(text = "원문은 비밀이며 effect에는 저장하지 않�
     expected_version: task.version,
     body: text,
   });
-  const [claim] = await queue.claim({ limit: 1, kind: "record", id: record.id });
+  const [claim] = await queue.claim({ limit: 1, workspace_id: who.workspaceId, kind: "record", id: record.id });
   const input: PassageEffectInput = {
     message_id: claim.msg_id,
     pipeline: SEARCH_PIPELINE,
@@ -60,10 +60,10 @@ const status = async (id: string) => [
   ...await admin`select e.id::text as effect_id,
   case when e.state='running' and e.lease_until<=now() then 'unknown' else e.state end as state,
   e.attempts,e.reason,e.start_offset as start,e.end_offset as end
-  from private.passage_effects e join app.records r on r.id=e.record_id
-  join app.search_index_state s on s.workspace_id=r.workspace_id and s.id=e.record_id and s.kind='record'
+  from private.passage_effects e join app.records r on r.workspace_id=e.workspace_id and r.id=e.source_id and e.source_kind='record'
+  join app.search_index_state s on s.workspace_id=r.workspace_id and s.id=e.source_id and s.kind='record'
     and s.input_hash=e.source_hash and s.pipeline=e.pipeline
-  where r.workspace_id=${actor.workspaceId} and e.record_id=${id} and e.source_version=r.version`,
+  where e.workspace_id=${actor.workspaceId} and r.workspace_id=e.workspace_id and e.source_id=${id} and e.source_version=r.version`,
 ];
 // Fault injection only: move the durable lease/backoff clock; assertions use public use cases.
 async function release(effectId: string) {
@@ -247,12 +247,22 @@ dbTest(
       recordUpdate.parse({ expected_version: 1, body: a.text, occurred_at: "2025-01-01T00:00:00.000Z" }),
     );
     assertEquals(await status(a.record.id), []);
-    // The same pending message now binds to the new record revision.
+    // Every changed record revision invalidates old message/cache authority,
+    // even if only the occurrence metadata changed and the body is identical.
+    assertEquals((await ledger.claim(a.input)).action, "stale");
+    const revisedClaims = await queue.claim({
+      limit: 1,
+      workspace_id: actor.workspaceId,
+      kind: "record",
+      id: a.record.id,
+    });
+    assertEquals(revisedClaims.length, 1);
+    const revisedInput = { ...a.input, message_id: revisedClaims[0].msg_id };
     assertEquals(
       (await executePassageEffect(
         ledger,
         { send: () => Promise.resolve({ state: "succeeded", vector }) },
-        a.input,
+        revisedInput,
         a.text,
       )).state,
       "succeeded",
@@ -266,7 +276,7 @@ dbTest(
     assertEquals((await admin`select id from private.passage_effects where id=${claimed.effect_id}::uuid`).length, 1);
     await activity.deleteRecord(deps, businessRequest(actor), a.record.id, 2);
     assertEquals(
-      (await admin`select e.id from private.passage_effects e where e.record_id=${a.record.id}`)
+      (await admin`select e.id from private.passage_effects e where e.workspace_id=${actor.workspaceId} and e.source_kind='record' and e.source_id=${a.record.id}`)
         .length,
       0,
     );
@@ -352,7 +362,7 @@ dbTest("external effects: local record, request result, queue roll back together
     0,
   );
   assertEquals(
-    (await admin`select id from private.passage_effects where record_id=${recordId}`)
+    (await admin`select id from private.passage_effects where workspace_id=${actor.workspaceId} and source_kind='record' and source_id=${recordId}`)
       .length,
     0,
   );
@@ -384,10 +394,14 @@ dbTest("external effects: deleting an initiating account retains shared result p
       1,
     );
   } finally {
+    const effects = await admin`select id from private.passage_effects where workspace_id=${owned.workspaceId}`;
+    for (const effect of effects) await admin`delete from private.passage_effects where id=${effect.id}`;
     await owned.cleanup();
   }
 });
 
 dbTest("external-effect fixture cleanup", async () => {
+  const effects = await admin`select id from private.passage_effects where workspace_id=${actor.workspaceId}`;
+  for (const effect of effects) await admin`delete from private.passage_effects where id=${effect.id}`;
   await fixture.cleanup();
 });

@@ -83,3 +83,38 @@ Deno.test("property limits return localized field errors to every caller", () =>
     message: "100 이하여야 합니다",
   }]);
 });
+
+Deno.test("published definitions retain explicit selected text through label renames and reject unsupported selections", () => {
+  const d = initialEntityDefinition("이름");
+  Object.assign(d.schema.properties.prop_1, { "x-search-text": true });
+  d.schema.properties.prop_2 = { type: ["string", "null"], "x-order": 20, title: "설명" };
+  Object.assign(d.schema.properties.prop_2, { "x-search-text": true });
+  const published = validateEntityDefinition(JSON.parse(JSON.stringify(d)));
+  assertEquals(published.schema.properties.prop_1, { ...d.schema.properties.prop_1 });
+  published.schema.properties.prop_1.title = "바뀐 이름";
+  assertEquals(validateEntityDefinition(published).schema.properties.prop_1, {
+    ...d.schema.properties.prop_1,
+    title: "바뀐 이름",
+  });
+  for (
+    const field of [
+      { type: "number" },
+      { type: "boolean" },
+      { format: "date" },
+      { oneOf: [{ const: "a", title: "선택" }] },
+      { deprecated: true },
+    ]
+  ) {
+    assertThrows(() =>
+      validateEntityDefinition({
+        schema: {
+          ...d.schema,
+          properties: {
+            ...d.schema.properties,
+            prop_2: { type: "string", "x-order": 20, "x-search-text": true, ...field },
+          },
+        },
+      })
+    );
+  }
+});

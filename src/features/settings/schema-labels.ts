@@ -63,6 +63,7 @@ export function schemaDiffLabel(path: string, target: SchemaDefinition, source: 
     "x-list-order": "목록 순서",
     "x-representative": "자료 이름",
     "x-show-in-list": "목록 표시",
+    "x-search-text": "검색에 사용",
     "x-icon": "아이콘",
     deprecated: "사용 중지",
     readOnly: "읽기 전용",

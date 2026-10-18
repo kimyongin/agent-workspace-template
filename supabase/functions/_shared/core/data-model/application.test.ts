@@ -126,7 +126,7 @@ Deno.test("whole model accepts a valid multi-kind bundle larger than the retired
   assertEquals(r.can_apply, true);
 });
 
-import { resolveModel } from "./application.ts";
+import { parseModel, resolveModel } from "./application.ts";
 Deno.test("the original update file reapplies without losing immutable kind, property, rule or relation identities", async () => {
   const doc = example();
   doc.entity_types[0].schema.properties.prop_9 = { type: "string", "x-order": 2, title: "원본 키" };
@@ -251,4 +251,26 @@ Deno.test("referenced per-kind identity sources cannot be removed or rebound dur
   const suspended = structuredClone(source);
   suspended.entity_types[0].identity.sources[1].active = false;
   assertEquals((await resolveModel(snapshot, suspended, "update", actor.userId)).review.can_apply, true);
+});
+
+Deno.test("whole model exchange retains selected text annotations on stable properties", async () => {
+  const doc = example();
+  doc.entity_types[0].schema.properties.prop_1["x-search-text"] = true;
+  doc.entity_types[0].schema.properties.prop_2 = {
+    type: ["string", "null"],
+    "x-order": 20,
+    title: "설명",
+    "x-search-text": false,
+  };
+  const first = await resolveModel({ document: empty as DataModelDocument, types: {} }, doc, "update", actor.userId);
+  const schema = first.target.entity_types[0].schema;
+  assertEquals(schema.properties.prop_1["x-search-text"], true);
+  assertEquals(schema.properties.prop_2["x-search-text"], false);
+  const imported = parseModel(JSON.stringify(first.target));
+  imported.entity_types[0].schema.properties.prop_1.title = "새 이름";
+  const types = { [schema["x-type-id"]]: { next_property_number: 3, count: 0, locked: false } };
+  const second = await resolveModel({ document: first.target, types }, imported, "update", actor.userId);
+  assertEquals(second.target.entity_types[0].schema.properties.prop_1["x-search-text"], true);
+  assertEquals(second.target.entity_types[0].schema.properties.prop_1.title, "새 이름");
+  assertEquals(second.review.mapping.properties[imported.entity_types[0].ref].prop_1, "prop_1");
 });

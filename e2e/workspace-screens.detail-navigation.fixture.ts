@@ -381,7 +381,7 @@ test("상세 탐색 검색: 동시 추가 뒤 깊은 anchor와 reload 초점 복
         next_cursor: start + 20 < state.rows.records.length ? String(start + 20) : null,
         anchor_page: anchor < 0 ? null : Math.floor(anchor / 20) + 1,
         search_state: "ok",
-        semantic_coverage: { pending: 0, excluded: 0 },
+        semantic_coverage: { pending: 0, excluded: 0, failed: 0 },
       },
     });
   });

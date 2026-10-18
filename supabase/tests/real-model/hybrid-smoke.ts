@@ -19,7 +19,7 @@ const fixtures = [
     query: "오늘 수행한 산책의 결과를 확인해줘",
   },
 ];
-// #516 owns workspace worker/provider consumer semantics; this remains a paid, explicitly run smoke.
+// Explicit paid-provider quality evidence; deterministic worker tests do not establish this result.
 try {
   await withActivityWorkspace(async (f) => {
     const { A: session, workspaceA } = f;
@@ -49,7 +49,7 @@ try {
             authorization: `Bearer ${Deno.env.get("PROCESSING_TOKEN")}`,
             "content-type": "application/json",
           },
-          body: JSON.stringify({ limit: 1, kind: "record", id: item.id }),
+          body: JSON.stringify({ limit: 1, workspace_id: workspaceA, kind: "record", id: item.id }),
         },
       );
       assertEquals(response.status, 200);
@@ -64,7 +64,7 @@ try {
       assertEquals(agent.search_state, "ok");
       assertEquals(agent.items[0].id, items[n].id);
       assertEquals(agent.items[0].match, "semantic");
-      assertEquals(agent.semantic_coverage, { pending: 0, excluded: 0 });
+      assertEquals(agent.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
       const match = agent.items[0];
       assertEquals(
         [...fixture.body].slice(match.snippet_start, match.snippet_end).join(

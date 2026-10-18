@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { codePointLength } from "./common.ts";
+import { entityReferenceId } from "./entity-identity.ts";
+import { codePointLength, id } from "./common.ts";
 
 export const statusInput = z.strictObject({
   timezone: z.string().min(1).max(64).refine((value) => {
@@ -32,13 +33,16 @@ export interface StatusDay {
   once_completed: number;
   records_created: number;
   indexing: IndexingCounts;
+  entity_indexing: IndexingCounts;
 }
 export interface StatusData {
   period: { from: string; to: string; days: number };
   entities: { total: number; active: number; deleted: number };
   tasks: { total: number; open: number; done: number; active: number; stopped: number };
-  records: { total: number; user: number; result: number; change: number };
+  records: { total: number; result: number; change: number };
+  /** Record units; entity sources are counted separately. */
   indexing: IndexingCounts & { total: number; waiting: IndexingWait };
+  entity_indexing: IndexingCounts & { total: number; waiting: IndexingWait };
   daily: StatusDay[];
 }
 export interface StatusOverview extends StatusData {
@@ -50,7 +54,9 @@ export const indexingIssuesInput = z.strictObject({ cursor: z.string().min(1).ma
 export type IndexingIssuesInput = z.infer<typeof indexingIssuesInput>;
 const count = z.number().int().nonnegative();
 export const indexingIssue = z.strictObject({
-  id: z.string().min(1),
+  id: z.union([id, entityReferenceId]),
+  kind: z.enum(["record", "entity"]),
+  path: z.string().min(1),
   created_at: z.iso.datetime({ offset: true }),
   title: z.string().refine((value) => codePointLength(value) <= 100),
   reason: z.enum([

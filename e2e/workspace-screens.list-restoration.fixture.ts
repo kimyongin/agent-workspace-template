@@ -349,7 +349,7 @@ for (const kind of ["tasks"] as const) {
           }],
           next_cursor: input.query === "old" && !input.cursor ? "next" : null,
           search_state: stale ? "keyword_fallback" : "ok",
-          semantic_coverage: { pending: stale ? 99 : 1, excluded: 0 },
+          semantic_coverage: { pending: stale ? 99 : 1, excluded: 0, failed: 0 },
         },
       }).catch((error) => {
         if (!route.request().failure()) throw error;
@@ -399,7 +399,7 @@ test("검색 복원의 마지막 요청 페이지가 cursor를 반복하면 이�
         }],
         next_cursor: "next",
         search_state: input.cursor ? "keyword_fallback" : "ok",
-        semantic_coverage: { pending: input.cursor ? 99 : 1, excluded: 0 },
+        semantic_coverage: { pending: input.cursor ? 99 : 1, excluded: 0, failed: 0 },
       },
     });
   });
@@ -436,7 +436,7 @@ test("검색의 반복 cursor 실패는 기존 행·coverage를 보존하고 같
         }],
         next_cursor: !input.cursor || bad ? "next" : null,
         search_state: bad ? "keyword_fallback" : "ok",
-        semantic_coverage: { pending: bad ? 99 : 1, excluded: 0 },
+        semantic_coverage: { pending: bad ? 99 : 1, excluded: 0, failed: 0 },
       },
     });
   });

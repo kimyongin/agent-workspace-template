@@ -43,7 +43,7 @@ async function completeFixtureTask(body: string) {
 }
 const update = (id: string, version: number, body: string) =>
   activity.updateRecord(deps, businessRequest(A), id, recordUpdate.parse({ expected_version: version, body }));
-const scope = (id: string) => ({ limit: 1, kind: "record", id });
+const scope = (id: string) => ({ limit: 1, workspace_id: A.workspaceId, kind: "record", id });
 
 const ledger = new SqlExternalEffectLedger(worker);
 const providerScope = "a".repeat(64);
@@ -68,8 +68,11 @@ function runBatch(q: IndexQueue, embedder: Embedder, input: IndexScope) {
 async function retryReady(id: string) {
   await admin`update pgmq.q_search_index set vt=now()-interval '1 second' where msg_id=${id}`;
   await admin`update private.passage_effects e set next_attempt_at=now()-interval '1 second',lease_until=now()-interval '1 second'
-    where e.record_id in (select id from app.records where workspace_id=${A.workspaceId})
-      and e.record_id=(select message->>'id' from pgmq.q_search_index where msg_id=${id}::bigint)`;
+    from app.search_index_state s where e.workspace_id=${A.workspaceId} and e.source_kind='record'
+      and s.workspace_id=e.workspace_id and s.kind=e.source_kind and s.id=e.source_id and s.message_id=${id}::bigint
+      and e.source_version=s.source_version and e.source_hash=s.input_hash and e.pipeline=s.pipeline
+      and e.workspace_generation=s.workspace_generation and e.initiated_by is not distinct from s.initiated_by
+      and e.required_permissions=s.required_permissions`;
 }
 
 dbTest("record worker: complete generation, duplicate delivery, body edit/delete during embedding", async () => {
@@ -91,7 +94,11 @@ dbTest("record worker: complete generation, duplicate delivery, body edit/delete
   released.resolve(vector);
   assertEquals((await old).stale, 1);
   assertEquals((await state(item.id)).state, "pending");
-  assertEquals((await admin`select * from app.search_chunks where record_id=${item.id}`).length, 0);
+  assertEquals(
+    (await admin`select * from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='record' and source_id=${item.id}`)
+      .length,
+    0,
+  );
   const [claim] = await queue.claim(scope(item.id));
   assertEquals((await queue.prepare(claim.msg_id, SEARCH_PIPELINE))?.body, "최신 본문");
   const chunks: IndexedChunk[] = [{ start: 0, end: 5, text: "최신 본문", vector }];
@@ -106,7 +113,11 @@ dbTest("record worker: complete generation, duplicate delivery, body edit/delete
   released.resolve(vector);
   assertEquals((await late).stale, 1);
   assertEquals(await state(item.id), undefined);
-  assertEquals((await admin`select * from app.search_chunks where record_id=${item.id}`).length, 0);
+  assertEquals(
+    (await admin`select * from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='record' and source_id=${item.id}`)
+      .length,
+    0,
+  );
 });
 
 dbTest(
@@ -122,7 +133,11 @@ dbTest(
     );
     const first = await state(item.id);
     assertEquals(first.state, "pending");
-    assertEquals((await admin`select * from app.search_chunks where record_id=${item.id}`).length, 0);
+    assertEquals(
+      (await admin`select * from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='record' and source_id=${item.id}`)
+        .length,
+      0,
+    );
     for (let count = 2; count <= 5; count++) {
       await retryReady(String(first.message_id));
       const result = await runBatch(queue, {
@@ -137,7 +152,11 @@ dbTest(
       queue.finish(claim.msg_id, SEARCH_PIPELINE, "indexed", null, [{ start: 0, end: 1, text: "새", vector }])
     );
     assertEquals((await state(item.id)).state, "pending");
-    assertEquals((await admin`select * from app.search_chunks where record_id=${item.id}`).length, 0);
+    assertEquals(
+      (await admin`select * from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='record' and source_id=${item.id}`)
+        .length,
+      0,
+    );
     const current = await state(item.id);
     const [forged] = await admin`select pgmq.send('search_index',${
       admin.json({
@@ -328,8 +347,12 @@ dbTest("latest task content creates no task vector job and remains keyword searc
   );
   assertEquals(result.items[0].id, task.id);
   assertEquals(result.items[0].match, "keyword");
-  assertEquals(result.semantic_coverage, { pending: 0, excluded: 0 });
+  assertEquals(result.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
 });
 dbTest("index-worker fixture cleanup", async () => {
+  for (const workspaceId of [A.workspaceId, foreign.actor.workspaceId]) {
+    const effects = await admin`select id from private.passage_effects where workspace_id=${workspaceId}`;
+    for (const effect of effects) await admin`delete from private.passage_effects where id=${effect.id}`;
+  }
   await fixture.cleanup();
 });

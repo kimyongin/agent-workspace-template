@@ -122,7 +122,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
         ? run(state.page.pages + 1, intent.anchor, "more")
         : run(intent.pages, intent.anchor, "restore", options.restoreRetry === "restart");
     },
-    refresh: () => run(intent.pages, intent.anchor, "restore", true, true),
+    refresh: (options?: { clear?: boolean }) => run(intent.pages, intent.anchor, "restore", true, !options?.clear),
     cancel,
   };
 }

@@ -18,7 +18,12 @@ export async function businessWorkspaceFixture(admin: postgres.Sql, sql: postgre
   const key = (workspace: string, user: string) => `${workspace}:${user}`;
   const cleanup = async () => {
     for (const id of owned) {
+      // Exact fresh fixture ownership is known before the FK can detach an
+      // uncertain in-process fake effect. Never select legacy/unowned history.
+      const effects = await admin`select id from private.passage_effects where workspace_id=${id}`;
+      for (const effect of effects) await admin`delete from private.passage_effects where id=${effect.id}::uuid`;
       await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${id}`;
+      await admin`delete from pgmq.a_search_index where message->>'workspace_id'=${id}`;
       await admin`delete from app.workspaces where id=${id}`;
     }
     for (const id of seeded) await admin`delete from auth.users where id=${id}`;

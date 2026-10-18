@@ -37,6 +37,7 @@ export function SchemaDefinitionRead(
           ["필수 입력", definition.schema.required.includes(key) ? "예" : "아니요"],
           ["목록에 표시", schemaPresentation(definition).list_columns.includes(key) ? "예" : "아니요"],
           ["읽기 전용", field.readOnly ? "예" : "아니요"],
+          ["검색에 사용", field["x-search-text"] ? "예" : "아니요"],
         );
         if (schemaPresentation(definition).archived.includes(key)) values.push(["사용 상태", "사용 중지"]);
         if (field.examples?.length) {

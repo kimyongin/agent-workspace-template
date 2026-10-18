@@ -20,7 +20,6 @@ const subscribeIdle = () => () => {};
 export function useSearchRead(params: URLSearchParams, retry: number) {
   const api = useApi();
   const revision = useContext(WorkspaceContext)?.revision;
-  const previousRevision = useRef(revision);
   const location = useLocation(), navigate = useNavigate(), latest = useRef(location);
   latest.current = location;
   const scope = new URLSearchParams(params);
@@ -40,18 +39,17 @@ export function useSearchRead(params: URLSearchParams, retry: number) {
     } catch {
       return { read: null, invalid: true };
     }
-  }, [key, retry]);
+  }, [api, key, retry, revision]);
   const read = session.read;
+  useEffect(() => {
+    const refresh = () => { void read?.restart(); };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [read]);
   const state = useSyncExternalStore(read?.subscribe ?? subscribeIdle, read?.snapshot ?? (() => idle));
   useEffect(() => {
     void read?.restore(pages, location.hash);
   }, [read, pages, location.hash]);
-  useEffect(() => {
-    if (previousRevision.current !== revision) {
-      previousRevision.current = revision;
-      void read?.restart();
-    }
-  }, [read, revision]);
   useEffect(() => () => read?.cancel(), [read]);
   useEffect(() => {
     if (state.completion?.source !== "more") return;

@@ -4,7 +4,7 @@ import { activityTags } from "../activity/activity-filters.ts";
 /** Saved search links retain every supported filter at the public search boundary. */
 export function workspaceSearchScope(params: URLSearchParams) {
   if (params.has("status") || params.has("principle_view")) {
-    throw new Error("지원하지 않는 검색 조건입니다. 할 일이나 기록을 검색하세요.");
+    throw new Error("지원하지 않는 검색 조건입니다. 자료·할 일·기록을 검색하세요.");
   }
   const tags = activityTags(params);
   return searchInput.parse({

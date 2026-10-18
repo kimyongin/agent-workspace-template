@@ -27,7 +27,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "get_entity",
       description:
-        "자료 속성과 선택된 할 일·기록의 최근 5개 및 전체 개수. 삭제된 자료도 보관값·version·deleted_at을 반환하며 명시 복원 확인에 사용한다. 각 list 도구의 entity_id로 전체 조회. 자료는 임베딩하지 않는다.",
+        "자료 속성과 선택된 할 일·기록의 최근 5개 및 전체 개수. 삭제된 자료도 보관값·version·deleted_at을 반환하며 명시 복원 확인에 사용한다. 각 list 도구의 entity_id로 전체 조회. 의미 검색에는 종류 정의에서 선택한 현재 텍스트 항목만 포함한다.",
       input: z.strictObject({ id }),
       readOnly: true,
       handler: (i, a) => entity.getEntity(d, a, idParam(parse(get, i).id)),
