@@ -25,6 +25,7 @@ function StatusSession() {
   const [data, setData] = useState<StatusOverview | null>(null);
   const [busy, setBusy] = useState(true), [error, setError] = useState("");
   const [issuesRevision, setIssuesRevision] = useState(0);
+  const [selectedDates, setSelectedDates] = useState<Record<string, string>>({});
   const controller = useRef<AbortController | null>(null);
   async function refresh() {
     controller.current?.abort();
@@ -78,8 +79,8 @@ function StatusSession() {
         </div>
       )}
       {data && (
-        <StatusContent data={data}>
-          <IndexingIssues key={issuesRevision} count={data.indexing.attention} disabled={busy || !!error} />
+        <StatusContent data={data} selectedDates={selectedDates} onDateSelect={(chart, date) => setSelectedDates((previous) => ({ ...previous, [chart]: date }))}>
+          <IndexingIssues key={issuesRevision} count={data.indexing.attention + data.entity_indexing.attention} disabled={busy || !!error} />
         </StatusContent>
       )}
     </section>

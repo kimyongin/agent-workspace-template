@@ -1280,7 +1280,7 @@ for (const width of [320, 1440]) {
       period: { from: "2026-10-15", to: "2026-10-15", days: 1 },
       entities: { total: 0, active: 0, deleted: 0 },
       tasks: { total: 0, open: 0, done: 0, active: 0, stopped: 0 },
-      records: { total: 1, user: 1, result: 0, change: 0 },
+      records: { total: 1, result: 1, change: 0 },
       indexing: {
         total: 1,
         indexed: 0,
@@ -1289,6 +1289,7 @@ for (const width of [320, 1440]) {
         excluded: 0,
         waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 5 },
       },
+      entity_indexing: { total: 0, indexed: 0, preparing: 0, attention: 0, excluded: 0, waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 } },
       daily: [],
     };
     await page.route(
@@ -1305,7 +1306,7 @@ for (const width of [320, 1440]) {
           failIssues ? { status: 503, json: { error: { code: "unavailable", message: "조회 실패" } } } : {
             json: {
               items: [{
-                id: "issue",
+                kind: "record", path: "/records/20261015-ABCDEF12", id: "20261015-ABCDEF12",
                 created_at: "2026-10-15T00:00:00Z",
                 title: "긴 제목 ".repeat(15),
                 reason: "provider_unknown",

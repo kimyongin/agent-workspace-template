@@ -115,19 +115,19 @@ it("안전하게 보존한 선택 날짜는 새로운 조회 자료에서 선택
   expect(entities).toContain("7건");
 });
 
-it("혼합 색인 문제는 같은 ID라도 종류를 구분하고 현재 공간의 원문으로 이동한다", () => {
+it("혼합 색인 문제는 종류를 구분하고 현재 공간의 원문으로 이동한다", () => {
   const base = { id: "20261010-G123ABCD", created_at: "2026-10-10T00:00:00Z", title: "같은 제목", reason: "provider_unknown" as const,
     attempts: 1, chunks: { total: 1, succeeded: 0, preparing: 0, unknown: 1, failed: 0 } };
   const html = renderToStaticMarkup(<MemoryRouter><WorkspaceRouteContext.Provider value="current-workspace">
     <IndexingIssueRows items={[
       { ...base, kind: "record", path: "/records/20261010-G123ABCD" },
-      { ...base, kind: "entity", path: "/entities/app:type:20261010-G123ABCD" },
-    ]} expanded={["record:20261010-G123ABCD", "entity:20261010-G123ABCD"]} onToggle={() => {}} id="problems" />
+      { ...base, id: "app:00000000-0000-4000-8000-000000000001:20261010-G123ABCD", kind: "entity", path: "/entities/app%3A00000000-0000-4000-8000-000000000001%3A20261010-G123ABCD" },
+    ]} expanded={["record:20261010-G123ABCD", "entity:app:00000000-0000-4000-8000-000000000001:20261010-G123ABCD"]} onToggle={() => {}} id="problems" />
   </WorkspaceRouteContext.Provider></MemoryRouter>);
   expect(html).toContain('href="/w/current-workspace/records/20261010-G123ABCD"');
-  expect(html).toContain('href="/w/current-workspace/entities/app:type:20261010-G123ABCD"');
+  expect(html).toContain('href="/w/current-workspace/entities/app%3A00000000-0000-4000-8000-000000000001%3A20261010-G123ABCD"');
   expect(html).toContain("기록 원문");
   expect(html).toContain("자료 원문");
   expect(html).toContain('id="problems-record-20261010-G123ABCD"');
-  expect(html).toContain('id="problems-entity-20261010-G123ABCD"');
+  expect(html).toContain('id="problems-entity-app:00000000-0000-4000-8000-000000000001:20261010-G123ABCD"');
 });
