@@ -479,7 +479,7 @@ test("desktop: creating a task from an entity prepares and saves its selected re
   });
   await page.goto(`/entities/${encodeURIComponent(entityKey(1))}?create=task`);
   await panel(page).getByLabel("제목").fill("다음 구매");
-  await panel(page).getByLabel("기한").fill("2026-11-01");
+  await panel(page).getByRole("textbox", { name: "기한", exact: true }).fill("2026-11-01");
   await saveOnce(page, panel(page), "추가");
   await expect(panel(page).getByLabel("제목")).toHaveCount(0);
   const input = {

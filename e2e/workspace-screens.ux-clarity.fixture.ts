@@ -114,7 +114,7 @@ for (const width of [320, 1440]) {
       await expect(editor.locator("[aria-invalid=true]")).toHaveCount(1);
       expect(state.writes).toHaveLength(0);
       await dates.fill("1, 31");
-      await editor.getByLabel("시작일", { exact: false }).fill("2028-01-31");
+      await editor.getByRole("textbox", { name: /^시작일/ }).fill("2028-01-31");
       await editor.getByRole("combobox", { name: "시간대", exact: false }).selectOption("America/New_York");
       await editor.getByRole("radio", { name: "일회성", exact: true }).click();
       await expect(editor.getByLabel("기한", { exact: true })).toBeVisible();

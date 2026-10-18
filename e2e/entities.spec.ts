@@ -31,7 +31,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·삭제 원문 보존", async 
     name = unique("예제 엔터티");
   await form.getByLabel("제목").fill(name);
   await form.getByLabel("수량").fill("0");
-  await form.getByLabel("날짜").fill("2024-02-29");
+  await form.getByRole("textbox", { name: "날짜", exact: true }).fill("2024-02-29");
   await form.getByLabel("분류").selectOption("b");
   await form.getByRole("button", { name: "닫기", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole(
@@ -97,7 +97,7 @@ test("Entity 연결 활동 검색·목록과 상세 복귀·편집의 자료 연
     const name = unique("연결 검색 자료");
     await form.getByLabel("제목").fill(name);
     await form.getByLabel("수량").fill("0");
-    await form.getByLabel("날짜").fill("2024-02-29");
+    await form.getByRole("textbox", { name: "날짜", exact: true }).fill("2024-02-29");
     await form.getByLabel("분류").selectOption("b");
     await saveOnce(page, form);
     await expect(form).not.toBeVisible();

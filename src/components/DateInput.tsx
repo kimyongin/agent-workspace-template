@@ -18,9 +18,16 @@ export function DateInput({ label, value, onValueChange, disabled, readOnly, ...
   const [open, setOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const frozen = disabled || readOnly;
-  useEffect(() => { if (frozen) setOpen(false); }, [frozen]);
+  useEffect(() => {
+    if (frozen) setOpen(false);
+  }, [frozen]);
   return (
-    <Popover open={open && !frozen} onOpenChange={(next) => { if (!frozen) setOpen(next); }}>
+    <Popover
+      open={open && !frozen}
+      onOpenChange={(next) => {
+        if (!frozen) setOpen(next);
+      }}
+    >
       <InputGroup>
         <InputGroupInput
           {...props}
@@ -40,19 +47,36 @@ export function DateInput({ label, value, onValueChange, disabled, readOnly, ...
           </PopoverTrigger>
         </InputGroupAddon>
       </InputGroup>
-      {open && !frozen && <PopoverContent
-        aria-label={`${label} 달력`}
-        align="start"
-        className="w-84 max-w-(--radix-popover-content-available-width) p-0"
-        onEscapeKeyDown={(event) => { event.preventDefault(); event.stopPropagation(); setOpen(false); }}
-        onCloseAutoFocus={(event) => { event.preventDefault(); input.current?.focus(); }}
-      >
-        <ScrollArea className="max-h-(--radix-popover-content-available-height) [&>[data-slot=scroll-area-viewport]]:max-h-(--radix-popover-content-available-height)">
-          <Suspense fallback={<Spinner aria-label="달력 불러오는 중" />}>
-            <DateCalendar value={value} onSelect={(next) => { if (!frozen) { onValueChange(next); setOpen(false); } }} />
-          </Suspense>
-        </ScrollArea>
-      </PopoverContent>}
+      {open && !frozen && (
+        <PopoverContent
+          aria-label={`${label} 달력`}
+          align="start"
+          className="w-84 max-w-(--radix-popover-content-available-width) p-0"
+          onEscapeKeyDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(false);
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            input.current?.focus();
+          }}
+        >
+          <ScrollArea className="max-h-(--radix-popover-content-available-height) [&>[data-slot=scroll-area-viewport]]:max-h-(--radix-popover-content-available-height)">
+            <Suspense fallback={<Spinner aria-label="달력 불러오는 중" />}>
+              <DateCalendar
+                value={value}
+                onSelect={(next) => {
+                  if (!frozen) {
+                    onValueChange(next);
+                    setOpen(false);
+                  }
+                }}
+              />
+            </Suspense>
+          </ScrollArea>
+        </PopoverContent>
+      )}
     </Popover>
   );
 }

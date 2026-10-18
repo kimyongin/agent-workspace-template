@@ -56,7 +56,9 @@ function civilDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   if (year < 1) return undefined;
   const result = calendarDate(year, month - 1, day);
-  return result.getFullYear() === year && result.getMonth() === month - 1 && result.getDate() === day ? result : undefined;
+  return result.getFullYear() === year && result.getMonth() === month - 1 && result.getDate() === day
+    ? result
+    : undefined;
 }
 
 export default function DateCalendar({ value, onSelect }: { value: string; onSelect: (value: string) => void }) {
@@ -91,7 +93,13 @@ export default function DateCalendar({ value, onSelect }: { value: string; onSel
       components={{ MonthGrid: DateMonthGrid }}
       labels={{ labelPrevious: () => "이전 달", labelNext: () => "다음 달" }}
       onSelect={(date) => {
-        if (date) onSelect(`${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`);
+        if (date) {
+          onSelect(
+            `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${
+              String(date.getDate()).padStart(2, "0")
+            }`,
+          );
+        }
       }}
     />
   );

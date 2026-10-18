@@ -1,18 +1,18 @@
-import * as React from "react"
-import { cn } from "cn"
-import { Popover as PopoverPrimitive } from "radix-ui"
-import { PopupContainerContext } from "./portal-container"
+import * as React from "react";
+import { cn } from "cn";
+import { Popover as PopoverPrimitive } from "radix-ui";
+import { PopupContainerContext } from "./portal-container";
 
 function Popover({
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />
+  return <PopoverPrimitive.Root data-slot="popover" {...props} />;
 }
 
 function PopoverTrigger({
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
+  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
 }
 
 function PopoverContent({
@@ -21,22 +21,25 @@ function PopoverContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
-  const container = React.useContext(PopupContainerContext)
-  const [viewport, setViewport] = React.useState<HTMLElement | null>(null)
+  const container = React.useContext(PopupContainerContext);
+  const [viewport, setViewport] = React.useState<HTMLElement | null>(null);
   React.useLayoutEffect(() => {
-    if (container) return
+    if (container) return;
     // A containing block lets Floating UI account for root CSS zoom outside dialogs too.
-    const frame = document.createElement("div")
-    frame.setAttribute("data-slot", "popover-viewport")
+    const frame = document.createElement("div");
+    frame.setAttribute("data-slot", "popover-viewport");
     Object.assign(frame.style, {
-      position: "fixed", inset: "0", transform: "translateZ(0)", pointerEvents: "none",
-    })
-    document.body.appendChild(frame)
-    setViewport(frame)
-    return () => frame.remove()
-  }, [container])
-  const portalContainer = container ?? (viewport?.isConnected ? viewport : null)
-  if (!portalContainer) return null
+      position: "fixed",
+      inset: "0",
+      transform: "translateZ(0)",
+      pointerEvents: "none",
+    });
+    document.body.appendChild(frame);
+    setViewport(frame);
+    return () => frame.remove();
+  }, [container]);
+  const portalContainer = container ?? (viewport?.isConnected ? viewport : null);
+  if (!portalContainer) return null;
   return (
     <PopoverPrimitive.Portal container={portalContainer}>
       <PopoverPrimitive.Content
@@ -46,18 +49,18 @@ function PopoverContent({
         className={cn(
           "pointer-events-auto",
           "z-50 flex w-72 origin-(--radix-popover-content-transform-origin) flex-col gap-2.5 rounded-lg bg-popover p-2.5 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
+          className,
         )}
         {...props}
       />
     </PopoverPrimitive.Portal>
-  )
+  );
 }
 
 function PopoverAnchor({
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
-  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />
+  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />;
 }
 
 function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
@@ -67,7 +70,7 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("flex flex-col gap-0.5 text-sm", className)}
       {...props}
     />
-  )
+  );
 }
 
 function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
@@ -77,7 +80,7 @@ function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
       className={cn("font-medium", className)}
       {...props}
     />
-  )
+  );
 }
 
 function PopoverDescription({
@@ -90,16 +93,7 @@ function PopoverDescription({
       className={cn("text-muted-foreground", className)}
       {...props}
     />
-  )
+  );
 }
 
-export {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-}
-
+export { Popover, PopoverAnchor, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger };
