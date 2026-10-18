@@ -601,3 +601,52 @@ dbTest("simultaneous mutual removal and leave both retain a final manageable par
     await f.cleanup();
   }
 });
+
+dbTest(
+  "a scoped kind cannot escape through legacy NULL while a legacy kind may enter its authorized workspace",
+  async () => {
+    const f = await fixture();
+    try {
+      const first = await f.create(f.a), second = await f.create(f.a), legacySpace = await f.create(f.b);
+      const scoped = await entityFixture(admin, f.a.userId), legacy = await entityFixture(admin, f.b.userId);
+      await admin`update app.entity_types set workspace_id=${first.id} where id=${scoped.entity_type_id}`;
+      const direct = <T>(user: string, workspace: string, fn: (tx: import("postgres").TransactionSql) => Promise<T>) =>
+        asUser(sql, user, async (tx) => {
+          await tx`select set_config('request.workspace_id',${workspace},true)`;
+          return await fn(tx);
+        });
+      const nulled = await outcome(
+        direct(
+          f.a.userId,
+          first.id,
+          (tx) => tx`update app.entity_types set workspace_id=null where id=${scoped.entity_type_id}`,
+        ),
+      );
+      const visibleElsewhere = await direct(
+        f.a.userId,
+        second.id,
+        (tx) => tx`select id from app.entity_types where id=${scoped.entity_type_id}`,
+      );
+      const reassigned = await direct(
+        f.a.userId,
+        second.id,
+        (tx) =>
+          tx`update app.entity_types set workspace_id=${second.id} where id=${scoped.entity_type_id} returning id`,
+      );
+      assertEquals({ nulled, visible: visibleElsewhere.length, reassigned: reassigned.length }, {
+        nulled: "23514 workspace_entity_type_anchor_immutable",
+        visible: 0,
+        reassigned: 0,
+      });
+      const adopted = await direct(
+        f.b.userId,
+        legacySpace.id,
+        (tx) =>
+          tx`update app.entity_types set workspace_id=${legacySpace.id} where id=${legacy.entity_type_id} returning id`,
+      );
+      assertEquals(adopted.length, 1);
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
