@@ -1051,6 +1051,9 @@ test("related navigation hides the previous model edit action while the destinat
   const viewer = detailDialog(page);
   await expect(viewer.getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
   await viewer.getByRole("region", { name: /^연결된 자료/ }).getByRole("button", { name: "등심", exact: true }).click();
+  const destination = viewer.getByRole("link", { name: "등심 상세", exact: true });
+  await expect(destination).toBeVisible();
+  await expect(destination).toHaveAttribute("href", fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
   let release!: () => void;
   let arrived = false;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -1062,7 +1065,7 @@ test("related navigation hides the previous model edit action while the destinat
     await route.fallback();
   });
   try {
-    await viewer.getByRole("link", { name: "등심 상세", exact: true }).click();
+    await destination.click();
     await expect.poll(() => arrived).toBe(true);
     await expect.poll(() => new URL(page.url()).pathname).toBe(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
     await expect(viewer.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
