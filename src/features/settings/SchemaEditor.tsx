@@ -308,7 +308,7 @@ export function SchemaEditor(
                 aria-controls="schema-property-inputs"
                 onClick={() => {
                   if (
-                    !propertiesOpen && plan && ["applied", "cancelled", "stale"].includes(plan.status)
+                    canWrite && !propertiesOpen && plan && ["applied", "cancelled", "stale"].includes(plan.status)
                   ) void newEditing();
                   else setPropertiesOpen(!propertiesOpen);
                 }}
@@ -329,7 +329,8 @@ export function SchemaEditor(
           <p className="text-sm text-muted-foreground">
             상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다.
           </p>
-          <div hidden={!propertiesOpen} className="min-w-0">
+          {propertiesOpen && !canWrite && <SchemaDefinitionRead definition={definition} />}
+          <div hidden={!propertiesOpen || !canWrite} className="min-w-0">
             <FieldSet
               id="schema-property-inputs"
               hidden={!propertiesOpen}

@@ -120,8 +120,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     jobState.uncertain;
   const anyBusy = busy || identityState.busy || schemaState.busy ||
     jobState.busy;
-  const navigationLocked = anyBusy || uncertain || identityState.uncertain || schemaState.uncertain ||
-    jobState.uncertain;
+  const navigationLocked = anyBusy || canWrite && (uncertain || identityState.uncertain || schemaState.uncertain ||
+    jobState.uncertain);
   useEffect(() => {
     const controller = new AbortController();
     setSelectedSchema(null);
@@ -262,6 +262,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       aria-labelledby="entity-types-title"
     >
       <MaterialSettingsHeading section="types" id="entity-types-title" />
+      {!canWrite && (uncertain || identityState.uncertain || schemaState.uncertain || jobState.uncertain) && (
+        <Alert><AlertDescription>편집 권한이 변경되어 원래 요청의 결과를 다시 확인할 수 없습니다. 처리 여부는 아직 확정되지 않았으며, 이동해도 이미 전송한 요청이 취소되지는 않습니다. 최신 정보와 이력을 조회하세요.</AlertDescription></Alert>
+      )}
 
       {(type_id || items.length > 0) && (
         <div className="flex flex-wrap items-center gap-3">
@@ -402,7 +405,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               )}
             </FieldSet>
             <div className="flex flex-col gap-3 pt-4">
-              {uncertain && (
+              {uncertain && canWrite && (
                 <Alert className="text-sm text-muted-foreground" role="status"><AlertDescription>
                   저장 여부를 알 수 없습니다. 같은 요청으로 다시 확인하세요. 새로고침 후에는 현재 상태를 조회한 뒤 새
                   작업을 시작하세요.

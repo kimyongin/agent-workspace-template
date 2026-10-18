@@ -212,7 +212,7 @@ export function IssuerRegistryEditor(
       <Button variant="outline"
 
         type="button"
-        disabled={busy || reading || uncertain}
+        disabled={busy || reading || canWrite && uncertain}
         onClick={requestClose}
       >
         {target.kind === "rule" && target.createdIssuer ? "나중에 추가" : "취소"}
@@ -406,7 +406,7 @@ export function IssuerRegistryEditor(
         ? "번호 종류 편집"
         : "번호 종류 추가"}
       dirty={dirty || conflict || uncertain}
-      busy={busy || reading || uncertain}
+      busy={busy || reading || canWrite && uncertain}
       onClose={onClose}
       footer={footer}
     >

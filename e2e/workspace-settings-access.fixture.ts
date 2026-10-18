@@ -190,6 +190,7 @@ test("unknown write followed by permission demotion can leave with draft confirm
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page.getByText("읽기 전용 설정", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeDisabled();
+  await expect(page.getByText(/이동해도 이미 전송한 요청이 취소되지는 않습니다/)).toBeVisible();
   await page.getByRole("tab", { name: "일괄 설정", exact: true }).click();
   const confirmation = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
   await expect(confirmation).toBeVisible();

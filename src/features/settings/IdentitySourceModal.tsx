@@ -111,7 +111,7 @@ export function IdentitySourceModal({
       title="번호 출처 연결"
       description="이 자료 종류에 사용할 번호 출처와 번호 종류를 선택합니다."
       dirty={!!source || editState.dirty || !!editState.uncertain}
-      busy={editState.busy || !!editState.uncertain}
+      busy={editState.busy || canWrite && !!editState.uncertain}
       onClose={onClose}
       footer={(requestClose) => (
         <>

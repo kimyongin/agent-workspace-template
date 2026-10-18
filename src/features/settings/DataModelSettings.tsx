@@ -350,7 +350,7 @@ function DataModelSettingsContent() {
       if (session) invalidateEntityTypeCatalog(requestScope);
     }
   }, [session?.user.id]);
-  const locked = busy || uncertain || reading || groupBusy || groupUncertain;
+  const locked = busy || reading || groupBusy || canWrite && (uncertain || groupUncertain);
   const dirty = document !== accepted;
   const missingRemovalConfirmation = !!review?.items.some((item) =>
     item.removed_keys?.length &&
@@ -358,8 +358,8 @@ function DataModelSettingsContent() {
       item.removed_keys.some((key) => !removeKeys[item.ref].includes(key)))
   );
   const blocker = usePageNavigationBlocker(
-    dirty || groupDirty,
-    busy || uncertain || groupUncertain || reading || groupBusy,
+    dirty || groupDirty || uncertain || groupUncertain,
+    busy || reading || groupBusy || canWrite && (uncertain || groupUncertain),
   );
   useEffect(() => {
     if ((busy || reading || groupBusy) && blocker.state === "blocked") blocker.reset();

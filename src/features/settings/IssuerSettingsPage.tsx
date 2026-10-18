@@ -46,8 +46,8 @@ function IssuerSettingsPageContent() {
     [],
   );
   const [pending, setPending] = useState<(() => void) | null>(null);
-  const locked = inline && (editorState.busy || !!editorState.uncertain);
-  const dirty = inline && editorState.dirty;
+  const locked = inline && (editorState.busy || canWrite && !!editorState.uncertain);
+  const dirty = inline && (editorState.dirty || !!editorState.uncertain);
   const request = (action: () => void) => {
     if (locked) return;
     if (dirty) setPending(() => action);
