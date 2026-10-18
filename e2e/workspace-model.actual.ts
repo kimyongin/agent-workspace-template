@@ -719,11 +719,46 @@ test(
       await click("검토한 설정 적용", "apply");
       const queued = await read();
       expect(queued.status).toBe("queued");
-      await actorPage.reload();
-      await actorPage.getByRole("button", {
-        name: `${title} 변환 준비 대기`,
-        exact: true,
-      }).click();
+      const reopenSettledDetail = async (
+        state: "변환 준비 대기" | "취소됨",
+        expectedJobId: string,
+        expectedJobStatus: "queued" | "cancelled",
+      ) => {
+        await actorPage!.reload();
+        const detailResponse = actorPage!.waitForResponse((response) =>
+          response.url() ===
+            `${environment.api}/data-model/changes/${change.id}` &&
+          response.request().method() === "GET"
+        );
+        await actorPage!.getByRole("button", {
+          name: `${title} ${state}`,
+          exact: true,
+        }).click();
+        const response = await detailResponse;
+        expect(response.ok()).toBeTruthy();
+        expect(response.request().headers()["x-workspace-id"]).toBe(w);
+        const detail = await response.json();
+        remember(detail);
+        expect(detail.group.children).toHaveLength(1);
+        expect(detail.group.children[0].change.type_id).toBe(kind.id);
+        expect(detail.group.children[0].job.id).toBe(expectedJobId);
+        expect(detail.group.children[0].job.status).toBe(expectedJobStatus);
+        await expect(
+          actorPage!.getByText("변경안 상세를 읽는 중…", { exact: true }),
+        ).toHaveCount(0);
+        const group = actorPage!.getByRole("region", {
+          name: "기존 자료 값 변환",
+          exact: true,
+        });
+        await expect(group.getByText(`${kind.label} 변환`, { exact: true }))
+          .toBeVisible();
+        return detail;
+      };
+      await reopenSettledDetail(
+        "변환 준비 대기",
+        queued.group.children[0].job.id,
+        "queued",
+      );
       await expect(
         actorPage.getByText("요청한 작업을 진행하고 있습니다.", {
           exact: false,
@@ -749,7 +784,23 @@ test(
       expect(retried.group.children[0].job.id).not.toBe(
         queued.group.children[0].job.id,
       );
-      await click("변경 취소", "cancel");
+      const cancelReceipt = await click("변경 취소", "cancel");
+      // Mutation receipts intentionally carry counts and an empty child list.
+      // Compare that public response with full GET before reopening terminal
+      // history; an immediate receipt screenshot cannot prove its projection.
+      expect(cancelReceipt.group.children).toHaveLength(0);
+      const cancelledDetail = await read();
+      expect(cancelledDetail.status).toBe("cancelled");
+      expect(cancelledDetail.group.children).toHaveLength(1);
+      expect(cancelledDetail.group.children[0].job.id).toBe(
+        retried.group.children[0].job.id,
+      );
+      expect(cancelledDetail.group.children[0].job.status).toBe("cancelled");
+      await reopenSettledDetail(
+        "취소됨",
+        retried.group.children[0].job.id,
+        "cancelled",
+      );
       await expect(
         actorPage.getByRole("button", { name: `${title} 취소됨`, exact: true }),
       ).toBeVisible();
