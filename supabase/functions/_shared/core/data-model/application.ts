@@ -9,6 +9,7 @@ import {
   type ModelGroupAnalyze,
   type ModelReview,
 } from "../../contracts/data-model.ts";
+import type { WorkspaceEntry } from "../workspaces/application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { type RequestStore, runWrite } from "../shared/request.ts";
 import { AppError, invalidInput, notFound } from "../shared/errors.ts";
@@ -43,7 +44,9 @@ export interface DataModelStore extends RequestStore {
   complete(id: string, result: NonNullable<ModelChange["result"]>): Promise<ModelChange>;
 }
 export interface DataModelDeps {
-  uow: { run<T>(a: Actor, fn: (s: DataModelStore) => Promise<T>, readOnly?: boolean): Promise<T> };
+  uow: {
+    run<T>(a: Actor, fn: (s: DataModelStore) => Promise<T>, readOnly?: boolean, entry?: WorkspaceEntry): Promise<T>;
+  };
 }
 export function parseModel(raw: string): DataModelDocument {
   const document = dataModelDocument.safeParse(parseSchemaDocument(raw, { raw_bytes: Infinity, depth: 32 }));

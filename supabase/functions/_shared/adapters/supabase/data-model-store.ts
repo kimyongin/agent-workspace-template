@@ -7,7 +7,8 @@ import { invalidInput } from "../../core/shared/errors.ts";
 import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
 import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
-import { runAsActor } from "./sql-context.ts";
+import { requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import type { WorkspaceEntry } from "../../core/workspaces/application.ts";
 import { decodeCursor, paginate, scopeOf } from "../../core/shared/operations.ts";
 import { z } from "zod";
 const ref = (id: string) => "type_" + id;
@@ -39,6 +40,9 @@ export function receiptChange(value: ModelChange): ModelChange {
   };
 }
 export class SqlDataModelStore implements DataModelStore {
+  protected get workspaceId(): string {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
   executeRequest<T>(r: RequestIdentity, fn: () => Promise<T>) {
     return executeSqlRequest(this.tx, this.actor, r, fn);
@@ -46,7 +50,7 @@ export class SqlDataModelStore implements DataModelStore {
   async snapshot(): Promise<ModelSnapshot> {
     const tx = this.tx, issuers = new SqlEntityIssuerStore(tx, this.actor);
     const rows =
-      await tx`select t.id,t.next_property_number,t.schema_write_locked,v.schema,(select count(*)::int from app.entities e where e.entity_type_id=t.id) as count,app.entity_schema_membership(t.owner_id,t.id) as membership from app.entity_types t join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version order by t.id`;
+      await tx`select t.id,t.next_property_number,t.schema_write_locked,v.schema,(select count(*)::int from app.entities e where e.workspace_id=t.workspace_id and e.entity_type_id=t.id) as count,app.entity_schema_membership(t.workspace_id,t.id) as membership from app.entity_types t join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version order by t.id`;
     const types: ModelSnapshot["types"] = {};
     const entity_types: DataModelDocument["entity_types"] = [];
     const identity_usage: NonNullable<ModelSnapshot["identity_usage"]> = {};
@@ -78,7 +82,8 @@ export class SqlDataModelStore implements DataModelStore {
         ...{ membership: row.membership },
       };
     }
-    const relations = await tx`select * from app.entity_relation_definitions order by id`;
+    const relations =
+      await tx`select * from app.entity_relation_definitions where workspace_id=${this.workspaceId} order by id`;
     const ir =
       await tx`select id,source,label,meaning,generation,active,version from app.entity_identifier_rules order by id`;
     const document: DataModelDocument = {
@@ -112,10 +117,10 @@ export class SqlDataModelStore implements DataModelStore {
     const used =
       await tx`select r.id,exists(select 1 from app.entity_type_identity_sources s where s.rule_id=r.id and s.referenced) as referenced from app.entity_identifier_rules r`;
     const usage = await tx`select d.id,
-      (select count(*)::int from app.entity_relation_links l where l.owner_id=d.owner_id and l.definition_id=d.id) as links,
-      exists(select 1 from app.entity_relation_links l where l.owner_id=d.owner_id and l.definition_id=d.id group by l.left_entity_id having count(*)>1) as left_many,
-      exists(select 1 from app.entity_relation_links l where l.owner_id=d.owner_id and l.definition_id=d.id group by l.right_entity_id having count(*)>1) as right_many
-      from app.entity_relation_definitions d where d.owner_id=${this.actor.userId}::uuid`;
+      (select count(*)::int from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id) as links,
+      exists(select 1 from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id group by l.left_entity_id having count(*)>1) as left_many,
+      exists(select 1 from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id group by l.right_entity_id having count(*)>1) as right_many
+      from app.entity_relation_definitions d where d.workspace_id=${this.workspaceId}::uuid`;
     return {
       document,
       types,
@@ -133,7 +138,7 @@ export class SqlDataModelStore implements DataModelStore {
     };
   }
   async save(plan: ModelPlan) {
-    const [r] = await this.tx`insert into app.data_model_changes(owner_id,status,plan) values(${this.actor.userId},${
+    const [r] = await this.tx`insert into app.data_model_changes(workspace_id,status,plan) values(${this.workspaceId},${
       plan.review.can_apply ? "ready" : "needs_conversion"
     },${this.tx.json(plan as never)}) returning *`;
     const { plan: _p, ...value } = changeRow(r);
@@ -151,11 +156,11 @@ export class SqlDataModelStore implements DataModelStore {
     if (after) {
       if (!z.string().uuid().safeParse(after).success) throw invalidInput("유효하지 않은 cursor입니다");
       const [anchor] = await this
-        .tx`select id from app.data_model_changes where owner_id=${this.actor.userId}::uuid and id=${after}::uuid`;
+        .tx`select id from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${after}::uuid`;
       if (!anchor) throw invalidInput("cursor의 기준 이력이 없습니다. 목록을 다시 조회하세요");
     }
     const rows = await this
-      .tx`select * from app.data_model_changes where owner_id=${this.actor.userId}::uuid and (${after}::uuid is null or id>${after}::uuid) order by id limit ${
+      .tx`select * from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and (${after}::uuid is null or id>${after}::uuid) order by id limit ${
       limit + 1
     }`;
     return paginate(
@@ -191,18 +196,28 @@ export class SqlDataModelUnitOfWork {
     private readonly sql: postgres.Sql,
     private readonly Store: typeof SqlDataModelStore = SqlDataModelStore,
   ) {}
-  run<T>(a: Actor, fn: (s: DataModelStore) => Promise<T>, readOnly = false) {
-    return runAsActor(this.sql, a, async (tx) => {
-      if (readOnly) return fn(new this.Store(tx, a));
-      // Before any model/type/entity row lock, share relation-definition writer ordering.
-      await tx`select pg_advisory_xact_lock(hashtextextended(${a.userId + ":entity-relations"},0))`;
-      await tx`select pg_advisory_xact_lock(hashtextextended(${a.userId + ":entity-types"},0))`;
-      await tx`select id from app.entity_relation_definitions order by id for update`;
-      await tx`select id from app.entity_types order by id for update`;
-      for (const suffix of [":entity-identity-registry", ":record_templates"]) {
-        await tx`select pg_advisory_xact_lock(hashtextextended(${a.userId + suffix},0))`;
-      }
-      return fn(new this.Store(tx, a));
-    }, readOnly ? "repeatable read read only" : undefined);
+  run<T>(a: Actor, fn: (s: DataModelStore) => Promise<T>, readOnly = false, entry?: WorkspaceEntry) {
+    const workspaceActor = requireWorkspaceActor(a);
+    return runInWorkspace(
+      this.sql,
+      workspaceActor,
+      entry ??
+        {
+          mode: "business",
+          requirements: [{ target_kind: "settings", target_id: "*", access: readOnly ? "read" : "write" }],
+        },
+      async (tx) => {
+        if (readOnly) return fn(new this.Store(tx, a));
+        // Before any model/type/entity row lock, share relation-definition writer ordering.
+        await tx`select pg_advisory_xact_lock(hashtextextended(${workspaceActor.workspaceId + ":entity-relations"},0))`;
+        await tx`select pg_advisory_xact_lock(hashtextextended(${workspaceActor.workspaceId + ":entity-types"},0))`;
+        await tx`select id from app.entity_relation_definitions where workspace_id=${workspaceActor.workspaceId} order by id for update`;
+        await tx`select id from app.entity_types where workspace_id=${workspaceActor.workspaceId} order by id for update`;
+        for (const suffix of [":entity-identity-registry", ":record_templates"]) {
+          await tx`select pg_advisory_xact_lock(hashtextextended(${workspaceActor.workspaceId + suffix},0))`;
+        }
+        return fn(new this.Store(tx, a));
+      },
+    );
   }
 }
