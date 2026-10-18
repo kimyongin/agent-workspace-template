@@ -14,6 +14,8 @@ export interface PreparedInvitationMail {
 }
 export interface InvitationDeliveryClaim extends InvitationMessage {
   fence: string;
+  /** Earlier attempt may have been accepted; a later rejection cannot resolve it. */
+  ambiguous: boolean;
   prepared: PreparedInvitationMail | null;
 }
 export interface InvitationDeliveryStore {
@@ -35,8 +37,9 @@ export async function deliverWorkspaceInvitation(
   const claim = await store.claim(invitationId);
   if (!claim) return { processed: 0 };
   if (!mailer) {
-    const applied = await store.finish(claim.invitation_id, claim.fence, "unconfigured");
-    return applied ? { processed: 1, status: "unconfigured" } : { processed: 0 };
+    const status = claim.ambiguous ? "unknown" : "unconfigured";
+    const applied = await store.finish(claim.invitation_id, claim.fence, status);
+    return applied ? { processed: 1, status } : { processed: 0 };
   }
   const prepared = await store.prepare(
     claim.invitation_id,
@@ -50,6 +53,7 @@ export async function deliverWorkspaceInvitation(
   } catch {
     status = "unknown";
   }
+  if (claim.ambiguous && status !== "sent") status = "unknown";
   const applied = await store.finish(claim.invitation_id, claim.fence, status);
   return applied ? { processed: 1, status } : { processed: 0 };
 }

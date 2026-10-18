@@ -63,10 +63,16 @@ dbTest(
         expected_version: first.invitation.version,
       });
       const requests: { body: string; key: string | null }[] = [];
-      let lost = true;
+      let outcome: "unknown" | "failed" | "sent" = "unknown";
       const mailer = createInvitationMailer(resendConfig, (_url, init) => {
         requests.push({ body: String(init?.body), key: new Headers(init?.headers).get("Idempotency-Key") });
-        return Promise.resolve(lost ? new Response("unavailable", { status: 503 }) : Response.json({ id: "accepted" }));
+        return Promise.resolve(
+          outcome === "unknown"
+            ? new Response("unavailable", { status: 503 })
+            : outcome === "failed"
+            ? new Response("rejected", { status: 422 })
+            : Response.json({ id: "accepted" }),
+        );
       })!;
       assertEquals(await deliverWorkspaceInvitation(store, mailer, first.invitation.id), {
         processed: 1,
@@ -78,13 +84,23 @@ dbTest(
       await workspaces.retryWorkspaceInvitationDelivery(deps, keyed(f.userId), f.workspace.id, first.invitation.id, {
         expected_version: current.version,
       });
-      lost = false;
+      outcome = "failed";
+      assertEquals(await deliverWorkspaceInvitation(store, mailer, first.invitation.id), {
+        processed: 1,
+        status: "unknown",
+      });
+      assertEquals(await f.status(first.invitation.id), "unknown");
+      await workspaces.retryWorkspaceInvitationDelivery(deps, keyed(f.userId), f.workspace.id, first.invitation.id, {
+        expected_version: current.version,
+      });
+      outcome = "sent";
       assertEquals(await deliverWorkspaceInvitation(store, mailer, first.invitation.id), {
         processed: 1,
         status: "sent",
       });
-      assertEquals(requests.length, 2);
+      assertEquals(requests.length, 3);
       assertEquals(requests[1], requests[0]);
+      assertEquals(requests[2], requests[0]);
       assertEquals(await f.status(first.invitation.id), "sent");
       assertEquals(await deliverWorkspaceInvitation(store, mailer, first.invitation.id), { processed: 0 });
     } finally {
