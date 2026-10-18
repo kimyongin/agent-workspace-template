@@ -1,7 +1,17 @@
 import { assert, assertEquals } from "@std/assert";
 import { claimsOf } from "../mcp/_mcp.ts";
 import { admin, call } from "./_client.ts";
+import { connect, urls } from "../database/_db.ts";
+import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
+import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
+import { indexBatch } from "../../functions/_shared/core/search/index-worker.ts";
+import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
 import { activityWorkspaceSuite, completeHttpTask, scopedHttp, scopedTool } from "./_workspace-activity-fixture.ts";
+
+const workerUrl = new URL(urls.pooler);
+workerUrl.username = "app_worker.pooler-dev";
+workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
+const worker = connect(workerUrl.href, { max: 1, prepare: false });
 
 activityWorkspaceSuite(
   "workspace status: actual HTTP and OAuth MCP use current scoped readable originals",
@@ -102,6 +112,118 @@ activityWorkspaceSuite(
     assertEquals(revoked.body.semantic_coverage, { pending: 0, excluded: 0 });
     assertEquals(await scopedTool(clientA, workspace, "search", input), revoked.body);
     assertEquals((await scopedHttp(A, workspace, "GET", `/records/${record.id}`)).status, 404);
+  },
+  { mcp: true },
+);
+
+activityWorkspaceSuite(
+  "workspace status: bounded issue pages recheck grants and never expose effect internals",
+  async (fixture) => {
+    const { A, B, workspaceA: workspace, workspaceB: foreign, clientA, clientB } = fixture;
+    assert(clientA && clientB);
+    const records: string[] = [];
+    const effects: string[] = [];
+    try {
+      let sends = 0;
+      const embedder = new DurablePassageEmbedder(new SqlExternalEffectLedger(worker), {
+        send() {
+          sends++;
+          return Promise.resolve({ state: "unknown", reason: "provider_unknown" });
+        },
+      }, "d".repeat(64));
+      for (let index = 0; index < 6; index++) {
+        const record = await completeHttpTask(A, workspace, `공유 색인 확인 ${index}`);
+        records.push(record.id);
+        const result = await indexBatch(new SqlIndexQueue(worker), embedder, {
+          limit: 1,
+          workspace_id: workspace,
+          kind: "record",
+          id: record.id,
+        });
+        assertEquals(result.retry, 1);
+      }
+      assertEquals(sends, 6);
+      const owned = await admin`select id from private.passage_effects where workspace_id=${workspace}`;
+      effects.push(...owned.map((row) => String(row.id)));
+      assertEquals(effects.length, 6);
+      const before = await admin`select msg_id,read_ct,vt from pgmq.q_search_index
+        where message->>'workspace_id'=${workspace} order by msg_id`;
+      const first = await scopedHttp(A, workspace, "GET", "/status/indexing/issues");
+      assertEquals(first.status, 200);
+      assertEquals(first.body.items.length, 5);
+      assert(typeof first.body.next_cursor === "string");
+      assertEquals(await scopedTool(clientA, workspace, "list_indexing_issues", {}), first.body);
+      const second = await scopedHttp(
+        A,
+        workspace,
+        "GET",
+        `/status/indexing/issues?cursor=${encodeURIComponent(first.body.next_cursor)}`,
+      );
+      assertEquals(second.status, 200);
+      assertEquals(second.body.items.length, 1);
+      assertEquals(second.body.next_cursor, null);
+      const items = [...first.body.items, ...second.body.items];
+      assertEquals(new Set(items.map((item) => item.id)), new Set(records));
+      for (const item of items) {
+        assertEquals(item.reason, "provider_unknown");
+        assertEquals(item.attempts, 1);
+        assertEquals(item.chunks.unknown, 1);
+      }
+      const serialized = JSON.stringify([first.body, second.body]);
+      for (const id of effects) assertEquals(serialized.includes(id), false);
+      for (
+        const key of [
+          "provider_scope",
+          "input_hash",
+          "source_hash",
+          "vector",
+          "result",
+          "effect_id",
+          "fence",
+          "lease_until",
+        ]
+      ) {
+        assertEquals(serialized.includes(`"${key}":`), false);
+      }
+      assertEquals(
+        await admin`select msg_id,read_ct,vt from pgmq.q_search_index
+        where message->>'workspace_id'=${workspace} order by msg_id`,
+        before,
+      );
+      assertEquals(sends, 6);
+      // B can enter its own different workspace; reject A's foreign cursor.
+      const foreignCursor = await scopedHttp(
+        B,
+        foreign,
+        "GET",
+        `/status/indexing/issues?cursor=${encodeURIComponent(first.body.next_cursor)}`,
+      );
+      assertEquals(foreignCursor.status, 400);
+      assertEquals(
+        (await scopedTool(clientB, foreign, "list_indexing_issues", { cursor: first.body.next_cursor })).error.code,
+        "invalid_input",
+      );
+      assertEquals(
+        (await call(A, "PATCH", `/workspaces/${workspace}/members/${claimsOf(A).sub}`, {
+          expected_version: 3,
+          grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+        })).status,
+        200,
+      );
+      const revoked = await scopedHttp(
+        A,
+        workspace,
+        "GET",
+        `/status/indexing/issues?cursor=${encodeURIComponent(first.body.next_cursor)}`,
+      );
+      assertEquals(revoked.status, 200);
+      assertEquals(revoked.body.items, []);
+      assertEquals(revoked.body.next_cursor, null);
+    } finally {
+      const owned = await admin`select id from private.passage_effects where workspace_id=${workspace}`;
+      for (const row of owned) if (!effects.includes(String(row.id))) effects.push(String(row.id));
+      for (const id of effects) await admin`delete from private.passage_effects where id=${id}`;
+    }
   },
   { mcp: true },
 );
