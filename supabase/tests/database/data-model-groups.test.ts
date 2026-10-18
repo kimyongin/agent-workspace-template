@@ -161,6 +161,12 @@ dbTest(
         if (!claimed.batch) break;
         const parent = claimed.batch;
         if (parent.status === "committing") {
+          // A current-epoch atomic publication boundary cannot be cancelled midway.
+          const committing = await getDataModelChange(deps, fixture.manager, saved.id);
+          const unchanged = await changeDataModelGroup(deps, requestActor(fixture.manager), saved.id, {
+            expected_version: committing.version,
+          }, "cancel");
+          assertEquals([unchanged.status, unchanged.version], ["committing", committing.version]);
           const [result] =
             await worker`select app.commit_data_model_conversion(${parent.id},${parent.fence},${SEARCH_PIPELINE}) as committed`;
           assertEquals(result.committed, true);
@@ -363,33 +369,52 @@ dbTest(
     }
   },
 );
-dbTest("a temporary whole model failure retries the same frozen child jobs without duplicate publication", async () => {
-  const f = await queuedGroup();
-  try {
-    const old = (await getDataModelChange(deps, f.fixture.manager, f.id)).group!.children.map((c) => c.job!.id);
-    const [claimed] = await worker`select app.claim_data_model_conversion() as batch`, batch = claimed.batch;
-    const [failure] =
-      await worker`select app.fail_data_model_conversion(${batch.id},${batch.fence},${batch.child.id},${batch.child.fence},'migration_worker_failed',true) as accepted`;
-    assertEquals(failure.accepted, true);
-    const failed = await getDataModelChange(deps, f.fixture.manager, f.id);
-    assertEquals(failed.status, "failed");
-    assertEquals(failed.group?.retryable, true);
-    const resumed = await changeDataModelGroup(deps, requestActor(f.fixture.manager), f.id, {
-      expected_version: failed.version,
-    }, "retry");
-    assertEquals(resumed.status, "queued");
-    assertEquals((await getDataModelChange(deps, f.fixture.manager, f.id)).group!.children.map((c) => c.job!.id), old);
-    const ready = await prepareUntilCommit(f.id);
-    const [result] =
-      await worker`select app.commit_data_model_conversion(${ready.id},${ready.fence},${SEARCH_PIPELINE}) as committed`;
-    assertEquals(result.committed, true);
-    const done = await getDataModelChange(deps, f.fixture.manager, f.id);
-    assertEquals(done.status, "applied");
-    for (const child of done.group!.children) assertEquals(child.job?.result?.schema_version, 2);
-  } finally {
-    await f.fixture.cleanup();
-  }
-});
+dbTest(
+  "a temporary whole model failure creates authorized retry attempts from frozen child sources without duplicate publication",
+  async () => {
+    const f = await queuedGroup();
+    try {
+      const old = (await getDataModelChange(deps, f.fixture.manager, f.id)).group!.children.map((c) => c.job!.id);
+      const [claimed] = await worker`select app.claim_data_model_conversion() as batch`, batch = claimed.batch;
+      const [failure] =
+        await worker`select app.fail_data_model_conversion(${batch.id},${batch.fence},${batch.child.id},${batch.child.fence},'migration_worker_failed',true) as accepted`;
+      assertEquals(failure.accepted, true);
+      const failed = await getDataModelChange(deps, f.fixture.manager, f.id);
+      assertEquals(failed.status, "failed");
+      assertEquals(failed.group?.retryable, true);
+      const oldAttempts =
+        await admin`select * from app.entity_schema_migrations where workspace_id=${f.fixture.workspaceId} and id=any(${old}::uuid[]) order by id`;
+      const retryActor = requestActor(f.fixture.manager), retryInput = { expected_version: failed.version };
+      const resumed = await changeDataModelGroup(deps, retryActor, f.id, retryInput, "retry");
+      assertEquals(resumed.status, "queued");
+      assertEquals(await changeDataModelGroup(deps, retryActor, f.id, retryInput, "retry"), resumed);
+      const attempts = (await getDataModelChange(deps, f.fixture.manager, f.id)).group!.children.map((c) => c.job!.id);
+      assertEquals(attempts.length, old.length);
+      assertEquals(attempts.every((id) => !old.includes(id)), true);
+      const lineage =
+        await admin`select retry_source_job_id,initiated_by,source_expires_at from app.entity_schema_migrations where workspace_id=${f.fixture.workspaceId} and id=any(${attempts}::uuid[]) order by retry_source_job_id`;
+      assertEquals(lineage.map((row) => row.retry_source_job_id), [...old].sort());
+      for (const attempt of lineage) {
+        const original = oldAttempts.find((row) => row.id === attempt.retry_source_job_id)!;
+        assertEquals(attempt.initiated_by, f.fixture.manager.userId);
+        assertEquals(attempt.source_expires_at, original.source_expires_at);
+      }
+      assertEquals(
+        await admin`select * from app.entity_schema_migrations where workspace_id=${f.fixture.workspaceId} and id=any(${old}::uuid[]) order by id`,
+        oldAttempts,
+      );
+      const ready = await prepareUntilCommit(f.id);
+      const [result] =
+        await worker`select app.commit_data_model_conversion(${ready.id},${ready.fence},${SEARCH_PIPELINE}) as committed`;
+      assertEquals(result.committed, true);
+      const done = await getDataModelChange(deps, f.fixture.manager, f.id);
+      assertEquals(done.status, "applied");
+      for (const child of done.group!.children) assertEquals(child.job?.result?.schema_version, 2);
+    } finally {
+      await f.fixture.cleanup();
+    }
+  },
+);
 dbTest("expired parent and child leases reject old stage/fail before a fenced reclaim can resume", async () => {
   const f = await queuedGroup();
   try {
@@ -463,7 +488,10 @@ dbTest(
     const removed = await queuedGroup();
     let retained: Awaited<ReturnType<typeof queuedGroup>> | undefined;
     try {
-      const batch = await prepareUntilCommit(removed.id);
+      const [{ batch }] = await worker`select app.claim_data_model_conversion() as batch`;
+      assertEquals(batch.id, removed.id);
+      const prepared = await prepareMigrationBatch(batch.child, new Date());
+      assertEquals(prepared.stale, false);
       retained = await queuedGroup();
       const survivor = removed.fixture.member;
       await removed.fixture.grant(survivor, [{ target_kind: "settings", target_id: "*", access: "write" }]);
@@ -512,6 +540,12 @@ dbTest(
         ].committed,
         false,
       );
+      assertEquals(
+        (await worker`select app.stage_data_model_conversion(${batch.id},${batch.fence},${batch.child.id},${batch.child.fence},${
+          worker.json(prepared.results)
+        }) as accepted`)[0].accepted,
+        false,
+      );
       const current = await getDataModelChange(deps, survivor, removed.id);
       const cancelled = await changeDataModelGroup(deps, requestActor(survivor), removed.id, {
         expected_version: current.version,
@@ -532,11 +566,20 @@ dbTest(
     try {
       const freshBefore = await getDataModelChange(deps, fresh.fixture.manager, fresh.id);
       await admin`update app.entity_schema_analyses set created_at=now()-interval '31 days' where workspace_id=${expired.fixture.workspaceId}::uuid and change_id in(select change_id from app.data_model_children where workspace_id=${expired.fixture.workspaceId}::uuid and model_id=${expired.id}::uuid)`;
-      await worker`select app.claim_entity_schema_migration()`;
+      const beforeMaintenance = await getDataModelChange(deps, expired.fixture.manager, expired.id);
+      assertEquals(beforeMaintenance.status, "analyzing");
+      // Reading or claiming work does not perform retention maintenance.
+      await worker`select app.prune_entity_schema_sources()`;
       const current = await getDataModelChange(deps, expired.fixture.manager, expired.id);
       assertEquals(current.status, "needs_conversion");
       assertEquals(current.review.can_apply, false);
-      assertEquals(current.group?.children.every((child) => child.change.analysis === null), true);
+      assertEquals(
+        current.group?.children.every((child) =>
+          child.change.status === "stale" && child.change.analysis?.status === "failed" &&
+          child.change.analysis.failure_reason === "analysis_source_expired"
+        ),
+        true,
+      );
       const [rows] =
         await admin`select count(*)::int as count from private.entity_schema_analysis_rows r join app.data_model_children c on c.workspace_id=r.workspace_id and c.analysis_id=r.analysis_id where c.workspace_id=${expired.fixture.workspaceId}::uuid and c.model_id=${expired.id}::uuid`;
       assertEquals(rows.count, 0);
