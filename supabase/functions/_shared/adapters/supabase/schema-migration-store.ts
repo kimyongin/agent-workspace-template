@@ -277,9 +277,23 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     return Boolean(refs.fresh);
   }
   async saveMigrationRetry(j: SchemaMigrationActionContext["job"]) {
-    const id = j.id;
-    const [r] = await this
-      .tx`update app.entity_schema_migrations set status='queued',version=version+1,fence=fence+1,lease_until=null,retryable=false,failure_reason=null,updated_at=now() where id=${id} returning *`;
+    const [r] = await this.tx`insert into app.entity_schema_migrations(
+      workspace_id,type_id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,
+      source_template_fingerprint,source_templates,source_definition,target,migration,source_references,committed_references,
+      total,processed,source_expires_at,actor_source,committed_membership,recovery_source_job_id,recovery_keys,model_change_id,retry_source_job_id)
+      select workspace_id,type_id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,
+      source_template_fingerprint,source_templates,source_definition,target,migration,source_references,committed_references,
+      total,processed,source_expires_at,${
+      this.actor.source ?? "http"
+    },committed_membership,recovery_source_job_id,recovery_keys,model_change_id,id
+      from app.entity_schema_migrations where workspace_id=${this.schemaWorkspaceId}::uuid and id=${j.id} returning *`;
+    if (!r) throw notFound();
+    await this.tx`insert into private.entity_schema_migration_rows(
+      workspace_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,
+      after,changed,prepared,record_id,record_body,record_context,record_tags,record_hash,record_path,committed_version,recovery_properties)
+      select workspace_id,${r.id},entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,
+      after,changed,prepared,record_id,record_body,record_context,record_tags,record_hash,record_path,committed_version,recovery_properties
+      from private.entity_schema_migration_rows where workspace_id=${this.schemaWorkspaceId}::uuid and job_id=${j.id}`;
     await this.tx`update app.entity_types set schema_write_locked=true where id=${j.type_id}`;
     // Acceptance status describes durable resumption, regardless of a worker's next internal phase.
     return this.accepted(r);

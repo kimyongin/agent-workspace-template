@@ -227,10 +227,12 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
       if (job.source_expires_at && new Date(job.source_expires_at) <= new Date()) {
         throw new AppError("migration_source_expired", "값 변환 원본의 보관 기간이 지났습니다");
       }
-      await store.saveMigrationRetry(job);
+      const accepted = await store.saveMigrationRetry(job);
+      await this.tx`update app.data_model_children set job_id=${accepted.job_id}::uuid
+        where workspace_id=${this.workspaceId}::uuid and model_id=${id}::uuid and type_ref=${r.type_ref}`;
     }
     await this
-      .tx`update app.data_model_changes set status='queued',version=version+1,fence=fence+1,lease_until=null,retryable=false,failure_reason=null,updated_at=now() where id=${id}::uuid`;
+      .tx`update app.data_model_changes set initiated_by=(app.workspace_author()->>'created_by')::uuid,status='queued',version=version+1,fence=fence+1,lease_until=null,retryable=false,failure_reason=null,updated_at=now() where id=${id}::uuid`;
     return receiptChange((await this.get(id))!);
   }
 }
