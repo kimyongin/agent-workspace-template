@@ -269,193 +269,193 @@ export function TaskDetailPage() {
   );
   return (
     <>
-    {!canRead && <WorkspacePermissionNotice />}
-    <DetailSurface
-      visible={canRead}
-      ready={!detail.loading}
-      title="할 일"
-      description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다."
-      tabTitle={canRead ? task.title : "할 일"}
-      onClose={() => navigate(back)}
-      onError={detail.failed}
-      busy={busy}
-      footer={canWrite && (
-        task.deleted_at ? <Button type="button" disabled={busy} onClick={() => manage("restore")}>복원</Button> : <>
-          <Button variant="outline" type="button" disabled={busy} onClick={editor.start}>편집</Button>
-          {task.kind === "once" && task.status === "open" && (
-            <Button
-              variant="default"
-              type="button"
-              disabled={busy}
-              onClick={() => manage("complete")}
-            >
-              완료하고 기록
-            </Button>
-          )}
-          {task.kind === "recurring" && (
-            <Button
-              variant="default"
-              type="button"
-              disabled={busy}
-              onClick={() => manage("transition")}
-            >
-              {task.status === "active" ? "중단" : "재개"}
-            </Button>
-          )}
-        </>
-      )}
-    >
-      <div className="flex min-w-0 flex-col gap-6">
-        {management}
+      {!canRead && <WorkspacePermissionNotice />}
+      <DetailSurface
+        visible={canRead}
+        ready={!detail.loading}
+        title="할 일"
+        description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다."
+        tabTitle={canRead ? task.title : "할 일"}
+        onClose={() => navigate(back)}
+        onError={detail.failed}
+        busy={busy}
+        footer={canWrite && (
+          task.deleted_at ? <Button type="button" disabled={busy} onClick={() => manage("restore")}>복원</Button> : <>
+            <Button variant="outline" type="button" disabled={busy} onClick={editor.start}>편집</Button>
+            {task.kind === "once" && task.status === "open" && (
+              <Button
+                variant="default"
+                type="button"
+                disabled={busy}
+                onClick={() => manage("complete")}
+              >
+                완료하고 기록
+              </Button>
+            )}
+            {task.kind === "recurring" && (
+              <Button
+                variant="default"
+                type="button"
+                disabled={busy}
+                onClick={() => manage("transition")}
+              >
+                {task.status === "active" ? "중단" : "재개"}
+              </Button>
+            )}
+          </>
+        )}
+      >
         <div className="flex min-w-0 flex-col gap-6">
-          <TaskEntityRelations
-            task={task}
-            onSaved={(saved, before) => {
-              if (before) relationSaved.current = true;
-              if (saved) detail.confirm((current) => current ? { ...current, ...saved } : current);
-              setRecordRefresh((n) => n + 1);
-              void reload();
+          {management}
+          <div className="flex min-w-0 flex-col gap-6">
+            <TaskEntityRelations
+              task={task}
+              onSaved={(saved, before) => {
+                if (before) relationSaved.current = true;
+                if (saved) detail.confirm((current) => current ? { ...current, ...saved } : current);
+                setRecordRefresh((n) => n + 1);
+                void reload();
+              }}
+            />
+            <RelatedRecords
+              taskId={task.id}
+              revision={task.version + recordRefresh}
+
+            />
+            {occurrenceSection()}
+          </div>
+        </div>
+        {editing && (
+          <TaskFormModal
+            mode="edit"
+            target={task}
+            open
+            initial={taskDraftFrom(task, timezone)}
+            details={
+              <>
+                {task.kind === "once" && task.status === "done" && !task.result_record && (
+                  <p className="text-sm text-muted-foreground">결과 기록이 삭제되었습니다.</p>
+                )}
+                <div className="flex min-w-0 flex-col gap-6">
+                  <TaskEntityRelations readOnly task={task} onSaved={() => {}} />
+                  <RelatedRecords readOnly taskId={task.id} revision={task.version + recordRefresh} />
+                  {occurrenceSection(true)}
+                </div>
+              </>
+            }
+            deletion={!canWrite || task.deleted_at ? undefined : {
+              target: task.title,
+              preparation: () => ({
+                model: "task",
+                action: "delete",
+                target_id: task.id,
+                expected_version: task.version,
+                input: {},
+              }),
+              message: (
+                <p>
+                  이 할 일을 삭제 상태로 보관합니다. 내용과 결과·회차 기록, 기존 연결은 유지합니다.
+                </p>
+              ),
+              onConfirm: (reason, tags, requestKey) =>
+                run(async () => {
+                  await api(
+                    "POST",
+                    `/tasks/${task.id}/delete`,
+                    { expected_version: task.version, change_note: reason, change_tag_ids: tags },
+                    undefined,
+                    requestKey(),
+                  );
+                  editor.leave(deleteBack);
+                }, "삭제했습니다."),
+            }}
+            {...editor.formProps}
+            onSave={async (save) => {
+              await detail.save(async (current) => ({ ...current, ...await save() }));
+              editor.close();
+              setMessage("저장했습니다.");
+              await reload();
             }}
           />
-          <RelatedRecords
-            taskId={task.id}
-            revision={task.version + recordRefresh}
-
+        )}
+        {dialog === "restore" && (
+          <TaskRestoreForm
+            key={task.id}
+            task={task}
+            onClose={closeManagement}
+            onSaved={async (saved) => {
+              detail.confirm(current => current ? { ...current, ...saved } : current);
+              closeManagement();
+              setMessage("복원했습니다.");
+              await reload();
+            }}
           />
-          {occurrenceSection()}
-        </div>
-      </div>
-      {editing && (
-        <TaskFormModal
-          mode="edit"
-          target={task}
-          open
-          initial={taskDraftFrom(task, timezone)}
-          details={
-            <>
-              {task.kind === "once" && task.status === "done" && !task.result_record && (
-                <p className="text-sm text-muted-foreground">결과 기록이 삭제되었습니다.</p>
-              )}
-              <div className="flex min-w-0 flex-col gap-6">
-                <TaskEntityRelations readOnly task={task} onSaved={() => {}} />
-                <RelatedRecords readOnly taskId={task.id} revision={task.version + recordRefresh} />
-                {occurrenceSection(true)}
-              </div>
-            </>
-          }
-          deletion={!canWrite || task.deleted_at ? undefined : {
-            target: task.title,
-            preparation: () => ({
-              model: "task",
-              action: "delete",
-              target_id: task.id,
-              expected_version: task.version,
-              input: {},
-            }),
-            message: (
-              <p>
-                이 할 일을 삭제 상태로 보관합니다. 내용과 결과·회차 기록, 기존 연결은 유지합니다.
-              </p>
-            ),
-            onConfirm: (reason, tags, requestKey) =>
-              run(async () => {
-                await api(
-                  "POST",
-                  `/tasks/${task.id}/delete`,
-                  { expected_version: task.version, change_note: reason, change_tag_ids: tags },
-                  undefined,
-                  requestKey(),
-                );
-                editor.leave(deleteBack);
-              }, "삭제했습니다."),
-          }}
-          {...editor.formProps}
-          onSave={async (save) => {
-            await detail.save(async (current) => ({ ...current, ...await save() }));
-            editor.close();
-            setMessage("저장했습니다.");
-            await reload();
-          }}
-        />
-      )}
-      {dialog === "restore" && (
-        <TaskRestoreForm
-          key={task.id}
-          task={task}
-          onClose={closeManagement}
-          onSaved={async (saved) => {
-            detail.confirm(current => current ? { ...current, ...saved } : current);
-            closeManagement();
-            setMessage("복원했습니다.");
-            await reload();
-          }}
-        />
-      )}
-      {task.kind === "recurring" && dialog === "transition" && (
-        <TaskTransitionForm
-          key={task.id}
-          open={dialog === "transition"}
-          task={task}
-          onClose={closeManagement}
-          onSaved={async () => {
-            closeManagement();
-            setMessage(task.status === "active" ? "중단했습니다. 오늘부터 회차가 없습니다." : "재개했습니다.");
-            await reload();
-          }}
-        />
-      )}
-      {dialog === "complete" && (
-        <RecordFormModal
-          title="할 일 완료"
-          visible={canRead}
-          readonly={!canWrite || !!task.deleted_at}
-          submitLabel="완료하고 기록 저장"
-          open
-          initial={emptyRecord()}
-          onClose={closeManagement}
-          onRouteDiscard={() => setDialog(null)}
-          onSave={async (value, requestKey) => {
-            await api(
-              "POST",
-              `/tasks/${task.id}/complete`,
-              { ...value, expected_version: task.version },
-              undefined,
-              requestKey(),
-            );
-            closeManagement();
-            setMessage("완료하고 결과 기록을 저장했습니다.");
-            await reload();
-          }}
-        />
-      )}
-      {dialog && typeof dialog === "object" && (
-        <RecordFormModal
-          title={`${dialog.occurrence} 회차 기록`}
-          visible={canRead}
-          readonly={!canWrite || !!task.deleted_at}
-          submitLabel="기록 저장"
-          open
-          initial={emptyRecord()}
-          onClose={closeManagement}
-          onRouteDiscard={() => setDialog(null)}
-          onSave={async (value, requestKey) => {
-            await api<RecordResult>(
-              "POST",
-              `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`,
-              {
-                ...value,
-              },
-              undefined,
-              requestKey(),
-            );
-            closeManagement();
-            setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
-            setRecordRefresh((n) => n + 1);
-            await loadOccurrences(task, rangeEnd);
-          }}
-        />
-      )}
-    </DetailSurface>
+        )}
+        {task.kind === "recurring" && dialog === "transition" && (
+          <TaskTransitionForm
+            key={task.id}
+            open={dialog === "transition"}
+            task={task}
+            onClose={closeManagement}
+            onSaved={async () => {
+              closeManagement();
+              setMessage(task.status === "active" ? "중단했습니다. 오늘부터 회차가 없습니다." : "재개했습니다.");
+              await reload();
+            }}
+          />
+        )}
+        {dialog === "complete" && (
+          <RecordFormModal
+            title="할 일 완료"
+            visible={canRead}
+            readonly={!canWrite || !!task.deleted_at}
+            submitLabel="완료하고 기록 저장"
+            open
+            initial={emptyRecord()}
+            onClose={closeManagement}
+            onRouteDiscard={() => setDialog(null)}
+            onSave={async (value, requestKey) => {
+              await api(
+                "POST",
+                `/tasks/${task.id}/complete`,
+                { ...value, expected_version: task.version },
+                undefined,
+                requestKey(),
+              );
+              closeManagement();
+              setMessage("완료하고 결과 기록을 저장했습니다.");
+              await reload();
+            }}
+          />
+        )}
+        {dialog && typeof dialog === "object" && (
+          <RecordFormModal
+            title={`${dialog.occurrence} 회차 기록`}
+            visible={canRead}
+            readonly={!canWrite || !!task.deleted_at}
+            submitLabel="기록 저장"
+            open
+            initial={emptyRecord()}
+            onClose={closeManagement}
+            onRouteDiscard={() => setDialog(null)}
+            onSave={async (value, requestKey) => {
+              await api<RecordResult>(
+                "POST",
+                `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`,
+                {
+                  ...value,
+                },
+                undefined,
+                requestKey(),
+              );
+              closeManagement();
+              setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
+              setRecordRefresh((n) => n + 1);
+              await loadOccurrences(task, rangeEnd);
+            }}
+          />
+        )}
+      </DetailSurface>
     </>
   );
 }

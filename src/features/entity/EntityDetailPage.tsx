@@ -184,213 +184,213 @@ export function EntityDetailPage() {
   );
   return (
     <>
-    {entity && !canRead && <WorkspacePermissionNotice />}
-    <DetailSurface visible={!entity || canRead} ready={!detail.loading}
-      title={entity && canRead ? entity.type.label : "자료"}
-      description="속성과 연결된 자료·할 일·기록을 확인하고 수정합니다."
-      tabTitle={entity && canRead ? entity.title : "자료"}
-      onClose={() => navigate(back)}
-      onError={detail.failed}
-      busy={busy}
-      footer={entity && canWrite && (
-        <Button variant="default" type="button"  onClick={editor.start}>
-          {entity.deleted_at ? "복원" : "편집"}
-        </Button>
-      )}
-    >
-      {error && !entity && (
-        <>
-          <Notice kind="error">{error}</Notice>
-          <Button variant="outline"  onClick={() => void reload()}>다시 시도</Button>
-        </>
-      )}
-      {!entity && !error && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
-      {entity && (
-        <div ref={readRoot} className="flex min-w-0 flex-col gap-6">
-          <section className="flex flex-col gap-4 min-w-0">
-            <EntityProperties
-              entity={entity}
-              identity={
+      {entity && !canRead && <WorkspacePermissionNotice />}
+      <DetailSurface visible={!entity || canRead} ready={!detail.loading}
+        title={entity && canRead ? entity.type.label : "자료"}
+        description="속성과 연결된 자료·할 일·기록을 확인하고 수정합니다."
+        tabTitle={entity && canRead ? entity.title : "자료"}
+        onClose={() => navigate(back)}
+        onError={detail.failed}
+        busy={busy}
+        footer={entity && canWrite && (
+          <Button variant="default" type="button"  onClick={editor.start}>
+            {entity.deleted_at ? "복원" : "편집"}
+          </Button>
+        )}
+      >
+        {error && !entity && (
+          <>
+            <Notice kind="error">{error}</Notice>
+            <Button variant="outline"  onClick={() => void reload()}>다시 시도</Button>
+          </>
+        )}
+        {!entity && !error && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
+        {entity && (
+          <div ref={readRoot} className="flex min-w-0 flex-col gap-6">
+            <section className="flex flex-col gap-4 min-w-0">
+              <EntityProperties
+                entity={entity}
+                identity={
+                  <>
+                    <div>
+                      <dt>번호 출처</dt>
+                      <dd>{entity.source_label}</dd>
+                    </div>
+                    <div>
+                      <dt>자료 번호</dt>
+                      <dd className="wrap-anywhere tabular-nums">{entity.external_id}</dd>
+                    </div>
+                  </>
+                }
+              />
+              <TagConnections
+                onDraftClosed={detail.editClosed}
+                scope="entity"
+                target={entity}
+                readonly={!canWrite || !!entity.deleted_at}
+                visible={canRead}
+                onSaved={(saved) => {
+                  relationSaved.current = true;
+                  detail.confirm((current) => current ? { ...current, ...saved } : current);
+                  void reload();
+                }}
+              />
+            </section>
+            <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
+              <EntityTypedRelations
+                entity={entity}
+                onCreate={(definition, side) => {
+                  relationCreateTarget.current = `${definition.id}:${side}`;
+                  const p = new URLSearchParams(params);
+                  p.set("create", "relation");
+                  p.set("relation_id", definition.id);
+                  p.set("relation_side", String(side));
+                  navigate(detailModeLink(location.pathname, p, location.hash));
+                }}
+                onSaved={(version) => {
+                  detail.confirm((current) => current ? { ...current, version } : current);
+                  if (!editor.active) void reload();
+                }}
+              />
+              {entity.deleted_at && (
                 <>
-                  <div>
-                    <dt>번호 출처</dt>
-                    <dd>{entity.source_label}</dd>
-                  </div>
-                  <div>
-                    <dt>자료 번호</dt>
-                    <dd className="wrap-anywhere tabular-nums">{entity.external_id}</dd>
-                  </div>
-                </>
-              }
-            />
-            <TagConnections
-              onDraftClosed={detail.editClosed}
-              scope="entity"
-              target={entity}
-              readonly={!canWrite || !!entity.deleted_at}
-              visible={canRead}
-              onSaved={(saved) => {
-                relationSaved.current = true;
-                detail.confirm((current) => current ? { ...current, ...saved } : current);
-                void reload();
-              }}
-            />
-          </section>
-          <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
-            <EntityTypedRelations
-              entity={entity}
-              onCreate={(definition, side) => {
-                relationCreateTarget.current = `${definition.id}:${side}`;
-                const p = new URLSearchParams(params);
-                p.set("create", "relation");
-                p.set("relation_id", definition.id);
-                p.set("relation_side", String(side));
-                navigate(detailModeLink(location.pathname, p, location.hash));
-              }}
-              onSaved={(version) => {
-                detail.confirm((current) => current ? { ...current, version } : current);
-                if (!editor.active) void reload();
-              }}
-            />
-            {entity.deleted_at && (
-              <>
-                <RelatedSection title="할 일" count={taskAccess.canRead ? entity.tasks.count : 0}>
-                  <CollectionList columns={["제목"]}>
-                    {(taskAccess.canRead ? entity.tasks.items : []).map((item) => (
-                      <CollectionItem key={item.id}>
-                        <RelatedTaskItem id={item.id} occurrence={null} />
-                      </CollectionItem>
-                    ))}
-                  </CollectionList>
-                </RelatedSection>
-                <RelatedSection title="기록" count={entity.records.count}>
-                  <CollectionList columns={["본문 대표 문구"]}>
-                    {entity.records.items.map((item) => (
-                      <CollectionItem key={item.id}>
-                        <RelatedRecordItem record={item} />
-                      </CollectionItem>
-                    ))}
-                  </CollectionList>
-                </RelatedSection>
-              </>
-            )}
-            {entity.deleted_at && <p className="text-sm text-muted-foreground">삭제됨</p>}
-            {management}
-          </div>
-          {creating === "relation" && !entity.deleted_at && (
-            <CreateRelatedEntityForm
-              key={location.key}
-              originId={entity.id}
-              definitionId={params.get("relation_id") ?? ""}
-              side={params.get("relation_side") === "1" ? 1 : 0}
-              onClose={closeCreate}
-              onRouteDiscard={() => setCreating(null)}
-              onSaved={(result) => {
-                detail.confirm((current) =>
-                  current
-                    ? {
-                      ...current,
-                      version: result.relation.endpoint_versions.find((e) => e.id === entity.id)!.version,
-                    }
-                    : current
-                );
-                closeCreate();
-                void reload();
-              }}
-            />
-          )}
-          {creating === "task" && !entity.deleted_at && (
-            <TaskFormModal
-              key={location.key}
-              open
-              mode="create"
-              visible={canRead}
-              initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
-              onClose={closeCreate}
-              onRouteDiscard={() => setCreating(null)}
-              onSave={async (save) => {
-                await save();
-                closeCreate();
-                void reload();
-              }}
-            />
-          )}
-          {editing && (
-            <EntityForm
-              initial={entity}
-              relations={
-                <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
-                  <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />
-                  <EntityTaskRelations entity={entity} read={taskRead} readOnly />
-                  <RelatedSection title="기록" count={entity.records.count} views={false}>
-                    <CollectionList columns={["본문 대표 문구"]}>
-                      {entity.records.items.map((item) => (
+                  <RelatedSection title="할 일" count={taskAccess.canRead ? entity.tasks.count : 0}>
+                    <CollectionList columns={["제목"]}>
+                      {(taskAccess.canRead ? entity.tasks.items : []).map((item) => (
                         <CollectionItem key={item.id}>
-                          <RelatedItem title={recordDisplayText(item.body)} />
+                          <RelatedTaskItem id={item.id} occurrence={null} />
                         </CollectionItem>
                       ))}
                     </CollectionList>
                   </RelatedSection>
-                </div>
-              }
-              deletion={!canWrite || entity.deleted_at ? undefined : {
-                preparation: () => ({
-                  model: "entity",
-                  action: "delete",
-                  target_id: entity.id,
-                  expected_version: entity.version,
-                  input: {},
-                }),
-                target: entity.title,
-                message: "이 자료를 삭제 상태로 보관합니다. 속성·태그·할 일/기록 연결과 원문은 보존합니다.",
-                onConfirm: async (reason, tags, requestKey) => {
-                  setBusy(true);
-                  try {
-                    await api(
-                      "POST",
-                      `${entityPath(id)}/delete`,
-                      { expected_version: entity.version, change_note: reason, change_tag_ids: tags },
+                  <RelatedSection title="기록" count={entity.records.count}>
+                    <CollectionList columns={["본문 대표 문구"]}>
+                      {entity.records.items.map((item) => (
+                        <CollectionItem key={item.id}>
+                          <RelatedRecordItem record={item} />
+                        </CollectionItem>
+                      ))}
+                    </CollectionList>
+                  </RelatedSection>
+                </>
+              )}
+              {entity.deleted_at && <p className="text-sm text-muted-foreground">삭제됨</p>}
+              {management}
+            </div>
+            {creating === "relation" && !entity.deleted_at && (
+              <CreateRelatedEntityForm
+                key={location.key}
+                originId={entity.id}
+                definitionId={params.get("relation_id") ?? ""}
+                side={params.get("relation_side") === "1" ? 1 : 0}
+                onClose={closeCreate}
+                onRouteDiscard={() => setCreating(null)}
+                onSaved={(result) => {
+                  detail.confirm((current) =>
+                    current
+                      ? {
+                        ...current,
+                        version: result.relation.endpoint_versions.find((e) => e.id === entity.id)!.version,
+                      }
+                      : current
+                  );
+                  closeCreate();
+                  void reload();
+                }}
+              />
+            )}
+            {creating === "task" && !entity.deleted_at && (
+              <TaskFormModal
+                key={location.key}
+                open
+                mode="create"
+                visible={canRead}
+                initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
+                onClose={closeCreate}
+                onRouteDiscard={() => setCreating(null)}
+                onSave={async (save) => {
+                  await save();
+                  closeCreate();
+                  void reload();
+                }}
+              />
+            )}
+            {editing && (
+              <EntityForm
+                initial={entity}
+                relations={
+                  <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
+                    <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />
+                    <EntityTaskRelations entity={entity} read={taskRead} readOnly />
+                    <RelatedSection title="기록" count={entity.records.count} views={false}>
+                      <CollectionList columns={["본문 대표 문구"]}>
+                        {entity.records.items.map((item) => (
+                          <CollectionItem key={item.id}>
+                            <RelatedItem title={recordDisplayText(item.body)} />
+                          </CollectionItem>
+                        ))}
+                      </CollectionList>
+                    </RelatedSection>
+                  </div>
+                }
+                deletion={!canWrite || entity.deleted_at ? undefined : {
+                  preparation: () => ({
+                    model: "entity",
+                    action: "delete",
+                    target_id: entity.id,
+                    expected_version: entity.version,
+                    input: {},
+                  }),
+                  target: entity.title,
+                  message: "이 자료를 삭제 상태로 보관합니다. 속성·태그·할 일/기록 연결과 원문은 보존합니다.",
+                  onConfirm: async (reason, tags, requestKey) => {
+                    setBusy(true);
+                    try {
+                      await api(
+                        "POST",
+                        `${entityPath(id)}/delete`,
+                        { expected_version: entity.version, change_note: reason, change_tag_ids: tags },
+                        undefined,
+                        requestKey(),
+                      );
+                      editor.leave(deleteBack);
+                    } catch (e) {
+                      setError(
+                        e instanceof ApiError ? e.message : "삭제하지 못했습니다.",
+                      );
+                      throw e;
+                    } finally {
+                      setBusy(false);
+                    }
+                  },
+                }}
+                {...editor.formProps}
+                onSave={async (
+                  { source, external_id, expected_version, entity_type_id, identity_version, ...value },
+                  requestKey,
+                ) => {
+                  await detail.save(async (current) => {
+                    const savedEntity = await api<EntityDetail>(
+                      entity.deleted_at ? "POST" : "PATCH",
+                      entity.deleted_at ? "/entities" : entityPath(id),
+                      {
+                        ...value,
+                        ...(entity.deleted_at ? { source, external_id, entity_type_id, identity_version } : {}),
+                        expected_version: expected_version ?? entity.version,
+                      },
                       undefined,
                       requestKey(),
                     );
-                    editor.leave(deleteBack);
-                  } catch (e) {
-                    setError(
-                      e instanceof ApiError ? e.message : "삭제하지 못했습니다.",
-                    );
-                    throw e;
-                  } finally {
-                    setBusy(false);
-                  }
-                },
-              }}
-              {...editor.formProps}
-              onSave={async (
-                { source, external_id, expected_version, entity_type_id, identity_version, ...value },
-                requestKey,
-              ) => {
-                await detail.save(async (current) => {
-                  const savedEntity = await api<EntityDetail>(
-                    entity.deleted_at ? "POST" : "PATCH",
-                    entity.deleted_at ? "/entities" : entityPath(id),
-                    {
-                      ...value,
-                      ...(entity.deleted_at ? { source, external_id, entity_type_id, identity_version } : {}),
-                      expected_version: expected_version ?? entity.version,
-                    },
-                    undefined,
-                    requestKey(),
-                  );
-                  return { ...current, ...savedEntity };
-                });
-                editor.close();
-                void reload();
-              }}
-            />
-          )}
-        </div>
-      )}
-    </DetailSurface>
+                    return { ...current, ...savedEntity };
+                  });
+                  editor.close();
+                  void reload();
+                }}
+              />
+            )}
+          </div>
+        )}
+      </DetailSurface>
     </>
   );
 }
