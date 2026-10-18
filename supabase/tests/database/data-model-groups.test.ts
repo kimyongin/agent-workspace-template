@@ -51,36 +51,37 @@ const worker = connect(workerUrl.toString());
 dbTest(
   "two-kind durable model conversion prepares privately and publishes values, compatible settings and relationship once",
   async () => {
-    const fixture = await fixtureOwner(admin), foreign = await fixtureOwner(admin);
+    const fixture = await businessWorkspaceFixture(admin, sql), foreign = await businessWorkspaceFixture(admin, sql);
     try {
       const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
       for (const kind of sample.entity_types.slice(0, 2)) {
         kind.schema.properties.prop_2 = { type: "string", "x-order": 20 };
       }
       const input = { mode: "copy", document: JSON.stringify(sample) },
-        preview = await previewDataModel(deps, fixture.actor, input);
-      const initial = await prepareDataModel(deps, requestActor(fixture.actor), {
+        preview = await previewDataModel(deps, fixture.manager, input);
+      const initial = await prepareDataModel(deps, requestActor(fixture.manager), {
         ...input,
         preview_fingerprint: preview.fingerprint,
       });
       assertEquals(
-        (await applyDataModel(deps, requestActor(fixture.actor), initial.id, { expected_version: initial.version }))
+        (await applyDataModel(deps, requestActor(fixture.manager), initial.id, { expected_version: initial.version }))
           .status,
         "applied",
       );
       const entityDeps = { uow: new SqlEntityUnitOfWork(sql) };
       const ids = sample.entity_types.slice(0, 2).map((t) => preview.mapping.types[t.ref]);
+      for (const id of ids) await fixture.grantKind(fixture.manager, id, "write");
       const entities = [];
       for (const [index, id] of ids.entries()) {
         entities.push(
-          await createEntity(entityDeps, requestActor(fixture.actor), {
+          await createEntity(entityDeps, requestActor(fixture.manager), {
             entity_type_id: id,
             schema_version: 1,
             properties: { prop_1: `자료${index}`, prop_2: String(12 + index) },
           }),
         );
       }
-      const before = await exportDataModel(deps, fixture.actor), target = structuredClone(before);
+      const before = await exportDataModel(deps, fixture.manager), target = structuredClone(before);
       for (const kind of target.entity_types) {
         if (ids.includes(kind.schema["x-type-id"])) {
           kind.schema.properties.prop_2 = { type: "integer", "x-order": 20 };
@@ -88,8 +89,8 @@ dbTest(
       }
       target.relations[0].ends[0].label = "함께 바꾼 관계";
       const source = { mode: "update", document: JSON.stringify(target) },
-        review = await previewDataModel(deps, fixture.actor, source);
-      const saved = await prepareDataModel(deps, requestActor(fixture.actor), {
+        review = await previewDataModel(deps, fixture.manager, source);
+      const saved = await prepareDataModel(deps, requestActor(fixture.manager), {
         ...source,
         preview_fingerprint: review.fingerprint,
       });
@@ -98,20 +99,20 @@ dbTest(
         type_ref: t.ref,
         migration: { rules: [{ op: "convert", key: "prop_2", to: "integer" }], overrides: [] },
       }));
-      const analyzed = await analyzeDataModel(deps, requestActor(fixture.actor), saved.id, {
+      const analyzed = await analyzeDataModel(deps, requestActor(fixture.manager), saved.id, {
         expected_version: saved.version,
         conversions,
       });
       assertEquals(analyzed.status, "analyzing");
-      const read = await getDataModelChange(deps, fixture.actor, saved.id);
+      const read = await getDataModelChange(deps, fixture.manager, saved.id);
       assertEquals(read.group?.children.length, 2);
-      await assertRejects(() => getDataModelChange(deps, foreign.actor, saved.id));
+      await assertRejects(() => getDataModelChange(deps, foreign.manager, saved.id));
       const child = read.group!.children[0];
       await assertRejects(
         async () =>
           await startEntitySchemaMigration(
             { uow: new SqlEntityTypeUnitOfWork(sql) },
-            requestActor(fixture.actor),
+            requestActor(fixture.manager),
             child.change.type_id,
             child.change.id,
             {
@@ -136,13 +137,13 @@ dbTest(
         }) as accepted`;
         assertEquals(completed.accepted, true);
       }
-      const ready = await getDataModelChange(deps, fixture.actor, saved.id);
+      const ready = await getDataModelChange(deps, fixture.manager, saved.id);
       assertEquals(ready.status, "ready");
-      const actor = requestActor(fixture.actor), action = { expected_version: ready.version };
+      const actor = requestActor(fixture.manager), action = { expected_version: ready.version };
       const accepted = await applyDataModel(deps, actor, saved.id, action);
       assertEquals(accepted.status, "queued");
       assertEquals(await applyDataModel(deps, actor, saved.id, action), accepted);
-      const queued = await getDataModelChange(deps, fixture.actor, saved.id);
+      const queued = await getDataModelChange(deps, fixture.manager, saved.id);
       const isolated = queued.group!.children[0].job!;
       const [standalone] = await worker`select app.claim_entity_schema_migration() as batch`;
       assertEquals(standalone.batch, null);
@@ -150,9 +151,9 @@ dbTest(
         await worker`select app.commit_entity_schema_migration(${isolated.id},0,'irrelevant',${SEARCH_PIPELINE}) as committed`;
       assertEquals(denied.committed, false);
       await assertRejects(() => worker`select id from app.data_model_changes limit 1`);
-      assertEquals(await exportDataModel(deps, fixture.actor), before);
+      assertEquals(await exportDataModel(deps, fixture.manager), before);
       for (const entity of entities) {
-        assertEquals((await getEntity(entityDeps, fixture.actor, entity.id)).properties, entity.properties);
+        assertEquals((await getEntity(entityDeps, fixture.manager, entity.id)).properties, entity.properties);
       }
       for (let step = 0; step < 20; step++) {
         const [claimed] = await worker`select app.claim_data_model_conversion() as batch`;
@@ -174,16 +175,16 @@ dbTest(
               worker.json(prepared.results)
             }) as accepted`;
           assertEquals(result.accepted, true);
-          assertEquals(await exportDataModel(deps, fixture.actor), before);
+          assertEquals(await exportDataModel(deps, fixture.manager), before);
         }
       }
-      const done = await getDataModelChange(deps, fixture.actor, saved.id);
+      const done = await getDataModelChange(deps, fixture.manager, saved.id);
       assertEquals(done.status, "applied");
       assertEquals(done.result?.counts?.types.updated, 3);
       for (const [index, entity] of entities.entries()) {
-        assertEquals((await getEntity(entityDeps, fixture.actor, entity.id)).properties.prop_2, 12 + index);
+        assertEquals((await getEntity(entityDeps, fixture.manager, entity.id)).properties.prop_2, 12 + index);
       }
-      const after = await exportDataModel(deps, fixture.actor);
+      const after = await exportDataModel(deps, fixture.manager);
       assertEquals(after.relations[0].ends[0].label, "함께 바꾼 관계");
       for (const child of done.group!.children) {
         assertEquals(child.job?.status, "succeeded");
