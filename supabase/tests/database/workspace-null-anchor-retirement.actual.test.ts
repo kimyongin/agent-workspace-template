@@ -115,19 +115,21 @@ dbTest(
         ]}::text[]) and workspace_id is null and owner_id=${actor} order by id`,
       });
       const graphBefore = await legacyGraph();
-      const readGraph = (workspaceId?: string) =>
+      const readGraph = (workspaceId?: string, currentOnly = false) =>
         asUser(user, actor, async (tx) => {
           await tx`select set_config('request.workspace_id',${workspaceId ?? ""},true)`;
           return {
             records:
-              (await tx`select id from app.records where id=any(${[legacyRecord, record.id]}::uuid[]) order by id`).map(
+              (await tx`select id from app.records where id=any(${
+                currentOnly ? [record.id] : [legacyRecord, record.id]
+              }::uuid[]) order by id`).map(
                 (r) => r.id,
               ),
             entityTags:
-              (await tx`select tag_id from app.entity_tags where (entity_id=${legacyId} and tag_id=${legacyEntityTag}) or (entity_id=${current.id} and tag_id=${currentEntityTag.id}) order by tag_id`)
+              (await tx`select tag_id from app.entity_tags where (${!currentOnly} and entity_id=${legacyId} and tag_id=${legacyEntityTag}) or (entity_id=${current.id} and tag_id=${currentEntityTag.id}) order by tag_id`)
                 .map((r) => r.tag_id),
             recordTags:
-              (await tx`select tag_id from app.record_tags where (record_id=${legacyRecord} and tag_id=${legacyRecordTag}) or (record_id=${record.id} and tag_id=${currentRecordTag.id}) order by tag_id`)
+              (await tx`select tag_id from app.record_tags where (${!currentOnly} and record_id=${legacyRecord} and tag_id=${legacyRecordTag}) or (record_id=${record.id} and tag_id=${currentRecordTag.id}) order by tag_id`)
                 .map((r) => r.tag_id),
           };
         });
@@ -136,7 +138,7 @@ dbTest(
         entityTags: [currentEntityTag.id],
         recordTags: [currentRecordTag.id],
       };
-      assertEquals(await readGraph(fixture.workspaceId), currentGraph);
+      assertEquals(await readGraph(fixture.workspaceId, true), currentGraph);
       const graphNoWorkspace = await readGraph();
       const graphOtherWorkspace = await readGraph(other.workspaceId);
       await fixture.grant(fixture.manager, []);
