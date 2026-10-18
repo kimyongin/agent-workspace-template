@@ -156,11 +156,17 @@ export class SqlDataModelStore implements DataModelStore {
   async save(plan: ModelPlan) {
     const [context] = await this.tx`select current_setting('request.workspace_requirements',true) as requirements`;
     const requirements = JSON.parse(context.requirements) as WorkspaceRequirement[];
+    const protectedPermissions = new Map<string, WorkspaceRequirement>();
+    for (const requirement of requirements.filter((r) => r.target_kind === "entity_type")) {
+      if (protectedPermissions.get(requirement.target_id)?.access !== "write") {
+        protectedPermissions.set(requirement.target_id, requirement);
+      }
+    }
     plan = {
       ...plan,
-      protected_kind_ids: [
-        ...new Set(requirements.filter((r) => r.target_kind === "entity_type").map((r) => r.target_id)),
-      ].sort(),
+      protected_kind_ids: [...protectedPermissions.values()].filter((r) => r.access === "write").map((r) => r.target_id)
+        .sort(),
+      protected_permissions: [...protectedPermissions.values()],
     };
     const [r] = await this.tx`insert into app.data_model_changes(workspace_id,status,plan) values(${this.workspaceId},${
       plan.review.can_apply ? "ready" : "needs_conversion"
@@ -169,7 +175,8 @@ export class SqlDataModelStore implements DataModelStore {
     return receiptChange(value);
   }
   async get(id: string, lock = false) {
-    const [targets] = await this.tx`select plan->'protected_kind_ids' as ids from app.data_model_changes
+    const [targets] = await this
+      .tx`select coalesce((select jsonb_agg(p->'target_id') from jsonb_array_elements(plan->'protected_permissions') p),plan->'protected_kind_ids') as ids from app.data_model_changes
       where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
     if (!targets) return null;
     await this.authorizeKinds(targets.ids ?? [], "read");
@@ -188,7 +195,8 @@ export class SqlDataModelStore implements DataModelStore {
         .tx`select id from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${after}::uuid`;
       if (!anchor) throw invalidInput("cursor의 기준 이력이 없습니다. 목록을 다시 조회하세요");
     }
-    const candidates = await this.tx`select id,plan->'protected_kind_ids' as ids from app.data_model_changes
+    const candidates = await this
+      .tx`select id,coalesce((select jsonb_agg(p->'target_id') from jsonb_array_elements(plan->'protected_permissions') p),plan->'protected_kind_ids') as ids from app.data_model_changes
       where workspace_id=${this.workspaceId}::uuid and (${after}::uuid is null or id>${after}::uuid) order by id limit ${
       limit + 1
     }`;
