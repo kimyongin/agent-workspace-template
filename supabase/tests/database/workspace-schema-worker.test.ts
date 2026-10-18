@@ -330,7 +330,12 @@ dbTest(
         if (batch.status === "committing") {
           const [result] =
             await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`;
-          assertEquals(result.committed, true);
+          const diagnostic = result.committed ? null : await admin`select g.id,g.status,g.failure_reason,
+            coalesce(jsonb_agg(jsonb_build_object('job_id',j.id,'status',j.status,'failure_reason',j.failure_reason)) filter(where j.id is not null),'[]') children
+            from app.data_model_changes g left join app.data_model_children c on c.workspace_id=g.workspace_id and c.model_id=g.id
+            left join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
+            where g.workspace_id=${workspaceId} and g.id=${saved.id} group by g.id,g.status,g.failure_reason`;
+          assertEquals(result.committed, true, JSON.stringify(diagnostic));
           break;
         }
         const prepared = await prepareMigrationBatch(batch.child, new Date());
