@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,11 +11,11 @@ import { Input } from "../../components/ui/input.tsx";
 import { Textarea } from "../../components/ui/textarea.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link } from "../../lib/workspace-router.tsx";
 import type { DataModelDocument, ModelChange, ModelReview } from "@contracts/data-model.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { Field } from "../../components/Field.tsx";
 import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
@@ -301,6 +302,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
 }
 
 export function DataModelSettings() {
+  const api = useApi();
   const { session } = useAuth();
   const [document, setDocument] = useState(""),
     [mode, setMode] = useState<"update" | "copy">("update");

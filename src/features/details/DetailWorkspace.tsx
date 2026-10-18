@@ -8,7 +8,7 @@ import { activeSurface, registerScrollOwner, scrollOwner, restoreScroll } from "
 import { useNavigationBlocker, useNavigationBusy } from "../../lib/navigation-protection.tsx";
 import { entityListAnchor, detailListReturn } from "../../lib/entity-list-url.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
-import { useLocation, useNavigate, useNavigationType, type Location, type NavigateOptions, type To } from "react-router";
+import { useLocation, useNavigate, useNavigationType, type Location, type NavigateOptions, type To } from "../../lib/workspace-router.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, workspaceBase, materialSettingsBase, type WorkspaceGuard } from "./workspace-context.ts";
 import { useDisplayScale } from "../settings/display-scale.tsx";

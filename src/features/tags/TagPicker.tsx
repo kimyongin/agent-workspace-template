@@ -1,15 +1,16 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { scrollOwner, shiftScroll, surfaceFor } from "../../lib/surface-dom.ts";
 import type { TagResult } from "@contracts/tag.ts";
 import { createContext, type ReactNode, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocation } from "react-router";
+import { useLocation } from "../../lib/workspace-router.tsx";
 import { WorkspaceContext } from "../details/workspace-context.ts";
-import { api } from "../../lib/api.ts";
+
 import { Notice } from "../../components/Field.tsx";
 import { TagSelection } from "./TagSelection.tsx";
 import { createTagRead } from "./tag-read.ts";
-const tagRead = createTagRead(api);
+
 
 export type TagScope = TagResult["scope"];
 type TagDictionary = {
@@ -21,6 +22,8 @@ type TagDictionary = {
 };
 export const tagScopeLabels: Record<TagScope, string> = { entity: "자료", task: "할 일", record: "기록" };
 export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "record") {
+  const api = useApi();
+  const tagRead = createTagRead(api);
   const location = useLocation(), workspace = useContext(WorkspaceContext);
   const revision = workspace?.revision, navigationKey = workspace?.navigationKey;
   const [read, setRead] = useState<{ scope: TagScope; tags: TagResult[] | null; failed: boolean; pending: boolean }>({

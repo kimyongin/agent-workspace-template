@@ -17,7 +17,7 @@ import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
 import { ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
-import { issuerRegistry } from "./issuer-registry-api.ts";
+import { useIssuerRegistry } from "./issuer-registry-api.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 export type RegistryEditTarget = { kind: "issuer"; issuer?: EntityIssuer } | {
   kind: "rule";
@@ -37,6 +37,7 @@ export function IssuerRegistryEditor(
     onState?: (state: MaterialSectionState) => void;
   },
 ) {
+  const issuerRegistry = useIssuerRegistry();
   const form = useRef<HTMLFormElement>(null);
   const formId = useId();
   useEffect(() => {

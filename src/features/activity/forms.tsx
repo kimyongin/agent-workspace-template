@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimeInput, type DateTimeDraft } from "../../components/DateTimeInput.tsx";
 import { FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -14,7 +15,7 @@ import { RelationPicker } from "../relations/RelationPicker.tsx";
 import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels, type TaskResult } from "@contracts/task.ts";
-import { api } from "../../lib/api.ts";
+
 import { type ReactNode, useState } from "react";
 import { Field } from "../../components/Field.tsx";
 import { FormModal, type TextDraft } from "../../components/ContentForm.tsx";
@@ -297,6 +298,7 @@ export function TaskFormModal(
     onSave: (save: () => Promise<TaskResult>) => Promise<void>;
   } & ({ mode: "create"; target?: never } | { mode: "edit"; target: TaskResult }),
 ) {
+  const api = useApi();
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);

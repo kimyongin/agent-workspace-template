@@ -1,5 +1,5 @@
 import { type ComponentProps, createContext, type ReactNode, useContext } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "../../lib/workspace-router.tsx";
 import { TZDate, MonthGrid, type MonthGridProps, type RootProps } from "react-day-picker";
 import { addDays, addMonths, addYears, startOfWeek, endOfWeek } from "date-fns";
 import { ko } from "date-fns/locale";

@@ -1,10 +1,11 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { cn } from "../../lib/utils.ts";
 import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { Fragment, type ReactNode, useEffect, useLayoutEffect, useState } from "react";
 import type { EntityValues } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
-import { api } from "../../lib/api.ts";
+
 import { displayedProperty } from "./property-fields.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { DetailTitle } from "../../components/Modal.tsx";
@@ -18,6 +19,7 @@ export function EntityProperties(
     onReadyChange?: (ready: boolean) => void;
   },
 ) {
+  const api = useApi();
   const [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);

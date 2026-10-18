@@ -1,13 +1,13 @@
 import type { EntitySchemaVersion, EntitySchemaVersionSummary, EntityType } from "@contracts/entity-type.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
-import { api } from "../../lib/api.ts";
+import type { ApiRequest } from "../../lib/api.ts";
 
 type HistoryPage = { items: EntitySchemaVersionSummary[]; next_before: number | null };
 type Publication = { error: string; confirmed: boolean; pending: Promise<string> | null };
 
 /** Confirmed facts and basic input belong to one fixed material-type route lifetime. */
-export function createMaterialDefinition(typeId?: string) {
+export function createMaterialDefinition(api: ApiRequest, typeId?: string) {
   let alive = true;
   const requests = new Set<AbortController>();
   const listeners = new Set<() => void>();

@@ -9,7 +9,7 @@ import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { Field } from "../../components/Field.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
-import { issuerRegistry } from "./issuer-registry-api.ts";
+import { useIssuerRegistry } from "./issuer-registry-api.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 export function IdentitySourceModal({
   issuers,
@@ -28,6 +28,7 @@ export function IdentitySourceModal({
   onRule: (rule: IdentifierRule) => void;
   onState: (state: MaterialSectionState) => void;
 }) {
+  const issuerRegistry = useIssuerRegistry();
   const [source, setSource] = useState(""),
     [ruleId, setRuleId] = useState(""),
     [rules, setRules] = useState<IdentifierRule[] | null>(null),

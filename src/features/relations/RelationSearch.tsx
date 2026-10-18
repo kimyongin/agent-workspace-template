@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { XIcon, LinkIcon } from "lucide-react";
@@ -13,7 +14,7 @@ import type { TaskResult } from "@contracts/task.ts";
 import { useDetailViewState } from "../../lib/detail-exploration.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { RelatedItem } from "../../components/RelatedItems.tsx";
-import { api, query } from "../../lib/api.ts";
+import { query } from "../../lib/api.ts";
 
 export type Candidate = {
   id: string;
@@ -61,6 +62,7 @@ export function RelationSearch(
     relationContext?: RelationLocation;
   },
 ) {
+  const api = useApi();
   const label = kind === "entity" ? "자료" : "할 일";
   const [view, setView] = useDetailViewState(
     `${draftMode ? "draft-" : ""}relation-search-${kind}${

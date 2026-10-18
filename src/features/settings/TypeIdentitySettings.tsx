@@ -14,7 +14,7 @@ import { typeIdentityUpdate } from "@contracts/entity-issuer.ts";
 
 import { Field } from "../../components/Field.tsx";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
-import { issuerRegistry, typeIdentityPort } from "./issuer-registry-api.ts";
+import { useIssuerRegistry, useTypeIdentityPort } from "./issuer-registry-api.ts";
 import { typeIdentitySettingsAdapter } from "./type-identity-settings.ts";
 import { useSettingsDraft } from "./useSettingsDraft.ts";
 import { type MaterialSectionState, MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
@@ -26,6 +26,8 @@ export function TypeIdentitySettings(
     onState: (state: MaterialSectionState) => void;
   },
 ) {
+  const issuerRegistry = useIssuerRegistry();
+  const typeIdentityPort = useTypeIdentityPort();
   const adapter = useMemo(() => typeIdentitySettingsAdapter(typeId, typeIdentityPort), [typeId]);
   const editor = useSettingsDraft(adapter), { saved, draft, dirty, busy, uncertain, conflict, latestReady } = editor;
   const [issuers, setIssuers] = useState<EntityIssuer[]>([]),

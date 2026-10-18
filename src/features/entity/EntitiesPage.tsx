@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { EyeIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
@@ -16,7 +17,7 @@ import { TypedEntityFilters, validatePropertyFilters } from "./TypedEntityFilter
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
 import { useEntityTypes } from "./useEntityTypes.ts";
 import { typeListSearch } from "../../app/type-navigation.ts";
-import { Link } from "react-router";
+import { Link } from "../../lib/workspace-router.tsx";
 import { entityPath } from "@contracts/entity-identity.ts";
 import {
   CollectionHeading,
@@ -39,16 +40,17 @@ import { anchorId, requestedPages } from "../activity/list-state.ts";
 import { usePagedList } from "../collections/usePagedList.ts";
 import type { ListPage } from "../collections/paged-list.ts";
 import { entityListQuery, type EntitySummary } from "@contracts/entity.ts";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "../../lib/workspace-router.tsx";
 import { ListExpansionProvider, ListPreviewItem, useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { scrollOwner } from "../../lib/surface-dom.ts";
-import { api, ApiError, query } from "../../lib/api.ts";
+import { ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 
 export function EntitiesPage() {
+  const api = useApi();
   const searchInput = useRef<HTMLInputElement>(null);
   const create = useCreateMode();
   const [view, changeView] = useMainCollectionView();

@@ -1,7 +1,8 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 
-import { useSearchParams } from "react-router";
+import { useSearchParams } from "../../lib/workspace-router.tsx";
 import { useDetailNavigate } from "../../lib/detail-exploration.tsx";
 import { requestedPages } from "./list-state.ts";
 import { type ListPage, MAX_RESTORE_PAGES } from "../collections/paged-list.ts";
@@ -13,7 +14,7 @@ import { recordDisplayText } from "@contracts/record-display.ts";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { Notice } from "../../components/Field.tsx";
-import { api, query } from "../../lib/api.ts";
+import { query } from "../../lib/api.ts";
 
 export function RelatedRecordItem({ record }: { record: Pick<RecordResult, "id" | "body"> }) {
   return (
@@ -42,6 +43,7 @@ function TaskRecords(
     readOnly?: boolean;
   },
 ) {
+  const api = useApi();
   const surface = useContext(SurfaceContext);
   const [params] = useSearchParams(), navigate = useDetailNavigate();
   const requested = requestedPages(new URLSearchParams({ pages: params.get("related_record_pages") ?? "1" }));

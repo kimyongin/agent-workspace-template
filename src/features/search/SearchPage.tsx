@@ -12,7 +12,7 @@ import { PageHeading } from "../../components/PageHeading.tsx";
 import { DetailLink as Link, useDetailExploration } from "../../lib/detail-exploration.tsx";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
-import { Link as PageLink, useSearchParams } from "react-router";
+import { Link as PageLink, useSearchParams } from "../../lib/workspace-router.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";

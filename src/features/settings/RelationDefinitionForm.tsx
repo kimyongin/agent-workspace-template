@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldSet } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import type { EntityRelationDefinition, EntityRelationEnd } from "@contracts/entity-relation.ts";
 import { relationDefinitionCreate } from "@contracts/entity-relation.ts";
 import type { EntityType } from "@contracts/entity-type.ts";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -22,6 +23,7 @@ export function RelationDefinitionForm(
     onState: (s: { dirty: boolean; busy: boolean }) => void;
   },
 ) {
+  const api = useApi();
   const [baseline, setBaseline] = useState(original),
     [ends, setEnds] = useState<EntityRelationDefinition["ends"]>(() =>
       original?.ends ??

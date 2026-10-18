@@ -1,10 +1,12 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { useEffect, useState } from "react";
 import { entityReferenceId } from "@contracts/entity-identity.ts";
-import { api } from "../../lib/api.ts";
+
 
 /** Related-list URL scope uses owner-protected source data, never a URL display name. */
 export function EntityScope({ id, onClear }: { id: string; onClear: () => void }) {
+  const api = useApi();
   const [name, setName] = useState<string | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);

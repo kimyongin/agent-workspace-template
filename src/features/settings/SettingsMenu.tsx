@@ -1,6 +1,6 @@
 import { hasActiveConfirmation } from "../../lib/surface-dom.ts";
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation } from "../../lib/workspace-router.tsx";
 import { MenuIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";

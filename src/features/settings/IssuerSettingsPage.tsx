@@ -13,9 +13,10 @@ import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
-import { issuerRegistry } from "./issuer-registry-api.ts";
+import { useIssuerRegistry } from "./issuer-registry-api.ts";
 
 export function IssuerSettingsPage() {
+  const issuerRegistry = useIssuerRegistry();
   const [issuers, setIssuers] = useState<EntityIssuer[] | null>(null),
     [selected, setSelected] = useState("");
   const [rules, setRules] = useState<IdentifierRule[] | null>(null);

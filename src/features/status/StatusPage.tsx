@@ -1,7 +1,8 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { PageHeading } from "../../components/PageHeading.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { StatusOverview } from "@contracts/status.ts";
-import { api } from "../../lib/api.ts";
+
 import { StatusContent } from "./StatusContent.tsx";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -11,6 +12,7 @@ import { RefreshCwIcon } from "lucide-react";
 import { IndexingIssues } from "./IndexingIssues.tsx";
 
 export function StatusPage() {
+  const api = useApi();
   const [data, setData] = useState<StatusOverview | null>(null);
   const [busy, setBusy] = useState(true), [error, setError] = useState("");
   const [issuesRevision, setIssuesRevision] = useState(0);

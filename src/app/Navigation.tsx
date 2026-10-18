@@ -1,5 +1,6 @@
+import { useApi } from "../lib/api-context.tsx";
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation } from "../lib/workspace-router.tsx";
 import { useSidebar, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../components/ui/sidebar.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/dropdown-menu.tsx";
 import { Field, FieldGroup, FieldLabel } from "../components/ui/field.tsx";
@@ -14,7 +15,7 @@ import { accountPreferences, profileName } from "../features/settings/account-pr
 import { navigationSection } from "./navigation-section.ts";
 import { workspaceBase } from "../features/details/workspace-context.ts";
 import appIcon from "./app-icon.svg";
-import { api } from "../lib/api.ts";
+
 import type { EntityDetail } from "@contracts/entity.ts";
 import { defaultNavigationRefs, entityTypeLocation, navigationEntryCurrent, resolveNavigationRefs, visibleNavigationEntries } from "./type-navigation.ts";
 import { useEntityTypes } from "../features/entity/useEntityTypes.ts";
@@ -43,6 +44,7 @@ function retainProfileFocusVisibility(content: HTMLDivElement | null) {
 }
 
 export function Navigation({ brand }: { brand: string }) {
+  const api = useApi();
   const location = useLocation();
   const { session } = useAuth();
   const catalog = useEntityTypes(location.key);

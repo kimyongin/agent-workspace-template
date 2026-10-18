@@ -9,13 +9,26 @@ const base = import.meta.env.VITE_API_URL as string;
 import { ApiError } from "./api-error.ts";
 export { ApiError, isUncertain } from "./api-error.ts";
 
-export async function api<T>(
+export type RequestScope = Readonly<{ actorId: string; workspaceId: string | null }>;
+export type ApiRequest = <T>(method: string, path: string, body?: unknown, signal?: AbortSignal, requestKey?: string) => Promise<T>;
+export function createScopedApi(scope: RequestScope, isCurrent: () => boolean = () => true): ApiRequest {
+  const origin = Object.freeze({ ...scope });
+  return (method, path, body, signal, requestKey) => api(origin, isCurrent, method, path, body, signal, requestKey);
+}
+async function api<T>(
+  scope: RequestScope,
+  isCurrent: () => boolean,
   method: string,
   path: string,
   body?: unknown,
   signal?: AbortSignal,
   requestKey?: string,
 ): Promise<T> {
+  const assertCurrent = () => { if (!isCurrent()) throw new DOMException("공간이 변경되었습니다.", "AbortError"); };
+  assertCurrent();
+  const control = /^\/(?:workspaces|invitations)(?:\/|$)/.test(path);
+  if (!scope.actorId) throw new Error("로그인 계정이 필요합니다.");
+  if (!control && !scope.workspaceId) throw new Error("업무 요청에는 공간이 필요합니다.");
   if (
     method === "GET" && path.startsWith("/entities?") &&
     new TextEncoder().encode(`${base}${path}`).byteLength > ENTITY_QUERY_URL_MAX_BYTES
@@ -29,12 +42,17 @@ export async function api<T>(
   let serialized = body === undefined ? undefined : JSON.stringify(body);
   if (writing) {
     if (!requestKey) throw new Error("업무 쓰기는 요청 키가 필요합니다");
-    ({ method, path, body: serialized } = freezeWrite(requestKey, { method, path, body: serialized }));
+    const frozen = freezeWrite(requestKey, { ...scope, method, path, body: serialized });
+    if (frozen.actorId !== scope.actorId || frozen.workspaceId !== scope.workspaceId) throw new Error("저장 시도의 계정 또는 공간이 변경되었습니다.");
+    ({ method, path, body: serialized } = frozen);
   }
   const { data } = await supabase.auth.getSession();
+  assertCurrent();
+  if (data.session?.user.id !== scope.actorId) throw new Error("로그인 계정이 변경되었습니다.");
   signal?.throwIfAborted();
   const headers: Record<string, string> = {};
   if (data.session) headers.authorization = `Bearer ${data.session.access_token}`;
+  if (!control) headers["X-Workspace-Id"] = scope.workspaceId!;
   if (requestKey && writing) headers["Idempotency-Key"] = requestKey;
   if (serialized !== undefined) headers["content-type"] = "application/json";
   let res: Response;
@@ -44,12 +62,13 @@ export async function api<T>(
     if (signal?.aborted && !writing) throw e;
     throw new ApiError(0, "network", "서버에 연결하지 못했습니다. 같은 내용으로 다시 시도할 수 있습니다.", [], true);
   }
+  assertCurrent();
   if (res.ok && res.headers.get("Idempotency-Replayed") === "true" && typeof window !== "undefined") {
-    window.dispatchEvent(new Event("workspace:write-replayed"));
+    window.dispatchEvent(new CustomEvent("workspace:write-replayed", { detail: scope }));
   }
   const notifyTagWrite = () => {
     if (writing && /^\/tags(?:\/|\?|$)/.test(path) && typeof window !== "undefined") {
-      window.dispatchEvent(new Event("workspace:tags-changed"));
+      window.dispatchEvent(new CustomEvent("workspace:tags-changed", { detail: scope }));
     }
   };
   if (res.status === 204) {
@@ -62,6 +81,7 @@ export async function api<T>(
   } catch {
     throw new ApiError(0, "network", "응답을 읽지 못했습니다.", [], true);
   }
+  assertCurrent();
   if (res.ok && writing && !text) throw new ApiError(0, "network", "성공 응답을 확인하지 못했습니다.", [], true);
   let parsed: unknown = null;
   try {

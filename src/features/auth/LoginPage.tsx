@@ -13,7 +13,7 @@ import { useAuth } from "./AuthProvider.tsx";
 
 /** 로그인 뒤 돌아갈 경로. 앱 내부 경로만 허용한다(임의 redirect 금지). */
 function safeNext(value: string | null): string {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/tasks";
+  return value && value.startsWith("/") && !value.startsWith("//") && !value.includes("\\") ? value : "/workspaces";
 }
 
 export function LoginPage() {

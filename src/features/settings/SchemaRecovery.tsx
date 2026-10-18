@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -5,11 +6,11 @@ import { Button } from "../../components/ui/button.tsx";
 import { materialSettingsPath } from "./material-settings-path.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "../../lib/workspace-router.tsx";
 import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
 import { entityPath, entityReferenceId } from "@contracts/entity-identity.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
-import { api } from "../../lib/api.ts";
+import type { ApiRequest } from "../../lib/api.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { schemaEntityLabel } from "./schema-labels.ts";
@@ -103,7 +104,7 @@ export function recoveryErrorMessage(error: unknown): string {
   }
   return writeErrorMessage(error);
 }
-export function submitRecoveryChange(job: EntitySchemaMigration, requestKey: string, client = api) {
+export function submitRecoveryChange(job: EntitySchemaMigration, requestKey: string, client: ApiRequest) {
   if (!job.recovery) throw new Error("복구 가능 여부를 다시 조회하세요.");
   return client<EntitySchemaChange>(
     "POST",
@@ -121,6 +122,7 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
   onState?: (state: MaterialSectionState) => void;
   disabled?: boolean;
 }) {
+  const api = useApi();
   const navigate = useNavigate(), location = useLocation();
   const { attempt, busy, uncertain } = useWriteAttempt();
   const [error, setError] = useState("");
@@ -140,7 +142,7 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
     setError("");
     try {
       await attempt.run(async () => {
-        created.current = await submitRecoveryChange(job, attempt.requestKey());
+        created.current = await submitRecoveryChange(job, attempt.requestKey(), api);
       });
       if (mounted.current && created.current) {
         const params = new URLSearchParams(location.search);

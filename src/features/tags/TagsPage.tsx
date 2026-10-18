@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { FieldGroup } from "@/components/ui/field";
 import { BusinessCell, BusinessDisclosureCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -9,17 +10,17 @@ import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { dataId } from "@contracts/data-id.ts";
 import { tagCreate, tagLabels, type TagResult } from "@contracts/tag.ts";
 import { useEffect, useRef, useState } from "react";
-import { Navigate, useLocation, useParams, useSearchParams } from "react-router";
+import { Navigate, useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { DeleteAction, type DeletionState } from "../../components/DeleteAction.tsx";
 import { query } from "../../lib/api.ts";
 import { ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { useDetailExploration, useDetailNavigate } from "../../lib/detail-exploration.tsx";
 import { type TagScope, tagScopeLabels } from "./TagPicker.tsx";
 import { createTagRead } from "./tag-read.ts";
-const tagRead = createTagRead(api);
+
 type Page = { items: TagResult[]; next_cursor: string | null };
 type Draft = { initial: TagResult | null; name: string };
 export function TagsPage() {
@@ -51,6 +52,8 @@ export function TagManagement(
     onStateChange?: (state: { dirty: boolean; busy: boolean; uncertain: boolean; error: boolean }) => void;
   },
 ) {
+  const api = useApi();
+  const tagRead = createTagRead(api);
   const location = useLocation(), [params] = useSearchParams(), navigateAfterClose = useDeferredNavigation();
   const previous = useDetailExploration(), navigate = useDetailNavigate();
   const [closing, setClosing] = useState(false);

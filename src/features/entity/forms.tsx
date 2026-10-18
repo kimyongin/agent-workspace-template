@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { cn } from "../../lib/utils.ts";
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { PlusIcon } from "lucide-react";
@@ -7,10 +8,10 @@ import { Input } from "../../components/ui/input.tsx";
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { EntityTypeIdentity } from "@contracts/entity-issuer.ts";
-import { Link } from "react-router";
+import { Link } from "../../lib/workspace-router.tsx";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
 import { entityId, entityIdentity, entityPath } from "@contracts/entity-identity.ts";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 import { type EntityCreate, entityCreate, type EntityDetail } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
@@ -58,6 +59,7 @@ export function EntityForm({
   onRouteDiscard?: () => void;
   onSave: (value: EntityCreate, requestKey: () => string) => Promise<void>;
 }) {
+  const api = useApi();
   const [identitySettings, setIdentitySettings] = useState<EntityTypeIdentity | null>(null),
     [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
     [definition, setDefinition] = useState<EntitySchemaResult | null>(null),

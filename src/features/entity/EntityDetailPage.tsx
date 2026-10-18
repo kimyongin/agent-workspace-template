@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { PlusIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
@@ -20,14 +21,15 @@ import { TagConnections } from "../tags/TagConnections.tsx";
 import { EntityProperties } from "./EntityProperties.tsx";
 import type { EntityDetail } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useParams, useSearchParams } from "react-router";
+import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
 import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
+  const api = useApi();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams(),
     [params] = useSearchParams(),

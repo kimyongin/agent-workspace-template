@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -18,8 +19,8 @@ import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { SchemaEditor } from "./SchemaEditor.tsx";
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { api, ApiError } from "../../lib/api.ts";
+import { Link, useLocation, useNavigate, useParams } from "../../lib/workspace-router.tsx";
+import { ApiError } from "../../lib/api.ts";
 import { Field } from "../../components/Field.tsx";
 import { type EntitySchemaVersion, type EntityType, entityTypeIcons } from "@contracts/entity-type.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -29,6 +30,7 @@ export function EntityTypeSettings() {
   return <EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} />;
 }
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
+  const api = useApi();
   const { session } = useAuth();
   const iconGroup = useId();
   const { type_id: activeTypeId, job_id } = useParams();
@@ -42,7 +44,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   );
   const catalog = useEntityTypes();
   const items = catalog.types ?? [];
-  const [definitions] = useState(() => createMaterialDefinition(type_id));
+  const [definitions] = useState(() => createMaterialDefinition(api, type_id));
   const {
     type,
     schema,

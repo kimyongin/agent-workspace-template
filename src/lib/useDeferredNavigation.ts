@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { NavigateOptions } from "react-router";
+import type { NavigateOptions } from "./workspace-router.tsx";
 import { useDetailNavigate } from "./detail-exploration.tsx";
 
 /** Commit the dialog removal before navigating, so its dirty route guard is removed first. */

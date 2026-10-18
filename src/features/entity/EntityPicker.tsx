@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -11,7 +12,7 @@ import type { EntitySummary } from "@contracts/entity.ts";
 import { useEffect, useState } from "react";
 import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
-import { api, query } from "../../lib/api.ts";
+import { query } from "../../lib/api.ts";
 import { RelationPicker } from "../relations/RelationPicker.tsx";
 export function EntityPicker(
   { value, onChange, error, label = "자료" }: {
@@ -67,6 +68,7 @@ export function EntityLink({ id }: { id: string | null | undefined }) {
 }
 
 function useEntities() {
+  const api = useApi();
   const [items, setItems] = useState<EntitySummary[] | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);

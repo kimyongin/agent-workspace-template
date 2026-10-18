@@ -1,9 +1,11 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { entityTypeCatalogEvent, readEntityTypeCatalog } from "./entity-type-catalog.ts";
 import { useContext, useEffect, useState } from "react";
 import type { EntityType } from "@contracts/entity-type.ts";
 import { AuthContext } from "../auth/auth-context.ts";
-import { api, query } from "../../lib/api.ts";
+import { query } from "../../lib/api.ts";
 export function useEntityTypes(revision?: unknown, enabled = true) {
+  const api = useApi();
   const { session } = useContext(AuthContext);
   const scope = enabled ? session?.user.id ?? null : null;
   const [catalog, setCatalog] = useState<{ scope: string; types: EntityType[] } | null>(null),

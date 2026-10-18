@@ -7,7 +7,7 @@ const prefix = "workspace:unresolved-write:";
 function browserStorage(): MetadataStorage | undefined {
   try { return globalThis.sessionStorage; } catch { return undefined; }
 }
-export type FrozenWrite = {method:string; path:string; body:string | undefined};
+export type FrozenWrite = {actorId:string; workspaceId:string | null; method:string; path:string; body:string | undefined};
 export function freezeWrite(key:string, request:FrozenWrite):FrozenWrite {
   const attempt=attempts.get(key);
   if(!attempt) throw new Error("쓰기 시도에 속하지 않은 요청 키입니다");
@@ -40,7 +40,7 @@ export class WriteAttempt<Result = unknown> {
   }
   private persist(status: string) {
     if (!this.key || !this.metadata) return;
-    try { this.storage?.setItem(prefix + this.key, JSON.stringify({request_key:this.key, ...this.metadata, status})); } catch { /* Storage is optional. */ }
+    try { this.storage?.setItem(prefix + this.key, JSON.stringify({request_key:this.key, ...this.metadata, ...(this.frozen ? { actorId: this.frozen.actorId, workspaceId: this.frozen.workspaceId, method: this.frozen.method, path: this.frozen.path } : {}), status})); } catch { /* Storage is optional. */ }
   }
   private finish() {
     if (this.key) {
@@ -117,10 +117,15 @@ export function writeErrorMessage(error: unknown): string {
 }
 
 /** Payload closures are unavailable after reload; metadata is guidance, never a resend source. */
-export function hasUnresolvedWrites() {
+export function hasUnresolvedWrites(scope?: {actorId: string; workspaceId: string | null}) {
   try {
     const storage=globalThis.sessionStorage;
-    for(let i=0;i<storage.length;i++) if(storage.key(i)?.startsWith(prefix)) return true;
+    for(let i=0;i<storage.length;i++) {
+      const key = storage.key(i);
+      if (!key?.startsWith(prefix)) continue;
+      if (!scope) return true;
+      try { const value = JSON.parse(storage.getItem(key) ?? "null"); if (value?.actorId === scope.actorId && value?.workspaceId === scope.workspaceId) return true; } catch { /* Ignore invalid advisory metadata. */ }
+    }
   } catch { /* Browser restart or unavailable storage cannot recover keys. */ }
   return false;
 }

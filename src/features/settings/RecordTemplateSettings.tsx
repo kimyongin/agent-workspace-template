@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { RotateCcwIcon, EyeIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select";
@@ -12,7 +13,7 @@ import { changedTemplateActions, templateFieldTarget } from "./record-template-a
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   DEFAULT_RECORD_MEMO_TEMPLATES,
   effectiveRecordTemplate,
@@ -28,13 +29,13 @@ import {
 } from "@contracts/record-template.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 import { TagPicker } from "../tags/TagPicker.tsx";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { useSettingsDraft } from "./useSettingsDraft.ts";
 import { createRecordTemplatesDraft, unavailableTemplateTags } from "./business-settings-drafts.ts";
 
 import type { MaterialTemplateResource } from "./material-template-drafts.ts";
 
-const recordTemplatesDraft = createRecordTemplatesDraft(api);
+
 
 export function RecordTemplateSettings(
   props: {
@@ -57,6 +58,8 @@ export function RecordTemplateSettings(
 function GeneralRecordTemplateSettings(
   props: Parameters<typeof RecordTemplateSettings>[0],
 ) {
+  const api = useApi();
+  const recordTemplatesDraft = useMemo(() => createRecordTemplatesDraft(api), [api]);
   const editor = useSettingsDraft(recordTemplatesDraft, props.onStateChange);
   return <RecordTemplateForm {...props} editor={editor} />;
 }
@@ -110,6 +113,7 @@ function RecordTemplateForm({
     >
   >;
 }) {
+  const api = useApi();
   const [variableQuery, setVariableQuery] = useState("");
   const { draft, dirty, busy, conflict, uncertain, latestReady } = editor;
   const saved = editor.saved?.settings;
