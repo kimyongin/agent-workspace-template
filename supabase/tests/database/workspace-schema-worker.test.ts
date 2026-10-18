@@ -141,7 +141,7 @@ dbTest(
       workspaceId =
         (await workspaces.createWorkspace(workspaceDeps, key(a), { name: "공유 다중 종류 변환" })).workspace.id;
       const author = { ...a, workspaceId }, executor = { ...b, workspaceId };
-      const kinds = [];
+      const kinds: Awaited<ReturnType<typeof types.createEntityType>>[] = [];
       for (const label of ["첫 종류", "둘째 종류"]) {
         kinds.push(
           await types.createEntityType(typeDeps, key(author), { label }),

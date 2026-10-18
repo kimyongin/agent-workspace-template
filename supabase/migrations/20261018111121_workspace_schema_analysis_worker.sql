@@ -20,20 +20,20 @@ begin
  perform set_config('request.workspace_lock_mode','business',true);
  return true;
 end $$;
-create function private.schema_analysis_current(p_id uuid) returns boolean language sql stable set search_path='' as $$
+create function private.schema_analysis_current(p_workspace uuid,p_id uuid) returns boolean language sql stable set search_path='' as $$
  select coalesce((select private.schema_execution_allows(a.initiated_by,a.workspace_id,a.workspace_generation,a.required_kind_ids)
-  from app.entity_schema_analyses a where a.id=p_id),false)
+  from app.entity_schema_analyses a where a.workspace_id=p_workspace and a.id=p_id),false)
 $$;
-create function private.authorize_schema_analysis(p_id uuid) returns boolean language plpgsql set search_path='' as $$
+create function private.authorize_schema_analysis(p_workspace uuid,p_id uuid) returns boolean language plpgsql set search_path='' as $$
 declare a app.entity_schema_analyses%rowtype;
 begin
- select * into a from app.entity_schema_analyses where id=p_id;
+ select * into a from app.entity_schema_analyses where workspace_id=p_workspace and id=p_id;
  if not found or not private.lock_schema_execution(a.initiated_by,a.workspace_id) then return false;end if;
  -- New statement after both lock waits: current account, membership, grants and generation.
- return private.schema_analysis_current(p_id);
+ return private.schema_analysis_current(p_workspace,p_id);
 end $$;
 revoke all on function private.schema_execution_allows(uuid,uuid,bigint,uuid[]),private.lock_schema_execution(uuid,uuid),
- private.schema_analysis_current(uuid),private.authorize_schema_analysis(uuid) from public,anon,authenticated,app_user,app_server,app_worker;
+ private.schema_analysis_current(uuid,uuid),private.authorize_schema_analysis(uuid,uuid) from public,anon,authenticated,app_user,app_server,app_worker;
 
 CREATE OR REPLACE FUNCTION private.lock_data_model_analysis(p_id uuid)
  RETURNS uuid
@@ -42,8 +42,8 @@ CREATE OR REPLACE FUNCTION private.lock_data_model_analysis(p_id uuid)
 AS $function$
 declare v_owner uuid;v_group uuid;
 begin
- if not private.authorize_schema_analysis(p_id) then return null;end if;
  select c.workspace_id,c.model_change_id into v_owner,v_group from app.entity_schema_analyses a join app.entity_schema_changes c on c.workspace_id=a.workspace_id and c.id=a.change_id where a.id=p_id;
+ if not private.authorize_schema_analysis(v_owner,p_id) then return null;end if;
  if v_group is null then return null;end if;
  perform private.lock_data_model_owner(v_owner);
  perform 1 from app.data_model_changes g where g.workspace_id=v_owner and g.id=v_group for update;
@@ -58,12 +58,11 @@ CREATE OR REPLACE FUNCTION private.complete_entity_schema_analysis_batch(p_id uu
 AS $function$
 declare v_a app.entity_schema_analyses%rowtype; v_c app.entity_schema_changes%rowtype; v_owner uuid; v_type_id uuid; v_result jsonb; v_n integer; v_bad integer; v_stale boolean;
 begin
- if not private.authorize_schema_analysis(p_id) then return false;end if;
  select x.workspace_id,x.type_id into v_owner,v_type_id from app.entity_schema_analyses x where x.id=p_id;
- if v_owner is null then return false; end if;
+ if v_owner is null or not private.authorize_schema_analysis(v_owner,p_id) then return false; end if;
  perform 1 from app.entity_types t where t.workspace_id=v_owner and t.id=v_type_id for update;
  if not found then return false; end if;
- select * into v_a from app.entity_schema_analyses x where x.id=p_id for update;
+ select * into v_a from app.entity_schema_analyses x where x.workspace_id=v_owner and x.id=p_id for update;
  if not found then return false; end if;
  if v_a.status<>'running' or v_a.fence<>p_fence or v_a.lease_until<=now() then return false; end if;
  select * into v_c from app.entity_schema_changes x where x.workspace_id=v_owner and x.id=v_a.change_id for update;
@@ -75,16 +74,16 @@ begin
   if not found then raise exception 'unexpected analysis row'; end if;
  end loop;
  select count(*) filter(where processed), count(*) filter(where processed and jsonb_array_length(errors)>0) into v_n,v_bad from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id;
- if (select coalesce(sum(octet_length(properties::text)+coalesce(octet_length(recovery_properties::text),0)+octet_length(coalesce(after,'null'::jsonb)::text)+octet_length(errors::text)),0) from private.entity_schema_analysis_rows where analysis_id=p_id)>8388608 then
-  update app.entity_schema_analyses set status='failed',processed=v_n,failed=v_bad,lease_until=null,retryable=false,failure_reason='analysis_result_limit' where id=p_id;
-  update app.entity_schema_changes set status='draft',updated_at=now() where id=v_c.id;return true;
+ if (select coalesce(sum(octet_length(properties::text)+coalesce(octet_length(recovery_properties::text),0)+octet_length(coalesce(after,'null'::jsonb)::text)+octet_length(errors::text)),0) from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id)>8388608 then
+  update app.entity_schema_analyses set status='failed',processed=v_n,failed=v_bad,lease_until=null,retryable=false,failure_reason='analysis_result_limit' where workspace_id=v_owner and id=p_id;
+  update app.entity_schema_changes set status='draft',updated_at=now() where workspace_id=v_owner and id=v_c.id;return true;
  end if;
  if v_n=v_a.total then
   select t.schema_version<>v_c.source_schema_version or t.schema_write_locked or app.entity_schema_membership(v_owner,v_type_id)<>v_a.membership into v_stale from app.entity_types t where t.workspace_id=v_owner and t.id=v_type_id;
-  update app.entity_schema_analyses set status='succeeded',processed=v_n,failed=v_bad,changed=(select count(*) from private.entity_schema_analysis_rows where analysis_id=p_id and processed and changed),unchanged=(select count(*) from private.entity_schema_analysis_rows where analysis_id=p_id and processed and not changed),removed=(select coalesce(sum(removed),0) from private.entity_schema_analysis_rows where analysis_id=p_id and processed),replacements=(select coalesce(sum(replacements),0) from private.entity_schema_analysis_rows where analysis_id=p_id and processed),lease_until=null where id=p_id;
-  update app.entity_schema_changes set status=case when v_stale then 'stale' else 'ready' end,updated_at=now() where id=v_c.id;
+  update app.entity_schema_analyses set status='succeeded',processed=v_n,failed=v_bad,changed=(select count(*) from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id and processed and changed),unchanged=(select count(*) from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id and processed and not changed),removed=(select coalesce(sum(removed),0) from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id and processed),replacements=(select coalesce(sum(replacements),0) from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id and processed),lease_until=null where workspace_id=v_owner and id=p_id;
+  update app.entity_schema_changes set status=case when v_stale then 'stale' else 'ready' end,updated_at=now() where workspace_id=v_owner and id=v_c.id;
  else
-  update app.entity_schema_analyses set status='queued',processed=v_n,failed=v_bad,changed=(select count(*) from private.entity_schema_analysis_rows where analysis_id=p_id and processed and changed),unchanged=(select count(*) from private.entity_schema_analysis_rows where analysis_id=p_id and processed and not changed),removed=(select coalesce(sum(removed),0) from private.entity_schema_analysis_rows where analysis_id=p_id and processed),replacements=(select coalesce(sum(replacements),0) from private.entity_schema_analysis_rows where analysis_id=p_id and processed),lease_until=null where id=p_id;
+  update app.entity_schema_analyses set status='queued',processed=v_n,failed=v_bad,changed=(select count(*) from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id and processed and changed),unchanged=(select count(*) from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id and processed and not changed),removed=(select coalesce(sum(removed),0) from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id and processed),replacements=(select coalesce(sum(replacements),0) from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id and processed),lease_until=null where workspace_id=v_owner and id=p_id;
  end if;
  return true;
 end $function$;
@@ -97,14 +96,13 @@ CREATE OR REPLACE FUNCTION private.fail_entity_schema_analysis(p_id uuid, p_fenc
 AS $function$
 declare owner uuid; type_id uuid; a app.entity_schema_analyses%rowtype;
 begin
- if not private.authorize_schema_analysis(p_id) then return false;end if;
  select x.workspace_id,x.type_id into owner,type_id from app.entity_schema_analyses x where x.id=p_id;
- if owner is null then return false; end if;
+ if owner is null or not private.authorize_schema_analysis(owner,p_id) then return false; end if;
  perform 1 from app.entity_types t where t.workspace_id=owner and t.id=type_id for update;
- select * into a from app.entity_schema_analyses x where x.id=p_id for update;
+ select * into a from app.entity_schema_analyses x where x.workspace_id=owner and x.id=p_id for update;
  if a.status<>'running' or a.fence<>p_fence or a.lease_until<=now() then return false; end if;
- update app.entity_schema_analyses set status='failed',failure_reason='analysis_worker_failed',retryable=true,lease_until=null where id=p_id;
- update app.entity_schema_changes set status='draft',updated_at=now() where id=a.change_id and analysis_id=p_id;
+ update app.entity_schema_analyses set status='failed',failure_reason='analysis_worker_failed',retryable=true,lease_until=null where workspace_id=owner and id=p_id;
+ update app.entity_schema_changes set status='draft',updated_at=now() where workspace_id=owner and id=a.change_id and analysis_id=p_id;
  return true;
 end $function$;
 
@@ -117,9 +115,9 @@ AS $function$
 declare v_a app.entity_schema_analyses%rowtype; v_c app.entity_schema_changes%rowtype; v_candidate uuid; v_owner uuid; v_type_id uuid; v_batch jsonb; v_group uuid;
 begin
  select x.id,x.workspace_id,x.type_id into v_candidate,v_owner,v_type_id from app.entity_schema_analyses x
- where private.schema_analysis_current(x.id) and (x.status='queued' or (x.status='running' and x.lease_until<now())) and exists(select 1 from app.entity_schema_changes c where c.workspace_id=x.workspace_id and c.id=x.change_id and (c.model_change_id is null or exists(select 1 from app.data_model_changes g where g.workspace_id=c.workspace_id and g.id=c.model_change_id and g.status='analyzing'))) order by x.created_at limit 1;
+ where private.schema_analysis_current(x.workspace_id,x.id) and (x.status='queued' or (x.status='running' and x.lease_until<now())) and exists(select 1 from app.entity_schema_changes c where c.workspace_id=x.workspace_id and c.id=x.change_id and (c.model_change_id is null or exists(select 1 from app.data_model_changes g where g.workspace_id=c.workspace_id and g.id=c.model_change_id and g.status='analyzing'))) order by x.created_at limit 1;
  if v_candidate is null then return null; end if;
- if not private.authorize_schema_analysis(v_candidate) then return null;end if;
+ if not private.authorize_schema_analysis(v_owner,v_candidate) then return null;end if;
  v_group:=private.lock_data_model_analysis(v_candidate);
  perform 1 from app.entity_types t where t.workspace_id=v_owner and t.id=v_type_id for update;
  if not found then return null; end if;
@@ -177,8 +175,8 @@ CREATE OR REPLACE FUNCTION app.complete_entity_schema_analysis_batch(p_id uuid, 
 AS $function$
 declare v_group uuid;v_result boolean;v_workspace uuid;
 begin
- if not private.authorize_schema_analysis(p_id) then return false;end if;
  select workspace_id into v_workspace from app.entity_schema_analyses where id=p_id;
+ if not private.authorize_schema_analysis(v_workspace,p_id) then return false;end if;
  v_group:=private.lock_data_model_analysis(p_id);
  v_result:=private.complete_entity_schema_analysis_batch(p_id,p_fence,p_results);
  if v_group is not null and v_result then perform private.refresh_workspace_model_analysis(v_workspace,v_group);end if;
@@ -193,8 +191,8 @@ CREATE OR REPLACE FUNCTION app.fail_entity_schema_analysis(p_id uuid, p_fence bi
 AS $function$
 declare v_group uuid;v_result boolean;v_workspace uuid;
 begin
- if not private.authorize_schema_analysis(p_id) then return false;end if;
  select workspace_id into v_workspace from app.entity_schema_analyses where id=p_id;
+ if not private.authorize_schema_analysis(v_workspace,p_id) then return false;end if;
  v_group:=private.lock_data_model_analysis(p_id);
  v_result:=private.fail_entity_schema_analysis(p_id,p_fence);
  if v_group is not null and v_result then perform private.refresh_workspace_model_analysis(v_workspace,v_group);end if;
