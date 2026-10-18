@@ -1,7 +1,6 @@
 import { useApi } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Button } from "../../components/ui/button.tsx";
-import { PlusIcon } from "lucide-react";
 import { useDetailResource } from "../details/useDetailResource.ts";
 
 import { RelatedRecords } from "./RelatedRecords.tsx";
@@ -25,10 +24,10 @@ import { OccurrenceBadge } from "./shared.tsx";
 import { TagConnections } from "../tags/TagConnections.tsx";
 import { TaskEntityRelations } from "../entity/TaskEntityRelations.tsx";
 
-type Dialog = null | "complete" | "record" | "transition" | { occurrence: string };
+type Dialog = null | "complete" | "transition" | { occurrence: string };
 function requestedDialog(params: URLSearchParams): Dialog {
   const action = params.get("action");
-  return action === "complete" || action === "transition" || action === "record"
+  return action === "complete" || action === "transition"
     ? action
     : params.has("occurrence")
     ? { occurrence: params.get("occurrence")! }
@@ -301,16 +300,7 @@ export function TaskDetailPage() {
           <RelatedRecords
             taskId={task.id}
             revision={task.version + recordRefresh}
-            action={
-              <Button
-                variant="ghost"
-                type="button"
-                aria-label="기록 작성"
-                onClick={() => manage("record")}
-              >
-                <PlusIcon data-icon="inline-start" />작성
-              </Button>
-            }
+
           />
           {occurrenceSection()}
         </div>
@@ -368,26 +358,6 @@ export function TaskDetailPage() {
           }}
         />
       )}
-      {dialog === "record" && (
-        <RecordFormModal
-          title="기록 작성"
-          submitLabel="저장"
-          open
-          initial={{
-            ...emptyRecord(),
-            task_id: task.id,
-            entity_ids: task.entity_ids,
-            entity_context: task.entity_context,
-          }}
-          onClose={closeManagement}
-          onRouteDiscard={() => setDialog(null)}
-          onSave={async (value, requestKey) => {
-            await api("POST", "/records", { ...value }, undefined, requestKey());
-            closeManagement();
-            setRecordRefresh((n) => n + 1);
-          }}
-        />
-      )}
       {task.kind === "recurring" && (
         <TaskTransitionForm
           key={`${task.id}:${task.version}`}
@@ -404,7 +374,6 @@ export function TaskDetailPage() {
       {dialog === "complete" && (
         <RecordFormModal
           title="할 일 완료"
-          entityEditable={false}
           submitLabel="완료하고 기록 저장"
           open
           initial={emptyRecord()}
@@ -427,10 +396,9 @@ export function TaskDetailPage() {
       {dialog && typeof dialog === "object" && (
         <RecordFormModal
           title={`${dialog.occurrence} 회차 기록`}
-          taskEditable={false}
           submitLabel="기록 저장"
           open
-          initial={{ ...emptyRecord(), entity_ids: task.entity_ids, entity_context: task.entity_context }}
+          initial={emptyRecord()}
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value, requestKey) => {

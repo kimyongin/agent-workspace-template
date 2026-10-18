@@ -10,9 +10,7 @@ import { TaskDataFields } from "./TaskDataFields.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
-import { TagPicker } from "../tags/TagPicker.tsx";
 import { ReadonlyTags } from "../tags/TagConnections.tsx";
-import { RelationPicker } from "../relations/RelationPicker.tsx";
 import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels, type TaskResult } from "@contracts/task.ts";
@@ -28,9 +26,6 @@ import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 
 export interface RecordDraft {
   body: string;
-  task_id?: string;
-  entity_ids?: string[];
-  entity_context?: EntityContext[];
   tag_ids: string[];
   occurred_at: DateTimeDraft;
   original_occurred_at?: string;
@@ -48,8 +43,6 @@ export function recordDraftFrom(
     occurred_at: { date, time },
     original_occurred_at: r.occurred_at,
     tag_ids: r.tag_ids ?? [],
-    entity_ids: r.entity_ids ?? [],
-    entity_context: r.entity_context ?? [],
   };
 }
 
@@ -72,15 +65,13 @@ export function RecordFormModal(props: {
   intro?: ReactNode;
   details?: ReactNode;
   deletion?: DeletionOptions;
-  entityEditable?: boolean;
-  taskEditable?: boolean;
   systemRecord?: boolean;
   editing?: boolean;
   record?: RecordResult;
   onClose: () => void;
   onRouteDiscard?: () => void;
   onSave: (
-    value: { body: string; occurred_at?: string; tag_ids?: string[]; entity_ids?: string[]; task_id?: string },
+    value: { body: string; occurred_at?: string },
     requestKey: () => string,
   ) => Promise<void>;
 }) {
@@ -91,12 +82,7 @@ export function RecordFormModal(props: {
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const value = () => ({
     body: draft.body,
-    ...(!props.editing && props.taskEditable !== false && props.entityEditable !== false
-      ? { task_id: draft.task_id }
-      : {}),
     occurred_at: recordDraftTime(draft, timezone),
-    ...(!props.editing ? { tag_ids: draft.tag_ids } : {}),
-    ...(!props.editing && props.entityEditable !== false ? { entity_ids: draft.entity_ids ?? [] } : {}),
   });
   return (
     <FormModal
@@ -169,38 +155,7 @@ export function RecordFormModal(props: {
                   {!props.systemRecord && occurredAt}
                 </FieldGroup>
               )}
-            {!props.editing && !props.systemRecord && (
-              <FieldGroup>
-                {props.taskEditable !== false && props.entityEditable !== false && (
-                  <RelationPicker
-                    disabled={frozen}
-                    kind="task"
-                    value={draft.task_id ? [draft.task_id] : []}
-                    error={errors.task_id}
-                    onChange={(ids) => setDraft((d) => ({ ...d, task_id: ids[0] }))}
-                  />
-                )}
-                {props.entityEditable !== false && (
-                  <EntityMultiPicker
-                    disabled={frozen}
-                    value={draft.entity_ids ?? []}
-                    context={draft.entity_context}
-                    error={errors.entity_ids}
-                    onChange={(entity_ids) => setDraft((d) => ({ ...d, entity_ids }))}
-                  />
-                )}
-              </FieldGroup>
-            )}
-            <FieldGroup>
-              {props.editing ? <ReadonlyTags scope="record" ids={props.initial.tag_ids} /> : (
-                <TagPicker
-                  disabled={frozen}
-                  value={draft.tag_ids}
-                  error={errors.tag_ids}
-                  onChange={(tag_ids) => setDraft((d) => ({ ...d, tag_ids }))}
-                />
-              )}
-            </FieldGroup>
+            {props.editing && <FieldGroup><ReadonlyTags scope="record" ids={props.initial.tag_ids} /></FieldGroup>}
             {props.details}
           </>
         );
@@ -280,7 +235,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 // Both memo preparation and the write use the same business input. Relations are edited separately.
 function taskInput(draft: TaskDraft, mode: "create" | "edit"): Record<string, unknown> {
-  const text = { title: draft.title, body: draft.body, ...(mode === "create" ? { tag_ids: draft.tag_ids } : {}) };
+  const text = { title: draft.title, body: draft.body };
   const input = draft.kind === "once"
     ? { ...text, ...(draft.due_on ? { due_on: draft.due_on } : mode === "edit" ? { due_on: null } : {}) }
     : { ...text, recurrence: recurrenceOf(draft), timezone: draft.timezone };
@@ -316,7 +271,7 @@ export function TaskFormModal(
       visible={active && canRead && props.visible !== false}
       submitDisabled={!active || !canWrite}
       description={props.mode === "create"
-        ? "내용과 일정을 정하고, 관련 자료와 태그를 연결합니다."
+        ? "내용과 일정을 정하고, 관련 자료를 선택합니다."
         : "할 일의 내용과 일정을 수정합니다."}
       title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
       mutation={{ target: draft.title, action: props.mode === "create" ? "등록" : "수정" }}
@@ -405,17 +360,7 @@ export function TaskFormModal(
               />
             </FieldGroup>
           )}
-          <FieldGroup>
-            {props.mode === "edit" ? <ReadonlyTags scope="task" ids={props.initial.tag_ids} /> : (
-              <TagPicker
-                disabled={frozen}
-                scope="task"
-                value={draft.tag_ids}
-                error={errors.tag_ids}
-                onChange={(tag_ids) => set({ tag_ids })}
-              />
-            )}
-          </FieldGroup>
+          {props.mode === "edit" && <FieldGroup><ReadonlyTags scope="task" ids={props.initial.tag_ids} /></FieldGroup>}
           {props.details}
         </>
       )}

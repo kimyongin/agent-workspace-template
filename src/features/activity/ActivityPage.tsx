@@ -1,3 +1,4 @@
+import { useTaskAccess } from "./task-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { NativeSelect } from "@/components/ui/native-select";
 import { NativeSelectOption } from "@/components/ui/native-select";
@@ -39,7 +40,7 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { TagSelection } from "../tags/TagSelection.tsx";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { recordKindNames } from "./ChangeContext.tsx";
-import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "./forms.tsx";
+import { emptyTask, TaskFormModal } from "./forms.tsx";
 import { type ActivityItem, useActivityList } from "./useActivityList.ts";
 import { Timeline } from "./Timeline.tsx";
 import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds } from "./activity-filters.ts";
@@ -63,6 +64,7 @@ function ActivitySection(
     dictionary: ReturnType<typeof useTagDictionary>;
   },
 ) {
+  const { canWrite } = useTaskAccess();
   const [view, changeView] = useMainCollectionView(kind === "records");
   const { formatDateTime, timezone } = useDisplayTime();
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
@@ -109,7 +111,7 @@ function ActivitySection(
             onChange={changeView}
             calendar={kind === "records"}
           />
-          <TabCreateButton label={kind === "tasks" ? "할 일 등록" : "기록 작성"} onClick={onCreate} />
+          {kind === "tasks" && canWrite && <TabCreateButton label="할 일 등록" onClick={onCreate} />}
         </div>
         {q && (
           <p className="text-sm text-muted-foreground">
@@ -428,8 +430,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
           searchInput.current?.focus();
         }}
       />
-      {create.open && (kind === "tasks"
-        ? (
+      {create.open && kind === "tasks" && (
           <TaskFormModal
             key={create.key}
             mode="create"
@@ -442,22 +443,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
               saved("task", task.id);
             }}
           />
-        )
-        : (
-          <RecordFormModal
-            key={create.key}
-            title="기록 작성"
-            submitLabel="저장"
-            open
-            initial={emptyRecord()}
-            onClose={create.close}
-            onRouteDiscard={create.discard}
-            onSave={async (draft, requestKey) => {
-              const record = await api<RecordResult>("POST", "/records", { ...draft }, undefined, requestKey());
-              saved("record", record.id);
-            }}
-          />
-        ))}
+        )}
     </>
   );
 }
