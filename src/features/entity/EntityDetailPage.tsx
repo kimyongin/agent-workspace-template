@@ -1,3 +1,4 @@
+import { WorkspacePermissionNotice } from "../workspaces/WorkspacePermissionNotice.tsx";
 import { useTaskAccess } from "../activity/task-access.ts";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
@@ -393,4 +394,3 @@ export function EntityDetailPage() {
     </>
   );
 }
-import { WorkspacePermissionNotice } from "../workspaces/WorkspacePermissionNotice.tsx";
