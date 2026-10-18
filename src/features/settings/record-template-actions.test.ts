@@ -14,7 +14,8 @@ test("template errors identify their real action after a type UUID and request p
     action: "delete",
   });
   expect(templateFieldTarget("record_templates.task.resume.memo")).toEqual({ model: "task", action: "resume" });
-  for (const path of ["entity_types.bad.create_extra.memo", "task.restore.memo", "unknown.create", "entity_types.id"]) {
+  expect(templateFieldTarget("task.restore.memo")).toEqual({ model: "task", action: "restore" });
+  for (const path of ["entity_types.bad.create_extra.memo", "task.restore_extra.memo", "unknown.create", "entity_types.id"]) {
     expect(templateFieldTarget(path)).toBeNull();
   }
 });
