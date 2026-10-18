@@ -36,7 +36,7 @@ export function tagTools(d: tags.TagDeps): ToolDef[] {
     {
       name: "create_tag",
       description:
-        "태그 생성. scope entity/task/record, 생략은 record. 이름 1~30자, 소유자와 scope 안에서 대소문자 무시 고유. 내부 id는 성공 응답으로 반환한다.",
+        "태그 생성. scope entity/task/record, 생략은 record. 이름 1~30자, 현재 공간과 scope 안에서 대소문자 무시 고유. 내부 id는 성공 응답으로 반환한다.",
       input: tagCreate,
       readOnly: false,
       handler: (i, a) => tags.createTag(d, a, parse(tagCreate, i)),

@@ -25,22 +25,24 @@
 
 업무 설정의 섹션별 ID·버전 전환은 [ADR-0015](../adr/0015-change-record-templates.md)를 따른다. 기존 JSON·버전을 보존하는 migration 뒤 같은 revision의 서버와 웹을 적용한다. GET은 `versions[id]`, PATCH/MCP는 `id`·`expected_version`·`value`를 사용한다. 이전 단일 version·sections 입력은 제거하며 소스 후보 플러그인 0.5.0의 안내를 함께 검증한다. 운영 배포와 설치된 플러그인 갱신은 별도 실행 범위를 따른다.
 
-새 변경 기록은 최종 메모·사건 식별정보·선택한 대상 문맥을 저장한다. 기존 사용자 원칙과 그 보존본은 ADR-0022 및 #467의 명시 삭제 결정에 따라 제거한다. 다른 옛 행의 캡처는 보존한다. 인터페이스 정리로 과거 업무 자료를 삭제하거나 당시 내용을 만들어내지 않는다.
+새 변경 기록은 최종 메모·사건 식별정보·실제 불변 단일 부모의 사건 문맥을 저장한다. 기존 사용자 원칙과 그 보존본은 ADR-0022 및 #467의 명시 삭제 결정에 따라 제거한다. 다른 옛 행의 캡처는 보존한다. 인터페이스 정리로 과거 업무 자료를 삭제하거나 당시 내용을 만들어내지 않는다.
 
 구 계약의 유지 여부는 [실제 사용처 기준](../architecture/principles.md#9-실제-사용처를-기준으로-구-계약을-정리한다)으로 판단한다. 별도 외부 사용처가 없으면 앱의 웹·HTTP/MCP·제품 스킬·검사 도구를 새 계약으로 함께 전환하고 구 경로·도구·입력 alias와 임시 writer trigger를 제거한다. 제거 범위·지원하는 새 계약·자료 보존 검사와 제출 revision은 해당 issue·PR에서 확인한다.
 
 실제 외부 사용처가 있으면 지원 대상별 전환·검증·종료 조건을 먼저 기록하고 필요한 기간에만 호환 계약을 유지한다. 배포 대상에 동시에 실행되는 이전 웹·서버·worker가 있으면 쓰기 중지 범위·적용 순서·복구 revision을 정한다. DB·API·웹·패키지를 하나의 원자적 배포라고 주장하지 않는다.
 
-엔터티의 발급처별 식별·소프트 삭제 전환은 [ADR-0016](../adr/0016-entity-source-identity-and-restoration.md)을 따른다. 이전 UUID를 앱 발급처의 외부 식별자로 보존하고 태그·할 일·기록 문맥·사건 참조를 함께 전환한다. 적용 전 자료가 있는 격리 DB에서 이관을 검증하며, 전환한 저장 계약에는 새 서버·웹·제품 스킬을 함께 사용한다. 이미 물리 삭제된 자료를 이관으로 복구할 수 있다고 주장하지 않는다. 사용자 업무 설정은 [ADR-0015](../adr/0015-change-record-templates.md)의 소유자별 설정 묶음으로 저장하며 기존 프로필·표시 설정을 보존한다.
+엔터티의 발급처별 식별·소프트 삭제 전환은 [ADR-0016](../adr/0016-entity-source-identity-and-restoration.md)을 따른다. 이전 UUID를 앱 발급처의 외부 식별자로 보존하고 태그·할 일·기록 문맥·사건 참조를 함께 전환한다. 적용 전 자료가 있는 격리 DB에서 이관을 검증하며, 전환한 저장 계약에는 새 서버·웹·제품 스킬을 함께 사용한다. 이미 물리 삭제된 자료를 이관으로 복구할 수 있다고 주장하지 않는다. 당시 사용자별 업무 설정 전환은 [ADR-0015](../adr/0015-change-record-templates.md)의 이관 사실이다. 현재 업무 설정은 공간별로 저장하며 개인 프로필·표시 설정은 계정에 보존한다.
 
 제품 manifest의 대응하는 버전, 패키지 SHA-256·파일 해시·서버 계약 해시, 실제 backend/web revision과 지원 클라이언트·혼합 버전 범위를 함께 기록한다([패키지 검사](../../plugins/workspace/README.md)). 같은 버전의 기존 배포가 최신 계약을 지원한다고 추정하지 않는다. 실제 소비자의 전환·CI와 `main` 반영·운영 DB/서비스 배포는 각각 증거와 실행 조건이 필요하다. 실제 제품 왕복과 별도 고객 관리 서비스의 실행 범위는 해당 GitHub issue에서 확인한다.
+
+현재 릴리스의 접근·보존 검사는 [ADR-0026](../adr/0026-workspace-membership-and-inherited-record-access.md)의 명시한 공간·현재 참여·작업 권한과 불변 단일 기록 부모를 기준으로 한다. 아래 과거 계약의 이관 사실은 유지하되, 계정 삭제 시 공유 업무·벡터가 함께 삭제된다고 해석하지 않는다. 해당 실행자의 요청 결과·권한과 공간 수명의 공유 원본을 구분하고, 불명·진행 중 외부 작업 증거를 보존한다.
 
 ## 요청 키 계약 릴리스
 
 [ADR-0018](../adr/0018-server-ids-and-request-idempotency.md)의 구현은 서버 생성 트랜잭션에서 내부 ID를 발급하며 HTTP `Idempotency-Key`와 MCP `request_key`를 모든 업무 쓰기에 요구한다. 공개 ID 예약 경로/도구와 준비 단계 ID 발급은 제거됐다. 이전 키 없는 웹·플러그인은 새 서버에서 쓰기가 거절되므로 같은 릴리스의 서버·웹·제품 플러그인을 함께 전환한다. 0.6.0 플러그인은 이 계약의 소스 후보이며 운영 서버나 기존 설치의 적용 완료를 뜻하지 않는다.
 
 1. 쓰기·worker 중지 범위, 적용 revision·패키지 해시와 복구 revision을 기록한다. 기존 UUID·업무·참조를 가진 격리 DB의 전진 이관과 빈 DB의 전체 migration을 검증한다.
-2. 요청 결과·외부 effect·worker 복구와 1 MiB 응답 보관 한도의 전진 migration을 먼저 적용한다. 응답 한도 확대는 기존 결과를 보존하며 업무 설정 입력의 128 KiB 한도를 바꾸지 않는다. private ACL, owner 격리, 30일 요청 행 정리 Cron과 계정 cascade를 확인한다. 평생 요청 counter 제거와 만료 요청 행 전체 삭제는 스펙 #300의 전진 migration으로 적용하며 기존 업무 자료·참조·설정을 보존한다. 과거 migration은 보존한다. [ADR-0019](../adr/0019-pk-based-data-id-generation.md)의 PK 기반 생성으로 전환할 때는 쓰기를 중지하고 새 writer와 순방향 migration을 함께 적용한다. migration은 ID 기본값을 순수 후보 함수로 바꾸고 미사용 예약 allocator·발급 원장을 제거한다. 기존 업무·참조·요청 결과는 수정하지 않는다.
+2. 요청 결과·외부 effect·worker 복구와 1 MiB 응답 보관 한도의 전진 migration을 먼저 적용한다. 응답 한도 확대는 기존 결과를 보존하며 업무 설정 입력의 128 KiB 한도를 바꾸지 않는다. private ACL, 현재 공간·실행자 권한 격리, 30일 요청 행 정리 Cron과 계정 삭제 시 실행자별 요청 결과 정리를 확인한다. 공유 업무 원본과 불명·진행 중 외부 작업 증거는 보존한다. 평생 요청 counter 제거와 만료 요청 행 전체 삭제는 스펙 #300의 전진 migration으로 적용하며 기존 업무 자료·참조·설정을 보존한다. 과거 migration은 보존한다. [ADR-0019](../adr/0019-pk-based-data-id-generation.md)의 PK 기반 생성으로 전환할 때는 쓰기를 중지하고 새 writer와 순방향 migration을 함께 적용한다. migration은 ID 기본값을 순수 후보 함수로 바꾸고 미사용 예약 allocator·발급 원장을 제거한다. 기존 업무·참조·요청 결과는 수정하지 않는다.
 3. 함수 환경에 안정적인 `PINECONE_ACCOUNT_SCOPE`를 설정한다. 값은 공급자 account/project를 식별하며 API 키 회전에도 유지한다. 누락 상태의 새 worker는 claim 전에 실패한다. 값이나 비밀은 배포 기록에 출력하지 않는다.
    `worker_not_configured`이면 함수 관리 로그의 같은 이름 이벤트에서 `invalid_settings`에 나온 설정 이름을 확인한다. 공개 응답은 상세 설정을 포함하지 않는다. 이름만으로 충분하지 않으면 Dashboard에서 설정 유무와 길이 조건을 확인하고, 비밀값을 진단 로그에 출력하지 않는다.
    배포할 설정 파일은 `deno run --config supabase/functions/deno.json --allow-env --env-file=<커밋하지 않는 설정 파일> scripts/verify-worker.ts`로 먼저 검사한다. 실제 대상의 `INDEX_WORKER_URL`을 같은 비밀 파일에 넣고 `--allow-net`과 마지막 `--probe` 인자를 더하면 인증된 설정 전용 호출의 HTTP 200/configuration_checked을 확인한다. 로컬 파일 통과는 원격 전달을 보증하지 않으며 설정 전용 호출은 DB 연결·큐 claim·외부 호출을 하지 않으며 실제 임베딩 성공이 아니다. 실제 소량 성공·현재 색인·검색 검증은 별도로 수행한다.
@@ -196,4 +198,4 @@ map을 functions 밖 임시 root에 두면 배포가 성공해도 정상 `functi
 - [Supabase Google OAuth 설정](https://supabase.com/docs/guides/auth/social-login/auth-google)
 - [Pinecone Inference 임베딩 생성](https://docs.pinecone.io/guides/inference/generate-embeddings)
 
-검색 구간 원장 축소의 전진 migration은 기존 passage effect에 원본 식별정보를 직접 이관하고 별도 의도 테이블·미사용 공급자 컬럼/함수를 제거한다. 성공 벡터·불명/실행 중 상태·횟수·lease·fence·backoff를 보존하며 큐를 재등록하거나 전송 예산을 초기화하지 않는다. claim/complete 인자는 실제 동기 Pinecone 계약으로 줄었으므로 같은 릴리스의 서버와 worker 호출자를 함께 전환한다. 운영 적용 전 해당 revision의 원장 이관·worker 재전달·현재 원본·owner 격리 검사 증거를 확인한다. 과거 migration 파일은 수정하지 않는다.
+검색 구간 원장 축소의 전진 migration은 기존 passage effect에 원본 식별정보를 직접 이관하고 별도 의도 테이블·미사용 공급자 컬럼/함수를 제거한다. 성공 벡터·불명/실행 중 상태·횟수·lease·fence·backoff를 보존하며 큐를 재등록하거나 전송 예산을 초기화하지 않는다. claim/complete 인자는 실제 동기 Pinecone 계약으로 줄었으므로 같은 릴리스의 서버와 worker 호출자를 함께 전환한다. 운영 적용 전 해당 revision의 원장 이관·worker 재전달·현재 원본·공간/실행자/권한 격리 검사 증거를 확인한다. 과거 migration 파일은 수정하지 않는다.

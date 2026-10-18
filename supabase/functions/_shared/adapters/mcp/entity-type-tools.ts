@@ -93,7 +93,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     },
     {
       name: "list_entity_schema_migrations",
-      description: "소유자의 값 변환 작업을 종류·limit/before로 조회.",
+      description: "현재 공간에서 권한이 있는 종류의 값 변환 작업을 limit/before로 조회.",
       input: schemaMigrationList,
       readOnly: true,
       handler: (i, a) => listEntitySchemaMigrations(deps, a, i),
@@ -101,7 +101,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "cancel_entity_schema_migration",
       description:
-        "expected_job_version을 확인하여 commit 전 작업 취소. 경쟁한 commit/성공의 확정 상태를 반환. request_key 필수.",
+        "현재 공간의 설정·대상 쓰기 권한과 expected_job_version으로 취소. 실행자 권한·공간 세대가 유효하지 않은 committing도 종료할 수 있으며 실행 가능한 committing 승자와 terminal 결과는 보존. request_key 필수.",
       input: schemaMigrationAction.extend({ job_id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {
@@ -112,7 +112,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "retry_entity_schema_migration",
       description:
-        "retryable failed인 같은 작업을 최신 source/plan 대조 후 재개. cancelled/stale은 재분석. expected_job_version·새 의도 request_key 필수.",
+        "retryable failed의 최신 source/plan을 현재 권한으로 대조해 새 job_id·job_version 1을 접수. 원래 실패 이력은 유지하며 새 ID로 상태 조회. 같은 키 재현은 같은 접수 반환. cancelled/stale은 재분석. expected_job_version·새 의도 request_key 필수.",
       input: schemaMigrationAction.extend({ job_id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {
@@ -211,7 +211,8 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     },
     {
       name: "list_entity_types",
-      description: "현재 소유자의 자료 종류 목록. include_archived, limit/cursor로 보관 상태와 bounded 페이지 조회.",
+      description:
+        "현재 공간에서 읽을 수 있는 자료 종류 목록. include_archived, limit/cursor로 보관 상태와 bounded 페이지 조회.",
       input: entityTypeList,
       readOnly: true,
       handler: (i, a) => listEntityTypes(deps, a, i),

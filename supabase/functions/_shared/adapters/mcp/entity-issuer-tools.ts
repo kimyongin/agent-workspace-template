@@ -48,7 +48,7 @@ export function entityIssuerTools(d: EntityIssuerDeps): ToolDef[] {
     },
     {
       name: "list_entity_issuers",
-      description: "현재 소유자의 발급처 코드·이름·활성 상태·버전 조회.",
+      description: "현재 공간의 발급처 코드·이름·활성 상태·버전 조회.",
       input: z.strictObject({}),
       readOnly: true,
       handler: (_i, a) => listEntityIssuers(d, a),
