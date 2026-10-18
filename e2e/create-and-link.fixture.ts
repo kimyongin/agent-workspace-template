@@ -46,7 +46,7 @@ test(
     );
     await page.route("**/auth/v1/user", (r) => r.fulfill({ json: user }));
     let access = "write", membership = 1;
-    await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({json:{workspace:{id:fixtureWorkspaceId,name:"관계 쓰기 공간",deleted_at:null},can_manage:false,membership_version:membership,grants:[{target_kind:"entity_type",target_id:fixtureType.id,access},{target_kind:"tasks",target_id:"*",access:"read"}]}}));
+    await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({json:{workspace:{id:fixtureWorkspaceId,name:"관계 쓰기 공간",deleted_at:null},can_manage:false,membership_version:membership,grants:access === "none" ? [] : [{target_kind:"entity_type",target_id:fixtureType.id,access},{target_kind:"tasks",target_id:"*",access:"read"}]}}));
     await page.route(
       "**/api/entity-relation-definitions**",
       (r) => r.fulfill({ json: { items: [definition], next_cursor: null } }),
@@ -166,6 +166,12 @@ test(
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await response;
     };
+    await refresh("read");
+    await expect(page.getByRole("textbox", { name: "제목 (필수)", exact: true, includeHidden: true })).toHaveValue("새 품목");
+    await expect(executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
+    await refresh("none");
+    await expect(page.getByRole("textbox", { name: "제목 (필수)", exact: true })).toHaveCount(0);
+    await expect(executionDialog(page)).not.toBeVisible();
     await refresh("read");
     await expect(page.getByRole("textbox", { name: "제목 (필수)", exact: true, includeHidden: true })).toHaveValue("새 품목");
     await expect(executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();

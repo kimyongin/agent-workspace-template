@@ -1107,7 +1107,7 @@ for (const mode of ["create", "edit"] as const) {
     await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: {
       workspace: { id: fixtureWorkspaceId, name: "자료 폼 권한 전환 공간", deleted_at: null },
       can_manage: false, membership_version: membership,
-      grants: [{ target_kind: "entity_type", target_id: fixtureType.id, access }],
+      grants: access === "none" ? [] : [{ target_kind: "entity_type", target_id: fixtureType.id, access }],
     } }));
     let current = { ...makeEntity(361, { prop_1: "원래 자료" }), tag_ids: [] as string[] };
     await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
@@ -1141,6 +1141,12 @@ for (const mode of ["create", "edit"] as const) {
     const confirmation = executionDialog(page);
     await confirmation.getByRole("button", { name: mode === "create" ? "등록하고 저장" : "수정하고 저장", exact: true }).click();
     await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeVisible();
+    await refresh("read");
+    await expect(page.getByRole("textbox", { name: "제목 (필수)", exact: true, includeHidden: true })).toHaveValue(draft);
+    await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
+    await refresh("none");
+    await expect(page.getByRole("textbox", { name: "제목 (필수)", exact: true })).toHaveCount(0);
+    await expect(confirmation).not.toBeVisible();
     await refresh("read");
     await expect(page.getByRole("textbox", { name: "제목 (필수)", exact: true, includeHidden: true })).toHaveValue(draft);
     await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
