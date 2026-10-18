@@ -1,12 +1,13 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { UnlinkIcon, PlusIcon, XIcon, LinkIcon } from "lucide-react";
 import { useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useLocation } from "react-router";
+import { useLocation } from "../../lib/workspace-router.tsx";
 import type { EntityDetail, EntitySummary } from "@contracts/entity.ts";
 import type { EntityRelationDefinition, EntityRelationDefinitionPage } from "@contracts/entity-relation.ts";
 import type { RelationMutationResult } from "@contracts/entity-relation-links.ts";
 import { entityPath } from "@contracts/entity-identity.ts";
-import { api, query } from "../../lib/api.ts";
+import { query } from "../../lib/api.ts";
 import { DetailLink, useDetailViewState } from "../../lib/detail-exploration.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
@@ -32,6 +33,7 @@ export function EntityTypedRelations(
     onCreate?: (definition: EntityRelationDefinition, side: 0 | 1) => void;
   },
 ) {
+  const api = useApi();
   const [definitions, setDefinitions] = useState<EntityRelationDefinition[]>([]),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0);
@@ -96,6 +98,7 @@ export function EntityRelationSection(
     onCreate?: (definition: EntityRelationDefinition, side: 0 | 1) => void;
   },
 ) {
+  const api = useApi();
   const surface = useContext(SurfaceContext),
     searchId = useId(),
     section = useRef<HTMLDivElement>(null),

@@ -1,3 +1,4 @@
+import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import { executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
@@ -141,6 +142,7 @@ test("반복 중단·재개 메모·결과 생성은 같은 surface", async ({ p
       const body = route.request().postDataJSON();
       Object.assign(state.rows.tasks[0], { status, version: state.rows.tasks[0].version + 1 });
       state.writes.push({
+        workspaceId: fixtureWorkspaceId,
         method: "POST",
         path: new URL(route.request().url()).pathname,
         body,

@@ -1,9 +1,10 @@
+import type { RequestScope } from "../../lib/api.ts";
 import type { EntityType } from "@contracts/entity-type.ts";
 
-/** Invalidation carries only an account ID. Consumers read fresh owner data through the API. */
+/** Invalidation carries only an account and space identity. Consumers read fresh owner data through the API. */
 export const entityTypeCatalogEvent = "workspace-entity-type-catalog";
-export function invalidateEntityTypeCatalog(ownerId: string) {
-  window.dispatchEvent(new CustomEvent(entityTypeCatalogEvent, { detail: ownerId }));
+export function invalidateEntityTypeCatalog(scope: RequestScope) {
+  window.dispatchEvent(new CustomEvent(entityTypeCatalogEvent, { detail: scope }));
 }
 
 type CatalogPage = { items: EntityType[]; next_cursor?: string | null };

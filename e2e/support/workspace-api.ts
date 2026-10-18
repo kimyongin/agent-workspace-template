@@ -1,3 +1,4 @@
+import { fixtureWorkspaceId } from "./workspace-scope.ts";
 import { entitySummary } from "../../supabase/functions/_shared/contracts/entity.ts";
 import { entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
 import type { Page } from "@playwright/test";
@@ -15,10 +16,10 @@ import {
   type WorkspaceRows,
 } from "./workspace-data.ts";
 type FakeRow = { id: string; version: number; body?: string; [key: string]: unknown };
-type ReadScope = { entityId?: string; taskId?: string };
+type ReadScope = { workspaceId?: string; entityId?: string; taskId?: string };
 type ReadTarget = ReadScope & { kind: keyof WorkspaceRows; id?: string; page?: number };
 type ReadFailure = { status?: number; message?: string; once?: boolean };
-export type FakeOptions = { failWrite?: "unknown" | "conflict"; hold?: boolean; pageSize?: number };
+export type FakeOptions = { failWrite?: "unknown" | "conflict"; hold?: boolean; pageSize?: number; workspaces?: Record<string, { name: string; rows: WorkspaceRows }> };
 /** Shared browser adapter only: real consistency, authorization and workflow rules are integration-tested. */
 export async function installWorkspaceApi(
   page: Page,
@@ -26,9 +27,11 @@ export async function installWorkspaceApi(
   rows: WorkspaceRows,
   options: FakeOptions = {},
 ) {
-  const storage = rows as unknown as Record<string, FakeRow[]>;
+  const workspaces = options.workspaces ?? { [fixtureWorkspaceId]: { name: "테스트 공간", rows } };
+  const requests: { method: string; path: string; workspaceId: string | null }[] = [];
   const writes: {
       method: string;
+      workspaceId: string;
       path: string;
       body: Record<string, unknown>;
       requestKey?: string;
@@ -41,9 +44,9 @@ export async function installWorkspaceApi(
   const failures: { target: ReadTarget; options: ReadFailure }[] = [];
   const holds: { target: ReadTarget; start: () => void; wait: Promise<void>; finish: () => void }[] = [];
   const scopeKey = (kind: string, scope: ReadScope) =>
-    JSON.stringify([kind, scope.entityId ?? null, scope.taskId ?? null]);
+    JSON.stringify([scope.workspaceId ?? null, kind, scope.entityId ?? null, scope.taskId ?? null]);
   const matches = (target: ReadTarget, kind: string, key: string | undefined, scope: ReadScope, page: number) =>
-    target.kind === kind && (target.id === undefined || target.id === key) &&
+    target.kind === kind && (target.workspaceId === undefined || target.workspaceId === scope.workspaceId) && (target.id === undefined || target.id === key) &&
     (target.page === undefined || !key && target.page === page) &&
     (target.entityId === undefined || target.entityId === scope.entityId) &&
     (target.taskId === undefined || target.taskId === scope.taskId);
@@ -65,8 +68,22 @@ export async function installWorkspaceApi(
       [kind, encodedKey, action] = parts,
       key = encodedKey ? decodeURIComponent(encodedKey) : undefined,
       method = req.method();
+    const workspaceId = req.headers()["x-workspace-id"] ?? null;
+    requests.push({ method, path: url.pathname, workspaceId });
+    if (kind === "workspaces" && method === "GET") {
+      const workspace = key ? workspaces[key] : null;
+      if (!key) return route.fulfill({ json: { items: Object.entries(workspaces).map(([id, value]) => ({ id, name: value.name, deleted_at: null })) } });
+      if (!workspace) return route.fulfill({ status: 404, json: { code: "not_found", message: "공간을 찾을 수 없습니다." } });
+      if (action === "grant-targets") return route.fulfill({ json: { items: [{ id: fixtureType.id, label: fixtureType.label }] } });
+      if (action === "members" || action === "invitations") return route.fulfill({ json: { items: [] } });
+      return route.fulfill({ json: { workspace: { id: key, name: workspace.name, deleted_at: null }, membership_version: 1, grants: [], can_manage: true } });
+    }
+    if (!workspaceId) return route.fulfill({ status: 400, json: { code: "validation", message: "공간이 필요합니다." } });
+    if (!workspaces[workspaceId]) return route.fulfill({ status: 404, json: { code: "not_found", message: "공간을 찾을 수 없습니다." } });
+    const storage = workspaces[workspaceId].rows as unknown as Record<string, FakeRow[]>;
     const body = (req.postDataJSON() ?? {}) as Record<string, unknown>;
     const scope = {
+      workspaceId,
       entityId: url.searchParams.get("entity_id") ?? undefined,
       taskId: url.searchParams.get("task_id") ?? undefined,
     };
@@ -193,7 +210,7 @@ export async function installWorkspaceApi(
         next_cursor: items.length > offset + size ? String(offset + size) : null,
       });
     }
-    writes.push({
+    writes.push({ workspaceId,
       method,
       path: url.pathname,
       body,
@@ -267,6 +284,8 @@ export async function installWorkspaceApi(
   });
   return {
     rows,
+    workspaces,
+    requests,
     writes,
     searches,
     reads,

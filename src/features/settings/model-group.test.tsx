@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { initialEntityDefinition } from "@contracts/entity-type.ts";
 import type { ModelChange } from "@contracts/data-model.ts";
 import { ModelGroupEditor } from "./ModelGroupEditor.tsx";
-vi.mock("../../lib/api.ts", () => ({ api: vi.fn() }));
+vi.mock("../../lib/api.ts", () => ({ createScopedApi: () => vi.fn() }));
 const schema = initialEntityDefinition("상품명").schema;
 const change: ModelChange = {
   id: "group",

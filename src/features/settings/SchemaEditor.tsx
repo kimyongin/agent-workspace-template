@@ -28,7 +28,7 @@ import {
   SchemaMigrationJob,
   useMigrationHistory,
 } from "./SchemaMigrationJobs.tsx";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "../../lib/workspace-router.tsx";
 import { ConversionEditor } from "./ConversionEditor.tsx";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type {

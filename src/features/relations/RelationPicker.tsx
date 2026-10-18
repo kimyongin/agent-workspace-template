@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -10,7 +11,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { EntitySummary } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
-import { api } from "../../lib/api.ts";
+
 import { type Candidate, RelationSearch, RelationSearchAction } from "./RelationSearch.tsx";
 
 /** Draft membership only; callers decide when and how to persist the relationship. */
@@ -22,6 +23,7 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
   error?: string;
   disabled?: boolean;
 }) {
+  const api = useApi();
   const label = kind === "entity" ? "자료" : "할 일";
   const [names, setNames] = useState(() => new Map(context.map((item) => [item.id, item.title])));
   const [types, setTypes] = useState(() =>

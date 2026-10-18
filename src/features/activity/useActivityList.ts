@@ -1,10 +1,11 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { useEffect, useRef } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "../../lib/workspace-router.tsx";
 import type { SearchItem, SearchResult } from "@contracts/search.ts";
 import type { TaskListItem } from "@contracts/task.ts";
 import type { RecordResult } from "@contracts/record.ts";
-import { api, query } from "../../lib/api.ts";
+import { query } from "../../lib/api.ts";
 import type { WorkspaceListKind } from "./activity-location.ts";
 import type { periodBounds } from "./activity-filters.ts";
 import { anchorId, requestedPages } from "./list-state.ts";
@@ -18,6 +19,7 @@ type ActivityPage = ListPage<ActivityItem> & Partial<Pick<SearchResult, "search_
 export function useActivityList(kind: WorkspaceListKind, {
   tags, bounds, layoutReady,
 }: { tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; layoutReady: boolean }) {
+  const api = useApi();
   const [params] = useSearchParams();
   const location = useLocation(), { hash } = location;
   const latestLocation = useRef(location);

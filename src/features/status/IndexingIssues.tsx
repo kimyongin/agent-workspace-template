@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   type IndexingIssuesPage,
@@ -14,9 +15,10 @@ import { BusinessTable, BusinessRow, BusinessCell, BusinessDisclosureCell, Busin
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "../../lib/api.ts";
+
 
 export function IndexingIssues({ count, disabled = false }: { count: number; disabled?: boolean }) {
+  const api = useApi();
   const id = useId();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);

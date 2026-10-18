@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { ChangeContext, type WorkspaceRecord } from "./ChangeContext.tsx";
 
-vi.mock("../../lib/api.ts", () => ({ api: vi.fn(), ApiError: Error }));
+vi.mock("../../lib/api.ts", () => ({ createScopedApi: () => vi.fn(), ApiError: Error }));
 
 it("shows stored historical snapshots, without implying missing snapshots describe historical absence", () => {
   const stamp = "2026-10-01T02:03:04Z";

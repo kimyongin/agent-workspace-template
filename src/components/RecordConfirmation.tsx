@@ -1,3 +1,4 @@
+import { useApi } from "../lib/api-context.tsx";
 import { FieldGroup, FieldSet } from "./ui/field.tsx";
 import { Spinner } from "./ui/spinner.tsx";
 import { Textarea } from "./ui/textarea.tsx";
@@ -11,7 +12,7 @@ import { useWriteAttempt, writeErrorMessage } from "../lib/write-attempt.ts";
 import { Field, Notice } from "./Field.tsx";
 import { TagPicker } from "../features/tags/TagPicker.tsx";
 import type { PrepareRecordMemo, PreparedRecordMemo } from "@contracts/record-preparation.ts";
-import { api } from "../lib/api.ts";
+
 import { WorkspaceContext } from "../features/details/workspace-context.ts";
 
 export type ConfirmationValue = { label: string; value: ReactNode; fullWidth?: boolean };
@@ -61,6 +62,7 @@ export function useRecordConfirmation(options: {
   closeOnSuccess?: boolean;
   clearOnCancel?: boolean;
 }) {
+  const api = useApi();
   const latest = useRef(options);
   latest.current = options;
   const { attempt, busy, uncertain } = useWriteAttempt();

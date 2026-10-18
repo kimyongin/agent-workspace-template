@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -6,7 +7,7 @@ import { SchemaExport } from "./SchemaExport.tsx";
 
 import { useEffect, useRef, useState } from "react";
 import type { EntitySchemaVersion } from "@contracts/entity-type.ts";
-import { api } from "../../lib/api.ts";
+
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { SchemaVersionDiff } from "./SchemaVersionDiff.tsx";
 
@@ -18,6 +19,7 @@ export function SchemaVersionRead(
     onError: (message: string) => void;
   },
 ) {
+  const api = useApi();
   const reportError = useRef(onError);
   reportError.current = onError;
   const [value, setValue] = useState<

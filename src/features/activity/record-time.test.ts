@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { recordDraftFrom, recordDraftTime } from "./forms.tsx";
 import { fromLocalInput } from "../../lib/format.ts";
-vi.mock("../../lib/api.ts", () => ({ api: vi.fn() }));
+vi.mock("../../lib/api.ts", () => ({ createScopedApi: () => vi.fn() }));
 
 it("body-only result/general record edits preserve the stored seconds and milliseconds", () => {
   const original = { body: "기존 메모", occurred_at: "2026-10-05T20:58:48.277Z" };

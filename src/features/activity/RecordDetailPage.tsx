@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "@/components/ui/button";
 import { useDetailResource } from "../details/useDetailResource.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
@@ -7,16 +8,17 @@ import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
 import { useState } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { RecordDataFields } from "./RecordDataFields.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
-import { api, ApiError, query } from "../../lib/api.ts";
+import { ApiError, query } from "../../lib/api.ts";
 import { recordDraftFrom, RecordFormModal } from "./forms.tsx";
 import { TagConnections } from "../tags/TagConnections.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
 
 export function RecordDetailPage() {
+  const api = useApi();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
   const [params] = useSearchParams();

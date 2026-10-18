@@ -1,3 +1,4 @@
+import { FixtureWorkspace } from "./workspace-scope.tsx";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
 // Isolated real feature UI: no AuthProvider, database, or server mutations.
 import { createRoot } from "react-dom/client";
@@ -21,4 +22,4 @@ const router = createBrowserRouter([{ element: <NavigationProtection><Outlet /><
   {path:"/tasks/:id",element:withRouteProbe(<TaskDetailPage />)},
 
 ]}]);
-createRoot(document.getElementById("root")!).render(<main><RouterProvider router={router} /></main>);
+createRoot(document.getElementById("root")!).render(<main><FixtureWorkspace actorId="fixture-actor"><RouterProvider router={router} /></FixtureWorkspace></main>);

@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { UnlinkIcon, PlusIcon } from "lucide-react";
 import { createPagedList } from "../collections/paged-list.ts";
@@ -5,7 +6,7 @@ import { CollectionItem, CollectionList  } from "../../components/Collection.tsx
 
 import { type ReactNode, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
-import { useLocation } from "react-router";
+import { useLocation } from "../../lib/workspace-router.tsx";
 import { useDetailViewState } from "../../lib/detail-exploration.tsx";
 import type { EntityDetail } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
@@ -13,7 +14,7 @@ import { FormModal } from "../../components/ContentForm.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
-import { api, query } from "../../lib/api.ts";
+import { query } from "../../lib/api.ts";
 import { type Candidate, RelationSearch, RelationSearchAction } from "../relations/RelationSearch.tsx";
 
 type Mutation = { task: TaskResult; entity: Candidate; remove: boolean; ids: string[] };
@@ -33,6 +34,7 @@ function RelationControls({
   children: (controls: { search: ReactNode; button: ReactNode; unlink: (item: Candidate) => ReactNode }) => ReactNode;
   onSaved: (saved?: TaskResult, before?: TaskResult) => void;
 }) {
+  const api = useApi();
   const surface = useContext(SurfaceContext);
   const location = useLocation(), locationKey = useRef(location.key);
   locationKey.current = location.key;
@@ -193,6 +195,7 @@ export function TaskEntityRelations(
 
 /** The detail visit owns paging so viewing and editing share already-read links. */
 export function useEntityTaskRead(entity: EntityDetail | null) {
+  const api = useApi();
   const previewKey = JSON.stringify(entity?.tasks);
   // The detail's five-row preview is not a cursor page: fetch page one only on expansion.
   const session = useMemo(() =>

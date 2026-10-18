@@ -165,7 +165,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   if (loading) return <p className="p-4 text-sm text-muted-foreground" role="status">로그인 상태를 확인하는 중…</p>;
   if (!session) {
-    const next = `${location.pathname}${location.search}`;
+    const next = `${location.pathname}${location.search}${location.hash}`;
     return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
   }
   return <>{children}</>;
