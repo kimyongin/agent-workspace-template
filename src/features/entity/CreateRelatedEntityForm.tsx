@@ -1,3 +1,4 @@
+import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -26,6 +27,7 @@ export function CreateRelatedEntityForm(
   },
 ) {
   const api = useApi();
+  const capability = useWorkspaceCapabilities();
   const [context, setContext] = useState<Context | null>(null),
     [error, setError] = useState(""),
     [reading, setReading] = useState(false),
@@ -63,10 +65,12 @@ export function CreateRelatedEntityForm(
     }
   };
   useEffect(() => {
+    setContext(null);
     void read();
     return () => request.current?.abort();
-  }, [originId, definitionId, side]);
-  if (!context) {
+  }, [api, originId, definitionId, side]);
+  const writable = context?.definition.ends.every(end => capability?.grants.some(grant => grant.target_kind === "entity_type" && grant.target_id === end.type_id && grant.access === "write"));
+  if (!context || !writable) {
     return (
       <FormModal
         open
@@ -80,7 +84,7 @@ export function CreateRelatedEntityForm(
         onSubmit={async () => {}}
       >
         {() =>
-          reading ? <p role="status">관계와 현재 자료를 확인하는 중…</p> : (
+          context && !writable ? <Notice kind="error">양쪽 자료 종류의 쓰기 권한이 필요합니다.</Notice> : reading ? <p role="status">관계와 현재 자료를 확인하는 중…</p> : (
             <Notice kind="error">
               {error}
               <Button variant="ghost" type="button" onClick={() => void read()}>다시 조회</Button>

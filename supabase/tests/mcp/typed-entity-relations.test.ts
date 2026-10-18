@@ -1,6 +1,6 @@
-import { assertEquals } from "@std/assert";
-import { admin, call, httpTest, signIn } from "../http/_client.ts";
-import { connectMcp, mcpToken, tool } from "./_mcp.ts";
+import { assert, assertEquals } from "@std/assert";
+import { admin, API, call, httpTest, signIn, SUPABASE_URL } from "../http/_client.ts";
+import { claimsOf, connectMcp, MCP_URL, mcpToken, tool } from "./_mcp.ts";
 httpTest(
   "typed relation HTTP/MCP parity: roles, candidates, exact replay, conflict and explicit replacement",
   async () => {
@@ -119,3 +119,324 @@ httpTest(
     if (failures.length) throw new AggregateError(failures, "typed relation workflow or owned fixture cleanup failed");
   },
 );
+
+httpTest("workspace relation real HTTP MCP share business metadata keyed writes and create replace", async () => {
+  let token = "", requestToken = "", actor: string | undefined, memberId: string | undefined;
+  let client: Awaited<ReturnType<typeof connectMcp>> | undefined;
+  const auth: { clientId?: string; tokens: string[] } = { tokens: [] };
+  const owned: { id: string; name: string }[] = [], errors: unknown[] = [];
+  const request = async (
+    workspace: string,
+    method: string,
+    path: string,
+    body?: unknown,
+    key = crypto.randomUUID(),
+  ) => {
+    const response = await fetch(API + path, {
+      method,
+      headers: {
+        authorization: `Bearer ${requestToken}`,
+        "X-Workspace-Id": workspace,
+        "Content-Type": "application/json",
+        "Idempotency-Key": key,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    });
+    return { status: response.status, body: await response.json(), headers: response.headers };
+  };
+  try {
+    token = await signIn("A");
+    auth.tokens.push(token);
+    actor = String(claimsOf(token).sub);
+    requestToken = token;
+    const name = `relation514-${crypto.randomUUID()}`;
+    const made = await call(token, "POST", "/workspaces", { name });
+    if (typeof made.body?.workspace?.id === "string") owned.push({ id: made.body.workspace.id, name });
+    assertEquals(made.status, 201);
+    const workspace = made.body.workspace.id as string;
+    const kind = await request(workspace, "POST", "/entity-types", { label: `전송 자료 ${crypto.randomUUID()}` });
+    assertEquals(kind.status, 201);
+    const typeId = kind.body.id as string;
+    const permission = await call(token, "PATCH", `/workspaces/${workspace}/members/${actor}`, {
+      expected_version: 1,
+      grants: [{ target_kind: "settings", target_id: "*", access: "write" }, {
+        target_kind: "entity_type",
+        target_id: typeId,
+        access: "write",
+      }],
+    });
+    assertEquals(permission.status, 200);
+    const scope = { workspace_id: workspace };
+    const createdDefinition = await request(workspace, "POST", "/entity-relation-definitions", {
+      ends: [{ type_id: typeId, label: "설정 원점", cardinality: "one" }, {
+        type_id: typeId,
+        label: "설정 상대",
+        cardinality: "one",
+      }],
+    });
+    assertEquals(createdDefinition.status, 201);
+    const def = createdDefinition.body;
+    const memberToken = await signIn("B");
+    auth.tokens.push(memberToken);
+    memberId = String(claimsOf(memberToken).sub);
+    await admin`insert into private.workspace_members(workspace_id,user_id) values(${workspace},${memberId})`;
+    assertEquals(
+      (await call(token, "PATCH", `/workspaces/${workspace}/members/${memberId}`, {
+        expected_version: 1,
+        grants: [{ target_kind: "entity_type", target_id: typeId, access: "write" }],
+      })).status,
+      200,
+    );
+    requestToken = memberToken;
+    client = await connectMcp(await trackedRelationMcpToken(memberToken, auth));
+    assertEquals((await request(workspace, "GET", "/entity-relation-definitions")).status, 403);
+    assertEquals(
+      (await tool(client, "list_entity_relation_definitions", { ...scope, purpose: "business", type_id: typeId })).items
+        .map((item: { id: string }) => item.id),
+      [def.id],
+    );
+    assertEquals(
+      (await request(workspace, "GET", `/entity-relation-definitions/${def.id}?purpose=business`)).body,
+      def,
+    );
+    const create = (title: string) =>
+      request(workspace, "POST", "/entities", {
+        entity_type_id: typeId,
+        schema_version: 1,
+        properties: { prop_1: title },
+      });
+    const origin = await create("전송 원점"), previous = await create("전송 이전 상대");
+    assertEquals([origin.status, previous.status], [201, 201]);
+    const location = { definition_id: def.id, side: 0, origin_id: origin.body.id },
+      base = `/entity-relations/${def.id}/0/${encodeURIComponent(origin.body.id)}`;
+    const candidates = await request(workspace, "GET", `${base}/candidates?q=${encodeURIComponent("전송 이전 상대")}`);
+    assertEquals(candidates.status, 200);
+    assertEquals(
+      await tool(client, "list_entity_relation_candidates", { ...scope, ...location, q: "전송 이전 상대" }),
+      candidates.body,
+    );
+    const input = {
+      other_id: previous.body.id,
+      expected_definition_version: 1,
+      expected_version: 1,
+      expected_other_version: 1,
+    };
+    const key = crypto.randomUUID(), connected = await request(workspace, "POST", `${base}/connect`, input, key);
+    assertEquals(connected.status, 200);
+    assertEquals(
+      await tool(client, "connect_entity_relation", { ...scope, ...location, ...input, request_key: key }),
+      connected.body,
+    );
+    const nextKey = crypto.randomUUID(),
+      nextInput = {
+        expected_definition_version: 1,
+        expected_version: 2,
+        previous_other_id: previous.body.id,
+        expected_previous_version: 2,
+        entity: { entity_type_id: typeId, schema_version: 1, properties: { prop_1: "전송 새 상대" } },
+      };
+    const replaced = await tool(client, "create_and_link_entity", {
+      ...scope,
+      ...location,
+      ...nextInput,
+      request_key: nextKey,
+    });
+    assertEquals(replaced.entity.version, 2);
+    assertEquals((await request(workspace, "POST", `${base}/create-and-link`, nextInput, nextKey)).body, replaced);
+    assertEquals(
+      (await tool(client, "list_entity_relation_links", { ...scope, ...location })).items.map((item: { id: string }) =>
+        item.id
+      ),
+      [replaced.entity.id],
+    );
+    const removed = await tool(client, "unlink_entity_relation", {
+      ...scope,
+      ...location,
+      other_id: replaced.entity.id,
+      expected_definition_version: 1,
+      expected_version: 3,
+      expected_other_version: 2,
+      request_key: crypto.randomUUID(),
+    });
+    assertEquals(removed.changed, true);
+    assertEquals((await request(workspace, "GET", `${base}/links`)).body.items, []);
+    const foreignName = `relation514-other-${crypto.randomUUID()}`;
+    const foreign = await call(token, "POST", "/workspaces", { name: foreignName });
+    if (typeof foreign.body?.workspace?.id === "string") {
+      owned.push({ id: foreign.body.workspace.id, name: foreignName });
+    }
+    assertEquals(foreign.status, 201);
+    await admin`insert into private.workspace_members(workspace_id,user_id) values(${foreign.body.workspace.id},${memberId})`;
+    assertEquals((await request(foreign.body.workspace.id, "GET", `${base}/links`)).status, 404);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    try {
+      await client?.close();
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await admin.begin(async (tx) => {
+        for (const workspace of owned) {
+          const [root] = await tx`select name,created_by from app.workspaces where id=${workspace.id} for update`;
+          assertEquals(root, { name: workspace.name, created_by: actor });
+          const members = await tx`select user_id from private.workspace_members where workspace_id=${workspace.id}`;
+          assert(members.every((member) => member.user_id === actor || member.user_id === memberId));
+          await tx`delete from pgmq.q_search_index where message->>'workspace_id'=${workspace.id}`;
+          await tx`delete from pgmq.a_search_index where message->>'workspace_id'=${workspace.id}`;
+          await tx`delete from app.workspaces where id=${workspace.id}`;
+          assertEquals((await tx`select id from app.workspaces where id=${workspace.id}`).length, 0);
+        }
+      });
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      if (auth.clientId) {
+        const secret = Deno.env.get("LOCAL_SUPABASE_SECRET_KEY");
+        assert(secret);
+        const removed = await fetch(
+          `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${encodeURIComponent(auth.clientId)}`,
+          {
+            method: "DELETE",
+            headers: { apikey: secret, authorization: `Bearer ${secret}` },
+            signal: AbortSignal.timeout(15000),
+          },
+        );
+        await removed.body?.cancel();
+        assert(removed.ok || removed.status === 404);
+      }
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      const sessions = auth.tokens.map((value) => claimsOf(value).session_id).filter((id): id is string =>
+        typeof id === "string"
+      );
+      if (sessions.length) {
+        await admin`delete from auth.sessions where id=any(${sessions}::uuid[])`;
+        assertEquals(
+          Number((await admin`select count(*) n from auth.sessions where id=any(${sessions}::uuid[])`)[0].n),
+          0,
+        );
+      }
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length) throw new AggregateError(errors, "workspace relation transport or exact fixture cleanup failed");
+});
+
+// Keep this fixture local until #518 owns a shared tracked OAuth bootstrap. The
+// ordinary helper cannot expose a registered client if consent/exchange fails.
+async function trackedRelationMcpToken(
+  session: string,
+  owned: { clientId?: string; tokens: string[] },
+): Promise<string> {
+  const registeredResponse = await fetch(`${SUPABASE_URL}/auth/v1/oauth/clients/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      client_name: "workspace-relation-test",
+      redirect_uris: ["http://127.0.0.1:55390/callback"],
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const registered = { status: registeredResponse.status, body: await registeredResponse.json() };
+  if (typeof registered.body.client_id === "string") {
+    owned.clientId = registered.body.client_id;
+  }
+  assertEquals(registered.status, 201);
+  assert(owned.clientId);
+  const encode = (bytes: Uint8Array) =>
+    btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const verifier = encode(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = encode(
+    new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
+    ),
+  );
+  const state = encode(crypto.getRandomValues(new Uint8Array(16)));
+  const redirect = "http://127.0.0.1:55390/callback";
+  const authUrl = `${SUPABASE_URL}/auth/v1`;
+  const authorize = new URL(`${authUrl}/oauth/authorize`);
+  for (
+    const [key, value] of Object.entries({
+      response_type: "code",
+      client_id: owned.clientId,
+      redirect_uri: redirect,
+      state,
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      resource: MCP_URL,
+      scope: "openid email",
+    })
+  ) authorize.searchParams.set(key, value);
+  const step = await fetch(authorize, {
+    redirect: "manual",
+    signal: AbortSignal.timeout(15000),
+  });
+  await step.body?.cancel();
+  const authorization = new URL(
+    step.headers.get("location") ?? "",
+    SUPABASE_URL,
+  ).searchParams.get("authorization_id");
+  assert(authorization, "local OAuth consent authorization is present");
+  const publishable = Deno.env.get("VITE_SUPABASE_PUBLISHABLE_KEY");
+  assert(publishable);
+  const headers = {
+    apikey: publishable,
+    authorization: `Bearer ${session}`,
+    "content-type": "application/json",
+  };
+  const details = await fetch(
+    `${authUrl}/oauth/authorizations/${authorization}`,
+    { headers, signal: AbortSignal.timeout(15000) },
+  );
+  const detail = await details.json();
+  assert(details.ok, "local OAuth authorization details succeed");
+  let callback = detail.redirect_url;
+  if (!callback) {
+    const consent = await fetch(
+      `${authUrl}/oauth/authorizations/${authorization}/consent`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ action: "approve" }),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    const approved = await consent.json();
+    assert(consent.ok, "local OAuth consent succeeds");
+    callback = approved.redirect_url;
+  }
+  const result = new URL(callback);
+  assertEquals(result.searchParams.get("state"), state);
+  const exchange = await fetch(`${authUrl}/oauth/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code: result.searchParams.get("code") ?? "",
+      redirect_uri: redirect,
+      client_id: owned.clientId,
+      code_verifier: verifier,
+      resource: MCP_URL,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const token = await exchange.json();
+  // Track any minted session before assertions or SDK connection can fail.
+  if (typeof token.access_token === "string") {
+    owned.tokens.push(token.access_token);
+  }
+  assert(exchange.ok, "local OAuth code exchange succeeds");
+  assert(typeof token.access_token === "string");
+  return token.access_token;
+}

@@ -1,3 +1,4 @@
+import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { UnlinkIcon, PlusIcon, XIcon, LinkIcon } from "lucide-react";
@@ -60,7 +61,7 @@ export function EntityTypedRelations(
       if (!c.signal.aborted) setError(e.message);
     });
     return () => c.abort();
-  }, [entity.entity_type_id, entity.version, retry]);
+  }, [api, entity.entity_type_id, entity.version, retry]);
   return (
     <>
       {error && (
@@ -99,6 +100,7 @@ export function EntityRelationSection(
   },
 ) {
   const api = useApi();
+  const capability = useWorkspaceCapabilities();
   const surface = useContext(SurfaceContext),
     searchId = useId(),
     section = useRef<HTMLDivElement>(null),
@@ -125,7 +127,7 @@ export function EntityRelationSection(
       createPagedList<EntitySummary, LinkPage>({
         load: (cursor, signal) => api("GET", `${base}/links${query({ limit: 20, cursor })}`, undefined, signal),
       }),
-    [base, entity.version, definition.version, retry],
+    [api, base, entity.version, definition.version, retry],
   );
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   useEffect(() => {
@@ -139,9 +141,10 @@ export function EntityRelationSection(
   const def = state.page?.definition ?? definition,
     single = def.ends[side].cardinality === "one",
     current = state.page?.items[0],
-    active = !readOnly && !entity.deleted_at && !entity.type.archived && !def.archived;
+    canWrite = def.ends.every(end => capability?.grants.some(grant => grant.target_kind === "entity_type" && grant.target_id === end.type_id && grant.access === "write")),
+    active = !readOnly && canWrite && !entity.deleted_at && !entity.type.archived && !def.archived;
   const prepare = async (item: Candidate, remove: boolean) => {
-    if (preparing || surface?.editor.current) return;
+    if (!canWrite || preparing || surface?.editor.current) return;
     const started = locationKey.current, c = new AbortController();
     preparation.current?.abort();
     preparation.current = c;
@@ -195,7 +198,7 @@ export function EntityRelationSection(
                   {view.searching ? "닫기" : single && current ? "변경" : "연결"}
                 </Button>
               )}
-              {!readOnly && single && current && (
+              {!readOnly && canWrite && single && current && (
                 <Button variant="ghost" type="button"
 
                   disabled={preparing}
@@ -257,7 +260,7 @@ export function EntityRelationSection(
                             title={item.title}
                             to={entityPath(item.id)}
                             metadata={item.type.archived ? <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>종류 상태</dt><dd>보관됨</dd></div></dl> : undefined}
-                            action={
+                            action={canWrite ?
                               <Button variant="ghost" type="button"
 
                                 aria-label={`${item.title} 연결 해제`}
@@ -265,7 +268,7 @@ export function EntityRelationSection(
                                 onClick={() => void prepare(item, true)}
                               ><UnlinkIcon data-icon="inline-start" />
                                 해제
-                              </Button>
+                              </Button> : undefined
                             }
                           />
                         )}
