@@ -576,7 +576,7 @@ dbTest(
   () => twoKindPublicationFixture(true),
 );
 
-async function retryOrRestoreFixture(scenario: "retry" | "restore" | "restore_committing" | "coordinator") {
+async function retryOrRestoreFixture(scenario: "retry" | "restore" | "restore_committing" | "coordinator" | "repair") {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
   for (const actor of [a, b]) {
@@ -623,7 +623,10 @@ async function retryOrRestoreFixture(scenario: "retry" | "restore" | "restore_co
       expected_version: saved.version,
       conversions: [{
         type_ref: target.entity_types[0].ref,
-        migration: { rules: [], overrides: [{ entity_id: entityId, key: "prop_1", value: "X" }] },
+        migration: {
+          rules: [],
+          overrides: scenario === "repair" ? [] : [{ entity_id: entityId, key: "prop_1", value: "X" }],
+        },
       }],
     });
     const [analysis] = await worker`select app.claim_entity_schema_analysis() as batch`;
@@ -638,6 +641,82 @@ async function retryOrRestoreFixture(scenario: "retry" | "restore" | "restore_co
       true,
     );
     const ready = await getDataModelChange(modelDeps, author, saved.id);
+    if (scenario === "repair") {
+      assertEquals(ready.status, "needs_conversion");
+      const changeId = ready.group!.children[0].change.id;
+      const errorsInput = { analysis_id: analysis.batch.id, failures_only: true };
+      const failedRows = await changes.getEntitySchemaAnalysisRows(typeDeps, executor, kind.id, changeId, errorsInput);
+      assertEquals(failedRows.items.length, 1);
+      assertEquals(failedRows.items[0].before, { prop_1: "12" });
+      assertEquals(failedRows.items[0].errors.length > 0, true);
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
+        expected_version: 1,
+        grants: grants.slice(0, 1),
+      });
+      assertEquals(
+        (await assertRejects(
+          () => changes.getEntitySchemaAnalysisRows(typeDeps, executor, kind.id, changeId, errorsInput),
+          AppError,
+        )).code,
+        "forbidden",
+      );
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
+        expected_version: 2,
+        grants,
+      });
+      await workspaces.leaveWorkspace(workspaceDeps, key(a), workspaceId, { expected_version: 2 });
+      await analyzeDataModel(modelDeps, key(executor), saved.id, {
+        expected_version: ready.version,
+        conversions: [{
+          type_ref: target.entity_types[0].ref,
+          migration: { rules: [], overrides: [{ entity_id: entityId, key: "prop_1", value: "X" }] },
+        }],
+      });
+      const [fixed] = await worker`select app.claim_entity_schema_analysis() as batch`;
+      const fix = compileMigration(fixed.batch.target, fixed.batch.migration, fixed.batch.recovery_keys);
+      assertEquals(
+        (await worker`select app.complete_entity_schema_analysis_batch(${fixed.batch.id},${fixed.batch.fence},${
+          worker.json(fixed.batch.rows.map((r: { entity_id: string; properties: Record<string, unknown> }) =>
+            fix(r.entity_id, r.properties)
+          ))
+        }) as accepted`)[0].accepted,
+        true,
+      );
+      const fixedReady = await getDataModelChange(modelDeps, executor, saved.id);
+      assertEquals(fixedReady.status, "ready");
+      await applyDataModel(modelDeps, key(executor), saved.id, { expected_version: fixedReady.version });
+      const [claim] = await worker`select app.claim_data_model_conversion() as batch`;
+      assertEquals(claim.batch.child.initiated_by, b.userId);
+      const prepared = await prepareMigrationBatch(claim.batch.child, new Date());
+      assertEquals(
+        (await worker`select app.stage_data_model_conversion(${claim.batch.id},${claim.batch.fence},${claim.batch.child.id},${claim.batch.child.fence},${
+          worker.json(prepared.results)
+        }) as accepted`)[0].accepted,
+        true,
+      );
+      const [committing] = await worker`select app.claim_data_model_conversion() as batch`;
+      assertEquals(
+        (await worker`select app.commit_data_model_conversion(${committing.batch.id},${committing.batch.fence},${SEARCH_PIPELINE}) as committed`)[
+          0
+        ].committed,
+        true,
+      );
+      assertEquals((await getDataModelChange(modelDeps, executor, saved.id)).status, "applied");
+      assertEquals(
+        (await admin`select properties from app.entities where workspace_id=${workspaceId} and id=${entityId}`)[0]
+          .properties,
+        { prop_1: "X" },
+      );
+      assertEquals(
+        Number(
+          (await admin`select count(*) count from private.entity_schema_analysis_rows where workspace_id=${workspaceId} and analysis_id=${analysis.batch.id} and jsonb_array_length(errors)>0`)[
+            0
+          ].count,
+        ),
+        1,
+      );
+      return;
+    }
     await applyDataModel(modelDeps, key(author), saved.id, { expected_version: ready.version });
     if (scenario === "coordinator") {
       await runInWorkspace(sql, executor, {
@@ -770,7 +849,10 @@ async function retryOrRestoreFixture(scenario: "retry" | "restore" | "restore_co
       b.userId,
     );
   } finally {
-    if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
+    if (workspaceId) {
+      await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`;
+      await admin`delete from app.workspaces where id=${workspaceId}`;
+    }
     for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
   }
 }
@@ -792,4 +874,9 @@ dbTest(
 dbTest(
   "restored workspace cancels a fenced committing job without reviving its source",
   () => retryOrRestoreFixture("restore_committing"),
+);
+
+dbTest(
+  "shared manager reads protected failure rows and repairs after the analyst leaves",
+  () => retryOrRestoreFixture("repair"),
 );
