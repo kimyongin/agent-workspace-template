@@ -50,11 +50,11 @@ function toTaskResult(task: Task): TaskResult {
 }
 
 function toRecordResult(record: ActivityRecord): RecordResult {
+  const { entity_ids: _ids, entity_context: _context, ...content } = record;
   return {
-    ...record,
-    entity_ids: record.entity_ids ?? [],
-    entity_context: record.entity_context ?? [],
-    record_kind: record.record_kind ?? "user",
+    ...content,
+    entity_id: record.entity_id ?? null,
+    record_kind: record.record_kind === "change" ? "change" : "result",
     change: record.change ?? null,
   };
 }
@@ -192,19 +192,16 @@ export async function completeTask(
   id: string,
   input: TaskComplete,
 ): Promise<{ task: TaskResult; record: RecordResult }> {
-  return await runWrite(deps.uow, actor, "task.complete", id, input, async (store) => {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.complete", id, input, async (store) => {
     const now = deps.clock.now();
-    const task = await requireTask(store, id, true, undefined, true);
+    const task = await requireTask(store, id, true);
     const decided = decideComplete(task, input.expected_version, now);
     const record = await store.insertRecord({
       record_kind: "result",
-      inherit_task_entities: true,
-      entity_ids: task.entity_ids ?? [],
       body: input.body,
       occurred_at: input.occurred_at ?? null,
       task_id: task.id,
       occurrence_on: null,
-      tag_ids: input.tag_ids,
     });
     const updated = await store.updateTask(id, { ...decided, result_record_id: record.id });
     await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });

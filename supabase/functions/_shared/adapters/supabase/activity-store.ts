@@ -48,6 +48,7 @@ function toTask(r: Row): Task {
 
 function toRecord(r: Row): ActivityRecord {
   return {
+    entity_id: (r.entity_id as string | null) ?? null,
     record_kind: r.record_kind as "user" | "result" | "change",
     change: (r.change_metadata as ActivityRecord["change"]) ?? null,
     entity_ids: (r.entity_ids as string[]) ?? [],
@@ -70,7 +71,7 @@ const taskColumns = (tx: Tx) =>
      result_record_id, pauses, version, created_at, updated_at,
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
-  tx`id, entity_ids, entity_context, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+  tx`id, entity_id, entity_ids, entity_context, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
     record_kind,change_metadata,
     ${tagIdsColumn(tx, "record")}`;
 
@@ -221,24 +222,17 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
-    const selection = await this.entityLinks.recordSelection(
-      record.entity_ids ?? [],
-      undefined,
-      record.inherit_task_entities ? record.task_id ?? undefined : undefined,
-    );
     const values: Record<string, unknown> = {
-      owner_id: this.actor.userId,
-      ...selection,
+      workspace_id: requireWorkspaceActor(this.actor).workspaceId,
       body: record.body,
       task_id: record.task_id,
       occurrence_on: record.occurrence_on,
-      record_kind: record.record_kind ?? "user",
+      record_kind: "result",
     };
     if (record.occurred_at) values.occurred_at = record.occurred_at;
     const row = await insertWithIdRetry(() =>
       tx`insert into app.records ${tx(values)} on conflict (id) do nothing returning id`
     );
-    await setTagLinks(tx, this.actor, "record", row.id as string, record.tag_ids ?? []);
     return (await this.getRecord(row.id as string))!;
   }
 

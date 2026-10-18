@@ -1,5 +1,5 @@
 import { entityReferenceId } from "./entity-identity.ts";
-import { entityContext, entitySelection } from "./entity-links.ts";
+import { entitySelection } from "./entity-links.ts";
 // 활동 기록(ActivityRecord) 계약.
 import { z } from "zod";
 import { changeMetadata } from "./change.ts";
@@ -46,11 +46,10 @@ export const recordListQuery = z
 export type RecordListQuery = z.infer<typeof recordListQuery>;
 
 export const recordResult = z.object({
-  record_kind: z.enum(["user", "result", "change"]),
+  record_kind: z.enum(["result", "change"]),
   change: changeMetadata.nullable(),
   id,
-  entity_ids: z.array(entityReferenceId),
-  entity_context: z.array(entityContext),
+  entity_id: entityReferenceId.nullable(),
   tag_ids: z.array(id),
   body: z.string(),
   occurred_at: isoDateTime,
@@ -59,6 +58,8 @@ export const recordResult = z.object({
   version: z.number().int(),
   created_at: isoDateTime,
   updated_at: isoDateTime,
+}).refine((record) => (record.entity_id !== null) !== (record.task_id !== null), {
+  message: "기록은 자료 하나 또는 할 일 하나에 속해야 합니다",
 });
 export type RecordResult = z.infer<typeof recordResult>;
 

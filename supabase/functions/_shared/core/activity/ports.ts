@@ -8,6 +8,7 @@ import type { IndexJob } from "../shared/store.ts";
 import type { NewTask, Task } from "./domain.ts";
 
 export interface ActivityRecord {
+  entity_id?: string | null;
   record_kind?: "user" | "result" | "change";
   change?: ChangeMetadata | null;
   entity_ids?: string[];
