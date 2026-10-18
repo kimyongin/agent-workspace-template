@@ -1336,7 +1336,12 @@ for (const width of [320, 1440]) for (const [kind, parent] of [["result", "task"
     if(kind==="result") await expect(surface.getByRole("region",{name:"할 일 (1개)",exact:true}).locator("dt").filter({hasText:/^회차$/}).locator("../dd")).toHaveText("2026-10-01");
     if(kind==="change") {
       await expect(surface.getByLabel("수행 시각")).toHaveCount(0);
-      await surface.getByText("변경 전후 값",{exact:true}).filter({visible:true}).click();
+      const history = surface.getByRole("button", { name: "변경 전후 값", exact: true }).filter({ visible: true });
+      await expect(history).toHaveAttribute("aria-expanded", "true");
+      await history.click();
+      await expect(history).toHaveAttribute("aria-expanded", "false");
+      await history.click();
+      await expect(history).toHaveAttribute("aria-expanded", "true");
       await expect(surface.locator("dt:visible").filter({hasText:"당시 수량"}).locator("../dd")).toHaveText("0");
       await expect(surface.locator("dt:visible").filter({hasText:"당시 사용"}).locator("../dd")).toHaveText("아니오");
       await expect(surface.locator("dt:visible").filter({hasText:"당시 메모"}).locator("../dd")).toHaveText("값 없음");
