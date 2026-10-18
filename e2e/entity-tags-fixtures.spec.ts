@@ -590,7 +590,9 @@ test("#370 늦은 이전 사전 응답이 새 이름을 덮어쓰지 않는다",
 test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결한다", async ({ page }, info) => {
   const capture = async (name: string) => {
     await expect.poll(() => page.evaluate(() => document.getAnimations().filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
-    await info.attach(name, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+    const path = info.outputPath(`${name}.png`);
+    await page.screenshot({ path, fullPage: true });
+    await info.attach(name, { path, contentType: "image/png" });
   };
   let current = { ...makeEntity(301, { prop_1: "독립 태그 자료" }), tag_ids: [] as string[] };
   const creations: Record<string, unknown>[] = [], connections: Record<string, unknown>[] = [];
