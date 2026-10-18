@@ -1,3 +1,7 @@
+import { exportDataModel, previewDataModel } from "../../functions/_shared/core/data-model/application.ts";
+import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
+import * as issuers from "../../functions/_shared/core/entity-issuers/application.ts";
+import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import * as settings from "../../functions/_shared/core/settings/application.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { assertEquals, assertRejects } from "@std/assert";
@@ -48,6 +52,20 @@ dbTest(
       const reader = { ...b, workspaceId: owned[0] };
       assertEquals((await types.getEntityType(typeDeps, reader, left.id)).id, left.id);
       assertEquals((await types.getEntitySchema(typeDeps, reader, { type_id: left.id })).schema_version, 1);
+      const modelDeps = { uow: new SqlDataModelUnitOfWork(sql) };
+      assertEquals((await exportDataModel(modelDeps, reader)).entity_types.map((v) => v.schema["x-type-id"]), [
+        left.id,
+      ]);
+      assertEquals((await exportDataModel(modelDeps, second)).entity_types.map((v) => v.schema["x-type-id"]), [
+        right.id,
+      ]);
+      const exported = await exportDataModel(modelDeps, reader);
+      const readonlyPreview = await assertRejects(() =>
+        previewDataModel(modelDeps, reader, {
+          mode: "copy",
+          document: JSON.stringify(exported),
+        }), AppError);
+      assertEquals(readonlyPreview.code, "forbidden");
       const error = await assertRejects(
         () => types.createEntityType(typeDeps, key(reader), { label: "금지" }),
         AppError,
@@ -108,6 +126,12 @@ dbTest(
       );
       const error = await assertRejects(() => settings.updateBusinessSettings(deps, request, input), AppError);
       assertEquals(error.code, "forbidden");
+      const issuerDeps = { uow: new SqlEntityIssuerUnitOfWork(sql) };
+      const deniedRegistry = await assertRejects(
+        () => issuers.createEntityIssuer(issuerDeps, key(first), { code: "external", label: "원본" }),
+        AppError,
+      );
+      assertEquals(deniedRegistry.code, "forbidden");
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;

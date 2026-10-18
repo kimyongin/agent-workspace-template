@@ -13,6 +13,7 @@ import {
   businessSettingsUpdate,
   resolvedBusinessSettings,
 } from "../../contracts/business-settings.ts";
+import type { WorkspaceEntry } from "../workspaces/application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { conflict, notFound } from "../shared/errors.ts";
@@ -231,7 +232,7 @@ export function prepareBusinessRecord(
 }
 export interface BusinessSettingsDeps {
   clock: { now(): Date };
-  uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>): Promise<T> };
+  uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>, entry?: WorkspaceEntry): Promise<T> };
 }
 export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor): Promise<BusinessSettingsResult>;
 export function getBusinessSettings(
@@ -266,23 +267,36 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
       parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
     );
   }
-  return runWrite(d.uow, actor, "settings.update", parsed.data.id, parsed.data, async (store) => {
-    const sections: BusinessSettings = { [parsed.data.id]: parsed.data.value };
-    const current = await store.get();
-    if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
-      throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
-    }
-    if (
-      new TextEncoder().encode(JSON.stringify(parsed.data.value)).length >
-        BUSINESS_SETTINGS_MAX_BYTES
-    ) throw invalidInput(`업무 설정은 ${BUSINESS_SETTINGS_MAX_BYTES}바이트 이하입니다`);
-    const ids = recordTemplateTagIds(sections.record_templates);
-    if ((await store.recordTags(ids)).length !== ids.length) {
-      throw invalidInput("기록 범위에서 존재하는 태그만 기본값으로 사용할 수 있습니다", [{
-        path: "value",
-        message: "삭제되었거나 다른 범위의 태그를 제거하세요",
-      }]);
-    }
-    return store.update(parsed.data);
-  });
+  return runWrite<BusinessSettingsStore, BusinessSettingsResult>(
+    {
+      run: (actor, fn) =>
+        d.uow.run(actor, fn, {
+          mode: "business",
+          requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+        }),
+    },
+    actor,
+    "settings.update",
+    parsed.data.id,
+    parsed.data,
+    async (store) => {
+      const sections: BusinessSettings = { [parsed.data.id]: parsed.data.value };
+      const current = await store.get();
+      if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
+        throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
+      }
+      if (
+        new TextEncoder().encode(JSON.stringify(parsed.data.value)).length >
+          BUSINESS_SETTINGS_MAX_BYTES
+      ) throw invalidInput(`업무 설정은 ${BUSINESS_SETTINGS_MAX_BYTES}바이트 이하입니다`);
+      const ids = recordTemplateTagIds(sections.record_templates);
+      if ((await store.recordTags(ids)).length !== ids.length) {
+        throw invalidInput("기록 범위에서 존재하는 태그만 기본값으로 사용할 수 있습니다", [{
+          path: "value",
+          message: "삭제되었거나 다른 범위의 태그를 제거하세요",
+        }]);
+      }
+      return store.update(parsed.data);
+    },
+  );
 }
