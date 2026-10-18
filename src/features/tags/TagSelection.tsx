@@ -35,7 +35,13 @@ export function TagSelection(
   const knownNames = useRef(new Map<string, string>());
   if (tags !== null) knownNames.current = new Map(tags.map((tag) => [tag.id, tag.name]));
   const [open, setOpen] = useState(false);
-  const focusTrigger = () => trigger.current?.focus();
+  const focusTrigger = () => {
+    const control = trigger.current;
+    const destination = control?.disabled
+      ? control.closest<HTMLElement>('section[tabindex], [role="region"][tabindex]')
+      : control;
+    destination?.focus();
+  };
   return (
     <FieldSet
       disabled={disabled}
@@ -162,10 +168,9 @@ function TagPickerDialog(
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!disabled) {
-          if (next) setSearch("");
-          onOpenChange(next);
-        }
+        if (next && disabled) return;
+        if (next) setSearch("");
+        onOpenChange(next);
       }}
     >
       <DialogContent
@@ -180,9 +185,6 @@ function TagPickerDialog(
           onClosed();
         }}
         showCloseButton={false}
-        onEscapeKeyDown={(event) => {
-          if (disabled) event.preventDefault();
-        }}
         onInteractOutside={(event) => event.preventDefault()}
         className="flex min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
       >
@@ -252,10 +254,10 @@ function TagPickerDialog(
         <DialogFooter ref={footer} className="m-0 shrink-0 flex-row flex-wrap items-center">
           <span role="status" className="mr-auto text-sm text-muted-foreground">{value.length}개 선택</span>
           <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={disabled} aria-label="닫기">닫기</Button>
+            <Button type="button" variant="outline" aria-label="닫기">닫기</Button>
           </DialogClose>
           <DialogClose asChild>
-            <Button type="button" disabled={disabled}>선택 완료</Button>
+            <Button type="button">선택 완료</Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>
