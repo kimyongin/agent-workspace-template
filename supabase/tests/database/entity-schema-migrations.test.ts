@@ -347,6 +347,23 @@ dbTest(
           "schema_migration_in_progress",
         );
       }
+      const directSelection = await runInWorkspace(
+        sql,
+        a.actor,
+        {
+          mode: "business",
+          requirements: [{
+            target_kind: "tasks",
+            target_id: "*",
+            access: "write",
+          }],
+        },
+        (tx) =>
+          tx.savepoint((savepoint) =>
+            savepoint`select app.set_workspace_task_associations(${task.id},'{}'::text[],'[]'::jsonb)`
+          ).then(() => "ok", (error: { code: string }) => error.code),
+      );
+      assertEquals(directSelection, "55000");
       await code(
         () =>
           updateTask(activity, requestActor(a.actor), task.id, {
