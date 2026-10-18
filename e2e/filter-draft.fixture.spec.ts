@@ -131,12 +131,20 @@ test("history synchronizes optional drafts and property rows keep their responsi
     const value = page.getByLabel("조건 1 값", { exact: true });
     const remove = page.getByRole("button", { name: "조건 1 제거", exact: true });
     for (const control of [property, comparison, value, remove]) {
-      await expect(control).toBeVisible();
-      const box = (await control.boundingBox())!;
-      expect(box.height).toBeGreaterThanOrEqual(44);
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      // Resizing can refresh the current catalog and remount its controls.
+      // Retry the complete geometry assertion, rather than dereferencing a stale box.
+      await expect.poll(async () => {
+        const visible = await control.isVisible(), box = await control.boundingBox();
+        return {
+          visible,
+          heightAtLeast44: !!box && box.height >= 44,
+          widthAtLeast44: !!box && box.width >= 44,
+          insideLeft: !!box && box.x >= 0,
+          insideRight: !!box && box.x + box.width <= width,
+        };
+      }, { message: `filter control remains visible, at least44px and inside${width}px` }).toEqual({
+        visible: true, heightAtLeast44: true, widthAtLeast44: true, insideLeft: true, insideRight: true,
+      });
     }
     const sequence = await property.evaluate((node) => {
       const row = node.closest("div:has(> button[aria-label='조건 1 제거'])") ?? node.parentElement!.parentElement!;

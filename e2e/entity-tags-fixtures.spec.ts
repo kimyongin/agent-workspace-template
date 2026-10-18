@@ -1,5 +1,5 @@
 import { installWorkspaceApi } from "./support/workspace-api.ts";
-import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
+import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import {
   entity as makeEntity,
   task as makeTask,
@@ -253,7 +253,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
     if(route.request().method()==="GET"&&path.includes("/entities/")&&!path.endsWith(entity.id))return route.fulfill({status:404,json:{code:"not_found",message:"없음"}});
     return route.fulfill({json:route.request().method()==="POST"||path.endsWith(entity.id)?entity:{items:[],next_cursor:null}});
   });
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   await beginTabAction(page,"검사 자료 추가");
   const entityForm = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await entityForm.getByLabel("제목").fill(entity.title);
@@ -455,7 +455,7 @@ test("태그 설정의 인라인 초안은 대상 전환·탐색 취소와 histo
 test("기존 자료 태그 직접 주소는 모달 닫기 후 자료 화면으로 돌아간다", async ({ page }) => {
   await page.route("**/api/entities**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.goto("/e2e/fixtures/entity-tags-app.html");
-  await page.goto("/tags/entity");
+  await page.goto(fixtureWorkspacePath("/tags/entity"));
   const manager = page.getByRole("dialog", { name: "자료 태그 관리", exact: true });
   await expect(manager.getByRole("form", { name: "태그 추가", exact: true })).toBeVisible();
   await manager.getByRole("button", { name: "닫기", exact: true }).click();
@@ -487,7 +487,7 @@ for(const [path,label,scope] of [["entities","전체 자료","entity"],["records
   await page.route("**/api/entities**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.route("**/api/records**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.goto("/e2e/fixtures/entity-tags-app.html");
-  await page.goto(`/${path}?pages=1`);
+  await page.goto(fixtureWorkspacePath(`/${path}?pages=1`));
   await expect(page.getByRole("button",{name:`${label} 작업 메뉴`})).toHaveCount(0);
   await tagManagement(page, scope);
   await expect(page.getByRole("radiogroup", { name:"관리 대상",exact:true }).getByRole("radio",{ name:scope==="entity"?"자료":"기록",exact:true })).toBeChecked();

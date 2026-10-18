@@ -237,7 +237,9 @@ test("restored preview waits for its read and settles even when tag lookup fails
   const state = await fixture(page, [row]);
   state.failRead({ kind: "tags", page: 1 }, { once: false });
   const held = state.holdRead({ kind: "records", id: row.id });
-  await page.goto("/records?open=" + encodeURIComponent("/records/" + row.id) + "&scroll=0#activity-records-" + row.id);
+  await page.goto(fixtureWorkspacePath(`/records?open=${encodeURIComponent(`/records/${row.id}`)}&scroll=0#activity-records-${row.id}`));
+  expect(new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/records"));
+  expect(new URL(page.url()).searchParams.get("open")).toBe(`/records/${row.id}`);
   await held.started;
   const title = page.getByRole("button", { name: row.body, exact: true });
   await expect(title).not.toBeFocused();
@@ -361,6 +363,11 @@ test("selected entity fields stay identical in every layout and expansion withou
   schema.schema.properties.prop_4={type:"boolean",title:"검사", "x-order":40,"x-show-in-list":true};
   const selected={...entity,properties:{prop_1:"선택 자료",prop_2:0,prop_3:"숨긴 날짜",prop_4:false},display_properties:{prop_1:"선택 자료",prop_2:0,prop_4:false},title:"선택 자료"};
   state.rows.entities.splice(0,state.rows.entities.length,selected);
+  Object.assign(state.rows.tasks[0], {
+    entity_ids: [selected.id],
+    entity_context: [{ id: selected.id, title: selected.title, type: selected.type,
+      schema_version: selected.schema_version, source: "selection", captured_at: stamp }],
+  });
   await page.route("**/api/entity-types/*/schema{,?**}",route=>route.fulfill({json:schema}));
   await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   for(const view of ["테이블","카드"]) {
@@ -389,8 +396,8 @@ test("selected entity fields stay identical in every layout and expansion withou
     await row.getByRole("button",{name:selected.title,exact:true}).click();
   }
   await page.goto(fixtureWorkspacePath(`/tasks/${task.id}`));
-  const related=page.getByRole("region",{name:"자료 (1개)",exact:true});
-  await related.getByRole("button",{name:entity.title,exact:true}).click();
+  const related=page.getByRole("region",{name:"연결된 자료 (1개)",exact:true});
+  await related.getByRole("button",{name:selected.title,exact:true}).click();
   await expect(related.getByText("품명",{exact:true})).toBeVisible();
   await expect(related.getByText("숨긴 날짜",{exact:true})).toHaveCount(0);
   await expect(related.getByText("0",{exact:true})).toBeVisible();
@@ -494,7 +501,7 @@ test("business tables: selected values reflow without horizontal scrolling at wi
   schema.schema.properties.prop_5 = { type: "boolean", title: "확인 상태를 나타내는 긴 라벨", "x-order": 50, "x-show-in-list": true };
   await page.route("**/api/entity-types/*/schema**", route => route.fulfill({ json: schema }));
   state.rows.entities[0].display_properties = { prop_1: entity.title, prop_2: 240000, prop_3: "2026-10-08", prop_4: "a", prop_5: false };
-  await page.goto("/entities?entity_type_id=" + fixtureType.id);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   const table = page.getByRole("table", { name: "검사 자료 목록", exact: true });
   const title = table.getByRole("button", { name: entity.title, exact: true });
   const row = table.getByRole("row").filter({ has: page.getByRole("button", { name: entity.title, exact: true }) });
@@ -551,7 +558,7 @@ test("business tables: many selected columns keep dates readable and never omit 
   }
   state.rows.entities[0].display_properties = projected;
   await page.route("**/api/entity-types/*/schema**", route=>route.fulfill({json:schema}));
-  await page.setViewportSize({width:1440,height:1000});await page.goto("/entities?entity_type_id="+fixtureType.id);
+  await page.setViewportSize({width:1440,height:1000});await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   const row = page.getByRole("row").filter({has:page.getByRole("button",{name:entity.title,exact:true})});
   await expect(row.getByRole("cell")).toHaveCount(16);
   const date = row.getByText("2026-10-02",{exact:true});await expect(date).toBeVisible();

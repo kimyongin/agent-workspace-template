@@ -231,7 +231,7 @@ test("typed creation requires selection and protects drafts before changing kind
     .toHaveValue("");
 });
 test("settings profile route keeps drafts and treats settings as account location", async ({ page }) => {
-  await page.goto("/settings");
+  await page.goto(fixtureWorkspacePath("/settings"));
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { name: "기본 설정", exact: true, level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "주 메뉴" }).locator('a[aria-current="page"]'))
@@ -299,7 +299,7 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
     (route) => route.fulfill({ json: { items: [long, products], next_cursor: null } }),
   );
   await page.setViewportSize({ width: 320, height: 300 });
-  await page.goto("/settings");
+  await page.goto(fixtureWorkspacePath("/settings"));
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   await openMainNavigation(page);
   await expect(page.getByRole("navigation", { name: "주 메뉴" }).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link").first()).toHaveText(long.label);
