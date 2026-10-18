@@ -121,7 +121,7 @@ httpTest(
 );
 
 httpTest("workspace relation real HTTP MCP share business metadata keyed writes and create replace", async () => {
-  let token = "", actor: string | undefined;
+  let token = "", requestToken = "", actor: string | undefined, memberId: string | undefined;
   let client: Awaited<ReturnType<typeof connectMcp>> | undefined;
   const auth: { clientId?: string; tokens: string[] } = { tokens: [] };
   const owned: { id: string; name: string }[] = [], errors: unknown[] = [];
@@ -135,7 +135,7 @@ httpTest("workspace relation real HTTP MCP share business metadata keyed writes 
     const response = await fetch(API + path, {
       method,
       headers: {
-        authorization: `Bearer ${token}`,
+        authorization: `Bearer ${requestToken}`,
         "X-Workspace-Id": workspace,
         "Content-Type": "application/json",
         "Idempotency-Key": key,
@@ -149,7 +149,7 @@ httpTest("workspace relation real HTTP MCP share business metadata keyed writes 
     token = await signIn("A");
     auth.tokens.push(token);
     actor = String(claimsOf(token).sub);
-    client = await connectMcp(await trackedRelationMcpToken(token, auth));
+    requestToken = token;
     const name = `relation514-${crypto.randomUUID()}`;
     const made = await call(token, "POST", "/workspaces", { name });
     if (typeof made.body?.workspace?.id === "string") owned.push({ id: made.body.workspace.id, name });
@@ -168,15 +168,29 @@ httpTest("workspace relation real HTTP MCP share business metadata keyed writes 
     });
     assertEquals(permission.status, 200);
     const scope = { workspace_id: workspace };
-    const def = await tool(client, "create_entity_relation_definition", {
-      ...scope,
+    const createdDefinition = await request(workspace, "POST", "/entity-relation-definitions", {
       ends: [{ type_id: typeId, label: "설정 원점", cardinality: "one" }, {
         type_id: typeId,
         label: "설정 상대",
         cardinality: "one",
       }],
     });
-    assertEquals(typeof def.id, "string");
+    assertEquals(createdDefinition.status, 201);
+    const def = createdDefinition.body;
+    const memberToken = await signIn("B");
+    auth.tokens.push(memberToken);
+    memberId = String(claimsOf(memberToken).sub);
+    await admin`insert into private.workspace_members(workspace_id,user_id) values(${workspace},${memberId})`;
+    assertEquals(
+      (await call(token, "PATCH", `/workspaces/${workspace}/members/${memberId}`, {
+        expected_version: 1,
+        grants: [{ target_kind: "entity_type", target_id: typeId, access: "write" }],
+      })).status,
+      200,
+    );
+    requestToken = memberToken;
+    client = await connectMcp(await trackedRelationMcpToken(memberToken, auth));
+    assertEquals((await request(workspace, "GET", "/entity-relation-definitions")).status, 403);
     assertEquals(
       (await tool(client, "list_entity_relation_definitions", { ...scope, purpose: "business", type_id: typeId })).items
         .map((item: { id: string }) => item.id),
@@ -253,6 +267,7 @@ httpTest("workspace relation real HTTP MCP share business metadata keyed writes 
       owned.push({ id: foreign.body.workspace.id, name: foreignName });
     }
     assertEquals(foreign.status, 201);
+    await admin`insert into private.workspace_members(workspace_id,user_id) values(${foreign.body.workspace.id},${memberId})`;
     assertEquals((await request(foreign.body.workspace.id, "GET", `${base}/links`)).status, 404);
   } catch (error) {
     errors.push(error);
@@ -268,7 +283,7 @@ httpTest("workspace relation real HTTP MCP share business metadata keyed writes 
           const [root] = await tx`select name,created_by from app.workspaces where id=${workspace.id} for update`;
           assertEquals(root, { name: workspace.name, created_by: actor });
           const members = await tx`select user_id from private.workspace_members where workspace_id=${workspace.id}`;
-          assert(members.every((member) => member.user_id === actor));
+          assert(members.every((member) => member.user_id === actor || member.user_id === memberId));
           await tx`delete from pgmq.q_search_index where message->>'workspace_id'=${workspace.id}`;
           await tx`delete from pgmq.a_search_index where message->>'workspace_id'=${workspace.id}`;
           await tx`delete from app.workspaces where id=${workspace.id}`;
