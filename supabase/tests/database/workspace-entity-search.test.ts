@@ -379,138 +379,205 @@ dbTest(
   },
 );
 
-dbTest(
-  "workspace entity search: durable two-kind publication captures selected text and the whole conversion footprint",
-  async () => {
-    const fixture = await businessWorkspaceFixture(admin, user);
-    try {
-      const kinds = [await fixture.createKind("변환 검색 첫 종류"), await fixture.createKind("변환 검색 두 번째 종류")];
-      const entityDeps = { uow: new SqlEntityUnitOfWork(user) };
-      const originals: Awaited<ReturnType<typeof entities.createEntity>>[] = [];
-      for (const kind of kinds) {
-        await fixture.grantKind(fixture.manager, kind.id, "write");
-        originals.push(
-          await entities.createEntity(
-            entityDeps,
-            businessRequest(fixture.manager),
-            entityCreate.parse({
-              entity_type_id: kind.id,
-              schema_version: 1,
-              source: "app",
-              external_id: crypto.randomUUID(),
-              properties: { prop_1: "변환 전 긴 제목" },
-            }),
-          ),
-        );
-      }
-      const model = { uow: new SqlDataModelUnitOfWork(user, SqlDataModelGroupStore) };
-      const document = await exportDataModel(model, fixture.manager);
-      for (const type of document.entity_types) {
-        type.schema.properties.prop_1.maxLength = 1;
-        type.schema.properties.prop_1.title = "변환 검색 제목";
-        type.schema.properties.prop_1["x-search-text"] = true;
-      }
-      const input = { mode: "update", document: JSON.stringify(document) };
-      const preview = await previewDataModel(model, fixture.manager, input);
-      const saved = await prepareDataModel(model, businessRequest(fixture.manager), {
-        ...input,
-        preview_fingerprint: preview.fingerprint,
-      });
-      assertEquals(saved.status, "needs_conversion");
-      assertEquals(
-        (await analyzeDataModel(model, businessRequest(fixture.manager), saved.id, {
-          expected_version: saved.version,
-          conversions: document.entity_types.map((type) => ({
-            type_ref: type.ref,
-            migration: {
-              rules: [],
-              overrides: [{
-                entity_id: originals[kinds.findIndex((kind) => kind.id === type.schema["x-type-id"])].id,
-                key: "prop_1",
-                value: "값",
-              }],
-            },
-          })),
-        })).status,
-        "analyzing",
-      );
-      for (let step = 0; step < 2; step++) {
-        const [{ batch }] = await worker`select app.claim_entity_schema_analysis() as batch`;
-        assert(batch);
-        const convert = compileMigration(batch.target, batch.migration, batch.recovery_keys);
-        const results = batch.rows.map((row: { entity_id: string; properties: Record<string, unknown> }) =>
-          convert(row.entity_id, row.properties)
-        );
+for (const failLate of [false, true]) {
+  dbTest(
+    failLate
+      ? "workspace entity search: late durable publication failure rolls back selected text state queue and receipts"
+      : "workspace entity search: durable two-kind publication captures selected text and the whole conversion footprint",
+    async () => {
+      const fixture = await businessWorkspaceFixture(admin, user);
+      try {
+        const kinds = [
+          await fixture.createKind("변환 검색 첫 종류"),
+          await fixture.createKind("변환 검색 두 번째 종류"),
+        ];
+        const entityDeps = { uow: new SqlEntityUnitOfWork(user) };
+        const originals: Awaited<ReturnType<typeof entities.createEntity>>[] = [];
+        for (const kind of kinds) {
+          await fixture.grantKind(fixture.manager, kind.id, "write");
+          originals.push(
+            await entities.createEntity(
+              entityDeps,
+              businessRequest(fixture.manager),
+              entityCreate.parse({
+                entity_type_id: kind.id,
+                schema_version: 1,
+                source: "app",
+                external_id: crypto.randomUUID(),
+                properties: { prop_1: "변환 전 긴 제목" },
+              }),
+            ),
+          );
+        }
+        const model = { uow: new SqlDataModelUnitOfWork(user, SqlDataModelGroupStore) };
+        const beforeDocument = await exportDataModel(model, fixture.manager);
+        const document = structuredClone(beforeDocument);
+        for (const type of document.entity_types) {
+          type.schema.properties.prop_1.maxLength = 1;
+          type.schema.properties.prop_1.title = "변환 검색 제목";
+          type.schema.properties.prop_1["x-search-text"] = true;
+        }
+        const input = { mode: "update", document: JSON.stringify(document) };
+        const preview = await previewDataModel(model, fixture.manager, input);
+        const saved = await prepareDataModel(model, businessRequest(fixture.manager), {
+          ...input,
+          preview_fingerprint: preview.fingerprint,
+        });
+        assertEquals(saved.status, "needs_conversion");
         assertEquals(
-          (await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
-            worker.json(results)
-          }) as accepted`)[0].accepted,
-          true,
+          (await analyzeDataModel(model, businessRequest(fixture.manager), saved.id, {
+            expected_version: saved.version,
+            conversions: document.entity_types.map((type) => ({
+              type_ref: type.ref,
+              migration: {
+                rules: [],
+                overrides: [{
+                  entity_id: originals[kinds.findIndex((kind) => kind.id === type.schema["x-type-id"])].id,
+                  key: "prop_1",
+                  value: "값",
+                }],
+              },
+            })),
+          })).status,
+          "analyzing",
         );
-      }
-      const ready = await getDataModelChange(model, fixture.manager, saved.id);
-      assertEquals(ready.status, "ready");
-      assertEquals(
-        (await applyDataModel(model, businessRequest(fixture.manager), saved.id, {
-          expected_version: ready.version,
-        })).status,
-        "queued",
-      );
-      for (let step = 0; step < 4; step++) {
-        const [{ batch }] = await worker`select app.claim_data_model_conversion() as batch`;
-        assert(batch);
-        if (batch.status === "committing") {
+        for (let step = 0; step < 2; step++) {
+          const [{ batch }] = await worker`select app.claim_entity_schema_analysis() as batch`;
+          assert(batch);
+          const convert = compileMigration(batch.target, batch.migration, batch.recovery_keys);
+          const results = batch.rows.map((row: { entity_id: string; properties: Record<string, unknown> }) =>
+            convert(row.entity_id, row.properties)
+          );
           assertEquals(
-            (await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`)[
-              0
-            ].committed,
+            (await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
+              worker.json(results)
+            }) as accepted`)[0].accepted,
             true,
           );
-          break;
         }
-        const prepared = await prepareMigrationBatch(batch.child, new Date());
-        assertEquals(prepared.stale, false);
+        const ready = await getDataModelChange(model, fixture.manager, saved.id);
+        assertEquals(ready.status, "ready");
         assertEquals(
-          (await worker`select app.stage_data_model_conversion(${batch.id},${batch.fence},${batch.child.id},${batch.child.fence},${
-            worker.json(prepared.results)
-          }) as accepted`)[0].accepted,
-          true,
+          (await applyDataModel(model, businessRequest(fixture.manager), saved.id, {
+            expected_version: ready.version,
+          })).status,
+          "queued",
         );
-      }
-      assertEquals((await getDataModelChange(model, fixture.manager, saved.id)).status, "applied");
-      for (const original of originals) {
-        assertEquals((await entities.getEntity(entityDeps, fixture.manager, original.id)).properties.prop_1, "값");
-      }
-      const sent: string[] = [];
-      const queue = new SqlIndexQueue(worker);
-      const embedder = new DurablePassageEmbedder(new SqlExternalEffectLedger(worker), {
-        send(text) {
-          sent.push(text);
-          return Promise.resolve({ state: "succeeded", vector });
-        },
-      }, "a".repeat(64));
-      assertEquals(
-        (await indexBatch(queue, embedder, {
+        const snapshot = async () => ({
+          state:
+            await admin`select * from app.search_index_state where workspace_id=${fixture.workspaceId} order by kind,id`,
+          queue:
+            await admin`select * from pgmq.q_search_index where message->>'workspace_id'=${fixture.workspaceId} order by msg_id`,
+          chunks:
+            await admin`select * from app.search_chunks where workspace_id=${fixture.workspaceId} order by source_kind,source_id,ordinal`,
+          receipts:
+            await admin`select * from private.request_results where owner_id=${fixture.manager.userId} order by request_key`,
+        });
+        const beforeCommit = await snapshot();
+        const beforeRecords = (await admin`select id from app.records where workspace_id=${fixture.workspaceId}`)
+          .map((record) => record.id as string);
+        for (let step = 0; step < 4; step++) {
+          const [{ batch }] = await worker`select app.claim_data_model_conversion() as batch`;
+          assert(batch);
+          if (batch.status === "committing") {
+            if (failLate) {
+              // The second child's automatic record collides after the first child
+              // has already published its selected projection inside the savepoint.
+              const [collision] =
+                await admin`select r.record_id,r.entity_id,r.record_body from app.data_model_children c
+              join private.entity_schema_migration_rows r on r.workspace_id=c.workspace_id and r.job_id=c.job_id
+              where c.workspace_id=${fixture.workspaceId} and c.model_id=${saved.id} order by c.type_id desc limit 1`;
+              await admin.begin(async (tx) => {
+                await tx`select set_config('request.workspace_id',${fixture.workspaceId},true)`;
+                await tx`insert into app.records(workspace_id,owner_id,id,entity_id,created_by,body,record_kind,change_metadata)
+                values(${fixture.workspaceId},null,${collision.record_id},${collision.entity_id},${fixture.manager.userId},${collision.record_body},'change',${
+                  tx.json({
+                    event_id: collision.record_id,
+                    target_kind: "entity",
+                    target_id: collision.entity_id,
+                    target_title: "의도한 충돌",
+                    action: "update",
+                    source: "http",
+                    before: null,
+                    after: null,
+                    path: null,
+                  })
+                })`;
+              });
+              assertEquals(
+                (await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`)[
+                  0
+                ].committed,
+                false,
+              );
+              assertEquals((await getDataModelChange(model, fixture.manager, saved.id)).status, "failed");
+              assertEquals(await exportDataModel(model, fixture.manager), beforeDocument);
+              for (const original of originals) {
+                const retained = await entities.getEntity(entityDeps, fixture.manager, original.id);
+                assertEquals(retained.properties, original.properties);
+                assertEquals(retained.version, original.version);
+                assertEquals(retained.schema_version, original.schema_version);
+              }
+              assertEquals(await snapshot(), beforeCommit);
+              assertEquals(
+                (await admin`select id from app.records where workspace_id=${fixture.workspaceId}`)
+                  .map((record) => record.id as string).sort(),
+                [...beforeRecords, collision.record_id].sort(),
+              );
+              return;
+            }
+            assertEquals(
+              (await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`)[
+                0
+              ].committed,
+              true,
+            );
+            break;
+          }
+          const prepared = await prepareMigrationBatch(batch.child, new Date());
+          assertEquals(prepared.stale, false);
+          assertEquals(
+            (await worker`select app.stage_data_model_conversion(${batch.id},${batch.fence},${batch.child.id},${batch.child.fence},${
+              worker.json(prepared.results)
+            }) as accepted`)[0].accepted,
+            true,
+          );
+        }
+        assertEquals((await getDataModelChange(model, fixture.manager, saved.id)).status, "applied");
+        for (const original of originals) {
+          assertEquals((await entities.getEntity(entityDeps, fixture.manager, original.id)).properties.prop_1, "값");
+        }
+        const sent: string[] = [];
+        const queue = new SqlIndexQueue(worker);
+        const embedder = new DurablePassageEmbedder(new SqlExternalEffectLedger(worker), {
+          send(text) {
+            sent.push(text);
+            return Promise.resolve({ state: "succeeded", vector });
+          },
+        }, "a".repeat(64));
+        assertEquals(
+          (await indexBatch(queue, embedder, {
+            limit: 1,
+            workspace_id: fixture.workspaceId,
+            kind: "entity",
+            id: originals[0].id,
+          })).indexed,
+          1,
+        );
+        assertEquals(sent, ["변환 검색 제목\n값"]);
+        await fixture.grantKind(fixture.manager, kinds[0].id, "none");
+        const denied = await indexBatch(queue, embedder, {
           limit: 1,
           workspace_id: fixture.workspaceId,
           kind: "entity",
-          id: originals[0].id,
-        })).indexed,
-        1,
-      );
-      assertEquals(sent, ["변환 검색 제목\n값"]);
-      await fixture.grantKind(fixture.manager, kinds[0].id, "none");
-      const denied = await indexBatch(queue, embedder, {
-        limit: 1,
-        workspace_id: fixture.workspaceId,
-        kind: "entity",
-        id: originals[1].id,
-      });
-      assertEquals(denied.claimed, 0);
-      assertEquals(sent.length, 1);
-      assertEquals((await entities.getEntity(entityDeps, fixture.manager, originals[1].id)).properties.prop_1, "값");
-    } finally {
-      await fixture.cleanup();
-    }
-  },
-);
+          id: originals[1].id,
+        });
+        assertEquals(denied.claimed, 0);
+        assertEquals(sent.length, 1);
+        assertEquals((await entities.getEntity(entityDeps, fixture.manager, originals[1].id)).properties.prop_1, "값");
+      } finally {
+        await fixture.cleanup();
+      }
+    },
+  );
+}
