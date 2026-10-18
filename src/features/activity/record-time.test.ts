@@ -15,9 +15,11 @@ it("an explicit user time change is saved; a new blank time still lets the serve
   expect(recordDraftTime({ ...draft, occurred_at: { date: "", time: "" } })).toBeUndefined();
 });
 
-it("record memo drafts retain multiple targets without any applied-principle editing input", () => {
-  const draft = recordDraftFrom({ body: "과거 원칙은 본문 참고", occurred_at: "2026-10-05T20:58:48.277Z", entity_ids: ["customer-a", "customer-b"] });
-  expect(draft.entity_ids).toEqual(["customer-a", "customer-b"]);
-  expect(draft).not.toHaveProperty("applied_principle_ids");
-  expect(draft).not.toHaveProperty("entity_id");
+it("result content drafts omit parent selections while retaining saved classification", () => {
+  const saved = { body: "수행 결과", occurred_at: "2026-10-05T20:58:48.277Z", tag_ids: ["tag"], entity_ids: ["protected-material"] };
+  const draft = recordDraftFrom(saved);
+  expect(draft.tag_ids).toEqual(["tag"]);
+  expect(draft).not.toHaveProperty("entity_ids");
+  expect(draft).not.toHaveProperty("entity_context");
+  expect(draft).not.toHaveProperty("task_id");
 });
