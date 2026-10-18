@@ -11,7 +11,8 @@ export async function loadEntityDefinition(
   lock = false,
 ): Promise<EntityDefinition | null> {
   if (lock) {
-    const [type] = await tx`select * from app.entity_types where id::text=${typeId} for update`;
+    const [locked] = await tx`select app.lock_business_entity_type(${typeId}::uuid,true) as kind`;
+    const type = locked.kind;
     if (!type) return null;
     if (type.schema_write_locked) {
       const [job] =

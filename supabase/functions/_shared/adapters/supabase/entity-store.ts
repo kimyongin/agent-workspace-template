@@ -77,12 +77,21 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     // Reading during preparation remains allowed; only the atomic pointer commit waits.
     const rows = await tx`select id,schema_version as version,schema_version from app.entity_types ${
       typeId ? tx`where id=${typeId}::uuid` : tx``
-    } order by id for share`;
-    return rows.map((row) => ({
-      id: String(row.id),
-      type_version: Number(row.version),
-      schema_version: Number(row.schema_version),
-    }));
+    } order by id`;
+    const revisions = [];
+    // The narrow reader lock is authorized by the kind grant, not settings UPDATE.
+    // Lock in deterministic order and read the revision after a publication waiter.
+    for (const row of rows) {
+      const [locked] = await tx`select app.lock_business_entity_type(${row.id}::uuid,false) as kind`;
+      if (locked.kind) {
+        revisions.push({
+          id: String(locked.kind.id),
+          type_version: Number(locked.kind.schema_version),
+          schema_version: Number(locked.kind.schema_version),
+        });
+      }
+    }
+    return revisions;
   }
   async insert(i: Parameters<EntityStore["insert"]>[0], generatedIdentity = false) {
     let external_id = i.external_id;
