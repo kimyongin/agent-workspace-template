@@ -312,14 +312,25 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
     const resumedResponse = await response, resumed = await resumedResponse.json();
     expect(resumedResponse.status()).toBe(202);
-    expect(resumed).toMatchObject({ job_id: job.job_id, job_version: failed.version + 1, status: "queued" });
+    expect(resumed.job_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(resumed.job_id).not.toBe(job.job_id);
+    expect(resumed).toMatchObject({ type_id: typeId, change_id: plan.id, analysis_id: ready.analysis.id, job_version: 1, status: "queued" });
+    const assertFailedHistory = async () => {
+      expect(await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).toMatchObject({
+        id: failed.id, status: "failed", version: failed.version, failure_reason: failed.failure_reason,
+        analysis_id: failed.analysis_id, fingerprint: failed.fingerprint, processed: failed.processed,
+        total: failed.total, source_expires_at: failed.source_expires_at, updated_at: failed.updated_at,
+      });
+    };
+    await assertFailedHistory();
     const retryKey = resumedResponse.request().headers()["idempotency-key"];
     expect(retryKey).toBeTruthy();
+    await expect(page).toHaveURL(new RegExp(`job_id=${resumed.job_id}(?:&|$)`));
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     expect((await mcp.call("get_entity", { id: entityId })).version).toBe(entity.version);
     await expect.poll(async () => {
       await schemaAnalysisTick();
-      return (await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status;
+      return (await mcp.call("get_entity_schema_migration", { job_id: resumed.job_id })).status;
     }, { timeout: 30000 }).toBe("succeeded");
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
     const current = await mcp.call("get_entity", { id: entityId });
@@ -333,7 +344,9 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
         request_key: retryKey,
       }),
     ).toEqual(resumed);
+    await assertFailedHistory();
     await page.reload();
+    await expect(page).toHaveURL(new RegExp(`job_id=${resumed.job_id}(?:&|$)`));
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
   } finally {
     await worker.end();

@@ -1,7 +1,8 @@
 import { chooseSetting } from "./settings-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, unique, workspacePath } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, unique, workspacePath, requiredEnv } from "./support.ts";
+import { entityId, entityPath } from "../supabase/functions/_shared/contracts/entity-identity.ts";
 import { analyzeAndApply } from "./entity-schema-support.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 
@@ -234,7 +235,8 @@ test("late archived lookup preserves newer identity and same-identity property e
   const identity = unique("지연 자료 번호");
   const held: (() => Promise<void>)[] = [];
   let lookupNumber = 0;
-  await page.route("**/entities/*", async (route) => {
+  const lookupUrl = `${requiredEnv("VITE_API_URL")}${entityPath(entityId(source, fixtureType!.id, identity))}`;
+  await page.route(lookupUrl, async (route) => {
     if (route.request().method() !== "GET") return route.continue();
     const number = ++lookupNumber;
     let release!: () => void;
@@ -285,11 +287,14 @@ test("late archived lookup preserves newer identity and same-identity property e
     delivered();
   });
   const start = async () => {
-    const requested = page.waitForRequest((value) => value.method() === "GET" && value.url().includes("/entities/"));
+    const ordinal = lookupNumber + 1, pendingCount = held.length;
+    const requested = page.waitForRequest((value) => value.method() === "GET" && value.url() === lookupUrl && value.headers()["x-workspace-id"] === workspace.id);
     await form().getByRole("button", { name: "기존 대상 확인", exact: true })
       .click();
     await requested;
-    await expect.poll(() => held.length).toBeGreaterThan(0);
+    // The browser request event precedes route-handler admission; wait for this exact new held lookup.
+    await expect.poll(() => lookupNumber).toBe(ordinal);
+    await expect.poll(() => held.length).toBe(pendingCount + 1);
   };
   const settle = async (index = 0) => {
     await held.splice(index, 1)[0]();
