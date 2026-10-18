@@ -122,7 +122,8 @@ export function workspaceTools(deps: WorkspaceDeps): ToolDef[] {
     },
     {
       name: "leave_workspace",
-      description: "현재 버전으로 참여를 종료합니다. 활성 공간의 마지막 관리자는 권한을 넘기거나 공간을 삭제한 뒤 탈퇴합니다. 공동 데이터는 보존합니다.",
+      description:
+        "현재 버전으로 참여를 종료합니다. 활성 공간의 마지막 관리자는 권한을 넘기거나 공간을 삭제한 뒤 탈퇴합니다. 공동 데이터는 보존합니다.",
       input: z.strictObject({ ...scope, ...workspaceVersion.shape }),
       readOnly: false,
       destructive: true,
