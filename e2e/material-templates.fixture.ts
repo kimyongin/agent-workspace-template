@@ -1,3 +1,5 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
 import { fixtureIdentity } from "./support/workspace-data.ts";
@@ -27,6 +29,7 @@ const user = {
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }, ...[materials, products, retired].map(type => ({ target_kind: "entity_type" as const, target_id: type.id, access: "write" as const }))])) return;
     if (url.origin === new URL(baseURL!).origin) return route.continue();
     if (url.pathname === "/api/entity-types") {
       return route.fulfill({
@@ -116,7 +119,7 @@ async function settingsFixture(
   };
 }
 async function openTyped(page: import("@playwright/test").Page) {
-  await page.goto("/settings/records");
+  await page.goto(fixtureWorkspacePath("/settings/records"));
   await chooseSetting(page, page.getByLabel("대상", { exact: true }), "재료");
   return page.getByRole("form", { name: "기록 자동 완성", exact: true });
 }
@@ -202,7 +205,7 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
 
 test("태그 관리는 설정 링크 하나에서 같은 화면의 대상을 전환한다", async ({ page }) => {
   await settingsFixture(page);
-  await page.goto("/settings");
+  await page.goto(fixtureWorkspacePath("/settings"));
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: "태그", exact: true })).toHaveCount(1);
   for (const name of ["자료 태그", "할 일 태그", "기록 태그"]) {
@@ -222,7 +225,7 @@ test("태그 관리는 설정 링크 하나에서 같은 화면의 대상을 전
 });
 
 test("통합 태그의 초안은 대상 전환 취소 시 보존하고 확인 시 버린다", async ({ page }) => {
-  await page.goto("/settings/tags");
+  await page.goto(fixtureWorkspacePath("/settings/tags"));
   const name = page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true });
   await name.fill("저장 전 초안");
   await page.getByRole("radiogroup", { name: "관리 대상", exact: true }).getByRole("radio", { name: "할 일", exact: true }).click();
@@ -258,7 +261,7 @@ test("통합 태그는 저장 중 전환을 막고 대상별 사전에 같은 �
     dictionaries[body.scope].push(tag);
     await route.fulfill({ status: 201, json: tag });
   });
-  await page.goto("/settings/tags");
+  await page.goto(fixtureWorkspacePath("/settings/tags"));
   const name = page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true });
   await name.fill("공통 이름");
   await page.getByRole("button", { name: "추가", exact: true }).click();
@@ -283,7 +286,7 @@ test("통합 태그는 접힌 섹션에도 조회 오류와 저장 미확정 상
     if (readFailed) return route.fulfill({ status: 503, json: { code: "unavailable", message: "조회 실패" } });
     return route.fulfill({ json: { items: [], next_cursor: null } });
   });
-  await page.goto("/settings/tags");
+  await page.goto(fixtureWorkspacePath("/settings/tags"));
   await expect(page.getByText("태그 목록을 불러오지 못했습니다. 기존 목록은 유지합니다.")).toBeVisible();
   const section = page.getByRole("heading", { level: 2 }).getByRole("button");
   await section.click();
@@ -315,7 +318,7 @@ test("통합 태그는 삭제 실패 후 접혀도 오류와 기존 행을 유�
         ? route.fulfill({ status: 400, json: { code: "validation", message: "삭제 실패" } })
         : route.fulfill({ json: { items: [tag], next_cursor: null } }),
   );
-  await page.goto("/settings/tags");
+  await page.goto(fixtureWorkspacePath("/settings/tags"));
   await page.getByRole("button", { name: "삭제 실패 태그 삭제", exact: true }).click();
   const confirmation = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "삭제하고 기록", exact: true }) });
   await confirmation.getByRole("button", { name: "삭제하고 기록", exact: true }).click();
@@ -330,7 +333,7 @@ test("통합 태그는 삭제 실패 후 접혀도 오류와 기존 행을 유�
 
 test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 저장 버튼을 유지한다", async ({ page }) => {
   const fixture = await settingsFixture(page);
-  await page.goto("/settings/records");
+  await page.goto(fixtureWorkspacePath("/settings/records"));
   const form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
   await expect(form).toBeVisible();
   await form.getByLabel("메모 템플릿").fill("기록 설정 버튼 검증");
@@ -361,7 +364,7 @@ test("기록 대상 검색은 늦은 설정 조회가 완료되어도 입력과 
     await pending;
     await route.fulfill({ json: { settings: { record_templates: {} }, versions: { record_templates: 4 } } });
   });
-  await page.goto("/settings/records");
+  await page.goto(fixtureWorkspacePath("/settings/records"));
   await requested;
   const target = page.getByRole("combobox", { name: "대상", exact: true });
   await target.click();
@@ -382,7 +385,7 @@ test("기록 대상 검색은 늦은 설정 조회가 완료되어도 입력과 
 
 test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장은 다른 입력을 유지한다", async ({ page }) => {
   const fixture = await settingsFixture(page);
-  await page.goto("/settings/records");
+  await page.goto(fixtureWorkspacePath("/settings/records"));
   const target = page.getByLabel("대상", { exact: true });
   const form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
   await form.getByLabel("메모 템플릿").fill("할 일 초안");

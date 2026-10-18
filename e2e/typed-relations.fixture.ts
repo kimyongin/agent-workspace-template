@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows } from "./table-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
@@ -114,7 +115,7 @@ test(
         },
       });
     });
-    await page.goto(`/entities/${encodeURIComponent(origin.id)}`);
+    await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(origin.id)}`));
     const single = page.getByLabel("소속 주문 관계", { exact: true }).filter({ visible: true }),
       multi = page.getByLabel("구성재료 관계", { exact: true }).filter({ visible: true });
     await expect(single.getByRole("link", { name: "삭제된 주문", exact: true })).toBeVisible();

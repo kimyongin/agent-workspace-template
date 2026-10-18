@@ -1,3 +1,5 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { fixtureIdentity } from "./support/workspace-data.ts";
@@ -28,6 +30,7 @@ const user = {
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }, ...[materials, products, retired].map(type => ({ target_kind: "entity_type" as const, target_id: type.id, access: "write" as const }))])) return;
     if (url.origin === new URL(baseURL!).origin) return route.continue();
     if (url.pathname === "/api/entity-types") {
       return route.fulfill({
@@ -167,7 +170,7 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
       }),
   );
   await page.goto(
-    `/settings/entity-types/${materials.id}/migrations/${id(20)}`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${id(20)}`),
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
@@ -229,7 +232,7 @@ test("실패 작업의 응답 불명 재시도는 같은 내용과 키로 확인
     });
   });
   await page.goto(
-    `/settings/entity-types/${materials.id}/migrations/${id(20)}`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${id(20)}`),
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^기본 정보/ }).click();
@@ -299,7 +302,7 @@ test("완료 작업에서 만든 원본 복구안은 같은 작업공간과 기�
     (route) => route.fulfill({ json: recovered }),
   );
   await page.goto(
-    `/settings/entity-types/${materials.id}/migrations/${source.id}`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${source.id}`),
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^기본 정보/ }).click();
@@ -397,7 +400,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
       }),
   );
   await page.goto(
-    `/settings/entity-types/${materials.id}/migrations/${id(20)}`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${id(20)}`),
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^기본 정보/ }).click();
@@ -523,7 +526,7 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
       }),
   );
   await page.goto(
-    `/settings/entity-types/${materials.id}/migrations/${id(20)}`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${id(20)}`),
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^기본 정보/ }).click();
@@ -627,7 +630,7 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
       }),
   );
   await page.goto(
-    `/settings/entity-types/${materials.id}/migrations/${id(20)}`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${id(20)}`),
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await reading;
@@ -717,7 +720,7 @@ test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시
     });
   });
   await page.goto(
-    `/settings/entity-types/${materials.id}/migrations/${id(20)}`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${id(20)}`),
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await expect.poll(() => definitionReads).toBeGreaterThanOrEqual(2);
@@ -739,7 +742,7 @@ test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시
       exact: true,
     }),
   ).toBeVisible();
-  await page.goto("/settings/records");
+  await page.goto(fixtureWorkspacePath("/settings/records"));
   await chooseSetting(page, page.getByLabel("대상", { exact: true }), "재료");
   const record = page.getByRole("form", { name: "기록 자동 완성", exact: true });
   await record.getByLabel("변수 삽입", { exact: true }).click();
@@ -858,7 +861,7 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
       }),
   );
   await page.goto(
-    `/settings/entity-types/${materials.id}/migrations/${id(20)}`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${id(20)}`),
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", {
@@ -920,7 +923,7 @@ test(
           versions: { record_templates: 0 },
         },
       }));
-    await page.goto(`/settings/entity-types/${materials.id}`);
+    await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
     await expect(page.getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
     await page.getByLabel("자료 종류 선택", { exact: true }).click();
     await expect(page.getByRole("option")).toContainText(["재료", "상품", "보관 자료"]);
@@ -933,7 +936,7 @@ test(
         name: "이 자료의 연결 설정",
         exact: true,
       });
-      await expect(relation).toHaveAttribute("href", `/settings/relations?type_id=${materials.id}`);
+      await expect(relation).toHaveAttribute("href", fixtureWorkspacePath(`/settings/relations?type_id=${materials.id}`));
       const relationBox = (await relation.boundingBox())!;
       expect(relationBox.width).toBeGreaterThanOrEqual(44);
       expect(relationBox.height).toBeGreaterThanOrEqual(44);
@@ -1188,7 +1191,7 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
   );
   await page.clock.install();
   await page.goto(
-    `/settings/entity-types/${materials.id}?change_id=${planId}&job_id=${jobId}`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}?change_id=${planId}&job_id=${jobId}`),
   );
   const row = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
     has: page.getByRole("button", { name: /값 변환 중 ·/ }),
@@ -1280,7 +1283,7 @@ test("적용 변경과 최초 생성은 한 목록에서 각 버전 정의와 �
     });
   });
   await page.goto(
-    `/settings/entity-types/${materials.id}/versions?schema_version=1`,
+    fixtureWorkspacePath(`/settings/entity-types/${materials.id}/versions?schema_version=1`),
   );
   const history = page.getByRole("table", { name: "입력 항목 변경 이력", exact: true });
   await expect(history).toBeVisible();
@@ -1348,7 +1351,7 @@ test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는
         },
       }),
   );
-  await page.goto(`/settings/entity-types/${materials.id}?job_id=${id(31)}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?job_id=${id(31)}`));
   const detail = page.getByRole("region", {
     name: "값 변환 상세",
     exact: true,
@@ -1434,7 +1437,7 @@ test(
         json: { ...materials, version: 2, schema_version: 2 },
       });
     });
-    await page.goto(`/settings/entity-types/${materials.id}`);
+    await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
     const sections = ["기본 정보", "자료 번호", "입력 항목", "변경 이력"];
     for (const name of sections) {
       const section = page.getByRole("region", { name, exact: true });
@@ -1563,7 +1566,7 @@ test("다른 완료 변경을 열면 버전과 해당 변환 작업을 함께 �
     }
     return route.fulfill({ json: { ...materials, version: 3, schema_version: 3 } });
   });
-  await page.goto(`/settings/entity-types/${materials.id}?job_id=${id(20)}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?job_id=${id(20)}`));
   await page.getByRole("button", { name: /버전 3 · 적용됨$/ }).click();
   await expect(page).toHaveURL(new RegExp(`job_id=${id(31)}`));
   await expect(page).toHaveURL(/schema_version=3/);
@@ -1613,7 +1616,7 @@ test(
       }
       return route.fallback();
     });
-    await page.goto(`/settings/entity-types/${materials.id}?schema_version=1`);
+    await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?schema_version=1`));
     await expect(
       page.getByText("이 과거 버전에는 당시 종류 이름·아이콘·보관 상태가 기록되지 않았습니다.", { exact: true }),
     ).toBeVisible();
@@ -1646,12 +1649,12 @@ test(
 test("복구 충돌 대상 표는 기존 자료 링크·21개 제한·좁은 화면을 유지한다", async ({ page }) => {
   const source = { ...job(20), source_expires_at: "2026-11-13T00:00:00Z", recovery: { status: "conflict", reason: "이후 변경 확인 필요", current_schema_version: 1, conflicts: Array.from({ length: 22 }, (_, n) => ({ path: `entities.app:${materials.id}:${id(70 + n)}`, message: `다른 사용자가 변경했습니다 ${n}` })) } };
   await page.route("**/api/entity-schema-migrations/**", route => route.fulfill({ json: source }));
-  await page.goto(`/settings/entity-types/${materials.id}/migrations/${source.id}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${source.id}`));
   const conflicts = page.getByRole("table", { name: "복구 충돌 대상 목록", exact: true });
   await expect(conflicts).toBeVisible();
   await expect(conflicts.getByRole("row")).toHaveCount(22);
   await expect(conflicts.getByRole("link")).toHaveCount(21);
-  await expect(conflicts.getByRole("link").first()).toHaveAttribute("href", `/entities/${encodeURIComponent(`app:${materials.id}:${id(70)}`)}`);
+  await expect(conflicts.getByRole("link").first()).toHaveAttribute("href", fixtureWorkspacePath(`/entities/${encodeURIComponent(`app:${materials.id}:${id(70)}`)}`));
   await expect(conflicts.getByText("다른 사용자가 변경했습니다 20", { exact: true })).toBeVisible();
   await expect(conflicts.getByText("다른 사용자가 변경했습니다 21", { exact: true })).toHaveCount(0);
   await expect(page.getByText("한 번에 최대 21개 사유를 표시합니다.", { exact: false })).toBeVisible();
@@ -1682,7 +1685,7 @@ for (const mode of ["editor", "history"] as const) {
       return route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema-changes") ? { items: [current], next_before: null } : current });
     });
     await page.route("**/api/entity-schema-migrations**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith(id(20)) ? job(20) : { items: [job(20)], next_before: null } }));
-    await page.goto(`/settings/entity-types/${materials.id}?${mode === "editor" ? `change_id=${id(500)}` : `job_id=${id(20)}`}`);
+    await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?${mode === "editor" ? `change_id=${id(500)}` : `job_id=${id(20)}`}`));
     const owner = mode === "editor" ? page : page.getByRole("region", { name: "변환 작업의 변경 내용", exact: true });
     const results = owner.getByRole("button", { name: mode === "editor" ? "자료별 결과" : "검토 결과", exact: true });
     await revealSetting(results);
@@ -1718,7 +1721,7 @@ test("schema default date calendar edits only the retained definition draft", as
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/api/") && request.method() !== "GET") writes.push(request.method());
   });
-  await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^확인 날짜 항목 펼치기$/, exact: true }).click();
   const field = page.getByRole("region", { name: "확인 날짜 입력 항목", exact: true });
