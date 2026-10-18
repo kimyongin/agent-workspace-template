@@ -670,9 +670,9 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
   await page.setViewportSize({width,height:900});
   const state=await fixture(page);
   for (const item of [
-    {path:`/entities/${encodeURIComponent(entityKey(1))}`,domain:"검사 자료",title:"등심"},
-    {path:`/tasks/${id(2)}`,domain:"할 일",title:"등심 구매하기"},
-    {path:`/records/${id(3)}`,domain:"기록",title:null},
+    {path:`/entities/${encodeURIComponent(entityKey(1))}`,domain:"검사 자료",title:"등심",relations:["할 일 (1개)","기록 (1개)"]},
+    {path:`/tasks/${id(2)}`,domain:"할 일",title:"등심 구매하기",relations:["연결된 자료 (1개)","기록 (1개)"]},
+    {path:`/records/${id(3)}`,domain:"기록",title:null,relations:["할 일 (1개)"]},
   ]) {
     await page.goto(fixtureWorkspacePath(item.path));
     const view=detailDialog(page);
@@ -683,17 +683,22 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     expect((await view.getAttribute("aria-describedby"))?.split(/\s+/)).toContain(await description.getAttribute("id"));
     if(item.title) await expect(view.getByRole("heading", { name: item.title, exact: true })).toHaveText(item.title);
     else await expect(view.getByRole("term").filter({ hasText: /^본문$/ }).first().locator("..").getByRole("definition")).toHaveText("구매 기준을 정리했습니다.");
-    const relation = view.getByRole("region", { name: /^(연결된 자료|할 일|기록) \(\d+개\)$/ });
-    await expect(relation).toHaveCount(2);
-    for (const region of await relation.all()) await expect(region).toBeVisible();
+    const relation = view.getByRole("region", { name: /^(연결된 자료|자료|할 일|기록) \(\d+개\)$/ });
+    await expect(relation).toHaveCount(item.relations.length);
+    for (const name of item.relations) await expect(view.getByRole("region", { name, exact: true })).toBeVisible();
+    if(item.domain==="기록") {
+      await expect(relation).toContainText("등심 구매하기");
+      await expect(view.getByRole("region", { name: /^(연결된 자료|자료) \(\d+개\)$/ })).toHaveCount(0);
+    }
     expect(await view.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
     if(item.domain==="할 일") await view.screenshot({path:info.outputPath(`detail-hierarchy-${width}.png`)});
     await view.getByRole("button",{name:"편집",exact:true}).click();
     await expect(view.locator("[data-slot=\"dialog-title\"]")).toHaveText(item.domain);
     await expect(description).not.toHaveText(readDescription);
     expect(await description.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
-    const readonlyRelations = view.getByRole("region", { name: /^(연결된 자료|할 일|기록) \(\d+개\)$/ });
-    await expect(readonlyRelations).toHaveCount(2);
+    const readonlyRelations = view.getByRole("region", { name: /^(연결된 자료|자료|할 일|기록) \(\d+개\)$/ });
+    await expect(readonlyRelations).toHaveCount(item.relations.length);
+    for (const name of item.relations) await expect(view.getByRole("region", { name, exact: true })).toBeVisible();
     for (const region of await readonlyRelations.all()) await expect(region.getByRole("button").or(region.getByRole("link"))).toHaveCount(0);
     await expect(view.getByRole("button",{name:/^(엔터티|할 일|기록).* (연결|해제)$/})).toHaveCount(0);
     if(item.domain==="기록") {
@@ -701,9 +706,11 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
       await view.getByRole("button",{name:"저장",exact:true}).click();
       await expect(view.getByRole("term").filter({ hasText: /^본문$/ }).first().locator("..").getByRole("definition")).toHaveText("관계를 보존하는 본문 정정");
       const write=state.writes.find(row=>row.method==="PATCH"&&row.path===`/api/records/${id(3)}`)!;
-      expect(write.body).not.toHaveProperty("entity_ids"); expect(write.body).not.toHaveProperty("task_id");
-      await expect(view.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toBeVisible();
-      await expect(view.getByRole("region",{name:"할 일 (1개)",exact:true})).toBeVisible();
+      expect(write.body).toEqual({body:"관계를 보존하는 본문 정정",occurred_at:stamp,expected_version:1});
+      expect(state.writes).toHaveLength(1);
+      expect(state.rows.records[0]).toMatchObject({task_id:id(2),entity_id:null,record_kind:"result"});
+      await expect(view.getByRole("region", { name: /^(연결된 자료|자료|할 일|기록) \(\d+개\)$/ })).toHaveCount(1);
+      await expect(view.getByRole("region",{name:"할 일 (1개)",exact:true})).toContainText("등심 구매하기");
     } else await view.getByRole("button",{name:"취소",exact:true}).click();
     await expect(description).toHaveText(readDescription);
   }
