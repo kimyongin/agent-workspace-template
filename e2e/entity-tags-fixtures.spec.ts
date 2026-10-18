@@ -575,6 +575,53 @@ test("#370 늦은 이전 사전 응답이 새 이름을 덮어쓰지 않는다",
   }
 });
 
+test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결한다", async ({ page }) => {
+  let current = { ...makeEntity(301, { prop_1: "독립 태그 자료" }), tag_ids: [] as string[] };
+  const creations: Record<string, unknown>[] = [], connections: Record<string, unknown>[] = [];
+  await page.route("**/api/entity-types**", route => route.fulfill({
+    json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema
+      : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity()
+      : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType,
+  }));
+  await page.route("**/api/entities**", route => {
+    const path = decodeURIComponent(new URL(route.request().url()).pathname);
+    if (path.endsWith("/links")) return route.fulfill({ json: { items: [], next_cursor: null } });
+    if (route.request().method() === "POST") {
+      creations.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: current });
+    }
+    return route.fulfill({ json: path.endsWith(current.id) ? { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } : { items: [], next_cursor: null } });
+  });
+  await page.route("**/api/tag-connections", route => {
+    const input = route.request().postDataJSON();
+    connections.push(input);
+    current = { ...current, tag_ids: input.tag_ids, version: current.version + 1 };
+    return route.fulfill({ json: { tag_ids: current.tag_ids, version: current.version, updated_at: current.updated_at } });
+  });
+  await page.goto("/e2e/fixtures/entity-tags-app.html");
+  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await beginTabAction(page, "검사 자료 추가");
+  const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
+  await expect(form.getByRole("button", { name: "태그 선택", exact: true })).toHaveCount(0);
+  await form.getByLabel("제목").fill(current.title);
+  await saveOnce(page, form);
+  await expect(form).not.toBeVisible();
+  expect(creations).toHaveLength(1);
+  expect(creations[0]).not.toHaveProperty("tag_ids");
+  const region = page.getByRole("region", { name: "태그 연결" });
+  await region.getByRole("button", { name: "태그 연결", exact: true }).click();
+  await region.getByRole("button", { name: "태그 선택", exact: true }).click();
+  await page.getByRole("option", { name: "첫 태그", exact: true }).click();
+  await page.getByRole("button", { name: "선택 완료", exact: true }).click();
+  await region.getByRole("button", { name: "연결 적용", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true }).click();
+  await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
+  expect(connections).toHaveLength(1);
+  expect(connections[0]).toMatchObject({ target_kind: "entity", target_id: current.id, expected_version: 1, tag_ids: [tags[0].id] });
+  expect(connections[0]).not.toHaveProperty("schema_version");
+  expect(creations).toHaveLength(1);
+});
+
 test("보기에서 태그 연결 초안을 취소하거나 독립 적용한다", async ({ page }) => {
   let current = { ...makeEntity(1), id: `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000`, tag_ids: [] as string[] };
   const writes: Record<string, unknown>[] = [];
