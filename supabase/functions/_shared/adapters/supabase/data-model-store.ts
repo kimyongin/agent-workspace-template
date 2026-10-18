@@ -178,8 +178,7 @@ export class SqlDataModelStore implements DataModelStore {
   }
   async get(id: string, lock = false) {
     const [targets] = await this
-      .tx`select coalesce(plan->'protected_permissions',(select jsonb_agg(jsonb_build_object('target_kind','entity_type','target_id',k.value,'access','read')) from jsonb_array_elements_text(plan->'protected_kind_ids') k(value)),'[]'::jsonb) as requirements from app.data_model_changes
-      where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
+      .tx`select requirements from app.workspace_model_plan_headers(${id}::uuid)`;
     if (!targets) return null;
     await this.authorizePermissions(
       (targets.requirements as WorkspaceRequirement[]).map((r) => ({ ...r, access: "read" })),
@@ -196,14 +195,11 @@ export class SqlDataModelStore implements DataModelStore {
     if (after) {
       if (!z.string().uuid().safeParse(after).success) throw invalidInput("유효하지 않은 cursor입니다");
       const [anchor] = await this
-        .tx`select id from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${after}::uuid`;
+        .tx`select id from app.workspace_model_plan_headers(${after}::uuid)`;
       if (!anchor) throw invalidInput("cursor의 기준 이력이 없습니다. 목록을 다시 조회하세요");
     }
     const candidates = await this
-      .tx`select id,coalesce(plan->'protected_permissions',(select jsonb_agg(jsonb_build_object('target_kind','entity_type','target_id',k.value,'access','read')) from jsonb_array_elements_text(plan->'protected_kind_ids') k(value)),'[]'::jsonb) as requirements from app.data_model_changes
-      where workspace_id=${this.workspaceId}::uuid and (${after}::uuid is null or id>${after}::uuid) order by id limit ${
-      limit + 1
-    }`;
+      .tx`select id,requirements from app.workspace_model_plan_headers(null,${after}::uuid,${limit + 1}::integer)`;
     await this.authorizePermissions(
       candidates.flatMap((r) =>
         (r.requirements as WorkspaceRequirement[]).map((p) => ({ ...p, access: "read" as const }))

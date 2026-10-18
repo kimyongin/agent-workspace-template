@@ -200,6 +200,7 @@ dbTest(
           set plan=jsonb_set(plan,'{protected_permissions}','[]'::jsonb)
           where workspace_id=${owned[0]}::uuid and id=${dataPlan.id}::uuid`));
         assertEquals((stripRequirements as { code?: string }).code, "23514");
+        assertEquals((stripRequirements as Error).message, "model_plan_permissions_immutable");
       });
       await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
         expected_version: 3,
