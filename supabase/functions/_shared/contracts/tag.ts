@@ -9,7 +9,11 @@ export const tagCreate = z.strictObject({
   name: text(1, 30),
 });
 export const tagRename = z.strictObject({ name: text(1, 30), expected_version: expectedVersion });
-export const tagListQuery = z.strictObject({ scope: tagScope.default("record"), ...pageInput });
+export const tagListQuery = z.strictObject({
+  scope: tagScope.default("record"),
+  purpose: z.literal("record-template").optional(),
+  ...pageInput,
+});
 export const tagResult = z.object({
   scope: tagScope,
   id,

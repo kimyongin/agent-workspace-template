@@ -10,6 +10,8 @@ import { dataModelPrepare } from "../../functions/_shared/contracts/data-model.t
 import { requestIdentity } from "../../functions/_shared/core/shared/request.ts";
 import { replayRetainedSqlRequest } from "../../functions/_shared/adapters/supabase/request-ledger.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
+import { listTags } from "../../functions/_shared/core/tags/application.ts";
+import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import * as issuers from "../../functions/_shared/core/entity-issuers/application.ts";
 import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
@@ -305,6 +307,12 @@ dbTest(
           [tagId],
         );
       });
+      const pickerTags = await listTags({ uow: new SqlTagUnitOfWork(sql) }, reader, {
+        scope: "record",
+        purpose: "record-template",
+        limit: 100,
+      });
+      assertEquals(pickerTags.items.map((tag) => ({ id: tag.id, name: tag.name })), [{ id: tagId, name: "변환 기록" }]);
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
