@@ -277,13 +277,16 @@ export function SchemaMigrationJob(
   useLayoutEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
   const [pendingAction, setPendingAction] = useState<"cancel" | "retry">();
   useEffect(() => {
-    // Navigate only after the exact write has settled and its busy protection has committed.
     if (!accepted || busy || uncertain) return;
-    setAccepted(null);
-    void navigate(materialSettingsPath(type_id, location.search, {
-      job_id: accepted.job_id,
-      change_id: accepted.change_id,
-    }));
+    // onState propagates busy through ancestor state; its guards commit after this effect flush.
+    const frame = requestAnimationFrame(() => {
+      setAccepted(null);
+      void navigate(materialSettingsPath(type_id, location.search, {
+        job_id: accepted.job_id,
+        change_id: accepted.change_id,
+      }));
+    });
+    return () => cancelAnimationFrame(frame);
   }, [accepted, busy, uncertain, navigate, type_id, location.search]);
   useEffect(() => {
     setJob(undefined);

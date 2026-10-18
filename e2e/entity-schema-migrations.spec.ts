@@ -325,7 +325,9 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     await assertFailedHistory();
     const retryKey = resumedResponse.request().headers()["idempotency-key"];
     expect(retryKey).toBeTruthy();
-    await expect(page).toHaveURL(new RegExp(`job_id=${resumed.job_id}(?:&|$)`));
+    const acceptedJobUrl = new URL(workspacePath(workspace.id,
+      `/settings/entity-types/${typeId}?job_id=${resumed.job_id}&change_id=${plan.id}`), page.url()).href;
+    await expect(page).toHaveURL(acceptedJobUrl);
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     expect((await mcp.call("get_entity", { id: entityId })).version).toBe(entity.version);
     await expect.poll(async () => {
@@ -346,7 +348,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     ).toEqual(resumed);
     await assertFailedHistory();
     await page.reload();
-    await expect(page).toHaveURL(new RegExp(`job_id=${resumed.job_id}(?:&|$)`));
+    await expect(page).toHaveURL(acceptedJobUrl);
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
   } finally {
     await worker.end();
