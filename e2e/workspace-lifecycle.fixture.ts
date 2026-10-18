@@ -19,6 +19,12 @@ for (
       path: "/tasks",
     },
     {
+      name: "settings reader",
+      can_manage: false,
+      grants: [{ target_kind: "settings", target_id: "*", access: "read" }],
+      path: "/settings/data-model",
+    },
+    {
       name: "permitted material",
       can_manage: false,
       grants: [{ target_kind: "entity_type", target_id: "00000000-0000-4000-8000-000000000999", access: "read" }],
