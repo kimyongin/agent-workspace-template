@@ -1,3 +1,4 @@
+import { requireWorkspaceActor } from "./workspace-context.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import { AppError } from "../../core/shared/errors.ts";
@@ -24,8 +25,8 @@ export async function setTagLinks(tx: Tx, actor: Actor, kind: Kind, itemId: stri
   }
   await tx`delete from ${tx(`app.${kind}_tags`)} where ${tx(`${kind}_id`)}=${itemId}`;
   for (const id of [...ids].sort()) {
-    await tx`insert into ${tx(`app.${kind}_tags`)}(owner_id,${
-      tx(`${kind}_id`)
-    },tag_id) values (${actor.userId},${itemId},${id})`;
+    await tx`insert into ${tx(`app.${kind}_tags`)}(workspace_id,${tx(`${kind}_id`)},tag_id) values (${
+      requireWorkspaceActor(actor).workspaceId
+    },${itemId},${id})`;
   }
 }

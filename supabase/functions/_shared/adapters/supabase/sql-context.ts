@@ -63,8 +63,12 @@ export class SqlActorStore {
         : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${encodeURIComponent(target.id)}`,
     };
     const values = {
-      owner_id: this.actor.userId,
-      ...await this.entityLinks.changeSelection(input),
+      ...(this.actor.workspaceId
+        ? {
+          workspace_id: this.actor.workspaceId,
+          ...(input.target_kind === "entity" ? { entity_id: target.id } : { task_id: target.id }),
+        }
+        : { owner_id: this.actor.userId, ...await this.entityLinks.changeSelection(input) }),
       body,
       record_kind: "change",
     };
