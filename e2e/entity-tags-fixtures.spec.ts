@@ -611,6 +611,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   };
   let current = { ...makeEntity(301, { prop_1: "독립 태그 자료" }), tag_ids: [] as string[] };
   const creations: Record<string, unknown>[] = [], connections: Record<string, unknown>[] = [];
+  const history = [{ id: "tag-fixture-create", body: "최초 등록 기록", updated_at: current.updated_at, record_kind: "change", occurred_at: current.created_at }];
   await page.route("**/api/entity-types**", route => route.fulfill({
     json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema
       : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity()
@@ -624,12 +625,13 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
       creations.push(route.request().postDataJSON());
       return route.fulfill({ status: 201, json: current });
     }
-    return route.fulfill({ json: path.endsWith(current.id) ? { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } : { items: [], next_cursor: null } });
+    return route.fulfill({ json: path.endsWith(current.id) ? { ...current, tasks: { count: 0, items: [] }, records: { count: history.length, items: history } } : { items: [], next_cursor: null } });
   });
   await page.route("**/api/tag-connections", route => {
     const input = route.request().postDataJSON();
     expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
     connections.push(input);
+    history.push({ id: "tag-fixture-connect", body: "태그 연결 변경 기록", updated_at: current.updated_at, record_kind: "change", occurred_at: current.updated_at });
     current = { ...current, tag_ids: input.tag_ids, version: current.version + 1 };
     return route.fulfill({ json: { tag_ids: current.tag_ids, version: current.version, updated_at: current.updated_at } });
   });
@@ -647,6 +649,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   expect(creations[0]).not.toHaveProperty("tag_ids");
   const region = page.getByRole("region", { name: "태그 연결" });
   await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+  await expect(page.getByText("기록 (1개)", { exact: true })).toBeVisible();
   await capture("saved-entity-before-tag-connection");
   await region.getByRole("button", { name: "태그 연결", exact: true }).click();
   await region.getByRole("button", { name: "태그 선택", exact: true }).click();
@@ -655,6 +658,12 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   await region.getByRole("button", { name: "연결 적용", exact: true }).click();
   await executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true }).click();
   await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
+  // Independent tag writes append a parent change record on the server; the
+  // detail must refresh that history without another mutation or a page reload.
+  await expect(page.getByText("기록 (2개)", { exact: true })).toBeVisible();
+  await expect(page.getByText("태그 연결 변경 기록", { exact: true })).toBeVisible();
+  await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toBeFocused();
+  await expect(page).toHaveURL(new RegExp(`/w/${fixtureWorkspaceId}/entities/`));
   await capture("saved-entity-after-tag-connection");
   expect(connections).toHaveLength(1);
   expect(connections[0]).toMatchObject({ target_kind: "entity", target_id: current.id, expected_version: 1, tag_ids: [tags[0].id] });

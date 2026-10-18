@@ -226,7 +226,11 @@ export function EntityDetailPage() {
               scope="entity"
               target={entity}
               readonly={!canWrite || !!entity.deleted_at}
-              onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
+              onSaved={(saved) => {
+                relationSaved.current = true;
+                detail.confirm((current) => current ? { ...current, ...saved } : current);
+                void reload();
+              }}
             />
           </section>
           <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
