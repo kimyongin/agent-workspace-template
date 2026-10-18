@@ -15,6 +15,15 @@ async function closeNavigation(page: Page) {
   }
 }
 
+/** Personal settings have no active workspace; their exit is the workspace picker. */
+async function requestWorkspacePicker(page: Page) {
+  const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  await expect(navigation.getByRole("link", { name: /^(전체 자료|할 일|기록)$/, exact: true })).toHaveCount(0);
+  const destination = navigation.getByRole("link", { name: "Workspace", exact: true });
+  await expect(destination).toHaveAttribute("href", "/workspaces");
+  await destination.click();
+}
+
 function token(id: string) {
   const encode = (data: object) => Buffer.from(JSON.stringify(data)).toString("base64url");
   return `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ exp: Math.floor(Date.now() / 1000) + 3600, sub: id })}.fixture`;
@@ -118,7 +127,7 @@ test("다른 탭의 같은 계정 프로필 갱신은 미저장 선택·이동 �
   await expect(second.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   await expect(page.getByRole("button", { name:"프로필 저장", exact: true })).toBeEnabled();
-  await page.getByRole("link", { name: "전체 자료", exact: true }).click();
+  await requestWorkspacePicker(page);
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   await page.getByRole("form",{name:"프로필 설정"}).getByRole("button",{name:"변경 취소", exact: true }).click();
@@ -268,7 +277,7 @@ test("계정 저장: 실패 초안·폐기 보호·기존 metadata·다른 탭·
   const setting = page.getByRole("form", {name:"날짜와 시각 설정"});
   await setting.getByLabel("표시 시간대").selectOption("America/New_York");
   await openMainNavigation(page);
-  await page.getByRole("link", {name:"기록",exact:true}).click();
+  await requestWorkspacePicker(page);
   await page.getByRole("alertdialog", {name:"변경을 버릴까요?"}).getByRole("button",{name:"취소",exact:true}).click();
   await closeNavigation(page);
   await expect(setting.getByLabel("표시 시간대")).toHaveValue("America/New_York");
