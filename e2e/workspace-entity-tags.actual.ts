@@ -295,12 +295,21 @@ test(
       await executionDialog(bPage).getByRole("button", { name: "연결하고 저장", exact: true }).click();
       expect((await unlink).status()).toBe(200);
       await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+      await region.getByRole("button", { name: "태그 연결", exact: true }).click();
       expect(
         (await request(a.token, "PATCH", `/workspaces/${w}/members/${b.id}`, {
           expected_version: 2,
           grants: [{ target_kind: "entity_type", target_id: kind.id, access: "read" }],
         })).status,
       ).toBe(200);
+      const refreshedAuthority = bPage.waitForResponse((response) =>
+        response.url() === `${env.api}/workspaces/${w}` && response.request().method() === "GET"
+      );
+      await bPage.evaluate(() => window.dispatchEvent(new Event("focus")));
+      expect((await refreshedAuthority).status()).toBe(200);
+      await expect(region.getByRole("button", { name: "태그 선택", exact: true })).toBeDisabled();
+      await expect(region.getByRole("button", { name: "연결 적용", exact: true })).toBeDisabled();
+      await region.getByRole("button", { name: "연결 취소", exact: true }).click();
       await bPage.reload();
       await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
       await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toHaveCount(0);
