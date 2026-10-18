@@ -1,3 +1,4 @@
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import * as entities from "../../functions/_shared/core/entity/application.ts";
 import * as tags from "../../functions/_shared/core/tags/application.ts";
@@ -169,3 +170,96 @@ dbTest("workspace tag deletion authorizes every hidden affected kind before any 
     await f.cleanup();
   }
 });
+
+dbTest(
+  "workspace dictionary deletion updates task and record tags without copying protected entity context",
+  async () => {
+    const f = await businessWorkspaceFixture(admin, sql);
+    try {
+      const hidden = await f.createKind("업무에서 숨길 자료");
+      await f.grant(f.manager, [{ target_kind: "settings", target_id: "*", access: "write" }, {
+        target_kind: "tasks",
+        target_id: "*",
+        access: "write",
+      }, { target_kind: "entity_type", target_id: hidden.id, access: "write" }]);
+      await f.grant(f.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+      const entity = await entities.createEntity(
+        entityDeps,
+        businessRequest(f.manager),
+        entityCreate.parse({
+          entity_type_id: hidden.id,
+          schema_version: 1,
+          properties: { prop_1: "자동 기록에 복사하면 안 되는 비밀" },
+        }),
+      );
+      const taskTag = await tags.createTag(tagDeps, businessRequest(f.manager), { scope: "task", name: "할 일 분류" });
+      const recordTag = await tags.createTag(tagDeps, businessRequest(f.manager), {
+        scope: "record",
+        name: "기록 분류",
+      });
+      const context = [{
+        id: entity.id,
+        title: entity.title,
+        captured_at: new Date().toISOString(),
+        source: "selection",
+      }];
+      // These minimal #513 storage fixtures do not claim task/result CRUD. The
+      // public operation under test is dictionary deletion across saved parents.
+      const saved = await runInWorkspace(sql, f.manager, {
+        mode: "business",
+        requirements: [{ target_kind: "tasks", target_id: "*", access: "write" }, {
+          target_kind: "entity_type",
+          target_id: hidden.id,
+          access: "read",
+        }],
+      }, async (tx) => {
+        const [task] =
+          await tx`insert into app.tasks(workspace_id,kind,title,body,status,entity_ids,entity_context) values(${f.workspaceId},'once','분류할 업무','공유 업무 본문','open',array[${entity.id}]::text[],${
+            tx.json(context)
+          }) returning id`;
+        const [record] =
+          await tx`insert into app.records(workspace_id,task_id,body,record_kind) values(${f.workspaceId},${task.id},'보존할 수행 결과','result') returning id`;
+        await tx`insert into app.task_tags(workspace_id,task_id,tag_id) values(${f.workspaceId},${task.id},${taskTag.id})`;
+        await tx`insert into app.record_tags(workspace_id,record_id,tag_id) values(${f.workspaceId},${record.id},${recordTag.id})`;
+        return { taskId: String(task.id), recordId: String(record.id) };
+      });
+      assertEquals(await tags.deleteTag(tagDeps, businessRequest(f.member), taskTag.id, 1), { deleted: true });
+      const [task] =
+        await admin`select title,body,entity_ids,entity_context,version from app.tasks where workspace_id=${f.workspaceId} and id=${saved.taskId}`;
+      assertEquals([task.title, task.body, task.entity_ids, task.entity_context, task.version], [
+        "분류할 업무",
+        "공유 업무 본문",
+        [entity.id],
+        context,
+        2,
+      ]);
+      const changes =
+        await admin`select body,task_id,entity_id,change_metadata from app.records where workspace_id=${f.workspaceId} and task_id=${saved.taskId} and record_kind='change'`;
+      assertEquals(changes.length, 1);
+      assertEquals([changes[0].task_id, changes[0].entity_id], [saved.taskId, null]);
+      assertEquals(JSON.stringify(changes[0]).includes(entity.title), false);
+      assertEquals(await tags.deleteTag(tagDeps, businessRequest(f.member), recordTag.id, 1), { deleted: true });
+      const [record] =
+        await admin`select body,task_id,entity_id,version from app.records where workspace_id=${f.workspaceId} and id=${saved.recordId}`;
+      assertEquals([record.body, record.task_id, record.entity_id, record.version], [
+        "보존할 수행 결과",
+        saved.taskId,
+        null,
+        2,
+      ]);
+      assertEquals(
+        Number(
+          (await admin`select count(*) n from app.records where workspace_id=${f.workspaceId} and task_id=${saved.taskId} and record_kind='change'`)[
+            0
+          ].n,
+        ),
+        1,
+      );
+      const [state] =
+        await admin`select source_version from app.search_index_state where workspace_id=${f.workspaceId} and id=${saved.recordId}`;
+      assertEquals(Number(state.source_version), 2);
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
