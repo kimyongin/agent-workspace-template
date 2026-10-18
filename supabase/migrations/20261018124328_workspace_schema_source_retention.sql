@@ -27,7 +27,11 @@ begin
   select j.workspace_id from app.entity_schema_migrations j where j.workspace_id is not null
    and j.status in ('succeeded','failed','cancelled') and j.source_expires_at<=clock_timestamp() and j.source_definition<>'{}'::jsonb
   union select a.workspace_id from app.entity_schema_analyses a where a.workspace_id is not null
-   and a.created_at<=clock_timestamp()-interval '30 days' and exists(select 1 from private.entity_schema_analysis_rows r where r.workspace_id=a.workspace_id and r.analysis_id=a.id)
+   and exists(select 1 from private.entity_schema_analysis_rows r where r.workspace_id=a.workspace_id and r.analysis_id=a.id)
+   and (a.created_at<=clock_timestamp()-interval '30 days' or exists(select 1 from app.entity_schema_migrations j
+    where j.workspace_id=a.workspace_id and j.analysis_id=a.id and j.status in ('succeeded','failed','cancelled') and j.source_expires_at<=clock_timestamp()))
+   and not exists(select 1 from app.entity_schema_migrations j where j.workspace_id=a.workspace_id and j.analysis_id=a.id
+    and (j.status in ('queued','preparing','ready_to_commit','committing') or j.source_expires_at>clock_timestamp()))
  ) candidate order by candidate.workspace_id limit 1;
  if w is null then return;end if;
  perform 1 from app.workspaces where id=w for share skip locked;if not found then return;end if;
