@@ -6,6 +6,10 @@ import {
   prepareDataModel,
   previewDataModel,
 } from "../../functions/_shared/core/data-model/application.ts";
+import { dataModelPrepare } from "../../functions/_shared/contracts/data-model.ts";
+import { requestIdentity } from "../../functions/_shared/core/shared/request.ts";
+import { replayRetainedSqlRequest } from "../../functions/_shared/adapters/supabase/request-ledger.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import * as issuers from "../../functions/_shared/core/entity-issuers/application.ts";
 import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
@@ -166,6 +170,46 @@ dbTest(
           document: JSON.stringify(restrictedValues),
         }), AppError);
       assertEquals(protectedPreview.code, "forbidden");
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
+        expected_version: 2,
+        grants: [
+          { target_kind: "settings", target_id: "*", access: "write" },
+          { target_kind: "entity_type", target_id: left.id, access: "write" },
+        ],
+      });
+      const dataInput = { mode: "update", document: JSON.stringify(restrictedValues) };
+      const dataPreview = await previewDataModel(modelDeps, reader, dataInput);
+      const dataRequest = key(reader);
+      const dataPrepare = dataModelPrepare.parse({ ...dataInput, preview_fingerprint: dataPreview.fingerprint });
+      const dataPlan = await prepareDataModel(modelDeps, dataRequest, dataPrepare);
+      assertEquals(await prepareDataModel(modelDeps, dataRequest, dataPrepare), dataPlan);
+      const identity = await requestIdentity(dataRequest, "data-model.prepare", null, dataPrepare);
+      const [savedReceipt] = await admin`select footprint from private.workspace_request_results
+        where workspace_id=${owned[0]}::uuid and executor_id=${b.userId}::uuid and request_key=${identity.key}::uuid`;
+      assertEquals(savedReceipt.footprint, [
+        { target_kind: "settings", target_id: "*", access: "write" },
+        { target_kind: "entity_type", target_id: left.id, access: "write" },
+      ]);
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
+        expected_version: 3,
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      });
+      assertEquals(
+        (await assertRejects(() => prepareDataModel(modelDeps, dataRequest, dataPrepare), AppError)).code,
+        "forbidden",
+      );
+      assertEquals(
+        (await assertRejects(() =>
+          runInWorkspace(sql, dataRequest as Actor & { workspaceId: string }, {
+            mode: "business",
+            requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+          }, (tx) => replayRetainedSqlRequest(tx, dataRequest, identity)), AppError)).code,
+        "forbidden",
+      );
+      assertEquals(
+        (await assertRejects(() => getDataModelChange(modelDeps, reader, dataPlan.id), AppError)).code,
+        "forbidden",
+      );
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
