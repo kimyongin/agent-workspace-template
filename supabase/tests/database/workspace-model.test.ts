@@ -253,6 +253,23 @@ dbTest(
         }::uuid and id=${recordId}`;
         assertEquals(record, { entity_id: entityId, task_id: null, body: "공유 자료 값의 변경 기록" });
       });
+      const parentMutation = await assertRejects(() =>
+        admin`update app.records set entity_id=null where workspace_id=${owned[0]}::uuid and id=${recordId}`
+      );
+      assertEquals((parentMutation as { code?: string }).code, "23514");
+      assertEquals(parentMutation.message, "record_parent_immutable");
+      const missingParent = await assertRejects(() =>
+        admin.begin(async (tx) => {
+          await tx`select set_config('request.workspace_id',${owned[0]},true)`;
+          await tx`insert into app.records(workspace_id,body) values(${owned[0]}::uuid,'소속 누락은 거절')`;
+        })
+      );
+      assertEquals((missingParent as { code?: string }).code, "23514");
+      assertEquals((missingParent as { constraint_name?: string }).constraint_name, "record_workspace_exact_parent");
+      const [parentAfter] = await admin`select entity_id,task_id from app.records where workspace_id=${
+        owned[0]
+      }::uuid and id=${recordId}`;
+      assertEquals(parentAfter, { entity_id: entityId, task_id: null });
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
