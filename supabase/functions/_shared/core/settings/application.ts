@@ -267,7 +267,7 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
       parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
     );
   }
-  return runWrite(
+  return runWrite<BusinessSettingsStore, BusinessSettingsResult>(
     {
       run: (actor, fn) =>
         d.uow.run(actor, fn, {
