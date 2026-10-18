@@ -560,6 +560,49 @@ dbTest(
 );
 
 dbTest(
+  "current shared manager cancels a committing model stranded by initiating account deletion and releases kind locks",
+  async () => {
+    const f = await queuedGroup();
+    try {
+      const batch = await prepareUntilCommit(f.id), survivor = f.fixture.member;
+      await f.fixture.grant(survivor, [{ target_kind: "settings", target_id: "*", access: "write" }]);
+      for (const type of f.target.entity_types) await f.fixture.grantKind(survivor, type.schema["x-type-id"], "write");
+      assertEquals((await getDataModelChange(deps, survivor, f.id)).status, "committing");
+      await admin`delete from auth.users where id=${f.fixture.manager.userId}`;
+      assertEquals(
+        (await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`)[
+          0
+        ].committed,
+        false,
+      );
+      // Expired worker leases and maintenance cannot lend the deleted actor authority.
+      await admin`update app.data_model_changes set lease_until=now()-interval '1 second' where workspace_id=${f.fixture.workspaceId} and id=${f.id}`;
+      await admin`update app.entity_schema_migrations set lease_until=now()-interval '1 second' where workspace_id=${f.fixture.workspaceId} and model_change_id=${f.id}`;
+      assertEquals((await worker`select app.claim_data_model_conversion() as batch`)[0].batch, null);
+      await worker`select app.prune_data_model_sources()`;
+      await worker`select app.prune_entity_schema_sources()`;
+      const stranded = await getDataModelChange(deps, survivor, f.id);
+      assertEquals(stranded.status, "committing");
+      assertEquals(await exportDataModel(deps, survivor), f.before);
+      const cancelled = await changeDataModelGroup(deps, requestActor(survivor), f.id, {
+        expected_version: stranded.version,
+      }, "cancel");
+      assertEquals(cancelled.status, "cancelled");
+      assertEquals(
+        (await admin`select schema_write_locked from app.entity_types where workspace_id=${f.fixture.workspaceId} and id=any(${f.ids}::uuid[])`)
+          .map((row) => row.schema_write_locked),
+        [false, false],
+      );
+      for (const entity of f.entities) {
+        assertEquals((await getEntity(f.entityDeps, survivor, entity.id)).properties, entity.properties);
+      }
+    } finally {
+      await f.fixture.cleanup();
+    }
+  },
+);
+
+dbTest(
   "expired group analysis material returns its parent to review without expiring another workspace's analysis",
   async () => {
     const expired = await queuedGroup(true), fresh = await queuedGroup(true);
