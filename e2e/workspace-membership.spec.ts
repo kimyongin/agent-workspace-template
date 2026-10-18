@@ -363,8 +363,8 @@ test(
         created.push(body.workspace.id);
         await routeReady(
           page,
-          new RegExp(`/w/${body.workspace.id}/tasks$`),
-          "할 일",
+          new RegExp(`/w/${body.workspace.id}/manage$`),
+          "공간 관리",
         );
         const sidebar = await openNavigation(page);
         await expect(
@@ -385,7 +385,7 @@ test(
         ).toBeVisible();
       }
       await selectWorkspace(page, names[0]);
-      await routeReady(page, new RegExp(`/w/${created[0]}/tasks$`), "할 일");
+      await routeReady(page, new RegExp(`/w/${created[0]}/manage$`), "공간 관리");
       const sidebar = await openNavigation(page);
       await sidebar.getByRole("button", { name: "공간 선택", exact: true })
         .click();
