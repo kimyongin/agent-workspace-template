@@ -10,10 +10,10 @@ async function setup(page: Page, initial: "none" | "read" | "write") {
     access_token: "isolated-settings-fixture", refresh_token: "fixture-refresh", token_type: "bearer",
     expires_at: Math.floor(Date.now() / 1000) + 3600 })), user);
   await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
-  await installWorkspaceApi(page, "http://127.0.0.1:55623", { entities: [], tasks: [], records: [], tags: [] }, {
+  await installWorkspaceApi(page, "http://127.0.0.1:55633", { entities: [], tasks: [], records: [], tags: [] }, {
     workspaces: { [space]: { name: "공유 업무 공간", rows: { entities: [], tasks: [], records: [], tags: [] } } },
   });
-  await page.route("http://127.0.0.1:55623/api/**", async route => {
+  await page.route("http://127.0.0.1:55633/api/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname.replace(/^\/api/, "");
     if (request.method() !== "GET") { writes.push(path); return route.fulfill({ status: 403, json: { code: "forbidden", message: "읽기 전용" } }); }
     reads.push(path);
@@ -71,5 +71,19 @@ test("permission refresh preserves the current draft and disables writes when se
   await expect(label).toHaveValue("보존할 초안");
   await expect(label).toBeDisabled();
   await expect(page.getByRole("button", { name: "기본 정보 저장", exact: true })).toBeDisabled();
+  expect(fixture.writes).toEqual([]);
+});
+
+test("read-only record templates allow browsing saved actions without an editable memo surface", async ({ page }, testInfo) => {
+  const fixture = await setup(page, "read");
+  await page.goto(`/w/${space}/settings/records`);
+  const memo = page.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await expect(memo).toHaveAttribute("contenteditable", "false");
+  await expect(memo).toHaveAttribute("aria-readonly", "true");
+  await expect(page.getByRole("combobox", { name: "액션", exact: true })).toBeEnabled();
+  await page.getByRole("combobox", { name: "액션", exact: true }).click();
+  await page.getByRole("option", { name: "수정", exact: true }).click();
+  await expect(memo).toHaveAttribute("contenteditable", "false");
+  await page.screenshot({ path: testInfo.outputPath("settings-readonly-template.png"), fullPage: true });
   expect(fixture.writes).toEqual([]);
 });
