@@ -74,3 +74,11 @@ test("invalid approval is rejected before opening a database transaction", async
   const connection = { begin() { assert.fail("invalid approval must not open a transaction"); } };
   await assert.rejects(runWorkspaceCleanup(connection, manifest, { workspace_id: workspace, digest: "wrong", effect_ids: [] }), /approval/);
 });
+
+test("the actual connection must match the manifest store before inventory or mutation", async () => {
+  const connection = {
+    options: { host: ["127.0.0.1"], port: [61923], database: "postgres" },
+    begin() { assert.fail("another store must not be inspected"); },
+  };
+  await assert.rejects(runWorkspaceCleanup(connection, manifest), /connection.*match/);
+});

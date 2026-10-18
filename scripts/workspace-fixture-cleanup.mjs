@@ -88,7 +88,7 @@ async function inventoryFor(sql, workspace) {
   return inventory;
 }
 
-/** Caller must already have validated its local connection against manifest.environment. */
+/** Inventory and apply both verify the connection's parsed store identity. */
 export async function runWorkspaceCleanup(sql, manifest, approvedReport) {
   validateWorkspaceCleanupManifest(manifest);
   if (approvedReport && (approvedReport.workspace_id !== manifest.workspace.id
@@ -96,6 +96,12 @@ export async function runWorkspaceCleanup(sql, manifest, approvedReport) {
     || !Array.isArray(approvedReport.effect_ids)
     || approvedReport.effect_ids.some((id) => typeof id !== "string" || !id))) {
     throw new Error("explicit matching cleanup approval required");
+  }
+  const { host, port, database } = sql.options ?? {};
+  if (!Array.isArray(host) || host.length !== 1 || host[0] !== manifest.environment.host
+    || !Array.isArray(port) || port.length !== 1 || port[0] !== manifest.environment.port
+    || database !== manifest.environment.database) {
+    throw new Error("cleanup connection does not match explicit manifest store");
   }
   return await sql.begin(async (tx) => {
     if (!approvedReport) await tx`set transaction isolation level repeatable read, read only`;
