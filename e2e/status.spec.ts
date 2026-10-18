@@ -1,8 +1,9 @@
 import { expect } from "@playwright/test";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, workspacePath } from "./support.ts";
 
 test("검색 대기 안내는 상태 점검과 관리자 문의로 연결하고 대기가 해제되면 숨긴다", async ({ page }) => {
   await devLogin(page);
+  const workspace = await ownedWorkspace(page);
   let pending = 23;
   await page.route(
     `${env.VITE_API_URL}/search`,
@@ -17,22 +18,23 @@ test("검색 대기 안내는 상태 점검과 관리자 문의로 연결하고 
         },
       }),
   );
-  await page.goto("/search?q=대기점검");
+  await page.goto(workspacePath(workspace.id, "/search?q=대기점검"));
   const link = page.getByRole("link", { name: "상태에서 오래 갱신되지 않은 대기 확인" });
   await expect(link).toBeVisible();
-  await expect(page.getByText("대기 중인 기록은 의미 검색 결과에 빠질 수 있습니다.", { exact: false })).toContainText(
+  await expect(page.getByText("대기 중인 자료와 기록은 의미 검색 결과에 빠질 수 있습니다.", { exact: false })).toContainText(
     "관리자에게 색인 서비스 점검",
   );
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await link.click();
   await expect(page.getByRole("heading", { name: "상태", exact: true })).toBeVisible();
   pending = 0;
-  await page.goto("/search?q=대기해제");
+  await page.goto(workspacePath(workspace.id, "/search?q=대기해제"));
   await expect(link).toHaveCount(0);
 });
 
 test("색인 대기: 문제 목록이 비어도 오래 갱신되지 않은 준비 상태와 점검 안내를 표시하고 새로고침으로 해제한다", async ({ page }) => {
   await devLogin(page);
+  const workspace = await ownedWorkspace(page);
   let prolonged = true;
   await page.route(`${env.VITE_API_URL}/status`, async (route) => {
     const response = await route.fetch(), data = await response.json();
@@ -43,7 +45,7 @@ test("색인 대기: 문제 목록이 비어도 오래 갱신되지 않은 준�
     };
     await route.fulfill({ response, json: data });
   });
-  await page.goto("/status");
+  await page.goto(workspacePath(workspace.id, "/status"));
   const waiting = page.getByRole("status").filter({ hasText: "준비 상태 갱신" });
   await expect(
     waiting.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^갱신 지연 기준$/ }) }).locator(
@@ -64,20 +66,21 @@ test("색인 대기: 문제 목록이 비어도 오래 갱신되지 않은 준�
 
 test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트 키보드 선택과 정확한 값·색인 문제 탐색", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   let issuesRequests = 0;
   page.on("request", (r) => {
     if (r.url().includes("/status/indexing/issues")) issuesRequests++;
   });
   try {
-    await page.goto("/status");
+    await page.goto(workspacePath(workspace.id, "/status"));
     await expect(page.getByRole("heading", { name: "상태", level: 1 })).toBeVisible();
     await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();
     expect(issuesRequests).toBe(0);
     const toggle = page.getByRole("button", { name: /^색인 문제/ });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     const response = await mcp.call("get_status", {});
-    await expect(page.getByRole("region", { name: "색인 현황", exact: true })).toContainText(
+    await expect(page.getByRole("region", { name: "기록 색인 현황", exact: true })).toContainText(
       `전체 기록 ${response.indexing.total.toLocaleString("ko-KR")}개`,
     );
     await expect(page.getByText("집계 기준과 날짜별 값", { exact: true })).toHaveCount(0);
@@ -90,7 +93,7 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트
     expect(refreshSize.height).toBeGreaterThanOrEqual(44);
     await expect(page.getByRole("slider")).toHaveCount(0);
     const charts = page.getByRole("group", { name: /그래프: 막대를 누르거나 방향키로 날짜 선택/ });
-    await expect(charts).toHaveCount(4);
+    await expect(charts).toHaveCount(5);
     const metrics = [
       (day: typeof response.daily[number]) => ({ 등록: `${day.entities_created}건` }),
       (day: typeof response.daily[number]) => ({
@@ -105,7 +108,11 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트
         "대상 제외": `${day.indexing.excluded}건`,
       }),
     ];
-    const titles = ["일별 등록", "일별 생성·완료", "일별 작성", "작성일별 현재 색인 상태"];
+    metrics.push((day) => ({
+      완료: `${day.entity_indexing.indexed}건`, "준비 중": `${day.entity_indexing.preparing}건`,
+      "확인 필요": `${day.entity_indexing.attention}건`, "대상 제외": `${day.entity_indexing.excluded}건`,
+    }));
+    const titles = ["일별 등록", "일별 생성·완료", "일별 작성", "작성일별 현재 색인 상태", "등록일별 현재 자료 색인 상태"];
     for (let i = 0; i < metrics.length; i++) {
       const chart = charts.nth(i);
       const region = page.getByRole("region", { name: titles[i], exact: true });
@@ -137,7 +144,7 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트
     await expect(page.getByRole("navigation", { name: "색인 문제 페이지", exact: true })).toBeVisible();
     const mcpIssues = await mcp.call("list_indexing_issues", {});
     expect(mcpIssues.items.length).toBeLessThanOrEqual(5);
-    expect(await page.getByRole("region", { name: "색인 문제 목록", exact: true }).getByRole("heading").count())
+    expect(await page.getByRole("table", { name: "색인 문제 항목", exact: true }).getByRole("heading").count())
       .toBeLessThanOrEqual(5);
     await page.getByRole("button", { name: "새로고침", exact: true }).click();
     await expect(page.getByRole("button", { name: /^색인 문제/ })).toHaveAttribute("aria-expanded", "false");
@@ -155,8 +162,11 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트
 
 test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이전·오류 재시도·긴 제목", async ({ page }) => {
   await devLogin(page);
+  const workspace = await ownedWorkspace(page);
   let calls = 0, fail = true;
   const item = (n: number) => ({
+    kind: "record",
+    path: `/records/20261011-ABCDEF${n}${n}`,
     id: `20261011-ABCDEF${n}${n}`,
     created_at: "2026-10-11T00:00:00.000Z",
     title: `문제${n} ` + "긴제목".repeat(24),
@@ -180,7 +190,7 @@ test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이
       },
     });
   });
-  await page.goto("/status");
+  await page.goto(workspacePath(workspace.id, "/status"));
   await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();
   expect(calls).toBe(0);
   const toggle = page.getByRole("button", { name: /^색인 문제/ });
@@ -217,12 +227,15 @@ test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이
 
 test("색인 문제: 접기와 새로고침은 오래된 요청을 취소하고 늦은 결과를 표시하지 않는다", async ({ page }) => {
   await devLogin(page);
+  const workspace = await ownedWorkspace(page);
   let calls = 0;
   let release!: () => void;
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
   const item = {
+    kind: "record",
+    path: "/records/20261011-ABCDEF00",
     id: "20261011-ABCDEF00",
     created_at: "2026-10-11T00:00:00.000Z",
     title: "새 조회의 문제",
@@ -239,7 +252,7 @@ test("색인 문제: 접기와 새로고침은 오래된 요청을 취소하고 
       });
     } catch { /* Aborted requests may no longer accept a response. */ }
   });
-  await page.goto("/status");
+  await page.goto(workspacePath(workspace.id, "/status"));
   await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();
   const toggle = page.getByRole("button", { name: /^색인 문제/ });
   await toggle.click();
