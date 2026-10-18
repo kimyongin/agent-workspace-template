@@ -94,3 +94,15 @@ Deno.test("search cursor belongs to the captured workspace even for the same acc
       cursor: first.next_cursor!,
     }), AppError);
 });
+
+Deno.test("selected entity text uses semantic query embedding and accepts its immutable original anchor", async () => {
+  const state = deps({ embed: () => Promise.resolve(vector) });
+  const query = searchInput.parse({
+    query: "선택 본문",
+    kinds: ["entity"],
+    limit: 1,
+    anchor: { kind: "entity", id: "app:00000000-0000-4000-8000-000000000001:원본 번호" },
+  });
+  assertEquals((await search(state.d, actor, query)).search_state, "ok");
+  assertEquals(state.counts(), { calls: 1 });
+});
