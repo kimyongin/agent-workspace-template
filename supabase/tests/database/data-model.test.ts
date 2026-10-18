@@ -1,5 +1,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { connect, dbTest, urls } from "./_db.ts";
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { requestActor } from "../_request.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import {
@@ -32,39 +34,42 @@ async function install(
 dbTest(
   "whole model roundtrip preserves archived definitions and both relation roles without merging copies",
   async () => {
-    const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
+    const a = await businessWorkspaceFixture(admin, sql), b = await businessWorkspaceFixture(admin, sql);
     try {
       const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
       sample.entity_types[0].schema.deprecated = true;
-      const first = await install(a.actor, sample);
+      const first = await install(a.manager, sample);
       assertEquals(first.applied.status, "applied");
-      const exported = await exportDataModel(deps, a.actor);
+      const exported = await exportDataModel(deps, a.manager);
       assertEquals(exported.entity_types.length, 3);
       assertEquals(exported.relations.length, 2);
       assertEquals(exported.entity_types.filter((t) => t.schema.deprecated).length, 1);
       assertEquals(exported.relations[0].archived, false);
-      const second = await install(a.actor, exported);
+      const second = await install(a.manager, exported);
       assertEquals(
         second.review.mapping.types[exported.entity_types[0].ref] === exported.entity_types[0].schema["x-type-id"],
         false,
       );
-      assertEquals((await exportDataModel(deps, a.actor)).entity_types.length, 6);
-      const now = await exportDataModel(deps, a.actor);
+      assertEquals((await exportDataModel(deps, a.manager)).entity_types.length, 6);
+      const now = await exportDataModel(deps, a.manager);
       const effects = () =>
-        asUser(sql, a.actor.userId, async (tx) => {
+        runInWorkspace(sql, a.manager, {
+          mode: "business",
+          requirements: [{ target_kind: "settings", target_id: "*", access: "read" }],
+        }, async (tx) => {
           const [row] =
             await tx`select (select count(*)::int from app.entity_schema_versions) as versions,(select count(*)::int from app.records) as records,(select count(*)::int from app.entity_schema_migrations) as jobs`;
           return row;
         });
-      const beforeNoop = await effects(), noop = await install(a.actor, now, "update");
+      const beforeNoop = await effects(), noop = await install(a.manager, now, "update");
       assertEquals(await effects(), beforeNoop);
       assertEquals(noop.review.items.every((i) => i.kind === "unchanged"), true);
       assertEquals(noop.applied.result?.changed, false);
       assertEquals(noop.applied.result?.counts?.types, { added: 0, updated: 0, unchanged: 6 });
-      assertEquals(await exportDataModel(deps, a.actor), now);
-      assertEquals((await exportDataModel(deps, b.actor)).entity_types, []);
-      await assertRejects(() => getDataModelChange(deps, b.actor, first.change.id));
-      assertEquals((await getDataModelChange(deps, a.actor, second.change.id)).result?.type_ids.length, 3);
+      assertEquals(await exportDataModel(deps, a.manager), now);
+      assertEquals((await exportDataModel(deps, b.manager)).entity_types, []);
+      await assertRejects(() => getDataModelChange(deps, b.manager, first.change.id));
+      assertEquals((await getDataModelChange(deps, a.manager, second.change.id)).result?.type_ids.length, 3);
     } finally {
       await a.cleanup();
       await b.cleanup();
@@ -72,27 +77,28 @@ dbTest(
   },
 );
 dbTest("whole model aborts a late identity violation without publishing earlier compatible schemas", async () => {
-  const a = await fixtureOwner(admin);
+  const a = await businessWorkspaceFixture(admin, sql);
   try {
     const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/openmarket.json")) as DataModelDocument;
-    await install(a.actor, sample);
-    const before = await exportDataModel(deps, a.actor),
+    await install(a.manager, sample);
+    const before = await exportDataModel(deps, a.manager),
       sku = before.entity_types.find((t) => t.schema.title === "판매 SKU")!;
-    await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.actor), {
+    await a.grantKind(a.manager, sku.schema["x-type-id"], "write");
+    await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.manager), {
       entity_type_id: sku.schema["x-type-id"],
       schema_version: 1,
       source: "seller",
       external_id: "sku-1",
       properties: { prop_1: "등록 SKU" },
     });
-    const original = await exportDataModel(deps, a.actor), changed = structuredClone(original);
+    const original = await exportDataModel(deps, a.manager), changed = structuredClone(original);
     changed.entity_types[0].schema.description = "실패하면 게시되면 안 되는 변경";
     const target = changed.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
     const rejected = structuredClone(changed);
     const rejectedType = rejected.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
     rejectedType.identity.default_source = "app";
     rejectedType.identity.sources = rejectedType.identity.sources.filter((s) => s.code !== "seller");
-    const removal = await previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(rejected) });
+    const removal = await previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(rejected) });
     assertEquals(removal.can_apply, false);
     assertEquals(removal.items.find((i) => i.ref === target.ref)?.kind, "conflict");
     const replacement = structuredClone(changed);
@@ -105,12 +111,12 @@ dbTest("whole model aborts a late identity violation without publishing earlier 
     };
     replacement.identity_definitions.rules.push(newRule);
     oldSource.rule_id = newRule.id;
-    const rebound = await previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(replacement) });
+    const rebound = await previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(replacement) });
     assertEquals(rebound.can_apply, false);
     assertEquals(rebound.items.find((i) => i.ref === target.ref)?.kind, "conflict");
     const input = { mode: "update" as const, document: JSON.stringify(changed) },
-      review = await previewDataModel(deps, a.actor, input),
-      change = await prepareDataModel(deps, requestActor(a.actor), {
+      review = await previewDataModel(deps, a.manager, input),
+      change = await prepareDataModel(deps, requestActor(a.manager), {
         ...input,
         preview_fingerprint: review.fingerprint,
       });
@@ -120,17 +126,17 @@ dbTest("whole model aborts a late identity violation without publishing earlier 
     target.identity.default_source = "app";
     target.identity.sources = target.identity.sources.filter((s) => s.code !== "seller");
     const [stored] =
-      await admin`select plan->'target' as target from app.data_model_changes where owner_id=${a.actor.userId}::uuid and id=${change.id}::uuid`;
+      await admin`select plan->'target' as target from app.data_model_changes where workspace_id=${a.workspaceId}::uuid and id=${change.id}::uuid`;
     const frozen = stored.target as DataModelDocument;
     frozen.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!.identity = target.identity;
     await admin`update app.data_model_changes set plan=jsonb_set(plan,'{target}',${
       admin.json(frozen)
-    }) where owner_id=${a.actor.userId}::uuid and id=${change.id}::uuid`;
+    }) where workspace_id=${a.workspaceId}::uuid and id=${change.id}::uuid`;
     await assertRejects(() =>
-      applyDataModel(deps, requestActor(a.actor), change.id, { expected_version: change.version })
+      applyDataModel(deps, requestActor(a.manager), change.id, { expected_version: change.version })
     );
-    assertEquals(await exportDataModel(deps, a.actor), original);
-    assertEquals((await getDataModelChange(deps, a.actor, change.id)).status, "ready");
+    assertEquals(await exportDataModel(deps, a.manager), original);
+    assertEquals((await getDataModelChange(deps, a.manager, change.id)).status, "ready");
   } finally {
     await a.cleanup();
   }
@@ -139,7 +145,7 @@ import { createEntitySchemaChange } from "../../functions/_shared/core/entity-ty
 dbTest(
   "whole model concurrent receipt replay and property reservations never duplicate or silently renumber",
   async () => {
-    const a = await fixtureOwner(admin);
+    const a = await businessWorkspaceFixture(admin, sql);
     try {
       const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
       sample.entity_types = sample.entity_types.slice(0, 1);
@@ -147,8 +153,8 @@ dbTest(
       sample.entity_types[0].schema.properties = { prop_9: sample.entity_types[0].schema.properties.prop_1 };
       sample.entity_types[0].schema.required = ["prop_9"];
       const input = { mode: "copy" as const, document: JSON.stringify(sample) },
-        review = await previewDataModel(deps, a.actor, input),
-        actor = requestActor(a.actor),
+        review = await previewDataModel(deps, a.manager, input),
+        actor = requestActor(a.manager),
         prepared = { ...input, preview_fingerprint: review.fingerprint };
       const [one, two] = await Promise.all([
         prepareDataModel(deps, actor, prepared),
@@ -156,23 +162,23 @@ dbTest(
       ]);
       assertEquals(one, two);
       assertEquals(review.mapping.properties.ingredient, { prop_9: "prop_1" });
-      const publishActor = requestActor(a.actor),
+      const publishActor = requestActor(a.manager),
         [left, right] = await Promise.all([
           applyDataModel(deps, publishActor, one.id, { expected_version: one.version }),
           applyDataModel(deps, publishActor, one.id, { expected_version: one.version }),
         ]);
       assertEquals(left, right);
-      const before = await exportDataModel(deps, a.actor);
+      const before = await exportDataModel(deps, a.manager);
       assertEquals(before.entity_types.length, 1);
       assertEquals(before.entity_types[0].schema.required, ["prop_1"]);
       const changed = structuredClone(before), type = changed.entity_types[0];
       type.schema.properties.prop_99 = { type: "integer", "x-order": 30 };
       const update = { mode: "update" as const, document: JSON.stringify(changed) },
-        p = await previewDataModel(deps, a.actor, update),
-        c = await prepareDataModel(deps, requestActor(a.actor), { ...update, preview_fingerprint: p.fingerprint });
+        p = await previewDataModel(deps, a.manager, update),
+        c = await prepareDataModel(deps, requestActor(a.manager), { ...update, preview_fingerprint: p.fingerprint });
       await createEntitySchemaChange(
         { uow: new SqlEntityTypeUnitOfWork(sql) },
-        requestActor(a.actor),
+        requestActor(a.manager),
         type.schema["x-type-id"],
         {
           expected_schema_version: 1,
@@ -184,13 +190,15 @@ dbTest(
           }],
         },
       );
-      await assertRejects(() => applyDataModel(deps, requestActor(a.actor), c.id, { expected_version: c.version }));
-      assertEquals(await exportDataModel(deps, a.actor), before);
-      const fresh = await previewDataModel(deps, a.actor, update);
+      await assertRejects(() => applyDataModel(deps, requestActor(a.manager), c.id, { expected_version: c.version }));
+      assertEquals(await exportDataModel(deps, a.manager), before);
+      const fresh = await previewDataModel(deps, a.manager, update);
       assertEquals(fresh.mapping.properties[type.ref].prop_99, "prop_99");
       const reused = structuredClone(before);
       reused.entity_types[0].schema.properties.prop_2 = { type: "integer", "x-order": 30 };
-      await assertRejects(() => previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(reused) }));
+      await assertRejects(() =>
+        previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(reused) })
+      );
     } finally {
       await a.cleanup();
     }
@@ -199,7 +207,7 @@ dbTest(
 dbTest(
   "whole model large multi-kind copy and whole update retain complete definitions with compact receipts",
   async () => {
-    const a = await fixtureOwner(admin);
+    const a = await businessWorkspaceFixture(admin, sql);
     try {
       const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument,
         base = sample.entity_types[0];
@@ -216,13 +224,13 @@ dbTest(
         };
         return t;
       });
-      const first = await install(a.actor, sample), all = await exportDataModel(deps, a.actor);
+      const first = await install(a.manager, sample), all = await exportDataModel(deps, a.manager);
       assertEquals(all.entity_types.length, 12);
       assertEquals(all.entity_types[0].schema.properties.prop_2.examples?.[44], "x".repeat(4096));
       assertEquals(JSON.stringify(first.change).length < 100000, true);
       for (const t of all.entity_types) t.schema.description = "전체 함께 변경";
-      await install(a.actor, all, "update");
-      const updated = await exportDataModel(deps, a.actor);
+      await install(a.manager, all, "update");
+      const updated = await exportDataModel(deps, a.manager);
       assertEquals(updated.entity_types.every((t) => t.schema.description === "전체 함께 변경"), true);
     } finally {
       await a.cleanup();
@@ -231,30 +239,30 @@ dbTest(
 );
 import { jsonbText } from "../../functions/_shared/core/entity-types/schema-rules.ts";
 dbTest("whole model requires explicit per-kind permanent removal and distinguishes stale source versions", async () => {
-  const a = await fixtureOwner(admin);
+  const a = await businessWorkspaceFixture(admin, sql);
   try {
     const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
     sample.entity_types = sample.entity_types.slice(0, 1);
     sample.relations = [];
-    await install(a.actor, sample);
-    const d = await exportDataModel(deps, a.actor), type = d.entity_types[0];
+    await install(a.manager, sample);
+    const d = await exportDataModel(deps, a.manager), type = d.entity_types[0];
     delete type.schema.properties.prop_2;
     const input = { mode: "update" as const, document: JSON.stringify(d) },
-      p = await previewDataModel(deps, a.actor, input);
+      p = await previewDataModel(deps, a.manager, input);
     assertEquals(p.items[0].removed_keys, ["prop_2"]);
     await assertRejects(() =>
-      prepareDataModel(deps, requestActor(a.actor), { ...input, preview_fingerprint: p.fingerprint })
+      prepareDataModel(deps, requestActor(a.manager), { ...input, preview_fingerprint: p.fingerprint })
     );
-    const c = await prepareDataModel(deps, requestActor(a.actor), {
+    const c = await prepareDataModel(deps, requestActor(a.manager), {
       ...input,
       preview_fingerprint: p.fingerprint,
       remove_keys: { [type.ref]: ["prop_2"] },
     });
-    await applyDataModel(deps, requestActor(a.actor), c.id, { expected_version: c.version });
-    const current = await exportDataModel(deps, a.actor);
+    await applyDataModel(deps, requestActor(a.manager), c.id, { expected_version: c.version });
+    const current = await exportDataModel(deps, a.manager);
     assertEquals(Object.hasOwn(current.entity_types[0].schema.properties, "prop_2"), false);
     current.entity_types[0].schema["x-version"] = 1;
-    const stale = await previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(current) });
+    const stale = await previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(current) });
     assertEquals(stale.items[0].source_schema_version, 1);
     assertEquals(stale.items[0].current_schema_version, 2);
     assertEquals(stale.items[0].source_is_stale, true);
@@ -263,7 +271,7 @@ dbTest("whole model requires explicit per-kind permanent removal and distinguish
   }
 });
 dbTest("whole model keeps the existing exact 256 KiB kind definition boundary and compact receipts", async () => {
-  const a = await fixtureOwner(admin);
+  const a = await businessWorkspaceFixture(admin, sql);
   try {
     const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
     sample.entity_types = sample.entity_types.slice(0, 1);
@@ -285,9 +293,9 @@ dbTest("whole model keeps the existing exact 256 KiB kind definition boundary an
       if (bytes() === 262144) break;
     }
     assertEquals(bytes(), 262144);
-    const copy = await install(a.actor, sample);
+    const copy = await install(a.manager, sample);
     assertEquals(JSON.stringify(copy.change).length < 16384, true);
-    const exported = await exportDataModel(deps, a.actor);
+    const exported = await exportDataModel(deps, a.manager);
     assertEquals(new TextEncoder().encode(jsonbText(exported.entity_types[0].schema)).length, 262144);
   } finally {
     await a.cleanup();
@@ -298,28 +306,29 @@ import { updateEntityIssuer, updateIdentifierRule } from "../../functions/_share
 dbTest(
   "whole model preserves raw non-default source activation across global suspension and previews referenced rule conflicts",
   async () => {
-    const a = await fixtureOwner(admin);
+    const a = await businessWorkspaceFixture(admin, sql);
     try {
       const sample = JSON.parse(
         await Deno.readTextFile("docs/examples/data-model/openmarket.json"),
       ) as DataModelDocument;
       for (const t of sample.entity_types) t.identity.default_source = "app";
       sample.identity_definitions.issuers.find((i) => i.code === "seller")!.active = false;
-      await install(a.actor, sample);
-      const exported = await exportDataModel(deps, a.actor),
+      await install(a.manager, sample);
+      const exported = await exportDataModel(deps, a.manager),
         sku = exported.entity_types.find((t) => t.schema.title === "판매 SKU")!;
       assertEquals(sku.identity.sources.find((s) => s.code === "seller")?.active, true);
-      const copied = await install(a.actor, exported);
+      const copied = await install(a.manager, exported);
       const copiedSku = copied.review.mapping.types[sku.ref];
       const identities = { uow: new SqlEntityIssuerUnitOfWork(sql) };
       const seller = exported.identity_definitions.issuers.find((i) => i.code === "seller")!;
-      await updateEntityIssuer(identities, requestActor(a.actor), "seller", {
+      await updateEntityIssuer(identities, requestActor(a.manager), "seller", {
         active: true,
         expected_version: seller.version,
       });
-      const all = await exportDataModel(deps, a.actor),
+      const all = await exportDataModel(deps, a.manager),
         copyType = all.entity_types.find((t) => t.schema["x-type-id"] === copiedSku)!;
-      await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.actor), {
+      await a.grantKind(a.manager, copiedSku, "write");
+      await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.manager), {
         entity_type_id: copiedSku,
         schema_version: 1,
         source: "seller",
@@ -329,21 +338,21 @@ dbTest(
       const rule = all.identity_definitions.rules.find((r) =>
         r.id === copyType.identity.sources.find((s) => s.code === "seller")!.rule_id
       )!;
-      await updateIdentifierRule(identities, requestActor(a.actor), rule.id, {
+      await updateIdentifierRule(identities, requestActor(a.manager), rule.id, {
         active: false,
         expected_version: rule.version,
       });
-      const suspended = await exportDataModel(deps, a.actor);
+      const suspended = await exportDataModel(deps, a.manager);
       assertEquals(
         suspended.entity_types.find((t) => t.schema["x-type-id"] === copiedSku)!.identity.sources.find((s) =>
           s.code === "seller"
         )?.active,
         true,
       );
-      const noop = await install(a.actor, suspended, "update");
+      const noop = await install(a.manager, suspended, "update");
       assertEquals(noop.applied.result?.changed, false);
       suspended.identity_definitions.rules.find((r) => r.id === rule.id)!.meaning = "참조 후 의미 변경은 불가";
-      const conflict = await previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(suspended) });
+      const conflict = await previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(suspended) });
       assertEquals(conflict.can_apply, false);
       assertEquals(conflict.items.find((i) => i.ref === `rule:${rule.id}`)?.kind, "conflict");
     } finally {
@@ -357,21 +366,21 @@ import { SqlEntityRelationLinkUnitOfWork } from "../../functions/_shared/adapter
 import { connectEntityRelation } from "../../functions/_shared/core/entity-relations/links.ts";
 import { getEntity } from "../../functions/_shared/core/entity/application.ts";
 dbTest(
-  "the original whole-model update file is a no-op on replay, with stable owner-scoped IDs and sparse source keys",
+  "the original whole-model update file is a no-op on replay, with stable workspace-scoped IDs and sparse source keys",
   async () => {
-    const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
+    const a = await businessWorkspaceFixture(admin, sql), b = await businessWorkspaceFixture(admin, sql);
     try {
       const doc = JSON.parse(await Deno.readTextFile("docs/examples/data-model/openmarket.json")) as DataModelDocument;
       doc.entity_types[0].schema.properties.prop_9 = { type: "string", title: "원본 유지 항목", "x-order": 9 };
-      const first = await install(a.actor, doc, "update");
-      const before = await exportDataModel(deps, a.actor);
-      const second = await install(a.actor, doc, "update");
+      const first = await install(a.manager, doc, "update");
+      const before = await exportDataModel(deps, a.manager);
+      const second = await install(a.manager, doc, "update");
       assertEquals(second.review.items.every((i) => i.kind === "unchanged"), true);
       assertEquals(second.applied.result?.changed, false);
-      assertEquals(await exportDataModel(deps, a.actor), before);
+      assertEquals(await exportDataModel(deps, a.manager), before);
       assertEquals(second.review.mapping, first.review.mapping);
       assertEquals(second.review.mapping.properties[doc.entity_types[0].ref].prop_9, "prop_9");
-      const other = await install(b.actor, doc, "update");
+      const other = await install(b.manager, doc, "update");
       assertEquals(other.applied.status, "applied");
       assertEquals(
         other.review.mapping.types[doc.entity_types[0].ref] === first.review.mapping.types[doc.entity_types[0].ref],
@@ -383,42 +392,43 @@ dbTest(
     }
   },
 );
-dbTest("model history scopes cursors to owner and existing anchors and returns compact summaries", async () => {
-  const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
+dbTest("model history scopes cursors to workspace and existing anchors and returns compact summaries", async () => {
+  const a = await businessWorkspaceFixture(admin, sql), b = await businessWorkspaceFixture(admin, sql);
   try {
     const doc = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
-    await install(a.actor, doc, "update");
-    await install(a.actor, doc, "update");
-    const page = await listDataModelChanges(deps, a.actor, { limit: 1 });
+    await install(a.manager, doc, "update");
+    await install(a.manager, doc, "update");
+    const page = await listDataModelChanges(deps, a.manager, { limit: 1 });
     assertEquals(typeof page.next_cursor, "string");
     assertEquals(page.items[0].review.items[0].schema, undefined);
     assertEquals(page.items[0].review.items[0].identity, undefined);
-    await assertRejects(() => listDataModelChanges(deps, b.actor, { limit: 1, cursor: page.next_cursor! }));
-    const second = await listDataModelChanges(deps, a.actor, { limit: 1, cursor: page.next_cursor! });
+    await assertRejects(() => listDataModelChanges(deps, b.manager, { limit: 1, cursor: page.next_cursor! }));
+    const second = await listDataModelChanges(deps, a.manager, { limit: 1, cursor: page.next_cursor! });
     assertEquals(second.items.length, 1);
-    const detail = await getDataModelChange(deps, a.actor, page.items[0].id);
+    const detail = await getDataModelChange(deps, a.manager, page.items[0].id);
     assertEquals(!!detail.review.items[0].schema, true);
-    await admin`delete from app.data_model_changes where owner_id=${a.actor.userId}::uuid and id=${
+    await admin`delete from app.data_model_changes where workspace_id=${a.workspaceId}::uuid and id=${
       page.items[0].id
     }::uuid`;
-    await assertRejects(() => listDataModelChanges(deps, a.actor, { limit: 1, cursor: page.next_cursor! }));
+    await assertRejects(() => listDataModelChanges(deps, a.manager, { limit: 1, cursor: page.next_cursor! }));
   } finally {
     await a.cleanup();
     await b.cleanup();
   }
 });
 dbTest("model preview reports incompatible typed link cardinality before apply", async () => {
-  const a = await fixtureOwner(admin);
+  const a = await businessWorkspaceFixture(admin, sql);
   try {
     const doc = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
-    const installed = await install(a.actor, doc, "update");
+    const installed = await install(a.manager, doc, "update");
     const relation = installed.review.mapping.relations[doc.relations[0].id];
-    const target = await exportDataModel(deps, a.actor);
+    const target = await exportDataModel(deps, a.manager);
     const def = target.relations.find((r) => r.id === relation)!;
     const ends = def.ends.map((e) => target.entity_types.find((t) => t.ref === e.type_ref)!.schema["x-type-id"]);
+    for (const kind of new Set(ends)) await a.grantKind(a.manager, kind, "write");
     const entityDeps = { uow: new SqlEntityUnitOfWork(sql) };
     const create = (kind: string, name: string) =>
-      createEntity(entityDeps, requestActor(a.actor), {
+      createEntity(entityDeps, requestActor(a.manager), {
         entity_type_id: kind,
         schema_version: 1,
         properties: { prop_1: name },
@@ -427,8 +437,8 @@ dbTest("model preview reports incompatible typed link cardinality before apply",
       left = await create(ends[1], "연결1"),
       right = await create(ends[1], "연결2");
     for (const other of [left, right]) {
-      const fresh = await getEntity(entityDeps, a.actor, origin.id);
-      await connectEntityRelation({ uow: new SqlEntityRelationLinkUnitOfWork(sql) }, requestActor(a.actor), {
+      const fresh = await getEntity(entityDeps, a.manager, origin.id);
+      await connectEntityRelation({ uow: new SqlEntityRelationLinkUnitOfWork(sql) }, requestActor(a.manager), {
         definition_id: relation,
         side: 0,
         origin_id: fresh.id,
@@ -438,9 +448,9 @@ dbTest("model preview reports incompatible typed link cardinality before apply",
         expected_other_version: other.version,
       });
     }
-    const changed = await exportDataModel(deps, a.actor);
+    const changed = await exportDataModel(deps, a.manager);
     changed.relations.find((r) => r.id === relation)!.ends[0].cardinality = "one";
-    const preview = await previewDataModel(deps, a.actor, { mode: "update", document: JSON.stringify(changed) });
+    const preview = await previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(changed) });
     const item = preview.items.find((i) => i.ref === `relation:${relation}`)!;
     assertEquals(item.kind, "conflict");
     assertEquals(item.relation_impact?.links, 2);
