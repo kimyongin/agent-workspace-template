@@ -320,6 +320,12 @@ begin
   if r.operation<>p_operation or r.fingerprint<>p_fingerprint then return '{"state":"idempotency_key_reused"}'::jsonb; end if;
   if r.completed_at is null then return '{"state":"request_in_progress"}'::jsonb; end if;
   if r.result is null or r.completed_at+interval '30 days'<=clock_timestamp() then return '{"state":"result_expired"}'::jsonb; end if;
+  -- A competing bootstrap insertion may have completed after the metadata preflight.
+  -- Return only its workspace descriptor, then require a separate lock statement before replay body.
+  if p_scope is null and (app.current_workspace_id() is distinct from r.result_workspace_id
+    or coalesce(pg_catalog.current_setting('request.workspace_lock_mode',true),'')='') then
+    return jsonb_build_object('state','workspace_lock_required','workspace_id',r.result_workspace_id);
+  end if;
   if not private.workspace_member(auth.uid(),coalesce(r.workspace_id,r.result_workspace_id)) then raise exception using errcode='42501',message='workspace_denied'; end if;
   for g in select * from jsonb_array_elements(r.footprint) loop
     if not private.workspace_allows(auth.uid(),coalesce(r.workspace_id,r.result_workspace_id),g->>'target_kind',g->>'target_id',g->>'access') then
