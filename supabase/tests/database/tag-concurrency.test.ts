@@ -17,6 +17,7 @@ import * as t from "../../functions/_shared/core/tags/application.ts";
 import * as e from "../../functions/_shared/core/entity/application.ts";
 import * as a from "../../functions/_shared/core/activity/application.ts";
 import { connect, dbTest, urls } from "./_db.ts";
+import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { businessWorkspaceFixture } from "./_workspace-business.ts";
 
 const applicationName = `tag-concurrency-${crypto.randomUUID()}`;
@@ -107,6 +108,11 @@ for (
           tag_ids,
         });
         const parent = { ...created, ...linked };
+        const baselineEventIds = new Set(
+          (await admin`select id from app.records where workspace_id=${f.workspaceId}
+          and change_metadata->>'target_id'=${parent.id} and change_metadata->>'action'='update'`)
+            .map((row) => String(row.id)),
+        );
         // Hold the real application transaction after its edit, before commit.
         const heldE: e.EntityDeps = {
           uow: {
@@ -215,9 +221,10 @@ for (
             throw Error("edit did not reach barrier");
           }),
         ]);
+        const deleteRequest = requestActor(f.actor);
         deleting = t.deleteTag(
           td,
-          requestActor(f.actor),
+          deleteRequest,
           first.id,
           first.version,
           "delete dictionary entry",
@@ -240,7 +247,42 @@ for (
           await new Promise((r) => setTimeout(r, 50));
         }
         release.resolve();
-        await Promise.all([editing, deleting]);
+        await editing;
+        const deletion = await deleting.then(
+          () => ({ ok: true as const }),
+          (error: unknown) => ({ ok: false as const, error }),
+        );
+        if (
+          scenario === "remove links" ||
+          (scenario === "delete parent" && kind === "record")
+        ) {
+          assertEquals(deletion.ok, false);
+          if (!deletion.ok) {
+            assert(deletion.error instanceof AppError);
+            assertEquals(
+              deletion.error.code,
+              scenario === "remove links" ? "conflict" : "not_found",
+            );
+          }
+          assertEquals(
+            (await admin`select id from app.tags where workspace_id=${f.workspaceId} and id=${first.id}`)
+              .length,
+            1,
+          );
+          assertEquals(
+            (await admin`select count(*)::int n from private.workspace_request_results where workspace_id=${f.workspaceId} and request_key=${
+              deleteRequest.request!.key
+            }`)[0].n,
+            0,
+          );
+          await t.deleteTag(
+            td,
+            deleteRequest,
+            first.id,
+            first.version,
+            "delete dictionary entry",
+          );
+        } else assertEquals(deletion.ok, true);
         assert(
           waited,
           "observed real SELECT waiting on the parent/type application lock",
@@ -255,8 +297,9 @@ for (
           )
         );
         const events =
-          await admin`select body,change_metadata from app.records where workspace_id=${f.workspaceId}
-        and change_metadata->>'target_id'=${parent.id} and change_metadata->>'action'='update' order by occurred_at`;
+          (await admin`select id,body,change_metadata from app.records where workspace_id=${f.workspaceId}
+        and change_metadata->>'target_id'=${parent.id} and change_metadata->>'action'='update' order by occurred_at`)
+            .filter((row) => !baselineEventIds.has(String(row.id)));
         if (scenario === "delete parent") {
           if (kind === "entity" || kind === "task") {
             const retained = kind === "entity"
