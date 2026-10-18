@@ -132,6 +132,13 @@ export async function installWorkspaceApi(
         settings: { record_templates: {} },
       });
     }
+    if (kind === "tag-connections" && method === "POST") {
+      const targetKind = String(body.target_kind), target = storage[targetKind === "entity" ? "entities" : `${targetKind}s`]?.find(row => row.id === body.target_id);
+      if (!target) return reply({ code: "not_found", message: "연결 대상 없음" }, 404);
+      writes.push({ workspaceId, method, path: url.pathname, body, requestKey: req.headers()["idempotency-key"], params: url.searchParams });
+      Object.assign(target, { tag_ids: body.tag_ids, version: target.version + 1, updated_at: stamp });
+      return reply({ tag_ids: target.tag_ids, version: target.version, updated_at: stamp });
+    }
     if (kind === "records" && key === "prepare") {
       const model = String(body.model),
         target = (storage[model === "entity" ? "entities" : `${model}s`] ?? []).find((row) =>

@@ -10,8 +10,9 @@ import { saveOnce } from "./ui-actions.ts";
 async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<string, unknown> = {}) {
   const t = { ...task(), title: "등심 구매하기", entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "등심", source: "selection" as const, captured_at: stamp }] };
   const r = { ...record(), body: "구매 기준을 정리했습니다.", task_id: id(2) };
-  const e = { ...entity(1, { prop_1: "등심" }), tasks: { count: 1, items: [t] }, records: { count: 1, items: [r] } };
-  const state = await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [e, entity(6, { prop_1: "버섯" })], tasks: [t], records: [r],  tags: [] }, options);
+  const entityRecord = { ...record(34), body: "자료 변경 근거", entity_id: entityKey(1), task_id: null, record_kind: "change" as const };
+  const e = { ...entity(1, { prop_1: "등심" }), tasks: { count: 1, items: [t] }, records: { count: 1, items: [entityRecord] } };
+  const state = await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [e, entity(6, { prop_1: "버섯" })], tasks: [t], records: [r, entityRecord],  tags: [] }, options);
   const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: metadata };
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));

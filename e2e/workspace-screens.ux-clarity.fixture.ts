@@ -74,17 +74,17 @@ for (const width of [320, 1440]) {
     state.rows.entities.splice(0, state.rows.entities.length, item);
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(item.id)}`);
-    await expect(form(page).getByRole("button", { name: "기록 작성", exact: true })).toBeVisible();
+    await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toBeVisible();
     state.failRead({ kind: "entities", id: item.id });
-    await form(page).getByRole("button", { name: "기록 작성", exact: true }).click();
-    await form(page).getByLabel("본문", { exact: false }).fill("보존할 기록 초안");
+    await form(page).getByRole("button", { name: "할 일 작성", exact: true }).click();
+    await form(page).getByLabel("본문", { exact: false }).fill("보존할 할 일 초안");
     await expect(form(page).getByRole("alert")).toContainText("선택한 자료 정보를 확인하지 못했습니다");
     const selected = form(page).getByRole("table", { name: "선택한 자료", exact: true });
     await expect(selected).toContainText("같은 상품");
     await expect(selected).not.toContainText(item.id);
     await form(page).getByRole("button", { name: "다시 조회", exact: true }).click();
     await expect(selected).toContainText("쿠팡 · 000Ab-21");
-    await expect(form(page).getByLabel("본문", { exact: false })).toHaveValue("보존할 기록 초안");
+    await expect(form(page).getByLabel("본문", { exact: false })).toHaveValue("보존할 할 일 초안");
     expect(state.writes).toHaveLength(0);
   });
 

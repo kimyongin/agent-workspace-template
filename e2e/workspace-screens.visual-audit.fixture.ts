@@ -152,7 +152,7 @@ for (const width of [390, 1440]) {
         ["record-calendar", "/records?view=calendar"],
         ["entity-create", "/entities?create=1"],
         ["task-create", "/tasks?create=1"],
-        ["record-create", "/records?create=1"],
+        ["result-create", `/tasks/${id(2)}?action=complete`],
         ["entity-edit", `/entities/${encodeURIComponent(entityKey(1))}?edit=1`],
         ["record-edit", `/records/${id(3)}?edit=1`],
       ]

@@ -419,12 +419,9 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(row.getByRole("cell")).not.toHaveCount(0);
       const table = page.getByRole("region", { name: / 목록$/ }).getByRole("table").first();
       await expect(table.getByRole("columnheader")).not.toHaveCount(0);
-      await expect(
-        page.getByRole("button", {
-          name: kind === "entities" ? "검사 자료 추가" : kind === "tasks" ? "할 일 등록" : "기록 작성",
-          exact: true,
-        }),
-      ).toBeVisible();
+      const create = page.getByRole("button", { name: kind === "entities" ? "검사 자료 추가" : kind === "tasks" ? "할 일 등록" : "기록 작성", exact: true });
+      if (kind === "records") await expect(create).toHaveCount(0);
+      else await expect(create).toBeVisible();
       await openTabFilters(page);
       const grid = page.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "필터", exact: true }) });
       for (const name of kind === "entities" ? ["정렬"] : kind === "tasks" ? ["할 일 종류", "할 일 상태"] : ["기록 종류", "기록 시작일", "기록 종료일"]) {

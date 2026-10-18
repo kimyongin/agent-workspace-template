@@ -398,13 +398,13 @@ for (const side of ["tasks", "entities"] as const) {
         await openDetailEditor(page);
         await expect(form(page).getByRole("searchbox", { name: "자료 제목 검색" })).toHaveCount(0);
         await form(page).getByRole("button", { name: "취소", exact: true }).click();
-        await form(page).getByRole("button", { name: "기록 작성", exact: true }).click();
-        await form(page).getByLabel("본문", { exact: false }).fill("완료 전 진행 메모");
-        await form(page).getByRole("button", { name: "저장", exact: true }).click();
-        await expect(form(page).getByRole("button", { name: "완료 전 진행 메모", exact: true })).toBeVisible();
-        await expect(form(page).getByRole("button", { name: "기록 작성", exact: true })).toBeFocused();
-        expect(taskRow.status).toBe("open");
-        expect(state.writes.at(-1)?.body.task_id).toBe(id(2));
+        await form(page).getByRole("button", { name: "완료하고 기록", exact: true }).click();
+        await form(page).getByLabel("본문", { exact: false }).fill("완료 수행 결과");
+        await form(page).getByRole("button", { name: "완료하고 기록 저장", exact: true }).click();
+        await expect(form(page).getByRole("button", { name: "완료 수행 결과", exact: true })).toBeVisible();
+        expect(taskRow.status).toBe("done");
+        expect(state.writes.at(-1)?.path).toBe(`/api/tasks/${id(2)}/complete`);
+        expect(state.writes.at(-1)?.body).not.toHaveProperty("entity_ids");
       }
       await page.screenshot({ path: info.outputPath(`relations-${side}-${width}.png`) });
       expect(
