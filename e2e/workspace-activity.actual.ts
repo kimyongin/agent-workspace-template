@@ -47,19 +47,34 @@ async function setup(page: Page) {
 }
 const titleInput = (page: Page) =>
   detailDialog(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ });
+const writeBodies = new WeakMap<
+  Response,
+  Awaited<ReturnType<Response["json"]>>
+>();
 const writeResponse = (page: Page, method: string, path: string) =>
   page.waitForResponse((response) =>
     response.request().method() === method &&
     new URL(response.url()).pathname ===
       new URL(`${env.VITE_API_URL}${path}`).pathname
-  );
+  ).then(async (response) => {
+    // Read JSON as the response arrives, before a successful write navigates.
+    // A 204 is deliberately bodyless; other body/read failures remain failures.
+    writeBodies.set(
+      response,
+      response.status() === 204 ? null : await response.json(),
+    );
+    return response;
+  });
 async function scopedWrite(response: Response, workspaceId: string) {
   expect(response.ok()).toBeTruthy();
   expect(response.request().headers()["x-workspace-id"]).toBe(workspaceId);
   expect(response.request().headers()["idempotency-key"]).toMatch(
     /^[0-9a-f-]{36}$/i,
   );
-  return response.json();
+  if (!writeBodies.has(response)) {
+    throw new Error("write response was not captured before navigation");
+  }
+  return writeBodies.get(response);
 }
 async function createInBrowser(page: Page, workspaceId: string, title: string) {
   await page.getByRole("button", { name: "할 일 등록", exact: true }).click();
