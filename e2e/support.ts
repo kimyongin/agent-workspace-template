@@ -477,7 +477,7 @@ export async function devLogin(page: Page, who: "A" | "B" = "A") {
 }
 
 /** Same explicit isolated-runtime guard used by the actual workspace fixtures. */
-function ownedRuntime() {
+export function ownedRuntime() {
   const setting = (name: string) => {
     const value = process.env[name];
     if (!value) {
@@ -767,7 +767,8 @@ export async function mcpClient(
   token: string,
   scope?: { workspaceId: string },
 ) {
-  if (scope && !uuid.test(scope.workspaceId)) {
+  const workspaceId = scope?.workspaceId;
+  if (scope && !uuid.test(workspaceId!)) {
     throw new Error("explicit MCP workspace identity required");
   }
   const client = new Client({ name: "e2e-agent", version: "0.0.0" });
@@ -785,14 +786,14 @@ export async function mcpClient(
       requestInit: { headers: { authorization: `Bearer ${token}` } },
     }),
   );
-  return {
-    workspaceId: scope?.workspaceId,
+  return Object.freeze({
+    workspaceId,
     async call(name: string, args: Record<string, unknown>) {
-      if (scope) {
-        if ("workspace_id" in args && args.workspace_id !== scope.workspaceId) {
+      if (workspaceId) {
+        if ("workspace_id" in args && args.workspace_id !== workspaceId) {
           throw new Error("MCP fixture workspace mismatch");
         }
-        args = { ...args, workspace_id: scope.workspaceId };
+        args = { ...args, workspace_id: workspaceId };
       }
       const writing =
         /^(create_|update_|delete_|restore_|link_|unlink_|rename_|rekey_|complete_|stop_|resume_|analyze_|apply_|start_|cancel_|retry_|record_occurrence$|set_tag_connections$)/
@@ -873,7 +874,7 @@ export async function mcpClient(
       return result;
     },
     close,
-  };
+  });
 }
 
 export const unique = (label: string) =>

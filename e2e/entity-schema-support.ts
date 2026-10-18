@@ -2,7 +2,9 @@ import { expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import postgres from "postgres";
-import { env, ownFixtureResult } from "./support.ts";
+import { env, ownedRuntime, workspacePath } from "./support.ts";
+type FixtureClient = { workspaceId?: string; call(name: string, input: Record<string, unknown>): Promise<any> };
+type FixtureWorkspace = { id: string; grantKind(typeId: string): Promise<void> };
 /** Explicit actual internal worker consumption; callers own serial local API tests. */
 export async function schemaAnalysisTick() {
   const token = parseEnv(readFileSync(new URL("../supabase/functions/.env", import.meta.url), "utf8")).PROCESSING_TOKEN;
@@ -41,7 +43,8 @@ export async function analyzeAndApply(
 
 /** Current typed scalar fixture. Every actual caller creates an explicit kind before writing data. */
 const fixtureTypes = new WeakMap<object, Promise<{ id: string; label: string; schema_version: number }>>();
-export function scalarFixtureType(mcp: { call(name: string, input: Record<string, unknown>): Promise<any> }) {
+export function scalarFixtureType(mcp: FixtureClient, workspace: FixtureWorkspace) {
+  if (!mcp.workspaceId || mcp.workspaceId !== workspace.id) throw new Error("explicit matching fixture workspace required");
   let result = fixtureTypes.get(mcp);
   if (!result) {
     result = (async () => {
@@ -50,6 +53,7 @@ export function scalarFixtureType(mcp: { call(name: string, input: Record<string
         icon_id: "box",
         representative_label: "제목",
       });
+      await workspace.grantKind(type.id);
       const change = await mcp.call("create_entity_schema_change", {
         type_id: type.id,
         expected_schema_version: type.schema_version,
@@ -88,11 +92,12 @@ export function scalarFixtureType(mcp: { call(name: string, input: Record<string
   return result;
 }
 export async function createFixtureEntity(
-  mcp: { call(name: string, input: Record<string, unknown>): Promise<any> },
+  mcp: FixtureClient,
+  workspace: FixtureWorkspace,
   properties: Record<string, unknown>,
   identity: Record<string, unknown> = {},
 ) {
-  const type = await scalarFixtureType(mcp);
+  const type = await scalarFixtureType(mcp, workspace);
   return mcp.call("create_entity", {
     ...identity,
     entity_type_id: type.id,
@@ -100,21 +105,22 @@ export async function createFixtureEntity(
     properties,
   });
 }
-export function fixtureEntityList(typeId: string, keyword = "", category?: string, sort = false) {
+export function fixtureEntityList(workspaceId: string, typeId: string, keyword = "", category?: string, sort = false) {
   const params = new URLSearchParams({ entity_type_id: typeId });
   if (keyword) params.set("keyword", keyword);
   if (category) params.set("property_filters", JSON.stringify([{ key: "prop_4", operator: "eq", value: category }]));
   if (sort) params.set("sort", JSON.stringify({ key: "prop_2", direction: "asc" }));
-  return "/entities?" + params;
+  return workspacePath(workspaceId, "/entities?" + params);
 }
 
 /** Seed only list fixtures in one local transaction; public CRUD is exercised by separate scenarios. */
 export async function seedFixtureEntities(
   mcp: Parameters<typeof scalarFixtureType>[0],
-  ownerId: string,
+  workspace: FixtureWorkspace,
   values: Record<string, unknown>[],
 ) {
-  const type = await scalarFixtureType(mcp);
+  ownedRuntime();
+  const type = await scalarFixtureType(mcp, workspace);
   const databaseUrl = env.LOCAL_DB_URL;
   if (!databaseUrl) throw new Error("fixture seed requires LOCAL_DB_URL");
   const target = new URL(databaseUrl);
@@ -122,7 +128,7 @@ export async function seedFixtureEntities(
   const admin = postgres(databaseUrl, { max: 1, onnotice: () => {} });
   const prefix = "fixture_" + crypto.randomUUID();
   const rows = values.map((properties, index) => ({
-    owner_id: ownerId,
+    workspace_id: workspace.id,
     id: `app:${type.id}:${prefix}_${index}`,
     source: "app",
     external_id: `${prefix}_${index}`,
@@ -130,18 +136,17 @@ export async function seedFixtureEntities(
     schema_version: type.schema_version,
     properties: { prop_2: 0, prop_3: null, prop_4: "a", ...properties },
   }));
-  for (const row of rows) ownFixtureResult(ownerId, "entities", row.id);
   try {
     await admin.begin(async (tx) => {
-      const owned = await tx`select id from app.entity_types where id=${type.id} and owner_id=${ownerId}`;
+      const owned = await tx`select id from app.entity_types where id=${type.id} and workspace_id=${workspace.id}`;
       expect(owned).toHaveLength(1);
       if (rows.length) {
         const inserted =
-          await tx`insert into app.entities (owner_id,id,source,external_id,entity_type_id,schema_version,properties)
-          select owner_id,id,source,external_id,entity_type_id,schema_version,properties
+          await tx`insert into app.entities (workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
+          select workspace_id,id,source,external_id,entity_type_id,schema_version,properties
           from jsonb_to_recordset(${
             tx.json(rows)
-          }) as fixture(owner_id uuid,id text,source text,external_id text,entity_type_id uuid,schema_version integer,properties jsonb)
+          }) as fixture(workspace_id uuid,id text,source text,external_id text,entity_type_id uuid,schema_version integer,properties jsonb)
           returning id`;
         expect(inserted).toHaveLength(rows.length);
       }

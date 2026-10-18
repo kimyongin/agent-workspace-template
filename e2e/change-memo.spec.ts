@@ -3,15 +3,16 @@ import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts
 import { fillChangeMemo } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { beginTabAction, openDetailEditor, saveOnce } from "./ui-actions.ts";
-import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, unique } from "./support.ts";
 
 test("엔터티 확인 후 한 번에 저장하고 입력 메모만 기록 본문으로 남긴다", async ({page}) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const name = unique("메모 고객"), note = "고객이 확인한 업무 내용\n".repeat(200);
     const requests:string[]=[];page.on("request",r=>{if(r.url().includes("/api/")&&r.method()!=="GET")requests.push(r.url());});
-    await page.goto(fixtureEntityList((await scalarFixtureType(mcp)).id));await beginTabAction(page,"검사 자료 추가");
+    await page.goto(fixtureEntityList(workspace.id, (await scalarFixtureType(mcp, workspace)).id));await beginTabAction(page,"검사 자료 추가");
     const form = page.getByRole("dialog",{name:/^검사 자료.* 추가$/,exact:true});
     await form.getByLabel("제목").fill(name);await form.getByLabel("수량").fill("10");
     await fillChangeMemo(page,form,note);
