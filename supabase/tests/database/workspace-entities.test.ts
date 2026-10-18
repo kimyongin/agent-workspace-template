@@ -342,20 +342,27 @@ dbTest("workspace entity lists bind readable kinds and cursors while lifecycle r
 });
 
 dbTest("workspace entity saved tag connection preserves content and owns its independent change", async () => {
-  const actor = { userId: crypto.randomUUID() };
-  let seeded = false;
+  const actor = { userId: crypto.randomUUID() }, business = { userId: crypto.randomUUID() };
+  const seeded: string[] = [];
   let workspaceId: string | undefined;
   try {
-    await admin`insert into auth.users(id,email) values(${actor.userId},${`tag514-${actor.userId}@example.test`})`;
-    seeded = true;
+    for (const user of [actor, business]) {
+      const email = `tag514-${user.userId}@example.test`;
+      await admin`insert into auth.users(id,email) values(${user.userId},${email})`;
+      seeded.push(user.userId);
+      await admin`insert into auth.identities(id,user_id,provider,provider_id,identity_data) values(${crypto.randomUUID()},${user.userId},'google',${user.userId},${
+        admin.json({ sub: user.userId, email, email_verified: true })
+      })`;
+    }
     workspaceId =
       (await workspaces.createWorkspace(workspaceDeps, key(actor), { name: "독립 태그 공간" })).workspace.id;
-    const author = { ...actor, workspaceId };
-    const kind = await types.createEntityType(typeDeps, key(author), { label: "태그 자료" });
-    await workspaces.updateWorkspaceMember(workspaceDeps, key(actor), workspaceId, actor.userId, {
-      expected_version: 1,
+    const kind = await types.createEntityType(typeDeps, key({ ...actor, workspaceId }), { label: "태그 자료" });
+    const invitation = await workspaces.inviteWorkspaceMember(workspaceDeps, key(actor), workspaceId, {
+      email: `tag514-${business.userId}@example.test`,
       grants: [{ target_kind: "entity_type", target_id: kind.id, access: "write" }],
     });
+    await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(business), invitation.invitation.id);
+    const author = { ...business, workspaceId };
     const created = await entities.createEntity(
       deps,
       key(author),
@@ -401,6 +408,6 @@ dbTest("workspace entity saved tag connection preserves content and owns its ind
       await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`;
       await admin`delete from app.workspaces where id=${workspaceId}`;
     }
-    if (seeded) await admin`delete from auth.users where id=${actor.userId}`;
+    for (const id of seeded) await admin`delete from auth.users where id=${id}`;
   }
 });
