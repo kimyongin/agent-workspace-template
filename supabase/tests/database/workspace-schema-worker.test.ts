@@ -359,7 +359,7 @@ dbTest(
           { properties: { prop_1: "X" }, schema_version: 2 },
         ]);
         const records =
-          await tx`select workspace_id,owner_id,entity_id,task_id,created_by from app.records where workspace_id=${executor.workspaceId}`;
+          await tx`select id,version,workspace_id,owner_id,entity_id,entity_ids,entity_context,task_id,created_by from app.records where workspace_id=${executor.workspaceId}`;
         assertEquals(records.length, 2);
         assertEquals(
           new Set(records.map((r) => r.entity_id)),
@@ -370,10 +370,40 @@ dbTest(
           assertEquals(row.owner_id, null);
           assertEquals(row.task_id, null);
           assertEquals(row.created_by, b.userId);
+          assertEquals(row.entity_ids, []);
+          assertEquals(row.entity_context, []);
         }
       });
+      const [epoch] = await admin`select lifecycle_generation from app.workspaces where id=${workspaceId}`;
+      const search =
+        await admin`select s.owner_id,s.workspace_id,s.initiated_by,s.workspace_generation,s.source_version,
+        s.kind,s.id,s.input_hash,s.pipeline,record.version,q.message
+        from app.search_index_state s join app.records record on record.workspace_id=s.workspace_id and record.id=s.id
+        join pgmq.q_search_index q on q.msg_id=s.message_id
+        where s.workspace_id=${workspaceId} and s.kind='record' order by s.id`;
+      assertEquals(search.length, 2);
+      for (const state of search) {
+        assertEquals(state.owner_id, null);
+        assertEquals(state.workspace_id, workspaceId);
+        assertEquals(state.initiated_by, b.userId);
+        assertEquals(Number(state.workspace_generation), Number(epoch.lifecycle_generation));
+        assertEquals(Number(state.source_version), Number(state.version));
+        assertEquals(state.message, {
+          workspace_id: workspaceId,
+          initiated_by: b.userId,
+          workspace_generation: Number(epoch.lifecycle_generation),
+          source_version: Number(state.version),
+          kind: "record",
+          id: state.id,
+          input_hash: state.input_hash,
+          pipeline: SEARCH_PIPELINE,
+        });
+      }
     } finally {
-      if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
+      if (workspaceId) {
+        await admin`delete from pgmq.q_search_index where message->>'workspace_id'=${workspaceId}`;
+        await admin`delete from app.workspaces where id=${workspaceId}`;
+      }
       for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
     }
   },
