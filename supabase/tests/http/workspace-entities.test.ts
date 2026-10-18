@@ -144,7 +144,7 @@ httpTest("workspace entity HTTP/MCP independent tags preserve content and enforc
       input: { tag_ids: [tag.body.id] },
     };
     const prepared = await tool(client, "prepare_record_memo", { workspace_id: w.id, ...preparation });
-    assertEquals(prepared.prepared_input, { tag_ids: [tag.body.id] });
+    assertEquals(prepared.prepared_input, { expected_version: 1, tag_ids: [tag.body.id] });
     assertEquals((await scoped(b, w.id, "POST", "/records/prepare", preparation)).body, prepared);
     const connectInput = { ...connection, change_note: prepared.change_note, change_tag_ids: prepared.change_tag_ids };
     const connectKey = crypto.randomUUID();
