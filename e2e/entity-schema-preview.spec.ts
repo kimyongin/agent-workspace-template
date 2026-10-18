@@ -51,7 +51,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     const beforeNavigation = page.url();
     await openMainNavigation(page);
     const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
-    await expect(tasksLink).toHaveAttribute("href", "/tasks");
+    await expect(tasksLink).toHaveAttribute("href", workspacePath(workspace.id, "/tasks"));
     await tasksLink.click();
     const dialog = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await expect(dialog).toBeVisible();
