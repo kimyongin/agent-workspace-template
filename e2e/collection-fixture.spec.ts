@@ -8,7 +8,7 @@ import {installWorkspaceApi} from "./support/workspace-api.ts";
 import {closeDetail} from "./ui-actions.ts";
 const task={...makeTask(),title:"다음 상담 준비",body:"필요한 자료를 준비합니다.",due_on:"2026-10-12",entity_ids:[entityKey(1)],entity_context:[{id:entityKey(1),title:"김민수",source:"selection" as const,captured_at:stamp}]};
 const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2)};
-const entity={...makeEntity(1, {prop_1:"김민수",prop_3:"2026-10-08"}),tasks:{count:1,items:[task]},records:{count:1,items:[record]}};
+const entity={...makeEntity(1, {prop_1:"김민수",prop_3:"2026-10-08"}),tasks:{count:1,items:[task]},records:{count:0,items:[]}};
 const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_timezone: "Asia/Seoul" } };
 
 async function fixture(page: Page, records = [record]) {
@@ -22,6 +22,12 @@ async function fixture(page: Page, records = [record]) {
     return route.abort();
   });
   return state;
+}
+
+function addEntityRecord(state: Awaited<ReturnType<typeof fixture>>) {
+  const own = { ...makeRecord(34), body: record.body, entity_id: entity.id, task_id: null, record_kind: "change" as const };
+  state.rows.records.push(own);
+  state.rows.entities[0].records = { count: 1, items: [own] };
 }
 
 for (const [kind, label, title] of [["entities", "전체 자료", entity.title], ["tasks", "할 일", task.title], ["records", "기록", record.body]] as const) test(`${kind}: views keep filters, list reads and disclosure/detail return`, async ({ page }) => {
@@ -65,6 +71,7 @@ test("related sections switch independently and return from a linked detail", as
   const invalidMarkup: string[] = [];
   page.on("console", message => { if (message.type() === "error" && /cannot (be a child|contain)|In HTML/.test(message.text())) invalidMarkup.push(message.text()); });
   const state = await fixture(page);
+  addEntityRecord(state);
   await page.goto(fixtureWorkspacePath(`/entities/${entity.id}`));
   const dialog = page.getByRole("dialog"), tasks = dialog.getByRole("region", { name: "할 일 (1개)" }), records = dialog.getByRole("region", { name: "기록 (1개)" });
   await tasks.getByRole("radio", { name: "카드", exact: true }).click();
@@ -75,7 +82,8 @@ test("related sections switch independently and return from a linked detail", as
   await expect(tasks.getByRole("radio", { name: "카드", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(records.getByRole("radio", { name: "테이블", exact: true })).toHaveAttribute("aria-checked", "true");
   await page.goto(fixtureWorkspacePath(`/records/${record.id}`));
-  await expect(dialog.getByRole("radiogroup", { name: "연결된 자료 보기 방식" })).toBeVisible();
+  await expect(dialog.getByRole("radiogroup", { name: "연결된 자료 보기 방식" })).toHaveCount(0);
+  await expect(dialog.getByRole("region", { name: "자료 (1개)", exact: true })).toHaveCount(0);
   await expect(dialog.getByRole("radiogroup", { name: "할 일 보기 방식" })).toBeVisible();
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
   expect(invalidMarkup).toEqual([]);
@@ -168,6 +176,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
 test("table rows and headers share the same columns across wrapper types and viewports", async ({ page }) => {
   const rows = [record, { ...record, ...base(4), body: "짧은 기록" }, { ...record, ...base(5), body: "아주 긴 한국어 기록을 제목처럼 표시할 때에도 날짜와 종류의 열은 흔들리지 않아야 합니다." }];
   const state = await fixture(page, rows);
+  addEntityRecord(state);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 900 }); await page.goto(fixtureWorkspacePath(`/${kind}?view=table`));
     const table = page.getByRole("table").first();
@@ -238,7 +247,7 @@ test("restored preview waits for its read and settles even when tag lookup fails
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
 
-for (const action of ["delete", "create"] as const) test(`unavailable change target ${action} keeps the same disclosure row and entity links`, async ({page}) => {
+for (const action of ["delete", "create"] as const) test(`unavailable change target ${action} keeps the immutable task disclosure without adopting entity links`, async ({page}) => {
   const history={...record,record_kind:"change" as const,change:{target_kind:"task" as const,target_id:task.id,target_title:task.title,action,source:"http" as const,event_id:id(88),path:null,before:null,after:null}};
   const state=await fixture(page,[history]);
   state.rows.tasks.length=0;
@@ -247,7 +256,8 @@ for (const action of ["delete", "create"] as const) test(`unavailable change tar
   const tasks=detail.getByRole("region",{name:"할 일 (1개)"});
   const badge=action==="delete"?"삭제됨":"조회 불가";
   await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
-  await expect(detail.getByRole("region",{name:"연결된 자료 (1개)"})).toBeVisible();
+  await expect(detail.getByRole("region",{name:"자료 (1개)"})).toHaveCount(0);
+  await expect(detail.getByRole("region",{name:"연결된 자료 (1개)"})).toHaveCount(0);
   for(const view of ["테이블","카드"]){
     await tasks.getByRole("radio",{name:view,exact:true}).click();
     await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
@@ -296,11 +306,11 @@ test("closed filters show conditions below search and opening hides the summary"
 });
 
 test("soft-deleted entity returned by GET keeps historical relation without a detail link", async ({page}) => {
-  const history={...record,record_kind:"change" as const,change:{target_kind:"entity" as const,target_id:entity.id,target_title:entity.title,action:"delete" as const,source:"http" as const,event_id:id(90),path:null,before:null,after:null}};
+  const history={...record,entity_id:entity.id,task_id:null,record_kind:"change" as const,change:{target_kind:"entity" as const,target_id:entity.id,target_title:entity.title,action:"delete" as const,source:"http" as const,event_id:id(90),path:null,before:null,after:null}};
   const state=await fixture(page,[history]);
   state.rows.entities[0].deleted_at="2026-10-10T00:00:00Z";
   await page.goto(fixtureWorkspacePath(`/records/${history.id}`));
-  const section=page.getByRole("dialog").getByRole("region",{name:"연결된 자료 (1개)",exact:true});
+  const section=page.getByRole("dialog").getByRole("region",{name:"자료 (1개)",exact:true});
   await expect(section.getByText("삭제됨",{exact:true})).toBeVisible();
   await section.getByRole("button",{name:entity.title,exact:true}).click();
   await expect(section).toContainText("기록에 저장된 당시 제목");
@@ -378,7 +388,7 @@ test("selected entity fields stay identical in every layout and expansion withou
     await row.getByRole("button",{name:selected.title,exact:true}).click();
   }
   await page.goto(fixtureWorkspacePath(`/tasks/${task.id}`));
-  const related=page.getByRole("region",{name:"연결된 자료 (1개)",exact:true});
+  const related=page.getByRole("region",{name:"자료 (1개)",exact:true});
   await related.getByRole("button",{name:entity.title,exact:true}).click();
   await expect(related.getByText("품명",{exact:true})).toBeVisible();
   await expect(related.getByText("숨긴 날짜",{exact:true})).toHaveCount(0);
