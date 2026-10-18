@@ -1,3 +1,5 @@
+import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
+import * as settings from "../../functions/_shared/core/settings/application.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
@@ -225,6 +227,24 @@ async function twoKindPublicationFixture(injectLateFailure: boolean) {
           })`,
       );
     }
+    const tagId = await admin.begin(async (tx) => {
+      await tx`select set_config('request.workspace_id',${workspaceId!},true)`;
+      return (await tx`insert into app.tags(workspace_id,scope,name) values(${workspaceId!},'record','변환 기록 태그') returning id`)[
+        0
+      ].id as string;
+    });
+    await settings.updateBusinessSettings(
+      {
+        uow: new SqlBusinessSettingsUnitOfWork(sql),
+        clock: { now: () => new Date() },
+      },
+      key(author),
+      {
+        id: "record_templates",
+        expected_version: 0,
+        value: { entity: { update: { memo: "변환 기록", tag_ids: [tagId] } } },
+      },
+    );
     const before = await exportDataModel(modelDeps, executor), target = structuredClone(before);
     for (const kind of target.entity_types) {
       kind.schema.properties.prop_1.maxLength = 1;
@@ -342,21 +362,46 @@ async function twoKindPublicationFixture(injectLateFailure: boolean) {
           const [collision] = await admin`select r.record_id,r.entity_id,r.record_body from app.data_model_children c
               join private.entity_schema_migration_rows r on r.workspace_id=c.workspace_id and r.job_id=c.job_id
               where c.workspace_id=${workspaceId} and c.model_id=${saved.id} order by c.type_id desc limit 1`;
-          await admin`insert into app.records(workspace_id,id,entity_id,created_by,body,record_kind,change_metadata)
-              values(${workspaceId},${collision.record_id},${collision.entity_id},${b.userId},${collision.record_body},'change',
+          await admin.begin(async (tx) => {
+            await tx`select set_config('request.workspace_id',${executor.workspaceId},true)`;
+            await tx`insert into app.records(workspace_id,owner_id,id,entity_id,created_by,body,record_kind,change_metadata)
+              values(${executor.workspaceId},null,${collision.record_id},${collision.entity_id},${b.userId},${collision.record_body},'change',
                 ${
-            admin.json({
-              event_id: collision.record_id,
-              target_kind: "entity",
-              target_id: collision.entity_id,
-              target_title: "의도한 충돌",
-              action: "update",
-              source: "http",
-              before: null,
-              after: null,
-              path: null,
-            })
-          })`;
+              tx.json({
+                event_id: collision.record_id,
+                target_kind: "entity",
+                target_id: collision.entity_id,
+                target_title: "의도한 충돌",
+                action: "update",
+                source: "http",
+                before: null,
+                after: null,
+                path: null,
+              })
+            })`;
+          });
+          await admin.begin(async (tx) => {
+            await tx`select private.validate_data_model_group(${executor.workspaceId},${batch.id},${batch.fence})`;
+            const error = await assertRejects(() =>
+              tx.savepoint(async (nested) => {
+                await nested`insert into private.data_model_commit_context(workspace_id,model_id,pid,txid)
+                values(${executor.workspaceId},${batch.id},pg_backend_pid(),txid_current())`;
+                const jobs =
+                  await nested`select j.id,j.fence,j.source_template_fingerprint from app.data_model_children c
+                join app.entity_schema_migrations j on j.workspace_id=c.workspace_id and j.id=c.job_id
+                where c.workspace_id=${executor.workspaceId} and c.model_id=${batch.id} order by c.type_id`;
+                for (const job of jobs) {
+                  assertEquals(
+                    (await nested`select private.commit_entity_schema_migration(${job.id},${job.fence},${job.source_template_fingerprint},${SEARCH_PIPELINE}) as committed`)[
+                      0
+                    ].committed,
+                    true,
+                  );
+                }
+              })
+            );
+            assertEquals((error as { code?: string }).code, "23505");
+          });
           assertEquals(
             (await worker`select app.commit_data_model_conversion(${batch.id},${batch.fence},${SEARCH_PIPELINE}) as committed`)[
               0
@@ -383,6 +428,12 @@ async function twoKindPublicationFixture(injectLateFailure: boolean) {
           assertEquals((await admin`select id from app.records where workspace_id=${workspaceId}`).map((r) => r.id), [
             collision.record_id,
           ]);
+          assertEquals(
+            Number(
+              (await admin`select count(*) count from app.record_tags where workspace_id=${workspaceId}`)[0].count,
+            ),
+            0,
+          );
           assertEquals(
             Number(
               (await admin`select count(*) count from app.search_index_state where workspace_id=${workspaceId}`)[0]
@@ -414,11 +465,17 @@ async function twoKindPublicationFixture(injectLateFailure: boolean) {
             ),
             0,
           );
-          const sealed = await admin`select j.status,j.retryable,j.source_definition<>'{}'::jsonb retained,r.prepared
+          const sealed =
+            await admin`select j.status,j.retryable,j.source_definition<>'{}'::jsonb retained,r.prepared,r.record_tags
               from app.entity_schema_migrations j join private.entity_schema_migration_rows r on r.workspace_id=j.workspace_id and r.job_id=j.id
               where j.workspace_id=${workspaceId} and j.model_change_id=${saved.id}`;
           assertEquals(sealed.length, 2);
-          assertEquals(sealed.every((r) => r.status === "failed" && !r.retryable && r.retained && r.prepared), true);
+          assertEquals(
+            sealed.every((r) =>
+              r.status === "failed" && !r.retryable && r.retained && r.prepared && r.record_tags.length === 1
+            ),
+            true,
+          );
           return;
         }
         const [result] =
@@ -467,6 +524,12 @@ async function twoKindPublicationFixture(injectLateFailure: boolean) {
         assertEquals(row.entity_context, []);
       }
     });
+    assertEquals(
+      (await admin`select tag_id from app.record_tags where workspace_id=${workspaceId} order by record_id`).map((r) =>
+        r.tag_id
+      ),
+      [tagId, tagId],
+    );
     const [epoch] = await admin`select lifecycle_generation from app.workspaces where id=${workspaceId}`;
     const search = await admin`select s.owner_id,s.workspace_id,s.initiated_by,s.workspace_generation,s.source_version,
         s.kind,s.id,s.input_hash,s.pipeline,record.version,q.message
