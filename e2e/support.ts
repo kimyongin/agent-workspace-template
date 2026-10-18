@@ -71,6 +71,16 @@ type OwnedWorkspace = {
   cleaned: boolean;
 };
 const pageSessions = new WeakMap<Page, { token: string; actorId: string }>();
+/** Bind a second tab to the exact session already minted in this browser context. */
+export async function shareFixtureSession(source: Page, target: Page) {
+  const session = pageSessions.get(source);
+  if (!activeScope || !session || source.context() !== target.context()) {
+    throw new Error("fixture session sharing requires one tracked authenticated browser context");
+  }
+  ownedRuntime();
+  pageSessions.set(target, session);
+  await target.goto(source.url());
+}
 let activeScope: Scope | null = null;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Persist only IDs from a just-minted Auth response, never its bearer token. */

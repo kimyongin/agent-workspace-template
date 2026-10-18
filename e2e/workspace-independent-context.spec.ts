@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, workspacePath } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, shareFixtureSession, test, workspacePath } from "./support.ts";
 import { detailDialog, saveOnce } from "./ui-actions.ts";
 
 const titleInput = (page: Page) => detailDialog(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ });
@@ -22,7 +22,7 @@ test("actual independent contexts: two browser workspaces and a third MCP worksp
   await devLogin(page);
   const first = await ownedWorkspace(page);
   const otherPage = await context.newPage();
-  await devLogin(otherPage);
+  await shareFixtureSession(page, otherPage);
   const second = await ownedWorkspace(otherPage);
   const third = await ownedWorkspace(otherPage);
   const mcp = await mcpClient(await mcpTokenViaConsent(otherPage), { workspaceId: third.id });
