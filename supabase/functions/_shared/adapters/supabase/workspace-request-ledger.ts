@@ -49,11 +49,20 @@ export async function executeWorkspaceRequest<T>(
       );
     }
   }
-  const [row] = account
+  let [row] = account
     ? await tx`select app.begin_account_workspace_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`
     : await tx`select app.begin_workspace_request(${request.key}::uuid,${request.operation},${request.fingerprint},${
       tx.json(footprint as never)
     }) as receipt`;
+  if (account && row.receipt.state === "workspace_lock_required") {
+    await lockWorkspace(
+      tx,
+      row.receipt.workspace_id,
+      request.operation === "workspace.invitation.accept" ? "control" : "business",
+    );
+    [row] =
+      await tx`select app.begin_account_workspace_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`;
+  }
   const receipt = receiptResult<T>(actor, row.receipt);
   if (receipt.found) return receipt.result as T;
   await tx`select set_config('lock_timeout','5s',true)`;

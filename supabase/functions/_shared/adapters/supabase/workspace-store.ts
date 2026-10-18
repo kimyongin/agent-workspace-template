@@ -26,7 +26,11 @@ export class SqlWorkspaceStore implements WorkspaceStore {
     return r.result;
   }
   async list() {
-    return { items: await this.tx<Workspace[]>`select id,name,deleted_at from app.workspaces order by created_at,id` };
+    return {
+      items: Array.from(
+        await this.tx<Workspace[]>`select id,name,deleted_at from app.workspaces order by created_at,id`,
+      ),
+    };
   }
   async details() {
     const [r] = await this.tx`select app.workspace_details() as result`;
@@ -63,6 +67,10 @@ export class SqlWorkspaceStore implements WorkspaceStore {
     const [r] = await this.tx`select app.workspace_invite(${input.email},${
       this.tx.json(input.grants as never)
     }) as result`;
+    return r.result;
+  }
+  async retryInvitationDelivery(id: string, expectedVersion: number) {
+    const [r] = await this.tx`select app.workspace_retry_invitation_delivery(${id}::uuid,${expectedVersion}) as result`;
     return r.result;
   }
   async cancelInvitation(id: string, expectedVersion: number) {

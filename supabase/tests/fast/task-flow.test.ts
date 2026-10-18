@@ -293,6 +293,7 @@ async function post(app: ReturnType<typeof createHttpApp>, path: string, input?:
       method,
       headers: {
         "Idempotency-Key": crypto.randomUUID(),
+        "X-Workspace-Id": "fc48a529-57ed-429a-9080-0f78a8563375",
         authorization: "Bearer fixture",
         "content-type": "application/json",
       },

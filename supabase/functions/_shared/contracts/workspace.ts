@@ -41,7 +41,9 @@ export interface WorkspaceMember {
   version: number;
   grants: WorkspaceGrant[];
 }
+export type WorkspaceInvitationDeliveryStatus = "pending" | "sent" | "failed" | "unknown" | "unconfigured";
 export interface WorkspaceInvitation {
+  delivery?: { status: WorkspaceInvitationDeliveryStatus };
   id: string;
   workspace_id: string;
   version: number;

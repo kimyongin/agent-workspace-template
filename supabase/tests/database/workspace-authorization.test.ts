@@ -59,7 +59,16 @@ dbTest(
   async () => {
     const f = await fixture();
     try {
-      const actor = key(f.a), first = await workspaces.createWorkspace(deps, actor, { name: "첫 공간" });
+      const actor = key(f.a);
+      const created = await Promise.all(
+        Array.from(
+          { length: 3 },
+          () =>
+            workspaces.createWorkspace(deps, { ...actor, request: { key: actor.request.key } }, { name: "첫 공간" }),
+        ),
+      );
+      const first = created[0];
+      for (const result of created) assertEquals(result, first);
       // This test created an extra root through the public API; track it for exact cleanup.
       const second = await f.create(f.a, "다른 공간");
       try {
@@ -72,14 +81,13 @@ dbTest(
         assertEquals((await workspaces.workspaceDetails(deps, f.a, second.id)).grants, [settings]);
         await denied(() => workspaces.workspaceDetails(deps, f.b, second.id));
         assertEquals((await workspaces.listWorkspaces(deps, f.b)).items, []);
-        await assertRejects(
+        await denied(
           () =>
             deps.uow.account(f.a, async (s) => {
               await s.create("롤백될 공간");
               throw new Error("rollback");
             }),
-          Error,
-          "rollback",
+          "internal",
         );
         assertEquals((await workspaces.listWorkspaces(deps, f.a)).items.length, 2);
         await admin`update app.workspaces set deleted_at=clock_timestamp() where id=${first.workspace.id}`;
@@ -284,4 +292,108 @@ dbTest("application roles cannot bypass workspace storage or expose permission/r
   has_function_privilege('anon','app.begin_workspace_request(uuid,text,text,jsonb)','EXECUTE') as direct_receipt`;
   assertEquals(acl, { server_read: false, user_write: false, direct_control: false, direct_receipt: false });
   assert(roles.length === 3);
+});
+
+dbTest("all scoped legacy store delegates use workspace receipts for normal and retained replay", async () => {
+  const f = await fixture();
+  try {
+    const first = await f.create(f.a), second = await f.create(f.a);
+    await workspaces.updateWorkspaceMember(deps, key(f.a), first.id, f.a.userId, {
+      expected_version: 1,
+      grants: [settings, taskRead],
+    });
+    const actor = { ...key(f.a), workspaceId: first.id };
+    const request = await requestIdentity(actor, "scoped.delegate.probe", null, {});
+    const { SqlActorStore } = await import("../../functions/_shared/adapters/supabase/sql-context.ts");
+    const { replayRetainedSqlRequest } = await import("../../functions/_shared/adapters/supabase/request-ledger.ts");
+    let executions = 0;
+    const execute = () =>
+      runInWorkspace(
+        sql,
+        actor,
+        { mode: "business", requirements: [taskRead] },
+        (tx) =>
+          new SqlActorStore(tx, actor).executeRequest(
+            request,
+            () => Promise.resolve({ body: "첫 공간", attempt: ++executions }),
+          ),
+      );
+    assertEquals(await execute(), { body: "첫 공간", attempt: 1 });
+    assertEquals(await execute(), { body: "첫 공간", attempt: 1 });
+    const other = { ...actor, workspaceId: second.id };
+    const otherRequest = await requestIdentity(other, "scoped.delegate.probe", null, {});
+    assertEquals(
+      await runInWorkspace(
+        sql,
+        other,
+        { mode: "business", requirements: [] },
+        (tx) => new SqlActorStore(tx, other).executeRequest(otherRequest, () => Promise.resolve({ body: "둘째 공간" })),
+      ),
+      { body: "둘째 공간" },
+    );
+    await workspaces.updateWorkspaceMember(deps, key(f.a), first.id, f.a.userId, {
+      expected_version: 2,
+      grants: [settings],
+    });
+    await denied(execute);
+    await denied(() =>
+      runInWorkspace(
+        sql,
+        actor,
+        { mode: "business", requirements: [] },
+        (tx) => replayRetainedSqlRequest(tx, actor, request),
+      )
+    );
+    assertEquals(executions, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+dbTest("pooled connection clears actor and workspace after commit and rollback before another scope", async () => {
+  const f = await fixture(), reused = connect(urls.direct, { max: 1, prepare: false });
+  try {
+    const a = await f.create(f.a), b = await f.create(f.b);
+    const inspect = async (actor: Actor, id: string) =>
+      await runInWorkspace(
+        reused,
+        { ...actor, workspaceId: id },
+        { mode: "business", requirements: [] },
+        async (tx) => {
+          const [row] =
+            await tx`select current_user as role,app.current_workspace_id()::text as workspace,current_setting('request.jwt.claims')::jsonb->>'sub' as actor`;
+          return row;
+        },
+      );
+    assertEquals(await inspect(f.a, a.id), { role: "app_user", workspace: a.id, actor: f.a.userId });
+    assertEquals(await inspect(f.b, b.id), { role: "app_user", workspace: b.id, actor: f.b.userId });
+    await denied(
+      () =>
+        runInWorkspace(
+          reused,
+          { ...f.a, workspaceId: a.id },
+          { mode: "business", requirements: [] },
+          () => Promise.reject(new AppError("conflict", "rollback")),
+        ),
+      "conflict",
+    );
+    const [after] =
+      await reused`select current_user as role,current_setting('request.workspace_id',true) as workspace,current_setting('request.jwt.claims',true) as actor`;
+    assertEquals(after.role, "app_server");
+    assert(!after.workspace);
+    assert(!after.actor);
+    await denied(
+      async () =>
+        await Promise.resolve(
+          runInWorkspace(reused, { ...f.a, workspaceId: "" }, { mode: "business", requirements: [] }, () =>
+            Promise.resolve()),
+        ),
+      "invalid_input",
+    );
+    await denied(() => inspect(f.b, a.id));
+    assertEquals(await inspect(f.b, b.id), { role: "app_user", workspace: b.id, actor: f.b.userId });
+  } finally {
+    await reused.end();
+    await f.cleanup();
+  }
 });

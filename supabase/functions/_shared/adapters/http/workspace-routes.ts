@@ -11,6 +11,7 @@ import {
   listWorkspaceMembers,
   listWorkspaces,
   removeWorkspaceMember,
+  retryWorkspaceInvitationDelivery,
   updateWorkspaceMember,
   type WorkspaceDeps,
   workspaceDetails,
@@ -84,6 +85,19 @@ export function workspaceRoutes(deps: WorkspaceDeps) {
   app.post(
     "/invitations/:invitationId/accept",
     async (c) => c.json(await acceptWorkspaceInvitation(deps, c.get("actor"), c.req.param("invitationId"))),
+  );
+  app.post(
+    "/workspaces/:id/invitations/:invitationId/delivery",
+    async (c) =>
+      c.json(
+        await retryWorkspaceInvitationDelivery(
+          deps,
+          c.get("actor"),
+          c.req.param("id"),
+          c.req.param("invitationId"),
+          await json(c.req.raw),
+        ),
+      ),
   );
   return app;
 }

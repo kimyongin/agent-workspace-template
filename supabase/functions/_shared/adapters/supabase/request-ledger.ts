@@ -1,3 +1,5 @@
+import { executeWorkspaceRequest, replayRetainedWorkspaceRequest } from "./workspace-request-ledger.ts";
+import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import type postgres from "postgres";
 import { REQUEST_RESULT_MAX_BYTES } from "../../contracts/request.ts";
 import type { Actor } from "../../core/shared/actor.ts";
@@ -9,6 +11,9 @@ export async function executeSqlRequest<T>(
   request: RequestIdentity,
   execute: () => Promise<T>,
 ): Promise<T> {
+  if (actor.workspaceId) {
+    return executeWorkspaceRequest(tx, actor, request, await workspaceFootprint(tx), execute);
+  }
   const [row] =
     await tx`select app.begin_request(${request.key}::uuid, ${request.operation}, ${request.fingerprint}) as receipt`;
   const receipt = row.receipt as { state: string; result?: T; completed_at?: string };
@@ -53,6 +58,9 @@ export async function replayRetainedSqlRequest<T>(
   actor: Actor,
   request: RequestIdentity,
 ): Promise<{ found: boolean; result?: T }> {
+  if (actor.workspaceId) {
+    return replayRetainedWorkspaceRequest(tx, actor, request, await workspaceFootprint(tx));
+  }
   const [row] =
     await tx`select app.replay_retained_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`;
   const receipt = row.receipt as { state: string; result?: T; completed_at?: string };
@@ -71,4 +79,11 @@ export async function replayRetainedSqlRequest<T>(
   }
   if (code === "result_expired") throw new AppError(code, "요청 결과의 30일 보관 기간이 지났습니다");
   throw new AppError("internal", "요청 결과를 확인할 수 없습니다");
+}
+
+/** Trusted common entry owns this transaction-local declaration; no transport permission arrays. */
+async function workspaceFootprint(tx: postgres.TransactionSql): Promise<WorkspaceRequirement[]> {
+  const [row] = await tx`select current_setting('request.workspace_requirements',true) as requirements`;
+  if (!row.requirements) throw new AppError("internal", "워크스페이스 실행 문맥을 확인할 수 없습니다");
+  return JSON.parse(row.requirements);
 }

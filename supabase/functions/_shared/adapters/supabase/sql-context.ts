@@ -104,6 +104,12 @@ export function translate(e: unknown): unknown {
   if (code === "23514" && message === "workspace_final_admin") {
     return new AppError("conflict", "마지막 관리자는 권한을 넘기거나 공간을 삭제한 뒤 나갈 수 있습니다");
   }
+  if (code === "22023" && message === "invitation_delivery_ambiguous") {
+    return new AppError(
+      "conflict",
+      "이메일 발송 여부를 확인할 수 없어 재발송할 수 없습니다. 초대를 취소하고 새 초대를 만드세요",
+    );
+  }
   if (code === "40001" || code === "40P01" || code === "55P03" || code === "57014") {
     return new AppError("unavailable", "잠시 후 다시 시도하세요");
   }

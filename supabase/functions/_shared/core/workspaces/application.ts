@@ -44,6 +44,10 @@ export interface WorkspaceStore {
   invite(
     input: { email: string; grants: WorkspaceMember["grants"] },
   ): Promise<{ invitation: WorkspaceInvitation; acceptance_path: string }>;
+  retryInvitationDelivery(
+    id: string,
+    expectedVersion: number,
+  ): Promise<{ delivery: { status: import("../../contracts/workspace.ts").WorkspaceInvitationDeliveryStatus } }>;
   cancelInvitation(id: string, expectedVersion: number): Promise<{ revoked: true }>;
   acceptInvitation(id: string): Promise<{ workspace: Workspace }>;
 }
@@ -82,10 +86,17 @@ export function listWorkspaces(deps: WorkspaceDeps, actor: Actor) {
 export async function createWorkspace(deps: WorkspaceDeps, actor: Actor, input: unknown) {
   requireRequestKey(actor);
   const value = parsed(workspaceCreate, input);
-  return deps.uow.account(actor, (s) => write(s, actor, "workspace.create", null, value, () => s.create(value.name)));
+  return await deps.uow.account(
+    actor,
+    (s) => write(s, actor, "workspace.create", null, value, () => s.create(value.name)),
+  );
 }
 export async function workspaceDetails(deps: WorkspaceDeps, actor: Actor, id: unknown) {
-  return deps.uow.workspace(workspaceActor(actor, id), { mode: "business", requirements: [] }, (s) => s.details());
+  return await deps.uow.workspace(
+    workspaceActor(actor, id),
+    { mode: "business", requirements: [] },
+    (s) => s.details(),
+  );
 }
 export function listWorkspaceMembers(deps: WorkspaceDeps, actor: Actor, id: unknown) {
   return deps.uow.workspace(workspaceActor(actor, id), management, (s) => s.members());
@@ -176,4 +187,30 @@ export function acceptWorkspaceInvitation(deps: WorkspaceDeps, actor: Actor, inv
 
 export function workspaceGrantTargets(deps: WorkspaceDeps, actor: Actor, id: unknown) {
   return deps.uow.workspace(workspaceActor(actor, id), management, (s) => s.grantTargets());
+}
+
+export function retryWorkspaceInvitationDelivery(
+  deps: WorkspaceDeps,
+  actor: Actor,
+  id: unknown,
+  invitationId: unknown,
+  input: unknown,
+) {
+  requireRequestKey(actor);
+  const scoped = workspaceActor(actor, id),
+    invitation = parsed(workspaceId, invitationId),
+    value = parsed(workspaceVersion, input);
+  return deps.uow.workspace(
+    scoped,
+    management,
+    (s) =>
+      write(
+        s,
+        scoped,
+        "workspace.invitation.delivery.retry",
+        invitation,
+        value,
+        () => s.retryInvitationDelivery(invitation, value.expected_version),
+      ),
+  );
 }
