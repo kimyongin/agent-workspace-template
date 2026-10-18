@@ -31,6 +31,7 @@ export interface WorkspaceStore {
   create(name: string): Promise<{ workspace: Workspace }>;
   list(): Promise<{ items: Workspace[] }>;
   details(): Promise<WorkspaceCapabilities>;
+  grantTargets(): Promise<{ items: { id: string; label: string }[] }>;
   members(): Promise<{ items: WorkspaceMember[] }>;
   updateMember(
     userId: string,
@@ -171,4 +172,8 @@ export function acceptWorkspaceInvitation(deps: WorkspaceDeps, actor: Actor, inv
     invitation,
     (s) => write(s, actor, "workspace.invitation.accept", invitation, {}, () => s.acceptInvitation(invitation)),
   );
+}
+
+export function workspaceGrantTargets(deps: WorkspaceDeps, actor: Actor, id: unknown) {
+  return deps.uow.workspace(workspaceActor(actor, id), management, (s) => s.grantTargets());
 }

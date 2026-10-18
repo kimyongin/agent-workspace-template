@@ -1,3 +1,6 @@
+import { workspaceRoutes } from "./workspace-routes.ts";
+import type { WorkspaceDeps } from "../../core/workspaces/application.ts";
+import { workspaceId } from "../../contracts/workspace.ts";
 import type { DataModelDeps } from "../../core/data-model/application.ts";
 import { dataModelRoutes } from "./data-model-routes.ts";
 import { createAndLinkRoutes } from "./create-and-link-routes.ts";
@@ -54,6 +57,7 @@ export function createHttpApp(
   relationLinks?: EntityRelationLinkDeps,
   dataModel?: DataModelDeps,
   createAndLink?: CreateAndLinkDeps,
+  workspaces?: WorkspaceDeps,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -61,7 +65,7 @@ export function createHttpApp(
     "*",
     cors({
       origin: (origin) => (config.allowedOrigins.includes(origin) ? origin : null),
-      allowHeaders: ["authorization", "content-type", "Idempotency-Key"],
+      allowHeaders: ["authorization", "content-type", "Idempotency-Key", "X-Workspace-Id"],
       exposeHeaders: ["Idempotency-Replayed", "Idempotency-Completed-At", "Retry-After"],
       allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       maxAge: 600,
@@ -77,6 +81,12 @@ export function createHttpApp(
         completed_at: undefined as string | undefined,
       },
     };
+    const control = /^\/(workspaces|invitations)(?:\/|$)/.test(c.req.path.slice(config.basePath.length));
+    if (!control) {
+      const scope = workspaceId.safeParse(c.req.header("X-Workspace-Id"));
+      if (!scope.success) throw new AppError("invalid_input", "X-Workspace-Id가 필요합니다");
+      Object.assign(actor, { workspaceId: scope.data });
+    }
     c.set("actor", actor);
     await next();
     if (actor.request.replayed) {
@@ -85,6 +95,7 @@ export function createHttpApp(
     }
   });
 
+  if (workspaces) app.route("/", workspaceRoutes(workspaces));
   app.route("/", activityRoutes(deps));
   app.route("/", tagRoutes(tags));
   app.route("/", searchRoutes(search));
