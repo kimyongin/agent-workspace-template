@@ -1,9 +1,7 @@
+import { activityWorkspaceSuite, completeHttpTask, scopedHttp } from "./_workspace-activity-fixture.ts";
 // HTTP 계약 테스트: 실제 로컬 Edge Runtime의 /api와 실제 로그인 토큰으로 검사한다.
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
-import { admin, call, httpTest, seoulDate, signIn } from "./_client.ts";
-
-const A = await signIn("A");
-const B = await signIn("B");
+import { admin, call, seoulDate } from "./_client.ts";
 
 const newOnce = (title = "보고서 초안 쓰기") => ({
   kind: "once",
@@ -15,297 +13,658 @@ const completion = (version: number, extra: Record<string, unknown> = {}) => ({
   body: "링크: 문서함",
   ...extra,
 });
-const queueCount = async () => (await admin<{ n: number }[]>`select count(*)::int as n from pgmq.q_search_index`)[0].n;
+activityWorkspaceSuite(
+  "owned HTTP activity current contracts",
+  async (f, t) => {
+    const { A, B, workspaceA, workspaceB } = f;
+    const queueCount = async () =>
+      (await admin<
+        { n: number }[]
+      >`select count(*)::int as n from pgmq.q_search_index where message->>'workspace_id'=${workspaceA}`)[
+        0
+      ].n;
 
-httpTest("인증: 토큰 없음·위조 토큰은 401, 본문은 공통 오류 형식", async () => {
-  const none = await call(null, "GET", "/tasks");
-  assertEquals(none.status, 401);
-  assertEquals(none.body.code, "unauthenticated");
-  const [h, p] = A.split(".");
-  const forged = await call(`${h}.${p}.AAAA`, "GET", "/tasks");
-  assertEquals(forged.status, 401);
-  // 내용을 바꾼 토큰(서명 불일치)
-  const payload = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/")));
-  const altered = btoa(JSON.stringify({ ...payload, sub: "00000000-0000-4000-8000-000000000000" }))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  assertEquals((await call(`${h}.${altered}.${A.split(".")[2]}`, "GET", "/tasks")).status, 401);
-});
+    await t.step(
+      "인증: 토큰 없음·위조 토큰은 401, 본문은 공통 오류 형식",
+      async () => {
+        const none = await call(null, "GET", "/tasks");
+        assertEquals(none.status, 401);
+        assertEquals(none.body.code, "unauthenticated");
+        const [h, p] = A.split(".");
+        const forged = await call(`${h}.${p}.AAAA`, "GET", "/tasks");
+        assertEquals(forged.status, 401);
+        // 내용을 바꾼 토큰(서명 불일치)
+        const payload = JSON.parse(
+          atob(p.replace(/-/g, "+").replace(/_/g, "/")),
+        );
+        const altered = btoa(
+          JSON.stringify({
+            ...payload,
+            sub: "00000000-0000-4000-8000-000000000000",
+          }),
+        )
+          .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        assertEquals(
+          (await call(`${h}.${altered}.${A.split(".")[2]}`, "GET", "/tasks"))
+            .status,
+          401,
+        );
+      },
+    );
 
-httpTest("할 일 생성·조회·한글 왕복과 색인 작업 등록", async () => {
-  const before = await queueCount();
-  const created = await call(A, "POST", "/tasks", newOnce("한글 제목 ✅"));
-  assertEquals(created.status, 201);
-  assertEquals(created.body.title, "한글 제목 ✅");
-  assertEquals(created.body.status, "open");
-  assertEquals(created.body.version, 1);
-  assertEquals(await queueCount(), before + 1); // only the change record is indexed
-  const [history] =
-    await admin`select id from app.records where record_kind='change' and change_metadata->>'target_id'=${created.body.id}`;
-  assert(history);
-  const got = await call(A, "GET", `/tasks/${created.body.id}`);
-  assertEquals(got.status, 200);
-  assertEquals(got.body.result_record, null);
-});
+    await t.step("할 일 생성·조회·한글 왕복과 색인 작업 등록", async () => {
+      const before = await queueCount();
+      const created = await scopedHttp(
+        A,
+        workspaceA,
+        "POST",
+        "/tasks",
+        newOnce("한글 제목 ✅"),
+      );
+      assertEquals(created.status, 201);
+      assertEquals(created.body.title, "한글 제목 ✅");
+      assertEquals(created.body.status, "open");
+      assertEquals(created.body.version, 1);
+      assertEquals(await queueCount(), before + 1); // only the change record is indexed
+      const [history] =
+        await admin`select id from app.records where workspace_id=${workspaceA} and record_kind='change' and change_metadata->>'target_id'=${created.body.id}`;
+      assert(history);
+      const got = await scopedHttp(
+        A,
+        workspaceA,
+        "GET",
+        `/tasks/${created.body.id}`,
+      );
+      assertEquals(got.status, 200);
+      assertEquals(got.body.result_record, null);
+    });
 
-httpTest("입력 검증: 서버 관리 필드·한도 초과는 400과 위반 필드", async () => {
-  const r = await call(A, "POST", "/tasks", { ...newOnce(), status: "done" });
-  assertEquals(r.status, 400);
-  assertEquals(r.body.fields, [{ path: "status", message: "허용하지 않는 필드입니다" }]);
-  const long = await call(A, "POST", "/tasks", { ...newOnce(), title: "가".repeat(101) });
-  assertEquals(long.status, 400);
-  assertEquals(long.body.fields[0].path, "title");
-  const t = (await call(A, "POST", "/tasks", newOnce())).body;
-  assertEquals(
-    (await call(A, "PATCH", `/tasks/${t.id}`, { change_note: "테스트 변경 이유", expected_version: 1, version: 9 }))
-      .status,
-    400,
-  );
-});
+    await t.step(
+      "입력 검증: 서버 관리 필드·한도 초과는 400과 위반 필드",
+      async () => {
+        const r = await scopedHttp(A, workspaceA, "POST", "/tasks", {
+          ...newOnce(),
+          status: "done",
+        });
+        assertEquals(r.status, 400);
+        assertEquals(r.body.fields, [{
+          path: "status",
+          message: "허용하지 않는 필드입니다",
+        }]);
+        const long = await scopedHttp(A, workspaceA, "POST", "/tasks", {
+          ...newOnce(),
+          title: "가".repeat(101),
+        });
+        assertEquals(long.status, 400);
+        assertEquals(long.body.fields[0].path, "title");
+        const t = (await scopedHttp(A, workspaceA, "POST", "/tasks", newOnce())).body;
+        assertEquals(
+          (await scopedHttp(A, workspaceA, "PATCH", `/tasks/${t.id}`, {
+            change_note: "테스트 변경 이유",
+            expected_version: 1,
+            version: 9,
+          }))
+            .status,
+          400,
+        );
+      },
+    );
 
-httpTest("사용자 격리: B는 A의 할 일을 조회·수정·완료·삭제하지 못하고 목록에도 없다(404)", async () => {
-  const t = (await call(A, "POST", "/tasks", newOnce("A만의 할 일"))).body;
-  assertEquals((await call(B, "GET", `/tasks/${t.id}`)).status, 404);
-  assertEquals(
-    (await call(B, "PATCH", `/tasks/${t.id}`, { change_note: "테스트 변경 이유", expected_version: 1, title: "탈취" }))
-      .status,
-    404,
-  );
-  assertEquals((await call(B, "POST", `/tasks/${t.id}/complete`, completion(1))).status, 404);
-  assertEquals((await call(B, "POST", `/tasks/${t.id}/delete`, { expected_version: 1 })).status, 404);
-  const list = await call(B, "GET", "/tasks?limit=100");
-  assert(!list.body.items.some((x: { id: string }) => x.id === t.id));
-  assertEquals((await call(A, "GET", `/tasks/${t.id}`)).body.title, "A만의 할 일");
-});
+    await t.step(
+      "사용자 격리: B는 A의 할 일을 조회·수정·완료·삭제하지 못하고 목록에도 없다(404)",
+      async () => {
+        const t = (await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          "/tasks",
+          newOnce("A만의 할 일"),
+        )).body;
+        assertEquals(
+          (await scopedHttp(B, workspaceB, "GET", `/tasks/${t.id}`)).status,
+          404,
+        );
+        assertEquals(
+          (await scopedHttp(B, workspaceB, "PATCH", `/tasks/${t.id}`, {
+            change_note: "테스트 변경 이유",
+            expected_version: 1,
+            title: "탈취",
+          }))
+            .status,
+          404,
+        );
+        assertEquals(
+          (await scopedHttp(
+            B,
+            workspaceB,
+            "POST",
+            `/tasks/${t.id}/complete`,
+            completion(1),
+          )).status,
+          404,
+        );
+        assertEquals(
+          (await scopedHttp(B, workspaceB, "POST", `/tasks/${t.id}/delete`, {
+            expected_version: 1,
+          })).status,
+          404,
+        );
+        const list = await scopedHttp(B, workspaceB, "GET", "/tasks?limit=100");
+        assert(!list.body.items.some((x: { id: string }) => x.id === t.id));
+        assertEquals(
+          (await scopedHttp(A, workspaceA, "GET", `/tasks/${t.id}`)).body.title,
+          "A만의 할 일",
+        );
+      },
+    );
 
-httpTest("완료: 할 일 done·결과 기록·기록 색인을 함께 저장하고, 다시 완료하면 409", async () => {
-  const t = (await call(A, "POST", "/tasks", newOnce())).body;
-  const before = await queueCount();
-  const done = await call(A, "POST", `/tasks/${t.id}/complete`, completion(1));
-  assertEquals(done.status, 200);
-  assertEquals(done.body.task.status, "done");
-  assertEquals(done.body.task.result_record_id, done.body.record.id);
-  assertEquals(done.body.record.task_id, t.id);
-  assertEquals(await queueCount(), before + 1);
-  const detail = await call(A, "GET", `/tasks/${t.id}`);
-  assertEquals(detail.body.result_record, {
-    id: done.body.record.id,
-    body: "링크: 문서함",
-  });
-  const again = await call(A, "POST", `/tasks/${t.id}/complete`, completion(2));
-  assertEquals(again.status, 409);
-  assertEquals(again.body.code, "conflict");
-  const stale = await call(A, "PATCH", `/tasks/${t.id}`, {
-    change_note: "테스트 변경 이유",
-    expected_version: 1,
-    title: "늦은 수정",
-  });
-  assertEquals(stale.status, 409);
-});
+    await t.step(
+      "완료: 할 일 done·결과 기록·기록 색인을 함께 저장하고, 다시 완료하면 409",
+      async () => {
+        const t = (await scopedHttp(A, workspaceA, "POST", "/tasks", newOnce())).body;
+        const before = await queueCount();
+        const done = await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/complete`,
+          completion(1),
+        );
+        assertEquals(done.status, 200);
+        assertEquals(done.body.task.status, "done");
+        assertEquals(done.body.task.result_record_id, done.body.record.id);
+        assertEquals(done.body.record.task_id, t.id);
+        assertEquals(await queueCount(), before + 1);
+        const detail = await scopedHttp(A, workspaceA, "GET", `/tasks/${t.id}`);
+        assertEquals(detail.body.result_record, {
+          id: done.body.record.id,
+          body: "링크: 문서함",
+        });
+        const again = await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/complete`,
+          completion(2),
+        );
+        assertEquals(again.status, 409);
+        assertEquals(again.body.code, "conflict");
+        const stale = await scopedHttp(
+          A,
+          workspaceA,
+          "PATCH",
+          `/tasks/${t.id}`,
+          {
+            change_note: "테스트 변경 이유",
+            expected_version: 1,
+            title: "늦은 수정",
+          },
+        );
+        assertEquals(stale.status, 409);
+      },
+    );
 
-httpTest("동시 완료: 서로 다른 요청 5개 중 하나만 성공하고 결과 기록은 1개", async () => {
-  const t = (await call(A, "POST", "/tasks", newOnce("동시 완료"))).body;
-  const results = await Promise.all(
-    Array.from({ length: 5 }, () => call(A, "POST", `/tasks/${t.id}/complete`, completion(1))),
-  );
-  assertEquals(results.filter((r) => r.status === 200).length, 1);
-  assertEquals(results.filter((r) => r.status === 409).length, 4);
-  const [{ n }] = await admin<{ n: number }[]>`select count(*)::int as n from app.records where task_id = ${t.id}`;
-  assertEquals(n, 1);
-});
+    await t.step(
+      "동시 완료: 서로 다른 요청 5개 중 하나만 성공하고 결과 기록은 1개",
+      async () => {
+        const t = (await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          "/tasks",
+          newOnce("동시 완료"),
+        )).body;
+        const results = await Promise.all(
+          Array.from({ length: 5 }, () =>
+            scopedHttp(
+              A,
+              workspaceA,
+              "POST",
+              `/tasks/${t.id}/complete`,
+              completion(1),
+            )),
+        );
+        assertEquals(
+          results.filter((r) => r.status === 200).length,
+          1,
+        );
+        assertEquals(results.filter((r) => r.status === 409).length, 4);
+        const [{ n }] = await admin<
+          { n: number }[]
+        >`select count(*)::int as n from app.records where workspace_id=${workspaceA} and task_id = ${t.id} and record_kind='result'`;
+        assertEquals(n, 1);
+      },
+    );
 
-httpTest("응답 유실 후 재시도: 같은 버전은 충돌로 거부하고 중복 기록이 없다", async () => {
-  const t = (await call(A, "POST", "/tasks", newOnce("재시도"))).body;
-  // 동시에 같은 요청을 여러 번 보내도(응답 유실 후 재전송) 한 번만 실행된다.
-  const results = await Promise.all(
-    Array.from(
-      { length: 4 },
-      () => call(A, "POST", `/tasks/${t.id}/complete`, completion(1, {})),
-    ),
-  );
-  assertEquals(results.filter((r) => r.status === 200).length, 1);
-  assertEquals(results.filter((r) => r.status === 409).length, 3);
-  const late = await call(A, "POST", `/tasks/${t.id}/complete`, completion(1, {}));
-  assertEquals(late.status, 409);
-  const [{ n }] = await admin<{ n: number }[]>`select count(*)::int as n from app.records where task_id = ${t.id}`;
-  assertEquals(n, 1);
-  // 같은 키로 다른 내용을 보내면 conflict
-  const changed = await call(
-    A,
-    "POST",
-    `/tasks/${t.id}/complete`,
-    completion(1, { body: "다름" }),
-  );
-  assertEquals(changed.status, 409);
-  // 다른 사용자가 같은 키를 써도 A의 결과를 받지 못한다
-  const other = await call(B, "POST", `/tasks/${t.id}/complete`, completion(1, {}));
-  assertEquals(other.status, 404);
-});
+    await t.step(
+      "응답 유실 후 같은 요청 키 재시도는 동일 결과를 재현한다",
+      async () => {
+        const t = (await scopedHttp(A, workspaceA, "POST", "/tasks", newOnce("재시도")))
+          .body;
+        const key = crypto.randomUUID(), input = completion(1, {});
+        const first = await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/complete`,
+          input,
+          key,
+        );
+        assertEquals(first.status, 200);
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const replay = await scopedHttp(
+            A,
+            workspaceA,
+            "POST",
+            `/tasks/${t.id}/complete`,
+            input,
+            key,
+          );
+          assertEquals(replay.status, 200);
+          assertEquals(replay.body, first.body);
+          assertEquals(replay.headers.get("Idempotency-Replayed"), "true");
+        }
+        const [{ n }] = await admin<
+          { n: number }[]
+        >`select count(*)::int as n from app.records where workspace_id=${workspaceA} and task_id=${t.id} and record_kind='result'`;
+        assertEquals(n, 1);
+        const changed = await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/complete`,
+          completion(1, { body: "다름" }),
+          key,
+        );
+        assertEquals(changed.status, 409);
+        assertEquals(changed.body.code, "idempotency_key_reused");
+        const other = await scopedHttp(
+          B,
+          workspaceB,
+          "POST",
+          `/tasks/${t.id}/complete`,
+          input,
+          key,
+        );
+        assertEquals(other.status, 404);
+      },
+    );
 
-httpTest("같은 요청 키 생성 재전송은 동일 결과를 재현한다", async () => {
-  const body = newOnce("한 번만 생성"), key = crypto.randomUUID();
-  const [x, y] = await Promise.all([call(A, "POST", "/tasks", body, key), call(A, "POST", "/tasks", body, key)]);
-  assertEquals([x.status, y.status], [201, 201]);
-  assertEquals(x.body, y.body);
-});
+    await t.step(
+      "같은 요청 키 생성 재전송은 동일 결과를 재현한다",
+      async () => {
+        const body = newOnce("한 번만 생성"), key = crypto.randomUUID();
+        const [x, y] = await Promise.all([
+          scopedHttp(A, workspaceA, "POST", "/tasks", body, key),
+          scopedHttp(A, workspaceA, "POST", "/tasks", body, key),
+        ]);
+        assertEquals([x.status, y.status], [201, 201]);
+        assertEquals(x.body, y.body);
+      },
+    );
 
-httpTest("기록 삭제: 일회성 할 일은 done을 유지하고 result_record_id만 비운다", async () => {
-  const t = (await call(A, "POST", "/tasks", newOnce())).body;
-  const done = (await call(A, "POST", `/tasks/${t.id}/complete`, completion(1))).body;
-  const del = await call(A, "DELETE", `/records/${done.record.id}?expected_version=${done.record.version}`);
-  assertEquals(del.status, 204);
-  const after = (await call(A, "GET", `/tasks/${t.id}`)).body;
-  assertEquals(after.status, "done");
-  assertEquals(after.result_record_id, null);
-  assertEquals(after.result_record, null);
-});
+    await t.step(
+      "기록 삭제: 일회성 할 일은 done을 유지하고 result_record_id만 비운다",
+      async () => {
+        const t = (await scopedHttp(A, workspaceA, "POST", "/tasks", newOnce())).body;
+        const done = (await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/complete`,
+          completion(1),
+        )).body;
+        const del = await scopedHttp(
+          A,
+          workspaceA,
+          "DELETE",
+          `/records/${done.record.id}?expected_version=${done.record.version}`,
+        );
+        assertEquals(del.status, 204);
+        const after = (await scopedHttp(A, workspaceA, "GET", `/tasks/${t.id}`)).body;
+        assertEquals(after.status, "done");
+        assertEquals(after.result_record_id, null);
+        assertEquals(after.result_record, null);
+      },
+    );
 
-httpTest("할 일 삭제: 결과 기록은 보존하고 task_id를 비운다", async () => {
-  const t = (await call(A, "POST", "/tasks", newOnce())).body;
-  const done = (await call(A, "POST", `/tasks/${t.id}/complete`, completion(1))).body;
-  assertEquals((await call(A, "POST", `/tasks/${t.id}/delete`, { expected_version: 1 })).status, 409);
-  assertEquals((await call(A, "POST", `/tasks/${t.id}/delete`, { expected_version: 2 })).status, 204);
-  assertEquals((await call(A, "GET", `/tasks/${t.id}`)).status, 404);
-  const rec = await call(A, "GET", `/records/${done.record.id}`);
-  assertEquals(rec.status, 200);
-  assertEquals(rec.body.task_id, null);
-});
+    await t.step(
+      "할 일 소프트 삭제·복원: 결과 기록의 고정 소속과 수행 문맥을 보존한다",
+      async () => {
+        const t = (await scopedHttp(A, workspaceA, "POST", "/tasks", newOnce())).body;
+        const done = (await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/complete`,
+          completion(1),
+        )).body;
+        assertEquals(
+          (await scopedHttp(A, workspaceA, "POST", `/tasks/${t.id}/delete`, {
+            expected_version: 1,
+          })).status,
+          409,
+        );
+        assertEquals(
+          (await scopedHttp(A, workspaceA, "POST", `/tasks/${t.id}/delete`, {
+            expected_version: 2,
+          })).status,
+          204,
+        );
+        const deleted = await scopedHttp(
+          A,
+          workspaceA,
+          "GET",
+          `/tasks/${t.id}`,
+        );
+        assertEquals(deleted.status, 200);
+        assert(deleted.body.deleted_at);
+        assertEquals(
+          (await scopedHttp(A, workspaceA, "GET", "/tasks")).body.items.some((
+            row: { id: string },
+          ) => row.id === t.id),
+          false,
+        );
+        const rec = await scopedHttp(
+          A,
+          workspaceA,
+          "GET",
+          `/records/${done.record.id}`,
+        );
+        assertEquals(rec.status, 200);
+        assertEquals(rec.body.task_id, t.id);
+        const restored = await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/restore`,
+          { expected_version: deleted.body.version },
+        );
+        assertEquals(restored.status, 200);
+        assertEquals([
+          restored.body.id,
+          restored.body.deleted_at,
+          restored.body.result_record_id,
+        ], [t.id, null, done.record.id]);
+      },
+    );
 
-httpTest("반복 할 일: 회차 목록·기록·거부(미래·중단 기간)·중단·재개·회차 필터", async () => {
-  const start = seoulDate(-3);
-  const today = seoulDate();
-  const created = await call(A, "POST", "/tasks", {
-    kind: "recurring",
-    title: "물 주기",
-    recurrence: { freq: "daily", starts_on: start },
-    timezone: "Asia/Seoul",
-  });
-  assertEquals(created.status, 201);
-  const t = created.body;
-  assertEquals(t.status, "active");
-  const rec = { body: "물 줌" };
-  assertEquals((await call(A, "POST", `/tasks/${t.id}/occurrences/${seoulDate(-1)}/records`, rec)).status, 201);
-  assertEquals((await call(A, "POST", `/tasks/${t.id}/occurrences/${seoulDate(-1)}/records`, rec)).status, 201);
-  const future = await call(A, "POST", `/tasks/${t.id}/occurrences/${seoulDate(1)}/records`, rec);
-  assertEquals(future.status, 400);
-  const beforeStart = await call(A, "POST", `/tasks/${t.id}/occurrences/${seoulDate(-4)}/records`, rec);
-  assertEquals(beforeStart.status, 400);
-  assertEquals((await call(A, "POST", `/tasks/${t.id}/complete`, completion(1))).status, 409);
+    await t.step(
+      "반복 할 일: 회차 목록·기록·거부(미래·중단 기간)·중단·재개·회차 필터",
+      async () => {
+        const start = seoulDate(-3);
+        const today = seoulDate();
+        const created = await scopedHttp(A, workspaceA, "POST", "/tasks", {
+          kind: "recurring",
+          title: "물 주기",
+          recurrence: { freq: "daily", starts_on: start },
+          timezone: "Asia/Seoul",
+        });
+        assertEquals(created.status, 201);
+        const t = created.body;
+        assertEquals(t.status, "active");
+        const rec = { body: "물 줌" };
+        assertEquals(
+          (await scopedHttp(
+            A,
+            workspaceA,
+            "POST",
+            `/tasks/${t.id}/occurrences/${seoulDate(-1)}/records`,
+            rec,
+          )).status,
+          201,
+        );
+        assertEquals(
+          (await scopedHttp(
+            A,
+            workspaceA,
+            "POST",
+            `/tasks/${t.id}/occurrences/${seoulDate(-1)}/records`,
+            rec,
+          )).status,
+          201,
+        );
+        const future = await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/occurrences/${seoulDate(1)}/records`,
+          rec,
+        );
+        assertEquals(future.status, 400);
+        const beforeStart = await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/occurrences/${seoulDate(-4)}/records`,
+          rec,
+        );
+        assertEquals(beforeStart.status, 400);
+        assertEquals(
+          (await scopedHttp(
+            A,
+            workspaceA,
+            "POST",
+            `/tasks/${t.id}/complete`,
+            completion(1),
+          )).status,
+          409,
+        );
 
-  const occ = await call(A, "GET", `/tasks/${t.id}/occurrences?from=${start}&to=${seoulDate(1)}`);
-  assertEquals(occ.status, 200);
-  assertEquals(occ.body.today, today);
-  assertEquals(
-    occ.body.items.map((
-      o: { date: string; status: string; record_ids: string[] },
-    ) => [o.date, o.status, o.record_ids.length]),
-    [[start, "missed", 0], [seoulDate(-2), "missed", 0], [seoulDate(-1), "done", 2], [today, "due", 0], [
-      seoulDate(1),
-      "upcoming",
-      0,
-    ]],
-  );
+        const occ = await scopedHttp(
+          A,
+          workspaceA,
+          "GET",
+          `/tasks/${t.id}/occurrences?from=${start}&to=${seoulDate(1)}`,
+        );
+        assertEquals(occ.status, 200);
+        assertEquals(occ.body.today, today);
+        assertEquals(
+          occ.body.items.map((
+            o: { date: string; status: string; record_ids: string[] },
+          ) => [o.date, o.status, o.record_ids.length]),
+          [
+            [start, "missed", 0],
+            [seoulDate(-2), "missed", 0],
+            [seoulDate(-1), "done", 2],
+            [today, "due", 0],
+            [
+              seoulDate(1),
+              "upcoming",
+              0,
+            ],
+          ],
+        );
 
-  const filtered = await call(A, "GET", `/tasks?occurrence_on=${today}&limit=100`);
-  const mine = filtered.body.items.find((x: { id: string }) => x.id === t.id);
-  assertEquals(mine.occurrence.status, "due");
+        const filtered = await scopedHttp(
+          A,
+          workspaceA,
+          "GET",
+          `/tasks?occurrence_on=${today}&limit=100`,
+        );
+        const mine = filtered.body.items.find((x: { id: string }) => x.id === t.id);
+        assertEquals(mine.occurrence.status, "due");
 
-  const stopped = await call(A, "POST", `/tasks/${t.id}/stop`, {
-    change_note: "테스트 변경 이유",
-    expected_version: 1,
-  });
-  assertEquals(stopped.body.status, "stopped");
-  assertEquals(
-    (await call(A, "POST", `/tasks/${t.id}/stop`, { change_note: "테스트 변경 이유", expected_version: 2 })).status,
-    409,
-  );
-  assertEquals((await call(A, "POST", `/tasks/${t.id}/occurrences/${today}/records`, rec)).status, 400);
-  const resumed = await call(A, "POST", `/tasks/${t.id}/resume`, {
-    change_note: "테스트 변경 이유",
-    expected_version: 2,
-  });
-  assertEquals(resumed.body.status, "active");
-  assertEquals((await call(A, "POST", `/tasks/${t.id}/occurrences/${today}/records`, rec)).status, 201);
+        const stopped = await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/stop`,
+          {
+            change_note: "테스트 변경 이유",
+            expected_version: 1,
+          },
+        );
+        assertEquals(stopped.body.status, "stopped");
+        assertEquals(
+          (await scopedHttp(A, workspaceA, "POST", `/tasks/${t.id}/stop`, {
+            change_note: "테스트 변경 이유",
+            expected_version: 2,
+          })).status,
+          409,
+        );
+        assertEquals(
+          (await scopedHttp(
+            A,
+            workspaceA,
+            "POST",
+            `/tasks/${t.id}/occurrences/${today}/records`,
+            rec,
+          )).status,
+          400,
+        );
+        const resumed = await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/resume`,
+          {
+            change_note: "테스트 변경 이유",
+            expected_version: 2,
+          },
+        );
+        assertEquals(resumed.body.status, "active");
+        assertEquals(
+          (await scopedHttp(
+            A,
+            workspaceA,
+            "POST",
+            `/tasks/${t.id}/occurrences/${today}/records`,
+            rec,
+          )).status,
+          201,
+        );
 
-  const range = await call(A, "GET", `/tasks/${t.id}/occurrences?from=2026-01-01&to=2027-06-01`);
-  assertEquals(range.status, 400);
-});
+        const range = await scopedHttp(
+          A,
+          workspaceA,
+          "GET",
+          `/tasks/${t.id}/occurrences?from=2026-01-01&to=2027-06-01`,
+        );
+        assertEquals(range.status, 400);
+      },
+    );
 
-httpTest("반복 규칙 수정: 기존 기록은 규칙 밖 기록으로 남는다", async () => {
-  const start = seoulDate(-14);
-  const t = (await call(A, "POST", "/tasks", {
-    kind: "recurring",
-    title: "운동",
-    recurrence: { freq: "daily", starts_on: start },
-    timezone: "Asia/Seoul",
-  })).body;
-  const day = seoulDate(-2);
-  await call(A, "POST", `/tasks/${t.id}/occurrences/${day}/records`, { body: "운동함" });
-  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay() || 7;
-  const other = (weekday % 7) + 1; // 기록한 날의 다음 요일만 회차로
-  const upd = await call(A, "PATCH", `/tasks/${t.id}`, {
-    expected_version: 1,
-    recurrence: { freq: "weekly", weekdays: [other], starts_on: start },
-  });
-  assertEquals(upd.status, 200);
-  const occ = await call(A, "GET", `/tasks/${t.id}/occurrences?from=${day}&to=${day}`);
-  assertEquals(occ.body.items.length, 1);
-  assertEquals(occ.body.items[0].in_rule, false);
-  assertEquals(occ.body.items[0].status, "done");
-});
+    await t.step(
+      "반복 규칙 수정: 기존 기록은 규칙 밖 기록으로 남는다",
+      async () => {
+        const start = seoulDate(-14);
+        const t = (await scopedHttp(A, workspaceA, "POST", "/tasks", {
+          kind: "recurring",
+          title: "운동",
+          recurrence: { freq: "daily", starts_on: start },
+          timezone: "Asia/Seoul",
+        })).body;
+        const day = seoulDate(-2);
+        await scopedHttp(
+          A,
+          workspaceA,
+          "POST",
+          `/tasks/${t.id}/occurrences/${day}/records`,
+          { body: "운동함" },
+        );
+        const weekday = new Date(`${day}T00:00:00Z`).getUTCDay() || 7;
+        const other = (weekday % 7) + 1; // 기록한 날의 다음 요일만 회차로
+        const upd = await scopedHttp(A, workspaceA, "PATCH", `/tasks/${t.id}`, {
+          expected_version: 1,
+          recurrence: { freq: "weekly", weekdays: [other], starts_on: start },
+        });
+        assertEquals(upd.status, 200);
+        const occ = await scopedHttp(
+          A,
+          workspaceA,
+          "GET",
+          `/tasks/${t.id}/occurrences?from=${day}&to=${day}`,
+        );
+        assertEquals(occ.body.items.length, 1);
+        assertEquals(occ.body.items[0].in_rule, false);
+        assertEquals(occ.body.items[0].status, "done");
+      },
+    );
 
-httpTest("기록 목록: 커서 페이지와 다른 조건의 커서 거부", async () => {
-  const task = (await call(A, "POST", "/tasks", newOnce())).body;
-  // 같은 할 일에 연결된 기록 3개를 만들기 위해 반복 대신 직접 기록 + task 필터 없는 목록을 쓴다.
-  const stamp = new Date().toISOString();
-  for (let i = 0; i < 3; i++) {
-    await call(A, "POST", "/records", { body: `페이지 ${i}`, occurred_at: stamp });
-  }
-  const first = await call(A, "GET", `/records?limit=2&occurred_from=${encodeURIComponent(stamp)}`);
-  assertEquals(first.body.items.length, 2);
-  assertNotEquals(first.body.next_cursor, null);
-  const second = await call(
-    A,
-    "GET",
-    `/records?limit=2&occurred_from=${encodeURIComponent(stamp)}&cursor=${first.body.next_cursor}`,
-  );
-  const ids = [...first.body.items, ...second.body.items].map((r: { id: string }) => r.id);
-  assertEquals(new Set(ids).size, ids.length);
-  assert(second.body.items.length >= 1);
-  const wrong = await call(A, "GET", `/records?limit=2&task_id=${task.id}&cursor=${first.body.next_cursor}`);
-  assertEquals(wrong.status, 400);
-  // B는 A의 커서로 A의 기록을 보지 못한다
-  const stolen = await call(
-    B,
-    "GET",
-    `/records?limit=2&occurred_from=${encodeURIComponent(stamp)}&cursor=${first.body.next_cursor}`,
-  );
-  assertEquals(stolen.status, 400);
-});
+    await t.step("기록 목록: 커서 페이지와 다른 조건의 커서 거부", async () => {
+      const task = (await scopedHttp(A, workspaceA, "POST", "/tasks", newOnce())).body;
+      // Three explicit task results share a timestamp; task-owned change records remain a separate kind.
+      const stamp = new Date().toISOString();
+      for (let i = 0; i < 3; i++) {
+        await completeHttpTask(A, workspaceA, `페이지 ${i}`, stamp);
+      }
+      const first = await scopedHttp(
+        A,
+        workspaceA,
+        "GET",
+        `/records?record_kind=result&limit=2&occurred_from=${encodeURIComponent(stamp)}`,
+      );
+      assertEquals(first.body.items.length, 2);
+      assertNotEquals(first.body.next_cursor, null);
+      const second = await scopedHttp(
+        A,
+        workspaceA,
+        "GET",
+        `/records?record_kind=result&limit=2&occurred_from=${
+          encodeURIComponent(stamp)
+        }&cursor=${first.body.next_cursor}`,
+      );
+      const ids = [...first.body.items, ...second.body.items].map((
+        r: { id: string },
+      ) => r.id);
+      assertEquals(new Set(ids).size, ids.length);
+      assert(second.body.items.length >= 1);
+      const wrong = await scopedHttp(
+        A,
+        workspaceA,
+        "GET",
+        `/records?limit=2&task_id=${task.id}&cursor=${first.body.next_cursor}`,
+      );
+      assertEquals(wrong.status, 400);
+      // B는 A의 커서로 A의 기록을 보지 못한다
+      const stolen = await scopedHttp(
+        B,
+        workspaceB,
+        "GET",
+        `/records?record_kind=result&limit=2&occurred_from=${
+          encodeURIComponent(stamp)
+        }&cursor=${first.body.next_cursor}`,
+      );
+      assertEquals(stolen.status, 400);
+    });
 
-httpTest("기록 수정: 본문 변경은 재색인하고 동일 본문 재저장은 무변경", async () => {
-  const r = (await call(A, "POST", "/records", { body: "기록" })).body;
-  const pending = () =>
-    admin`select msg_id,message from pgmq.q_search_index where message->>'kind'='record' and message->>'id'=${r.id}`;
-  const first = await pending();
-  assertEquals(first.length, 1);
-  assertEquals(
-    (await call(A, "PATCH", `/records/${r.id}`, {
-      expected_version: 1,
-      body: "본문만",
-    })).status,
-    200,
-  );
-  const changed = await pending();
-  assertNotEquals(changed[0].msg_id, first[0].msg_id);
-  assertEquals(
-    (await call(A, "PATCH", `/records/${r.id}`, {
-      expected_version: 2,
-      body: "본문만",
-    })).status,
-    200,
-  );
-  const latest = await pending();
-  assertEquals(latest.length, 1);
-  assertEquals(latest[0].msg_id, changed[0].msg_id);
-  assertNotEquals(latest[0].message.input_hash, first[0].message.input_hash);
-});
+    await t.step(
+      "기록 수정: 본문 변경은 재색인하고 동일 본문 재저장은 무변경",
+      async () => {
+        const r = await completeHttpTask(A, workspaceA, "기록");
+        const pending = () =>
+          admin`select msg_id,message from pgmq.q_search_index where message->>'workspace_id'=${workspaceA} and message->>'kind'='record' and message->>'id'=${r.id}`;
+        const first = await pending();
+        assertEquals(first.length, 1);
+        assertEquals(
+          (await scopedHttp(A, workspaceA, "PATCH", `/records/${r.id}`, {
+            expected_version: 1,
+            body: "본문만",
+          })).status,
+          200,
+        );
+        const changed = await pending();
+        assertNotEquals(changed[0].msg_id, first[0].msg_id);
+        assertEquals(
+          (await scopedHttp(A, workspaceA, "PATCH", `/records/${r.id}`, {
+            expected_version: 2,
+            body: "본문만",
+          })).status,
+          200,
+        );
+        const latest = await pending();
+        assertEquals(latest.length, 1);
+        assertEquals(latest[0].msg_id, changed[0].msg_id);
+        assertNotEquals(
+          latest[0].message.input_hash,
+          first[0].message.input_hash,
+        );
+      },
+    );
+
+    await t.step("raw missing workspace is rejected", async () => {
+      assertEquals((await call(A, "GET", "/tasks")).status, 400);
+    });
+  },
+);
