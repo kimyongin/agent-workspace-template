@@ -11,7 +11,7 @@ import {
   CollectionList,
   useMainCollectionView,
 } from "../../components/Collection.tsx";
-import { RecordCalendar } from "./RecordCalendar.tsx";
+import { deferView } from "../../components/DeferredView.tsx";
 import { StatusBadge } from "./shared.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
@@ -45,6 +45,12 @@ import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds } from "./activity-filte
 import { activityLocation, type WorkspaceListKind } from "./activity-location.ts";
 import { EntityScope } from "../entity/EntityScope.tsx";
 import { ListExpansionProvider, ListPreviewItem } from "../relations/ListPreviewItem.tsx";
+
+type CalendarProps = Parameters<typeof import("./RecordCalendar.tsx").RecordCalendar<ActivityItem>>[0];
+const RecordCalendar = deferView<CalendarProps>(
+  () => import("./RecordCalendar.tsx").then(module => ({ default: module.RecordCalendar })),
+  "기록 달력",
+);
 
 function ActivitySection(
   { kind, tags, bounds, dictionary, onCreate, onClear }: {

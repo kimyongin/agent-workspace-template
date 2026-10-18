@@ -1,15 +1,11 @@
+import { deferView } from "../components/DeferredView.tsx";
 import { registerScrollOwner } from "../lib/surface-dom.ts";
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar.tsx";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "../components/ui/resizable.tsx";
 import { NavigationProtection } from "../lib/navigation-protection.tsx";
-import { DataModelSettings } from "../features/settings/DataModelSettings.tsx";
-import { RelationSettingsPage } from "../features/settings/RelationSettingsPage.tsx";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "../components/ui/empty.tsx";
 import { Button } from "../components/ui/button.tsx";
-import { IssuerSettingsPage } from "../features/settings/IssuerSettingsPage.tsx";
-import { RecordSettingsPage } from "../features/settings/RecordSettingsPage.tsx";
 import { NavigationPreviewProvider } from "../features/settings/navigation-preview.tsx";
-import { EntityTypeSettings } from "../features/settings/EntityTypeSettings.tsx";
 import { Spinner } from "../components/ui/spinner.tsx";
 import { WriteOutcomeNotice } from "../components/WriteOutcomeNotice.tsx";
 import { DetailNavigationProvider } from "../lib/detail-exploration.tsx";
@@ -30,8 +26,6 @@ import {
 import { DetailWorkspace } from "../features/details/DetailWorkspace.tsx";
 import { Navigation } from "./Navigation.tsx";
 import { useNavigationResize } from "./useNavigationResize.ts";
-import { GuidePage } from "../features/settings/GuidePage.tsx";
-import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { DisplayScaleProvider } from "../features/settings/display-scale.tsx";
 import { LogoutPage } from "../features/auth/LogoutPage.tsx";
 import { ConsentPage } from "../features/auth/ConsentPage.tsx";
@@ -42,11 +36,42 @@ import { RecordsPage } from "../features/activity/RecordsPage.tsx";
 import { TaskDetailPage } from "../features/activity/TaskDetailPage.tsx";
 import { TasksPage } from "../features/activity/TasksPage.tsx";
 import { TagsPage } from "../features/tags/TagsPage.tsx";
-import { TagSettingsPage } from "../features/tags/TagSettingsPage.tsx";
 import { SearchPage } from "../features/search/SearchPage.tsx";
 import { EntitiesPage } from "../features/entity/EntitiesPage.tsx";
 import { EntityDetailPage } from "../features/entity/EntityDetailPage.tsx";
 
+const DataModelSettings = deferView<object>(
+  () => import("../features/settings/DataModelSettings.tsx").then(module => ({ default: module.DataModelSettings })),
+  "전체 모델 설정",
+);
+const RelationSettingsPage = deferView<object>(
+  () => import("../features/settings/RelationSettingsPage.tsx").then(module => ({ default: module.RelationSettingsPage })),
+  "관계 설정",
+);
+const IssuerSettingsPage = deferView<object>(
+  () => import("../features/settings/IssuerSettingsPage.tsx").then(module => ({ default: module.IssuerSettingsPage })),
+  "발급처 설정",
+);
+const RecordSettingsPage = deferView<object>(
+  () => import("../features/settings/RecordSettingsPage.tsx").then(module => ({ default: module.RecordSettingsPage })),
+  "기록 설정",
+);
+const EntityTypeSettings = deferView<object>(
+  () => import("../features/settings/EntityTypeSettings.tsx").then(module => ({ default: module.EntityTypeSettings })),
+  "자료 설정",
+);
+const GuidePage = deferView<object>(
+  () => import("../features/settings/GuidePage.tsx").then(module => ({ default: module.GuidePage })),
+  "사용 가이드",
+);
+const SettingsPage = deferView<object>(
+  () => import("../features/settings/SettingsPage.tsx").then(module => ({ default: module.SettingsPage })),
+  "기본 설정",
+);
+const TagSettingsPage = deferView<object>(
+  () => import("../features/tags/TagSettingsPage.tsx").then(module => ({ default: module.TagSettingsPage })),
+  "태그 설정",
+);
 export const APP_NAME = "Workspace";
 const LazyStatusPage = lazy(() => import("../features/status/StatusPage.tsx").then(module => ({ default: module.StatusPage })));
 function StatusPage() { return <Suspense fallback={<div role="status" className="flex items-center gap-2"><Spinner />상태를 불러오는 중…</div>}><LazyStatusPage /></Suspense>; }

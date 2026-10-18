@@ -398,3 +398,39 @@ test("card title labels and wrapped values remain ordered and readable", async (
   }
   expect(state.writes).toEqual([]);
 });
+
+
+test("calendar loads only when selected and retains keyboard control after loading", async ({ page }, info) => {
+  const state = await fixture(page);
+  let requests = 0;
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/src/features/activity/RecordCalendar.tsx", async route => {
+    requests++;
+    await held;
+    await route.continue();
+  });
+  try {
+    await page.goto("/records?calendar_month=2026-10&calendar_day=2026-10-08", { waitUntil: "commit" });
+    await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible({ timeout: 5000 });
+    expect(requests).toBe(0);
+    const toggle = page.getByRole("radio", { name: "캘린더", exact: true });
+    await toggle.focus();
+    await toggle.press("Space");
+    await expect(page.getByRole("status")).toContainText("기록 달력 화면을 불러오는 중");
+    await expect(toggle).toBeFocused();
+    expect(requests).toBe(1);
+    release();
+    const calendar = page.getByRole("region", { name: "기록 달력", exact: true });
+    await expect(calendar).toBeVisible();
+    const selected = calendar.getByRole("button", { name: /^2026-10-08, 불러온 기록/ });
+    await selected.focus();
+    await selected.press("End");
+    await expect(calendar.getByRole("button", { name: /^2026-10-10, 불러온 기록/ })).toBeFocused();
+    await page.keyboard.press("Home");
+    await expect(calendar.getByRole("button", { name: /^2026-10-04, 불러온 기록/ })).toBeFocused();
+    await page.screenshot({ path: info.outputPath("deferred-calendar-keyboard.png") });
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  } finally { release(); }
+});

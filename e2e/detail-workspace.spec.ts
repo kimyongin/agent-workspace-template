@@ -1475,3 +1475,46 @@ for (const width of [320, 390]) test(`profile icon choices ${width}px: labels fi
   expect(state.writes).toEqual([]);
   expect(state.errors).toEqual([]);
 });
+
+
+test("desktop: deferred settings loading and failure preserve the retained draft and scale", async ({ page }, info) => {
+  let requests = 0;
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/src/features/settings/SettingsPage.tsx", async route => {
+    requests++;
+    await held;
+    await route.abort("failed");
+  });
+  try {
+    const state = await fixture(page, {}, { workspace_display_scale: "150" });
+    await page.setViewportSize({ width: 2160, height: 1080 });
+    await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`, { waitUntil: "commit" });
+    await expect(panel(page).getByRole("heading", { name: "등심", exact: true })).toBeVisible({ timeout: 5000 });
+    expect(requests).toBe(0);
+    await openTask(page);
+    const editor = panel(page).getByLabel("본문", { exact: true });
+    await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+    await editor.fill("설정 로딩 실패에도 보존할 초안");
+    const originalEditor = await editor.elementHandle();
+    const font = await page.locator("html").evaluate(node => getComputedStyle(node).fontSize);
+    await openProfileMenu(page);
+    await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+    await expect(baseWorkspace(page).getByRole("status")).toContainText("기본 설정 화면을 불러오는 중");
+    await expect(editor).toHaveValue("설정 로딩 실패에도 보존할 초안");
+    expect(requests).toBe(1);
+    release();
+    await expect(baseWorkspace(page).getByRole("alert")).toContainText("기본 설정 화면을 불러오지 못했습니다");
+    await expect(editor).toHaveValue("설정 로딩 실패에도 보존할 초안");
+    expect(await editor.evaluate((node, original) => node === original, originalEditor)).toBe(true);
+    await expect(page.locator("html")).toHaveCSS("font-size", font);
+    await editor.focus();
+    await expect(editor).toBeFocused();
+    await editor.press("End");
+    await editor.press("!");
+    await expect(editor).toHaveValue("설정 로딩 실패에도 보존할 초안!");
+    await page.screenshot({ path: info.outputPath("deferred-settings-error-retained-draft150.png") });
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  } finally { release(); }
+});

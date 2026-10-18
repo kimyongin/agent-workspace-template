@@ -691,3 +691,25 @@ test("confirmation stays usable with reduced motion and enlarged text", async ({
   await page.screenshot({ path: info.outputPath("confirmation-320-text200-reduced-motion.png") });
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
 });
+
+
+test("short modal motion preserves focus, cancellation and the editor draft", async ({ page }) => {
+  await page.goto(direct);
+  const trigger = page.locator("#dialogs").getByRole("button", { name: "편집 모달 열기", exact: true });
+  await trigger.click();
+  const editor = detailDialog(page);
+  await expect(editor).toHaveCSS("animation-duration", "0.06s");
+  const input = editor.getByLabel("상품명", { exact: false });
+  await expect(input).toBeFocused();
+  await input.fill("짧은 motion에도 보존할 초안");
+  await editor.getByRole("button", { name: "취소", exact: true }).click();
+  const confirmation = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
+  await expect(confirmation).toHaveCSS("animation-duration", "0.06s");
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(input).toHaveValue("짧은 motion에도 보존할 초안");
+  await expect(editor).toBeVisible();
+  await editor.getByRole("button", { name: "취소", exact: true }).click();
+  await confirmation.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await expect(editor).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
