@@ -255,5 +255,7 @@ test(
       path: info.outputPath("workspace-management-mobile.png"),
       fullPage: true,
     });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.screenshot({ path: info.outputPath("workspace-management-desktop.png"), fullPage: true });
   },
 );

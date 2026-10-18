@@ -35,7 +35,7 @@ export function useEntityTypes(revision?: unknown, enabled = true) {
       )).then((types) => {
       if (!controller.signal.aborted) setCatalog({ scope, types });
     }).catch(() => {
-      if (!controller.signal.aborted) setError(scope);
+      if (!controller.signal.aborted) { setCatalog(null); setError(scope); }
     });
     return () => controller.abort();
   }, [scope, generation, revision]);

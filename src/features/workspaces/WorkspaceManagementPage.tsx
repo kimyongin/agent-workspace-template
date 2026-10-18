@@ -39,9 +39,6 @@ import {
   EmptyTitle,
 } from "../../components/ui/empty.tsx";
 import { ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
-type InvitationWithDelivery = WorkspaceInvitation & {
-  delivery?: { status: string };
-};
 type Target = { id: string; label: string };
 type Edit = { kind: "invite" } | { kind: "member"; member: WorkspaceMember };
 type Removal = { kind: "member"; member: WorkspaceMember } | {
@@ -59,7 +56,7 @@ export function WorkspaceManagementPage() {
     capability = useWorkspaceCapabilities(),
     navigate = useDeferredNavigation();
   const [members, setMembers] = useState<WorkspaceMember[] | null>(null),
-    [invitations, setInvitations] = useState<InvitationWithDelivery[]>([]),
+    [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]),
     [targets, setTargets] = useState<Target[]>([]),
     [error, setError] = useState(""),
     [revision, setRevision] = useState(0),
@@ -84,7 +81,7 @@ export function WorkspaceManagementPage() {
         undefined,
         controller.signal,
       ),
-      api<{ items: InvitationWithDelivery[] }>(
+      api<{ items: WorkspaceInvitation[] }>(
         "GET",
         `/workspaces/${workspaceId}/invitations`,
         undefined,
