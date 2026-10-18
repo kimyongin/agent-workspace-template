@@ -12,6 +12,7 @@ import {
   type NavigateOptions,
   type NavigateProps,
   type To,
+  parsePath,
   useBlocker as routerBlocker,
   useLocation as routerLocation,
   useNavigate as routerNavigate,
@@ -23,13 +24,17 @@ import {
   workspacePath,
 } from "./workspace-route.tsx";
 export * from "react-router";
-function scoped(to: To, workspaceId: string | null): To {
+function scoped(to: To, workspaceId: string | null, pathname: string): To {
   const prefix = (path: string) =>
     workspaceId &&
       /^\/(?:entities|tasks|records|search|status|tags|guide|settings)(?:[/?#]|$)/
         .test(path)
       ? workspacePath(workspaceId, path)
       : path;
+  // Descendant Routes render virtual business paths, so query/hash-only resolution needs its space too.
+  if (workspaceId && (typeof to === "string" ? !to || /^[?#]/.test(to) : to.pathname == null || to.pathname === "")) {
+    return { ...(typeof to === "string" ? parsePath(to) : to), pathname: prefix(pathname) };
+  }
   return typeof to === "string"
     ? prefix(to)
     : to.pathname
@@ -48,6 +53,7 @@ export function useLocation() {
 }
 export function useNavigate(): NavigateFunction {
   const navigate = routerNavigate(),
+    { pathname } = routerLocation(),
     workspaceId = useWorkspaceId(),
     prefix = useWorkspacePathPrefix(),
     id = prefix ? workspaceId : null;
@@ -55,8 +61,8 @@ export function useNavigate(): NavigateFunction {
     ((to: To | number, options?: NavigateOptions) =>
       typeof to === "number"
         ? navigate(to)
-        : navigate(scoped(to, id), options)) as NavigateFunction,
-    [navigate, id],
+        : navigate(scoped(to, id, pathname), options)) as NavigateFunction,
+    [navigate, id, pathname],
   );
 }
 /** Query-only navigation must keep the current business path's explicit workspace. */
@@ -83,17 +89,17 @@ export function useSearchParams(defaultInit?: URLSearchParamsInit): [URLSearchPa
 }
 export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
   function Link(props, ref) {
-    const workspaceId = useWorkspaceId(),
+    const { pathname } = routerLocation(), workspaceId = useWorkspaceId(),
       prefix = useWorkspacePathPrefix(),
       id = prefix ? workspaceId : null;
-    return <RouterLink {...props} ref={ref} to={scoped(props.to, id)} />;
+    return <RouterLink {...props} ref={ref} to={scoped(props.to, id, pathname)} />;
   },
 );
 export function Navigate(props: NavigateProps) {
-  const workspaceId = useWorkspaceId(),
+  const { pathname } = routerLocation(), workspaceId = useWorkspaceId(),
     prefix = useWorkspacePathPrefix(),
     id = prefix ? workspaceId : null;
-  return <RouterNavigate {...props} to={scoped(props.to, id)} />;
+  return <RouterNavigate {...props} to={scoped(props.to, id, pathname)} />;
 }
 export function useBlocker(when: boolean | BlockerFunction) {
   const id = useWorkspaceId();
