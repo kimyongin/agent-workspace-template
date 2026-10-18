@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import { SqlDataModelGroupStore } from "../../functions/_shared/adapters/supabase/data-model-group-store.ts";
 import {
@@ -13,18 +14,18 @@ import type { DataModelDocument } from "../../functions/_shared/contracts/data-m
 const admin = connect(urls.admin), sql = connect(urls.direct);
 const deps = { uow: new SqlDataModelUnitOfWork(sql, SqlDataModelGroupStore) };
 dbTest("whole model analysis without conversion needs remains a private ready review", async () => {
-  const fixture = await fixtureOwner(admin);
+  const fixture = await businessWorkspaceFixture(admin, sql);
   try {
     const document = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
     const input = { mode: "copy", document: JSON.stringify(document) };
-    const review = await previewDataModel(deps, fixture.actor, input);
-    const change = await prepareDataModel(deps, requestActor(fixture.actor), {
+    const review = await previewDataModel(deps, fixture.manager, input);
+    const change = await prepareDataModel(deps, requestActor(fixture.manager), {
       ...input,
       preview_fingerprint: review.fingerprint,
     });
     assertEquals(change.status, "ready");
-    assertEquals((await exportDataModel(deps, fixture.actor)).entity_types.length, 0);
-    const analyzed = await analyzeDataModel(deps, requestActor(fixture.actor), change.id, {
+    assertEquals((await exportDataModel(deps, fixture.manager)).entity_types.length, 0);
+    const analyzed = await analyzeDataModel(deps, requestActor(fixture.manager), change.id, {
       expected_version: change.version,
     });
     assertEquals(analyzed.status, "ready");

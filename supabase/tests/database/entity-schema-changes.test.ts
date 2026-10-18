@@ -4,6 +4,7 @@ import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import {
@@ -811,12 +812,13 @@ dbTest(
   "empty material publishes structural changes immediately and rejects an intervening entity insertion",
   async () => {
     const admin = connect(urls.admin), sql = connect(urls.direct, { max: 1 });
-    const owner = await fixtureOwner(admin);
+    const owner = await businessWorkspaceFixture(admin, sql);
     const d = { uow: new SqlEntityTypeUnitOfWork(sql) }, e = { uow: new SqlEntityUnitOfWork(sql) };
     try {
-      const type = await createEntityType(d, requestActor(owner.actor), { label: "빈 자료 변경" });
+      const type = await owner.createKind("빈 자료 변경");
+      await owner.grantKind(owner.manager, type.id, "write");
       const create = (version: number, title: string) =>
-        createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+        createEntitySchemaChange(d, requestActor(owner.manager), type.id, {
           expected_schema_version: version,
           edits: [{
             op: "add_property",
@@ -827,23 +829,26 @@ dbTest(
         });
       const first = await create(1, "필수 수량");
       assertEquals(first.change_kind, "migration_required");
-      const accepted = await analyzeEntitySchemaChange(d, requestActor(owner.actor), type.id, first.id, {
+      const accepted = await analyzeEntitySchemaChange(d, requestActor(owner.manager), type.id, first.id, {
         expected_change_version: first.version,
       });
-      const ready = await getEntitySchemaChange(d, owner.actor, type.id, first.id);
+      const ready = await getEntitySchemaChange(d, owner.manager, type.id, first.id);
       assertEquals([ready.status, ready.analysis?.status, ready.analysis?.total], ["ready", "succeeded", 0]);
       assertEquals(ready.analysis?.id, accepted.analysis_id);
-      const applied = await applyEntitySchemaChange(d, requestActor(owner.actor), type.id, first.id, {
+      const applied = await applyEntitySchemaChange(d, requestActor(owner.manager), type.id, first.id, {
         expected_change_version: first.version,
         analysis_id: accepted.analysis_id,
       });
       assertEquals(applied.status, "applied");
-      assertEquals((await getEntitySchema(d, owner.actor, { type_id: type.id })).schema.required, ["prop_1", "prop_2"]);
+      assertEquals((await getEntitySchema(d, owner.manager, { type_id: type.id })).schema.required, [
+        "prop_1",
+        "prop_2",
+      ]);
       const second = await create(2, "추가 수량");
-      const stale = await analyzeEntitySchemaChange(d, requestActor(owner.actor), type.id, second.id, {
+      const stale = await analyzeEntitySchemaChange(d, requestActor(owner.manager), type.id, second.id, {
         expected_change_version: second.version,
       });
-      await createEntity(e, requestActor(owner.actor), {
+      await createEntity(e, requestActor(owner.manager), {
         entity_type_id: type.id,
         schema_version: 2,
         source: "app",
@@ -851,13 +856,13 @@ dbTest(
         properties: { prop_1: "늦게 등록", prop_2: 0 },
       });
       const error = await assertRejects(() =>
-        applyEntitySchemaChange(d, requestActor(owner.actor), type.id, second.id, {
+        applyEntitySchemaChange(d, requestActor(owner.manager), type.id, second.id, {
           expected_change_version: second.version,
           analysis_id: stale.analysis_id,
         })
       );
       assertEquals((error as AppError).code, "schema_plan_stale");
-      assertEquals((await getEntitySchema(d, owner.actor, { type_id: type.id })).schema_version, 2);
+      assertEquals((await getEntitySchema(d, owner.manager, { type_id: type.id })).schema_version, 2);
     } finally {
       await owner.cleanup();
       await sql.end();
@@ -870,10 +875,11 @@ dbTest(
   "first schema review persists new field order, labels, representative and conversion references together",
   async () => {
     const admin = connect(urls.admin), sql = connect(urls.direct, { max: 1 });
-    const owner = await fixtureOwner(admin), d = { uow: new SqlEntityTypeUnitOfWork(sql) };
+    const owner = await businessWorkspaceFixture(admin, sql), d = { uow: new SqlEntityTypeUnitOfWork(sql) };
     try {
-      const type = await createEntityType(d, requestActor(owner.actor), { label: "한번에 항목 설정" });
-      const draft = await createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+      const type = await owner.createKind("한번에 항목 설정");
+      await owner.grantKind(owner.manager, type.id, "write");
+      const draft = await createEntitySchemaChange(d, requestActor(owner.manager), type.id, {
         expected_schema_version: 1,
         edits: [
           {
@@ -922,14 +928,14 @@ dbTest(
         ["prop_3", "prop_2", "prop_1"],
       );
       assertEquals(draft.migration.rules, [{ op: "fill", key: "prop_3", value: "새 상품", include_null: false }]);
-      const analysis = await analyzeEntitySchemaChange(d, requestActor(owner.actor), type.id, draft.id, {
+      const analysis = await analyzeEntitySchemaChange(d, requestActor(owner.manager), type.id, draft.id, {
         expected_change_version: draft.version,
       });
-      await applyEntitySchemaChange(d, requestActor(owner.actor), type.id, draft.id, {
+      await applyEntitySchemaChange(d, requestActor(owner.manager), type.id, draft.id, {
         expected_change_version: draft.version,
         analysis_id: analysis.analysis_id,
       });
-      const published = await getEntitySchema(d, owner.actor, { type_id: type.id });
+      const published = await getEntitySchema(d, owner.manager, { type_id: type.id });
       assertEquals(published.schema.properties, draft.target.schema.properties);
     } finally {
       await owner.cleanup();
