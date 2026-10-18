@@ -190,13 +190,15 @@ test(
 );
 
 test("business relation reader sees linked preview without settings or mutation controls", async ({ page }, info) => {
-  const origin = entity(21, { prop_1: "읽기 원점" }), peer = entity(22, { prop_1: "읽을 상대" });
+  const origin = entity(21, { prop_1: "읽기 원점" }), peerTypeId = id(702),
+    peer = {...entity(22, { prop_1: "읽을 상대" }), entity_type_id:peerTypeId, type:{...fixtureType,id:peerTypeId,label:"보호 상대"}};
+  let peerReadable = true;
   await installWorkspaceApi(page, "http://127.0.0.1:56906", { entities: [origin, peer], tasks: [], records: [], tags: [] });
   const user = { id: id(999), aud: "authenticated", app_metadata: {}, user_metadata: {} };
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
-  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: { workspace: { id: fixtureWorkspaceId, name: "업무 읽기 공간", deleted_at: null }, can_manage: false, membership_version: 1, grants: [{ target_kind: "entity_type", target_id: fixtureType.id, access: "read" }] } }));
-  const definition: EntityRelationDefinition = { id: id(701), version: 1, archived: false, ends: [{ type_id: fixtureType.id, label: "읽기 연결", cardinality: "one" }, { type_id: fixtureType.id, label: "반대 연결", cardinality: "many" }] };
+  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: { workspace: { id: fixtureWorkspaceId, name: "업무 읽기 공간", deleted_at: null }, can_manage: false, membership_version: 1, grants: [{ target_kind: "entity_type", target_id: fixtureType.id, access: "read" },...(peerReadable ? [{target_kind:"entity_type",target_id:peerTypeId,access:"read"}] : [])] } }));
+  const definition: EntityRelationDefinition = { id: id(701), version: 1, archived: false, ends: [{ type_id: fixtureType.id, label: "읽기 연결", cardinality: "one" }, { type_id: peerTypeId, label: "반대 연결", cardinality: "many" }] };
   await page.route("**/api/entity-relation-definitions**", route => {
     expect(new URL(route.request().url()).searchParams.get("purpose")).toBe("business");
     expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
@@ -213,4 +215,8 @@ test("business relation reader sees linked preview without settings or mutation 
   const capturePath = info.outputPath("business-relation-readonly-preview.png");
   await page.screenshot({ path: capturePath, fullPage: true });
   await info.attach("business-relation-readonly-preview", { path: capturePath, contentType: "image/png" });
+  peerReadable = false;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(section).toHaveCount(0);
+  await expect(page.getByRole("heading",{name:origin.title,exact:true}).filter({visible:true})).toBeVisible();
 });
