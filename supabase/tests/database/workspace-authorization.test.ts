@@ -72,14 +72,13 @@ dbTest(
         assertEquals((await workspaces.workspaceDetails(deps, f.a, second.id)).grants, [settings]);
         await denied(() => workspaces.workspaceDetails(deps, f.b, second.id));
         assertEquals((await workspaces.listWorkspaces(deps, f.b)).items, []);
-        await assertRejects(
+        await denied(
           () =>
             deps.uow.account(f.a, async (s) => {
               await s.create("롤백될 공간");
               throw new Error("rollback");
             }),
-          Error,
-          "rollback",
+          "internal",
         );
         assertEquals((await workspaces.listWorkspaces(deps, f.a)).items.length, 2);
         await admin`update app.workspaces set deleted_at=clock_timestamp() where id=${first.workspace.id}`;
