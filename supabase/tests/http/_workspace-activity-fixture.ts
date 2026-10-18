@@ -1,10 +1,14 @@
 import { assert, assertEquals } from "@std/assert";
+import { recoverWorkspaceCreation, runWorkspaceCleanup } from "../../../scripts/workspace-fixture-cleanup.mjs";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { admin, API, call, signIn, SUPABASE_URL } from "./_client.ts";
 import { claimsOf, MCP_URL, registerClient, tool } from "../mcp/_mcp.ts";
 
 interface OwnedState {
-  workspaces: { id?: string; name: string; creator: string }[];
+  runId: string;
+  sourceRevision: string;
+  projectId: string;
+  workspaces: { id?: string; name: string; creator: string; creationKey: string }[];
   clients: Set<string>;
   tokens: string[];
   connections: Set<Client>;
@@ -116,32 +120,50 @@ async function cleanup(owned: OwnedState) {
   }
   for (const workspace of owned.workspaces) {
     try {
-      await admin.begin(async (tx) => {
-        if (!workspace.id) {
-          const candidates =
-            await tx`select id from app.workspaces where name=${workspace.name} and created_by=${workspace.creator} for update`;
-          assert(candidates.length <= 1);
-          if (!candidates.length) return;
-          workspace.id = candidates[0].id;
-        }
-        const id = workspace.id;
-        assert(typeof id === "string");
-        const [root] = await tx`select name,created_by from app.workspaces where id=${id} for update`;
-        assertEquals(root, {
+      const target = new URL(Deno.env.get("LOCAL_DB_URL")!);
+      const environment = {
+        name: owned.projectId,
+        host: target.hostname,
+        port: Number(target.port),
+        database: decodeURIComponent(target.pathname.slice(1)),
+      };
+      if (!workspace.id) {
+        const recovered = await recoverWorkspaceCreation(admin, {
+          environment,
+          actor_id: workspace.creator,
+          request_key: workspace.creationKey,
           name: workspace.name,
-          created_by: workspace.creator,
         });
-        const members = await tx`select user_id from private.workspace_members where workspace_id=${id}`;
-        assert(members.every((row) => row.user_id === workspace.creator));
-        await tx`delete from pgmq.q_search_index where message->>'workspace_id'=${id}`;
-        await tx`delete from pgmq.a_search_index where message->>'workspace_id'=${id}`;
-        await tx`delete from app.workspaces where id=${id}`;
-        assertEquals(
-          (await tx`select id from app.workspaces where id=${id}`)
-            .length,
-          0,
-        );
-      });
+        assert(recovered, "workspace creation remains unresolved; retain the exact fixture intent");
+        workspace.id = recovered.id;
+      }
+      const manifest = {
+        run_id: owned.runId,
+        source_revision: owned.sourceRevision,
+        project_id: owned.projectId,
+        environment,
+        workspace: { id: workspace.id, name: workspace.name, created_by: workspace.creator },
+        member_ids: [workspace.creator],
+        disposable_effect_ids: [],
+      };
+      const approval = await runWorkspaceCleanup(admin, manifest);
+      console.info(JSON.stringify({ fixture_cleanup: { phase: "planned", manifest, approval } }));
+      assertEquals(approval.blockers, []);
+      console.info(
+        JSON.stringify({
+          fixture_cleanup: {
+            phase: "applying",
+            run_id: owned.runId,
+            workspace_id: workspace.id,
+            digest: approval.digest,
+          },
+        }),
+      );
+      const result = await runWorkspaceCleanup(admin, manifest, approval);
+      assertEquals(result.residual_rows, 0);
+      console.info(
+        JSON.stringify({ fixture_cleanup: { phase: "done", run_id: owned.runId, workspace_id: workspace.id, result } }),
+      );
     } catch (error) {
       failures.push(error);
     }
@@ -186,7 +208,14 @@ export async function withActivityWorkspace(
   run: (fixture: ActivityWorkspaceFixture) => Promise<void>,
   options: { mcp?: boolean; typed?: boolean } = {},
 ) {
+  const sourceRevision = Deno.env.get("WORKSPACE_CLEANUP_SOURCE_REVISION"),
+    projectId = Deno.env.get("WORKSPACE_CLEANUP_PROJECT_ID");
+  assert(sourceRevision && /^[a-f0-9]{40}$/.test(sourceRevision), "explicit fixture source revision required");
+  assert(projectId && projectId.trim(), "explicit isolated fixture project required");
   const owned: OwnedState = {
+    runId: crypto.randomUUID(),
+    sourceRevision,
+    projectId,
     workspaces: [],
     clients: new Set(),
     tokens: [],
@@ -203,9 +232,20 @@ export async function withActivityWorkspace(
       const creator = String(claimsOf(session).sub),
         name = `activity515-owned-${label}-${crypto.randomUUID()}`;
       // Persist the exact unique creation intent before dispatch, including response-loss cleanup.
-      const intent: OwnedState["workspaces"][number] = { name, creator };
+      const intent: OwnedState["workspaces"][number] = { name, creator, creationKey: crypto.randomUUID() };
       owned.workspaces.push(intent);
-      const response = await call(session, "POST", "/workspaces", { name });
+      console.info(
+        JSON.stringify({
+          fixture_creation: {
+            phase: "pending",
+            run_id: owned.runId,
+            source_revision: owned.sourceRevision,
+            project_id: owned.projectId,
+            ...intent,
+          },
+        }),
+      );
+      const response = await call(session, "POST", "/workspaces", { name }, intent.creationKey);
       if (typeof response.body?.workspace?.id === "string") {
         intent.id = response.body.workspace.id;
       }

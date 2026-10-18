@@ -168,4 +168,6 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 
 이 정리는 worker 1개인 loopback 실제 설정에서만 허용한다. `ENTITY_SCHEMA_WORKER_CONFIG`, API·직접 DB 포트, 명시한 프로젝트/실행 소유권 파일과 source revision을 모두 대조한다. 서비스 없는 검사는 `node --test scripts/workspace-fixture-cleanup.test.mjs scripts/workspace-model-fixture.test.mjs`다. 실제 DB 검사는 `supabase/tests/database/workspace-fixture-cleanup.actual.test.ts`로, 실행 lease 안의 명시한 격리 DB와 프로젝트·source revision을 사용한다. 계정/개인 설정·다른 공간·분리된 효과 이력 보존, 승인 후 변경 거부, 정확한 시험 효과 정리와 재실행을 확인한다. 기존 저장소의 승인 업무 자료 초기화는 [별도 실행안](../operations/demo-cleanup.md)이며 fixture의 공간 전체 삭제와 혼동하지 않는다.
 
+공유 HTTP/MCP 실제 fixture와 정리 DB 검사는 `WORKSPACE_CLEANUP_SOURCE_REVISION`(검사 source의 40자리 commit)과 `WORKSPACE_CLEANUP_PROJECT_ID`(실행 lease의 격리 프로젝트)를 명시한다. 공유 fixture의 생성 intent·계획/적용/완료 보고서는 실행 로그에 남기며 토큰·본문·DB 비밀값은 포함하지 않는다. 응답을 잃은 공간 생성은 정확한 실행자·계정 범위·요청 키·`workspace.create` 완료 receipt로만 회수한다. 같은 이름을 검색해 정리 대상으로 채택하지 않으며 완료 receipt가 없으면 미결 intent를 보존하고 정리 실패로 보고한다.
+
 최종 통합 실제 브라우저 설정 `e2e/workspace-full-actual.config.ts`는 기본 실제 `*.spec.ts`와 모델·태그·활동·할 일 조회 권한·검색/상태의 다섯 `*.actual.ts`를 함께 수집한다. `scripts/test-e2e-all.mjs`의 실제 설정으로 이를 지정한 뒤 스물네 fixture 설정까지 실행한다. 모의 fixture 수집이나 기능별 일부 실행을 최종 전체 green으로 대신하지 않는다.
