@@ -19,7 +19,7 @@ import {
   test as baseTest,
 } from "@playwright/test";
 import { parse } from "smol-toml";
-import { runWorkspaceCleanup } from "../scripts/workspace-fixture-cleanup.mjs";
+import { recoverWorkspaceCreation, runWorkspaceCleanup } from "../scripts/workspace-fixture-cleanup.mjs";
 import { modelFixtureRoots } from "../scripts/workspace-model-fixture.mjs";
 
 export const env = parseEnv(
@@ -211,7 +211,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
         if (result.status === "rejected") cleanupErrors.push(result.reason);
       }
       try {
-        if (scope.workspaces.length) {
+        if (scope.workspaces.length || scope.workspaceCreations.length) {
           if (testInfo.config.workers !== 1) {
             throw new Error("owned workspace fixtures require one worker");
           }
@@ -221,11 +221,33 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
             onnotice: () => {},
           });
           try {
+            const target = new URL(requiredEnv("LOCAL_DB_URL"));
+            for (const creation of scope.workspaceCreations.filter((intent) => intent.phase !== "created")) {
+              try {
+                if (creation.projectId !== projectId) throw new Error("owned workspace project changed");
+                const recovered = await recoverWorkspaceCreation(admin, {
+                  environment: { host: target.hostname, port: Number(target.port), database: decodeURIComponent(target.pathname.slice(1)) },
+                  actor_id: creation.actorId,
+                  request_key: creation.creationKey,
+                  name: creation.name,
+                });
+                if (!recovered) throw new Error("owned workspace creation remains unresolved; inspect the persisted exact intent");
+                creation.workspaceId = recovered.id;
+                creation.phase = "created";
+                scope.workspaces.push({
+                  id: recovered.id, name: recovered.name, actorId: creation.actorId, projectId,
+                  requestKeys: [creation.creationKey], createdKinds: [], grants: [],
+                  memberIds: [creation.actorId], disposableEffectIds: [], cleaned: false,
+                });
+                scope.persist();
+              } catch (error) {
+                cleanupErrors.push(error);
+              }
+            }
             for (const workspace of scope.workspaces) {
               if (workspace.projectId !== projectId) {
                 throw new Error("owned workspace project changed");
               }
-              const target = new URL(requiredEnv("LOCAL_DB_URL"));
               const manifest = {
                 run_id: scope.runId,
                 source_revision: process.env.WORKSPACE_E2E_SOURCE_REVISION,

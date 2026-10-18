@@ -7,8 +7,42 @@ const canonical = (value) => JSON.stringify(value, (_key, item) =>
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Recover only the exact account-level creation receipt after a lost response. */
-export async function recoverWorkspaceCreation(_sql, _creation) {
-  return null;
+export async function recoverWorkspaceCreation(sql, creation) {
+  const environment = creation?.environment;
+  if (!uuid.test(creation?.actor_id ?? "") || !uuid.test(creation?.request_key ?? "")
+    || typeof creation?.name !== "string" || !creation.name
+    || !["127.0.0.1", "localhost"].includes(environment?.host)
+    || !Number.isInteger(environment?.port) || environment.port < 1 || environment.port > 65535
+    || typeof environment?.database !== "string" || !environment.database) {
+    throw new Error("explicit workspace creation identity required");
+  }
+  assertConnection(sql, environment);
+  return await sql.begin(async (tx) => {
+    await tx`set local lock_timeout='5s'`;
+    await tx`set local statement_timeout='30s'`;
+    // Creation takes KEY SHARE on this same account. Wait for an admitted
+    // creation transaction before deciding whether its exact receipt exists.
+    await tx`select id from auth.users where id=${creation.actor_id} for update`;
+    const [receipt] = await tx`select result_workspace_id,completed_at from private.workspace_request_results
+      where executor_id=${creation.actor_id} and workspace_id is null
+        and request_key=${creation.request_key} and operation='workspace.create'`;
+    if (!receipt) return null;
+    if (!receipt.completed_at || !receipt.result_workspace_id) throw new Error("workspace creation is unresolved");
+    const [root] = await tx`select id,name,created_by from app.workspaces where id=${receipt.result_workspace_id}`;
+    if (!root || root.name !== creation.name || root.created_by !== creation.actor_id) {
+      throw new Error("workspace creation identity changed");
+    }
+    return root;
+  });
+}
+
+function assertConnection(sql, environment) {
+  const { host, port, database } = sql.options ?? {};
+  if (!Array.isArray(host) || host.length !== 1 || host[0] !== environment.host
+    || !Array.isArray(port) || port.length !== 1 || port[0] !== environment.port
+    || database !== environment.database) {
+    throw new Error("cleanup connection does not match explicit manifest store");
+  }
 }
 
 export function validateWorkspaceCleanupManifest(manifest) {
@@ -102,12 +136,7 @@ export async function runWorkspaceCleanup(sql, manifest, approvedReport) {
     || approvedReport.effect_ids.some((id) => typeof id !== "string" || !id))) {
     throw new Error("explicit matching cleanup approval required");
   }
-  const { host, port, database } = sql.options ?? {};
-  if (!Array.isArray(host) || host.length !== 1 || host[0] !== manifest.environment.host
-    || !Array.isArray(port) || port.length !== 1 || port[0] !== manifest.environment.port
-    || database !== manifest.environment.database) {
-    throw new Error("cleanup connection does not match explicit manifest store");
-  }
+  assertConnection(sql, manifest.environment);
   return await sql.begin(async (tx) => {
     if (!approvedReport) await tx`set transaction isolation level repeatable read, read only`;
     await tx`set local lock_timeout='5s'`;
