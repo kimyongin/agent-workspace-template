@@ -55,6 +55,8 @@ function toTask(r: Row): Task {
 
 function toRecord(r: Row): ActivityRecord {
   return {
+    created_by: (r.created_by as string | null) ?? null,
+    created_by_name: (r.created_by_name as string | null) ?? null,
     entity_id: (r.entity_id as string | null) ?? null,
     record_kind: r.record_kind as "result" | "change",
     change: (r.change_metadata as ActivityRecord["change"]) ?? null,
@@ -79,7 +81,7 @@ const taskColumns = (tx: Tx) =>
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
   tx`id, entity_id, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
-    record_kind,change_metadata,
+    record_kind,change_metadata,created_by,created_by_name,
     ${tagIdsColumn(tx, "record")}`;
 
 /** 수정 가능한 컬럼의 허용 목록. 이 밖의 키는 SQL로 가지 않는다. */

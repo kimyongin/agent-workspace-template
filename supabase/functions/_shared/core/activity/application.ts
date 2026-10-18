@@ -56,6 +56,8 @@ async function toTaskResult(store: ActivityStore, raw: Task): Promise<TaskResult
 function toRecordResult(record: ActivityRecord): RecordResult {
   return {
     ...record,
+    created_by: record.created_by ?? null,
+    created_by_name: record.created_by_name ?? null,
     entity_id: record.entity_id ?? null,
     record_kind: record.record_kind,
     change: record.change ?? null,

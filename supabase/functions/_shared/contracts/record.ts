@@ -40,6 +40,8 @@ export const recordListQuery = z
 export type RecordListQuery = z.infer<typeof recordListQuery>;
 
 export const recordResult = z.object({
+  created_by: z.string().uuid().nullable(),
+  created_by_name: z.string().nullable(),
   record_kind: z.enum(["result", "change"]),
   change: changeMetadata.nullable(),
   id,
