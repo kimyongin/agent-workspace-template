@@ -1,3 +1,5 @@
+import { installWorkspaceApi } from "./support/workspace-api.ts";
+import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import {
   entity as makeEntity,
   task as makeTask,
@@ -15,6 +17,7 @@ const url = "/e2e/fixtures/entity-tags.html";
 const tags = ["첫 태그", "다른 태그"].map((name, i) => ({ id: `00000000-0000-4000-8000-00000000000${i}`, name, version: 1, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" }));
 const task = { id: "20000000-0000-4000-8000-000000000000", entity_ids: [], entity_context: [], tag_ids: [], kind: "once", title: "App 할 일", body: "본문", due_on: null, recurrence: null, timezone: null, status: "open", completed_at: null, result_record_id: null, pauses: [], version: 1, created_at: tags[0].created_at, updated_at: tags[0].updated_at, occurrence: null, result_record: null };
 test.beforeEach(async ({ page, isMobile }) => {
+  await installWorkspaceApi(page, "**", { entities: [], tasks: [], records: [], tags: [] });
   // These probes exercise modal surfaces; docked desktop drafts are covered by detail-workspace.spec.ts.
   if(!isMobile) await page.setViewportSize({width:1024,height:720});
   await page.route("**/auth/v1/user", route => route.fulfill({json:{id:"90000000-0000-4000-8000-000000000000",aud:"authenticated",app_metadata:{},user_metadata:{}}}));
@@ -587,6 +590,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
     const path = decodeURIComponent(new URL(route.request().url()).pathname);
     if (path.endsWith("/links")) return route.fulfill({ json: { items: [], next_cursor: null } });
     if (route.request().method() === "POST") {
+      expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
       creations.push(route.request().postDataJSON());
       return route.fulfill({ status: 201, json: current });
     }
@@ -594,12 +598,13 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   });
   await page.route("**/api/tag-connections", route => {
     const input = route.request().postDataJSON();
+    expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
     connections.push(input);
     current = { ...current, tag_ids: input.tag_ids, version: current.version + 1 };
     return route.fulfill({ json: { tag_ids: current.tag_ids, version: current.version, updated_at: current.updated_at } });
   });
   await page.goto("/e2e/fixtures/entity-tags-app.html");
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.goto(`/w/${fixtureWorkspaceId}/entities?entity_type_id=${fixtureType.id}`);
   await beginTabAction(page, "검사 자료 추가");
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await expect(form.getByRole("button", { name: "태그 선택", exact: true })).toHaveCount(0);
