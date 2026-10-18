@@ -2,7 +2,7 @@
 // 실패는 HTTP와 같은 오류 본문 {code, message, retryable, fields}를 isError 결과로 돌려준다.
 import { keyedTool, type ToolDef } from "./tools.ts";
 import { z } from "zod";
-import { businessMeta, mutationMeta } from "../../contracts/change.ts";
+import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
 import { occurrenceRecordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
@@ -23,7 +23,7 @@ const createTaskInput = z.strictObject({
 const withId = <T extends z.ZodObject>(schema: T) => z.strictObject({ id, ...schema.shape });
 const idOnly = z.strictObject({ id });
 const deleteInput = z.strictObject({ id, expected_version: expectedVersion, ...businessMeta });
-const recordDeleteInput = z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta });
+const recordDeleteInput = z.strictObject({ id, expected_version: expectedVersion });
 
 /** 경로 ID와 같은 규칙: 유효한 데이터 ID가 아니면 존재 여부를 드러내지 않고 not_found(HTTP와 같음). */
 function split(args: Record<string, unknown>) {
@@ -105,8 +105,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           actor,
           input.id,
           input.expected_version,
-          input.change_note,
-          input.change_tag_ids,
         );
         return { deleted: input.id };
       },
@@ -228,8 +226,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           actor,
           input.id,
           input.expected_version,
-          input.change_note,
-          input.change_tag_ids,
         );
         return { deleted: input.id };
       },

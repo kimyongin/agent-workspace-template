@@ -447,13 +447,9 @@ export async function deleteRecord(
   actor: Actor,
   id: string,
   expectedVersion: number,
-  change_note?: string,
-  change_tag_ids?: string[],
 ) {
   await runWrite(activityWork(deps, { access: "write", recordId: id }), actor, "record.delete", id, {
     expected_version: expectedVersion,
-    change_note,
-    change_tag_ids,
   }, async (store) => {
     const record = await requireRecord(store, id, true);
     assertVersion(record, expectedVersion);

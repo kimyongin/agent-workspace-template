@@ -6,9 +6,10 @@ import { expectedVersion, isoDate } from "../../contracts/common.ts";
 import { occurrenceRecordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
 import * as activity from "../../core/activity/application.ts";
-import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
+import { type HttpEnv, idParam, json } from "./input.ts";
 import { parse } from "../errors.ts";
 
+const recordVersionQuery = z.strictObject({ expected_version: z.coerce.number().pipe(expectedVersion) });
 const versionBody = z.strictObject({ expected_version: expectedVersion, ...businessMeta });
 
 export function activityRoutes(deps: activity.ActivityDeps) {
@@ -115,8 +116,8 @@ export function activityRoutes(deps: activity.ActivityDeps) {
   });
   app.delete("/records/:id", async (c) => {
     const id = idParam(c.req.param("id"));
-    const i = parse(versionQuery, c.req.query());
-    await activity.deleteRecord(deps, c.get("actor"), id, i.expected_version, i.change_note, i.change_tag_ids);
+    const i = parse(recordVersionQuery, c.req.query());
+    await activity.deleteRecord(deps, c.get("actor"), id, i.expected_version);
     return c.body(null, 204);
   });
 
