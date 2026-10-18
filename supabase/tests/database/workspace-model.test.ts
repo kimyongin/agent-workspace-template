@@ -148,6 +148,24 @@ dbTest(
       assertEquals((await workspaces.workspaceDetails(workspaceDeps, b, owned[0])).grants, [
         { target_kind: "settings", target_id: "*", access: "write" },
       ]);
+      const metadataOnly = await exportDataModel(modelDeps, reader);
+      metadataOnly.entity_types.find((v) => v.schema["x-type-id"] === left.id)!.schema.title = "자료 이름 변경";
+      assertEquals(
+        (await previewDataModel(modelDeps, reader, {
+          mode: "update",
+          document: JSON.stringify(metadataOnly),
+        })).can_apply,
+        true,
+      );
+      const restrictedValues = structuredClone(metadataOnly);
+      restrictedValues.entity_types.find((v) => v.schema["x-type-id"] === left.id)!
+        .schema.properties.prop_1.maxLength = 1;
+      const protectedPreview = await assertRejects(() =>
+        previewDataModel(modelDeps, reader, {
+          mode: "update",
+          document: JSON.stringify(restrictedValues),
+        }), AppError);
+      assertEquals(protectedPreview.code, "forbidden");
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
