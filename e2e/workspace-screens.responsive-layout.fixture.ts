@@ -102,8 +102,9 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     Object.assign(state.rows.records[0], {
       record_kind: "change",
       body: "변경에 대한 보충 메모",
-      entity_ids: [entityKey(1)],
-      entity_context: [{ id: entityKey(1), title: "연결된 엔터티", source: "selection", captured_at: stamp }],
+      entity_id: entityKey(1), task_id: null,
+      change: { event_id: id(30), target_kind: "entity", target_id: entityKey(1), target_title: "연결된 엔터티",
+        action: "update", source: "http", before: null, after: null, path: null },
     });
     await page.reload();
     const memo = form(page).locator(".markdown");

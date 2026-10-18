@@ -104,8 +104,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     Object.assign(state.rows.records[0], {
       body: "상담 준비 수정 (일정, 내용)",
       record_kind: "change",
-      entity_ids: [entityKey(1)],
-      entity_context: [{ id: entityKey(1), title: "테스트 속성1222", source: "selection", captured_at: stamp }],
+      entity_id: null, task_id: id(2),
       change: {
         event_id: id(30),
         target_kind: "task",

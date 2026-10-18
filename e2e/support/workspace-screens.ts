@@ -4,11 +4,11 @@ import { expect, type Page } from "@playwright/test";
 import { base, entity, fixtureType, id,  record, stamp, task, type WorkspaceRows } from "./workspace-data.ts";
 import { installWorkspaceApi } from "./workspace-api.ts";
 
-export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2], ["record", "records", 31]] as const;
+export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2]] as const;
 
 export const connectedTarget = (page: Page, kind: typeof targetCases[number][0]) =>
   form(page).getByRole("region", {
-    name: `${{ entity: "연결된 자료", task: "할 일", record: "기록" }[kind]} (1개)`,
+    name: `${{ entity: "자료", task: "할 일", record: "기록" }[kind]} (1개)`,
     exact: true,
   });
 

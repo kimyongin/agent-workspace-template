@@ -183,6 +183,9 @@ export async function installWorkspaceApi(
     if (!storage[kind]) {
       return reply({ code: "invalid_input", message: `Unexpected fixture endpoint ${url.pathname}` }, 400);
     }
+    if (kind === "records" && method === "POST" && !key) {
+      return reply({ code: "not_found", message: "수행 결과는 할 일에서 작성합니다." }, 404);
+    }
     if (method === "GET") {
       if (key) {
         const found = storage[kind].find((r) => r.id === key);
@@ -201,6 +204,11 @@ export async function installWorkspaceApi(
       }
       if (kind === "tags") items = items.filter((r) => r.scope === (url.searchParams.get("scope") ?? "record"));
 
+      if (url.searchParams.get("entity_id") && (kind === "entities" || kind === "tasks" || kind === "records")) {
+        const parent = url.searchParams.get("entity_id");
+        items = items.filter((r) => kind === "records" ? r.entity_id === parent : kind === "tasks" ?
+          (r.entity_ids as string[]).includes(parent!) : r.id === parent);
+      }
       if (kind === "records" && url.searchParams.get("task_id")) {
         items = items.filter((r) => r.task_id === url.searchParams.get("task_id"));
       }
@@ -232,6 +240,17 @@ export async function installWorkspaceApi(
       return options.failWrite === "unknown"
         ? route.abort("connectionreset")
         : reply({ code: "conflict", message: "다른 곳에서 수정했습니다." }, 409);
+    }
+    if (kind === "tasks" && method === "POST" && (action === "complete" || action === "occurrences" && parts[4] === "records")) {
+      const target = storage.tasks.find((r) => r.id === key);
+      if (!target) return reply({ code: "not_found", message: "할 일 없음" }, 404);
+      const saved = { ...record(sequence++), ...body, entity_id: null, task_id: key!, record_kind: "result",
+        occurrence_on: action === "occurrences" ? parts[3] : null };
+      delete (saved as Record<string, unknown>).expected_version;
+      storage.records.unshift(saved);
+      if (action === "complete") Object.assign(target, { status: "done", completed_at: stamp,
+        result_record_id: saved.id, result_record: { id: saved.id, body: saved.body }, version: target.version + 1 });
+      return reply(action === "complete" ? target : saved, action === "complete" ? 200 : 201);
     }
     if (method === "DELETE" || action === "delete") {
       if (kind === "entities") {

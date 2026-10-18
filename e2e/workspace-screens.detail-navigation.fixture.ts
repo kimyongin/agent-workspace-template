@@ -300,8 +300,7 @@ test("상세 탐색: 같은 엔터티는 한 행으로 합치고 역사 제목�
   const state = await fixtures(page);
   Object.assign(state.rows.records[0], {
     record_kind: "change",
-    entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "연결 제목", source: "selection", captured_at: stamp }],
+    entity_id: entityKey(1), task_id: null,
     change: {
       event_id: id(30),
       target_kind: "entity",
