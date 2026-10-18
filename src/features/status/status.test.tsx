@@ -113,6 +113,9 @@ it("안전하게 보존한 선택 날짜는 새로운 조회 자료에서 선택
   const entities = html.split('aria-label="자료 현황"')[1].split('aria-label="할 일 현황"')[0];
   expect(entities).toContain('dateTime="2026-10-10"');
   expect(entities).toContain("7건");
+  const adjusted = renderToStaticMarkup(<StatusContent data={data} selectedDates={{ "일별 등록": "2020-01-01" }} />);
+  expect(adjusted).toContain('dateTime="2026-10-11"');
+  expect(adjusted).not.toContain('dateTime="2020-01-01"');
 });
 
 it("혼합 색인 문제는 종류를 구분하고 현재 공간의 원문으로 이동한다", () => {
