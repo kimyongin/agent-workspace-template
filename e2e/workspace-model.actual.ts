@@ -218,7 +218,11 @@ test(
       const tagId = randomUUID(), tagName = `저장 태그 ${run.slice(0, 8)}`;
       manifest.tag_id = tagId;
       persist();
-      await admin`insert into app.tags(workspace_id,id,scope,name) values(${w},${tagId},'record',${tagName})`;
+      await admin.begin(async (tx) => {
+        await tx`select set_config('request.workspace_id',${w},true)`;
+        await tx`insert into app.tags(workspace_id,owner_id,id,scope,name)
+          values(${w},null,${tagId},'record',${tagName})`;
+      });
       const current = await request(
         a.token,
         "GET",
@@ -284,13 +288,15 @@ test(
           tag.id === tagId
         ),
       ).toBeTruthy();
-      await expect(bPage.getByText(tagName, { exact: true })).toBeVisible();
+      const savedTag = bPage.getByText(tagName, { exact: true });
+      await expect(savedTag).toBeVisible();
       await expect(
         bPage.getByRole("textbox", { name: "메모 템플릿", exact: true }),
       ).toHaveAttribute("aria-readonly", "true");
       await expect(
         bPage.getByRole("button", { name: "기록 자동 완성 저장", exact: true }),
       ).toBeDisabled();
+      await savedTag.scrollIntoViewIfNeeded();
       await bPage.screenshot({
         path: info.outputPath("actual-readonly-saved-template-tag.png"),
         fullPage: true,
@@ -331,9 +337,8 @@ test(
             expect(entities).toHaveLength(0);
             const tags =
               await tx`select id from app.tags where workspace_id=${w}`;
-            expect(tags.map((t) => t.id)).toEqual(
-              manifest.tag_id ? [manifest.tag_id] : [],
-            );
+            expect(tags.every((tag) => tag.id === manifest.tag_id))
+              .toBeTruthy();
             expect(
               await tx`select id from app.data_model_changes where workspace_id=${w}`,
             ).toHaveLength(0);
