@@ -137,14 +137,14 @@ activityWorkspaceSuite("owned typed entity MCP HTTP parity", async (f, t) => {
         detail.records.items.some((row: { id: string }) => row.id === r.id),
         false,
       );
-      assert(
-        detail.records.items.every((
-          row: { entity_id: string; task_id: null; record_kind: string },
-        ) =>
-          row.entity_id === e.id && row.task_id === null &&
-          row.record_kind === "change"
-        ),
-      );
+      assert(detail.records.items.length > 0);
+      for (const preview of detail.records.items) {
+        assertEquals(preview.record_kind, "change");
+        const stored = await scopedTool(client, workspaceA, "get_record", { id: preview.id });
+        assertEquals(stored.entity_id, e.id);
+        assertEquals(stored.task_id, null);
+        assertEquals(stored.record_kind, "change");
+      }
       assertEquals(
         detail,
         (await scopedHttp(
