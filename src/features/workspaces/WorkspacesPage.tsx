@@ -3,11 +3,7 @@ import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import type { Workspace, WorkspaceSummary } from "@contracts/workspace.ts";
-import {
-  DeletedWorkspaces,
-  WorkspaceLifecycleDialog,
-  type WorkspaceLifecycleIntent,
-} from "./WorkspaceLifecycle.tsx";
+import { DeletedWorkspaces, WorkspaceLifecycleDialog, type WorkspaceLifecycleIntent } from "./WorkspaceLifecycle.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { workspacePath } from "../../lib/workspace-route.tsx";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -15,17 +11,8 @@ import { Button } from "../../components/ui/button.tsx";
 import { Field, FieldGroup, FieldLabel } from "../../components/ui/field.tsx";
 import { Input } from "../../components/ui/input.tsx";
 import { Alert, AlertDescription } from "../../components/ui/alert.tsx";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "../../components/ui/empty.tsx";
-import {
-  BusinessCell,
-  BusinessRow,
-  BusinessTable,
-} from "../../components/BusinessTable.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../components/ui/empty.tsx";
+import { BusinessCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 export function WorkspacesPage() {
@@ -35,9 +22,7 @@ export function WorkspacesPage() {
     [revision, setRevision] = useState(0),
     [creating, setCreating] = useState(false),
     [name, setName] = useState("");
-  const [lifecycle, setLifecycle] = useState<WorkspaceLifecycleIntent | null>(
-    null,
-  );
+  const [lifecycle, setLifecycle] = useState<WorkspaceLifecycleIntent | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const lifecycleOrigin = useRef<Element | null>(null);
   const [completedAction, setCompletedAction] = useState(0);
@@ -50,10 +35,7 @@ export function WorkspacesPage() {
     const origin = lifecycleOrigin.current;
     const frame = requestAnimationFrame(() => {
       const focused = document.activeElement;
-      if (
-        !focused || focused === document.body ||
-        focused === document.documentElement || focused === origin
-      ) {
+      if (!focused || focused === document.body || focused === document.documentElement || focused === origin) {
         heading.current?.focus();
       }
     });
@@ -130,9 +112,7 @@ export function WorkspacesPage() {
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold">
-          내 공간
-        </h1>
+        <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold">내 공간</h1>
         <Button onClick={() => setCreating(true)}>새 공간 만들기</Button>
       </div>
       {error && (
@@ -175,8 +155,7 @@ export function WorkspacesPage() {
                     {item.can_manage && (
                       <Button
                         variant="outline"
-                        onClick={() =>
-                          openLifecycle({ workspace: item, action: "delete" })}
+                        onClick={() => openLifecycle({ workspace: item, action: "delete" })}
                       >
                         삭제
                       </Button>
@@ -199,8 +178,7 @@ export function WorkspacesPage() {
         )}
       <DeletedWorkspaces
         revision={revision}
-        onRestore={(workspace) =>
-          openLifecycle({ workspace, action: "restore" })}
+        onRestore={(workspace) => openLifecycle({ workspace, action: "restore" })}
         onLeave={(workspace) => openLifecycle({ workspace, action: "leave" })}
       />
       {lifecycle && (
@@ -289,10 +267,9 @@ export function InvitationPage() {
   };
   return (
     <section className="mx-auto flex w-full max-w-xl flex-col gap-5 p-6">
-      <h1 className="text-2xl font-semibold">공간 초대</h1>
+      <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold">공간 초대</h1>
       <p>
-        초대받은 이메일의 Google 계정으로 로그인한 뒤 참여하세요. 초대의
-        유효성과 계정을 서버에서 확인합니다.
+        초대받은 이메일의 Google 계정으로 로그인한 뒤 참여하세요. 초대의 유효성과 계정을 서버에서 확인합니다.
       </p>
       {error && (
         <Alert variant="destructive">
