@@ -5,21 +5,38 @@ import {
   acceptWorkspaceInvitation,
   cancelWorkspaceInvitation,
   createWorkspace,
+  deleteWorkspace,
   inviteWorkspaceMember,
   leaveWorkspace,
+  listDeletedWorkspaces,
   listWorkspaceInvitations,
   listWorkspaceMembers,
   listWorkspaces,
   removeWorkspaceMember,
+  restoreWorkspace,
   retryWorkspaceInvitationDelivery,
   updateWorkspaceMember,
   type WorkspaceDeps,
   workspaceDetails,
   workspaceGrantTargets,
+  workspaceLifecycleDetails,
 } from "../../core/workspaces/application.ts";
 export function workspaceRoutes(deps: WorkspaceDeps) {
   const app = new Hono<HttpEnv>();
   app.get("/workspaces", async (c) => c.json(await listWorkspaces(deps, c.get("actor"))));
+  app.get("/workspaces/deleted", async (c) => c.json(await listDeletedWorkspaces(deps, c.get("actor"))));
+  app.get(
+    "/workspaces/:id/lifecycle",
+    async (c) => c.json(await workspaceLifecycleDetails(deps, c.get("actor"), c.req.param("id"))),
+  );
+  app.delete(
+    "/workspaces/:id",
+    async (c) => c.json(await deleteWorkspace(deps, c.get("actor"), c.req.param("id"), await json(c.req.raw))),
+  );
+  app.post(
+    "/workspaces/:id/restore",
+    async (c) => c.json(await restoreWorkspace(deps, c.get("actor"), c.req.param("id"), await json(c.req.raw))),
+  );
   app.post("/workspaces", async (c) => c.json(await createWorkspace(deps, c.get("actor"), await json(c.req.raw)), 201));
   app.get("/workspaces/:id", async (c) => c.json(await workspaceDetails(deps, c.get("actor"), c.req.param("id"))));
   app.get(

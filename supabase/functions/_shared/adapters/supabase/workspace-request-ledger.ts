@@ -37,6 +37,7 @@ export async function executeWorkspaceRequest<T>(
   footprint: WorkspaceRequirement[],
   execute: () => Promise<T>,
   account = false,
+  lifecycle = false,
 ): Promise<T> {
   if (account) {
     const [target] =
@@ -49,7 +50,9 @@ export async function executeWorkspaceRequest<T>(
       );
     }
   }
-  let [row] = account
+  let [row] = lifecycle
+    ? await tx`select app.begin_workspace_lifecycle_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`
+    : account
     ? await tx`select app.begin_account_workspace_request(${request.key}::uuid,${request.operation},${request.fingerprint}) as receipt`
     : await tx`select app.begin_workspace_request(${request.key}::uuid,${request.operation},${request.fingerprint},${
       tx.json(footprint as never)

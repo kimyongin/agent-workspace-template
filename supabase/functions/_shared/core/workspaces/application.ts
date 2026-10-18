@@ -8,6 +8,8 @@ import {
   workspaceId,
   type WorkspaceInvitation,
   workspaceInvite,
+  type WorkspaceLifecycle,
+  workspaceLifecycleChange,
   type WorkspaceMember,
   workspaceMemberUpdate,
   workspaceVersion,
@@ -30,6 +32,9 @@ export interface WorkspaceStore {
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T>;
   create(name: string): Promise<{ workspace: Workspace }>;
   list(): Promise<{ items: Workspace[] }>;
+  deleted(): Promise<{ items: WorkspaceLifecycle[] }>;
+  lifecycleDetails(): Promise<{ workspace: WorkspaceLifecycle }>;
+  setDeleted(generation: number, deleted: boolean): Promise<{ workspace: WorkspaceLifecycle }>;
   details(): Promise<WorkspaceCapabilities>;
   grantTargets(): Promise<{ items: { id: string; label: string }[] }>;
   members(): Promise<{ items: WorkspaceMember[] }>;
@@ -56,6 +61,7 @@ export interface WorkspaceDeps {
     account<T>(actor: Actor, fn: (store: WorkspaceStore) => Promise<T>): Promise<T>;
     workspace<T>(actor: WorkspaceActor, entry: WorkspaceEntry, fn: (store: WorkspaceStore) => Promise<T>): Promise<T>;
     invitation<T>(actor: Actor, invitationId: string, fn: (store: WorkspaceStore) => Promise<T>): Promise<T>;
+    lifecycle<T>(actor: WorkspaceActor, fn: (store: WorkspaceStore) => Promise<T>): Promise<T>;
   };
 }
 function parsed<T>(schema: { safeParse(v: unknown): { success: boolean; data?: T } }, value: unknown): T {
@@ -82,6 +88,34 @@ async function write<T>(
 }
 export function listWorkspaces(deps: WorkspaceDeps, actor: Actor) {
   return deps.uow.account(actor, (s) => s.list());
+}
+export function listDeletedWorkspaces(deps: WorkspaceDeps, actor: Actor) {
+  return deps.uow.account(actor, (s) => s.deleted());
+}
+export function workspaceLifecycleDetails(deps: WorkspaceDeps, actor: Actor, id: unknown) {
+  return deps.uow.lifecycle(workspaceActor(actor, id), (s) => s.lifecycleDetails());
+}
+function changeWorkspaceLifecycle(deps: WorkspaceDeps, actor: Actor, id: unknown, input: unknown, deleted: boolean) {
+  requireRequestKey(actor);
+  const scoped = workspaceActor(actor, id), value = parsed(workspaceLifecycleChange, input);
+  return deps.uow.lifecycle(
+    scoped,
+    (s) =>
+      write(
+        s,
+        scoped,
+        deleted ? "workspace.delete" : "workspace.restore",
+        scoped.workspaceId,
+        value,
+        () => s.setDeleted(value.expected_generation, deleted),
+      ),
+  );
+}
+export function deleteWorkspace(deps: WorkspaceDeps, actor: Actor, id: unknown, input: unknown) {
+  return changeWorkspaceLifecycle(deps, actor, id, input, true);
+}
+export function restoreWorkspace(deps: WorkspaceDeps, actor: Actor, id: unknown, input: unknown) {
+  return changeWorkspaceLifecycle(deps, actor, id, input, false);
 }
 export async function createWorkspace(deps: WorkspaceDeps, actor: Actor, input: unknown) {
   requireRequestKey(actor);

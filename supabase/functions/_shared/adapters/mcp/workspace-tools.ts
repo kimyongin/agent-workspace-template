@@ -3,6 +3,7 @@ import {
   workspaceCreate,
   workspaceId,
   workspaceInvite,
+  workspaceLifecycleChange,
   workspaceMemberUpdate,
   workspaceVersion,
 } from "../../contracts/workspace.ts";
@@ -10,22 +11,56 @@ import {
   acceptWorkspaceInvitation,
   cancelWorkspaceInvitation,
   createWorkspace,
+  deleteWorkspace,
   inviteWorkspaceMember,
   leaveWorkspace,
+  listDeletedWorkspaces,
   listWorkspaceInvitations,
   listWorkspaceMembers,
   listWorkspaces,
   removeWorkspaceMember,
+  restoreWorkspace,
   retryWorkspaceInvitationDelivery,
   updateWorkspaceMember,
   type WorkspaceDeps,
   workspaceDetails,
   workspaceGrantTargets,
+  workspaceLifecycleDetails,
 } from "../../core/workspaces/application.ts";
 import { keyedTool, type ToolDef } from "./tools.ts";
 export function workspaceTools(deps: WorkspaceDeps): ToolDef[] {
   const scope = { workspace_id: workspaceId };
   const tools: ToolDef[] = [
+    {
+      name: "list_deleted_workspaces",
+      description: "현재 유효한 관리자만 자신이 복원할 수 있는 삭제 공간의 최소 목록을 조회합니다.",
+      input: z.strictObject({}),
+      readOnly: true,
+      handler: (_, a) => listDeletedWorkspaces(deps, a),
+    },
+    {
+      name: "get_workspace_lifecycle",
+      description: "관리자용 현재 공간 삭제 상태와 수명 세대 조회. 일반 업무 접근을 허용하지 않습니다.",
+      input: z.strictObject(scope),
+      readOnly: true,
+      handler: (i, a) => workspaceLifecycleDetails(deps, a, i.workspace_id),
+    },
+    {
+      name: "delete_workspace",
+      description:
+        "관리자가 현재 세대의 공간을 소프트 삭제합니다. 공동 데이터는 보존하며 업무 접근과 이전 비동기 실행을 중단합니다.",
+      input: z.strictObject({ ...scope, ...workspaceLifecycleChange.shape }),
+      readOnly: false,
+      destructive: true,
+      handler: ({ workspace_id, ...i }, a) => deleteWorkspace(deps, a, workspace_id, i),
+    },
+    {
+      name: "restore_workspace",
+      description: "현재 유효한 관리자가 삭제 공간을 새 수명 세대로 복원합니다. 오래된 작업을 재시작하지 않습니다.",
+      input: z.strictObject({ ...scope, ...workspaceLifecycleChange.shape }),
+      readOnly: false,
+      handler: ({ workspace_id, ...i }, a) => restoreWorkspace(deps, a, workspace_id, i),
+    },
     {
       name: "list_workspaces",
       description: "현재 참여 중인 활성 공간 목록. 공간 선택은 각 후속 도구의 workspace_id로 명시합니다.",

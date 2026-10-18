@@ -95,6 +95,9 @@ export function translate(e: unknown): unknown {
     return new AppError("unauthenticated", "계정을 확인할 수 없습니다");
   }
   const message = (e as { message?: string }).message;
+  if (code === "P0001" && message === "workspace_lifecycle_conflict") {
+    return new AppError("conflict", "공간 상태가 변경되었습니다. 최신 상태를 다시 조회하세요");
+  }
   if (code === "42501" && message === "workspace_denied") {
     return new AppError("forbidden", "워크스페이스에 접근할 수 없습니다");
   }
