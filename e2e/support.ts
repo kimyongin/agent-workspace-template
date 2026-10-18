@@ -11,7 +11,12 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
-import { expect, type Page, test as baseTest } from "@playwright/test";
+import {
+  type BrowserContext,
+  expect,
+  type Page,
+  test as baseTest,
+} from "@playwright/test";
 import { parse } from "smol-toml";
 import {
   cleanupOwnedFixture,
@@ -38,6 +43,7 @@ if (!/^http:\/\/(127\.0\.0\.1|localhost)/.test(SUPABASE)) {
 type Scope = {
   owners: Map<string, FixtureScope>;
   clients: Set<() => Promise<void>>;
+  contexts: Set<BrowserContext>;
   responses: Set<Promise<void>>;
   tokens: Set<string>;
   workspaces: OwnedWorkspace[];
@@ -50,6 +56,8 @@ type Scope = {
     workspaceId: string | null;
   }[];
   actors: Set<string>;
+  sessionIds: Set<string>;
+  oauthClientIds: Set<string>;
   runId: string;
   persist: () => void;
 };
@@ -67,6 +75,24 @@ const pageSessions = new WeakMap<Page, { token: string; actorId: string }>();
 let activeScope: Scope | null = null;
 const tokenOwners = new Map<string, string>();
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Persist only IDs from a just-minted Auth response, never its bearer token. */
+function trackMintedSession(token: unknown) {
+  if (!activeScope || typeof token !== "string") return;
+  let claims: { session_id?: unknown; sub?: unknown } | null = null;
+  try {
+    claims = JSON.parse(
+      Buffer.from(token.split(".")[1], "base64url").toString(),
+    );
+  } catch { /* Later response assertions report malformed Auth responses. */ }
+  if (!claims) return;
+  if (typeof claims.session_id === "string" && uuid.test(claims.session_id)) {
+    activeScope.sessionIds.add(claims.session_id);
+  }
+  if (typeof claims.sub === "string" && uuid.test(claims.sub)) {
+    activeScope.actors.add(claims.sub);
+  }
+  activeScope.persist();
+}
 function tokenOwner(token: string) {
   try {
     const owner =
@@ -137,11 +163,14 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
     const scope: Scope = {
       owners: new Map(),
       clients: new Set(),
+      contexts: new Set([context]),
       responses: new Set(),
       tokens: new Set(),
       workspaces: [],
       workspaceCreations: [],
       actors: new Set(),
+      sessionIds: new Set(),
+      oauthClientIds: new Set(),
       runId: crypto.randomUUID(),
       persist: () => {},
     };
@@ -154,6 +183,9 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
             source_revision: process.env.WORKSPACE_E2E_SOURCE_REVISION ?? null,
             config_file: process.env.WORKSPACE_E2E_CONFIG ?? null,
             actor_ids: [...scope.actors],
+            session_ids: [...scope.sessionIds],
+            oauth_client_ids: [...scope.oauthClientIds],
+            actual_proof: false,
             workspaces: scope.workspaces,
             workspace_creations: scope.workspaceCreations,
           },
@@ -234,9 +266,20 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
     try {
       await use();
     } finally {
-      await context.close();
+      const cleanupErrors: unknown[] = [];
+      const contextsClosed = await Promise.allSettled(
+        [...scope.contexts].map((value) => value.close()),
+      );
+      for (const result of contextsClosed) {
+        if (result.status === "rejected") cleanupErrors.push(result.reason);
+      }
       await Promise.allSettled([...scope.responses]);
-      await Promise.allSettled([...scope.clients].map((close) => close()));
+      const closed = await Promise.allSettled(
+        [...scope.clients].map((close) => close()),
+      );
+      for (const result of closed) {
+        if (result.status === "rejected") cleanupErrors.push(result.reason);
+      }
       try {
         if (scope.workspaces.length) {
           if (testInfo.config.workers !== 1) {
@@ -331,9 +374,62 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
             contentType: "application/json",
           });
         }
+      } catch (error) {
+        cleanupErrors.push(error);
       } finally {
+        // Auth cleanup also runs when creation, consent or owned-root cleanup failed early.
+        if (scope.oauthClientIds.size || scope.sessionIds.size) {
+          try {
+            ownedRuntime();
+            if (testInfo.config.workers !== 1) {
+              throw new Error("owned Auth cleanup requires one worker");
+            }
+            for (const id of scope.oauthClientIds) {
+              try {
+                const secret = requiredEnv("LOCAL_SUPABASE_SECRET_KEY");
+                const response = await fetch(
+                  `${AUTH}/admin/oauth/clients/${encodeURIComponent(id)}`,
+                  {
+                    method: "DELETE",
+                    headers: {
+                      apikey: secret,
+                      authorization: `Bearer ${secret}`,
+                    },
+                    signal: AbortSignal.timeout(15000),
+                  },
+                );
+                await response.body?.cancel();
+                expect(response.ok || response.status === 404).toBeTruthy();
+              } catch (error) {
+                cleanupErrors.push(error);
+              }
+            }
+            if (scope.sessionIds.size) {
+              const admin = postgres(requiredEnv("LOCAL_DB_URL"), {
+                max: 1,
+                onnotice: () => {},
+              });
+              try {
+                await admin`delete from auth.sessions where id=any(${[
+                  ...scope.sessionIds,
+                ]}::uuid[])`;
+              } finally {
+                await admin.end();
+              }
+            }
+          } catch (error) {
+            cleanupErrors.push(error);
+          }
+        }
+        scope.persist();
         for (const token of scope.tokens) tokenOwners.delete(token);
         activeScope = null;
+      }
+      if (cleanupErrors.length) {
+        throw new AggregateError(
+          cleanupErrors,
+          "exact owned fixture cleanup failed; inspect the private ID manifest",
+        );
       }
     }
   }, { auto: true }],
@@ -343,6 +439,8 @@ export const MCP_URL = `${SUPABASE}/functions/v1/mcp`;
 const REDIRECT = "http://127.0.0.1:55390/callback";
 
 export async function devLogin(page: Page, who: "A" | "B" = "A") {
+  ownedRuntime();
+  activeScope?.contexts.add(page.context());
   await page.goto("/login");
   await page.getByLabel("이메일").fill(requiredEnv(`DEV_USER_${who}_EMAIL`));
   await page.getByLabel("비밀번호").fill(
@@ -351,11 +449,17 @@ export async function devLogin(page: Page, who: "A" | "B" = "A") {
   const tokenResponse = page.waitForResponse((response) =>
     response.url().startsWith(`${AUTH}/token`) &&
     response.request().method() === "POST"
-  );
+  ).then(async (response) => {
+    const session = await response.json();
+    trackMintedSession(session.access_token);
+    return { response, session };
+  });
+  // Preserve tracking even if the click or a later UI assertion fails after minting.
+  const read = tokenResponse.then(() => {}, () => {});
+  activeScope?.responses.add(read);
   await page.getByRole("button", { name: "이메일로 로그인" }).click();
-  const response = await tokenResponse;
+  const { response, session } = await tokenResponse;
   expect(response.ok()).toBeTruthy();
-  const session = await response.json();
   if (
     !uuid.test(session.user?.id) || typeof session.access_token !== "string"
   ) throw new Error("authenticated fixture session missing");
@@ -504,7 +608,7 @@ export async function ownedWorkspace(page: Page) {
           value.target_id === existing.target_id
         )
       ),
-      ...added,
+      ...added.filter((value) => value.access !== "none"),
     ];
     await request(
       "PATCH",
@@ -524,6 +628,8 @@ export async function ownedWorkspace(page: Page) {
     .toBeVisible();
   return {
     id: fixture.id,
+    setTaskAccess: (access: "read" | "write" | "none") =>
+      grant([{ target_kind: "tasks", target_id: "*", access }]),
     grantKind: async (typeId: string) => {
       if (!uuid.test(typeId) || !fixture.createdKinds.includes(typeId)) {
         throw new Error(
@@ -543,7 +649,12 @@ const b64url = (b: Buffer) => b.toString("base64url");
 
 /** 에이전트가 하듯 동적 등록·PKCE로 인가를 시작하고, 사용자가 웹 동의 화면에서 승인한 뒤 토큰을 받는다. */
 export async function mcpTokenViaConsent(page: Page): Promise<string> {
-  const reg = await (await fetch(`${AUTH}/oauth/clients/register`, {
+  ownedRuntime();
+  requiredEnv("LOCAL_SUPABASE_SECRET_KEY");
+  if (!activeScope) {
+    throw new Error("OAuth fixture requires an active tracked test");
+  }
+  const registration = await fetch(`${AUTH}/oauth/clients/register`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -553,7 +664,14 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
       response_types: ["code"],
       token_endpoint_auth_method: "none",
     }),
-  })).json();
+  });
+  const reg = await registration.json();
+  if (typeof reg.client_id === "string") {
+    activeScope.oauthClientIds.add(reg.client_id);
+    activeScope.persist();
+  }
+  expect(registration.status).toBe(201);
+  expect(typeof reg.client_id).toBe("string");
   const verifier = b64url(randomBytes(32));
   const state = b64url(randomBytes(16));
   const url = new URL(`${AUTH}/oauth/authorize`);
@@ -620,6 +738,7 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
       resource: MCP_URL,
     }),
   })).json();
+  trackMintedSession(token.access_token);
   expect(token.access_token).toBeTruthy();
   const owner = tokenOwner(token.access_token);
   if (owner) {
@@ -637,11 +756,6 @@ export async function mcpClient(
     throw new Error("explicit MCP workspace identity required");
   }
   const client = new Client({ name: "e2e-agent", version: "0.0.0" });
-  await client.connect(
-    new StreamableHTTPClientTransport(new URL(MCP_URL), {
-      requestInit: { headers: { authorization: `Bearer ${token}` } },
-    }),
-  );
   const owner = tokenOwners.get(token) ?? tokenOwner(token);
   let closed = false;
   const close = async () => {
@@ -651,6 +765,11 @@ export async function mcpClient(
     }
   };
   activeScope?.clients.add(close);
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(MCP_URL), {
+      requestInit: { headers: { authorization: `Bearer ${token}` } },
+    }),
+  );
   return {
     async call(name: string, args: Record<string, unknown>) {
       if (scope) {
