@@ -2,6 +2,7 @@ import { useApi } from "../../lib/api-context.tsx";
 import { useContext, useEffect, useId, useRef, useState } from "react";
 import {
   type IndexingIssuesPage,
+  type IndexingIssue,
   indexingIssuesPage,
   indexingReasonExplanations,
   indexingReasonLabels,
@@ -17,6 +18,7 @@ import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { WorkspaceContext } from "../details/workspace-context.ts";
 import { readApiKey } from "./read-api-key.ts";
+import { Link } from "../../lib/workspace-router.tsx";
 
 
 export function IndexingIssues({ count, disabled = false }: { count: number; disabled?: boolean }) {
@@ -123,22 +125,49 @@ function IndexingIssuesSession({ count, disabled }: { count: number; disabled: b
                 </EmptyHeader>
               </Empty>
             )}
+            <IndexingIssueRows items={page.items} expanded={expanded} id={id} onToggle={(key) => setExpanded((prior) => prior.includes(key) ? prior.filter((value) => value !== key) : [...prior, key])} />
+            <nav className="flex flex-wrap items-center justify-between gap-2" aria-label="색인 문제 페이지">
+              <Button variant="outline" disabled={busy || position === 0} onClick={() => setPosition(position - 1)}>
+                이전
+              </Button>
+              <span className="text-sm text-muted-foreground" role="status">{position + 1}페이지 · 최대 5개</span>
+              <Button variant="outline" disabled={busy || !page.next_cursor} onClick={next}>다음</Button>
+            </nav>
+          </>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+
+/** The safe public diagnostics view; request lifetime and pagination remain with its parent. */
+export function IndexingIssueRows({ items, expanded, id, onToggle }: {
+  items: IndexingIssue[];
+  expanded: string[];
+  id: string;
+  onToggle: (key: string) => void;
+}) {
+  return (
             <BusinessTable label="색인 문제 항목" columns={["대상", "상태"]}>
-              {page.items.map((issue) => {
-                const isOpen = expanded.includes(issue.id);
-                const title = issue.title || "제목 없는 기록";
-                const panel = `${id}-${issue.id}`;
-                const toggleIssue = () => setExpanded(prior => isOpen ? prior.filter(value => value !== issue.id) : [...prior, issue.id]);
-                return <Fragment key={issue.id}>
+              {items.map((issue) => {
+                const key = `${issue.kind}:${issue.id}`;
+                const label = issue.kind === "entity" ? "자료" : "기록";
+                const isOpen = expanded.includes(key);
+                const title = issue.title || `제목 없는 ${label}`;
+                const panel = `${id}-${issue.kind}-${issue.id}`;
+                const toggleIssue = () => onToggle(key);
+                return <Fragment key={key}>
                   <BusinessRow>
                     <BusinessDisclosureCell><Button variant="ghost" size="icon" type="button" aria-label={`${isOpen ? "접기" : "열기"}: ${title}`} aria-controls={panel} aria-expanded={isOpen} onClick={toggleIssue}>
                       {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
                     </Button></BusinessDisclosureCell>
-                    <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere" aria-label={`${title} ${indexingReasonLabels[issue.reason]}`} aria-controls={panel} aria-expanded={isOpen} onClick={toggleIssue}>{title}</Button></h3></BusinessCell>
+                    <BusinessCell index={0}><Badge variant="outline">{label}</Badge><h3><Button variant="link" type="button" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere" aria-label={`${title} ${indexingReasonLabels[issue.reason]}`} aria-controls={panel} aria-expanded={isOpen} onClick={toggleIssue}>{title}</Button></h3></BusinessCell>
                     <BusinessCell index={1}><Badge variant="secondary" className="h-auto max-w-full whitespace-normal wrap-anywhere">{indexingReasonLabels[issue.reason]}</Badge></BusinessCell>
                   </BusinessRow>
                   <BusinessDetails hidden={!isOpen} id={panel}>
                     <p>{indexingReasonExplanations[issue.reason]}</p>
+                    <Button asChild variant="outline"><Link to={issue.path}>{label} 원문</Link></Button>
                     {issue.chunks.unknown > 0 && (
                       <Alert>
                         <AlertDescription>
@@ -165,16 +194,5 @@ function IndexingIssuesSession({ count, disabled }: { count: number; disabled: b
                 </Fragment>;
               })}
             </BusinessTable>
-            <nav className="flex flex-wrap items-center justify-between gap-2" aria-label="색인 문제 페이지">
-              <Button variant="outline" disabled={busy || position === 0} onClick={() => setPosition(position - 1)}>
-                이전
-              </Button>
-              <span className="text-sm text-muted-foreground" role="status">{position + 1}페이지 · 최대 5개</span>
-              <Button variant="outline" disabled={busy || !page.next_cursor} onClick={next}>다음</Button>
-            </nav>
-          </>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
   );
 }
