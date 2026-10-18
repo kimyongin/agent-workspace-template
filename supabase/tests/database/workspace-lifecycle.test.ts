@@ -2,7 +2,13 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlWorkspaceUnitOfWork } from "../../functions/_shared/adapters/supabase/workspace-store.ts";
 import { createWorkspace } from "../../functions/_shared/core/workspaces/application.ts";
 import * as workspaces from "../../functions/_shared/core/workspaces/application.ts";
-import { lockWorkspace, workspaceAccount } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
+import {
+  lockWorkspace,
+  runInWorkspace,
+  workspaceAccount,
+} from "../../functions/_shared/adapters/supabase/workspace-context.ts";
+import { replayRetainedWorkspaceRequest } from "../../functions/_shared/adapters/supabase/workspace-request-ledger.ts";
+import { requestIdentity } from "../../functions/_shared/core/shared/request.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { connect, dbTest, outcome, urls } from "./_db.ts";
 
@@ -120,6 +126,23 @@ dbTest(
         grants: [],
       });
       await forbidden(() => workspaces.deleteWorkspace(deps, request, workspaceId, input));
+      const scoped = { ...request, workspaceId };
+      const identity = await requestIdentity(scoped, "workspace.delete", workspaceId, input);
+      await forbidden(() =>
+        deps.uow.workspace(
+          scoped,
+          { mode: "business", requirements: [] },
+          (store) => store.executeRequest(identity, () => Promise.resolve({ unexpected: true })),
+        )
+      );
+      await forbidden(() =>
+        runInWorkspace(
+          sql,
+          scoped,
+          { mode: "business", requirements: [] },
+          (tx) => replayRetainedWorkspaceRequest(tx, scoped, identity, []),
+        )
+      );
       await forbidden(
         () => workspaces.deleteWorkspace(deps, keyed(b), workspaceId, { expected_generation: 1 }),
         "conflict",
