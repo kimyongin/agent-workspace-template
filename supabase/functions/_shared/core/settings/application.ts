@@ -32,7 +32,7 @@ import {
 import { changeDefaults } from "./change-defaults.ts";
 import { registrationContent, registrationIdentity, registrationState, restorationContent } from "../entity/domain.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
-import { taskCreate, taskUpdate } from "../../contracts/task.ts";
+import { taskCreate, taskUpdate, versionOnly } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { type EntityCreate, entityCreate, entityUpdate } from "../../contracts/entity.ts";
 import { entityId } from "../../contracts/entity-identity.ts";
@@ -82,7 +82,7 @@ export function prepareBusinessRecord(
       const target = await store.target?.(input.model, input.target_id);
       if (!target) throw notFound();
       if (target.version !== input.expected_version) throw conflict("다른 변경이 저장되어 있습니다. 다시 조회하세요.");
-      if (input.model === "entity" && !!target.deleted_at !== (input.action === "restore")) {
+      if (!!target.deleted_at !== (input.action === "restore")) {
         throw conflict(
           input.action === "restore" ? "삭제된 대상만 복원할 수 있습니다" : "삭제된 대상입니다. 복원을 먼저 확인하세요",
         );
@@ -99,7 +99,11 @@ export function prepareBusinessRecord(
     }
     let prepared_input = content;
     if (!connectingTags && (input.action === "update" || input.action === "restore")) {
-      const schema = input.action === "restore" ? entityCreate : input.model === "task" ? taskUpdate : entityUpdate;
+      const schema = input.action === "restore"
+        ? input.model === "task" ? versionOnly : entityCreate
+        : input.model === "task"
+        ? taskUpdate
+        : entityUpdate;
       const mutation = schema.safeParse({ ...content, expected_version: input.expected_version });
       if (!mutation.success) {
         throw invalidInput(
@@ -108,14 +112,14 @@ export function prepareBusinessRecord(
         );
       }
       const { expected_version: _version, ...fields } = mutation.data;
-      content = input.model === "task"
+      content = input.model === "task" && input.action === "update"
         ? updateTask(
           { kind: before?.kind ?? "once", version: input.expected_version! },
           taskUpdate.parse({ ...fields, expected_version: input.expected_version }),
         )
         : fields;
       prepared_input = content;
-      if (input.action === "restore") {
+      if (input.action === "restore" && input.model === "entity") {
         content = restorationContent(
           identity!,
           before!,
@@ -213,7 +217,7 @@ export function prepareBusinessRecord(
       ...before,
       ...content,
     } as ChangeFacts;
-    if (input.action === "restore") {
+    if (input.action === "restore" && input.model === "entity") {
       prepared_input = {
         ...prepared_input,
         source: before?.source,
