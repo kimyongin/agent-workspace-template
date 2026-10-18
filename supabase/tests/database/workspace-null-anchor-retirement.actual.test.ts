@@ -2,7 +2,9 @@ import { assertEquals } from "@std/assert";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { initialEntityDefinition } from "../../functions/_shared/contracts/entity-type.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
+import { SqlEntityRelationDefinitionUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-relation-definition-store.ts";
 import * as entities from "../../functions/_shared/core/entity/application.ts";
+import * as relations from "../../functions/_shared/core/entity-relations/application.ts";
 import { asUser, connect, dbTest, urls } from "./_db.ts";
 import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 
@@ -88,6 +90,82 @@ dbTest(
           await tx`delete from app.entity_type_identity where type_id=${legacyType} and workspace_id is null and owner_id=${actor}`;
           await tx`delete from app.entity_identifier_rules where id='00000000-0000-4000-8000-000000000001' and workspace_id is null and owner_id=${actor}`;
           await tx`delete from app.entity_issuers where code='app' and workspace_id is null and owner_id=${actor}`;
+          await tx`delete from app.entity_schema_versions where type_id=${legacyType} and workspace_id is null and owner_id=${actor}`;
+          await tx`delete from app.entity_types where id=${legacyType} and workspace_id is null and owner_id=${actor}`;
+        });
+      }
+      await fixture.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "unassigned historical relation definitions stay hidden without current workspace metadata authority",
+  async () => {
+    const fixture = await businessWorkspaceFixture(admin, user);
+    const legacyType = crypto.randomUUID(), legacyDefinition = crypto.randomUUID();
+    const actor = fixture.member.userId;
+    let seeded = false;
+    try {
+      const other = await fixture.addWorkspace("관계 설정이 없는 다른 공간");
+      const kind = await fixture.createKind("현재 공간의 관계 종류");
+      const current = await relations.createEntityRelationDefinition(
+        { uow: new SqlEntityRelationDefinitionUnitOfWork(user) },
+        businessRequest(fixture.manager),
+        {
+          ends: [{ type_id: kind.id, label: "앞", cardinality: "many" }, {
+            type_id: kind.id,
+            label: "뒤",
+            cardinality: "many",
+          }],
+        },
+      );
+      const definition = initialEntityDefinition("이관 전 관계 종류", { id: legacyType });
+      await admin.begin(async (tx) => {
+        // Fixture-only representation of the preserved pre-cutover ownership graph.
+        await tx`set local session_replication_role='replica'`;
+        await tx`insert into app.entity_types(owner_id,id) values(${actor},${legacyType})`;
+        await tx`insert into app.entity_schema_versions(owner_id,schema) values(${actor},${
+          tx.json(definition.schema as never)
+        })`;
+        await tx`insert into app.entity_relation_definitions(owner_id,id,left_type_id,left_label,left_cardinality,right_type_id,right_label,right_cardinality)
+        values(${actor},${legacyDefinition},${legacyType},'과거 앞','many',${legacyType},'과거 뒤','many')`;
+      });
+      seeded = true;
+      const before =
+        await admin`select * from app.entity_relation_definitions where id=${legacyDefinition} and workspace_id is null and owner_id=${actor}`;
+      const authBefore = await admin`select id,raw_user_meta_data,raw_app_meta_data from auth.users where id=${actor}`;
+      const read = (workspaceId?: string, reader = actor, id?: string) =>
+        asUser(user, reader, async (tx) => {
+          await tx`select set_config('request.workspace_id',${workspaceId ?? ""},true)`;
+          return (await tx`select id from app.entity_relation_definitions where id=any(${
+            id ? [id] : [legacyDefinition, current.id]
+          }::uuid[]) order by id`).map((row) => row.id);
+        });
+      assertEquals(await read(fixture.workspaceId, fixture.manager.userId, current.id), [current.id]);
+      const noWorkspace = await read();
+      const unrelatedWorkspace = await read(other.workspaceId);
+      const noSettingsOrKinds = await read(fixture.workspaceId);
+      assertEquals({ noWorkspace, unrelatedWorkspace, noSettingsOrKinds }, {
+        noWorkspace: [],
+        unrelatedWorkspace: [],
+        noSettingsOrKinds: [],
+      });
+      await fixture.grant(fixture.member, [{ target_kind: "settings", target_id: "*", access: "read" }]);
+      assertEquals(await read(fixture.workspaceId), [current.id]);
+      assertEquals(
+        await admin`select * from app.entity_relation_definitions where id=${legacyDefinition} and workspace_id is null and owner_id=${actor}`,
+        before,
+      );
+      assertEquals(
+        await admin`select id,raw_user_meta_data,raw_app_meta_data from auth.users where id=${actor}`,
+        authBefore,
+      );
+    } finally {
+      if (seeded) {
+        await admin.begin(async (tx) => {
+          await tx`set local session_replication_role='replica'`;
+          await tx`delete from app.entity_relation_definitions where id=${legacyDefinition} and workspace_id is null and owner_id=${actor}`;
           await tx`delete from app.entity_schema_versions where type_id=${legacyType} and workspace_id is null and owner_id=${actor}`;
           await tx`delete from app.entity_types where id=${legacyType} and workspace_id is null and owner_id=${actor}`;
         });
