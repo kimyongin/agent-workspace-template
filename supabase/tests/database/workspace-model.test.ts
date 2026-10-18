@@ -73,6 +73,17 @@ dbTest(
       assertEquals(error.code, "forbidden");
       const wrong = await assertRejects(() => types.getEntityType(typeDeps, second, left.id), AppError);
       assertEquals(wrong.code, "not_found");
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
+        expected_version: 1,
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      });
+      const reviewInput = { mode: "copy", document: JSON.stringify(exported) };
+      const [managerA, managerB] = await Promise.all([
+        previewDataModel(modelDeps, first, reviewInput),
+        previewDataModel(modelDeps, reader, reviewInput),
+      ]);
+      assertEquals(managerA.mapping, managerB.mapping);
+      assertEquals(managerA.fingerprint, managerB.fingerprint);
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
