@@ -1,4 +1,4 @@
-import { exportDataModel } from "../../functions/_shared/core/data-model/application.ts";
+import { exportDataModel, previewDataModel } from "../../functions/_shared/core/data-model/application.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import * as issuers from "../../functions/_shared/core/entity-issuers/application.ts";
 import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
@@ -59,6 +59,13 @@ dbTest(
       assertEquals((await exportDataModel(modelDeps, second)).entity_types.map((v) => v.schema["x-type-id"]), [
         right.id,
       ]);
+      const exported = await exportDataModel(modelDeps, reader);
+      const readonlyPreview = await assertRejects(() =>
+        previewDataModel(modelDeps, reader, {
+          mode: "copy",
+          document: JSON.stringify(exported),
+        }), AppError);
+      assertEquals(readonlyPreview.code, "forbidden");
       const error = await assertRejects(
         () => types.createEntityType(typeDeps, key(reader), { label: "금지" }),
         AppError,
