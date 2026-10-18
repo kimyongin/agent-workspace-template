@@ -43,8 +43,8 @@ activityWorkspaceSuite(
     };
     for (
       const [tasks, entity, expected] of [
-        ["read", "read", { tasks: 1, entities: 1, result: 1, change: 1 }],
-        ["read", "none", { tasks: 1, entities: 0, result: 1, change: 0 }],
+        ["read", "read", { tasks: 1, entities: 1, result: 1, change: 2 }],
+        ["read", "none", { tasks: 1, entities: 0, result: 1, change: 1 }],
         ["none", "read", { tasks: 0, entities: 1, result: 0, change: 1 }],
         ["none", "none", { tasks: 0, entities: 0, result: 0, change: 0 }],
       ] as const
@@ -59,6 +59,7 @@ activityWorkspaceSuite(
       assertEquals(http.body.tasks.total, expected.tasks);
       assertEquals(http.body.records.result, expected.result);
       assertEquals(http.body.records.change, expected.change);
+      assertEquals(http.body.indexing.total, expected.result + expected.change);
       const mcp = await scopedTool(clientA, workspace, "get_status", { timezone: "UTC" });
       for (const field of ["entities", "tasks", "records", "indexing", "daily"]) {
         assertEquals(mcp[field], http.body[field]);
@@ -100,7 +101,7 @@ activityWorkspaceSuite(
     assertEquals(revoked.body.items, []);
     assertEquals(revoked.body.semantic_coverage, { pending: 0, excluded: 0 });
     assertEquals(await scopedTool(clientA, workspace, "search", input), revoked.body);
-    assertEquals((await scopedHttp(A, workspace, "GET", `/records/${record.id}`)).status, 403);
+    assertEquals((await scopedHttp(A, workspace, "GET", `/records/${record.id}`)).status, 404);
   },
   { mcp: true },
 );
