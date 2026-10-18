@@ -51,7 +51,10 @@ async function deterministic(
         return '20261011-'||lpad(case when current_setting('test.id_exhaust',true)='true' or n=0 then '0' else n::text end,8,'0');
       end $$`);
       const scoped = {
-        begin: (run: (t: postgres.TransactionSql) => Promise<unknown>) => run(tx),
+        begin: (
+          optionsOrRun: string | ((t: postgres.TransactionSql) => Promise<unknown>),
+          run?: (t: postgres.TransactionSql) => Promise<unknown>,
+        ) => (typeof optionsOrRun === "function" ? optionsOrRun : run!)(tx),
       } as unknown as postgres.Sql;
       await runInWorkspace(scoped, f.member, {
         mode: "business",
@@ -128,7 +131,10 @@ dbTest(
       const a = actor(member), input = taskCreate.parse({ kind: "once", title: "new" });
       await tx.savepoint(async (attempt) => {
         const nested = {
-          begin: (run: (t: postgres.TransactionSql) => Promise<unknown>) => run(attempt),
+          begin: (
+            optionsOrRun: string | ((t: postgres.TransactionSql) => Promise<unknown>),
+            run?: (t: postgres.TransactionSql) => Promise<unknown>,
+          ) => (typeof optionsOrRun === "function" ? optionsOrRun : run!)(attempt),
         } as unknown as postgres.Sql;
         const error = await assertRejects(
           () => activity.createTask({ uow: new SqlUnitOfWork(nested), clock: { now: () => new Date() } }, a, input),
@@ -187,7 +193,10 @@ dbTest(
         await reset(tx);
         await tx.savepoint(async (attempt) => {
           const connection = {
-            begin: (run: (t: postgres.TransactionSql) => Promise<unknown>) => run(attempt),
+            begin: (
+              optionsOrRun: string | ((t: postgres.TransactionSql) => Promise<unknown>),
+              run?: (t: postgres.TransactionSql) => Promise<unknown>,
+            ) => (typeof optionsOrRun === "function" ? optionsOrRun : run!)(attempt),
           } as unknown as postgres.Sql;
           const error = await assertRejects(() => write(connection), AppError);
           assertEquals(error.code, "conflict");
