@@ -1,10 +1,12 @@
+// Workspace sources use the current business contract; #516 owns the search/worker consumer conversion.
+import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type postgres from "postgres";
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
 import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
-import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import {
@@ -14,8 +16,8 @@ import {
   type PassageProvider,
 } from "../../functions/_shared/core/search/external-effect.ts";
 import { searchInputHash } from "../../functions/_shared/core/shared/operations.ts";
-import { requestActor } from "../_request.ts";
-import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
+import { asUser, connect, dbTest, outcome, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 }), user = connect(urls.pooler, { max: 3, prepare: false });
 const workerUrl = new URL(urls.pooler);
@@ -23,15 +25,25 @@ workerUrl.username = "app_worker.pooler-dev";
 workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
 const worker = connect(workerUrl.href, { max: 3, prepare: false });
 const queue = new SqlIndexQueue(worker), ledger = new SqlExternalEffectLedger(worker);
-const fixture = await fixtureOwner(admin), foreign = await fixtureOwner(admin), actor = fixture.actor;
+const fixture = await businessWorkspaceFixture(admin, user);
+await fixture.grant(fixture.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+const actor = fixture.member;
 const deps = {
   uow: new SqlUnitOfWork(user),
   clock: { now: () => new Date() },
 };
 const vector = Array.from({ length: 1024 }, (_, n) => n === 0 ? 1 : 0);
 async function job(text = "원문은 비밀이며 effect에는 저장하지 않는다", who = actor) {
-  const record = await activity.createRecord(deps, requestActor(who), recordCreate.parse({ body: text }));
-  const [claim] = await queue.claim({ limit: 1, owner_id: who.userId, kind: "record", id: record.id });
+  const task = await activity.createTask(
+    deps,
+    businessRequest(who),
+    taskCreate.parse({ kind: "once", title: "외부 효과 검증 결과" }),
+  );
+  const { record } = await activity.completeTask(deps, businessRequest(who), task.id, {
+    expected_version: task.version,
+    body: text,
+  });
+  const [claim] = await queue.claim({ limit: 1, kind: "record", id: record.id });
   const input: PassageEffectInput = {
     message_id: claim.msg_id,
     pipeline: SEARCH_PIPELINE,
@@ -48,10 +60,10 @@ const status = async (id: string) => [
   ...await admin`select e.id::text as effect_id,
   case when e.state='running' and e.lease_until<=now() then 'unknown' else e.state end as state,
   e.attempts,e.reason,e.start_offset as start,e.end_offset as end
-  from private.passage_effects e join app.records r on r.owner_id=e.owner_id and r.id=e.record_id
-  join app.search_index_state s on s.owner_id=e.owner_id and s.id=e.record_id and s.kind='record'
+  from private.passage_effects e join app.records r on r.id=e.record_id
+  join app.search_index_state s on s.workspace_id=r.workspace_id and s.id=e.record_id and s.kind='record'
     and s.input_hash=e.source_hash and s.pipeline=e.pipeline
-  where e.owner_id=${actor.userId} and e.record_id=${id} and e.source_version=r.version`,
+  where r.workspace_id=${actor.workspaceId} and e.record_id=${id} and e.source_version=r.version`,
 ];
 // Fault injection only: move the durable lease/backoff clock; assertions use public use cases.
 async function release(effectId: string) {
@@ -230,7 +242,7 @@ dbTest(
     assertEquals((await executePassageEffect(ledger, provider, a.input, a.text)).state, "failed");
     await activity.updateRecord(
       deps,
-      requestActor(actor),
+      businessRequest(actor),
       a.record.id,
       recordUpdate.parse({ expected_version: 1, body: a.text, occurred_at: "2025-01-01T00:00:00.000Z" }),
     );
@@ -247,12 +259,12 @@ dbTest(
     );
     const b = await job();
     const claimed = active(await ledger.claim(b.input));
-    await activity.deleteRecord(deps, requestActor(actor), b.record.id, 1);
+    await activity.deleteRecord(deps, businessRequest(actor), b.record.id, 1);
     assertEquals(await ledger.complete(claimed, { state: "succeeded", vector }), false);
     assertEquals((await ledger.claim(b.input)).action, "stale");
     // Retention is checked at the DB storage boundary: pending/running/unknown never age out with the source.
     assertEquals((await admin`select id from private.passage_effects where id=${claimed.effect_id}::uuid`).length, 1);
-    await activity.deleteRecord(deps, requestActor(actor), a.record.id, 2);
+    await activity.deleteRecord(deps, businessRequest(actor), a.record.id, 2);
     assertEquals(
       (await admin`select e.id from private.passage_effects e where e.record_id=${a.record.id}`)
         .length,
@@ -310,41 +322,72 @@ dbTest("external effects: local record, request result, queue roll back together
   const failingDeps = {
     ...deps,
     uow: {
-      run: <T>(who: typeof actor, fn: Parameters<typeof deps.uow.run<T>>[1]) =>
+      run: <T>(
+        who: typeof actor,
+        fn: Parameters<typeof deps.uow.run<T>>[1],
+        entry?: Parameters<typeof deps.uow.run<T>>[2],
+      ) =>
         deps.uow.run(who, async (store) => {
           const result = await fn(store);
-          recordId = (result as { id: string }).id;
+          recordId = (result as { record: { id: string } }).record.id;
           throw Error("injected_local_transaction_failure");
-        }),
+        }, entry),
     },
   };
+  const task = await activity.createTask(
+    deps,
+    businessRequest(actor),
+    taskCreate.parse({ kind: "once", title: "원자적 결과" }),
+  );
+  const request = businessRequest(actor);
   await assertRejects(() =>
-    activity.createRecord(failingDeps, requestActor(actor), recordCreate.parse({ body: "rolled back" }))
+    activity.completeTask(failingDeps, request, task.id, { expected_version: task.version, body: "rolled back" })
+  );
+  const unchanged = await activity.getTask(deps, actor, task.id);
+  assertEquals([unchanged.status, unchanged.result_record_id, unchanged.version], ["open", null, task.version]);
+  assertEquals(
+    (await admin`select request_key from private.workspace_request_results where workspace_id=${actor.workspaceId} and request_key=${
+      request.request!.key
+    }::uuid`).length,
+    0,
   );
   assertEquals(
-    (await admin`select id from private.passage_effects where owner_id=${actor.userId} and record_id=${recordId}`)
+    (await admin`select id from private.passage_effects where record_id=${recordId}`)
       .length,
     0,
   );
   const missing = await assertRejects(() => activity.getRecord(deps, actor, recordId), AppError);
   assertEquals(missing.code, "not_found");
-  assertEquals(await queue.claim({ limit: 1, owner_id: actor.userId, kind: "record", id: recordId }), []);
+  assertEquals(await queue.claim({ limit: 1, kind: "record", id: recordId }), []);
 });
 
-dbTest("external effects: account cascade removes effects/results and rejects remaining actor", async () => {
-  const owned = await fixtureOwner(admin);
-  const ownedJob = await job("cascade", owned.actor);
-  const ownedClaim = active(await ledger.claim(ownedJob.input));
-  await ledger.complete(ownedClaim, { state: "succeeded", vector });
-  await owned.cleanup();
-  assertEquals((await admin`select id from private.passage_effects where id=${ownedClaim.effect_id}::uuid`).length, 0);
-  assertEquals(
-    (await admin`select id from private.passage_effects where owner_id=${owned.actor.userId}`).length,
-    0,
-  );
+dbTest("external effects: deleting an initiating account retains shared result parent and content", async () => {
+  const owned = await businessWorkspaceFixture(admin, user);
+  try {
+    await owned.grant(owned.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+    await owned.grant(owned.manager, [
+      { target_kind: "settings", target_id: "*", access: "write" },
+      { target_kind: "tasks", target_id: "*", access: "read" },
+    ]);
+    const ownedJob = await job("retained shared result", owned.member);
+    const ownedClaim = active(await ledger.claim(ownedJob.input));
+    await ledger.complete(ownedClaim, { state: "succeeded", vector });
+    await admin`delete from auth.users where id=${owned.member.userId}`;
+    const retained = await activity.getRecord(deps, owned.manager, ownedJob.record.id);
+    assertEquals([retained.body, retained.task_id, retained.created_by], [
+      ownedJob.text,
+      ownedJob.record.task_id,
+      null,
+    ]);
+    assertEquals(
+      (await admin`select id from private.passage_effects where id=${ownedClaim.effect_id}::uuid`).length,
+      1,
+    );
+  } finally {
+    await owned.cleanup();
+  }
 });
 
 dbTest("external-effect fixture cleanup", async () => {
   await fixture.cleanup();
-  await foreign.cleanup();
 });
