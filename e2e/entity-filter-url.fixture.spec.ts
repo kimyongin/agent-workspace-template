@@ -98,7 +98,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
   await expect(page.getByRole("button", { name: "필터 검사", exact: true })).toBeVisible();
 });
 
-test("long filter survives detail edit/task/record modes and copied desktop owner-list reload", async ({ page }) => {
+test("long filter survives detail edit/task modes and rejected record intent and copied desktop owner-list reload", async ({ page }) => {
   const remote = "http://127.0.0.1:55587",
     user = {
       id: id(101),
@@ -162,9 +162,9 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
   await page.goto(list);
   await expect.poll(() => reads.at(-1)?.matches).toBe(true);
   await openListDetail(page, "모드 검사");
-  for (const mode of ["edit", "task", "record"] as const) {
+  for (const mode of ["edit", "task"] as const) {
     if (mode === "edit") await openDetailEditor(page);
-    else await page.getByRole("button", { name: mode === "task" ? "할 일 작성" : "기록 작성", exact: true }).click();
+    else await page.getByRole("button", { name: "할 일 작성", exact: true }).click();
     await expect.poll(() => new URLSearchParams(new URL(page.url()).hash.slice(1)).get("anchor")).toBe(
       `entity-${row.id}`,
     );
@@ -183,6 +183,11 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
     await expect.poll(() => new URL(page.url()).searchParams.has(mode === "edit" ? "edit" : "create")).toBe(false);
     expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("anchor")).toBe(`entity-${row.id}`);
   }
+  const rejected = new URL(page.url());
+  rejected.searchParams.set("create", "record");
+  await page.goto(rejected.href);
+  await expect(page.getByRole("dialog", { name: "기록 작성", exact: true })).toHaveCount(0);
+  expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("anchor")).toBe(`entity-${row.id}`);
   await closeDetail(page, "모드 검사");
   await expect.poll(() => new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/entities"));
   expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("entity_type_id")).toBe(fixtureType.id);

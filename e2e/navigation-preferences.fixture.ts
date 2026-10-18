@@ -1,3 +1,5 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows } from "./table-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
@@ -41,6 +43,7 @@ async function fixture(page: Page, baseURL: string, initial: unknown = null) {
   const writes: Record<string, unknown>[] = [];
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }, { target_kind: "tasks", target_id: "*", access: "write" }, ...[material, product].map(type => ({ target_kind: "entity_type" as const, target_id: type.id, access: "write" as const }))])) return;
     if (url.origin === new URL(baseURL).origin) return route.continue();
     if (url.pathname === "/auth/v1/user") {
       if (route.request().method() === "PUT") {
@@ -121,7 +124,7 @@ async function expectWorkLink(page: Page, label: string) {
 
 test("shortcut editing has its own section with compact rows, bounded selection and independent cancel", async ({ page, baseURL }, info) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/navigation");
+  await page.goto(fixtureWorkspacePath("/settings/navigation"));
   await expect(page).toHaveURL(/\/settings#settings-navigation$/);
   const section = page.getByRole("region", { name: "메뉴 바로가기", exact: true });
   await expect(section.getByRole("table", { name: "선택한 바로가기", exact: true })).toBeVisible();
@@ -166,7 +169,7 @@ test("shortcut editing has its own section with compact rows, bounded selection 
 });
 test("explicit empty configuration saves only navigation and survives reload; default can be restored", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/navigation");
+  await page.goto(fixtureWorkspacePath("/settings/navigation"));
   await expect(businessRows(page.getByRole("table", { name: "선택한 바로가기" }))).toHaveCount(4);
   for (const label of ["재료", "상품", "할 일", "기록"]) {
     await page.getByRole("button", { name: `${label} 숨기기`, exact: true }).click();
@@ -189,7 +192,7 @@ test("explicit empty configuration saves only navigation and survives reload; de
 });
 test("keyboard reorder previews retained refs; failed save keeps draft and route guards work", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks"), ref("records")] });
-  await page.goto("/settings/navigation");
+  await page.goto(fixtureWorkspacePath("/settings/navigation"));
   const move = page.getByRole("button", { name: "기록 위로 이동" });
   await move.focus();
   await page.keyboard.press("Enter");
@@ -210,7 +213,7 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
 });
 test("shortcut search retains its query while external metadata reports a draft conflict", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks"), ref("records")] });
-  await page.goto("/settings/navigation");
+  await page.goto(fixtureWorkspacePath("/settings/navigation"));
   const section = page.getByRole("region", { name: "메뉴 바로가기", exact: true });
   await section.getByRole("button", { name: "기록 위로 이동", exact: true }).click();
   const control = section.getByRole("combobox", { name: "추가할 메뉴", exact: true });
@@ -233,7 +236,7 @@ test("shortcut search retains its query while external metadata reports a draft 
 
 test("external tab metadata preserves dirty preview until conflict is reviewed", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks"), ref("records")] });
-  await page.goto("/settings/navigation");
+  await page.goto(fixtureWorkspacePath("/settings/navigation"));
   await page.getByRole("button", { name: "기록 위로 이동" }).click();
   state.setMetadata({ version: 1, refs: [ref("records")] });
   await page.evaluate((id) => {
@@ -255,7 +258,7 @@ test("unknown refs remain explicit and live rename archive restore do not rewrit
     refs: [{ kind: "type", id: material.id }, { kind: "type", id: unknown }, ref("tasks")],
   };
   const state = await fixture(page, baseURL!, preference);
-  await page.goto("/settings/navigation");
+  await page.goto(fixtureWorkspacePath("/settings/navigation"));
   await expect(page.getByText("사용할 수 없는 자료 종류 · 참조 유지")).toBeVisible();
   state.setTypes([{ ...material, label: "새 재료 이름", archived: true }, product]);
   await page.reload();
@@ -267,7 +270,7 @@ test("unknown refs remain explicit and live rename archive restore do not rewrit
 });
 test("invalid navigation reads fallback without hidden writes and all profile destinations stay reachable at short 200% layout", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("logout")] });
-  await page.goto("/settings/navigation");
+  await page.goto(fixtureWorkspacePath("/settings/navigation"));
   await expectShortcuts(page, 4);
   await page.setViewportSize({ width: 320, height: 300 });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
@@ -300,7 +303,7 @@ test(
     };
     const state = await fixture(page, baseURL!, preference);
     state.setTypes(types);
-    await page.goto("/settings/navigation");
+    await page.goto(fixtureWorkspacePath("/settings/navigation"));
     await expect(businessRows(page.getByRole("table", { name: "선택한 바로가기" })).first()).toContainText(types[11].label);
     await page.setViewportSize({ width: 320, height: 300 });
     await page.evaluate(() => document.documentElement.style.fontSize = "200%");
@@ -323,13 +326,13 @@ test(
   },
 );
 test("navigation identifies current location when its shortcut is hidden", async ({ page, baseURL }) => {
-  await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] }); await page.goto("/records");
+  await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] }); await page.goto(fixtureWorkspacePath("/records"));
   await openNavigation(page); await expect(nav(page).getByRole("link", { name: "기록", exact: true })).toHaveAttribute("aria-current", "page");
 });
 
 test("pending save prevents duplicate submission and departure until authoritative GET", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] });
-  await page.goto("/settings/navigation");
+  await page.goto(fixtureWorkspacePath("/settings/navigation"));
   await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), "기록");
   await page.getByRole("button", { name: "기록 추가", exact: true }).click();
   let release!: () => void;
@@ -382,7 +385,7 @@ test("late old account metadata cannot overwrite the new account navigation", as
       },
     });
   });
-  await page.goto("/tasks");
+  await page.goto(fixtureWorkspacePath("/tasks"));
   await openNavigation(page); await expect(nav(page).getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeVisible();
   await page.evaluate(async (access_token) => {
     const path = "/src/lib/supabase.ts";
@@ -417,7 +420,7 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
         : current,
     });
   });
-  await page.goto(`/settings/entity-types/${material.id}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${material.id}`));
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   const picker = page.getByRole("radiogroup", { name: "자료 종류 아이콘", exact: true });
   await expect(picker.getByRole("radio")).toHaveCount(6);
@@ -461,7 +464,7 @@ test("owner catalog refresh cancels obsolete reads and ignores another account i
     }
     return route.fulfill({ json: { items: [{ ...material, label: "최신 재료" }], next_cursor: null } });
   });
-  await page.goto("/tasks");
+  await page.goto(fixtureWorkspacePath("/tasks"));
   await expect.poll(() => reads).toBe(1);
   await page.evaluate(() =>
     window.dispatchEvent(new CustomEvent("workspace-entity-type-catalog", { detail: "other-account" }))

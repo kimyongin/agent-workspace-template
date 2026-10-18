@@ -1207,7 +1207,7 @@ test("desktop: closing the last detail retains the dirty base setting without a 
 test("mobile settings: widening into the desktop workspace retains the original draft", async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 900 });
   const state = await fixture(page);
-  await page.goto("/settings");
+  await page.goto(fixtureWorkspacePath("/settings"));
   const nickname = page.getByLabel("닉네임", { exact: true });
   await nickname.fill("화면 크기를 바꿔도 유지할 초안");
   await page.screenshot({ path: info.outputPath("mobile-settings-draft.png") });
@@ -1468,7 +1468,7 @@ test("review: captured entity labels retain their historical meaning in record e
 for (const width of [320, 390]) test(`profile icon choices ${width}px: labels fit at normal and200percent font`, async ({ page }, info) => {
   await page.setViewportSize({ width, height: 900 });
   const state = await fixture(page);
-  await page.goto("/settings");
+  await page.goto(fixtureWorkspacePath("/settings"));
   const group = page.getByRole("radiogroup", { name: "프로필 아이콘", exact: true });
   for (const fontSize of [16, 32]) {
     await page.evaluate(value => document.documentElement.style.fontSize = `${value}px`, fontSize);
