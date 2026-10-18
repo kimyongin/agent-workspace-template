@@ -41,7 +41,8 @@ function activityWork(deps: ActivityDeps, entry: ActivityEntry): UnitOfWork {
   return { run: (actor, fn) => deps.uow.run(actor, fn, entry) };
 }
 
-function toTaskResult(task: Task): TaskResult {
+async function toTaskResult(store: ActivityStore, raw: Task): Promise<TaskResult> {
+  const task = store.visibleTask ? await store.visibleTask(raw) : raw;
   return {
     ...task,
     entity_ids: task.entity_ids ?? [],
@@ -98,7 +99,7 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
       change_note: input.change_note,
       change_tag_ids: input.change_tag_ids,
     });
-    return toTaskResult(task);
+    return toTaskResult(store, task);
   });
 }
 
@@ -106,7 +107,7 @@ export async function getTask(deps: ActivityDeps, actor: Actor, id: string): Pro
   return await deps.uow.run(actor, async (store) => {
     const task = await requireTask(store, id);
     const [result] = task.result_record_id ? await store.getRecordBodies([task.result_record_id]) : [];
-    return { ...toTaskResult(task), result_record: result ?? null };
+    return { ...await toTaskResult(store, task), result_record: result ?? null };
   });
 }
 
@@ -120,7 +121,10 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
     if (!filter.occurrence_on) {
       const rows = await store.listTasks({ ...filter, after, limit: limit + 1 });
       const page = await paginate(rows, limit, (t) => t.updated_at, scope);
-      return { ...page, items: page.items.map((t) => ({ ...toTaskResult(t), occurrence: null })) };
+      return {
+        ...page,
+        items: await Promise.all(page.items.map(async (t) => ({ ...await toTaskResult(store, t), occurrence: null }))),
+      };
     }
 
     // 그 날짜에 회차가 있는 반복 할 일. 회차는 계산값이라 반복 할 일을 모두 읽어 거른다(개인 앱 규모).
@@ -157,7 +161,7 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
         date,
         todayOf(task, now),
       );
-      if (occurrence) items.push({ ...toTaskResult(task), occurrence });
+      if (occurrence) items.push({ ...await toTaskResult(store, task), occurrence });
     }
     const sorted = items
       .filter((t) => !after || t.updated_at < after.at || (t.updated_at === after.at && t.id < after.id))
@@ -170,7 +174,7 @@ export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, p
   return await runWrite(activityWork(deps, { access: "write" }), actor, "task.update", id, patch, async (store) => {
     const task = await requireTask(store, id, true, patch.entity_ids, patch.entity_ids !== undefined);
     const changes = decideUpdate(task, patch);
-    if (!changed(task, changes)) return toTaskResult(task);
+    if (!changed(task, changes)) return toTaskResult(store, task);
     const updated = await store.updateTask(id, changes);
     await store.appendChange({
       target_kind: "task",
@@ -181,7 +185,7 @@ export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, p
       change_note: patch.change_note,
       change_tag_ids: patch.change_tag_ids,
     });
-    return toTaskResult(updated);
+    return toTaskResult(store, updated);
   });
 }
 
@@ -205,7 +209,7 @@ export async function completeTask(
     });
     const updated = await store.updateTask(id, { ...decided, result_record_id: record.id });
     await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
-    return { task: toTaskResult(updated), record: toRecordResult(record) };
+    return { task: await toTaskResult(store, updated), record: toRecordResult(record) };
   });
 }
 
@@ -264,7 +268,7 @@ export async function stopTask(
       change_note,
       change_tag_ids,
     });
-    return toTaskResult(result);
+    return toTaskResult(store, result);
   });
 }
 
@@ -292,7 +296,7 @@ export async function resumeTask(
       change_note,
       change_tag_ids,
     });
-    return toTaskResult(result);
+    return toTaskResult(store, result);
   });
 }
 

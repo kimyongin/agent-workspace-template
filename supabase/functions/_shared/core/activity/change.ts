@@ -13,7 +13,6 @@ export function taskChangeFacts(task: Omit<NewTask, "id">): ChangeFacts {
     timezone: task.timezone,
     tag_ids: task.tag_ids,
     pauses: task.pauses,
-    ...(task.entity_ids === undefined ? {} : { entity_ids: task.entity_ids }),
   };
 }
 
@@ -29,7 +28,7 @@ export function activityChangeTarget(target: Task | ActivityRecord): ChangeTarge
   return {
     id: target.id,
     title: "title" in target ? target.title : Array.from(target.body).slice(0, 100).join(""),
-    entity_ids: target.entity_ids ?? [],
-    entity_context: target.entity_context ?? [],
+    entity_ids: [],
+    entity_context: [],
   };
 }

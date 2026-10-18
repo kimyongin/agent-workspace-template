@@ -79,6 +79,8 @@ export type { IndexJob } from "../shared/store.ts";
 
 /** 한 트랜잭션 안의 저장소. 모든 조회·쓰기·큐 등록이 같은 연결을 쓴다. */
 export interface ActivityStore extends ChangeStore, RequestStore {
+  /** Current read projection only; the original task remains available for mutation decisions. */
+  visibleTask?(task: Task): Promise<Task>;
   getTask(
     id: string,
     opts?: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean },

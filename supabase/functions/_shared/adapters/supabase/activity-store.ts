@@ -15,7 +15,7 @@ import type {
 } from "../../core/activity/ports.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import { SqlActorStore } from "./sql-context.ts";
-import { requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
 import { AppError } from "../../core/shared/errors.ts";
 import { hasAnyTag, hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
 
@@ -100,6 +100,33 @@ function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: rea
 }
 
 export class SqlActivityStore extends SqlActorStore implements ActivityStore {
+  private get workspaceId() {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
+
+  async visibleTask(task: Task): Promise<Task> {
+    if (!task.entity_ids?.length) return { ...task, entity_ids: [], entity_context: [] };
+    const visible = await this.tx<{ id: string; entity_type_id: string }[]>`select id,entity_type_id from app.entities
+      where workspace_id=${this.workspaceId} and id=any(${task.entity_ids}::text[])`;
+    const requirements = [...new Set(visible.map((row) => row.entity_type_id))].sort().map((id) => ({
+      target_kind: "entity_type" as const,
+      target_id: id,
+      access: "read" as const,
+    }));
+    await authorizeWorkspace(this.tx, requirements);
+    await this.tx`select set_config('request.workspace_requirements',(
+      select coalesce(jsonb_agg(value),'[]'::jsonb)::text from (
+        select distinct value from jsonb_array_elements(current_setting('request.workspace_requirements')::jsonb || ${
+      this.tx.json(requirements)
+    }::jsonb)
+      ) required),true)`;
+    const ids = new Set(visible.map((row) => row.id));
+    return {
+      ...task,
+      entity_ids: task.entity_ids.filter((id) => ids.has(id)),
+      entity_context: (task.entity_context ?? []).filter((item) => ids.has(item.id)),
+    };
+  }
   async getTask(id: string, opts: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean } = {}) {
     if (opts.forUpdate) {
       if (opts.selectionWrite) await this.entityLinks.prepareSelection(opts.entityIds, id);
