@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import type { DataModelDocument } from "../supabase/functions/_shared/contracts/data-model.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import type { EntitySchema } from "../supabase/functions/_shared/contracts/entity-type.ts";
@@ -49,14 +50,13 @@ async function importModelFile(page: Page, workspaceId: string, document: DataMo
   await expect(page.getByRole("textbox", { name: "설정 파일 내용", exact: true })).toHaveValue(contents);
   await page.getByRole("button", { name: "가져올 내용 검토", exact: true })
     .click();
+  const saveReview = page.getByRole("button", { name: "검토 내용 저장", exact: true });
+  await expect(saveReview).toBeVisible();
   const prepared = page.waitForResponse((r) =>
     r.request().method() === "POST" &&
     new URL(r.url()).pathname.endsWith("/data-model/changes")
   );
-  await page.getByRole("button", {
-    name: "검토 내용 저장",
-    exact: true,
-  }).click();
+  await saveReview.click();
   const response = await prepared;
   expect(response.ok()).toBe(true);
   const change = await response.json();
@@ -251,10 +251,6 @@ test("one whole-model file configures two new kinds and their typed relationship
   const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const productName = unique("파일 상품"), orderName = unique("파일 주문");
-    const current = await mcp.call(
-      "export_data_model",
-      {},
-    ) as DataModelDocument;
     const source: DataModelDocument = {
       format: "workspace-data-model",
       format_version: 1,
@@ -273,7 +269,7 @@ test("one whole-model file configures two new kinds and their typed relationship
             version: 1,
             sources: [{
               code: "app",
-              rule_id: "00000000-0000-4000-8000-000000000001",
+              rule_id: APP_IDENTIFIER_RULE_ID,
               active: true,
             }],
           },
@@ -291,7 +287,7 @@ test("one whole-model file configures two new kinds and their typed relationship
             version: 1,
             sources: [{
               code: "app",
-              rule_id: "00000000-0000-4000-8000-000000000001",
+              rule_id: APP_IDENTIFIER_RULE_ID,
               active: true,
             }],
           },
@@ -308,12 +304,16 @@ test("one whole-model file configures two new kinds and their typed relationship
         }, { type_ref: "orders", label: "주문 상품", cardinality: "one" }],
       }],
       identity_definitions: {
-        issuers: current.identity_definitions.issuers.filter((i) =>
-          i.code === "app"
-        ),
-        rules: current.identity_definitions.rules.filter((r) =>
-          r.id === "00000000-0000-4000-8000-000000000001"
-        ),
+        issuers: [{ code: "app", label: "앱", active: true, system: true, version: 1 }],
+        rules: [{
+          id: APP_IDENTIFIER_RULE_ID,
+          source: "app",
+          label: "앱 자동 번호",
+          meaning: "앱이 자료 등록 시 발급하는 내부 자료 번호",
+          generation: "automatic",
+          active: true,
+          version: 1,
+        }],
       },
     };
     const applied = await importModelFile(page, workspace.id, source);
