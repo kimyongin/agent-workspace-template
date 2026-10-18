@@ -10,8 +10,8 @@ import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { Alert, AlertDescription } from "../../components/ui/alert.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
-const Context = createContext<WorkspaceCapabilities | null>(null);
-export const useWorkspaceCapabilities = () => useContext(Context);
+export const WorkspaceCapabilitiesContext = createContext<WorkspaceCapabilities | null>(null);
+export const useWorkspaceCapabilities = () => useContext(WorkspaceCapabilitiesContext);
 /** A route is usable only after current membership is confirmed by the server. */
 export function WorkspaceGate({ children }: { children: ReactNode }) {
   const api = useApi(), { workspaceId } = useRequestScope();
@@ -65,5 +65,5 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
       </p>
     );
   }
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  return <WorkspaceCapabilitiesContext.Provider value={value}>{children}</WorkspaceCapabilitiesContext.Provider>;
 }

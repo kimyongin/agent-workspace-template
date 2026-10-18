@@ -1,3 +1,4 @@
+import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
 import { BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { PlusIcon, RotateCcwIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
@@ -16,6 +17,10 @@ import { IssuerRow } from "./IssuerRow.tsx";
 import { useIssuerRegistry } from "./issuer-registry-api.ts";
 
 export function IssuerSettingsPage() {
+  return <WorkspaceSettingsBoundary><IssuerSettingsPageContent /></WorkspaceSettingsBoundary>;
+}
+function IssuerSettingsPageContent() {
+  const { canWrite } = useSettingsAccess();
   const issuerRegistry = useIssuerRegistry();
   const [issuers, setIssuers] = useState<EntityIssuer[] | null>(null),
     [selected, setSelected] = useState("");
@@ -41,8 +46,8 @@ export function IssuerSettingsPage() {
     [],
   );
   const [pending, setPending] = useState<(() => void) | null>(null);
-  const locked = inline && (editorState.busy || !!editorState.uncertain);
-  const dirty = inline && editorState.dirty;
+  const locked = inline && (editorState.busy || canWrite && !!editorState.uncertain);
+  const dirty = inline && (editorState.dirty || !!editorState.uncertain);
   const request = (action: () => void) => {
     if (locked) return;
     if (dirty) setPending(() => action);
@@ -96,6 +101,7 @@ export function IssuerSettingsPage() {
     }
   }, [editing]);
   const edit = (target: RegistryEditTarget) => {
+    if (!canWrite && (target.kind === "issuer" ? !target.issuer : !target.rule)) return;
     const origin = document.activeElement as HTMLElement;
     request(() => {
       returnFocus.current = origin;
@@ -167,7 +173,7 @@ export function IssuerSettingsPage() {
             type="button"
 
             ref={addButton}
-            disabled={loading || locked}
+            disabled={!canWrite || loading || locked}
             onClick={() => edit({ kind: "issuer" })}
           >
             <><PlusIcon data-icon="inline-start" />번호 출처 추가</>
@@ -196,10 +202,10 @@ export function IssuerSettingsPage() {
             action={issuer.system ? undefined : selected !== issuer.code ? <span /> : (
               <Button variant="ghost" type="button"
                 disabled={locked}
-                aria-label={`${issuer.label} 편집`}
+                aria-label={`${issuer.label} ${canWrite ? "편집" : "보기"}`}
                 onClick={() => edit({ kind: "issuer", issuer })}
               >
-                출처 편집
+                {canWrite ? "출처 편집" : "출처 보기"}
               </Button>
             )}
             onToggle={() => {
@@ -233,7 +239,7 @@ export function IssuerSettingsPage() {
                     const expanded = inline && editing.rule?.id === rule.id;
                     return <Fragment key={rule.id}>
                       <BusinessRow>
-                        <BusinessDisclosureCell>{!issuer.system && <Button variant="ghost" size="icon" type="button" aria-label={`${rule.label} 편집`} aria-expanded={expanded} aria-controls={`${ruleListId}-${rule.id}`} disabled={locked}
+                        <BusinessDisclosureCell>{!issuer.system && <Button variant="ghost" size="icon" type="button" aria-label={`${rule.label} ${canWrite ? "편집" : "보기"}`} aria-expanded={expanded} aria-controls={`${ruleListId}-${rule.id}`} disabled={locked}
                           onClick={() => expanded ? request(() => setEditing(null)) : edit({kind:"rule",source:issuer.code,sourceLabel:issuer.label,rule})}>
                           {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
                         </Button>}</BusinessDisclosureCell>
@@ -249,7 +255,7 @@ export function IssuerSettingsPage() {
                   <div>
                     <Button variant="ghost" type="button"
 
-                      disabled={rules === null || !issuer.active || locked}
+                      disabled={!canWrite || rules === null || !issuer.active || locked}
                       onClick={() =>
                         edit({
                           kind: "rule",
