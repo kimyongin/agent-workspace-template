@@ -12,10 +12,10 @@ test("old page keys restore only the owning list and announce the split", () => 
   expect(result.params.get("legacy_activity")).toBe("1");
 });
 
-test("cross-tab create links keep their intended form and valid scope", () => {
+test("old general record creation links open their list without a writable form", () => {
   const result = activityLocation("tasks", new URLSearchParams("create=record&q=근거&kind=once&status=open&entity_id=entity&from=2026-10-01"), "");
   expect(result.route).toBe("/records");
-  expect(result.params.get("create")).toBe("1");
+  expect(result.params.has("create")).toBe(false);
   expect(result.params.get("entity_id")).toBe("entity");
   expect(result.params.get("from")).toBe("2026-10-01");
   expect(result.params.has("kind")).toBe(false);
@@ -35,4 +35,10 @@ test("current independent URLs preserve their filters and need no transition", (
   const result = activityLocation("tasks", params, "");
   expect(result.params.toString()).toBe(params.toString());
   expect(result.params.has("legacy_activity")).toBe(false);
+});
+
+test("record list create URLs discard the removed general creation entry", () => {
+  const result = activityLocation("records", new URLSearchParams("create=1&pages=2"), "");
+  expect(result.params.has("create")).toBe(false);
+  expect(result.params.get("pages")).toBe("2");
 });
