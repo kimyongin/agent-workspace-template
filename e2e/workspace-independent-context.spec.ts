@@ -68,7 +68,7 @@ test("actual independent contexts: two browser workspaces and a third MCP worksp
   await page.screenshot({ path: info.outputPath("independent-context-permission-none.png"), fullPage: true, animations: "disabled" });
   await change("write");
   await expect(detailDialog(page).getByRole("heading", { name: firstTitle, exact: true })).toBeVisible();
-  await expect(page).toHaveURL(new RegExp(`/w/${first.id}/tasks/${firstTask.id}$`));
+  await expect.poll(() => new URL(page.url()).pathname).toBe(workspacePath(first.id, `/tasks/${firstTask.id}`));
   expect(seen.length).toBeGreaterThan(0);
   for (const request of seen) {
     const [expected, actual] = request.split(":");
