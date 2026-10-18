@@ -4,6 +4,87 @@ import { installWorkspaceApi } from "./support/workspace-api.ts";
 const workspaceId = "00000000-0000-4000-8000-000000000981";
 const actorId = "00000000-0000-4000-8000-000000000901";
 
+test(
+  "long workspace names and lifecycle controls remain usable at narrow widths and enlarged display scale",
+  async ({ page }, info) => {
+    const user = {
+      id: actorId,
+      aud: "authenticated",
+      email: "fixture@example.test",
+      app_metadata: {},
+      user_metadata: { workspace_display_scale: 150, workspace_mobile_display_scale: 150 },
+    };
+    await page.addInitScript((user) =>
+      localStorage.setItem(
+        "sb-127-auth-token",
+        JSON.stringify({
+          user,
+          access_token: "isolated-lifecycle-token",
+          refresh_token: "isolated-lifecycle-refresh",
+          token_type: "bearer",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        }),
+      ), user);
+    await page.route("**/auth/v1/user", (route) => route.fulfill({ json: user }));
+    await installWorkspaceApi(page, "http://127.0.0.1:55623", { entities: [], tags: [], records: [], tasks: [] });
+    const workspace = {
+      id: workspaceId,
+      name: "긴공동업무공간이름".repeat(11).slice(0, 100),
+      deleted_at: null,
+      lifecycle_generation: 1,
+    };
+    let writes = 0;
+    await page.route(/\/api\/workspaces(?:\/|$)/, (route) => {
+      if (route.request().method() !== "GET") {
+        writes++;
+        return route.abort("failed");
+      }
+      const path = new URL(route.request().url()).pathname;
+      if (path === "/api/workspaces") {
+        return route.fulfill({ json: { items: [{ ...workspace, can_manage: true }] } });
+      }
+      if (path === "/api/workspaces/deleted") return route.fulfill({ json: { items: [] } });
+      if (path.endsWith("/lifecycle")) return route.fulfill({ json: { workspace } });
+      return route.fallback();
+    });
+    await page.goto("/workspaces");
+    await expect(page.getByRole("table", { name: "공간 목록", exact: true })).toBeVisible();
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
+    for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `width ${width} scale150`)
+        .toBe(true);
+      if (width === 320 || width === 1440) {
+        await page.screenshot({
+          path: info.outputPath(`workspace-list-${width}-scale150.png`),
+          fullPage: true,
+        });
+      }
+    }
+    await page.setViewportSize({ width: 320, height: 560 });
+    await page.evaluate(() => document.documentElement.style.zoom = "2");
+    await page.getByRole("button", { name: "삭제", exact: true }).click();
+    const dialog = page.getByRole("alertdialog"),
+      confirm = dialog.getByRole("button", { name: "공간 삭제", exact: true });
+    await expect(confirm).toBeEnabled();
+    await confirm.scrollIntoViewIfNeeded();
+    const bounds = (await confirm.boundingBox())!;
+    expect(bounds.width).toBeGreaterThanOrEqual(88);
+    expect(bounds.height).toBeGreaterThanOrEqual(88);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(560);
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath("workspace-delete-320-short-zoom200.png"), fullPage: true });
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    expect(writes).toBe(0);
+  },
+);
+
 for (
   const scenario of [
     {
