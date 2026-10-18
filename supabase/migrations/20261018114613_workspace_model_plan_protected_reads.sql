@@ -30,7 +30,7 @@ create policy workspace_model_plan_update on app.data_model_changes for update t
 -- Only permission descriptors are available before authorization, never review facts.
 -- This preserves explicit forbidden history responses and coherent page boundaries.
 create function app.workspace_model_plan_headers(p_id uuid default null,p_after uuid default null,p_limit integer default 101)
- returns table(id uuid,requirements jsonb) language plpgsql stable security definer set search_path='' as $$
+ returns table(id uuid,requirements jsonb) language plpgsql security definer set search_path='' as $$
 begin
  perform app.authorize_workspace('[{"target_kind":"settings","target_id":"*","access":"read"}]'::jsonb);
  if p_limit is null or p_limit<1 or p_limit>101 then raise exception 'invalid_model_history_limit' using errcode='22023';end if;
