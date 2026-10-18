@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { expect, test } from "@playwright/test";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
@@ -29,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("filter drafts survive search and disclosure and commit only with common apply", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&filters=1`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&filters=1`));
   await expect(page.getByLabel("정렬", { exact: true })).toBeVisible();
   await page.getByLabel("정렬", { exact: true }).selectOption("title");
   expect(new URL(page.url()).searchParams.has("sort")).toBe(false);
@@ -51,7 +52,7 @@ test("filter drafts survive search and disclosure and commit only with common ap
 });
 
 test("invalid property draft and reset retain applied results until common apply", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&filters=1&sort=title`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&filters=1&sort=title`));
   await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
   await page.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_2");
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
@@ -73,7 +74,7 @@ test("invalid property draft and reset retain applied results until common apply
 });
 
 test("record dates and kind apply together and invalid dates preserve URL and edited fields", async ({ page }) => {
-  await page.goto("/records?filters=1&from=2026-09-01&to=2026-10-01");
+  await page.goto(fixtureWorkspacePath("/records?filters=1&from=2026-09-01&to=2026-10-01"));
   await page.getByLabel("기록 시작일", { exact: true }).fill("2026-11-01");
   await page.getByLabel("기록 종류", { exact: true }).selectOption("result");
   expect(new URL(page.url()).searchParams.get("from")).toBe("2026-09-01");
@@ -96,7 +97,7 @@ test("mixed search text submission preserves optional drafts and disclosure caus
       json: { items: [], next_cursor: null, search_state: "keyword", semantic_coverage: { pending: 0, excluded: 0, failed: 0 } },
     });
   });
-  await page.goto("/search?q=alpha&filters=1");
+  await page.goto(fixtureWorkspacePath("/search?q=alpha&filters=1"));
   await expect.poll(() => reads.length).toBe(1);
   await page.getByLabel("검색 대상", { exact: true }).selectOption("task");
   await page.getByRole("textbox", { name: "검색어", exact: false }).fill("beta");
@@ -114,8 +115,8 @@ test("mixed search text submission preserves optional drafts and disclosure caus
 });
 
 test("history synchronizes optional drafts and property rows keep their responsive list order", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&filters=1&sort=title`);
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&filters=1`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&filters=1&sort=title`));
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&filters=1`));
   await page.getByLabel("정렬", { exact: true }).selectOption("title");
   await page.goBack();
   await expect(page.getByLabel("정렬", { exact: true })).toHaveValue("title");
@@ -150,7 +151,7 @@ test("history synchronizes optional drafts and property rows keep their responsi
 });
 
 test("legacy entity filter recovery reveals the pending reset before common apply", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&prop3_from=2026-10-01`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&prop3_from=2026-10-01`));
   await expect(page.getByText("이전 속성 조건은 더 이상 지원하지 않습니다. 조건을 초기화하세요.", { exact: true }))
     .toBeVisible();
   await page.getByRole("button", { name: "조건 초기화", exact: true }).click();

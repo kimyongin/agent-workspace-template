@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { openMainNavigation } from "./ui-actions.ts";
 // Actual App and routing; remote Auth/API are isolated, with no DB or real-account writes.
 import { fixtureType, fixtureSchema, entityKey } from "./support/workspace-data.ts";
@@ -6,7 +7,7 @@ import {id,stamp,identity as base,entity as makeEntity,task as makeTask,record a
 import {installWorkspaceApi} from "./support/workspace-api.ts";
 import {closeDetail} from "./ui-actions.ts";
 const task={...makeTask(),title:"다음 상담 준비",body:"필요한 자료를 준비합니다.",due_on:"2026-10-12",entity_ids:[entityKey(1)],entity_context:[{id:entityKey(1),title:"김민수",source:"selection" as const,captured_at:stamp}]};
-const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2),entity_ids:[entityKey(1)],entity_context:task.entity_context};
+const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2)};
 const entity={...makeEntity(1, {prop_1:"김민수",prop_3:"2026-10-08"}),tasks:{count:1,items:[task]},records:{count:1,items:[record]}};
 const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_timezone: "Asia/Seoul" } };
 
@@ -25,7 +26,7 @@ async function fixture(page: Page, records = [record]) {
 
 for (const [kind, label, title] of [["entities", "전체 자료", entity.title], ["tasks", "할 일", task.title], ["records", "기록", record.body]] as const) test(`${kind}: views keep filters, list reads and disclosure/detail return`, async ({ page }) => {
   const state = await fixture(page);
-  await page.goto(`/${kind}`);
+  await page.goto(fixtureWorkspacePath(`/${kind}`));
   const list = page.getByRole("region", { name: `${label} 목록`, exact: true });
   const modes = list.getByRole("radiogroup", { name: `${label} 보기 방식` });
   await expect(list.getByRole("heading", { name: `${label} (1개)`, exact: true })).toBeVisible();
@@ -64,7 +65,7 @@ test("related sections switch independently and return from a linked detail", as
   const invalidMarkup: string[] = [];
   page.on("console", message => { if (message.type() === "error" && /cannot (be a child|contain)|In HTML/.test(message.text())) invalidMarkup.push(message.text()); });
   const state = await fixture(page);
-  await page.goto(`/entities/${entity.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities/${entity.id}`));
   const dialog = page.getByRole("dialog"), tasks = dialog.getByRole("region", { name: "할 일 (1개)" }), records = dialog.getByRole("region", { name: "기록 (1개)" });
   await tasks.getByRole("radio", { name: "카드", exact: true }).click();
   await records.getByRole("radio", { name: "테이블", exact: true }).click();
@@ -73,7 +74,7 @@ test("related sections switch independently and return from a linked detail", as
   await closeDetail(page, task.title);
   await expect(tasks.getByRole("radio", { name: "카드", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(records.getByRole("radio", { name: "테이블", exact: true })).toHaveAttribute("aria-checked", "true");
-  await page.goto(`/records/${record.id}`);
+  await page.goto(fixtureWorkspacePath(`/records/${record.id}`));
   await expect(dialog.getByRole("radiogroup", { name: "연결된 자료 보기 방식" })).toBeVisible();
   await expect(dialog.getByRole("radiogroup", { name: "할 일 보기 방식" })).toBeVisible();
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
@@ -84,7 +85,7 @@ test("empty and failed lists keep truthful counts and retry in every view", asyn
   const state = await fixture(page);
   state.rows.records.length = 0;
   const clearFailure = state.failRead({ kind: "records", page: 1 }, { once: false });
-  await page.goto("/records");
+  await page.goto(fixtureWorkspacePath("/records"));
   await expect(page.getByRole("alert")).toContainText("기록을 불러오지 못했습니다");
   await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toHaveText("기록");
   const recordReads = () => state.reads.filter(url => new URL(url).pathname === "/api/records").length;
@@ -103,7 +104,7 @@ test("empty and failed lists keep truthful counts and retry in every view", asyn
 test("calendar uses display dates, keyboard month edges, partial pages and saved selection", async ({ page }) => {
   const rows = Array.from({ length: 21 }, (_, n) => ({ ...record, ...base(200 + n), body: `기록 ${n}`, occurred_at: n === 0 ? "2026-10-07T15:30:00Z" : "2026-09-30T15:30:00Z" }));
   const state = await fixture(page, rows);
-  await page.goto("/records?view=calendar");
+  await page.goto(fixtureWorkspacePath("/records?view=calendar"));
   await expect(page.getByRole("heading", { name: "기록 (20개+)" })).toBeVisible();
   const day = page.getByRole("button", { name: "2026-10-08, 불러온 기록 1개", exact: true });
   await expect(day).toHaveAttribute("aria-pressed", "true");
@@ -140,7 +141,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   for (const width of [320, 390, 640, 1440]) for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 844 });
     for (const view of ["list", "cards", "table", ...(kind === "records" ? ["calendar"] : [])]) {
-      await page.goto(`/${kind}?view=${view}`); await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toContainText("1개");
+      await page.goto(fixtureWorkspacePath(`/${kind}?view=${view}`)); await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toContainText("1개");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
       if (view === "calendar") {
         const target = await page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first().boundingBox();
@@ -153,7 +154,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
       await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
     }
   }
-  await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/tasks?view=table");
+  await page.setViewportSize({ width: 390, height: 844 }); await page.goto(fixtureWorkspacePath("/tasks?view=table"));
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
   const modes = page.getByRole("radiogroup", { name: "할 일 보기 방식" });
@@ -168,7 +169,7 @@ test("table rows and headers share the same columns across wrapper types and vie
   const rows = [record, { ...record, ...base(4), body: "짧은 기록" }, { ...record, ...base(5), body: "아주 긴 한국어 기록을 제목처럼 표시할 때에도 날짜와 종류의 열은 흔들리지 않아야 합니다." }];
   const state = await fixture(page, rows);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) for (const kind of ["entities", "tasks", "records"]) {
-    await page.setViewportSize({ width, height: 900 }); await page.goto(`/${kind}?view=table`);
+    await page.setViewportSize({ width, height: 900 }); await page.goto(fixtureWorkspacePath(`/${kind}?view=table`));
     const table = page.getByRole("table").first();
     await expect(table.getByRole("columnheader").first()).toHaveCount(1);
     const geometry = await table.evaluate(table => {
@@ -196,7 +197,7 @@ test("table rows and headers share the same columns across wrapper types and vie
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
   }
-  await page.goto(`/entities/${entity.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities/${entity.id}`));
   const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
   await section.getByRole("radio", { name: "테이블", exact: true }).click();
   const table = section.getByRole("table");
@@ -208,7 +209,7 @@ test("table rows and headers share the same columns across wrapper types and vie
 test("calendar reflows at enlarged text without shrinking day targets", async ({ page }) => {
   const state = await fixture(page);
   for (const width of [320, 390, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 900 }); await page.goto("/records?view=calendar");
+    await page.setViewportSize({ width, height: 900 }); await page.goto(fixtureWorkspacePath("/records?view=calendar"));
     await expect(page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first()).toBeVisible();
     await page.evaluate(() => document.documentElement.style.fontSize = "200%");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
@@ -241,7 +242,7 @@ for (const action of ["delete", "create"] as const) test(`unavailable change tar
   const history={...record,record_kind:"change" as const,change:{target_kind:"task" as const,target_id:task.id,target_title:task.title,action,source:"http" as const,event_id:id(88),path:null,before:null,after:null}};
   const state=await fixture(page,[history]);
   state.rows.tasks.length=0;
-  await page.goto(`/records/${history.id}`);
+  await page.goto(fixtureWorkspacePath(`/records/${history.id}`));
   const detail=page.getByRole("dialog");
   const tasks=detail.getByRole("region",{name:"할 일 (1개)"});
   const badge=action==="delete"?"삭제됨":"조회 불가";
@@ -263,7 +264,7 @@ for (const action of ["delete", "create"] as const) test(`unavailable change tar
 });
 
 test("responsive workspace brand and list heading remain reachable at every width", async ({ page }) => {
-  await fixture(page); await page.goto("/entities");
+  await fixture(page); await page.goto(fixtureWorkspacePath("/entities"));
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const title = page.getByRole("heading", { name: "전체 자료", level: 1, exact: true });
@@ -273,7 +274,7 @@ test("responsive workspace brand and list heading remain reachable at every widt
     expect(titleBox.y).toBeGreaterThanOrEqual(banner.y + banner.height - 1);
     await openMainNavigation(page);
     const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
-    await expect(navigation.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/entities");
+    await expect(navigation.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/workspaces");
     await expect(navigation.getByRole("link", { name: "할 일", exact: true })).toBeVisible();
     const close = page.getByRole("button", { name: "메뉴 닫기", exact: true }); if (await close.isVisible()) await close.click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -284,7 +285,7 @@ test("responsive workspace brand and list heading remain reachable at every widt
 test("closed filters show conditions below search and opening hides the summary", async ({ page }) => {
   await fixture(page);
   for (const [path, condition] of [["/entities?entity_type_id=00000000-0000-4000-8000-000000000900&property_filters=%5B%7B%22key%22%3A%22prop_4%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22a%22%7D%5D", "분류: a"], ["/tasks?status=done", "상태: 완료"], ["/records?record_kind=change", "종류: 변경 기록"]]) {
-    await page.goto(path);
+    await page.goto(fixtureWorkspacePath(path));
     const summary = page.getByLabel("적용된 필터", {exact:true});
     await expect(summary).toContainText(condition);
     await page.getByRole("button", {name:/필터 열기/}).click();
@@ -298,7 +299,7 @@ test("soft-deleted entity returned by GET keeps historical relation without a de
   const history={...record,record_kind:"change" as const,change:{target_kind:"entity" as const,target_id:entity.id,target_title:entity.title,action:"delete" as const,source:"http" as const,event_id:id(90),path:null,before:null,after:null}};
   const state=await fixture(page,[history]);
   state.rows.entities[0].deleted_at="2026-10-10T00:00:00Z";
-  await page.goto(`/records/${history.id}`);
+  await page.goto(fixtureWorkspacePath(`/records/${history.id}`));
   const section=page.getByRole("dialog").getByRole("region",{name:"연결된 자료 (1개)",exact:true});
   await expect(section.getByText("삭제됨",{exact:true})).toBeVisible();
   await section.getByRole("button",{name:entity.title,exact:true}).click();
@@ -312,7 +313,7 @@ for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read 
   const key=kind==="entities"?entity.id:kind==="tasks"?task.id:record.id;
   for(const width of [320,360,390,639,640,768,1024,1440]) {
     await page.setViewportSize({width,height:900});
-    await page.goto(`/${kind}/${encodeURIComponent(key)}`);
+    await page.goto(fixtureWorkspacePath(`/${kind}/${encodeURIComponent(key)}`));
     const surface = page.getByRole("dialog").filter({ visible: true });
     const properties = surface;
     const expectedKeys = kind === "entities"
@@ -350,7 +351,7 @@ test("selected entity fields stay identical in every layout and expansion withou
   const selected={...entity,properties:{prop_1:"선택 자료",prop_2:0,prop_3:"숨긴 날짜",prop_4:false},display_properties:{prop_1:"선택 자료",prop_2:0,prop_4:false},title:"선택 자료"};
   state.rows.entities.splice(0,state.rows.entities.length,selected);
   await page.route("**/api/entity-types/*/schema{,?**}",route=>route.fulfill({json:schema}));
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   for(const view of ["테이블","카드"]) {
     await page.getByRole("radio",{name:view,exact:true}).click();
     const collection = page.getByRole("region", { name: / 목록$/ });
@@ -376,7 +377,7 @@ test("selected entity fields stay identical in every layout and expansion withou
     await page.screenshot({path:info.outputPath(`selected-${view}.png`),fullPage:true});
     await row.getByRole("button",{name:selected.title,exact:true}).click();
   }
-  await page.goto(`/tasks/${task.id}`);
+  await page.goto(fixtureWorkspacePath(`/tasks/${task.id}`));
   const related=page.getByRole("region",{name:"연결된 자료 (1개)",exact:true});
   await related.getByRole("button",{name:entity.title,exact:true}).click();
   await expect(related.getByText("품명",{exact:true})).toBeVisible();
@@ -394,7 +395,7 @@ test("card title labels and wrapped values remain ordered and readable", async (
   state.rows.entities.splice(0, state.rows.entities.length, short, long);
   for (const width of [320, 640]) {
     await page.setViewportSize({ width, height: 1000 });
-    await page.goto(`/entities?entity_type_id=${fixtureType.id}&view=cards`);
+    await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&view=cards`));
     await page.getByRole("radio", { name: "카드", exact: true }).click();
     for (const item of [short, long]) {
       const title = page.getByRole("button", { name: item.title, exact: true });
@@ -425,7 +426,7 @@ test("calendar loads only when selected and retains keyboard control after loadi
     await route.continue();
   });
   try {
-    await page.goto("/records?calendar_month=2026-10&calendar_day=2026-10-08", { waitUntil: "commit" });
+    await page.goto(fixtureWorkspacePath("/records?calendar_month=2026-10&calendar_day=2026-10-08"), { waitUntil: "commit" });
     await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible({ timeout: 5000 });
     expect(requests).toBe(0);
     const toggle = page.getByRole("radio", { name: "캘린더", exact: true });
@@ -452,7 +453,7 @@ test("calendar loads only when selected and retains keyboard control after loadi
 
 test("business tables: legacy list URLs keep context and disclosure columns stay stable", async ({ page }) => {
   const state = await fixture(page);
-  await page.goto("/entities?view=list&keyword=김민수");
+  await page.goto(fixtureWorkspacePath("/entities?view=list&keyword=김민수"));
   const collection = page.getByRole("region", { name: "전체 자료 목록", exact: true });
   await expect(collection.getByRole("radio", { name: "테이블", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(collection.getByRole("radio", { name: "리스트", exact: true })).toHaveCount(0);
@@ -514,7 +515,7 @@ test("business tables: selected values reflow without horizontal scrolling at wi
 test("business tables: search results retain snippets and return context at narrow widths", async ({ page }) => {
   const state = await fixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/search?q=상담&kind=task&mode=keyword");
+  await page.goto(fixtureWorkspacePath("/search?q=상담&kind=task&mode=keyword"));
   const table = page.getByRole("table", { name: "검색 결과", exact: true });
   const link = table.getByRole("link", { name: task.title, exact: true });
   await expect(link).toBeVisible();await expect(table.getByText(task.body, { exact: true })).toBeVisible();

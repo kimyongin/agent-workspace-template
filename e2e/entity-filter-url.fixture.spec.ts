@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { detailDialog } from "./ui-actions.ts";
 import { closeDetail, openDetailEditor, openListDetail } from "./ui-actions.ts";
@@ -49,7 +50,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
     reads.push({ method: request.method(), filters });
     return route.fulfill({ json: { items: [row], next_cursor: null } });
   });
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&filters=1&keyword=保留`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&filters=1&keyword=保留`));
   await expect(page.getByRole("button", { name: "필터 검사", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
   await page.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_2");
@@ -66,7 +67,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
     JSON.stringify([{ key: "prop_2", operator: "eq", value }]),
   );
   await expect(page.getByLabel("조건 1 값", { exact: true })).toHaveValue(value);
-  await page.goto("/tasks");
+  await page.goto(fixtureWorkspacePath("/tasks"));
   expect((await page.goto(copied))?.status()).toBe(200);
   await expect(page.getByLabel("조건 1 값", { exact: true })).toHaveValue(value);
   await chooseEntityType(page, "전체 자료");
@@ -80,7 +81,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
   const anchored = new URL(copied), fragment = new URLSearchParams(anchored.hash.slice(1));
   fragment.set("anchor", `entity-${row.id}`);
   anchored.hash = fragment.toString();
-  await page.goto("/tasks");
+  await page.goto(fixtureWorkspacePath("/tasks"));
   expect((await page.goto(anchored.href))?.status()).toBe(200);
   await expect(page.getByRole("button", { name: "필터 검사", exact: true })).toBeFocused();
   const ambiguous = new URL(copied);
@@ -157,7 +158,7 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
     entity_type_id: fixtureType.id,
     anchor: `entity-${row.id}`,
   });
-  const list = `/entities?entity_type_id=${fixtureType.id}&keyword=保留#${fragment}`;
+  const list = fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&keyword=保留#${fragment}`);
   await page.goto(list);
   await expect.poll(() => reads.at(-1)?.matches).toBe(true);
   await openListDetail(page, "모드 검사");
@@ -183,11 +184,11 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
     expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("anchor")).toBe(`entity-${row.id}`);
   }
   await closeDetail(page, "모드 검사");
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/entities");
+  await expect.poll(() => new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/entities"));
   expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("entity_type_id")).toBe(fixtureType.id);
   await expect(page.getByRole("button", { name: "모드 검사", exact: true })).toBeFocused();
   // Copied cross-kind visits can still disclose an entity list; editor modes must not append a second query marker.
-  const taskVisit = new URL(`/tasks/${relatedTask.id}`, new URL(page.url()).origin);
+  const taskVisit = new URL(fixtureWorkspacePath(`/tasks/${relatedTask.id}`), new URL(page.url()).origin);
   taskVisit.searchParams.set("list", `/entities?entity_type_id=${fixtureType.id}&keyword=보관`);
   taskVisit.hash = fragment.toString();
   await page.goto(taskVisit.href);
