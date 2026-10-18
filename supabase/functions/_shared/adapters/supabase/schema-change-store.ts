@@ -1,4 +1,6 @@
 import { normalizeStoredEntityDefinition } from "../../core/entity-types/stored-definition.ts";
+import { authorizeWorkspace, requireWorkspaceActor } from "./workspace-context.ts";
+import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import { loadSchemaType } from "./schema-type.ts";
 import type {
   SchemaApplicationBindings,
@@ -33,6 +35,22 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     protected readonly actor: Actor,
     protected readonly modelChangeId?: string,
   ) {}
+  protected get schemaWorkspaceId(): string {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
+  protected async authorizeSchemaKinds(ids: string[], access: "read" | "write") {
+    const requirements: WorkspaceRequirement[] = [...new Set(ids)].sort().map((id) => ({
+      target_kind: "entity_type",
+      target_id: id,
+      access,
+    }));
+    if (!requirements.length) return;
+    await authorizeWorkspace(this.tx, requirements);
+    await this.tx`select set_config('request.workspace_requirements',
+      (coalesce(nullif(current_setting('request.workspace_requirements',true),''),'[]')::jsonb || ${
+      this.tx.json(requirements as never)
+    }::jsonb)::text,true)`;
+  }
   protected async assertChangeAffiliation(id: string) {
     const [row] = await this.tx`select model_change_id from app.entity_schema_changes where id=${id}::uuid`;
     if (row?.model_change_id && row.model_change_id !== this.modelChangeId) {
@@ -61,7 +79,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     return { schema: v.schema };
   }
   protected async templates(target: SchemaDefinition, typeId: string, expected?: string) {
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:record_templates`},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.schemaWorkspaceId}:record_templates`},0))`;
     const [row] = await this.tx`select version,settings from app.user_business_settings where id='record_templates'`;
     const version = await effectiveEntityTemplateFingerprint(row?.settings as RecordTemplates | undefined, typeId);
     if (expected !== undefined && version !== expected) {
@@ -72,11 +90,12 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   }
   async lockSchemaChangeBindings(typeId: string, ids: string[]): Promise<RecordTemplates> {
     if (ids.length) {
+      await this.authorizeSchemaKinds([typeId], "write");
       const [r] = await this
         .tx`select count(*)::int as count from app.entities where entity_type_id=${typeId} and id=any(${ids}::text[])`;
       if (r.count !== ids.length) throw notFound();
     }
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:record_templates`},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.schemaWorkspaceId}:record_templates`},0))`;
     const [row] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
     return row?.settings ?? {};
   }
@@ -103,7 +122,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   }
   protected async recoveryConflicts(j: postgres.Row, typeId: string, referencesChanged: boolean) {
     const rows = await this
-      .tx`select coalesce(e.id,r.entity_id) as id from app.entities e full join private.entity_schema_migration_rows r on r.owner_id=e.owner_id and r.entity_id=e.id and r.job_id=${j.id} where (e.entity_type_id=${typeId} or r.job_id=${j.id}) and (e.id is null or r.entity_id is null or e.version<>r.committed_version or e.deleted_at is distinct from r.source_deleted_at) order by coalesce(e.id,r.entity_id) limit 20`;
+      .tx`select coalesce(e.id,r.entity_id) as id from app.entities e full join private.entity_schema_migration_rows r on r.workspace_id=e.workspace_id and r.entity_id=e.id and r.job_id=${j.id} where (e.entity_type_id=${typeId} or r.job_id=${j.id}) and (e.id is null or r.entity_id is null or e.version<>r.committed_version or e.deleted_at is distinct from r.source_deleted_at) order by coalesce(e.id,r.entity_id) limit 20`;
     return [
       ...rows.map((r) => ({
         path: `entities.${r.id}`,
@@ -118,7 +137,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     const present = !!(j.source_definition?.schema && j.committed_membership && j.committed_references);
     const [fresh] = present
       ? await this
-        .tx`select app.entity_schema_membership(${this.actor.userId},${t.id})=${j.committed_membership} as values, app.entity_schema_reference_baseline(${this.actor.userId},${t.id})=${
+        .tx`select app.entity_schema_membership(${this.schemaWorkspaceId},${t.id})=${j.committed_membership} as values, app.entity_schema_reference_baseline(${this.schemaWorkspaceId},${t.id})=${
         this.tx.json(j.committed_references)
       }::jsonb as references`
       : [{ values: false, references: false }];
@@ -171,6 +190,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     if (["applied", "cancelled"].includes(row.status)) throw conflict("완료된 변경은 수정할 수 없습니다");
   }
   protected async dto(row: postgres.Row): Promise<EntitySchemaChange> {
+    if (row.analysis_id) await this.authorizeSchemaKinds([row.type_id], "read");
     let analysis: SchemaAnalysis | null = null;
     let status = row.status;
     if (row.analysis_id) {
@@ -208,7 +228,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       ) status = "stale";
       if (analysis) {
         const [a] = await this
-          .tx`select membership=app.entity_schema_membership(owner_id,type_id) as fresh from app.entity_schema_analyses where id=${row.analysis_id}`;
+          .tx`select membership=app.entity_schema_membership(workspace_id,type_id) as fresh from app.entity_schema_analyses where id=${row.analysis_id}`;
         if (!a?.fresh) status = "stale";
       }
     }
@@ -304,7 +324,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
         this.tx.json(diff as never)
       },kind=${kind},fingerprint=${fingerprint},updated_at=now() where id=${previous.id} returning *`
       : await this
-        .tx`insert into app.entity_schema_changes(owner_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint) values(${this.actor.userId},${t.id},${t.version},${t.schema_version},${source_template_fingerprint},${
+        .tx`insert into app.entity_schema_changes(workspace_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint) values(${this.schemaWorkspaceId},${t.id},${t.version},${t.schema_version},${source_template_fingerprint},${
         this.tx.json(migration as never)
       },${this.tx.json(edits as never)},${this.tx.json(reservations)},${this.tx.json(target as never)},${
         this.tx.json(diff as never)
@@ -336,6 +356,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   }
   async analyzeChange(typeId: string, id: string, input: Parameters<SchemaChangeStore["analyzeChange"]>[2]) {
     await this.assertChangeAffiliation(id);
+    await this.authorizeSchemaKinds([typeId], "write");
     const t = await this.lockType(typeId);
     const row = await this.row(typeId, id, true);
     this.editable(row, input.expected_change_version);
@@ -352,11 +373,11 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       if (!entity) throw notFound();
     }
     const [a] = await this
-      .tx`with snapshot as materialized (select owner_id,id,version,schema_version,properties,deleted_at from app.entities where entity_type_id=${typeId}), size as (select count(*)::int as count,coalesce(sum(octet_length(jsonb_build_array(id,version,schema_version,properties,deleted_at)::text)),0)::bigint as bytes from snapshot), analysis as (insert into app.entity_schema_analyses(owner_id,type_id,change_id,change_version,fingerprint,membership,total) select ${this.actor.userId},${typeId},${id},${row.version},${row.fingerprint},md5(coalesce((select jsonb_agg(jsonb_build_array(id,version,schema_version,properties,deleted_at) order by id)::text from snapshot),'[]')),count from size where count<=2000 and bytes<=8388608 returning id), saved as (insert into private.entity_schema_analysis_rows(owner_id,analysis_id,entity_id,source_version,source_schema_version,properties,deleted_at) select s.owner_id,a.id,s.id,s.version,s.schema_version,s.properties,s.deleted_at from snapshot s cross join analysis a returning entity_id) select a.id,(select count(*) from saved) as captured from analysis a`;
+      .tx`with snapshot as materialized (select workspace_id,id,version,schema_version,properties,deleted_at from app.entities where workspace_id=${this.schemaWorkspaceId}::uuid and entity_type_id=${typeId}), size as (select count(*)::int as count,coalesce(sum(octet_length(jsonb_build_array(id,version,schema_version,properties,deleted_at)::text)),0)::bigint as bytes from snapshot), analysis as (insert into app.entity_schema_analyses(workspace_id,type_id,change_id,change_version,fingerprint,membership,total) select ${this.schemaWorkspaceId},${typeId},${id},${row.version},${row.fingerprint},md5(coalesce((select jsonb_agg(jsonb_build_array(id,version,schema_version,properties,deleted_at) order by id)::text from snapshot),'[]')),count from size where count<=2000 and bytes<=8388608 returning id), saved as (insert into private.entity_schema_analysis_rows(workspace_id,analysis_id,entity_id,source_version,source_schema_version,properties,deleted_at) select s.workspace_id,a.id,s.id,s.version,s.schema_version,s.properties,s.deleted_at from snapshot s cross join analysis a returning entity_id) select a.id,(select count(*) from saved) as captured from analysis a`;
     if (!a) throw invalidInput("영향 분석은 2000개·8 MiB 이하에서 실행할 수 있습니다");
     if (row.recovery_source_job_id) {
       await this
-        .tx`update private.entity_schema_analysis_rows r set recovery_properties=s.source_properties from private.entity_schema_migration_rows s where r.analysis_id=${a.id} and s.job_id=${row.recovery_source_job_id} and s.entity_id=r.entity_id and s.owner_id=r.owner_id`;
+        .tx`update private.entity_schema_analysis_rows r set recovery_properties=s.source_properties from private.entity_schema_migration_rows s where r.analysis_id=${a.id} and s.job_id=${row.recovery_source_job_id} and s.entity_id=r.entity_id and s.workspace_id=r.workspace_id`;
       const [size] = await this
         .tx`select coalesce(sum(octet_length(properties::text)+octet_length(recovery_properties::text)),0) as bytes from private.entity_schema_analysis_rows where analysis_id=${a.id}`;
       if (Number(size.bytes) > 8388608) throw invalidInput("복구 분석 원본은 8 MiB 이하에서 실행할 수 있습니다");
@@ -384,6 +405,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     id: string,
     input: Parameters<SchemaChangeStore["analysisRows"]>[2],
   ): Promise<SchemaAnalysisPage> {
+    await this.authorizeSchemaKinds([typeId], "read");
     const change = await this.row(typeId, id);
     await this.recoveryFresh(change.recovery_source_job_id, typeId, false);
     const [expired] = await this
@@ -427,13 +449,14 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   async loadSchemaApplication(typeId: string, id: string, analysisId: string): Promise<SchemaApplicationContext> {
     await this.assertChangeAffiliation(id);
     // Metadata writes and worker publication use the same owner -> type lock order.
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.schemaWorkspaceId + ":entity-types"},0))`;
     const t = await loadSchemaType(this.tx, typeId, true);
     if (!t) throw notFound();
     const c = await this.row(typeId, id, true);
     const [a] = await this
       .tx`select * from app.entity_schema_analyses where id::text=${analysisId} and change_id=${id}`;
-    const [fresh] = await this.tx`select app.entity_schema_membership(${this.actor.userId},${typeId}) as membership`;
+    const [fresh] = await this
+      .tx`select app.entity_schema_membership(${this.schemaWorkspaceId},${typeId}) as membership`;
     return {
       type: {
         id: t.id,
@@ -482,7 +505,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       if (!j) throw notFound();
       recovery = await this.recoveryEvidence(j, context.type);
     }
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:record_templates`},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.schemaWorkspaceId}:record_templates`},0))`;
     const [row] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
     if (recovery) recovery.observed_at = await this.recoveryObservedAt();
     return { recovery, templates: row?.settings ?? {} };
@@ -491,9 +514,9 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     const typeId = context.type.id, id = context.change.id, row = context.change;
     const metadata = row.target.schema;
     if (!metadata.deprecated && (context.type.archived || context.type.label !== metadata.title)) {
-      await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
+      await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.schemaWorkspaceId + ":entity-types"},0))`;
       const [duplicate] = await this
-        .tx`select 1 from app.entity_types t join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where t.id<>${typeId} and not coalesce((v.schema->>'deprecated')::boolean,false) and v.schema->>'title'=${
+        .tx`select 1 from app.entity_types t join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version where t.id<>${typeId} and not coalesce((v.schema->>'deprecated')::boolean,false) and v.schema->>'title'=${
         metadata.title ?? ""
       } limit 1`;
       if (duplicate) {
@@ -504,7 +527,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       }
     }
     await this
-      .tx`insert into app.entity_schema_versions(owner_id,schema) values(${this.actor.userId},${
+      .tx`insert into app.entity_schema_versions(workspace_id,schema) values(${this.schemaWorkspaceId},${
       this.tx.json(publicationDefinition(row.target, typeId, next).schema)
     })`;
     await this
