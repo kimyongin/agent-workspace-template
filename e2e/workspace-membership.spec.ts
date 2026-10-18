@@ -86,9 +86,8 @@ function isolatedEnvironment() {
 function sessionId(token: unknown): string | null {
   if (typeof token !== "string") return null;
   try {
-    const id =
-      JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString())
-        .session_id;
+    const id = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString())
+      .session_id;
     return typeof id === "string" && uuid.test(id) ? id : null;
   } catch {
     return null;
@@ -258,9 +257,7 @@ function ownedFixture(
               await tx`select id,name,created_by from app.workspaces where id=any(${ids}::uuid[]) for update`;
             if (
               current.length !== ids.length ||
-              current.some((row) =>
-                row.created_by !== actor || row.name !== roots.get(row.id)
-              )
+              current.some((row) => row.created_by !== actor || row.name !== roots.get(row.id))
             ) {
               throw new Error(
                 "Workspace cleanup ownership changed; no deletion applied",
@@ -301,8 +298,7 @@ function ownedFixture(
               ...sessions,
             ]}::uuid[])`;
           }
-          const [account] =
-            await tx`select exists(select 1 from auth.users where id=${actor}::uuid) as preserved`;
+          const [account] = await tx`select exists(select 1 from auth.users where id=${actor}::uuid) as preserved`;
           if (!account.preserved) {
             throw new Error("Baseline Auth account was not preserved");
           }
@@ -325,16 +321,14 @@ function ownedFixture(
 }
 
 test(
-  "real login creates and switches two spaces, then persists a pending invitation",
+  "real login creates and switches spaces, persists an invitation and manages deleted-space lifecycle",
   async ({ page, baseURL }, info) => {
     if (info.config.workers !== 1) {
       throw new Error("Workspace membership browser tests require one worker");
     }
     const environment = isolatedEnvironment();
     expect(new URL(baseURL!).origin).toBe(environment.web);
-    const run = `${info.project.name.replace(/[^a-z0-9]/gi, "").slice(0, 12)}-${
-      randomUUID().slice(0, 8)
-    }`;
+    const run = `${info.project.name.replace(/[^a-z0-9]/gi, "").slice(0, 12)}-${randomUUID().slice(0, 8)}`;
     const owned = ownedFixture(page, info, environment, run);
     try {
       await page.goto("/login");
@@ -433,15 +427,41 @@ test(
         invitationTable.getByText("이메일 전달 대기", { exact: true }),
       ).toBeVisible();
       expect(
-        await page.evaluate(() =>
-          document.documentElement.scrollWidth <= innerWidth
-        ),
+        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       ).toBe(true);
       await page.screenshot({
         path: info.outputPath("actual-workspace-management.png"),
         fullPage: true,
       });
       expect(owned.roots.size).toBe(2);
+      const navigation = await openNavigation(page);
+      await navigation.getByRole("button", { name: "공간 선택", exact: true }).click();
+      await page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true }).click();
+      await routeReady(page, /\/workspaces$/, "내 공간");
+      const active = page.getByRole("table", { name: "공간 목록", exact: true });
+      const deleted = page.getByRole("table", { name: "삭제한 공간", exact: true });
+      for (const cycle of ["restore", "leave"] as const) {
+        await active.getByRole("row").filter({ hasText: names[1] }).getByRole("button", { name: "삭제", exact: true })
+          .click();
+        await page.getByRole("alertdialog").getByRole("button", { name: "공간 삭제", exact: true }).click();
+        await expect(page.getByRole("alertdialog")).toHaveCount(0);
+        const row = deleted.getByRole("row").filter({ hasText: names[1] });
+        await expect(row).toBeVisible();
+        if (cycle === "restore") {
+          await page.screenshot({ path: info.outputPath("actual-deleted-workspace-selection.png"), fullPage: true });
+          await row.getByRole("button", { name: "복원", exact: true }).click();
+          await page.getByRole("alertdialog").getByRole("button", { name: "공간 복원", exact: true }).click();
+          await expect(page.getByRole("alertdialog")).toHaveCount(0);
+          await expect(active.getByText(names[1], { exact: true })).toBeVisible();
+        } else {
+          await row.getByRole("button", { name: "탈퇴", exact: true }).click();
+          await page.getByRole("alertdialog").getByRole("button", { name: "공간 탈퇴", exact: true }).click();
+          await expect(page.getByRole("alertdialog")).toHaveCount(0);
+          await expect(deleted.getByText(names[1], { exact: true })).toHaveCount(0);
+          await expect(active.getByText(names[1], { exact: true })).toHaveCount(0);
+        }
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     } finally {
       await owned.cleanup();
     }
