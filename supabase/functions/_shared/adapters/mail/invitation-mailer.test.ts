@@ -122,3 +122,37 @@ Deno.test("unknown provider outcomes are never mislabeled as guaranteed delivery
   const malformed = createInvitationMailer(base, () => Promise.resolve(Response.json({})))!;
   assertEquals(await malformed.send(malformed.prepare(message)), "unknown");
 });
+
+Deno.test("Edge Docker local sink accepts only explicit Mailpit Docker host alias, never as a web origin or Resend endpoint", async () => {
+  let destination = "";
+  const mailer = createInvitationMailer({
+    mode: "mailpit",
+    from: "workspace@example.test",
+    webOrigin: "http://127.0.0.1:5173",
+    mailpitOrigin: "http://host.docker.internal:61924",
+  }, (url) => {
+    destination = String(url);
+    return Promise.resolve(Response.json({ ID: "edge-local" }));
+  });
+  assertEquals(!!mailer, true);
+  assertEquals(await mailer!.send(mailer!.prepare(message)), "sent");
+  assertEquals(destination, "http://host.docker.internal:61924/api/v1/send");
+  assertEquals(
+    createInvitationMailer({
+      mode: "mailpit",
+      from: "workspace@example.test",
+      webOrigin: "http://host.docker.internal:5173",
+      mailpitOrigin: "http://host.docker.internal:61924",
+    }),
+    undefined,
+  );
+  assertEquals(
+    createInvitationMailer({
+      mode: "mailpit",
+      from: "workspace@example.test",
+      webOrigin: "http://127.0.0.1:5173",
+      mailpitOrigin: "http://evil.host.docker.internal:61924",
+    }),
+    undefined,
+  );
+});

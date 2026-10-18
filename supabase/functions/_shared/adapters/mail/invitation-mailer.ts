@@ -7,11 +7,12 @@ export interface InvitationMailConfig {
   webOrigin?: string;
   mailpitOrigin?: string;
 }
-function origin(value: string | undefined, local: boolean): string | undefined {
+function origin(value: string | undefined, local: boolean, dockerSink = false): string | undefined {
   try {
     const url = new URL(value ?? "");
     if (url.username || url.password || url.search || url.hash || url.pathname !== "/") return;
-    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) ||
+      (dockerSink && url.hostname === "host.docker.internal");
     if (local ? url.protocol !== "http:" || !loopback : url.protocol !== "https:") return;
     return url.origin;
   } catch {
@@ -41,7 +42,10 @@ async function responseId(response: Response, field: string): Promise<boolean> {
     return false;
   }
 }
-/** Local mode only injects into Mailpit; never calls its relay/release endpoints. */
+/** Local mode only injects into Mailpit; never calls its relay/release endpoints.
+ * The fixed Docker host alias is allowed only for this server-configured sink, so
+ * a local Edge container can reach the host-bound Mailpit port.
+ */
 export function createInvitationMailer(
   config: InvitationMailConfig,
   fetcher: typeof fetch = fetch,
@@ -50,7 +54,7 @@ export function createInvitationMailer(
   if (!local && config.mode !== "resend") return;
   if (!z.email().max(320).safeParse(config.from).success) return;
   const web = origin(config.webOrigin, local && config.webOrigin?.startsWith("http:") === true);
-  const sink = local ? origin(config.mailpitOrigin, true) : "https://api.resend.com";
+  const sink = local ? origin(config.mailpitOrigin, true, true) : "https://api.resend.com";
   if (!web || !sink || (!local && !config.apiKey)) return;
   const endpoint = `${sink}${local ? "/api/v1/send" : "/emails"}`;
   return {

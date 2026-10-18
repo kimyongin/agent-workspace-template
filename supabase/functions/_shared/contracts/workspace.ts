@@ -37,6 +37,7 @@ export interface WorkspaceCapabilities {
 }
 export const workspaceVersion = z.strictObject({ expected_version: z.number().int().positive() });
 export interface WorkspaceMember {
+  display_name: string | null;
   user_id: string;
   version: number;
   grants: WorkspaceGrant[];
