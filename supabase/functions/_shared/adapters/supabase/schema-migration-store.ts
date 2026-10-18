@@ -177,24 +177,16 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     }
     await this.recoveryFresh(c.recovery_source_job_id, typeId);
     const [j] = await this
-      .tx`insert into app.entity_schema_migrations(workspace_id,type_id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,source_references,total,actor_source,model_change_id) select ${this.schemaWorkspaceId},${typeId},${changeId},${c.version},${a.id},${c.fingerprint},${a.membership},${t.version},${t.schema_version},${c.source_template_fingerprint},${
+      .tx`insert into app.entity_schema_migrations(workspace_id,type_id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,source_references,total,actor_source,model_change_id,recovery_source_job_id,recovery_keys) select ${this.schemaWorkspaceId},${typeId},${changeId},${c.version},${a.id},${c.fingerprint},${a.membership},${t.version},${t.schema_version},${c.source_template_fingerprint},${
       this.tx.json(templates as never)
     },${this.tx.json(definition)},${this.tx.json(c.target)},${this.tx.json(c.migration)},${
       this.tx.json(refs.value)
-    },${a.total},${this.actor.source ?? "http"},${
-      this.modelChangeId ?? null
-    }::uuid where ${c.recovery_source_job_id}::uuid is null or exists(select 1 from app.entity_schema_migrations source where source.id=${c.recovery_source_job_id} and source.source_expires_at>clock_timestamp()) returning *`;
+    },${a.total},${this.actor.source ?? "http"},${this.modelChangeId ?? null}::uuid,${c.recovery_source_job_id}::uuid,${
+      c.recovery_keys == null ? null : this.tx.json(c.recovery_keys)
+    } where ${c.recovery_source_job_id}::uuid is null or exists(select 1 from app.entity_schema_migrations source where source.id=${c.recovery_source_job_id} and source.source_expires_at>clock_timestamp()) returning *`;
     if (!j) throw new AppError("migration_source_expired", "복구 원본의 30일 보관 기간이 지났습니다");
     await this
-      .tx`insert into private.entity_schema_migration_rows(workspace_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed) select r.workspace_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb)),r.after,r.changed from private.entity_schema_analysis_rows r join app.entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
-    if (c.recovery_source_job_id) {
-      await this
-        .tx`update app.entity_schema_migrations set recovery_source_job_id=${c.recovery_source_job_id},recovery_keys=${
-        this.tx.json(c.recovery_keys)
-      } where id=${j.id}`;
-      await this
-        .tx`update private.entity_schema_migration_rows r set recovery_properties=a.recovery_properties from private.entity_schema_analysis_rows a where r.job_id=${j.id} and a.analysis_id=${c.analysis_id} and a.entity_id=r.entity_id and a.workspace_id=r.workspace_id`;
-    }
+      .tx`insert into private.entity_schema_migration_rows(workspace_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed,recovery_properties) select r.workspace_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb)),r.after,r.changed,r.recovery_properties from private.entity_schema_analysis_rows r join app.entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
     await this.tx`update app.entity_types set schema_write_locked=true where id=${typeId}`;
     return this.accepted(j);
   }
