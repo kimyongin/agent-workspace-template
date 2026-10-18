@@ -95,7 +95,7 @@ export function RecordFormModal(props: {
       submitDisabled={!active || props.readonly}
       description={props.systemRecord
         ? "업무 변경 당시 정보는 유지하고 기록 내용을 수정합니다."
-        : "메모·참고 자료·수행 결과를 작성하고 저장합니다."}
+        : "수행 결과와 근거를 작성하고 저장합니다."}
       title={props.title}
       submitLabel={props.submitLabel}
       open={props.open}
