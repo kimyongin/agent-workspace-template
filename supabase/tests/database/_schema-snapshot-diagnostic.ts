@@ -55,16 +55,23 @@ function safePlan(value: unknown): unknown {
 function prefix(
   strings: TemplateStringsArray,
   text: string,
+  suffix = "",
 ): TemplateStringsArray {
   const parts = [text + strings[0], ...strings.slice(1)];
-  return Object.assign(parts, {
-    raw: [text + strings.raw[0], ...strings.raw.slice(1)],
-  });
+  const raw = [text + strings.raw[0], ...strings.raw.slice(1)];
+  parts[parts.length - 1] += suffix;
+  raw[raw.length - 1] += suffix;
+  return Object.assign(parts, { raw });
 }
 
 /** Temporary opt-in probe: actual public transaction, role, parameters and unchanged timeout. */
 export function explainSchemaSnapshot(sql: postgres.Sql): postgres.Sql {
   if (Deno.env.get("WORKSPACE_SCHEMA_SNAPSHOT_DIAGNOSTIC") !== "1") return sql;
+  const requestedLimit = Deno.env.get("WORKSPACE_SCHEMA_SNAPSHOT_DIAGNOSTIC_LIMIT");
+  if (requestedLimit && !["50", "250"].includes(requestedLimit)) {
+    throw new Error("Snapshot diagnostic limit must be 50 or 250");
+  }
+  const limit = requestedLimit ? Number(requestedLimit) : null;
   let intercepted = false;
   return new Proxy(sql, {
     get(target, property) {
@@ -104,7 +111,8 @@ export function explainSchemaSnapshot(sql: postgres.Sql): postgres.Sql {
                     const actual = await Reflect.apply(query, receiver, [
                       prefix(
                         strings as unknown as TemplateStringsArray,
-                        "explain (analyze, buffers, timing off, format json) ",
+                        `explain (analyze, buffers, timing ${limit ? "on" : "off"}, format json) `,
+                        limit ? ` limit ${limit}` : "",
                       ),
                       ...values,
                     ]);
@@ -112,9 +120,15 @@ export function explainSchemaSnapshot(sql: postgres.Sql): postgres.Sql {
                       "[DEBUG-518-snapshot-plan]",
                       JSON.stringify({
                         phase: "actual",
+                        profiled_targets: limit ?? 2000,
                         plan: safePlan(actual[0]["QUERY PLAN"]),
                       }),
                     );
+                    if (limit) {
+                      console.log("[DEBUG-518-snapshot-plan]", JSON.stringify({ phase: "bounded-rollback" }));
+                      // A partial profiling INSERT must never become an accepted job or a passing boundary test.
+                      throw new Error("Bounded snapshot profile completed; deliberately rolling back");
+                    }
                     return actual;
                   })();
                 },
