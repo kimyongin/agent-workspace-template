@@ -53,7 +53,7 @@ dbTest(
             "2026-10-04",
             occurrenceRecordCreate.parse({ body: "미래 수행은 기록할 수 없음" }),
           ), AppError)).code,
-        "conflict",
+        "invalid_input",
       );
       const stopped = await activity.stopTask(deps, businessRequest(f.member), task.id, task.version);
       assertEquals(stopped.status, "stopped");
@@ -66,7 +66,7 @@ dbTest(
             "2026-10-03",
             occurrenceRecordCreate.parse({ body: "중단 중 수행은 기록할 수 없음" }),
           ), AppError)).code,
-        "conflict",
+        "invalid_input",
       );
       const resumed = await activity.resumeTask(deps, businessRequest(f.member), task.id, stopped.version);
       assertEquals(resumed.pauses, []);
