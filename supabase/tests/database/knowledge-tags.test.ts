@@ -1,205 +1,225 @@
-import { requestActor } from "../_request.ts";
-import { assertEquals, assertMatch, assertRejects, assertThrows } from "@std/assert";
+import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
-import { tagCreate, tagListQuery } from "../../functions/_shared/contracts/tag.ts";
-import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
+import { tagListQuery } from "../../functions/_shared/contracts/tag.ts";
+import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
-import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import {
+  recordListQuery,
+  recordUpdate,
+} from "../../functions/_shared/contracts/record.ts";
 import * as tags from "../../functions/_shared/core/tags/application.ts";
-import * as e from "../../functions/_shared/core/entity/application.ts";
-import * as a from "../../functions/_shared/core/activity/application.ts";
-import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
-import { entityFixture } from "./_entity.ts";
-const admin = connect(urls.admin, { max: 1 }),
-  sql = connect(urls.pooler, { max: 3, prepare: false }),
-  td = { uow: new SqlTagUnitOfWork(sql) },
+import * as entities from "../../functions/_shared/core/entity/application.ts";
+import * as activity from "../../functions/_shared/core/activity/application.ts";
+import { AppError } from "../../functions/_shared/core/shared/errors.ts";
+import {
+  businessRequest,
+  businessWorkspaceFixture,
+} from "./_workspace-business.ts";
+import { connect, dbTest, urls } from "./_db.ts";
+
+const admin = connect(urls.admin, { max: 1 });
+const sql = connect(urls.direct, { max: 1, prepare: false });
+const td = { uow: new SqlTagUnitOfWork(sql) },
   ed = { uow: new SqlEntityUnitOfWork(sql) },
   ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
+
 dbTest(
-  "tag dictionaries: same name per scope, cross-scope/owner linking rejected, cursor scope, detach keeps original context",
+  "workspace tag dictionaries enforce scope and workspace on independently saved parents",
   async () => {
-    const f = await fixtureOwner(admin), b = await fixtureOwner(admin);
+    const f = await businessWorkspaceFixture(admin, sql);
     try {
-      const schema = await entityFixture(admin, f.actor.userId);
-      const A = f.actor,
-        entityTag = await tags.createTag(
-          td,
-          requestActor(A),
-          tagCreate.parse({ ...{ scope: "entity", name: "분류" } }),
-        ),
-        activityTag = await tags.createTag(
-          td,
-          requestActor(A),
-          tagCreate.parse({ ...{ scope: "record", name: "분류" } }),
-        );
-      const taskTag = await tags.createTag(
-        td,
-        requestActor(A),
-        tagCreate.parse({ scope: "task", name: "분류" }),
-      );
-      for (const tag of [entityTag, activityTag]) {
-        await assertRejects(() =>
-          a.createTask(
-            ad,
-            requestActor(A),
-            taskCreate.parse({ kind: "once", title: "scope 거부", tag_ids: [tag.id] }),
-          )
-        );
-      }
-      await assertRejects(() =>
-        a.createRecord(
-          ad,
-          requestActor(A),
-          recordCreate.parse({ body: "task scope 거부", tag_ids: [taskTag.id] }),
-        )
-      );
-      const task = await a.createTask(
-        ad,
-        requestActor(A),
-        taskCreate.parse({ kind: "once", title: "독립 분류", tag_ids: [taskTag.id] }),
-      );
-      assertMatch(
-        await outcome(
-          asUser(
-            sql,
-            A.userId,
-            (tx) =>
-              tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${A.userId},${task.id},${activityTag.id})`,
-          ),
-        ),
-        /^23503/,
-      );
+      const kind = await f.createKind("분류 원본");
+      await f.grant(f.member, [{
+        target_kind: "tasks",
+        target_id: "*",
+        access: "write",
+      }, { target_kind: "entity_type", target_id: kind.id, access: "write" }]);
+      const actor = f.member;
+      const entityTag = await tags.createTag(td, businessRequest(actor), {
+        scope: "entity",
+        name: "분류",
+      });
+      const taskTag = await tags.createTag(td, businessRequest(actor), {
+        scope: "task",
+        name: "분류",
+      });
+      const resultTag = await tags.createTag(td, businessRequest(actor), {
+        scope: "record",
+        name: "분류",
+      });
       assertThrows(() => tagListQuery.parse({ scope: "activity" }));
-      await assertRejects(() =>
-        tags.createTag(td, requestActor(A), tagCreate.parse({ ...{ scope: "entity", name: "분류" } }))
+      assertThrows(() =>
+        taskCreate.parse({ kind: "once", title: "초기 태그 거절", tag_ids: [] })
       );
-      const foreign = await tags.createTag(
+      assertThrows(() =>
+        recordUpdate.parse({ expected_version: 1, tag_ids: [] })
+      );
+      assertEquals(
+        (await assertRejects(() =>
+          tags.createTag(td, businessRequest(actor), {
+            scope: "entity",
+            name: "분류",
+          }), AppError)).code,
+        "conflict",
+      );
+      const entity = await entities.createEntity(
+        ed,
+        businessRequest(actor),
+        entityCreate.parse({
+          entity_type_id: kind.id,
+          schema_version: 1,
+          properties: { prop_1: "분류 자료" },
+        }),
+      );
+      const task = await activity.createTask(
+        ad,
+        businessRequest(actor),
+        taskCreate.parse({
+          kind: "once",
+          title: "저장된 분류 계획",
+          entity_ids: [entity.id],
+        }),
+      );
+      const taskLinked = await tags.setTagConnections(
         td,
-        requestActor(b.actor),
-        tagCreate.parse({ ...{ scope: "entity", name: "외부" } }),
+        businessRequest(actor),
+        {
+          target_kind: "task",
+          target_id: task.id,
+          expected_version: task.version,
+          tag_ids: [taskTag.id],
+        },
       );
-      for (const tag of [activityTag.id, foreign.id, crypto.randomUUID()]) {
-        await assertRejects(() =>
-          e.createEntity(
-            ed,
-            requestActor(A),
-            entityCreate.parse({
-              ...schema,
-              source: "app",
-              external_id: crypto.randomUUID(),
-              properties: { prop_1: "거부" },
-              tag_ids: [tag],
-            }),
-          )
+      const completed = await activity.completeTask(
+        ad,
+        businessRequest(actor),
+        task.id,
+        { expected_version: taskLinked.version, body: "독립 분류 결과" },
+      );
+      assertEquals(completed.record.tag_ids, []);
+      const recordLinked = await tags.setTagConnections(
+        td,
+        businessRequest(actor),
+        {
+          target_kind: "record",
+          target_id: completed.record.id,
+          expected_version: completed.record.version,
+          tag_ids: [resultTag.id],
+        },
+      );
+      await tags.setTagConnections(td, businessRequest(actor), {
+        target_kind: "entity",
+        target_id: entity.id,
+        expected_version: entity.version,
+        tag_ids: [entityTag.id],
+      });
+      const other = await f.addWorkspace("다른 분류 공간");
+      const foreignTag = await tags.createTag(
+        td,
+        businessRequest(other.member),
+        { scope: "task", name: "외부 분류" },
+      );
+      for (const tagId of [entityTag.id, resultTag.id, foreignTag.id]) {
+        assertEquals(
+          (await assertRejects(
+            () =>
+              tags.setTagConnections(td, businessRequest(actor), {
+                target_kind: "task",
+                target_id: task.id,
+                expected_version: completed.task.version,
+                tag_ids: [tagId],
+              }),
+            AppError,
+          )).code,
+          "invalid_reference",
         );
       }
-      for (
-        const create of [
-          () =>
-            a.createTask(
-              ad,
-              requestActor(A),
-              taskCreate.parse({
-                ...{ kind: "once", title: "거부", tag_ids: [entityTag.id] },
-              }),
-            ),
-          () =>
-            a.createRecord(
-              ad,
-              requestActor(A),
-              recordCreate.parse({
-                ...{ body: "거부", tag_ids: [entityTag.id] },
-              }),
-            ),
-        ]
-      ) await assertRejects(create);
-      const entity = await e.createEntity(
-        ed,
-        requestActor(A),
-        entityCreate.parse({
-          ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
-          properties: { prop_1: "대상" },
-          tag_ids: [entityTag.id],
-        }),
-      );
-      assertMatch(
-        await outcome(
-          asUser(
-            sql,
-            A.userId,
-            (tx) =>
-              tx`insert into app.entity_tags(owner_id,entity_id,tag_id) values(${A.userId},${entity.id},${activityTag.id})`,
-          ),
-        ),
-        /^23503/,
-      );
-      const record = await a.createRecord(
-        ad,
-        requestActor(A),
-        recordCreate.parse({
-          ...{ body: "보존", tag_ids: [activityTag.id] },
-        }),
-      );
-      assertMatch(
-        await outcome(
-          asUser(
-            sql,
-            A.userId,
-            (tx) =>
-              tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${A.userId},${record.id},${taskTag.id})`,
-          ),
-        ),
-        /^23503/,
-      );
-      await tags.renameTag(td, requestActor(A), taskTag.id, {
+      await tags.renameTag(td, businessRequest(actor), taskTag.id, {
         name: "할 일만 정정",
         expected_version: taskTag.version,
       });
-      assertEquals((await tags.listTags(td, A, tagListQuery.parse({ scope: "record" }))).items.map((tag) => tag.name), [
-        "분류",
-      ]);
       assertEquals(
-        (await a.listRecords(ad, A, recordListQuery.parse({ tag_id: activityTag.id }))).items.map((r) => r.id),
-        [record.id],
+        (await tags.listTags(
+          td,
+          actor,
+          tagListQuery.parse({ scope: "record" }),
+        )).items.map((tag) => tag.name),
+        ["분류"],
       );
-      await a.updateRecord(
+      assertEquals(
+        (await activity.listRecords(
+          ad,
+          actor,
+          recordListQuery.parse({ tag_id: resultTag.id }),
+        )).items.map((record) => record.id),
+        [completed.record.id],
+      );
+      const corrected = await activity.updateRecord(
         ad,
-        requestActor(A),
-        record.id,
-        recordUpdate.parse({ expected_version: record.version, tag_ids: [] }),
+        businessRequest(actor),
+        completed.record.id,
+        {
+          expected_version: recordLinked.version,
+          body: "분류를 보존한 원문 정정",
+        },
       );
-      await e.updateEntity(
-        ed,
-        requestActor(A),
-        entity.id,
-        entityUpdate.parse({
-          schema_version: schema.schema_version,
-          expected_version: entity.version,
-          change_note: "속성 갱신",
-          properties: { prop_2: 20 },
-        }),
+      assertEquals(corrected.tag_ids, [resultTag.id]);
+      await tags.setTagConnections(td, businessRequest(actor), {
+        target_kind: "record",
+        target_id: corrected.id,
+        expected_version: corrected.version,
+        tag_ids: [],
+      });
+      assertEquals(
+        (await activity.getRecord(ad, actor, corrected.id)).body,
+        corrected.body,
       );
-      await tags.createTag(td, requestActor(A), tagCreate.parse({ ...{ scope: "entity", name: "둘째" } }));
-      const page = await tags.listTags(td, A, tagListQuery.parse({ scope: "entity", limit: 1 }));
-      await assertRejects(() =>
-        tags.listTags(td, A, tagListQuery.parse({ scope: "record", cursor: page.next_cursor! }))
+      await tags.createTag(td, businessRequest(actor), {
+        scope: "entity",
+        name: "둘째",
+      });
+      const page = await tags.listTags(
+        td,
+        actor,
+        tagListQuery.parse({ scope: "entity", limit: 1 }),
       );
-      await tags.deleteTag(td, requestActor(A), entityTag.id, entityTag.version);
-      assertEquals((await e.getEntity(ed, A, entity.id)).tag_ids, []);
-      assertEquals((await e.getEntity(ed, A, entity.id)).version, entity.version + 2);
-      const changes = await a.listRecords(ad, A, recordListQuery.parse({ record_kind: "change" }));
-      const entityChange = changes.items.find((r) =>
-        r.change?.target_id === entity.id && r.change.action === "update"
+      assertEquals(typeof page.next_cursor, "string");
+      await assertRejects(
+        () =>
+          tags.listTags(
+            td,
+            actor,
+            tagListQuery.parse({ scope: "record", cursor: page.next_cursor! }),
+          ),
+        AppError,
+      );
+      await tags.deleteTag(
+        td,
+        businessRequest(actor),
+        entityTag.id,
+        entityTag.version,
+      );
+      const current = await entities.getEntity(ed, actor, entity.id);
+      assertEquals(current.tag_ids, []);
+      assertEquals(current.version, entity.version + 2);
+      const changes = await activity.listRecords(
+        ad,
+        actor,
+        recordListQuery.parse({ entity_id: entity.id, record_kind: "change" }),
+      );
+      const changed = changes.items.find((record) =>
+        record.change?.action === "update"
       )!;
-      assertEquals([entityChange.change!.before, entityChange.change!.after], [null, null]);
-      assertEquals(entityChange.change!.target_id, entity.id);
+      assertEquals([changed.change!.before, changed.change!.after], [
+        null,
+        null,
+      ]);
+      assertEquals(changed.entity_id, entity.id);
+      assertEquals(changed.task_id, null);
     } finally {
       await f.cleanup();
-      await b.cleanup();
     }
   },
 );

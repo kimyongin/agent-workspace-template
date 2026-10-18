@@ -105,6 +105,8 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           actor,
           input.id,
           input.expected_version,
+          input.change_note,
+          input.change_tag_ids,
         );
         return { deleted: input.id };
       },

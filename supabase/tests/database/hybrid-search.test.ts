@@ -1,19 +1,29 @@
+// Workspace sources use the current business contract; #516 owns the search/worker consumer conversion.
+import * as tags from "../../functions/_shared/core/tags/application.ts";
+import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
+import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { createHttpApp } from "../../functions/_shared/adapters/http/app.ts";
 import { searchTools } from "../../functions/_shared/adapters/mcp/search-tools.ts";
-import { requestActor } from "../_request.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/search-store.ts";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
-import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import { searchInput } from "../../functions/_shared/contracts/search.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { search } from "../../functions/_shared/core/search/application.ts";
 import { EmbeddingError, indexBatch } from "../../functions/_shared/core/search/index-worker.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
-import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { connect, dbTest, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { max: 3, prepare: false });
-const fixture = await fixtureOwner(admin), foreign = await fixtureOwner(admin), A = fixture.actor;
+const fixture = await businessWorkspaceFixture(admin, sql);
+await fixture.grant(fixture.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+const A = fixture.member;
+const otherWorkspace = await fixture.addWorkspace("격리된 검색 검증");
+await fixture.grant(otherWorkspace.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+const foreign = { actor: otherWorkspace.member };
 const workerUrl = new URL(urls.pooler);
 workerUrl.username = "app_worker.pooler-dev";
 workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
@@ -24,27 +34,33 @@ const d = { uow: new SqlSearchUnitOfWork(sql), embedder: { embed: () => Promise.
 dbTest(
   "body chunk search: tail match, record dedup before limit/anchor, snippets, hash freshness and ownership",
   async () => {
-    const tag = crypto.randomUUID();
-    await asUser(
-      sql,
-      A.userId,
-      (tx) => tx`insert into app.tags(id,owner_id,name) values(${tag},${A.userId},${tag.slice(0, 30)})`,
-    );
+    const tagDeps = { uow: new SqlTagUnitOfWork(sql) };
+    const tag = (await tags.createTag(tagDeps, businessRequest(A), { scope: "record", name: "검색 결과 분류" })).id;
     const bodies = ["# 앞부분\n\n" + "한글😀".repeat(1200) + "\n\n뒷부분 회수 근거", "두번째 기록", "세번째 기록"];
     const ids: string[] = [];
     for (const [n, body] of bodies.entries()) {
-      const item = await activity.createRecord(
+      const task = await activity.createTask(
         deps,
-        requestActor(A),
-        recordCreate.parse({ body, tag_ids: [tag] }),
+        businessRequest(A),
+        taskCreate.parse({ kind: "once", title: "검색 결과" }),
       );
+      const { record: item } = await activity.completeTask(deps, businessRequest(A), task.id, {
+        expected_version: task.version,
+        body,
+      });
+      await tags.setTagConnections(tagDeps, businessRequest(A), {
+        target_kind: "record",
+        target_id: item.id,
+        expected_version: item.version,
+        tag_ids: [tag],
+      });
       ids.push(item.id);
       const result = await indexBatch(queue, {
         embed: (text) =>
           Promise.resolve(
             n === 0 ? (text.includes("뒷부분") ? vector(1) : vector(0, 1)) : n === 1 ? vector(.8, .6) : vector(.6, .8),
           ),
-      }, { limit: 1, owner_id: A.userId, kind: "record", id: item.id });
+      }, { limit: 1, kind: "record", id: item.id });
       assertEquals(result.indexed, 1);
     }
     const q = searchInput.parse({ query: "비슷한 의미 질의", tag_id: tag, kinds: ["record"], limit: 1 });
@@ -68,15 +84,20 @@ dbTest(
     assertEquals((await search(d, foreign.actor, q)).items, []);
     assertEquals((await search(d, foreign.actor, q)).semantic_coverage, { pending: 0, excluded: 0 });
     assertEquals(
-      (await asUser(sql, foreign.actor.userId, (tx) => tx`select * from app.search_chunks where record_id=${ids[0]}`))
+      (await runInWorkspace(
+        sql,
+        foreign.actor,
+        { mode: "business", requirements: [] },
+        (tx) => tx`select * from app.search_chunks where record_id=${ids[0]}`,
+      ))
         .length,
       0,
     );
     await activity.updateRecord(
       deps,
-      requestActor(A),
+      businessRequest(A),
       ids[0],
-      recordUpdate.parse({ expected_version: 1, body: "바뀐 원문" }),
+      recordUpdate.parse({ expected_version: 2, body: "바뀐 원문" }),
     );
     assertEquals((await search(d, A, { ...q, limit: 20 })).items.map((x) => x.id), [ids[1], ids[2]]);
     assertEquals((await search(d, A, q)).semantic_coverage, { pending: 1, excluded: 0 });
@@ -122,7 +143,7 @@ dbTest("HTTP/MCP semantic queries beyond twenty use one send and preserve provid
   const http = async () => {
     const response = await app.request("/api/search", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "X-Workspace-Id": A.workspaceId },
       body: JSON.stringify(q),
     });
     assertEquals(response.status, 200);
@@ -141,7 +162,8 @@ dbTest("HTTP/MCP semantic queries beyond twenty use one send and preserve provid
 });
 
 dbTest("deleted search owner cannot send an external query", async () => {
-  const deleted = await fixtureOwner(admin);
+  const deleted = await businessWorkspaceFixture(admin, sql);
+  await deleted.grant(deleted.member, [{ target_kind: "tasks", target_id: "*", access: "read" }]);
   await deleted.cleanup();
   let calls = 0;
   const injected = {
@@ -154,13 +176,13 @@ dbTest("deleted search owner cannot send an external query", async () => {
     },
   };
   const error = await assertRejects(
-    () => search(injected, deleted.actor, searchInput.parse({ query: "잔여 토큰" })),
+    () => search(injected, deleted.member, searchInput.parse({ query: "잔여 토큰" })),
     AppError,
   );
   assertEquals((error as AppError).code, "unauthenticated");
   assertEquals(calls, 0);
   await assertRejects(
-    () => search(injected, deleted.actor, searchInput.parse({ query: "잔여 토큰", mode: "keyword" })),
+    () => search(injected, deleted.member, searchInput.parse({ query: "잔여 토큰", mode: "keyword" })),
     AppError,
   );
   assertEquals(calls, 0);
@@ -168,5 +190,4 @@ dbTest("deleted search owner cannot send an external query", async () => {
 
 dbTest("hybrid-search fixture cleanup", async () => {
   await fixture.cleanup();
-  await foreign.cleanup();
 });
