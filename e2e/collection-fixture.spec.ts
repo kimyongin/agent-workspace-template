@@ -1,3 +1,4 @@
+import type { RecordResult } from "../supabase/functions/_shared/contracts/record.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { openMainNavigation } from "./ui-actions.ts";
 // Actual App and routing; remote Auth/API are isolated, with no DB or real-account writes.
@@ -11,7 +12,7 @@ const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 
 const entity={...makeEntity(1, {prop_1:"김민수",prop_3:"2026-10-08"}),tasks:{count:1,items:[task]},records:{count:0,items:[]}};
 const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_timezone: "Asia/Seoul" } };
 
-async function fixture(page: Page, records = [record]) {
+async function fixture(page: Page, records: RecordResult[] = [record]) {
   const state=await installWorkspaceApi(page,"http://127.0.0.1:55587",structuredClone({entities:[entity],tasks:[task],records,tags:[]}),{pageSize:20});
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   await page.route("**/*",async route=>{
