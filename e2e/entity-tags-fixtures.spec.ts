@@ -623,6 +623,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   await beginTabAction(page, "검사 자료 추가");
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await expect(form.getByRole("button", { name: "태그 선택", exact: true })).toHaveCount(0);
+  await expect(form.getByText("번호 출처와 번호를 확인하고, 자료의 입력 항목을 작성합니다.", { exact: true })).toBeVisible();
   await form.getByLabel("제목").fill(current.title);
   await capture("new-entity-without-tag-selector");
   await saveOnce(page, form);

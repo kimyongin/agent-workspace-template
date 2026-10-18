@@ -260,7 +260,7 @@ export function EntityForm({
       <FormModal
         open
         domain={label}
-        description="번호 출처와 번호를 확인하고, 자료의 입력 항목과 태그를 입력합니다."
+        description="번호 출처와 번호를 확인하고, 자료의 입력 항목을 작성합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel={submitLabel}
         submitDisabled={!!typeId &&
