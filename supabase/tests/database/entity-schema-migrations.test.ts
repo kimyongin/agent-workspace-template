@@ -548,7 +548,12 @@ dbTest(
         retry = await retryEntitySchemaMigration(d, retryKey, accepted.job_id, {
           expected_job_version: failure.version,
         });
-      assertEquals(retry.job_id, accepted.job_id);
+      assert(retry.job_id !== accepted.job_id, "retry seals a new execution attempt");
+      const [lineage] =
+        await admin`select retry_source_job_id from app.entity_schema_migrations where workspace_id=${a.workspaceId} and id=${retry.job_id}`;
+      assertEquals(lineage.retry_source_job_id, accepted.job_id);
+      const retainedFailure = await getEntitySchemaMigration(d, a.actor, accepted.job_id);
+      assertEquals([retainedFailure.status, retainedFailure.version], [failure.status, failure.version]);
       assertEquals(
         await retryEntitySchemaMigration(d, retryKey, accepted.job_id, {
           expected_job_version: failure.version,
@@ -562,7 +567,7 @@ dbTest(
         (await cancelEntitySchemaMigration(
           d,
           requestActor(a.actor),
-          accepted.job_id,
+          retry.job_id,
           { expected_job_version: 1 },
         ))
           .status,
@@ -584,16 +589,16 @@ dbTest(
         1,
       );
       assertEquals(
-        (await getEntitySchemaMigration(d, a.actor, accepted.job_id)).status,
+        (await getEntitySchemaMigration(d, a.actor, retry.job_id)).status,
         "committing",
       );
-      await admin`update app.entity_schema_migrations set lease_until=now()-interval '1 second' where id=${accepted.job_id}`;
+      await admin`update app.entity_schema_migrations set lease_until=now()-interval '1 second' where id=${retry.job_id}`;
       const successor = await claim(worker);
       assertEquals(await commit(worker, committing), false);
       assert(await commit(worker, successor));
       assertEquals(await commit(worker, successor), false);
       assertEquals(
-        (await getEntitySchemaMigration(d, a.actor, accepted.job_id)).status,
+        (await getEntitySchemaMigration(d, a.actor, retry.job_id)).status,
         "succeeded",
       );
       const empty = await createWritableType(a, d, { label: "Empty success" });
