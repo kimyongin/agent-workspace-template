@@ -1,4 +1,6 @@
 import { assertEquals } from "@std/assert";
+import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { connect, dbTest, urls } from "./_db.ts";
 import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
 import * as workspaces from "../../functions/_shared/core/workspaces/application.ts";
@@ -9,6 +11,10 @@ import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supaba
 
 const admin = connect(urls.admin, { max: 1 });
 const sql = connect(urls.direct, { max: 2, prepare: false });
+const workerUrl = new URL(urls.admin);
+workerUrl.username = "app_worker";
+workerUrl.password = Deno.env.get("APP_WORKER_PASSWORD")!;
+const worker = connect(workerUrl.toString(), { max: 1 });
 const workspaceDeps = { uow: new SqlWorkspaceUnitOfWork(sql) };
 const typeDeps = { uow: new SqlEntityTypeUnitOfWork(sql) };
 const key = (actor: Actor): Actor => ({ ...actor, request: { key: crypto.randomUUID() } });
@@ -52,6 +58,52 @@ dbTest("shared schema analysis captures the actual initiator and immutable works
     assertEquals(analysis.initiated_by, b.userId);
     assertEquals(Number(analysis.workspace_generation), Number(workspace.lifecycle_generation));
     assertEquals(accepted.status, "queued");
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, a.userId, {
+      expected_version: 1,
+      grants: [
+        { target_kind: "settings", target_id: "*", access: "write" },
+        { target_kind: "entity_type", target_id: type.id, access: "write" },
+      ],
+    });
+    const entityId = crypto.randomUUID();
+    await runInWorkspace(sql, author, {
+      mode: "business",
+      requirements: [{ target_kind: "entity_type", target_id: type.id, access: "write" }],
+    }, (tx) =>
+      tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+      values(${workspaceId},${entityId},${type.id},1,'{"prop_1":"A가 작성한 공유 원본"}')`);
+    const nextDraft = await changes.createEntitySchemaChange(typeDeps, key(executor), type.id, {
+      expected_schema_version: 1,
+      edits: [{ op: "set_metadata", description: "실제 공유 자료 분석" }],
+      migration: { rules: [], overrides: [] },
+    });
+    const next = await changes.analyzeEntitySchemaChange(typeDeps, key(executor), type.id, nextDraft.id, {
+      expected_change_version: nextDraft.version,
+    });
+    const [claimed] = await worker`select app.claim_entity_schema_analysis() as batch`;
+    assertEquals(claimed.batch?.id, next.analysis_id);
+    assertEquals(
+      claimed.batch.rows.map((r: { entity_id: string; properties: unknown }) => ({
+        entity_id: r.entity_id,
+        properties: r.properties,
+      })),
+      [{ entity_id: entityId, properties: { prop_1: "A가 작성한 공유 원본" } }],
+    );
+    const convert = compileMigration(claimed.batch.target, claimed.batch.migration, claimed.batch.recovery_keys);
+    const results = claimed.batch.rows.map((r: { entity_id: string; properties: Record<string, unknown> }) =>
+      convert(r.entity_id, r.properties)
+    );
+    await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
+      expected_version: 1,
+      grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+    });
+    const [revoked] =
+      await worker`select app.complete_entity_schema_analysis_batch(${next.analysis_id},${claimed.batch.fence},${
+        worker.json(results)
+      }) as accepted`;
+    assertEquals(revoked.accepted, false);
+    const [denied] = await worker`select app.claim_entity_schema_analysis() as batch`;
+    assertEquals(denied.batch, null);
   } finally {
     if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
     for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
