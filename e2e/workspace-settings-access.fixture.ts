@@ -194,7 +194,7 @@ test("unknown write followed by permission demotion can leave with draft confirm
   await page.getByRole("tab", { name: "일괄 설정", exact: true }).click();
   const confirmation = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
   await expect(confirmation).toBeVisible();
-  await confirmation.getByRole("button", { name: "이동", exact: true }).click();
+  await confirmation.getByRole("button", { name: "변경 버리기", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/w/${space}/settings/data-model$`));
   expect(fixture.writes).toHaveLength(1);
 });
