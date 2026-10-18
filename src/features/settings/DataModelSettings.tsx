@@ -612,7 +612,7 @@ function DataModelSettingsContent() {
       )}
       {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
       <MaterialSettingsSection
-        title="가져오기·내보내기"
+        title={canWrite ? "가져오기·내보내기" : "설정 내보내기"}
         initialOpen
         state={{ dirty, busy: busy || reading, uncertain }}
       >
@@ -629,6 +629,7 @@ function DataModelSettingsContent() {
           <p className="text-sm text-muted-foreground">
             실제 자료와 개별 연결·기록은 포함하지 않습니다. 파일에 없는 현재 설정은 삭제하지 않습니다.
           </p>
+          <div hidden={!canWrite} className="flex min-w-0 flex-col gap-4">
           <FieldSet className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" disabled={!canWrite || locked}>
             <Field
               label="가져오는 방법"
@@ -740,6 +741,7 @@ function DataModelSettingsContent() {
               </div>
             </>
           )}
+          </div>
         </FieldGroup>
       </MaterialSettingsSection>
       <MaterialSettingsSection

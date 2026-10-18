@@ -70,13 +70,15 @@ test(
     await expect(page.getByRole("textbox", { name: "자료 종류 이름", exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "기본 정보 저장", exact: true })).toBeDisabled();
     await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
+    await page.getByRole("main").evaluate(element => { element.scrollTop = 0; });
     await page.screenshot({ path: testInfo.outputPath("settings-readonly-definition.png"), fullPage: true });
     await page.goto(`/w/${space}/settings/data-model`);
     await expect(page.getByText("저장한 설정 변경 내용이 없습니다.")).toBeVisible();
     await expect(page.getByRole("button", { name: "설정 내보내기", exact: true })).toBeEnabled();
-    await expect(page.getByRole("button", { name: "설정 파일 선택", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "설정 파일 선택", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "변경 이력 새로 읽기", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "변경 이력 새로 읽기", exact: true }).click();
+    await page.getByRole("main").evaluate(element => { element.scrollTop = 0; });
     await page.screenshot({ path: testInfo.outputPath("settings-readonly-model.png"), fullPage: true });
     expect(fixture.writes).toEqual([]);
   },
@@ -121,6 +123,7 @@ test(
     await page.getByRole("combobox", { name: "액션", exact: true }).click();
     await page.getByRole("option", { name: "수정", exact: true }).click();
     await expect(memo).toHaveAttribute("contenteditable", "false");
+    await page.getByRole("main").evaluate(element => { element.scrollTop = 0; });
     await page.screenshot({ path: testInfo.outputPath("settings-readonly-template.png"), fullPage: true });
     expect(fixture.writes).toEqual([]);
   },
