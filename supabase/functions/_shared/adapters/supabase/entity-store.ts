@@ -31,6 +31,9 @@ function result(r: Record<string, unknown>) {
   };
 }
 export class SqlEntityStore extends SqlActorStore implements EntityStore {
+  private get workspaceId() {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
   definition(typeId: string, lock = false) {
     return loadBusinessEntityDefinition(this.tx, typeId, lock);
   }
@@ -44,13 +47,16 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async get(id: string, lock = false) {
     if (lock) {
       // Discover immutable type without locking the entity; acquire type first for publication/migration.
-      const [identity] = await this.tx`select entity_type_id from app.entities where id=${id}`;
+      const [identity] = await this
+        .tx`select entity_type_id from app.entities where workspace_id=${this.workspaceId} and id=${id}`;
       if (!identity) return null;
       await this.definition(identity.entity_type_id, true);
-      const rows = await this.tx`select id from app.entities where id=${id} for update`;
+      const rows = await this
+        .tx`select id from app.entities where workspace_id=${this.workspaceId} and id=${id} for update`;
       if (!rows.length) return null;
     }
-    const [r] = await this.tx`select ${this.projection()} from ${this.joined()} where entities.id=${id}`;
+    const [r] = await this
+      .tx`select ${this.projection()} from ${this.joined()} where entities.workspace_id=${this.workspaceId} and entities.id=${id}`;
     return r ? this.present(r) : null;
   }
   private projection() {
@@ -122,7 +128,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async update(id: string, changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_tag_ids">) {
     await this.tx`update app.entities set schema_version=${changes.schema_version},
       properties=${changes.properties === undefined ? this.tx`properties` : this.tx.json(changes.properties)},
-      version=version+1,updated_at=now() where id=${id}`;
+      version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id}`;
     return (await this.get(id))!;
   }
   /** Independent saved-target links never rewrite business properties or schema. */
@@ -134,11 +140,12 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     return (await this.get(id))!;
   }
   async delete(id: string) {
-    await this.tx`update app.entities set deleted_at=now(),version=version+1,updated_at=now() where id=${id}`;
+    await this
+      .tx`update app.entities set deleted_at=now(),version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id}`;
   }
   async restore(id: string, changes: EntityCreate) {
     const { source: _source, external_id: _external, expected_version: _version, ...props } = changes;
-    await this.tx`update app.entities set deleted_at=null where id=${id}`;
+    await this.tx`update app.entities set deleted_at=null where workspace_id=${this.workspaceId} and id=${id}`;
     return this.update(id, props);
   }
   async list(q: EntityQuery, after?: EntityKeyset, typeIds?: string[]) {
@@ -218,10 +225,14 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     const load = async (table: "tasks" | "records") => {
       const tx = this.tx;
       const membership = table === "records" ? tx`entity_id=${id}` : tx`entity_ids @> array[${id}::text]`;
-      const [count] = await tx`select count(*)::integer as count from app.${tx(table)} where ${membership}`;
+      const [count] = await tx`select count(*)::integer as count from app.${
+        tx(table)
+      } where workspace_id=${this.workspaceId} and ${membership}`;
       const rows = await tx`select id,updated_at ${
         table === "records" ? tx`,body,record_kind,occurred_at` : tx`,title`
-      } from app.${tx(table)} where ${membership} order by updated_at desc,id desc limit 5`;
+      } from app.${
+        tx(table)
+      } where workspace_id=${this.workspaceId} and ${membership} order by updated_at desc,id desc limit 5`;
       return {
         count: count.count as number,
         rows,
