@@ -51,10 +51,10 @@ httpTest(
       assert(removed.ok, "manager can delete its account after soft deleting its workspace");
       assertEquals((await call(token, "GET", "/workspaces")).status, 401);
       const [preserved] =
-        await admin`select deleted_at is not null as deleted,created_by from app.workspaces where id=${workspaceId}`;
+        await admin`select deleted_at is not null as deleted,created_by from app.workspaces where id=${workspaceId!}`;
       assertEquals(preserved, { deleted: true, created_by: null });
     } finally {
-      if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
+      if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId!}`;
       if (created) {
         const cleanup = await auth("DELETE", `/users/${userId}`);
         await cleanup.body?.cancel();
