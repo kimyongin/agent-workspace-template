@@ -270,6 +270,41 @@ dbTest(
         owned[0]
       }::uuid and id=${recordId}`;
       assertEquals(parentAfter, { entity_id: entityId, task_id: null });
+      const tagId = await admin.begin(async (tx) => {
+        await tx`select set_config('request.workspace_id',${owned[0]},true)`;
+        const [tag] = await tx`insert into app.tags(workspace_id,scope,name) values(${
+          owned[0]
+        }::uuid,'record','변환 기록') returning id`;
+        return tag.id as string;
+      });
+      const taggedSettings = await settings.updateBusinessSettings(
+        { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } },
+        key(first),
+        {
+          id: "record_templates",
+          expected_version: 0,
+          value: { entity_types: { [left.id]: { update: { memo: "$대상$ 값 변환", tag_ids: [tagId] } } } },
+        },
+      );
+      assertEquals(taggedSettings.settings.record_templates?.entity_types?.[left.id]?.update?.tag_ids, [tagId]);
+      await runInWorkspace(sql, first, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "write" }],
+      }, async (tx) => {
+        await tx`insert into app.record_tags(workspace_id,record_id,tag_id) values(${
+          owned[0]
+        }::uuid,${recordId},${tagId})`;
+      });
+      await runInWorkspace(sql, reader, {
+        mode: "business",
+        requirements: [{ target_kind: "entity_type", target_id: left.id, access: "read" }],
+      }, async (tx) => {
+        assertEquals(
+          (await tx`select tag_id from app.record_tags where workspace_id=${owned[0]}::uuid and record_id=${recordId}`)
+            .map((r) => r.tag_id),
+          [tagId],
+        );
+      });
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
