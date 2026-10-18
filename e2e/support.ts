@@ -161,6 +161,14 @@ function ownModelResult(owner: string, result: unknown, key?: string) {
     }
   }
 }
+function ownWorkspaceKinds(workspaceId: string | undefined, root: string, result: Record<string, unknown>) {
+  const workspace = activeScope?.workspaces.find((value) => value.id === workspaceId);
+  if (!workspace) return;
+  const ids = root === "entity_types" && typeof result.id === "string" ? [result.id]
+    : root === "data_model_changes" ? modelFixtureRoots(result).entity_types : [];
+  for (const id of ids) if (uuid.test(id) && !workspace.createdKinds.includes(id)) workspace.createdKinds.push(id);
+  activeScope?.persist();
+}
 /** Per-test ownership survives early MCP close and is released only after all UI work ends. */
 export const test = baseTest.extend<{ _ownedFixture: void }>({
   _ownedFixture: [async ({ context }, use, testInfo) => {
@@ -247,6 +255,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
         try {
           if (!await response.serverAddr()) return;
           const result = await response.json();
+          ownWorkspaceKinds(response.request().headers()["x-workspace-id"], root, result);
           if (root === "data_model_changes") {
             ownModelResult(
               owner,
@@ -851,6 +860,7 @@ export async function mcpClient(
           | "create_task"
           | "create_tag"
       ];
+      if (root) ownWorkspaceKinds(workspaceId, root, result);
       if (name === "prepare_data_model" && owner) {
         ownModelResult(owner, result, String(args.request_key));
       }
@@ -877,9 +887,6 @@ export async function mcpClient(
         const workspace = activeScope.workspaces.find((value) =>
           value.id === scope.workspaceId
         );
-        if (
-          workspace && name === "create_entity_type" && uuid.test(result.id)
-        ) workspace.createdKinds.push(result.id);
         if (workspace && writing && typeof args.request_key === "string") {
           workspace.requestKeys.push(args.request_key);
           activeScope.persist();
