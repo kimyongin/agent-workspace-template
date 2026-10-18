@@ -114,7 +114,8 @@ function DailyChart({ title, days, series, stacked = false, initialDate, onSelec
                     data={rows}
                     accessibilityLayer={false}
                     onClick={selectActive}
-                    margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                    // Leave room for the final date label at the supported 150% display size.
+                    margin={{ top: 8, right: 24, bottom: 0, left: 0 }}
                   >
                     <CartesianGrid vertical={false} />
                     <XAxis
