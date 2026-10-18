@@ -1,7 +1,6 @@
 import { BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 import { RadioGroup } from "@/components/ui/radio-group";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -879,7 +878,7 @@ export function SchemaEditor(
       >
         <SchemaExport definition={definition} current />
         <div className="flex min-w-0 flex-col gap-4">
-          <CollectionList view="cards" label="입력 항목 변경 이력">
+          <CollectionList view="table" label="입력 항목 변경 이력" columns={["변경", "시각", "상태"]}>
             {historyRows.map((row) => {
               const c = row.change;
               const rowJob = row.jobs.find((job) => job.id === selectedJob) ??
@@ -908,22 +907,7 @@ export function SchemaEditor(
                 ? migrationLabels[rowJob.status]
                 : "";
               const title = row.version?.schema_version === 1 ? "최초 생성" : "입력 항목 변경";
-              return (
-                <CollectionItem key={row.id}>
-                  <Card role="region"
-                    className="min-w-0"
-                    data-expanded={isOpen || undefined}
-                    key={row.id}
-                    aria-label={`${title} ${new Date(row.createdAt).toLocaleString()}`}
-                  >
-                    <CardHeader><Button variant="outline"
-                      type="button"
-                      className="h-auto min-h-[max(2.75rem,44px)] w-full flex-wrap justify-between gap-3 whitespace-normal py-3 text-left min-w-0 [overflow-wrap:anywhere]"
-                      aria-expanded={isOpen}
-                      aria-controls={`schema-history-${row.id}`}
-                      disabled={!isOpen && plan?.id !== row.changeId &&
-                        (busy || uncertain || readBusy || dirty)}
-                      onClick={() => {
+              const toggleHistory = () => {
                         if (isOpen) {
                           setExpandedRow(undefined);
                           if (plan?.id === row.changeId) setReviewOpen(false);
@@ -959,16 +943,23 @@ export function SchemaEditor(
                             void loadPlan(row.changeId);
                           }
                         }
-                      }}
-                    >
-                      <span className="flex min-w-0 flex-1 basis-40 flex-col gap-1">
-                        <span>{title}</span>
-                        <time className="text-sm text-muted-foreground" dateTime={row.createdAt}>
-                          시각 {new Date(row.createdAt).toLocaleString()}
-                        </time>
-                      </span>
-                      <span className="max-w-full shrink-0 text-sm text-muted-foreground">상태 {status}</span>
-                    </Button></CardHeader><CardContent hidden={!isOpen}>
+              };
+              const historyDisabled = !isOpen && plan?.id !== row.changeId && (busy || uncertain || readBusy || dirty);
+              return (
+                <CollectionItem key={row.id}>
+                  <BusinessRow aria-label={`${title} ${new Date(row.createdAt).toLocaleString()}`} data-expanded={isOpen || undefined}>
+                    <BusinessDisclosureCell><Button variant="ghost" size="icon" type="button" aria-label={`${title} ${new Date(row.createdAt).toLocaleString()} ${isOpen ? "접기" : "열기"}`} aria-expanded={isOpen} aria-controls={`schema-history-${row.id}`} disabled={historyDisabled} onClick={toggleHistory}>
+                      {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                    </Button></BusinessDisclosureCell>
+                    <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-[max(2.75rem,44px)] max-w-full min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                      aria-label={`${title} 시각 ${new Date(row.createdAt).toLocaleString()} 상태 ${status}`} aria-expanded={isOpen} aria-controls={`schema-history-${row.id}`} disabled={historyDisabled} onClick={toggleHistory}>
+                      {title}
+                    </Button></h3></BusinessCell>
+                    <BusinessCell index={1}><time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString()}</time></BusinessCell>
+                    <BusinessCell index={2}>{status}</BusinessCell>
+                  </BusinessRow>
+                  <BusinessDetails hidden={!isOpen} role="region" aria-label={`${title} ${new Date(row.createdAt).toLocaleString()}`}>
+
                     <div
                       id={`schema-history-${row.id}`}
                       className="flex min-w-0 flex-col gap-4 pt-4"
@@ -1248,7 +1239,7 @@ export function SchemaEditor(
                         </section>
                       )}
                     </div>
-                  </CardContent></Card>
+                  </BusinessDetails>
                 </CollectionItem>
               );
             })}

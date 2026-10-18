@@ -516,3 +516,24 @@ test("business tables: search results retain snippets and return context at narr
   expect(new URL(page.url()).searchParams.get("kind")).toBe("task");
   expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
 });
+
+
+test("business tables: many selected columns keep dates readable and never omit values", async ({ page }) => {
+  const state = await fixture(page);
+  const schema = structuredClone(fixtureSchema);
+  const projected: Record<string, string> = { prop_1: entity.title };
+  for (let n=2;n<=15;n++) {
+    schema.schema.properties[`prop_${n}`] = { type:"string",format:"date",title:`날짜 ${n}`,"x-order":n*10,"x-show-in-list":true };
+    projected[`prop_${n}`] = `2026-10-${String(n).padStart(2,"0")}`;
+  }
+  state.rows.entities[0].display_properties = projected;
+  await page.route("**/api/entity-types/*/schema**", route=>route.fulfill({json:schema}));
+  await page.setViewportSize({width:1440,height:1000});await page.goto("/entities?entity_type_id="+fixtureType.id);
+  const row = page.getByRole("row").filter({has:page.getByRole("button",{name:entity.title,exact:true})});
+  await expect(row.getByRole("cell")).toHaveCount(16);
+  const date = row.getByText("2026-10-02",{exact:true});await expect(date).toBeVisible();
+  expect(await date.evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return range.getClientRects().length;})).toBe(1);
+  for(let n=2;n<=15;n++)await expect(row.getByText(projected[`prop_${n}`],{exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+});

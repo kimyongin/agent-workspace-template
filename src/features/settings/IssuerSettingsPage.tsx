@@ -1,9 +1,11 @@
-import { PlusIcon, RotateCcwIcon } from "lucide-react";
+import { BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
+import { CollectionList } from "../../components/Collection.tsx";
+import { PlusIcon, RotateCcwIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { Button } from "../../components/ui/button.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
@@ -182,7 +184,7 @@ export function IssuerSettingsPage() {
       )}
       {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
       {issuers?.length === 0 && !loading && !error && <p className="text-sm text-muted-foreground">번호 출처가 없습니다.</p>}
-      <div className="flex min-w-0 flex-col gap-4">
+      <CollectionList view="table" label="번호 출처 목록" columns={["번호 출처", "상태"]}>
         {issuers?.map((issuer) => (
           <IssuerRow
             key={issuer.code}
@@ -224,57 +226,24 @@ export function IssuerSettingsPage() {
                   </AlertDescription></Alert>
                 )}
                 {rules?.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
-                <div className="flex min-w-0 flex-col gap-3">
+                <CollectionList view="table" disclosureColumn={!issuer.system} label="번호 종류 목록" columns={["번호 종류 이름", "입력 방식", "사용"]}>
                   {rules?.map((rule) => {
                     const generation = rule.generation === "automatic" ? "자동 생성" : "직접 입력";
                     const expanded = inline && editing.rule?.id === rule.id;
-                    return (
-                      <div key={rule.id} className="min-w-0 border-b border-border py-4 last:border-b-0">
-                        <div className="flex min-w-0 flex-wrap items-center gap-3 border-b border-border py-3">
-                          {!expanded && (
-                            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3 flex-1">
-                              <div>
-                                <dt>번호 종류 이름</dt>
-                                <dd>{rule.label}</dd>
-                              </div>
-                              {rule.label !== generation && (
-                                <div>
-                                  <dt>입력 방식</dt>
-                                  <dd>{generation}</dd>
-                                </div>
-                              )}
-                              <div>
-                                <dt>사용</dt>
-                                <dd>{rule.active ? "사용 중" : "사용 중지"}</dd>
-                              </div>
-                            </dl>
-                          )}
-                          {!issuer.system && (
-                            <Button variant="ghost" type="button"
-
-                              aria-label={`${rule.label} 편집`}
-                              aria-expanded={expanded}
-                              aria-controls={`${ruleListId}-${rule.id}`}
-                              disabled={locked}
-                              onClick={() =>
-                                expanded ? request(() => setEditing(null)) : edit({
-                                  kind: "rule",
-                                  source: issuer.code,
-                                  sourceLabel: issuer.label,
-                                  rule,
-                                })}
-                            >
-                              {expanded ? "접기" : "편집"}
-                            </Button>
-                          )}
-                        </div>
-                        <div id={`${ruleListId}-${rule.id}`}>
-                          {expanded && editing && renderEditor(editing, true)}
-                        </div>
-                      </div>
-                    );
+                    return <Fragment key={rule.id}>
+                      <BusinessRow>
+                        <BusinessDisclosureCell>{!issuer.system && <Button variant="ghost" size="icon" type="button" aria-label={`${rule.label} 편집`} aria-expanded={expanded} aria-controls={`${ruleListId}-${rule.id}`} disabled={locked}
+                          onClick={() => expanded ? request(() => setEditing(null)) : edit({kind:"rule",source:issuer.code,sourceLabel:issuer.label,rule})}>
+                          {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                        </Button>}</BusinessDisclosureCell>
+                        <BusinessCell index={0}>{rule.label}</BusinessCell>
+                        <BusinessCell index={1}>{generation}</BusinessCell>
+                        <BusinessCell index={2}>{rule.active ? "사용 중" : "사용 중지"}</BusinessCell>
+                      </BusinessRow>
+                      <BusinessDetails hidden={!expanded} id={`${ruleListId}-${rule.id}`}>{expanded && editing && renderEditor(editing, true)}</BusinessDetails>
+                    </Fragment>;
                   })}
-                </div>
+                </CollectionList>
                 {!issuer.system && (
                   <div>
                     <Button variant="ghost" type="button"
@@ -295,7 +264,7 @@ export function IssuerSettingsPage() {
             )}
           </IssuerRow>
         ))}
-      </div>
+      </CollectionList>
       <p className="text-sm text-muted-foreground">
         실제 상품 번호·주문 번호 값은 각 자료에 입력합니다.
       </p>

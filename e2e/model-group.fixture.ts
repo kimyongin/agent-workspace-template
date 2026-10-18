@@ -200,6 +200,8 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
   await page.getByRole("button", { name: "재고 모델 값 변환 필요", exact: true }).click();
   await page.getByRole("combobox", { name: "수량 변환 방식" }).selectOption("convert");
   await page.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
+  await expect(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true })).toBeVisible();
+  await expect(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true })).toContainText("원본 미정 → 변환 미정");
   await expect(page.getByText("정수 입력이 필요합니다", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "보완값 지정", exact: true }).click();
   await page.getByRole("textbox", { name: "보완값", exact: true }).fill("4");
@@ -208,11 +210,8 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
   await page.getByRole("button", { name: "검토한 설정 적용", exact: true }).click();
   await expect(page.getByText("요청한 작업을 진행하고 있습니다.", { exact: false })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();
-  await expect(
-    page.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^자료 종류$/ }) }).filter({
-      has: page.locator("dd").filter({ hasText: /^추가 0개 · 수정 1개 · 변경 없음 0개$/ }),
-    }),
-  ).toBeVisible();
+  const counts = page.getByRole("table", { name: "설정 적용 집계", exact: true }).getByRole("row").filter({ has: page.getByText("자료 종류", { exact: true }) });
+  for (const [index, value] of ["0", "1", "0"].entries()) await expect(counts.getByRole("cell").nth(index + 1).getByText(value, { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("group-applied.png"), fullPage: true });
   expect(writes).toEqual([
     "/api/data-model/changes/model-group/analyze",

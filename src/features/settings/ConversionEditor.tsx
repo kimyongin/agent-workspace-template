@@ -1,3 +1,5 @@
+import { Fragment } from "react";
+import { BusinessTable, BusinessRow, BusinessCell, BusinessDetails } from "../../components/BusinessTable.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -414,20 +416,23 @@ export function ConversionEditor(
             </FieldLabel>
           </FilterPanel>
           {page?.items.length === 0 && <p>표시할 자료가 없습니다. 전체 대상 {plan.analysis.total}개</p>}
+          <BusinessTable label="자료 값 변환 결과 목록" columns={["자료", "결과", "입력값 변경"]} disclosureColumn={false}>
           {page?.items.map((row) => (
-            <article className="min-w-0" key={row.entity_id}>
-              <h4 className="min-w-0 [overflow-wrap:anywhere]">
-                {analysisRowTitle(row, plan.target, sourceDefinition)} ·{" "}
-                {row.errors.length ? "변환 실패" : row.changed ? "변경" : "무변경"}
-              </h4>
-              <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+            <Fragment key={row.entity_id}>
+            <BusinessRow>
+              <BusinessCell index={0}>
+                {analysisRowTitle(row, plan.target, sourceDefinition)}
+              </BusinessCell>
+              <BusinessCell index={1}>{row.errors.length ? "변환 실패" : row.changed ? "변경" : "무변경"}</BusinessCell>
+              <BusinessCell index={2}>
+<BusinessTable label={`${analysisRowTitle(row, plan.target, sourceDefinition)} 입력값 변경`} columns={["입력 항목", "변경 전후"]} disclosureColumn={false}>
                 {previewKeys(row).map((key) => (
-                  <div key={key}>
-                    <dt>
+                  <BusinessRow key={key}>
+                    <BusinessCell index={0}>
                       {plan.target.schema.properties[key]?.title ?? sourceDefinition?.schema.properties[key]?.title ??
                         "삭제한 입력 항목"}
-                    </dt>
-                    <dd style={{ overflowWrap: "anywhere" }}>
+                    </BusinessCell>
+                    <BusinessCell index={1}>
                       {plan.recovery ? "현재 값" : "원본"} {Object.hasOwn(row.before, key)
                         ? propertyValue(
                           row.before[key],
@@ -445,10 +450,13 @@ export function ConversionEditor(
                           Object.hasOwn(row.before, key) && typeof row.before[key] !== typeof row.after[key],
                         )
                         : "제거"}
-                    </dd>
-                  </div>
+                    </BusinessCell>
+                  </BusinessRow>
                 ))}
-              </dl>
+              </BusinessTable>
+              </BusinessCell>
+            </BusinessRow>
+            {row.errors.length > 0 && <BusinessDetails>
               {row.errors.map((e, i) => (
                 <Alert variant="destructive" role="alert" className="text-sm text-destructive" key={i}><AlertDescription>
                   {schemaDiffLabel(e.path, plan.target, sourceDefinition ?? plan.target)}: {e.message}
@@ -499,8 +507,10 @@ export function ConversionEditor(
                     </FieldSet>
                   );
                 })}
-            </article>
+            </BusinessDetails>}
+            </Fragment>
           ))}
+          </BusinessTable>
           {page?.next_after && <Button variant="ghost" type="button" onClick={() => void load(page.next_after!)}>다음 결과</Button>}
           <Button variant="ghost" type="button"  onClick={() => void load()}><RotateCcwIcon data-icon="inline-start" />첫 결과 다시 조회</Button>
         </>

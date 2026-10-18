@@ -729,9 +729,11 @@ test(
     const label = "쿠팡마켓상품번호 출처".repeat(6);
     state.renameIssuer("coupang", label);
     await page.goto("/settings/issuers");
+    await expect(page.getByRole("table", { name: "번호 출처 목록", exact: true })).toBeVisible();
     await page.getByRole("button", { name: label, exact: true }).focus();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("table", { name: "번호 종류 목록", exact: true })).toBeVisible();
     for (const width of [320, 390, 640, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const scale of [1, 2]) {

@@ -1,3 +1,4 @@
+import { CollectionList } from "../../components/Collection.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { Button } from "../../components/ui/button.tsx";
@@ -208,7 +209,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
           확인할 수 있습니다.
         </p>
       )}
-      <div className="flex min-w-0 flex-col gap-4">
+      <CollectionList view="table" label="종류별 값 변환 목록" columns={["자료 종류", "상태"]}>
         {children.map((child) => (
           <IssuerRow
             key={child.type_ref}
@@ -230,7 +231,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
             />
           </IssuerRow>
         ))}
-      </div>
+      </CollectionList>
       {dirty && (
         <Alert role="status"><AlertDescription>
           수정한 값 변환 방법을 아직 저장하지 않았습니다. 변경 영향 확인을 눌러 저장하고 다시 확인하세요.

@@ -1,26 +1,23 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { type ReactNode, useId } from "react";
+import { BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 
-/** A retained issuer editor; actions and disclosure remain independent controls. */
+/** Settings rows retain their editor while the shared table reflows around them. */
 export function IssuerRow({ label, summary, open, onToggle, action, disabled, children }: {
-  label: string; summary?: string; open: boolean; onToggle: () => void; action?: ReactNode; disabled?: boolean; children: ReactNode;
+  label: string; summary?: string; open: boolean; onToggle?: () => void; action?: ReactNode; disabled?: boolean; children: ReactNode;
 }) {
   const id = useId();
-  return <Collapsible open={open} onOpenChange={onToggle} disabled={disabled} asChild>
-    <section aria-label={label}>
-      <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
-          <CardTitle><h2 className="min-w-0 [overflow-wrap:anywhere]">{label}</h2></CardTitle>
-          {summary && <Badge variant="secondary">{summary}</Badge>}
-          {action}
-          <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="icon" aria-label={action ? label : [label, summary].filter(Boolean).join(" ")} aria-controls={id}><ChevronDownIcon /></Button></CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent forceMount hidden={!open} id={id}><CardContent className="flex min-w-0 flex-col gap-4">{children}</CardContent></CollapsibleContent>
-      </Card>
-    </section>
-  </Collapsible>;
+  const triggerName = action ? label : [label, summary].filter(Boolean).join(" ");
+  return <>
+    <BusinessRow aria-label={label} data-expanded={open || undefined}>
+      <BusinessDisclosureCell>{onToggle && <Button type="button" variant="ghost" size="icon" aria-label={`${label} ${open ? "접기" : "열기"}`} aria-controls={id} aria-expanded={open} disabled={disabled} onClick={onToggle}>
+        {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+      </Button>}</BusinessDisclosureCell>
+      <BusinessCell index={0}><h2 className="min-w-0 wrap-anywhere">{onToggle ? <Button type="button" variant="link" className="h-auto min-h-[max(2.75rem,44px)] max-w-full min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere" aria-label={triggerName} aria-controls={id} aria-expanded={open} disabled={disabled} onClick={onToggle}>{label}</Button> : label}</h2></BusinessCell>
+      <BusinessCell index={1}>{summary ? <Badge variant="secondary" className="h-auto max-w-full whitespace-normal wrap-anywhere">{summary}</Badge> : "—"}</BusinessCell>
+    </BusinessRow>
+    <BusinessDetails hidden={!open} id={id} role="region" aria-label={label}>{action}{children}</BusinessDetails>
+  </>;
 }

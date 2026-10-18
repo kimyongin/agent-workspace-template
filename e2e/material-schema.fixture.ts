@@ -1276,19 +1276,25 @@ test("적용 변경과 최초 생성은 한 목록에서 각 버전 정의와 �
   await page.goto(
     `/settings/entity-types/${materials.id}/versions?schema_version=1`,
   );
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(2);
-  await expect(page.getByRole("button", { name: /버전 2 · 적용됨$/ }))
-    .toHaveCount(1);
-  const first = page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])").filter({
-    has: page.getByRole("button", { name: /^최초 생성/ }),
-  });
-  await expect(first.getByRole("region", { name: "변경 결과", exact: true }))
-    .toContainText("1 · 최초 생성");
-  await expect(first.locator("input, select, textarea")).toHaveCount(0);
-  await first.getByRole("button", { name: /^최초 생성/ }).click();
-  await expect(first.getByRole("region", { name: "변경 결과", exact: true }))
-    .toBeHidden();
+  const history = page.getByRole("table", { name: "입력 항목 변경 이력", exact: true });
+  await expect(history).toBeVisible();
+  const rows = history.getByRole("row").filter({ has: page.getByRole("button", { name: /^(최초 생성|입력 항목 변경) 시각/ }) });
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /버전 2 · 적용됨$/ })).toHaveCount(1);
+  const first = rows.filter({ has: page.getByRole("button", { name: /^최초 생성 시각/ }) });
+  const trigger = first.getByRole("button", { name: /^최초 생성 시각/ });
+  const panelId = await trigger.getAttribute("aria-controls");
+  expect(panelId).toBeTruthy();
+  const content = page.locator(`[id="${panelId}"]`);
+  await expect(content.getByRole("region", { name: "변경 결과", exact: true })).toContainText("1 · 최초 생성");
+  await expect(content.locator("input, select, textarea")).toHaveCount(0);
+  await trigger.click();
+  await expect(content).toBeHidden();
   await expect(page).not.toHaveURL(/schema_version=/);
+  await page.getByRole("button", { name: /버전 2 · 적용됨$/ }).click();
+  const differences = page.getByRole("table", { name: "버전 변경 목록", exact: true });
+  await expect(differences).toBeVisible();
+  await expect(differences.getByRole("row").filter({ has: page.getByText("수정된 이름", { exact: true }) }).filter({ hasText: "이름 → 수정된 이름" })).toBeVisible();
 });
 
 test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는 해당 행에서 읽는다", async ({ page }) => {
@@ -1342,6 +1348,7 @@ test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는
     exact: true,
   });
   await expect(detail.getByRole("status")).toContainText("실패");
+  await expect(page.getByRole("region", { name: "변환 작업의 변경 내용", exact: true }).getByRole("table", { name: "변경안 차이 목록", exact: true })).toBeVisible();
   await expect(
     page.getByRole("region", { name: "변환 작업의 변경 내용", exact: true }),
   ).toContainText(
@@ -1354,7 +1361,7 @@ test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는
   await expect(
     page.getByRole("alert").filter({ hasText: "변환 목록 조회 실패" }),
   ).toBeVisible();
-  await expect(page.locator("[role=\"region\"]:has(> [data-slot=\"card-header\"] > button[aria-controls^=\"schema-history-\"])")).toHaveCount(1);
+  await expect(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true }).getByRole("row").filter({ has: page.getByRole("button", { name: /^입력 항목 변경 시각/ }) })).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "변환 이력 다시 조회", exact: true }),
   ).toBeVisible();

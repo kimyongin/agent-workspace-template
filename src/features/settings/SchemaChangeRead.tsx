@@ -1,3 +1,4 @@
+import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 
@@ -18,19 +19,19 @@ export function SchemaChangeDiff(
     schema: { ...definition.schema, properties: {} },
   };
   return (
-    <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+<BusinessTable label="변경안 차이 목록" columns={["설정", "변경 전후"]} disclosureColumn={false}>
       {change.diff.map((d, i) => (
-        <div className="col-span-full" key={i}>
-          <dt>{schemaDiffLabel(d.path, change.target, definition)}</dt>
-          <dd>
+        <BusinessRow key={i}>
+          <BusinessCell index={0}>{schemaDiffLabel(d.path, change.target, definition)}</BusinessCell>
+          <BusinessCell index={1}>
             {d.before_present ? schemaDiffValueLabel(d.path, d.before, source) : "설정 안 함"}
             {" → "}
             {d.after_present ? schemaDiffValueLabel(d.path, d.after, change.target) : "설정 안 함"}
             {d.kind === "migration_required" && <span className="text-sm text-muted-foreground">· 값 변환 필요</span>}
-          </dd>
-        </div>
+          </BusinessCell>
+        </BusinessRow>
       ))}
-    </dl>
+    </BusinessTable>
   );
 }
 /** A job visit reads its proposal without adopting it as the user's input draft. */

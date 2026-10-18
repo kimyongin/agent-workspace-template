@@ -1,3 +1,4 @@
+import { CollectionList } from "../../components/Collection.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldSet } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
@@ -157,8 +158,8 @@ export function RelationSettingsPage() {
         </AlertDescription></Alert>
       )}
       {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
-      <div className="flex min-w-0 flex-col gap-4">
-        {edit === "new" && <IssuerRow label="새 연결 설정" open onToggle={() => {}}>{editor()}</IssuerRow>}
+      <CollectionList view="table" label="연결 설정 목록" columns={["연결 설정", "설정 요약"]}>
+        {edit === "new" && <IssuerRow label="새 연결 설정" open>{editor()}</IssuerRow>}
         {page.items.map((row) => (
           <IssuerRow
             key={row.id}
@@ -174,7 +175,7 @@ export function RelationSettingsPage() {
             {edit !== null && edit !== "new" && edit.id === row.id && editor(row)}
           </IssuerRow>
         ))}
-      </div>
+      </CollectionList>
       {!loading && !error && page.items.length === 0 && edit === null && (
         <p className="text-sm text-muted-foreground">조건에 맞는 연결 설정이 없습니다.</p>
       )}

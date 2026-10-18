@@ -41,6 +41,7 @@ test("issuer sample opens flat rows and separates saved issuer from optional fir
 test("number sample edits a kind in place and preserves the draft after cancelled discard", async ({ page }, info) => {
   await page.goto("/design-samples/index.html?screen=issuers");
   await page.getByRole("button", { name: "쿠팡", exact: true }).click();
+  await expect(page.getByRole("region", { name: "쿠팡", exact: true }).getByRole("table", { name: "번호 종류 예시", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "상품 번호 편집", exact: true }).click();
   const editor = page.getByRole("form", { name: "번호 종류 편집" });
   await editor.getByLabel("번호 종류 이름").fill("마켓 상품 번호");
@@ -148,6 +149,7 @@ test("review captures a read-only definition; apply and discard preserve later d
   const item = workspace.getByRole("textbox", { name: "항목 이름" });
   await item.fill("재고 수량 A");
   await workspace.getByRole("button", { name: "변경 검토", exact: true }).click();
+  await expect(history.getByRole("table", { name: "변경 이력 예시", exact: true }).getByRole("row").filter({ has: page.getByRole("button", { name: /입력 항목 변경.*검토 완료/ }) })).toBeVisible();
   await expect(history.getByText("재고 수량 A", { exact: true }).first()).toContainText("재고 수량 A");
   await expect(history.locator("input,select,textarea")).toHaveCount(0);
   await item.fill("재고 수량 B");
@@ -163,7 +165,7 @@ test("review captures a read-only definition; apply and discard preserve later d
   await workspace.getByRole("button", { name: "변경 검토", exact: true }).click();
   await history.getByRole("button", { name: "폐기", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "변경안 폐기" }).click();
-  await expect(history.getByText("상태 버전 3 · 폐기됨", { exact: true })).toBeVisible();
+  await expect(history.getByText("버전 3 · 폐기됨", { exact: true })).toBeVisible();
   await expect(item).toHaveValue("재고 수량 B");
   await workspace.getByRole("button", { name: /입력 항목 미저장/ }).click();
   await expect(workspace.getByRole("button", { name: "변경 검토", exact: true })).toBeHidden();
@@ -256,9 +258,10 @@ test("preview width changes keep the same live draft and dialog", async ({ page 
 test("invalid closed fields expand and focus; move controls retain the expanded row", async ({ page }) => {
   await page.goto(direct);
   const workspace = page.locator("#workspace");
+  await expect(workspace.getByRole("table", { name: "입력 항목 예시", exact: true }).getByRole("row").filter({ has: page.getByRole("button", { name: "상품명 텍스트 · 필수 · 자료 이름", exact: true }) })).toBeVisible();
   await workspace.getByRole("button", { name: "상품명 텍스트 · 필수 · 자료 이름", exact: true }).focus();
   await page.keyboard.press("Enter");
-  const row = workspace.locator('[data-property-id="prop_1"]');
+  const row = workspace.locator("#sample-prop_1-body");
   await expect(row.getByRole("textbox", { name: "항목 이름" })).toBeFocused();
   const field = workspace.locator("#sample-prop_1-body");
   await field.getByRole("button", { name: "추가 설정", exact: true }).click();

@@ -1,8 +1,8 @@
 import { FieldLabel } from "../components/ui/field.tsx";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "../components/ui/collapsible.tsx";
 import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group.tsx";
-import { ArrowUpIcon, ArrowDownIcon, ChevronUpIcon, ChevronDownIcon } from "lucide-react";
-import { Item } from "../components/ui/item.tsx";
+import { ArrowUpIcon, ArrowDownIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react";
+import { BusinessTable, BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "../components/BusinessTable.tsx";
 import { FieldSet, FieldLegend } from "../components/ui/field.tsx";
 import { PlusIcon, RotateCcwIcon } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox.tsx";
@@ -10,9 +10,9 @@ import { Input } from "../components/ui/input.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
 import { TemplateMemoEditor, type TemplateMemoHandle } from "../features/settings/TemplateMemoEditor.tsx";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { CollectionItem, CollectionList  } from "../components/Collection.tsx";
+import { CollectionList } from "../components/Collection.tsx";
 import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
 import { Field } from "../components/Field.tsx";
 import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSection.tsx";
@@ -95,7 +95,7 @@ function PropertyList(
   };
   return (
     <RadioGroup ref={root} name="sample-representative" aria-label="자료 이름 항목" value={fields.find(field => field.representative)?.id ?? ""} onValueChange={id => onChange(fields.map(field => ({ ...field, representative: field.id === id })))}>
-      <CollectionList label="입력 항목 예시">
+      <CollectionList label="입력 항목 예시" columns={["입력 항목", "설정", "순서"]}>
         {fields.map((field, index) => {
           const open = expanded.includes(field.id);
           const bodyId = `sample-${field.id}-body`;
@@ -103,45 +103,34 @@ function PropertyList(
           const summary = (
             <span className="text-sm text-muted-foreground">
               {[
-                !open ? (field.type === "text" ? "텍스트" : "숫자") : null,
+                field.type === "text" ? "텍스트" : "숫자",
                 field.required ? "필수" : null,
                 field.representative ? "자료 이름" : null,
               ].filter(Boolean).join(" · ")}
             </span>
           );
           return (
-            <CollectionItem key={field.id}>
-              <Item variant="outline" className="min-w-0 flex-col items-stretch gap-4" data-property-id={field.id} data-expanded={open || undefined}>
-                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                  <div className="font-medium wrap-anywhere" role="heading" aria-level={3}>
-                    {open
-                      ? (
-                        <div className="min-w-0 flex-1">
-                          <Field fullWidth label="항목 이름" required error={labelError}>{props => <Input {...props}  required value={field.label} onChange={event => edit(field.id, { label: event.target.value })} />}</Field>
-                          {summary}
-                        </div>
-                      )
-                      : (
-                        <Button variant="outline"
-                          type="button"
-                          className="flex-1 h-auto min-h-[max(2.75rem,44px)] min-w-0 justify-start whitespace-normal text-left font-medium wrap-anywhere"
-                          aria-expanded={open}
-                          aria-controls={bodyId}
-                          onClick={() => {
-                            toggle(field.id);
-                            requestAnimationFrame(() => {
-                              root.current?.querySelector<HTMLInputElement>(
-                                `[data-property-id="${field.id}"] [data-field-control]`,
-                              )?.focus({ preventScroll: true });
-                            });
-                          }}
-                        >
-                          <span>{field.label || "새 항목"}</span>
-                          {summary}
-                        </Button>
-                      )}
-                  </div>
-                  <div className="flex items-center gap-1">
+            <Fragment key={field.id}>
+              <BusinessRow data-property-id={field.id} data-expanded={open || undefined}>
+                <BusinessDisclosureCell>
+                  <Button variant="ghost" type="button" size="icon" data-property-disclosure=""
+                    aria-label={`${field.label || "새 항목"} ${open ? "접기" : "펼치기"}`}
+                    aria-expanded={open} aria-controls={bodyId} onClick={() => toggle(field.id)}>
+                    {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                  </Button>
+                </BusinessDisclosureCell>
+                <BusinessCell index={0}>
+                  <h3 className="min-w-0 wrap-anywhere">
+                    <Button variant="link" type="button" className="h-auto min-h-11 max-w-full min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                      aria-label={`${field.label || "새 항목"} ${[field.type === "text" ? "텍스트" : "숫자", field.required ? "필수" : null, field.representative ? "자료 이름" : null].filter(Boolean).join(" · ")}`}
+                      aria-expanded={open} aria-controls={bodyId} onClick={() => {
+                        toggle(field.id);
+                        requestAnimationFrame(() => root.current?.querySelector<HTMLInputElement>(`#${bodyId} input`)?.focus({ preventScroll: true }));
+                      }}>{field.label || "새 항목"}</Button>
+                  </h3>
+                </BusinessCell>
+                <BusinessCell index={1}>{summary}</BusinessCell>
+                <BusinessCell index={2}>                  <div className="flex items-center gap-1">
                     <Button variant="ghost"
                       type="button"
                       size="icon" data-property-order=""
@@ -160,19 +149,11 @@ function PropertyList(
                     >
                       <OrderIcon direction="down" />
                     </Button>
-                  </div>
-                  <Button variant="outline"
-                    type="button"
-                    className="justify-start min-w-0" data-property-disclosure=""
-                    aria-label={`${field.label || "새 항목"} ${open ? "접기" : "펼치기"}`}
-                    aria-expanded={open}
-                    aria-controls={bodyId}
-                    onClick={() => toggle(field.id)}
-                  >
-                    {open ? <ChevronUpIcon /> : <ChevronDownIcon />}
-                  </Button>
-                </div>
-                <FieldSet id={bodyId} hidden={!open} className="border-0 p-0 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+                  </div></BusinessCell>
+              </BusinessRow>
+              <BusinessDetails hidden={!open} id={bodyId}>
+                <Field fullWidth label="항목 이름" required error={labelError}>{props => <Input {...props} required value={field.label} onChange={event => edit(field.id, { label: event.target.value })} />}</Field>
+                <FieldSet hidden={!open} className="border-0 p-0 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
                   <FieldLegend className="sr-only">{field.label || "새 항목"} 편집</FieldLegend>
                   <Field label="데이터 타입">
                     {(props) => (
@@ -233,8 +214,8 @@ function PropertyList(
                     </div>
                   </CollapsibleContent></Collapsible>
                 </FieldSet>
-              </Item>
-            </CollectionItem>
+              </BusinessDetails>
+            </Fragment>
           );
         })}
       </CollectionList>
@@ -513,38 +494,28 @@ export function MaterialWorkspaceSample() {
         open={historyOpen}
         onOpenChange={setHistoryOpen}
       >
-        <CollectionList label="변경 이력 예시">
+        <CollectionList label="변경 이력 예시" columns={["변경", "시각", "상태"]}>
           {history.map((plan) => {
             const open = expanded.includes(plan.id);
             const id = `sample-plan-${plan.id}`;
             return (
-              <CollectionItem key={plan.id}>
-                <Item variant="outline" className="min-w-0 flex-col items-stretch gap-4" data-expanded={open || undefined}>
-                  <h3 className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                    <Button variant="outline"
-                      type="button"
-                      className="h-auto min-h-[max(2.75rem,44px)] min-w-0 justify-start whitespace-normal text-left font-medium wrap-anywhere"
-                      aria-expanded={open}
-                      aria-controls={id}
-                      onClick={() =>
-                        setExpanded((prior) => open ? prior.filter((value) => value !== plan.id) : [...prior, plan.id])}
-                    >
-                      <span className="flex min-w-0 flex-wrap items-center gap-3">
-                        <span>입력 항목 변경</span>
-                        <time className="text-sm text-muted-foreground" dateTime="2026-10-14T03:51:12Z">시각 2026. 10. 14. 오후 12:51:12</time>
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        상태 버전 {plan.version} ·{" "}
-                        {plan.status === "applied" ? "적용됨" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}
-                      </span>
-                    </Button>
-                  </h3>
-                  <div id={id} hidden={!open} className="min-w-0 border-t pt-4">
+              <Fragment key={plan.id}>
+                <BusinessRow data-expanded={open || undefined}>
+                  <BusinessDisclosureCell><Button variant="ghost" type="button" size="icon" aria-label={`입력 항목 변경 ${plan.version} ${open ? "접기" : "열기"}`} aria-expanded={open} aria-controls={id} onClick={() => setExpanded(prior => open ? prior.filter(value => value !== plan.id) : [...prior, plan.id])}>
+                    {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                  </Button></BusinessDisclosureCell>
+                  <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-11 max-w-full min-w-0 justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                    aria-label={`입력 항목 변경 시각 2026. 10. 14. 오후 12:51:12 상태 버전 ${plan.version} · ${plan.status === "applied" ? "적용됨" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}`}
+                    aria-expanded={open} aria-controls={id} onClick={() => setExpanded(prior => open ? prior.filter(value => value !== plan.id) : [...prior, plan.id])}>입력 항목 변경</Button></h3></BusinessCell>
+                  <BusinessCell index={1}><time dateTime="2026-10-14T03:51:12Z">2026. 10. 14. 오후 12:51:12</time></BusinessCell>
+                  <BusinessCell index={2}>버전 {plan.version} · {plan.status === "applied" ? "적용됨" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</BusinessCell>
+                </BusinessRow>
+                  <BusinessDetails id={id} hidden={!open}>
                     <PropertyDefinition fields={plan.after} />
                     <div className="min-w-0">
                       <h4 className="text-base font-semibold">변경 결과</h4>
                       <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>버전</dt><dd>{plan.version - 1} → {plan.version} · {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</dd></div></dl>
-                      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">{changes(plan).map((change, index) => <div className="col-span-full" key={index}><dt>변경</dt><dd>{change}</dd></div>)}</dl>
+                      <BusinessTable label="변경 결과 예시" columns={["변경"]} disclosureColumn={false}>{changes(plan).map((change, index) => <BusinessRow key={index}><BusinessCell index={0}>{change}</BusinessCell></BusinessRow>)}</BusinessTable>
                       <p className="text-sm text-muted-foreground">
                         {plan.status === "applied"
                           ? "예시 입력 항목에 적용했습니다."
@@ -571,9 +542,8 @@ export function MaterialWorkspaceSample() {
                         </div>
                       </div>
                     )}
-                  </div>
-                </Item>
-              </CollectionItem>
+                  </BusinessDetails>
+              </Fragment>
             );
           })}
         </CollectionList>

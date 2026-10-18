@@ -418,26 +418,11 @@ for (const noOp of [true, false]) {
       await expect(page.getByRole("status").filter({ hasText: "검토 이력만 보존" }).first()).toBeVisible();
     } else {
       await page.getByRole("button", { name: "설정 적용", exact: true }).click();
-      await expect(
-        page.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^자료 종류$/ }) }).filter({
-          has: page.locator("dd").filter({ hasText: /^추가 0개 · 수정 1개 · 변경 없음 2개$/ }),
-        }),
-      ).toBeVisible();
-      await expect(
-        page.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^연결 설정$/ }) }).filter({
-          has: page.locator("dd").filter({ hasText: /^추가 1개 · 수정 0개 · 변경 없음 1개$/ }),
-        }),
-      ).toBeVisible();
-      await expect(
-        page.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^번호 출처$/ }) }).filter({
-          has: page.locator("dd").filter({ hasText: /^추가 0개 · 수정 0개 · 변경 없음 1개$/ }),
-        }),
-      ).toBeVisible();
-      await expect(
-        page.locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^번호 종류$/ }) }).filter({
-          has: page.locator("dd").filter({ hasText: /^추가 0개 · 수정 1개 · 변경 없음 1개$/ }),
-        }),
-      ).toBeVisible();
+      const counts = page.getByRole("table", { name: "설정 적용 집계", exact: true });
+      for (const [label, values] of [["자료 종류", ["0", "1", "2"]], ["연결 설정", ["1", "0", "1"]], ["번호 출처", ["0", "0", "1"]], ["번호 종류", ["0", "1", "1"]]] as const) {
+        const row = counts.getByRole("row").filter({ has: page.getByText(label, { exact: true }) });
+        for (const [index, value] of values.entries()) await expect(row.getByRole("cell").nth(index + 1).getByText(value, { exact: true })).toBeVisible();
+      }
     }
     await expect(page.getByText("자료 종류 3개 · 관계 2개 적용", { exact: true })).toHaveCount(0);
   });
@@ -476,12 +461,13 @@ test("신규 종류의 실제 정의와 번호 및 원본 대응을 검토한다
   await page.getByRole("button", { name: "가져올 내용 검토" }).click();
   await page.getByRole("button", { name: "주문 추가", exact: true }).click();
   await expect(
-    page.getByRole("region", { name: "판매상품명 정의", exact: true }).locator("dd").filter({
+    page.getByRole("table", { name: "입력 항목 정의 목록", exact: true }).getByRole("row", { name: "판매상품명 정의", exact: true }).getByRole("cell").filter({
       hasText: /^판매상품명$/,
     }),
   ).toBeVisible();
   await expect(page.getByText("판매자상품번호", { exact: true })).toBeVisible();
   await page.getByText("파일과 현재 설정의 연결 정보", { exact: true }).click();
+  await expect(page.getByRole("table", { name: "설정 연결 정보 목록", exact: true })).toBeVisible();
   await expect(page.getByText("prop_9 → prop_1", { exact: true })).toBeVisible();
   await expect(
     page.getByText("40000000-0000-4000-8000-000000000001 → 10000000-0000-4000-8000-000000000001", { exact: true }),

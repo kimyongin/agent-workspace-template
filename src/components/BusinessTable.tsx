@@ -2,7 +2,80 @@ import { createContext, type ReactNode, useContext, useId } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table.tsx";
 import { cn } from "../lib/utils.ts";
 
-const TableColumns = createContext<{ columns: string[]; numeric: number[]; heading: string; disclosureColumn: boolean } | null>(null);
+// Container breakpoints grow with the number of visible columns, including nested tables.
+const layouts = {
+  regular: {
+    table: "@max-[64rem]/business:block",
+    colgroup: "@max-[64rem]/business:hidden",
+    header: "@max-[64rem]/business:sr-only",
+    body: "@max-[64rem]/business:block",
+    row: "@max-[64rem]/business:grid",
+    withGutter: "@max-[64rem]/business:grid-cols-[3.5rem_minmax(0,1fr)]",
+    withoutGutter: "@max-[64rem]/business:grid-cols-1",
+    text: "@max-[64rem]/business:text-left",
+    first: "@max-[64rem]/business:col-start-1",
+    second: "@max-[64rem]/business:col-start-2",
+    title: "@max-[64rem]/business:row-start-1",
+    property: "@max-[64rem]/business:grid @max-[64rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[64rem]/business:gap-x-3",
+    label: "@max-[64rem]/business:block",
+    disclosure: "@max-[64rem]/business:col-start-1 @max-[64rem]/business:row-start-1",
+    details: "@max-[64rem]/business:pl-2",
+  },
+  wide: {
+    table: "@max-[128rem]/business:block",
+    colgroup: "@max-[128rem]/business:hidden",
+    header: "@max-[128rem]/business:sr-only",
+    body: "@max-[128rem]/business:block",
+    row: "@max-[128rem]/business:grid",
+    withGutter: "@max-[128rem]/business:grid-cols-[3.5rem_minmax(0,1fr)]",
+    withoutGutter: "@max-[128rem]/business:grid-cols-1",
+    text: "@max-[128rem]/business:text-left",
+    first: "@max-[128rem]/business:col-start-1",
+    second: "@max-[128rem]/business:col-start-2",
+    title: "@max-[128rem]/business:row-start-1",
+    property: "@max-[128rem]/business:grid @max-[128rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[128rem]/business:gap-x-3",
+    label: "@max-[128rem]/business:block",
+    disclosure: "@max-[128rem]/business:col-start-1 @max-[128rem]/business:row-start-1",
+    details: "@max-[128rem]/business:pl-2",
+  },
+  many: {
+    table: "@max-[192rem]/business:block",
+    colgroup: "@max-[192rem]/business:hidden",
+    header: "@max-[192rem]/business:sr-only",
+    body: "@max-[192rem]/business:block",
+    row: "@max-[192rem]/business:grid",
+    withGutter: "@max-[192rem]/business:grid-cols-[3.5rem_minmax(0,1fr)]",
+    withoutGutter: "@max-[192rem]/business:grid-cols-1",
+    text: "@max-[192rem]/business:text-left",
+    first: "@max-[192rem]/business:col-start-1",
+    second: "@max-[192rem]/business:col-start-2",
+    title: "@max-[192rem]/business:row-start-1",
+    property: "@max-[192rem]/business:grid @max-[192rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[192rem]/business:gap-x-3",
+    label: "@max-[192rem]/business:block",
+    disclosure: "@max-[192rem]/business:col-start-1 @max-[192rem]/business:row-start-1",
+    details: "@max-[192rem]/business:pl-2",
+  },
+  extensive: {
+    table: "@max-[512rem]/business:block",
+    colgroup: "@max-[512rem]/business:hidden",
+    header: "@max-[512rem]/business:sr-only",
+    body: "@max-[512rem]/business:block",
+    row: "@max-[512rem]/business:grid",
+    withGutter: "@max-[512rem]/business:grid-cols-[3.5rem_minmax(0,1fr)]",
+    withoutGutter: "@max-[512rem]/business:grid-cols-1",
+    text: "@max-[512rem]/business:text-left",
+    first: "@max-[512rem]/business:col-start-1",
+    second: "@max-[512rem]/business:col-start-2",
+    title: "@max-[512rem]/business:row-start-1",
+    property: "@max-[512rem]/business:grid @max-[512rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[512rem]/business:gap-x-3",
+    label: "@max-[512rem]/business:block",
+    disclosure: "@max-[512rem]/business:col-start-1 @max-[512rem]/business:row-start-1",
+    details: "@max-[512rem]/business:pl-2",
+  },
+};
+type TableLayout = typeof layouts.regular;
+
+const TableColumns = createContext<{ columns: string[]; numeric: number[]; heading: string; disclosureColumn: boolean; style: TableLayout } | null>(null);
 
 /** One semantic table; narrow containers reflow the same cells without hiding values. */
 export function BusinessTable({ columns, numericColumns = [], label, children, disclosureColumn = true }: {
@@ -13,15 +86,16 @@ export function BusinessTable({ columns, numericColumns = [], label, children, d
   disclosureColumn?: boolean;
 }) {
   const heading = useId();
+  const style = columns.length <= 7 ? layouts.regular : columns.length <= 12 ? layouts.wide : columns.length <= 20 ? layouts.many : layouts.extensive;
   return (
-    <TableColumns.Provider value={{ columns, numeric: numericColumns, heading, disclosureColumn }}>
+    <TableColumns.Provider value={{ columns, numeric: numericColumns, heading, disclosureColumn, style }}>
       <div className="@container/business min-w-0 rounded-lg border [&>[data-slot=table-container]]:overflow-visible">
-        <Table role="table" aria-label={label} className="table-fixed @max-[64rem]/business:block">
-          <colgroup className="@max-[64rem]/business:hidden">
+        <Table role="table" aria-label={label} className={cn("table-fixed", style.table)}>
+          <colgroup className={style.colgroup}>
             {disclosureColumn && <col className="w-14" />}
             {columns.map((column, index) => <col key={index} className={index === 0 && columns.length > 1 ? "w-2/5" : undefined} />)}
           </colgroup>
-          <TableHeader role="rowgroup" className="@max-[64rem]/business:sr-only">
+          <TableHeader role="rowgroup" className={style.header}>
             <TableRow role="row">
               {disclosureColumn && <TableHead scope="col"><span className="sr-only">펼침</span></TableHead>}
               {columns.map((column, index) => (
@@ -31,7 +105,7 @@ export function BusinessTable({ columns, numericColumns = [], label, children, d
               ))}
             </TableRow>
           </TableHeader>
-          <TableBody role="rowgroup" className="@max-[64rem]/business:block">{children}</TableBody>
+          <TableBody role="rowgroup" className={style.body}>{children}</TableBody>
         </Table>
       </div>
     </TableColumns.Provider>
@@ -39,35 +113,41 @@ export function BusinessTable({ columns, numericColumns = [], label, children, d
 }
 
 export function BusinessRow({ children, className, ...props }: React.ComponentProps<typeof TableRow>) {
-  const gutter = useContext(TableColumns)?.disclosureColumn ?? true;
-  return <TableRow {...props} role="row" className={cn("@max-[64rem]/business:grid", gutter ? "@max-[64rem]/business:grid-cols-[3.5rem_minmax(0,1fr)]" : "@max-[64rem]/business:grid-cols-1", className)}>{children}</TableRow>;
+  const layout = useContext(TableColumns);
+  const gutter = layout?.disclosureColumn ?? true;
+  const style = layout?.style ?? layouts.regular;
+  return <TableRow {...props} role="row" className={cn(style.row, gutter ? style.withGutter : style.withoutGutter, className)}>{children}</TableRow>;
 }
 
 export function BusinessCell({ index, children, className, ...props }: React.ComponentProps<typeof TableCell> & { index: number }) {
   const layout = useContext(TableColumns);
   const numeric = layout?.numeric.includes(index);
+  const style = layout?.style ?? layouts.regular;
   return (
     <TableCell {...props} role="cell" headers={layout ? `${layout.heading}-${index}` : undefined}
-      className={cn("min-w-0 whitespace-normal wrap-anywhere", numeric && "text-right tabular-nums", "@max-[64rem]/business:text-left", layout?.disclosureColumn === false ? "@max-[64rem]/business:col-start-1" : "@max-[64rem]/business:col-start-2", index === 0
-        ? "@max-[64rem]/business:row-start-1"
-        : "@max-[64rem]/business:grid @max-[64rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[64rem]/business:gap-x-3 @max-[16rem]/business:grid-cols-1 @max-[16rem]/business:gap-y-1", className)}>
-      {index > 0 && <span aria-hidden="true" className="hidden text-muted-foreground @max-[64rem]/business:block">{layout?.columns[index]}</span>}
+      className={cn("min-w-0 whitespace-normal wrap-anywhere", numeric && "text-right tabular-nums", style.text, layout?.disclosureColumn === false ? style.first : style.second, index === 0
+        ? style.title
+        : cn(style.property, "@max-[16rem]/business:grid-cols-1 @max-[16rem]/business:gap-y-1"), className)}>
+      {index > 0 && <span aria-hidden="true" className={cn("hidden text-muted-foreground", style.label)}>{layout?.columns[index]}</span>}
       <div className="min-w-0 wrap-anywhere">{children}</div>
     </TableCell>
   );
 }
 
 export function BusinessDisclosureCell({ children }: { children?: ReactNode }) {
-  const gutter = useContext(TableColumns)?.disclosureColumn ?? true;
+  const layout = useContext(TableColumns);
+  const gutter = layout?.disclosureColumn ?? true;
+  const style = layout?.style ?? layouts.regular;
   if (!gutter) return null;
-  return <TableCell role="cell" className="w-14 px-1 align-top @max-[64rem]/business:col-start-1 @max-[64rem]/business:row-start-1">{children}</TableCell>;
+  return <TableCell role="cell" className={cn("w-14 px-1 align-top", style.disclosure)}>{children}</TableCell>;
 }
 
 export function BusinessDetails({ children, hidden, ...props }: React.ComponentProps<"div">) {
   const layout = useContext(TableColumns);
+  const style = layout?.style ?? layouts.regular;
   return (
     <BusinessRow hidden={hidden} className={hidden ? "hidden!" : undefined}>
-      <TableCell role="cell" colSpan={(layout?.columns.length ?? 1) + (layout?.disclosureColumn === false ? 0 : 1)} className={cn("whitespace-normal @max-[64rem]/business:pl-2", layout?.disclosureColumn === false ? "@max-[64rem]/business:col-start-1" : "pl-16 @max-[64rem]/business:col-start-2")}>
+      <TableCell role="cell" colSpan={(layout?.columns.length ?? 1) + (layout?.disclosureColumn === false ? 0 : 1)} className={cn("whitespace-normal", style.details, layout?.disclosureColumn === false ? style.first : cn("pl-16", style.second))}>
         <div {...props} className={cn("flex min-w-0 flex-col gap-4", props.className)}>{children}</div>
       </TableCell>
     </BusinessRow>
