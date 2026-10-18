@@ -259,17 +259,22 @@ test("open relation confirmation respects WRITE to READ refresh and retains the 
   const user = { id: id(999), aud: "authenticated", app_metadata: {}, user_metadata: {} };
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
-  let access = "write", membership = 1;
-  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: { workspace: { id: fixtureWorkspaceId, name: "관계 권한 전환 공간", deleted_at: null }, can_manage: false, membership_version: membership, grants: [{ target_kind: "entity_type", target_id: fixtureType.id, access: access === "none" ? "read" : access }, ...(access === "none" ? [] : [{ target_kind: "entity_type", target_id: peerTypeId, access }])] } }));
+  let access = "write", membership = 1, rebound = false;
+  const reboundTypeId = id(733);
+  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: { workspace: { id: fixtureWorkspaceId, name: "관계 권한 전환 공간", deleted_at: null }, can_manage: false, membership_version: membership, grants: [{ target_kind: "entity_type", target_id: reboundTypeId, access: "read" }, { target_kind: "entity_type", target_id: fixtureType.id, access: access === "none" ? "read" : access }, ...(access === "none" ? [] : [{ target_kind: "entity_type", target_id: peerTypeId, access }])] } }));
   const definition: EntityRelationDefinition = { id: id(731), version: 1, archived: false, ends: [{ type_id: fixtureType.id, label: "확인 연결", cardinality: "one" }, { type_id: peerTypeId, label: "확인 반대", cardinality: "many" }] };
-  await page.route("**/api/entity-relation-definitions**", route => route.fulfill(access === "none"
-    ? { json: { items: [], next_cursor: null } }
-    : { json: new URL(route.request().url()).pathname.endsWith(definition.id) ? definition : { items: [definition], next_cursor: null } }));
+  const reboundDefinition: EntityRelationDefinition = { ...definition, version: 2, ends: [definition.ends[0], { ...definition.ends[1], type_id: reboundTypeId }] };
+  await page.route("**/api/entity-relation-definitions**", route => {
+    const current = rebound ? reboundDefinition : definition;
+    return route.fulfill(access === "none" && !rebound
+      ? { json: { items: [], next_cursor: null } }
+      : { json: new URL(route.request().url()).pathname.endsWith(definition.id) ? current : { items: [current], next_cursor: null } });
+  });
   const writes: { body: unknown; key?: string }[] = [];
   let release = () => {}, arrived = () => {}, connected = true;
   const started = new Promise<void>(resolve => arrived = resolve);
   await page.route("**/api/entity-relations/**", async route => {
-    if (route.request().method() === "GET") return route.fulfill({ json: { definition, side: 0, origin_id: origin.id, items: connected ? [peer] : [], next_cursor: null } });
+    if (route.request().method() === "GET") return route.fulfill({ json: { definition: rebound ? reboundDefinition : definition, side: 0, origin_id: origin.id, items: connected && !rebound ? [peer] : [], next_cursor: null } });
     writes.push({ body: route.request().postDataJSON(), key: route.request().headers()["idempotency-key"] });
     if (writes.length === 1) {
       arrived();
@@ -317,6 +322,13 @@ test("open relation confirmation respects WRITE to READ refresh and retains the 
     await expect(section).toHaveCount(0);
     await expect(confirmation).not.toBeVisible();
     await expect(page.getByRole("heading", { name: origin.title, exact: true }).filter({ visible: true })).toBeVisible();
+    // An uncertain unlink may have committed the final link, allowing a settings writer
+    // to rebind the now-empty definition while the original peer kind remains unreadable.
+    rebound = true;
+    const reboundFetched = page.waitForResponse(response => new URL(response.url()).pathname === "/api/entity-relation-definitions");
+    await refresh("none");
+    await reboundFetched;
+    await expect(confirmation).not.toBeVisible();
     await refresh("read");
     await expect(confirmation).toBeVisible();
     await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
