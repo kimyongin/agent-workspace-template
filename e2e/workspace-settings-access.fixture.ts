@@ -90,6 +90,8 @@ test(
     await expect(page.getByRole("textbox", { name: "자료 종류 이름", exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "기본 정보 저장", exact: true })).toBeDisabled();
     await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+    await expect(page.getByRole("region", { name: "입력 항목 정의", exact: true })).toBeVisible();
     await page.getByRole("main").evaluate((element) => {
       element.scrollTop = 0;
     });
