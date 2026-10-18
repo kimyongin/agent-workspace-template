@@ -574,3 +574,30 @@ dbTest(
     }
   },
 );
+
+dbTest("simultaneous mutual removal and leave both retain a final manageable participant", async () => {
+  const f = await fixture();
+  try {
+    for (const action of ["remove", "leave"] as const) {
+      const workspace = await f.create(f.a);
+      await f.join(f.a, f.b, workspace.id);
+      const result = await Promise.allSettled(
+        [f.a, f.b].map((actor, index) =>
+          action === "remove"
+            ? workspaces.removeWorkspaceMember(deps, key(actor), workspace.id, [f.b, f.a][index].userId, {
+              expected_version: 1,
+            })
+            : workspaces.leaveWorkspace(deps, key(actor), workspace.id, { expected_version: 1 })
+        ),
+      );
+      assertEquals(result.filter((value) => value.status === "fulfilled").length, 1);
+      const manager = (await workspaces.listWorkspaces(deps, f.a)).items.some((w) => w.id === workspace.id) ? f.a : f.b;
+      const members = (await workspaces.listWorkspaceMembers(deps, manager, workspace.id)).items;
+      assertEquals(members.length, 1);
+      assertEquals(members[0].grants, [settings]);
+      assertEquals((await workspaces.workspaceDetails(deps, manager, workspace.id)).can_manage, true);
+    }
+  } finally {
+    await f.cleanup();
+  }
+});
