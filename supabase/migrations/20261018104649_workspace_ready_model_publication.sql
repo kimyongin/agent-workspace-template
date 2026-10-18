@@ -19,7 +19,7 @@ begin
  perform 1 from app.entity_types t where t.workspace_id=p_owner order by t.id for update;
  perform pg_advisory_xact_lock(hashtextextended(p_owner::text||':entity-identity-registry',0));
  perform pg_advisory_xact_lock(hashtextextended(p_owner::text||':record_templates',0));
-end $function$
+end $function$;
 
 CREATE OR REPLACE FUNCTION private.publish_prepared_model_definitions(p_owner uuid, p_plan jsonb, p_skip uuid[])
  RETURNS jsonb
@@ -175,7 +175,7 @@ begin
   'type_ids',coalesce((select jsonb_agg(z->'schema'->>'x-type-id') from jsonb_array_elements(target->'entity_types') z),'[]'::jsonb),
   'relation_ids',coalesce((select jsonb_agg(z->>'id') from jsonb_array_elements(target->'relations') z),'[]'::jsonb));
  return result;
-end $function$
+end $function$;
 
 create or replace function app.publish_prepared_data_model(p_id uuid,p_version integer) returns jsonb
  language plpgsql security definer set search_path='' as $$
