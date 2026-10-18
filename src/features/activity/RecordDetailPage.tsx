@@ -1,3 +1,4 @@
+import { useRecordAccess } from "./record-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "@/components/ui/button";
 import { useDetailResource } from "../details/useDetailResource.ts";
@@ -7,8 +8,8 @@ import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "
 import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
-import { useState } from "react";
-import { useParams, useSearchParams } from "../../lib/workspace-router.tsx";
+import { useLayoutEffect, useRef, useState } from "react";
+import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { RecordDataFields } from "./RecordDataFields.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
@@ -19,6 +20,7 @@ import { recordDisplayText } from "@contracts/record-display.ts";
 
 export function RecordDetailPage() {
   const api = useApi();
+  const location = useLocation();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
@@ -40,6 +42,15 @@ export function RecordDetailPage() {
   });
   const editor = useDetailEditor(detail.editClosed);
   const { value: record, editReady } = detail;
+  const { canRead, canWrite } = useRecordAccess(record);
+  const admittedEdit = useRef<{ api: typeof api; id: string; key: string } | null>(null);
+  const editing = editor.active && editReady && (canWrite ||
+    admittedEdit.current?.api === api && admittedEdit.current.id === id && admittedEdit.current.key === location.key);
+  useLayoutEffect(() => {
+    if (!editor.active || admittedEdit.current?.api !== api || admittedEdit.current.id !== id ||
+      admittedEdit.current.key !== location.key) admittedEdit.current = null;
+    if (editor.active && editReady && canWrite) admittedEdit.current = { api, id, key: location.key };
+  }, [api, id, location.key, editor.active, editReady, canWrite]);
   const loadError = detail.error
     ? detail.error instanceof ApiError && detail.error.code === "not_found"
       ? "기록을 찾을 수 없습니다."
@@ -77,7 +88,8 @@ export function RecordDetailPage() {
         onDraftClosed={detail.editClosed}
         scope="record"
         target={record}
-        readonly={record.record_kind === "change"}
+        readonly={!canWrite || record.record_kind === "change"}
+        visible={canRead}
         onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
       />
     </div>
@@ -85,11 +97,12 @@ export function RecordDetailPage() {
   return (
     <DetailSurface
       ready={!detail.loading}
+      visible={canRead}
       onError={detail.failed}
-      footer={<Button variant="default" type="button" onClick={editor.start}>편집</Button>}
+      footer={canWrite && <Button variant="default" type="button" onClick={editor.start}>편집</Button>}
       title="기록"
       description="기록 내용을 읽고 수정하며, 연결된 업무를 확인합니다."
-      tabTitle={recordDisplayText(record.body)}
+      tabTitle={canRead ? recordDisplayText(record.body) : "기록"}
       onClose={() => navigate(back)}
       busy={busy}
     >
@@ -99,9 +112,11 @@ export function RecordDetailPage() {
           <RecordRelations record={record} />
         </div>
       </div>
-      {editor.active && editReady && (
+      {editing && (
         <RecordFormModal
           record={record}
+          visible={canRead}
+          readonly={!canWrite}
           details={
             <div className="flex min-w-0 flex-col gap-6">
               <RecordRelations readOnly record={record} />
@@ -113,8 +128,9 @@ export function RecordDetailPage() {
           submitLabel="저장"
           open
           initial={recordDraftFrom(record, timezone)}
-          deletion={{
+          deletion={!canWrite ? undefined : {
             target: recordDisplayText(record.body),
+            note: false,
             message: (
               <p>
                 이 기록을 삭제합니다. {record.record_kind === "change"
@@ -122,7 +138,7 @@ export function RecordDetailPage() {
                   : "일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
               </p>
             ),
-            onConfirm: async (reason, tags, requestKey) => {
+            onConfirm: async (_reason, _tags, requestKey) => {
               setBusy(true);
               setError(null);
               try {
@@ -131,8 +147,6 @@ export function RecordDetailPage() {
                   `/records/${record.id}${
                     query({
                       expected_version: record.version,
-                      change_note: reason || undefined,
-                      change_tag_ids: tags?.length ? tags.join(",") : undefined,
                     })
                   }`,
                   undefined,

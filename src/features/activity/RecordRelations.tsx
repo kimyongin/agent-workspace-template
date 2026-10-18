@@ -8,122 +8,29 @@ import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { useRelatedRead } from "../relations/useRelatedRead.ts";
 import type { Preview } from "../relations/PreviewContents.tsx";
 import { ApiError } from "../../lib/api.ts";
-import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { EntityLinkItem } from "../entity/EntityPicker.tsx";
 import { RelatedTaskItem } from "./RelatedTask.tsx";
 import { StatusBadge } from "./shared.tsx";
 
 type Change = NonNullable<RecordResult["change"]>;
-const groups = [
-  { kind: "task", title: "할 일", route: "tasks" },
-  { kind: "entity", title: "연결된 자료", route: "entities" },
-  { kind: "record", title: "기록", route: "records" },
-] as const;
-
-/** Event targets and explicit relationships share one section and one card per kind/ID. */
-export function RecordRelations(
-  { record, readOnly = false }: { record: RecordResult; readOnly?: boolean },
-) {
-  return (
-    <>
-      {groups.map((group) => {
-        const change = record.change?.target_kind === group.kind ? record.change : null;
-        const selected = group.kind === "entity"
-          ? record.entity_ids
-          : group.kind === "task" && record.task_id
-          ? [record.task_id]
-          : [];
-        const ids = [
-          ...new Set([...(change ? [change.target_id] : []), ...selected]),
-        ];
-        if (!ids.length) return null;
-        return (
-          <RelatedSection
-            views={!readOnly}
-            key={group.kind}
-            title={group.title}
-            count={ids.length}
-          >
-            <CollectionList
-              columns={[
-                group.kind === "record" ? "본문 대표 문구" : group.kind === "task" ? "제목" : "자료 이름",
-              ]}
-            >
-              {ids.map((id) => {
-                const capture = record.entity_context.find((item) => item.id === id);
-                return (
-                  <CollectionItem key={id}>
-                    {change?.target_id === id
-                      ? (
-                        <ChangedRelation
-                          readOnly={readOnly}
-                          change={change}
-                          path={`/${group.route}/${encodeURIComponent(id)}`}
-                          occurrence={group.kind === "task" &&
-                              record.task_id === id
-                            ? record.occurrence_on
-                            : null}
-                        />
-                      )
-                      : group.kind === "entity"
-                      ? readOnly
-                        ? (
-                          <RelatedItem
-                            title={capture?.title ?? "연결된 자료"}
-                            metadata={
-                              <dl className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-                                {capture?.type && (
-                                  <>
-                                    <div>
-                                      <dt>당시 자료 종류</dt>
-                                      <dd>
-                                        <EntityTypeIcon id={capture.type.icon_id} /> {capture.type.label}
-                                      </dd>
-                                    </div>
-                                    <div>
-                                      <dt>당시 입력 항목 버전</dt>
-                                      <dd>{capture.schema_version ?? "확인 필요"}</dd>
-                                    </div>
-                                  </>
-                                )}
-                                <div className="col-span-full min-w-0">
-                                  <dt>자료 식별</dt>
-                                  <dd>{id}</dd>
-                                </div>
-                              </dl>
-                            }
-                          />
-                        )
-                        : (
-                          <EntityLinkItem
-                            id={id}
-                            context={record.entity_context}
-                          />
-                        )
-                      : group.kind === "task"
-                      ? readOnly
-                        ? (
-                          <ReadonlyTask
-                            id={id}
-                            occurrence={record.occurrence_on}
-                          />
-                        )
-                        : (
-                          <RelatedTaskItem
-                            id={id}
-                            occurrence={record.occurrence_on}
-                          />
-                        )
-                      : null}
-                  </CollectionItem>
-                );
-              })}
-            </CollectionList>
-          </RelatedSection>
-        );
-      })}
-    </>
-  );
+/** Only the immutable stored parent is navigable; historical targets are event display data. */
+export function RecordRelations({ record, readOnly = false }: { record: RecordResult; readOnly?: boolean }) {
+  const kind = record.task_id ? "task" : "entity";
+  const id = record.task_id ?? record.entity_id;
+  if (!id) return null;
+  const change = record.change?.target_kind === kind && record.change.target_id === id ? record.change : null;
+  const route = kind === "task" ? "tasks" : "entities";
+  return <RelatedSection views={!readOnly} title={kind === "task" ? "할 일" : "자료"} count={1}>
+    <CollectionList columns={[kind === "task" ? "제목" : "자료 이름"]}>
+      <CollectionItem>
+        {change
+          ? <ChangedRelation readOnly={readOnly} change={change} path={`/${route}/${encodeURIComponent(id)}`} occurrence={record.occurrence_on} />
+          : kind === "task"
+          ? readOnly ? <ReadonlyTask id={id} occurrence={record.occurrence_on} /> : <RelatedTaskItem id={id} occurrence={record.occurrence_on} />
+          : readOnly ? <RelatedItem title="자료" /> : <EntityLinkItem id={id} context={[]} />}
+      </CollectionItem>
+    </CollectionList>
+  </RelatedSection>;
 }
 
 function ChangedRelation(

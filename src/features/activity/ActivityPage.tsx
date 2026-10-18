@@ -78,7 +78,7 @@ function ActivitySection(
         "due_on" in item ? item.due_on : null,
       ]
       : [
-        "record_kind" in item && item.record_kind ? recordKindNames[item.record_kind] : null,
+        "record_kind" in item && item.record_kind ? recordKindNames[item.record_kind as keyof typeof recordKindNames] : null,
         <time dateTime={time} title={formatDateTime(time)}>
           {new Intl.DateTimeFormat("ko-KR", { dateStyle: "short", timeZone: timezone }).format(new Date(time))}
         </time>,

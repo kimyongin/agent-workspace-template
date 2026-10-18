@@ -34,7 +34,7 @@ export interface RecordDraft {
 export const emptyRecord = (): RecordDraft => ({ body: "", occurred_at: { date: "", time: "" }, tag_ids: [] });
 
 export function recordDraftFrom(
-  r: { body: string; occurred_at: string; tag_ids?: string[]; entity_ids?: string[]; entity_context?: EntityContext[] },
+  r: { body: string; occurred_at: string; tag_ids?: string[] },
   timezone = browserTimezone(),
 ): RecordDraft {
   const [date, time] = toLocalInput(r.occurred_at, timezone).split("T");
