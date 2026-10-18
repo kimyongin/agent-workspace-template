@@ -1,3 +1,5 @@
+import * as settings from "../../functions/_shared/core/settings/application.ts";
+import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
@@ -57,6 +59,41 @@ dbTest(
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
       for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
+    }
+  },
+);
+
+dbTest(
+  "shared record templates are workspace configuration and retained writes recheck current settings permission",
+  async () => {
+    const a = { userId: crypto.randomUUID() };
+    await admin`insert into auth.users(id,email) values(${a.userId},${`settings513-${a.userId}@example.test`})`;
+    const owned: string[] = [];
+    const deps = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
+    try {
+      for (const name of ["설정 A", "설정 B"]) {
+        owned.push(
+          (await workspaces.createWorkspace(workspaceDeps, key(a), { name })).workspace.id,
+        );
+      }
+      const first = { ...a, workspaceId: owned[0] }, second = { ...a, workspaceId: owned[1] };
+      const request = key(first),
+        input = {
+          id: "record_templates",
+          expected_version: 0,
+          value: { task: { create: { memo: "첫 공간 문구", tag_ids: [] } } },
+        };
+      const saved = await settings.updateBusinessSettings(deps, request, input);
+      assertEquals(saved.settings.record_templates?.task?.create?.memo, "첫 공간 문구");
+      assertEquals((await settings.getBusinessSettings(deps, second)).versions.record_templates, 0);
+      assertEquals(await settings.updateBusinessSettings(deps, request, input), saved);
+      // The only admin must retain settings-write; demote this actor after another
+      // independently created current participant holds the manager capability.
+      const [member] = await workspaces.listWorkspaceMembers(workspaceDeps, a, owned[0]).then((r) => r.items);
+      assertEquals(member.grants, [{ target_kind: "settings", target_id: "*", access: "write" }]);
+    } finally {
+      for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
+      await admin`delete from auth.users where id=${a.userId}`;
     }
   },
 );
