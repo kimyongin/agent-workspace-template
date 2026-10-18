@@ -3,7 +3,7 @@ import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabas
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
-import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
+import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
 import {
   applyDataModel,
   exportDataModel,
@@ -11,6 +11,9 @@ import {
   previewDataModel,
 } from "../../functions/_shared/core/data-model/application.ts";
 import * as entities from "../../functions/_shared/core/entity/application.ts";
+import { searchInput } from "../../functions/_shared/contracts/search.ts";
+import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/search-store.ts";
+import { search } from "../../functions/_shared/core/search/application.ts";
 import { indexBatch } from "../../functions/_shared/core/search/index-worker.ts";
 import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
 import { connect, dbTest, urls } from "./_db.ts";
@@ -230,6 +233,141 @@ dbTest(
       for (const effect of ownedEffects) {
         await admin`delete from private.passage_effects where id=${effect.id}::uuid`;
       }
+      await fixture.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "workspace entity search: selection rename/removal fences late workers and edit/delete/restore exposes only current text",
+  async () => {
+    const fixture = await businessWorkspaceFixture(admin, user);
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    let running: ReturnType<typeof indexBatch> | undefined;
+    try {
+      const kind = await fixture.createKind("검색 수명 검증");
+      await fixture.grantKind(fixture.manager, kind.id, "write");
+      await fixture.grantKind(fixture.member, kind.id, "write");
+      const model = { uow: new SqlDataModelUnitOfWork(user) };
+      const publish = async (rename: boolean) => {
+        const document = await exportDataModel(model, fixture.manager);
+        const type = document.entity_types.find((entry) => entry.schema["x-type-id"] === kind.id)!;
+        type.schema.properties.prop_1["x-search-text"] = true;
+        type.schema.properties.prop_1.title = rename ? "바뀐 이름" : "처음 이름";
+        type.schema.properties.prop_2 = {
+          type: ["string", "null"],
+          title: "해제할 본문",
+          "x-order": 20,
+          default: null,
+          "x-search-text": !rename,
+        };
+        const input = { mode: "update", document: JSON.stringify(document) };
+        const review = await previewDataModel(model, fixture.manager, input);
+        const change = await prepareDataModel(model, businessRequest(fixture.manager), {
+          ...input,
+          preview_fingerprint: review.fingerprint,
+        });
+        assertEquals(
+          (await applyDataModel(model, businessRequest(fixture.manager), change.id, {
+            expected_version: change.version,
+          })).status,
+          "applied",
+        );
+      };
+      await publish(false);
+      const entityDeps = { uow: new SqlEntityUnitOfWork(user) };
+      const external_id = "한글 원본/😀";
+      const original = await entities.createEntity(
+        entityDeps,
+        businessRequest(fixture.member),
+        entityCreate.parse({
+          entity_type_id: kind.id,
+          schema_version: 2,
+          source: "app",
+          external_id,
+          properties: { prop_1: "처음 값", prop_2: "선택 해제할 비밀" },
+        }),
+      );
+      const queue = new SqlIndexQueue(worker), ledger = new SqlExternalEffectLedger(worker);
+      const scope = { limit: 1, workspace_id: fixture.workspaceId, kind: "entity", id: original.id };
+      const oldSent: string[] = [], currentSent: string[] = [];
+      const delayed = new DurablePassageEmbedder(ledger, {
+        async send(text) {
+          oldSent.push(text);
+          entered.resolve();
+          await release.promise;
+          return { state: "succeeded", vector };
+        },
+      }, "a".repeat(64));
+      running = indexBatch(queue, delayed, scope);
+      await Promise.race([
+        entered.promise,
+        running.then(() => {
+          throw Error("old generation never reached fake provider");
+        }),
+      ]);
+      await publish(true);
+      release.resolve();
+      assertEquals((await running).stale, 1);
+      // That text was legitimately sent before deselection; it cannot be recalled.
+      assert(oldSent.some((text) => text.includes("선택 해제할 비밀")));
+      const current = new DurablePassageEmbedder(ledger, {
+        send(text) {
+          currentSent.push(text);
+          return Promise.resolve({ state: "succeeded", vector });
+        },
+      }, "a".repeat(64));
+      assertEquals((await indexBatch(queue, current, scope)).indexed, 1);
+      assertEquals(currentSent, ["바뀐 이름\n처음 값"]);
+      const changed = await entities.updateEntity(
+        entityDeps,
+        businessRequest(fixture.member),
+        original.id,
+        entityUpdate.parse({
+          expected_version: original.version,
+          schema_version: 3,
+          properties: { prop_1: "편집한 값", prop_2: "선택 해제할 비밀" },
+        }),
+      );
+      assertEquals((await indexBatch(queue, current, scope)).indexed, 1);
+      assertEquals(currentSent.at(-1), "바뀐 이름\n편집한 값");
+      await entities.deleteEntity(entityDeps, businessRequest(fixture.member), original.id, changed.version);
+      assertEquals((await indexBatch(queue, current, scope)).claimed, 0);
+      const searchDeps = { uow: new SqlSearchUnitOfWork(user) };
+      const lookup = (query: string) =>
+        search(searchDeps, fixture.member, searchInput.parse({ query, kinds: ["entity"], mode: "keyword" }));
+      assertEquals((await lookup("편집한 값")).items, []);
+      const restored = await entities.createEntity(
+        entityDeps,
+        businessRequest(fixture.member),
+        entityCreate.parse({
+          entity_type_id: kind.id,
+          schema_version: 3,
+          source: "app",
+          external_id,
+          expected_version: changed.version + 1,
+          properties: { prop_1: "복원한 값", prop_2: "선택 해제할 비밀" },
+        }),
+      );
+      assertEquals(restored.id, original.id);
+      assertEquals((await indexBatch(queue, current, scope)).indexed, 1);
+      const result = await lookup("복원한 값");
+      assertEquals(result.items.length, 1);
+      assertEquals(result.items[0].id, original.id);
+      assertEquals(result.items[0].path, `/entities/${encodeURIComponent(original.id)}`);
+      assertEquals(result.items[0].source_fields?.map((field) => field.key), ["prop_1"]);
+      assertEquals(result.items[0].index_state, "indexed");
+      assertEquals((await lookup("선택 해제할 비밀")).items, []);
+      assertEquals(
+        (await entities.getEntity(entityDeps, fixture.member, original.id)).properties.prop_2,
+        "선택 해제할 비밀",
+      );
+    } finally {
+      release.resolve();
+      await running?.catch(() => {});
+      const ownedEffects =
+        await admin`select id from private.passage_effects where workspace_id=${fixture.workspaceId}`;
+      for (const effect of ownedEffects) await admin`delete from private.passage_effects where id=${effect.id}::uuid`;
       await fixture.cleanup();
     }
   },
