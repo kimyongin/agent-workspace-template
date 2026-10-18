@@ -83,7 +83,7 @@ class SqlTagStore extends SqlActorStore implements TagStore {
       checkedProperties(definition, use.value.properties, {}, false);
       return {
         kind: "entity",
-        value: await entities.update(use.value.id, { tag_ids, schema_version: definition.schema_version }),
+        value: await entities.setTags(use.value.id, tag_ids),
       };
     }
     const activity = new SqlActivityStore(this.tx, this.actor);

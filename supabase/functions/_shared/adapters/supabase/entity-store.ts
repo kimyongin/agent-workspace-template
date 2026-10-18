@@ -113,14 +113,20 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       })
       : (await insert())[0];
     const entity = result(row);
-    await setTagLinks(this.tx, this.actor, "entity", entity.id, i.tag_ids ?? []);
     return (await this.get(entity.id))!;
   }
   async update(id: string, changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_tag_ids">) {
-    if (changes.tag_ids !== undefined) await setTagLinks(this.tx, this.actor, "entity", id, changes.tag_ids);
     await this.tx`update app.entities set schema_version=${changes.schema_version},
       properties=${changes.properties === undefined ? this.tx`properties` : this.tx.json(changes.properties)},
       version=version+1,updated_at=now() where id=${id}`;
+    return (await this.get(id))!;
+  }
+  /** Independent saved-target links never rewrite business properties or schema. */
+  async setTags(id: string, ids: string[]) {
+    await setTagLinks(this.tx, this.actor, "entity", id, ids);
+    await this.tx`update app.entities set version=version+1,updated_at=now() where workspace_id=${
+      requireWorkspaceActor(this.actor).workspaceId
+    } and id=${id}`;
     return (await this.get(id))!;
   }
   async delete(id: string) {

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { businessMeta } from "./change.ts";
-import { tagIds } from "./tag.ts";
 import { recordResult } from "./record.ts";
 import { codePointLength, expectedVersion, id, isoDateTime, page, pageInput, text } from "./common.ts";
 import {
@@ -25,13 +24,11 @@ export const entityCreate = z.strictObject({
   external_id: entityNumberInput.optional(),
   expected_version: expectedVersion.optional(),
   ...businessMeta,
-  tag_ids: tagIds.optional(),
 });
 export const entityUpdate = z.strictObject({
   schema_version: schemaVersion,
   properties: entityProperties.optional(),
   ...businessMeta,
-  tag_ids: tagIds.optional(),
   expected_version: expectedVersion,
 }).refine(
   (v) =>
