@@ -143,10 +143,13 @@ export function setTagConnections(d: TagDeps, actor: Actor, raw: unknown): Promi
           "다른 변경이 저장되어 있습니다. 다시 조회하세요.",
         );
       }
-      if (before.kind === "entity" && before.value.deleted_at) {
+      if ((before.kind === "entity" || before.kind === "task") && before.value.deleted_at) {
         throw conflict(
           "삭제된 자료에는 태그를 연결할 수 없습니다",
         );
+      }
+      if (before.kind === "record" && before.value.record_kind === "change") {
+        throw invalidInput("자동 변경 기록의 고정 태그는 수정할 수 없습니다");
       }
       const same = JSON.stringify([...before.value.tag_ids].sort()) === JSON.stringify([...input.tag_ids].sort());
       const after = same ? before : await store.setTags(before, input.tag_ids);

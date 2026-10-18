@@ -1,3 +1,6 @@
+import type { RequestIdentity } from "../../core/shared/request.ts";
+import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
+import { replayRetainedSqlRequest } from "./request-ledger.ts";
 import { compareEntityIds } from "./entity-relation-locks.ts";
 import { searchInputHash } from "../../core/shared/operations.ts";
 import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
@@ -25,13 +28,30 @@ const toTag = (r: Record<string, unknown>): TagResult => ({
   updated_at: (r.updated_at as Date).toISOString(),
 });
 class SqlTagStore extends SqlActorStore implements TagStore {
+  constructor(tx: postgres.TransactionSql, actor: Actor, private readonly missingTarget = false) {
+    super(tx, actor);
+  }
+  override async executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
+    if (!this.missingTarget) return super.executeRequest(request, execute);
+    const retained = await replayRetainedSqlRequest<T>(this.tx, this.actor, request);
+    if (!retained.found) throw notFound();
+    return retained.result as T;
+  }
   private get workspaceId() {
     return requireWorkspaceActor(this.actor).workspaceId;
   }
   async connectionTarget(input: TagConnectionInput): Promise<TagUse | null> {
-    if (input.target_kind !== "entity") throw invalidInput("지원하지 않는 태그 연결 대상입니다");
-    const value = await new SqlEntityStore(this.tx, this.actor).get(input.target_id, true);
-    return value ? { kind: "entity", value } : null;
+    if (input.target_kind === "entity") {
+      const value = await new SqlEntityStore(this.tx, this.actor).get(input.target_id, true);
+      return value ? { kind: "entity", value } : null;
+    }
+    const targets = new SqlTagTargets(this.tx, this.actor);
+    if (input.target_kind === "task") {
+      const value = await targets.task(input.target_id);
+      return value ? { kind: "task", value } : null;
+    }
+    const value = await targets.record(input.target_id, true);
+    return value ? { kind: "record", value } : null;
   }
   private deletionTargets?: { entity: string[]; task: string[]; record: string[] };
   private async targetIds(id: string) {
@@ -169,17 +189,36 @@ export class SqlTagUnitOfWork {
         await resolveDeleteRequirements(tx, entry.deleteTagId);
       }
       if (entry?.connection) {
-        if (entry.connection.target_kind !== "entity") {
-          throw invalidInput("지원하지 않는 태그 연결 대상입니다");
+        const input = entry.connection;
+        const requirements: WorkspaceRequirement[] = [];
+        if (input.target_kind === "task") {
+          requirements.push({ target_kind: "tasks", target_id: "*", access: "write" });
+        } else {
+          let entityId = input.target_id;
+          if (input.target_kind === "record") {
+            const [record] = await tx`select entity_id,task_id from app.records
+              where workspace_id=${actor.workspaceId} and id=${input.target_id}`;
+            if (!record) return fn(new SqlTagStore(tx, actor, true));
+            if (record.task_id) {
+              requirements.push({ target_kind: "tasks", target_id: "*", access: "write" });
+              await authorizeWorkspace(tx, requirements);
+              await tx`select id from app.tasks where workspace_id=${actor.workspaceId} and id=${record.task_id} for update`;
+            } else entityId = String(record.entity_id);
+          }
+          if (!requirements.length) {
+            const [entity] = await tx`select entity_type_id from app.entities
+              where workspace_id=${actor.workspaceId} and id=${entityId}`;
+            if (!entity) throw notFound();
+            requirements.push({
+              target_kind: "entity_type",
+              target_id: String(entity.entity_type_id),
+              access: "write",
+            });
+            await authorizeWorkspace(tx, requirements);
+            await loadBusinessEntityDefinition(tx, String(entity.entity_type_id), true);
+            await tx`select id from app.entities where workspace_id=${actor.workspaceId} and id=${entityId} for update`;
+          }
         }
-        const [entity] =
-          await tx`select entity_type_id from app.entities where workspace_id=${actor.workspaceId} and id=${entry.connection.target_id}`;
-        if (!entity) throw notFound();
-        const requirements = [{
-          target_kind: "entity_type" as const,
-          target_id: String(entity.entity_type_id),
-          access: "write" as const,
-        }];
         await authorizeWorkspace(tx, requirements);
         await tx`select set_config('request.workspace_requirements',${JSON.stringify(requirements)},true)`;
       }

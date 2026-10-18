@@ -11,7 +11,15 @@ export class SqlTagTargets {
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
   async task(id: string, touch = false): Promise<Task | null> {
     const [row] = await this.tx`select app.workspace_task_tag_target(${id},${touch}) as target`;
-    return row.target ? { ...row.target, entity_ids: [], entity_context: [] } as Task : null;
+    if (!row.target) return null;
+    const workspace = requireWorkspaceActor(this.actor).workspaceId;
+    const [lifecycle] = await this.tx`select deleted_at from app.tasks where workspace_id=${workspace} and id=${id}`;
+    return {
+      ...row.target,
+      deleted_at: lifecycle?.deleted_at?.toISOString() ?? null,
+      entity_ids: [],
+      entity_context: [],
+    } as Task;
   }
   async record(id: string, lock = false): Promise<ActivityRecord | null> {
     const workspace = requireWorkspaceActor(this.actor).workspaceId;
