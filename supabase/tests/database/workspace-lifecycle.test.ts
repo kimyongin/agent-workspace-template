@@ -32,6 +32,29 @@ dbTest("Auth invalidation cannot leave an active workspace without its final val
 });
 
 dbTest(
+  "workspace author snapshots contain a bounded decorative name and never Auth email or metadata secrets",
+  async () => {
+    const actor = { userId: crypto.randomUUID(), request: { key: crypto.randomUUID() } };
+    let workspaceId: string | undefined;
+    await admin`insert into auth.users(id,email,raw_user_meta_data) values(${actor.userId},${`workspace517-${actor.userId}@example.test`},${
+      admin.json({ full_name: "  공유 작성자\n ", email: "hidden@example.test", secret: "never-publish" })
+    })`;
+    try {
+      workspaceId = (await createWorkspace(deps, actor, { name: "작성자 문맥" })).workspace.id;
+      const actual = await workspaceAccount(sql, actor, async (tx) => {
+        await lockWorkspace(tx, workspaceId!, "business");
+        await tx`select app.authorize_workspace('[]'::jsonb)`;
+        return (await tx`select app.workspace_author() as author,app.workspace_generation() as generation`)[0];
+      });
+      assertEquals(actual, { author: { created_by: actor.userId, created_by_name: "공유 작성자" }, generation: "1" });
+    } finally {
+      if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
+      await admin`delete from auth.users where id=${actor.userId}`;
+    }
+  },
+);
+
+dbTest(
   "account invalidation waits for an uncommitted first workspace and then preserves its final administrator",
   async () => {
     const actor = { userId: crypto.randomUUID() };
