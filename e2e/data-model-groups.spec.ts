@@ -68,7 +68,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     for (const t of target.entity_types) {
       const child = group.getByRole("region", { name: `${t.schema.title} 변환`, exact: true });
       if (!await child.getByLabel("수량 변환 방식").isVisible()) {
-        await child.getByRole("button", { name: new RegExp(`${t.schema.title} 변환`) }).click();
+        await group.getByRole("button", { name: `${t.schema.title} 변환 열기`, exact: true }).click();
       }
       await child.getByLabel("수량 변환 방식").selectOption("convert");
     }

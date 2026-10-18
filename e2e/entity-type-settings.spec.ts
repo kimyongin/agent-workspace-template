@@ -280,7 +280,7 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
     await expect(history.getByRole("button", { name: "변경 이력 다시 조회", exact: true })).toBeEnabled();
     const inputToggle = page.getByRole("button", { name: "입력 항목", exact: true });
     if (await inputToggle.getAttribute("aria-expanded") === "false") await inputToggle.click();
-    const renderedFields = page.getByRole("table", { name: "입력 항목 목록", exact: true }).getByRole("region");
+    const renderedFields = businessRows(page.getByRole("table", { name: "입력 항목 목록", exact: true }));
     await expect(renderedFields).toHaveCount(3);
     await expect(renderedFields.nth(0)).toHaveAttribute("aria-label", "상품명 입력 항목");
     await expect(renderedFields.nth(1)).toHaveAttribute("aria-label", "이름 입력 항목");

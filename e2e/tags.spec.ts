@@ -214,7 +214,7 @@ test("#370 MCP 태그 생성·정정 뒤 유지한 웹 목록과 상세가 최�
     });
     // A filter navigation receives fresh rows without reloading the page.
     await page.getByRole("textbox", { name: "자료 제목 검색", exact: true }).fill(title);
-    const list = page.getByRole("list", { name: `${type.label} 목록`, exact: true });
+    const list = page.getByRole("table", { name: `${type.label} 목록`, exact: true });
     await list.getByRole("button", { name: title, exact: true }).click();
     await expect(list.locator('[aria-label="태그"]').getByText(name, { exact: true })).toBeVisible();
     await expect(list.getByText("삭제된 태그", { exact: true })).toHaveCount(0);

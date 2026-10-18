@@ -174,26 +174,24 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
     await expect.poll(() => intercepted).toBe(true);
     await page.getByLabel("실패한 자료만 보기").check();
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
-    const articles = page.getByRole("article");
-    const failedHeading = articles.getByRole("heading", {
-      name: `${bad.title} · ${bad.source} · ${bad.external_id} · 변환 실패`,
-      exact: true,
-    });
-    const unchangedHeading = articles.getByRole("heading", {
-      name: `${good.title} · ${good.source} · ${good.external_id} · 무변경`,
-      exact: true,
-    });
-    await expect(articles).toHaveCount(1);
-    await expect(failedHeading).toBeVisible();
-    await expect(unchangedHeading).toHaveCount(0);
+    const resultRows = businessRows(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true }));
+    const failedRow = resultRows.filter({ has: page.getByRole("cell", {
+      name: `${bad.title} · ${bad.source} · ${bad.external_id}`, exact: true,
+    }) });
+    const unchangedRow = resultRows.filter({ has: page.getByRole("cell", {
+      name: `${good.title} · ${good.source} · ${good.external_id}`, exact: true,
+    }) });
+    await expect(resultRows).toHaveCount(1);
+    await expect(failedRow.getByRole("cell", { name: "변환 실패", exact: true })).toBeVisible();
+    await expect(unchangedRow).toHaveCount(0);
     release();
     await delayedFinished;
     await page.evaluate(() =>
       new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     );
-    await expect(articles).toHaveCount(1);
-    await expect(failedHeading).toBeVisible();
-    await expect(unchangedHeading).toHaveCount(0);
+    await expect(resultRows).toHaveCount(1);
+    await expect(failedRow.getByRole("cell", { name: "변환 실패", exact: true })).toBeVisible();
+    await expect(unchangedRow).toHaveCount(0);
   } finally {
     release();
     await mcp.close();
