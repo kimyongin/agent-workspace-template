@@ -110,3 +110,12 @@ it("saved definition keeps the null branch title for defaults choices and exampl
   definition.schema.properties.prop_2.default = "null";
   expect(definitionValue(renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />), "진행 상태", "생성 기본값")).toContain(">문자 코드</div>");
 });
+
+it("saved definitions show selected search text and unselected fields independently", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_1["x-search-text"] = true;
+  definition.schema.properties.prop_2 = { type: "string", title: "비공개 메모", "x-order": 20 };
+  const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
+  expect(definitionValue(html, "이름", "검색에 사용")).toContain(">예</div>");
+  expect(definitionValue(html, "비공개 메모", "검색에 사용")).toContain(">아니요</div>");
+});

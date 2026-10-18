@@ -1,4 +1,3 @@
-// Workspace sources use the current business contract; #516 owns the search/worker consumer conversion.
 import * as tags from "../../functions/_shared/core/tags/application.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
@@ -8,6 +7,8 @@ import { businessRequest, businessWorkspaceFixture } from "./_workspace-business
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/search-store.ts";
+import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
+import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
@@ -55,12 +56,21 @@ dbTest(
         tag_ids: [tag],
       });
       ids.push(item.id);
-      const result = await indexBatch(queue, {
-        embed: (text) =>
-          Promise.resolve(
-            n === 0 ? (text.includes("뒷부분") ? vector(1) : vector(0, 1)) : n === 1 ? vector(.8, .6) : vector(.6, .8),
-          ),
-      }, { limit: 1, kind: "record", id: item.id });
+      const result = await indexBatch(
+        queue,
+        new DurablePassageEmbedder(new SqlExternalEffectLedger(worker), {
+          send: (text) =>
+            Promise.resolve({
+              state: "succeeded",
+              vector: n === 0
+                ? (text.includes("뒷부분") ? vector(1) : vector(0, 1))
+                : n === 1
+                ? vector(.8, .6)
+                : vector(.6, .8),
+            }),
+        }, "a".repeat(64)),
+        { limit: 1, workspace_id: A.workspaceId, kind: "record", id: item.id },
+      );
       assertEquals(result.indexed, 1);
     }
     const q = searchInput.parse({ query: "비슷한 의미 질의", tag_id: tag, kinds: ["record"], limit: 1 });
@@ -71,7 +81,7 @@ dbTest(
       [...bodies[0]].slice(first.items[0].snippet_start, first.items[0].snippet_end).join(""),
       first.items[0].snippet,
     );
-    assertEquals(first.semantic_coverage, { pending: 0, excluded: 0 });
+    assertEquals(first.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
     const second = await search(d, A, { ...q, cursor: first.next_cursor! });
     assertEquals(
       second.items.map((x) => x.id),
@@ -82,13 +92,16 @@ dbTest(
     assertEquals(third.anchor_page, 3);
     assertEquals(third.next_cursor, null);
     assertEquals((await search(d, foreign.actor, q)).items, []);
-    assertEquals((await search(d, foreign.actor, q)).semantic_coverage, { pending: 0, excluded: 0 });
+    assertEquals((await search(d, foreign.actor, q)).semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
     assertEquals(
       (await runInWorkspace(
         sql,
         foreign.actor,
         { mode: "business", requirements: [] },
-        (tx) => tx`select * from app.search_chunks where record_id=${ids[0]}`,
+        (tx) =>
+          tx`select * from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='record' and source_id=${
+            ids[0]
+          }`,
       ))
         .length,
       0,
@@ -100,7 +113,7 @@ dbTest(
       recordUpdate.parse({ expected_version: 2, body: "바뀐 원문" }),
     );
     assertEquals((await search(d, A, { ...q, limit: 20 })).items.map((x) => x.id), [ids[1], ids[2]]);
-    assertEquals((await search(d, A, q)).semantic_coverage, { pending: 1, excluded: 0 });
+    assertEquals((await search(d, A, q)).semantic_coverage, { pending: 1, excluded: 0, failed: 0 });
     const down = { ...d, embedder: { embed: () => Promise.reject(new EmbeddingError("transient")) } };
     await assertRejects(() => search(down, A, { ...q, cursor: first.next_cursor! }), AppError);
     assertEquals((await search(down, A, { ...q, query: "두번째" })).search_state, "keyword_fallback");
@@ -161,7 +174,7 @@ dbTest("HTTP/MCP semantic queries beyond twenty use one send and preserve provid
   assertEquals(calls, 44);
 });
 
-dbTest("deleted search owner cannot send an external query", async () => {
+dbTest("deleted search initiator cannot send an external query", async () => {
   const deleted = await businessWorkspaceFixture(admin, sql);
   await deleted.grant(deleted.member, [{ target_kind: "tasks", target_id: "*", access: "read" }]);
   await deleted.cleanup();

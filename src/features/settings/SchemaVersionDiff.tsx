@@ -27,6 +27,7 @@ export function SchemaVersionDiff(
     "x-list-order": "목록 순서",
     "x-representative": "자료 이름",
     "x-show-in-list": "목록 표시",
+    "x-search-text": "검색에 사용",
     deprecated: "사용 중지",
     readOnly: "읽기 전용",
     examples: "입력 예시",

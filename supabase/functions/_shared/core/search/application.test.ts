@@ -24,7 +24,7 @@ function deps(embedder: SearchDeps["embedder"]) {
       Promise.resolve(
         after ? [{ ...item, rank: 1 }] : [{ ...item, rank: 1 }, { ...item, id: crypto.randomUUID(), rank: 1 }],
       ),
-    coverage: () => Promise.resolve({ pending: 0, excluded: 0 }),
+    coverage: () => Promise.resolve({ pending: 0, excluded: 0, failed: 0 }),
     anchorPage: () => Promise.resolve(null),
   };
   return {
@@ -82,4 +82,42 @@ Deno.test("current task searches use keyword lookup without embedding", async ()
   await search(state.d, actor, { ...q, cursor: first.next_cursor! });
   assertEquals(state.counts(), { calls: 0 });
   assertEquals(first.search_state, "ok");
+});
+
+Deno.test("search cursor belongs to the captured workspace even for the same account", async () => {
+  const state = deps(undefined);
+  const query = searchInput.parse({ query: "공유 질의", mode: "keyword", limit: 1 });
+  const first = await search(state.d, { ...actor, workspaceId: "00000000-0000-4000-8000-000000000001" }, query);
+  await assertRejects(() =>
+    search(state.d, { ...actor, workspaceId: "00000000-0000-4000-8000-000000000002" }, {
+      ...query,
+      cursor: first.next_cursor!,
+    }), AppError);
+});
+
+Deno.test("selected entity text uses semantic query embedding and accepts its immutable original anchor", async () => {
+  const state = deps({ embed: () => Promise.resolve(vector) });
+  const query = searchInput.parse({
+    query: "선택 본문",
+    kinds: ["entity"],
+    limit: 1,
+    anchor: { kind: "entity", id: "app:00000000-0000-4000-8000-000000000001:원본 번호" },
+  });
+  assertEquals((await search(state.d, actor, query)).search_state, "ok");
+  assertEquals(state.counts(), { calls: 1 });
+});
+
+Deno.test("entity result pagination preserves Unicode original references", async () => {
+  const entityId = "app:00000000-0000-4000-8000-000000000001:한글 원본";
+  const original = { ...item, kind: "entity" as const, id: entityId, path: "/entities/encoded", rank: 1 };
+  const store: SearchStore = {
+    coverage: () => Promise.resolve({ pending: 0, excluded: 0, failed: 0 }),
+    candidates: (_query, _vector, after) =>
+      Promise.resolve(after ? [original] : [original, { ...original, id: `${entityId}2` }]),
+    anchorPage: () => Promise.resolve(null),
+  };
+  const state: SearchDeps = { uow: { run: (_actor, read) => read(store) } };
+  const query = searchInput.parse({ query: "한글", kinds: ["entity"], mode: "keyword", limit: 1 });
+  const first = await search(state, actor, query);
+  assertEquals((await search(state, actor, { ...query, cursor: first.next_cursor! })).items[0].id, entityId);
 });

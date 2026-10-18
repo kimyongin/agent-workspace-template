@@ -7,7 +7,7 @@ import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { searchInputHash } from "../../functions/_shared/core/shared/operations.ts";
-import { connect, dbTest, outcome, urls } from "./_db.ts";
+import { asUser, connect, dbTest, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { max: 3, prepare: false });
 const fixture = await businessWorkspaceFixture(admin, sql);
 await fixture.grant(fixture.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
@@ -30,7 +30,9 @@ dbTest(
     });
     const hash = await searchInputHash(item.body);
     const state = async () =>
-      (await admin`select * from app.search_index_state where workspace_id=${A.workspaceId} and id=${item.id}`)[0];
+      (await admin`select * from app.search_index_state where workspace_id=${A.workspaceId} and kind='record' and id=${item.id}`)[
+        0
+      ];
     const messages = () =>
       admin`select msg_id from pgmq.q_search_index where message->>'workspace_id'=${A.workspaceId} and message->>'id'=${item.id}`;
     const enqueue = (actor = A, value = hash) =>
@@ -52,17 +54,20 @@ dbTest(
         sql,
         foreign.actor,
         { mode: "business", requirements: [] },
-        (tx) => tx`select * from app.search_index_state where id=${item.id}`,
+        (tx) =>
+          tx`select * from app.search_index_state where workspace_id=${A.workspaceId} and kind='record' and id=${item.id}`,
       ))
         .length,
       0,
     );
     assertMatch(
       await outcome(
-        runInWorkspace(sql, A, {
-          mode: "business",
-          requirements: [{ target_kind: "tasks", target_id: "*", access: "write" }],
-        }, (tx) => tx`update app.search_index_state set state='indexed' where id=${item.id}`),
+        asUser(
+          sql,
+          A.userId,
+          (tx) =>
+            tx`update app.search_index_state set state='indexed' where workspace_id=${A.workspaceId} and kind='record' and id=${item.id}`,
+        ),
       ),
       /^42501/,
     );

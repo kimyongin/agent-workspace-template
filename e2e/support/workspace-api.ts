@@ -177,7 +177,7 @@ export async function installWorkspaceApi(
         next_cursor: null,
         anchor_page: null,
         search_state: body.mode === "auto" ? "keyword_fallback" : "ok",
-        semantic_coverage: { pending: 1, excluded: 0 },
+        semantic_coverage: { pending: 1, excluded: 0, failed: 0 },
       });
     }
     if (!storage[kind]) {

@@ -4,7 +4,7 @@ import type { IndexClaim, IndexedChunk, IndexQueue, IndexScope, IndexSource } fr
 export class SqlIndexQueue implements IndexQueue {
   constructor(private readonly sql: postgres.Sql) {}
   async claim(scope: IndexScope): Promise<IndexClaim[]> {
-    const rows = await this.sql`select * from app.claim_search_index(${scope.limit},${scope.owner_id ?? null}::uuid,
+    const rows = await this.sql`select * from app.claim_search_index(${scope.limit},${scope.workspace_id ?? null}::uuid,
       ${scope.kind ?? null},${scope.id ?? null}::text)`;
     return rows.map((r) => ({ msg_id: String(r.msg_id), read_ct: r.read_ct as number }));
   }

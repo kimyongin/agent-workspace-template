@@ -1,15 +1,16 @@
 import { z } from "zod";
+import { entityReferenceId } from "../../contracts/entity-identity.ts";
 import { id, isoDateTime } from "../../contracts/common.ts";
 import { type SearchInput, type SearchItem, searchKind, type SearchResult } from "../../contracts/search.ts";
 import type { Actor } from "../shared/actor.ts";
 import { AppError, invalidInput } from "../shared/errors.ts";
-import { scopeOf, sha256Hex } from "../shared/operations.ts";
+import { decodeCursorData, encodeCursorData, scopeOf, sha256Hex } from "../shared/operations.ts";
 import { SEARCH_PIPELINE } from "./config.ts";
 import { type Embedder, EmbeddingError } from "./index-worker.ts";
 const position = z.strictObject({
   at: isoDateTime,
   kind: searchKind,
-  id,
+  id: z.union([id, entityReferenceId]),
   scope: z.string(),
   rank: z.number().finite(),
   ranking: z.enum(["hybrid", "keyword", "fallback"]),
@@ -27,9 +28,10 @@ export interface SearchDeps {
   embedder?: Embedder;
 }
 export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<SearchResult> {
-  const keywordOnly = q.mode === "keyword" || !q.kinds.includes("record");
+  const keywordOnly = q.mode === "keyword" || !q.kinds.some((kind) => kind === "record" || kind === "entity");
   const { cursor: _cursor, limit: _limit, anchor: _anchor, ...filter } = q;
   const scope = await scopeOf(a, {
+    workspace_id: a.workspaceId,
     search: { ...filter, kinds: [...q.kinds].sort() },
     pipeline: SEARCH_PIPELINE,
     ranking: "hybrid-v1",
@@ -37,7 +39,7 @@ export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<S
   let after: z.infer<typeof position> | undefined;
   if (q.cursor) {
     try {
-      const p = position.parse(JSON.parse(atob(q.cursor.replace(/-/g, "+").replace(/_/g, "/"))));
+      const p = position.parse(decodeCursorData(q.cursor));
       if (
         p.scope !== scope || (keywordOnly && p.ranking !== "keyword") ||
         (!keywordOnly && p.ranking === "keyword") || (p.ranking === "hybrid") !== (p.vector_hash !== null)
@@ -72,20 +74,15 @@ export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<S
       items = selected.map(({ rank: _rank, ...item }) => item),
       last = selected.at(-1);
     const next = rows.length > q.limit && last
-      ? btoa(
-        JSON.stringify({
-          at: last.at,
-          kind: last.kind,
-          id: last.id,
-          scope,
-          rank: last.rank,
-          ranking,
-          vector_hash: vectorHash,
-        }),
-      ).replace(/\+/g, "-").replace(
-        /\//g,
-        "_",
-      ).replace(/=+$/, "")
+      ? encodeCursorData({
+        at: last.at,
+        kind: last.kind,
+        id: last.id,
+        scope,
+        rank: last.rank,
+        ranking,
+        vector_hash: vectorHash,
+      })
       : null;
     return {
       anchor_page: await s.anchorPage(q, vector),

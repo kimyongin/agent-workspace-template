@@ -10,8 +10,9 @@ function overview(): StatusOverview {
     period: { from: "2026-10-14", to: "2026-10-16", days: 3 },
     entities: { total: 1234567, active: 1234567, deleted: 0 },
     tasks: { total: 9, open: 2, done: 3, active: 4, stopped: 0 },
-    records: { total: 7, user: 2, result: 4, change: 1 },
+    records: { total: 7, result: 6, change: 1 },
     indexing: { total: 7, indexed: 3, preparing: 2, attention: 1, excluded: 1, waiting:{long_waiting:0,oldest_waiting_since:null,threshold_minutes:15} },
+    entity_indexing: { total: 1234567, indexed: 1234560, preparing: 3, attention: 4, excluded: 0, waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 } },
     daily: [0, 1, 2].map((n) => ({
       date: `2026-10-${14 + n}`,
       entities_created: n === 2 ? 1234567 : n,
@@ -19,6 +20,7 @@ function overview(): StatusOverview {
       once_completed: n,
       records_created: n + 2,
       indexing: { indexed: n, preparing: 3 - n, attention: 1, excluded: 0 },
+      entity_indexing: { indexed: n + 1, preparing: n, attention: 2, excluded: 0 },
     })),
   };
 }
@@ -34,10 +36,12 @@ const charts = [
   ["일별 생성·완료", ["3건", "2건"], ["1건", "0건"]],
   ["일별 작성", ["4건"], ["2건"]],
   ["작성일별 현재 색인 상태", ["2건", "1건", "1건", "0건"], ["0건", "3건", "1건", "0건"]],
+  ["등록일별 현재 자료 색인 상태", ["3건", "2건", "2건", "0건"], ["1건", "0건", "2건", "0건"]],
 ] as const;
 
-test("네 차트는 마지막 날짜와 정확한 수치를 제공하고 키보드·버튼으로 날짜를 선택한다", async ({ page }) => {
+test("다섯 차트는 마지막 날짜와 정확한 수치를 제공하고 키보드·버튼으로 날짜를 선택한다", async ({ page }) => {
   await fixture(page);
+  await expect(page.getByRole("button", { name: "색인 문제 5개 펼치기", exact: true })).toBeVisible();
   for (const [title, last, first] of charts) {
     const values = page.getByRole("table", { name: `${title} 날짜별 수치`, exact: true });
     const graph = page.getByRole("group", { name: `${title} 그래프: 막대를 누르거나 방향키로 날짜 선택`, exact: true });
@@ -52,7 +56,7 @@ test("네 차트는 마지막 날짜와 정확한 수치를 제공하고 키보�
     await page.getByRole("button", { name: `${title} 다음 날짜`, exact: true }).click();
     await expect(values.getByRole("cell")).toHaveText([...last]);
   }
-  await expect(page.getByText(/과거 대기량·실패량이나 당일 처리량의 이력이 아닙니다/)).toBeVisible();
+  await expect(page.getByText(/과거 대기량·실패량이나 당일 처리량의 이력이 아닙니다/)).toHaveCount(2);
 });
 
 test("차트 선택은 새로고침·화면 크기·개인 배율 변경에도 유지되고 조회 기간 밖이면 보정한다", async ({ page }, info) => {
@@ -86,19 +90,17 @@ test("차트 선택은 새로고침·화면 크기·개인 배율 변경에도 �
   await expect(values.getByRole("cell")).toHaveText(["1,234,567건"]);
 });
 
-test("빈 날짜 응답과 새로고침 실패는 수치를 만들거나 기존 결과를 지우지 않는다", async ({ page }) => {
+test("빈 날짜 응답과 새로고침 실패는 수치를 만들거나 이전 권한 결과를 다시 표시하지 않는다", async ({ page }) => {
   const data = await fixture(page, { ...overview(), daily: [] });
-  await expect(page.getByText("표시할 날짜가 없습니다.", { exact: true })).toHaveCount(4);
+  await expect(page.getByText("표시할 날짜가 없습니다.", { exact: true })).toHaveCount(5);
   await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(0);
   data.daily = overview().daily;
   await page.getByRole("button", { name: "새로고침", exact: true }).click();
-  await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(4);
+  await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(5);
   await page.route("**/api/status", (route) => route.fulfill({ status: 503, json: { error: "fixture failure" } }));
   await page.getByRole("button", { name: "새로고침", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("상태를 조회하지 못했습니다");
-  await expect(page.getByRole("table", { name: "일별 등록 날짜별 수치", exact: true }).getByRole("cell")).toHaveText([
-    "1,234,567건",
-  ]);
+  await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(0);
 });
 
 test.describe("차트 직접 선택", () => {
@@ -157,7 +159,7 @@ test.describe("차트 직접 선택", () => {
               expect(graphBounds.y + graphBounds.height).toBeLessThanOrEqual(previous.y);
               expect(previous.y + previous.height).toBeLessThanOrEqual(tableBounds.y);
               if (title === "작성일별 현재 색인 상태") {
-                const card = page.getByRole("region", { name: "색인 현황", exact: true });
+                const card = page.getByRole("region", { name: "기록 색인 현황", exact: true });
                 const cardBounds = (await card.boundingBox())!;
                 // Keep width and scale fixed while fitting the whole card in the capture viewport.
                 await page.setViewportSize({ width, height: Math.ceil(cardBounds.height + 200) });
@@ -175,7 +177,7 @@ test.describe("차트 직접 선택", () => {
 test("색인 문제 표는 지연 조회·실패 재시도·페이지·좁은 화면의 상세를 유지한다", async ({ page }, info) => {
   const requests: string[] = [];
   let fail = true;
-  const item = (n: number) => ({ id: `20261011-ABCDEF${n}${n}`, created_at: "2026-10-11T00:00:00.000Z", title: `문제${n} ` + "긴제목".repeat(24), reason: "provider_unknown", attempts: 5, chunks: { total: 2, succeeded: 1, preparing: 0, unknown: 1, failed: 0 } });
+  const item = (n: number) => ({ kind: "record", path: `/records/20261011-ABCDEF${n}${n}`, id: `20261011-ABCDEF${n}${n}`, created_at: "2026-10-11T00:00:00.000Z", title: `문제${n} ` + "긴제목".repeat(24), reason: "provider_unknown", attempts: 5, chunks: { total: 2, succeeded: 1, preparing: 0, unknown: 1, failed: 0 } });
   await fixture(page);
   await page.route("**/api/status/indexing/issues**", route => {
     requests.push(route.request().url());

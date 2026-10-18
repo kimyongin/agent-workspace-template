@@ -49,7 +49,7 @@ for (const width of [390, 1440]) {
           period: { from: "2026-09-16", to: "2026-10-15", days: 30 },
           entities: { total: 12, active: 10, deleted: 2 },
           tasks: { total: 8, open: 4, done: 2, active: 2, stopped: 0 },
-          records: { total: 20, user: 10, result: 5, change: 5 },
+          records: { total: 20, result: 15, change: 5 },
           indexing: {
             total: 20,
             indexed: 18,
@@ -58,6 +58,7 @@ for (const width of [390, 1440]) {
             excluded: 0,
             waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 },
           },
+          entity_indexing: { total: 12, indexed: 10, preparing: 1, attention: 1, excluded: 0, waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 } },
           daily: Array.from(
             { length: 30 },
             (_, n) => ({
@@ -67,6 +68,7 @@ for (const width of [390, 1440]) {
               once_completed: n % 2,
               records_created: n % 5,
               indexing: { indexed: n % 4, preparing: n % 2, attention: 0, excluded: 0 },
+              entity_indexing: { indexed: n % 3, preparing: 1, attention: 0, excluded: 0 },
             }),
           ),
         },
@@ -113,7 +115,7 @@ for (const width of [390, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
       if (name === "status") await expect(page.getByRole("region", { name: "자료 현황" })).toBeVisible();
       if (name === "status") {
-        await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(4);
+        await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(5);
       }
       if (name === "material") {
         const menu = page.getByRole("button", { name: "설정 메뉴", exact: true });
@@ -228,11 +230,12 @@ for (const width of [390, 1440]) {
 test("상태의 실제 수치와 선택 날짜는 폭·글자 확대에서도 정확히 읽힌다", async ({ page }, info) => {
   await fixtures(page);
   await page.unroute("http://127.0.0.1:55580/**");
-  const day = (date: string, amount: number) => ({ date, entities_created: amount, tasks_created: amount, once_completed: 0, records_created: amount, indexing: { indexed: amount, preparing: 0, attention: 0, excluded: 0 } });
+  const day = (date: string, amount: number) => ({ date, entities_created: amount, tasks_created: amount, once_completed: 0, records_created: amount, indexing: { indexed: amount, preparing: 0, attention: 0, excluded: 0 }, entity_indexing: { indexed: amount, preparing: 0, attention: 0, excluded: 0 } });
   await page.route("**/api/status", route => route.fulfill({ json: {
     timezone: "Asia/Seoul", queried_at: stamp, period: { from: "2026-10-14", to: "2026-10-15", days: 2 },
     entities: { total: 2, active: 2, deleted: 0 }, tasks: { total: 1, open: 1, done: 0, active: 0, stopped: 0 },
-    records: { total: 2, user: 2, result: 0, change: 0 }, indexing: { total: 2, indexed: 1, preparing: 0, attention: 1, excluded: 0, waiting: { long_waiting: 1, oldest_waiting_since: stamp, threshold_minutes: 15 } },
+    records: { total: 2, result: 2, change: 0 }, indexing: { total: 2, indexed: 1, preparing: 0, attention: 1, excluded: 0, waiting: { long_waiting: 1, oldest_waiting_since: stamp, threshold_minutes: 15 } },
+    entity_indexing: { total: 2, indexed: 1, preparing: 1, attention: 0, excluded: 0, waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 } },
     daily: [day("2026-10-14", 0), day("2026-10-15", 2)],
   } }));
   await go(page, "/status");
