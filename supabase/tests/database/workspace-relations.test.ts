@@ -144,6 +144,8 @@ dbTest(
         limit: 20,
         sort: "updated_at",
       });
+      const queued =
+        await admin`select msg_id,message from pgmq.q_search_index where message->>'workspace_id'=${f.workspaceId} order by msg_id`;
       const request = businessRequest(f.member);
       assertEquals(
         (await assertRejects(
@@ -210,7 +212,7 @@ dbTest("workspace relation single slots retain deleted peers and serialize compe
       schema_version: 1,
       properties: { prop_1: "경쟁 원점" },
     });
-    const peers = [];
+    const peers: Awaited<ReturnType<typeof entities.createEntity>>[] = [];
     for (const name of ["보관할 상대", "후보 가", "후보 나"]) {
       peers.push(
         await entities.createEntity(entityDeps, businessRequest(f.manager), {
