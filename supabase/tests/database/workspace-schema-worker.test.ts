@@ -421,7 +421,7 @@ dbTest(
   },
 );
 
-async function retryOrRestoreFixture(scenario: "retry" | "restore" | "coordinator") {
+async function retryOrRestoreFixture(scenario: "retry" | "restore" | "restore_committing" | "coordinator") {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
   for (const actor of [a, b]) {
@@ -485,15 +485,18 @@ async function retryOrRestoreFixture(scenario: "retry" | "restore" | "coordinato
     const ready = await getDataModelChange(modelDeps, author, saved.id);
     await applyDataModel(modelDeps, key(author), saved.id, { expected_version: ready.version });
     if (scenario === "coordinator") {
-      const error = await assertRejects(() =>
-        runInWorkspace(sql, executor, {
-          mode: "business",
-          requirements:
-            grants as import("../../functions/_shared/core/workspaces/application.ts").WorkspaceRequirement[],
-        }, (tx) =>
-          tx`update app.data_model_changes set initiated_by=${b.userId} where workspace_id=${executor.workspaceId} and id=${saved.id}`)
-      );
-      assertEquals((error as { code?: string }).code, "23514");
+      await runInWorkspace(sql, executor, {
+        mode: "business",
+        requirements: grants as import("../../functions/_shared/core/workspaces/application.ts").WorkspaceRequirement[],
+      }, async (tx) => {
+        const error = await assertRejects(() =>
+          tx.savepoint((nested) =>
+            nested`update app.data_model_changes set initiated_by=${b.userId} where workspace_id=${executor.workspaceId} and id=${saved.id}`
+          )
+        );
+        assertEquals((error as { code?: string }).code, "23514");
+        assertEquals((error as Error).message, "model_plan_initiator_immutable");
+      });
       assertEquals(
         (await admin`select initiated_by from app.data_model_changes where workspace_id=${workspaceId} and id=${saved.id}`)[
           0
@@ -502,7 +505,18 @@ async function retryOrRestoreFixture(scenario: "retry" | "restore" | "coordinato
       );
       return;
     }
-    if (scenario === "restore") {
+    if (scenario === "restore" || scenario === "restore_committing") {
+      if (scenario === "restore_committing") {
+        const [preparing] = await worker`select app.claim_data_model_conversion() as batch`;
+        const prepared = await prepareMigrationBatch(preparing.batch.child, new Date());
+        assertEquals(
+          (await worker`select app.stage_data_model_conversion(${preparing.batch.id},${preparing.batch.fence},${preparing.batch.child.id},${preparing.batch.child.fence},${
+            worker.json(prepared.results)
+          }) as accepted`)[0].accepted,
+          true,
+        );
+        assertEquals((await worker`select app.claim_data_model_conversion() as batch`)[0].batch.status, "committing");
+      }
       await workspaces.deleteWorkspace(workspaceDeps, key(a), workspaceId, { expected_generation: 1 });
       await workspaces.restoreWorkspace(workspaceDeps, key(a), workspaceId, { expected_generation: 2 });
       assertEquals((await worker`select app.claim_data_model_conversion() as batch`)[0].batch, null);
@@ -518,6 +532,20 @@ async function retryOrRestoreFixture(scenario: "retry" | "restore" | "coordinato
       assertEquals(old.schema_write_locked, false);
       assertEquals(Number(old.workspace_generation), 1);
       assertEquals(old.initiated_by, a.userId);
+      assertEquals(
+        Number(
+          (await admin`select count(*) count from private.entity_schema_migration_rows r join app.entity_schema_migrations j on j.workspace_id=r.workspace_id and j.id=r.job_id where j.workspace_id=${workspaceId} and j.model_change_id=${saved.id}`)[
+            0
+          ].count,
+        ),
+        1,
+      );
+      assertEquals(
+        (await admin`select status from app.entity_schema_analyses where workspace_id=${workspaceId} and id=${analysis.batch.id}`)[
+          0
+        ].status,
+        "succeeded",
+      );
       const freshPreview = await previewDataModel(modelDeps, executor, input);
       const fresh = await prepareDataModel(modelDeps, key(executor), {
         ...input,
@@ -604,4 +632,9 @@ dbTest(
 dbTest(
   "queued conversion coordinator cannot inherit a different member's authority",
   () => retryOrRestoreFixture("coordinator"),
+);
+
+dbTest(
+  "restored workspace cancels a fenced committing job without reviving its source",
+  () => retryOrRestoreFixture("restore_committing"),
 );

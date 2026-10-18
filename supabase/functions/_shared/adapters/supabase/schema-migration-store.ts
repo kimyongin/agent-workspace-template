@@ -242,7 +242,9 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     if (!type) throw notFound();
     const j = await this.job(id, true);
     const observed_at = await this.recoveryObservedAt();
+    const [epoch] = await this.tx`select ${j.workspace_generation}::bigint=app.workspace_generation() as current`;
     return {
+      generation_current: Boolean(epoch.current),
       job: {
         id: j.id,
         type_id: j.type_id,
@@ -263,9 +265,15 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     const id = j.id;
     const [r] = await this
       .tx`update app.entity_schema_migrations set status='cancelled',version=version+1,fence=fence+1,lease_until=null,retryable=false,updated_at=now() where id=${id} returning *`;
-    await this.tx`delete from private.entity_schema_migration_rows where job_id=${id}`;
+    // A restored workspace may terminate old work, preserving its sealed history.
     await this
-      .tx`update app.entity_schema_changes set status='draft',analysis_id=null,updated_at=now() where id=${j.change_id} and analysis_id=${j.analysis_id} and status='ready'`;
+      .tx`delete from private.entity_schema_migration_rows r where r.workspace_id=${this.schemaWorkspaceId}::uuid and r.job_id=${id}
+      and exists(select 1 from app.entity_schema_migrations job where job.workspace_id=r.workspace_id and job.id=r.job_id and job.workspace_generation=app.workspace_generation())`;
+    await this.tx`update app.entity_schema_changes set
+      status=case when workspace_generation=app.workspace_generation() then 'draft' else 'cancelled' end,
+      analysis_id=case when workspace_generation=app.workspace_generation() then null else analysis_id end,
+      version=version+case when workspace_generation=app.workspace_generation() then 0 else 1 end,updated_at=now()
+      where workspace_id=${this.schemaWorkspaceId}::uuid and id=${j.change_id} and analysis_id=${j.analysis_id} and status='ready'`;
     await this.tx`update app.entity_types set schema_write_locked=false where id=${j.type_id}`;
     return this.jobDto(r);
   }

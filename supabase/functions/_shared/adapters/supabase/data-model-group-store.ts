@@ -176,20 +176,26 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
   }
   async cancelGroup(id: string) {
     const c = (await this.get(id, true))!;
-    if (["applied", "cancelled", "committing"].includes(c.status)) return receiptChange(c);
+    const [epoch] = await this
+      .tx`select workspace_generation=app.workspace_generation() as current from app.data_model_changes where workspace_id=${this.workspaceId}::uuid and id=${id}::uuid`;
+    if (["applied", "cancelled"].includes(c.status) || (c.status === "committing" && epoch.current)) {
+      return receiptChange(c);
+    }
     const store = new SqlSchemaMigrationStore(this.tx, this.actor, id);
     const rows = await this.tx`select * from app.data_model_children where model_id=${id}::uuid order by type_id`;
     for (const r of rows) {
       if (r.job_id) {
         const context = await store.loadMigrationAction(r.job_id);
-        await store.saveMigrationCancellation(context.job);
+        if (["queued", "preparing", "ready_to_commit", "committing"].includes(context.job.status)) {
+          await store.saveMigrationCancellation(context.job);
+        }
       }
       if (r.analysis_id) {
         await this
-          .tx`update app.entity_schema_analyses set status='failed',fence=fence+1,lease_until=null,retryable=false,failure_reason='analysis_discarded' where id=${r.analysis_id}::uuid`;
+          .tx`update app.entity_schema_analyses set status='failed',fence=fence+1,lease_until=null,retryable=false,failure_reason='analysis_discarded' where workspace_id=${this.workspaceId}::uuid and id=${r.analysis_id}::uuid and status in ('queued','running')`;
       }
       await this
-        .tx`update app.entity_schema_changes set status='cancelled',version=version+1,updated_at=now() where id=${r.change_id}::uuid`;
+        .tx`update app.entity_schema_changes set status='cancelled',version=version+1,updated_at=now() where workspace_id=${this.workspaceId}::uuid and id=${r.change_id}::uuid and status<>'cancelled'`;
     }
     await this
       .tx`update app.data_model_changes set status='cancelled',version=version+1,fence=fence+1,lease_until=null,retryable=false,updated_at=now() where id=${id}::uuid`;

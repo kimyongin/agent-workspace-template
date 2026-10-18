@@ -71,6 +71,7 @@ async function fixture() {
         job: structuredClone(job),
         observed_at: observation.at,
         schema_write_locked: observation.locked,
+        generation_current: true,
       }),
     getMigration: () => Promise.resolve(structuredClone(job)),
     saveMigrationCancellation: () => {
