@@ -41,8 +41,8 @@ export interface EntityIssuerStore extends RequestStore, EntityIdentityReadStore
   deleteRule(id: string): Promise<void>;
   countRules(source: string): Promise<number>;
   lockRule(id: string): Promise<IdentifierRule | null>;
-  ruleUsage(id: string): Promise<RuleUsage>;
-  lockTypeIdentity(typeId: string): Promise<EntityTypeIdentity | null>;
+  ruleUsage(id: string, inspectReferences?: boolean): Promise<RuleUsage>;
+  lockTypeIdentity(typeId: string, mutation?: z.infer<typeof typeIdentityUpdate>): Promise<EntityTypeIdentity | null>;
   identitySourceAvailability(sources: { code: string; rule_id: string }[]): Promise<IdentitySourceAvailability[]>;
   createIssuer(input: z.infer<typeof issuerCreate>): Promise<EntityIssuer>;
   updateIssuer(code: string, input: z.infer<typeof issuerUpdate>): Promise<EntityIssuer>;
@@ -113,7 +113,12 @@ export function updateIdentifierRule(d: EntityIssuerDeps, a: Actor, id: string, 
   return runWrite(scoped(d, "write"), a, "identifier-rule.update", id, i, async (s) => {
     const current = await s.lockRule(id);
     if (!current) throw notFound();
-    const next = identifierRuleUpdateDecision(current, i, await s.ruleUsage(id));
+    const metadataUsage = { referenced: false, defaultTypes: [] };
+    // Validate immutable system fields before resolving any stored assignment usage.
+    identifierRuleUpdateDecision(current, i, metadataUsage);
+    const meaningChanged = i.meaning !== undefined && i.meaning !== current.meaning;
+    const usage = meaningChanged || i.active === false ? await s.ruleUsage(id, meaningChanged) : metadataUsage;
+    const next = identifierRuleUpdateDecision(current, i, usage);
     return s.updateRule(id, { ...next, expected_version: i.expected_version });
   });
 }
@@ -129,7 +134,7 @@ export function updateEntityTypeIdentity(d: EntityIssuerDeps, a: Actor, typeId: 
   typeId = parse(z.string().uuid(), typeId);
   const i = parse(typeIdentityUpdate, raw);
   return runWrite(scoped(d, "write"), a, "entity-type.identity.update", typeId, i, async (s) => {
-    const current = await s.lockTypeIdentity(typeId);
+    const current = await s.lockTypeIdentity(typeId, i);
     if (!current) throw notFound();
     assertTypeIdentityUpdate(current, i, await s.identitySourceAvailability(i.sources));
     return s.updateTypeIdentity(typeId, i);

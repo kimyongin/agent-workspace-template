@@ -425,6 +425,32 @@ dbTest(
           sources: currentIdentity.sources.filter((s) => s.code !== "custom").map(({ code, rule_id, active }) => ({ code, rule_id, active })) },
       ), AppError);
       assertEquals(deniedRemoval.code, "forbidden");
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
+        expected_version: 1,
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" },
+          { target_kind: "entity_type", target_id: kind.id, access: "write" }],
+      });
+      const meaningRequest = key(manager), meaningInput = {
+        expected_version: renamedRule.version, meaning: "변경된 의미",
+      };
+      const changedRule = await issuers.updateIdentifierRule(issuerDeps, meaningRequest, customRule.id, meaningInput);
+      assertEquals(changedRule.meaning, meaningInput.meaning);
+      const meaningIdentity = await requestIdentity(meaningRequest, "identifier-rule.update", customRule.id, meaningInput);
+      const [meaningReceipt] = await admin`select footprint from private.workspace_request_results
+        where workspace_id=${owned[0]}::uuid and executor_id=${b.userId}::uuid and request_key=${meaningIdentity.key}::uuid`;
+      assertEquals(meaningReceipt.footprint, [
+        { target_kind: "settings", target_id: "*", access: "write" },
+        { target_kind: "entity_type", target_id: kind.id, access: "write" },
+      ]);
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
+        expected_version: 2, grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      });
+      assertEquals((await assertRejects(() => issuers.updateIdentifierRule(
+        issuerDeps, meaningRequest, customRule.id, meaningInput,
+      ), AppError)).code, "forbidden");
+      assertEquals((await assertRejects(() => runInWorkspace(sql, manager, {
+        mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      }, (tx) => replayRetainedSqlRequest(tx, meaningRequest, meaningIdentity)), AppError)).code, "forbidden");
       await workspaces.updateWorkspaceMember(workspaceDeps, key(b), owned[0], a.userId, {
         expected_version: 1,
         grants: [{ target_kind: "settings", target_id: "*", access: "read" }],
