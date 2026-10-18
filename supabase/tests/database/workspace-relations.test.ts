@@ -186,3 +186,109 @@ dbTest(
     }
   },
 );
+
+dbTest("workspace relation single slots retain deleted peers and serialize competing replacements", async () => {
+  const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.direct, { max: 5, prepare: false });
+  const f = await businessWorkspaceFixture(admin, sql);
+  const entityDeps = { uow: new SqlEntityUnitOfWork(sql) },
+    definitionDeps = { uow: new SqlEntityRelationDefinitionUnitOfWork(sql) },
+    linkDeps = { uow: new SqlEntityRelationLinkUnitOfWork(sql) };
+  try {
+    const left = await f.createKind("경쟁 원점"), right = await f.createKind("경쟁 상대");
+    for (const kind of [left, right]) await f.grantKind(f.manager, kind.id, "write");
+    await f.grantKind(f.member, left.id, "write");
+    await f.grantKind(f.member, right.id, "read");
+    const def = await definitions.createEntityRelationDefinition(definitionDeps, businessRequest(f.manager), {
+      ends: [{ type_id: left.id, label: "자리", cardinality: "one" }, {
+        type_id: right.id,
+        label: "대응",
+        cardinality: "one",
+      }],
+    });
+    const origin = await entities.createEntity(entityDeps, businessRequest(f.manager), {
+      entity_type_id: left.id,
+      schema_version: 1,
+      properties: { prop_1: "경쟁 원점" },
+    });
+    const peers = [];
+    for (const name of ["보관할 상대", "후보 가", "후보 나"]) {
+      peers.push(
+        await entities.createEntity(entityDeps, businessRequest(f.manager), {
+          entity_type_id: right.id,
+          schema_version: 1,
+          properties: { prop_1: name },
+        }),
+      );
+    }
+    const location = { definition_id: def.id, side: 0, origin_id: origin.id };
+    const input = {
+      ...location,
+      other_id: peers[0].id,
+      expected_definition_version: 1,
+      expected_version: 1,
+      expected_other_version: 1,
+    };
+    assertEquals(
+      (await assertRejects(() => links.connectEntityRelation(linkDeps, businessRequest(f.member), input), AppError))
+        .code,
+      "forbidden",
+    );
+    assertEquals((await entities.getEntity(entityDeps, f.manager, origin.id)).version, 1);
+    assertEquals(
+      (await definitions.listEntityRelationDefinitions(definitionDeps, f.member, {
+        purpose: "business",
+        type_id: left.id,
+      })).items.map((item) => item.id),
+      [def.id],
+    );
+    await assertRejects(() => definitions.listEntityRelationDefinitions(definitionDeps, f.member, {}), AppError);
+    await f.grantKind(f.member, right.id, "write");
+    await links.connectEntityRelation(linkDeps, businessRequest(f.member), input);
+    await entities.deleteEntity(entityDeps, businessRequest(f.manager), peers[0].id, 2);
+    const occupied = await links.listEntityRelationLinks(linkDeps, f.member, location);
+    assertEquals([occupied.items[0].id, !!occupied.items[0].deleted_at], [peers[0].id, true]);
+    assertEquals(
+      (await assertRejects(() =>
+        links.connectEntityRelation(linkDeps, businessRequest(f.member), {
+          ...input,
+          other_id: peers[1].id,
+          expected_version: 2,
+        }), AppError)).code,
+      "conflict",
+    );
+    const page = await links.listEntityRelationLinks(linkDeps, f.member, { ...location, q: "후보", limit: 1 }, true);
+    assertEquals(page.items.length, 1);
+    assertEquals(!!page.next_cursor, true);
+    const tail = await links.listEntityRelationLinks(linkDeps, f.member, {
+      ...location,
+      q: "후보",
+      limit: 1,
+      cursor: page.next_cursor,
+    }, true);
+    assertEquals(
+      new Set([...page.items, ...tail.items].map((item) => item.id)),
+      new Set(peers.slice(1).map((item) => item.id)),
+    );
+    const outcomes = await Promise.allSettled(
+      peers.slice(1).map((peer) =>
+        links.replaceEntityRelation(linkDeps, businessRequest(f.member), {
+          ...input,
+          other_id: peer.id,
+          expected_version: 2,
+          previous_other_id: peers[0].id,
+          expected_previous_version: 3,
+        })
+      ),
+    );
+    assertEquals(outcomes.filter((result) => result.status === "fulfilled").length, 1);
+    const failure = outcomes.find((result) => result.status === "rejected") as PromiseRejectedResult;
+    assertEquals(failure.reason instanceof AppError && failure.reason.code, "conflict");
+    assertEquals((await entities.getEntity(entityDeps, f.member, origin.id)).version, 3);
+    assertEquals((await entities.getEntity(entityDeps, f.member, peers[0].id)).version, 4);
+    assertEquals((await links.listEntityRelationLinks(linkDeps, f.member, location)).items.length, 1);
+  } finally {
+    await f.cleanup();
+    await sql.end();
+    await admin.end();
+  }
+});
