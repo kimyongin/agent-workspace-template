@@ -7,10 +7,7 @@ import * as activity from "../../functions/_shared/core/activity/application.ts"
 import { indexBatch } from "../../functions/_shared/core/search/index-worker.ts";
 import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
 import { connect, dbTest, urls } from "./_db.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 
 const admin = connect(urls.admin, { max: 1 });
 const user = connect(urls.pooler, { max: 3, prepare: false });

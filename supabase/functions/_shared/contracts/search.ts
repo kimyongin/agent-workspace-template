@@ -47,7 +47,7 @@ export const searchItem = z.object({
   at: isoDateTime,
   tag_ids: z.array(id),
   match: z.enum(["keyword", "semantic", "both"]),
-  index_state: z.enum(["indexed", "pending", "excluded"]),
+  index_state: z.enum(["indexed", "pending", "excluded", "failed"]),
   path: z.string(),
   task_status: z.enum(["open", "done", "active", "stopped"]).nullable().optional(),
   record_kind: z.enum(["result", "change"]).nullable().optional(),
@@ -58,6 +58,10 @@ export const searchResult = z.object({
   items: z.array(searchItem),
   next_cursor: z.string().nullable(),
   search_state: z.enum(["ok", "keyword_fallback"]),
-  semantic_coverage: z.object({ pending: z.number().int().min(0), excluded: z.number().int().min(0) }),
+  semantic_coverage: z.object({
+    pending: z.number().int().min(0),
+    excluded: z.number().int().min(0),
+    failed: z.number().int().min(0),
+  }),
 });
 export type SearchResult = z.infer<typeof searchResult>;
