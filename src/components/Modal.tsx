@@ -142,6 +142,15 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, vi
   const [presentDocked, setPresentDocked] = useState(docked);
   useLayoutEffect(() => { if (!actionOpen) setPresentDocked(docked); }, [docked, actionOpen]);
   const dialogDocked = presentDocked;
+  const [admittedMobileContent, setAdmittedMobileContent] = useState<HTMLDivElement | null>(null);
+  // Radix's parent modal first hides its siblings in a passive mount effect.
+  // Reopening a sibling confirmation in that same commit hides both dialogs.
+  // Admit the current mobile content before reopening either retained dialog;
+  // deactivation and docking clear admission without ending the draft/action.
+  useEffect(() => {
+    setAdmittedMobileContent(active && !dialogDocked ? mobileContent : null);
+  }, [active, dialogDocked, mobileContent]);
+  const confirmationActive = active && (dialogDocked || (!!mobileContent && admittedMobileContent === mobileContent));
   const elements = useRef({ title: navigationTitle, body: bodyRef.current, heading: headingRef.current, footer: footerRef.current, active: false, modal: false, confirmation: false, ready });
   useLayoutEffect(() => { elements.current = { title: navigationTitle, body: bodyRef.current, heading: headingRef.current, footer: footerRef.current, active: open && active, modal: !dialogDocked, confirmation: false, ready }; });
   useLayoutEffect(() => registerSurface(host, () => elements.current), [host, open, active]);
@@ -242,8 +251,8 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, vi
       <div className="flex h-full min-h-0 flex-col" ref={node => { mobileSlot.current = node; if (!dialogDocked) attach(node); }} />
     </DialogContent>
     {createPortal(<PopupContainerContext.Provider value={host}>{contents}</PopupContainerContext.Provider>, host)}
-    {action && <ConfirmationSurface open={active} returnFocus={action.returnFocus} title={action.title} busy={action.busy} onCancel={action.onCancel} closeButton footer={action.footer}>{action.body}</ConfirmationSurface>}
-    <ConfirmDialog open={active && confirmDiscard} returnFocus={discardOrigin.current} busy={busy || action?.busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { setConfirmDiscard(false); discardDestination.current(); }} onCancel={() => setConfirmDiscard(false)} />
+    {action && <ConfirmationSurface open={confirmationActive} returnFocus={action.returnFocus} title={action.title} busy={action.busy} onCancel={action.onCancel} closeButton footer={action.footer}>{action.body}</ConfirmationSurface>}
+    <ConfirmDialog open={confirmationActive && confirmDiscard} returnFocus={discardOrigin.current} busy={busy || action?.busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { setConfirmDiscard(false); discardDestination.current(); }} onCancel={() => setConfirmDiscard(false)} />
     {!workspace && <LocalModalRouteProtection shouldBlock={shouldBlock} busy={busy || !!action?.busy} discard={onRouteDiscard} />}
   </Dialog></SurfaceActionContext.Provider>;
 
