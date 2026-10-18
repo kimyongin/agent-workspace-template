@@ -161,7 +161,7 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
   await expect.poll(() => inputs.length).toBe(1);
   expect(inputs[0].properties).toEqual({ prop_1: "보존 이름", prop_2: 0, prop_3: null });
   expect(inputs[0].expected_version).toBe(1);
-  expect(inputs[0].tag_ids).toEqual([id(700)]);
+  expect(inputs[0]).not.toHaveProperty("tag_ids");
 });
 test("template insertion uses selected type labels and immutable property keys", async ({ page }) => {
   await page.goto(fixtureWorkspacePath("/settings/records"));
