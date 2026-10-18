@@ -14,6 +14,8 @@ function fixture(kind: "result" | "change") {
   let row: ActivityRecord = {
     id: crypto.randomUUID(),
     record_kind: kind,
+    created_by: null,
+    created_by_name: null,
     entity_id: kind === "change" ? "app:00000000-0000-4000-8000-000000000001:001" : null,
     body: "본문",
     occurred_at: now,
