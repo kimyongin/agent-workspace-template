@@ -67,3 +67,14 @@ test("같은 읽기 module의 동시 호출도 범위와 커서를 공유하지 
   expect(entities.map((tag) => tag.id)).toEqual(["entity"]);
   expect(records.map((tag) => tag.id)).toEqual(["record"]);
 });
+
+
+test("기록 문구 설정은 모든 페이지에서 설정용 태그 조회 목적을 유지한다", async () => {
+  const request = vi.fn().mockResolvedValueOnce({ items: [tag("first", "첫 태그")], next_cursor: "next" })
+    .mockResolvedValueOnce({ items: [tag("last", "마지막 태그")], next_cursor: null });
+  await createTagRead(request, "record-template").all("record");
+  expect(request.mock.calls.map((call) => call[1])).toEqual([
+    "/tags?scope=record&limit=100&purpose=record-template",
+    "/tags?scope=record&limit=100&purpose=record-template&cursor=next",
+  ]);
+});
