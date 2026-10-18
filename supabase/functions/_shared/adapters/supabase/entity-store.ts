@@ -6,7 +6,7 @@ import { entityId } from "../../contracts/entity-identity.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { EntityCreate, EntityDetail, EntityQuery, EntityUpdate, EntityValues } from "../../contracts/entity.ts";
-import { entityPresentationRow, loadEntityDefinition } from "./entity-values.ts";
+import { entityPresentationRow, loadBusinessEntityDefinition } from "./entity-values.ts";
 import type { EntityStore } from "../../core/entity/application.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import { type EntityKeyset, fieldKind } from "../../core/entity/list-rules.ts";
@@ -32,7 +32,7 @@ function result(r: Record<string, unknown>) {
 }
 export class SqlEntityStore extends SqlActorStore implements EntityStore {
   definition(typeId: string, lock = false) {
-    return loadEntityDefinition(this.tx, typeId, lock);
+    return loadBusinessEntityDefinition(this.tx, typeId, lock);
   }
   getTypeIdentity(typeId: string, lock = false) {
     return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId, lock);
