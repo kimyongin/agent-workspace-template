@@ -1,4 +1,10 @@
-import { exportDataModel, previewDataModel } from "../../functions/_shared/core/data-model/application.ts";
+import {
+  exportDataModel,
+  getDataModelChange,
+  listDataModelChanges,
+  prepareDataModel,
+  previewDataModel,
+} from "../../functions/_shared/core/data-model/application.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import * as issuers from "../../functions/_shared/core/entity-issuers/application.ts";
 import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
@@ -84,6 +90,31 @@ dbTest(
       ]);
       assertEquals(managerA.mapping, managerB.mapping);
       assertEquals(managerA.fingerprint, managerB.fingerprint);
+      const prepared = await prepareDataModel(modelDeps, key(first), {
+        ...reviewInput,
+        preview_fingerprint: managerA.fingerprint,
+      });
+      assertEquals(prepared.status, "ready");
+      assertEquals((await getDataModelChange(modelDeps, reader, prepared.id)).id, prepared.id);
+      const secondPrepared = await prepareDataModel(modelDeps, key(first), {
+        ...reviewInput,
+        preview_fingerprint: managerA.fingerprint,
+      });
+      const secondReview = await previewDataModel(modelDeps, second, reviewInput);
+      await prepareDataModel(modelDeps, key(second), { ...reviewInput, preview_fingerprint: secondReview.fingerprint });
+      const page = await listDataModelChanges(modelDeps, first, { limit: 1 });
+      assertEquals(page.items.length, 1);
+      assertEquals(typeof page.next_cursor, "string");
+      const rest = await listDataModelChanges(modelDeps, first, { limit: 1, cursor: page.next_cursor! });
+      assertEquals(new Set([...page.items, ...rest.items].map((v) => v.id)), new Set([prepared.id, secondPrepared.id]));
+      const crossed = await assertRejects(
+        () => listDataModelChanges(modelDeps, second, { limit: 1, cursor: page.next_cursor! }),
+        AppError,
+      );
+      assertEquals(crossed.code, "invalid_input");
+      const wrongPlan = await assertRejects(() => getDataModelChange(modelDeps, second, prepared.id), AppError);
+      assertEquals(wrongPlan.code, "not_found");
+      assertEquals((await types.listEntityTypes(typeDeps, first)).items.map((v) => v.id), [left.id]);
     } finally {
       for (const id of owned) await admin`delete from app.workspaces where id=${id}`;
       // Exact fresh account ownership also removes a legacy row if this RED tracer fails before scoping.
