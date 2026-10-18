@@ -32,7 +32,7 @@ const typeDeps = { uow: new SqlEntityTypeUnitOfWork(sql) };
 const modelDeps = { uow: new SqlDataModelUnitOfWork(sql, SqlDataModelGroupStore) };
 const key = (actor: Actor): Actor => ({ ...actor, request: { key: crypto.randomUUID() } });
 
-dbTest("linked peer read is sealed for conversion without requiring peer write", async () => {
+async function linkedReferenceFixture(withTask: boolean) {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
   for (const actor of [a, b]) {
@@ -53,11 +53,14 @@ dbTest("linked peer read is sealed for conversion without requiring peer write",
       { target_kind: "entity_type", target_id: own.id, access: "write" },
       { target_kind: "entity_type", target_id: peer.id, access: "write" },
     ];
+    if (withTask) full.push({ target_kind: "tasks", target_id: "*", access: "write" });
     await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, a.userId, {
       expected_version: 1,
       grants: full,
     });
-    const limited = full.map((r) => r.target_id === peer.id ? { ...r, access: "read" } : r);
+    const limited = full.map((r) =>
+      r.target_id === peer.id || r.target_kind === "tasks" ? { ...r, access: "read" } : r
+    );
     const invited = await workspaces.inviteWorkspaceMember(workspaceDeps, key(a), workspaceId, {
       email: `reference513-${b.userId}@example.test`,
       grants: limited,
@@ -119,6 +122,31 @@ dbTest("linked peer read is sealed for conversion without requiring peer write",
       (await admin`select owner_id from app.entity_relation_links where workspace_id=${workspaceId}`)[0].owner_id,
       null,
     );
+    if (withTask) {
+      const taskId = crypto.randomUUID();
+      const contexts = [own, peer].map((kind, index) => ({
+        id: entityIds[index],
+        title: "선택된 자료",
+        schema_version: 1,
+        captured_at: new Date().toISOString(),
+        source: "selection",
+        type: { id: kind.id, label: kind.label, icon_id: kind.icon_id, archived: false },
+      }));
+      await runInWorkspace(
+        sql,
+        author,
+        { mode: "business", requirements: full as workspaces.WorkspaceRequirement[] },
+        (tx) =>
+          tx`insert into app.tasks(workspace_id,owner_id,id,kind,title,body,status,entity_ids,entity_context)
+          values(${author.workspaceId},null,${taskId},'once','연결 선택 보관','할 일 읽기 권한이 필요한 문맥','open',${entityIds}::text[],${
+            tx.json(contexts)
+          })`,
+      );
+      assertEquals(
+        (await admin`select owner_id from app.tasks where workspace_id=${workspaceId} and id=${taskId}`)[0].owner_id,
+        null,
+      );
+    }
     const target = await exportDataModel(modelDeps, executor);
     const ownTarget = target.entity_types.find((t) => t.schema["x-type-id"] === own.id)!;
     ownTarget.schema.properties.prop_1.maxLength = 1;
@@ -179,6 +207,37 @@ dbTest("linked peer read is sealed for conversion without requiring peer write",
       expected_version: 2,
       grants: limited,
     });
+    if (withTask) {
+      assertEquals(
+        job.required_permissions.some((r: workspaces.WorkspaceRequirement) =>
+          r.target_kind === "tasks" && r.access === "read"
+        ),
+        true,
+      );
+      assertEquals(
+        job.required_permissions.some((r: workspaces.WorkspaceRequirement) =>
+          r.target_kind === "tasks" && r.access === "write"
+        ),
+        false,
+      );
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
+        expected_version: 3,
+        grants: limited.filter((r) => r.target_kind !== "tasks"),
+      });
+      assertEquals((await worker`select app.claim_data_model_conversion() as batch`)[0].batch, null);
+      assertEquals(
+        (await assertRejects(() => getDataModelChange(modelDeps, executor, saved.id), AppError)).code,
+        "forbidden",
+      );
+      assertEquals(
+        (await assertRejects(() => applyDataModel(modelDeps, activation, saved.id, activationInput), AppError)).code,
+        "forbidden",
+      );
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
+        expected_version: 4,
+        grants: limited,
+      });
+    }
     const [claim] = await worker`select app.claim_data_model_conversion() as batch`;
     assertEquals(Boolean(claim.batch?.child), true);
     const prepared = await prepareMigrationBatch(claim.batch.child, new Date());
@@ -203,4 +262,7 @@ dbTest("linked peer read is sealed for conversion without requiring peer write",
     }
     for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
   }
-});
+}
+
+dbTest("linked peer read is sealed for conversion without requiring peer write", () => linkedReferenceFixture(false));
+dbTest("linked task and peer reads are sealed without task or peer write", () => linkedReferenceFixture(true));
