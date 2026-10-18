@@ -23,7 +23,15 @@ export class SqlEntityLinks {
     }));
     await authorizeWorkspace(this.tx, requirements);
     for (const typeId of rows.map((r) => r.entity_type_id).sort()) {
-      await this.tx`select app.lock_business_entity_type(${typeId}::uuid,false)`;
+      const [locked] = await this.tx`select app.lock_business_entity_type(${typeId}::uuid,false) as kind`;
+      if (locked.kind?.schema_write_locked) {
+        throw new AppError(
+          "schema_migration_in_progress",
+          "속성 마이그레이션 중입니다. 완료 후 연결을 변경하세요",
+          undefined,
+          { type_id: typeId, schema_version: Number(locked.kind.schema_version) },
+        );
+      }
     }
     await this.remember(requirements);
   }
