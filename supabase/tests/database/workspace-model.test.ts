@@ -257,7 +257,7 @@ dbTest(
         admin`update app.records set entity_id=null where workspace_id=${owned[0]}::uuid and id=${recordId}`
       );
       assertEquals((parentMutation as { code?: string }).code, "23514");
-      assertEquals(parentMutation.message, "record_parent_immutable");
+      assertEquals((parentMutation as Error).message, "record_parent_immutable");
       const missingParent = await assertRejects(() =>
         admin.begin(async (tx) => {
           await tx`select set_config('request.workspace_id',${owned[0]},true)`;
