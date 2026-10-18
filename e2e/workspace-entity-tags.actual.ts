@@ -252,6 +252,8 @@ test(
       persist();
       const region = bPage.getByRole("region", { name: "태그 연결", exact: true });
       await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+      await expect(detailDialog(bPage).getByText("속성 정의를 불러오는 중…", { exact: true })).toHaveCount(0);
+      await expect(detailDialog(bPage).getByText(original, { exact: true })).toBeVisible();
       await bPage.screenshot({ path: info.outputPath("actual-entity-created.png"), fullPage: true });
       await region.getByRole("button", { name: "태그 연결", exact: true }).click();
       await chooseTag(bPage, region, tagName);
@@ -269,6 +271,7 @@ test(
         tag_ids: [tag.body.id],
       });
       await expect(region.getByText(tagName, { exact: true })).toBeVisible();
+      await expect(detailDialog(bPage).getByText("기록 (2개)", { exact: true })).toBeVisible();
       await bPage.screenshot({ path: info.outputPath("actual-entity-tag-connected.png"), fullPage: true });
       await openDetailEditor(bPage);
       const edit = detailDialog(bPage);
