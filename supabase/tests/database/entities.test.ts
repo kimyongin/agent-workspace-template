@@ -136,7 +136,7 @@ dbTest("Entity DB: cross-workspace 참조 거부·삭제 링크 보존·원문/�
     [{ state: "excluded", reason: "invalid_input", message_id: null }],
   );
   assertEquals(
-    (await admin`select id from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='entity' and source_id=${e.id}`)
+    (await admin`select source_id from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='entity' and source_id=${e.id}`)
       .length,
     0,
   );
