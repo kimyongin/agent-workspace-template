@@ -1,6 +1,6 @@
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, workspacePath } from "./support.ts";
-import { closeDetail, detailDialog, openMainNavigation } from "./ui-actions.ts";
+import { closeDetail, detailDialog, openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 
 async function setup(page: Page) {
   await devLogin(page);
@@ -34,8 +34,8 @@ async function setup(page: Page) {
 }
 
 async function navigate(page: Page, name: string) {
-  await openMainNavigation(page);
-  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name, exact: true }).click();
+  await openProfileMenu(page);
+  await page.getByRole("menuitem", { name, exact: true }).click();
 }
 
 async function snapshot(page: Page, info: TestInfo, name: string) {
@@ -50,7 +50,7 @@ async function snapshot(page: Page, info: TestInfo, name: string) {
 test(
   "actual search and status: selected entity original, record READ revocation, charts and scaled layout",
   async ({ page }, info) => {
-    const { workspace, client, marker, entity, record, kind } = await setup(page);
+    const { workspace, client, marker, entity, record } = await setup(page);
     await page.goto(workspacePath(workspace.id, `/search?q=${encodeURIComponent(marker)}&kind=entity&mode=keyword`));
     const entityLink = page.locator(`[id="search-entity-${entity.id}"]`);
     await expect(entityLink).toBeVisible();
@@ -59,9 +59,14 @@ test(
     await entityLink.click();
     await expect(detailDialog(page).getByText(marker, { exact: true }).first()).toBeVisible();
     await snapshot(page, info, "selected-entity-readable-original");
-    await closeDetail(page, kind.label);
+    await closeDetail(page, entity.title);
     await expect(entityLink).toBeFocused();
-    await page.goto(workspacePath(workspace.id, `/search?q=${encodeURIComponent(marker)}&kind=record&mode=keyword`));
+    await page.goto(
+      workspacePath(
+        workspace.id,
+        `/search?q=${encodeURIComponent(marker)}&kind=record&record_kind=result&mode=keyword`,
+      ),
+    );
     await expect(page.locator(`[id="search-record-${record.id}"]`)).toBeVisible();
     await workspace.setTaskAccess("none");
     const refreshed = page.waitForResponse((response) =>
@@ -118,6 +123,7 @@ test(
 
 test("actual status: delayed previous-workspace response never replaces the new workspace", async ({ page }, info) => {
   const { workspace, marker } = await setup(page);
+  await page.goto(workspacePath(workspace.id, "/tasks"));
   const other = await ownedWorkspace(page);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let held = false;
