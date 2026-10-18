@@ -1,3 +1,4 @@
+import * as migrations from "../../functions/_shared/core/entity-types/schema-migrations.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import * as settings from "../../functions/_shared/core/settings/application.ts";
 import { assertEquals, assertRejects } from "@std/assert";
@@ -576,7 +577,9 @@ dbTest(
   () => twoKindPublicationFixture(true),
 );
 
-async function retryOrRestoreFixture(scenario: "retry" | "restore" | "restore_committing" | "coordinator" | "repair") {
+async function retryOrRestoreFixture(
+  scenario: "retry" | "restore" | "restore_committing" | "coordinator" | "repair" | "recovery",
+) {
   const a = { userId: crypto.randomUUID() }, b = { userId: crypto.randomUUID() };
   let workspaceId: string | undefined;
   for (const actor of [a, b]) {
@@ -611,6 +614,176 @@ async function retryOrRestoreFixture(scenario: "retry" | "restore" | "restore_co
     }, (tx) =>
       tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
       values(${author.workspaceId},${entityId},'app',${externalId},${kind.id},1,'{"prop_1":"12"}')`);
+    if (scenario === "recovery") {
+      type Change = Awaited<ReturnType<typeof changes.createEntitySchemaChange>>;
+      const analyze = async (change: Change, actor: Actor) => {
+        const accepted = await changes.analyzeEntitySchemaChange(typeDeps, key(actor), kind.id, change.id, {
+          expected_change_version: change.version,
+        });
+        const [claim] = await worker`select app.claim_entity_schema_analysis() as batch`;
+        assertEquals(claim.batch.id, accepted.analysis_id);
+        const convert = compileMigration(claim.batch.target, claim.batch.migration, claim.batch.recovery_keys);
+        assertEquals(
+          (await worker`select app.complete_entity_schema_analysis_batch(${claim.batch.id},${claim.batch.fence},${
+            worker.json(
+              claim.batch.rows.map((
+                r: {
+                  entity_id: string;
+                  properties: Record<string, unknown>;
+                  recovery_properties?: Record<string, unknown>;
+                },
+              ) => convert(r.entity_id, r.properties, r.recovery_properties)),
+            )
+          }) as accepted`)[0].accepted,
+          true,
+        );
+        return changes.getEntitySchemaChange(typeDeps, actor, kind.id, change.id);
+      };
+      const activate = (change: Change, actor: Actor = executor) =>
+        migrations.startEntitySchemaMigration(typeDeps, key(actor), kind.id, change.id, {
+          expected_change_version: change.version,
+          expected_schema_version: change.source_schema_version,
+          analysis_id: change.analysis!.id,
+          fingerprint: change.fingerprint,
+        });
+      const execute = async (id: string, userId: string = b.userId) => {
+        for (let step = 0; step < 3; step++) {
+          const [claim] = await worker`select app.claim_entity_schema_migration() as batch`;
+          assertEquals(claim.batch.id, id);
+          assertEquals(claim.batch.initiated_by, userId);
+          if (claim.batch.status === "committing") {
+            assertEquals(
+              (await worker`select app.commit_entity_schema_migration(${id},${claim.batch.fence},${claim.batch.source_template_fingerprint},${SEARCH_PIPELINE}) as committed`)[
+                0
+              ].committed,
+              true,
+            );
+            return;
+          }
+          const prepared = await prepareMigrationBatch(claim.batch, new Date());
+          assertEquals(
+            (await worker`select app.stage_entity_schema_migration(${id},${claim.batch.fence},${
+              worker.json(prepared.results)
+            }) as accepted`)[0].accepted,
+            true,
+          );
+        }
+        throw new Error("standalone commit was not reached");
+      };
+      const schema = await types.getEntitySchema(typeDeps, author, { type_id: kind.id });
+      const draft = await changes.createEntitySchemaChange(typeDeps, key(author), kind.id, {
+        expected_schema_version: 1,
+        edits: [{
+          op: "update_property",
+          key: "prop_1",
+          field: { ...schema.schema.properties.prop_1, maxLength: 1 },
+          required: true,
+        }],
+        migration: { rules: [], overrides: [{ entity_id: entityId, key: "prop_1", value: "X" }] },
+      });
+      const ready = await analyze(draft, author);
+      const first = await activate(ready, author);
+      await execute(first.job_id, a.userId);
+      const succeeded = await migrations.getEntitySchemaMigration(typeDeps, executor, first.job_id);
+      assertEquals(succeeded.recovery!.status, "available");
+      const [publishedSource] =
+        await admin`select initiated_by,source_expires_at from app.entity_schema_migrations where workspace_id=${workspaceId} and id=${first.job_id}`;
+      assertEquals(publishedSource.initiated_by, a.userId);
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
+        expected_version: 1,
+        grants: grants.slice(0, 1),
+      });
+      assertEquals(
+        (await assertRejects(() =>
+          migrations.createEntitySchemaRecovery(typeDeps, key(executor), first.job_id, {
+            expected_job_version: succeeded.version,
+            expected_schema_version: 2,
+          }), AppError)).code,
+        "forbidden",
+      );
+      await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
+        expected_version: 2,
+        grants,
+      });
+      await workspaces.leaveWorkspace(workspaceDeps, key(a), workspaceId, { expected_version: 2 });
+      const recovery = await migrations.createEntitySchemaRecovery(typeDeps, key(executor), first.job_id, {
+        expected_job_version: succeeded.version,
+        expected_schema_version: 2,
+      });
+      assertEquals(
+        (await admin`select recovery_source_job_id,initiated_by from app.entity_schema_changes where workspace_id=${workspaceId} and id=${recovery.id}`)[
+          0
+        ],
+        { recovery_source_job_id: first.job_id, initiated_by: b.userId },
+      );
+      const restore = await activate(await analyze(recovery, executor));
+      await execute(restore.job_id);
+      assertEquals(
+        (await admin`select properties,schema_version from app.entities where workspace_id=${workspaceId} and id=${entityId}`)
+          .map((r) => ({ properties: r.properties, schema_version: Number(r.schema_version) })),
+        [{ properties: { prop_1: "12" }, schema_version: 3 }],
+      );
+      assertEquals(
+        (await admin`select initiated_by,source_expires_at from app.entity_schema_migrations where workspace_id=${workspaceId} and id=${first.job_id}`)[
+          0
+        ],
+        publishedSource,
+      );
+      const restored = await migrations.getEntitySchemaMigration(typeDeps, executor, restore.job_id);
+      const third = await migrations.createEntitySchemaRecovery(typeDeps, key(executor), restore.job_id, {
+        expected_job_version: restored.version,
+        expected_schema_version: 3,
+      });
+      const expired = await activate(await analyze(third, executor));
+      await admin`update app.entity_schema_migrations set source_expires_at=clock_timestamp()-interval '1 second' where workspace_id=${workspaceId} and id in(${first.job_id},${expired.job_id})`;
+      assertEquals(
+        (await assertRejects(() =>
+          migrations.createEntitySchemaRecovery(typeDeps, key(executor), first.job_id, {
+            expected_job_version: succeeded.version,
+            expected_schema_version: 3,
+          }), AppError)).code,
+        "migration_source_expired",
+      );
+      assertEquals((await worker`select app.claim_entity_schema_migration() as batch`)[0].batch, null);
+      const expiredJob = await migrations.getEntitySchemaMigration(typeDeps, executor, expired.job_id);
+      assertEquals(
+        (await migrations.cancelEntitySchemaMigration(typeDeps, key(executor), expired.job_id, {
+          expected_job_version: expiredJob.version,
+        })).status,
+        "cancelled",
+      );
+      await admin`select private.cleanup_entity_schema_sources()`;
+      const terminal =
+        await admin`select id,source_definition,source_templates,source_references from app.entity_schema_migrations where workspace_id=${workspaceId} and id in(${first.job_id},${expired.job_id})`;
+      assertEquals(terminal.length, 2);
+      assertEquals(
+        terminal.every((j) =>
+          JSON.stringify(j.source_definition) === "{}" && JSON.stringify(j.source_templates) === "{}" &&
+          j.source_references === null
+        ),
+        true,
+      );
+      assertEquals(
+        Number(
+          (await admin`select count(*) count from private.entity_schema_migration_rows where workspace_id=${workspaceId} and job_id in(${first.job_id},${expired.job_id})`)[
+            0
+          ].count,
+        ),
+        0,
+      );
+      const [retained] =
+        await admin`select source_definition from app.entity_schema_migrations where workspace_id=${workspaceId} and id=${restore.job_id}`;
+      assertEquals(JSON.stringify(retained.source_definition) === "{}", false);
+      assertEquals(
+        Number(
+          (await admin`select count(*) count from private.entity_schema_migration_rows where workspace_id=${workspaceId} and job_id=${restore.job_id}`)[
+            0
+          ].count,
+        ),
+        1,
+      );
+      return;
+    }
     const target = await exportDataModel(modelDeps, author);
     target.entity_types[0].schema.properties.prop_1.maxLength = 1;
     const input = { mode: "update", document: JSON.stringify(target) };
@@ -879,4 +1052,9 @@ dbTest(
 dbTest(
   "shared manager reads protected failure rows and repairs after the analyst leaves",
   () => retryOrRestoreFixture("repair"),
+);
+
+dbTest(
+  "standalone activation recovery and expiry use current workspace authority",
+  () => retryOrRestoreFixture("recovery"),
 );
