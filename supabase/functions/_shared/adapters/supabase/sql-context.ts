@@ -32,6 +32,9 @@ export class SqlActorStore {
 
   /** Explicit user commands call this once, never the internal insert itself. */
   async appendChange(input: ChangeInput) {
+    if (this.actor.workspaceId && input.target_kind === "record") {
+      throw new AppError("invalid_input", "기록 변경은 추가 변경 기록을 만들지 않습니다");
+    }
     const target = input.target, target_title = target.title;
     const settingsStore = new SqlBusinessSettingsStore(this.tx, this.actor);
     const settings = input.target_kind === "record" ? { record_templates: {} } : (await settingsStore.getForTarget({
