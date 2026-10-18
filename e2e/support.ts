@@ -633,6 +633,20 @@ export async function ownedWorkspace(page: Page) {
     .toBeVisible();
   return {
     id: fixture.id,
+    fetch: (method: string, path: string, data?: unknown, key = crypto.randomUUID()) => {
+      if (!path.startsWith("/") || path.startsWith("//")) throw new Error("fixture API path must be relative to its owned local service");
+      fixture.requestKeys.push(key);
+      scope.persist();
+      return page.request.fetch(`${requiredEnv("VITE_API_URL")}${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${session.token}`,
+          "X-Workspace-Id": fixture.id,
+          "Idempotency-Key": key,
+        },
+        data,
+      });
+    },
     registerMember: (id: string) => {
       if (!uuid.test(id)) throw new Error("explicit fixture member identity required");
       if (!fixture.memberIds.includes(id)) fixture.memberIds.push(id);

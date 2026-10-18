@@ -1,114 +1,45 @@
 import { chooseSetting } from "./settings-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
-import postgres from "postgres";
-import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
-import { devLogin, env, ownFixtureResult, test, unique, requiredEnv } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, unique, workspacePath } from "./support.ts";
+import { analyzeAndApply } from "./entity-schema-support.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 
 let fixtureSource: string;
 let fixtureType: { id: string; label: string } | undefined;
+let workspace: Awaited<ReturnType<typeof ownedWorkspace>>;
 test.beforeEach(async ({ page }) => {
-  fixtureType = undefined;
-  const login = await page.request.post(
-    `${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY") },
-      data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
-    },
-  );
-  const identity = await login.json(), token = identity.access_token;
-  const typeRequestKey = crypto.randomUUID();
-  ownFixtureResult(identity.user.id, "entity_types", "", typeRequestKey);
-  const created = await page.request.post(`${env.VITE_API_URL}/entity-types`, {
-    headers: {
-      authorization: `Bearer ${token}`,
-      "Idempotency-Key": typeRequestKey,
-    },
-    data: { label: unique("식별 시험"), representative_label: "이름" },
-  });
-  expect(created.ok()).toBeTruthy();
-  fixtureType = await created.json();
-  ownFixtureResult(
-    identity.user.id,
-    "entity_types",
-    fixtureType!.id,
-    typeRequestKey,
-  );
-  fixtureSource = `test_${crypto.randomUUID().replaceAll("-", "").slice(0, 24)}`;
-  const api = async (method: string, path: string, data?: unknown) => {
-    const requestKey = crypto.randomUUID();
-    const response = await page.request.fetch(`${env.VITE_API_URL}${path}`, {
-      method,
-      headers: { authorization: `Bearer ${token}`, "Idempotency-Key": requestKey },
-      data,
-    });
-    expect(response.ok()).toBeTruthy();
-    const result = await response.json();
-    if (path === "/entity-issuers") ownFixtureResult(identity.user.id, "entity_issuers", result.code, requestKey);
-    if (path.endsWith("/rules")) ownFixtureResult(identity.user.id, "entity_identifier_rules", result.id, requestKey);
-    return result;
-  };
-  await api("POST", "/entity-issuers", { code: fixtureSource, label: "시험 마켓" });
-  const rule = await api("POST", `/entity-issuers/${fixtureSource}/rules`, {
-    label: "상품 번호",
-    meaning: "시험 상품 번호",
-  });
-  await api("PATCH", `/entity-types/${fixtureType!.id}/identity`, {
-    label: "자료 번호",
-    default_source: fixtureSource,
-    expected_version: 1,
-    sources: [{ code: fixtureSource, rule_id: rule.id, active: true }],
-  });
-  const definition = initialEntityDefinition("이름", { id: fixtureType!.id, title: fixtureType!.label });
-  Object.assign(definition.schema.properties, {
-    prop_2: { "x-order": 20, type: ["integer", "null"], title: "개수", default: 0 },
-    prop_3: { "x-order": 30, type: ["string", "null"], format: "date", title: "날짜" },
-    prop_4: {
-      "x-order": 40,
-      type: "string",
-      oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }],
-      title: "구분",
-      default: "a",
-    },
-  });
-  ["prop_1", "prop_2", "prop_3", "prop_4"].forEach((key, index) => {
-    definition.schema.properties[key]["x-order"] = (index + 1) * 10;
-  });
-  definition.schema["x-version"] = 2;
-  const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+  await devLogin(page);
+  workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
-    await admin.begin(async (tx) => {
-      const [owner] = await tx`select owner_id from app.entity_types where id=${fixtureType!.id}`;
-      await tx`insert into app.entity_schema_versions(owner_id,schema) values(${owner.owner_id},${
-        tx.json(definition.schema)
-      })`;
-      await tx`update app.entity_types set schema_version=2,next_property_number=5 where id=${fixtureType!.id}`;
+    fixtureType = await mcp.call("create_entity_type", { label: unique("식별 시험"), representative_label: "이름" }) as { id: string; label: string };
+    await workspace.grantKind(fixtureType!.id);
+    fixtureSource = `test_${crypto.randomUUID().replaceAll("-", "").slice(0, 24)}`;
+    await mcp.call("create_entity_issuer", { code: fixtureSource, label: "시험 마켓" });
+    const rule = await mcp.call("create_entity_identifier_rule", { source: fixtureSource, label: "상품 번호", meaning: "시험 상품 번호" });
+    await mcp.call("update_entity_type_identity", {
+      type_id: fixtureType!.id, label: "자료 번호", default_source: fixtureSource, expected_version: 1,
+      sources: [{ code: fixtureSource, rule_id: rule.id, active: true }],
     });
+    const change = await mcp.call("create_entity_schema_change", {
+      type_id: fixtureType!.id, expected_schema_version: 1,
+      edits: [
+        { op: "add_property", client_ref: "count", field: { "x-order": 20, type: ["integer", "null"], title: "개수", default: 0 }, required: false },
+        { op: "add_property", client_ref: "date", field: { "x-order": 30, type: ["string", "null"], format: "date", title: "날짜" }, required: false },
+        { op: "add_property", client_ref: "category", field: { "x-order": 40, type: "string", oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }], title: "구분", default: "a" }, required: false },
+      ],
+    });
+    await analyzeAndApply(mcp, fixtureType!.id, change.id, change.version);
   } finally {
-    await admin.end();
+    await mcp.close();
   }
 });
 
 test("manual tuple registration restores stored properties and links while identity remains immutable", async ({ page }) => {
-  await devLogin(page);
-  const login = await page.request.post(
-    `${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      headers: { apikey: requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY") },
-      data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
-    },
-  );
-  const token = (await login.json()).access_token;
+  await page.goto(workspacePath(workspace.id, "/tasks"));
   const api = async (method: string, path: string, data?: unknown) => {
-    const response = await page.request.fetch(`${env.VITE_API_URL}${path}`, {
-      method,
-      headers: {
-        authorization: `Bearer ${token}`,
-        ...(method !== "GET" ? { "Idempotency-Key": crypto.randomUUID() } : {}),
-      },
-      data,
-    });
+    const response = await workspace.fetch(method, path, data);
     expect(response.ok()).toBeTruthy();
     return response.status() === 204 ? null : response.json();
   };
@@ -145,7 +76,7 @@ test("manual tuple registration restores stored properties and links while ident
     await api("POST", `/entities/${encodeURIComponent(target.id)}/delete`, {
       expected_version: 1,
     });
-    await page.goto(`/entities?entity_type_id=${fixtureType!.id}`);
+    await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${fixtureType!.id}`));
     // Hold the settings response to verify identity inputs cannot race loaded defaults.
     let releaseSettings!: () => void;
     const settingsReady = new Promise<void>((resolve) => {
@@ -213,10 +144,7 @@ test("manual tuple registration restores stored properties and links while ident
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(target.id)));
     expect((await api("GET", `/tasks/${task.id}`)).entity_ids).toEqual([target.id]);
     expect((await api("GET", `/entities/${encodeURIComponent(target.id)}`)).external_id).toBe(external_id);
-    const rejected = await page.request.patch(`${env.VITE_API_URL}/entities/${encodeURIComponent(target.id)}`, {
-      headers: { authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
-      data: { external_id: "새 번호", expected_version: 4 },
-    });
+    const rejected = await workspace.fetch("PATCH", `/entities/${encodeURIComponent(target.id)}`, { external_id: "새 번호", expected_version: 4 });
     expect(rejected.status()).toBe(400);
     await expect(page.getByText(name + " 수정", { exact: true }).first()).toBeVisible();
     await page.reload();
@@ -270,13 +198,13 @@ test("manual tuple registration restores stored properties and links while ident
 });
 
 test("kind identity settings retries a failed read and saves a label without changing stored identity", async ({ page }) => {
-  await devLogin(page);
+  await page.goto(workspacePath(workspace.id, "/tasks"));
   let fail = true;
   await page.route(`**/entity-types/${fixtureType!.id}/identity`, async (route) => {
     if (route.request().method() === "GET" && fail) return route.abort("failed");
     await route.continue();
   });
-  await page.goto(`/settings/entity-types/${fixtureType!.id}`);
+  await page.goto(workspacePath(workspace.id, `/settings/entity-types/${fixtureType!.id}`));
   const section = page.getByRole("region", { name: "자료 번호", exact: true });
   await section.getByRole("button", { name: /^자료 번호/ }).click();
   await expect(section.getByRole("alert")).toBeVisible();
@@ -291,8 +219,8 @@ test("kind identity settings retries a failed read and saves a label without cha
 });
 
 test("late archived lookup preserves newer identity and same-identity property edits", async ({ page }) => {
-  await devLogin(page);
-  await page.goto(`/entities?entity_type_id=${fixtureType!.id}`);
+  await page.goto(workspacePath(workspace.id, "/tasks"));
+  await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${fixtureType!.id}`));
   await beginTabAction(page, `${fixtureType!.label} 추가`);
   const form = () =>
     page.getByRole("dialog", {
@@ -427,8 +355,8 @@ test("late archived lookup preserves newer identity and same-identity property e
 });
 
 test("manual lookup pending before confirmation cannot replace the prepared entity", async ({ page }) => {
-  await devLogin(page);
-  await page.goto(`/entities?entity_type_id=${fixtureType!.id}`);
+  await page.goto(workspacePath(workspace.id, "/tasks"));
+  await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${fixtureType!.id}`));
   await beginTabAction(page, `${fixtureType!.label} 추가`);
   const form = page.getByRole("dialog", {
     name: `${fixtureType!.label} 추가`,
@@ -525,7 +453,7 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
 });
 
 test("seven settings workspaces retain real API selections and stay within the viewport", async ({ page }, info) => {
-  await devLogin(page);
+  await page.goto(workspacePath(workspace.id, "/tasks"));
   for (
     const [path, title] of [
       ["/settings", "기본 설정"],
@@ -537,7 +465,7 @@ test("seven settings workspaces retain real API selections and stay within the v
       ["/settings/data-model", "자료 설정"],
     ]
   ) {
-    await page.goto(path);
+    await page.goto(workspacePath(workspace.id, path));
     await expect(page.getByRole("heading", { name: title, exact: true, level: 1 })).toBeVisible();
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
     const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
@@ -550,7 +478,7 @@ test("seven settings workspaces retain real API selections and stay within the v
     await expect(menu.getByRole("menuitem")).toHaveCount(4);
     await expect(menu.getByRole("menuitem")).toHaveText(destinations.map(([label]) => label));
     for (const [label, href] of destinations) {
-      await expect(menu.getByRole("menuitem", { name: label, exact: true })).toHaveAttribute("href", href);
+      await expect(menu.getByRole("menuitem", { name: label, exact: true })).toHaveAttribute("href", workspacePath(workspace.id, href));
     }
     await page.keyboard.press("Escape");
     await expect(menu).not.toBeVisible();
