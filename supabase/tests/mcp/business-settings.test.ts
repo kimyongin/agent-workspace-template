@@ -82,7 +82,7 @@ activityWorkspaceSuite(
     // Target-specific preparation rejects a missing current-workspace task
     // before reading its template or values (SQL FK input failure).
     assertEquals(unavailable.status, 400);
-    assertEquals(unavailable.body.code, "invalid_input");
+    assertEquals(unavailable.body.code, "invalid_reference");
   },
   { mcp: true },
 );
