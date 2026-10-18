@@ -6,6 +6,11 @@ const canonical = (value) => JSON.stringify(value, (_key, item) =>
     : item);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Recover only the exact account-level creation receipt after a lost response. */
+export async function recoverWorkspaceCreation(_sql, _creation) {
+  return null;
+}
+
 export function validateWorkspaceCleanupManifest(manifest) {
   const environment = manifest?.environment;
   if (!manifest || typeof manifest.run_id !== "string" || !manifest.run_id.trim()

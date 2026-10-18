@@ -1,10 +1,11 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import { runWorkspaceCleanup } from "../../../scripts/workspace-fixture-cleanup.mjs";
+import { recoverWorkspaceCreation, runWorkspaceCleanup } from "../../../scripts/workspace-fixture-cleanup.mjs";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
+import * as workspaces from "../../functions/_shared/core/workspaces/application.ts";
 import { indexBatch } from "../../functions/_shared/core/search/index-worker.ts";
 import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
 import { connect, dbTest, urls } from "./_db.ts";
@@ -17,6 +18,54 @@ workerUrl.username = "app_worker";
 workerUrl.password = Deno.env.get("APP_WORKER_PASSWORD")!;
 const worker = connect(workerUrl.href, { max: 1, prepare: false });
 const deps = { uow: new SqlUnitOfWork(user), clock: { now: () => new Date() } };
+
+dbTest(
+  "owned workspace cleanup recovers only the exact completed creation receipt, never a matching name",
+  async () => {
+    const fixture = await businessWorkspaceFixture(admin, user);
+    const target = new URL(urls.admin);
+    const creation = {
+      environment: { host: target.hostname, port: Number(target.port), database: target.pathname.slice(1) },
+      actor_id: fixture.manager.userId,
+      request_key: crypto.randomUUID(),
+      name: "응답을 잃은 공간 생성",
+    };
+    let created: string | null = null;
+    try {
+      assertEquals(await recoverWorkspaceCreation(admin, creation), null);
+      const result = await workspaces.createWorkspace(fixture.workspaceDeps, {
+        userId: creation.actor_id,
+        request: { key: creation.request_key },
+      }, { name: creation.name });
+      created = result.workspace.id;
+      assertEquals(await recoverWorkspaceCreation(admin, creation), {
+        id: created,
+        name: creation.name,
+        created_by: creation.actor_id,
+      });
+      assertEquals(await recoverWorkspaceCreation(admin, { ...creation, request_key: crypto.randomUUID() }), null);
+      assertEquals(await recoverWorkspaceCreation(admin, { ...creation, actor_id: fixture.member.userId }), null);
+      await assertRejects(
+        () => recoverWorkspaceCreation(admin, { ...creation, name: "다른 이름" }),
+        Error,
+        "identity changed",
+      );
+      await assertRejects(
+        () =>
+          recoverWorkspaceCreation(admin, {
+            ...creation,
+            environment: { ...creation.environment, port: target.port === "1" ? 2 : 1 },
+          }),
+        Error,
+        "connection",
+      );
+      assertEquals((await admin`select id from app.workspaces where id=${created}`).length, 1);
+    } finally {
+      if (created) await admin`delete from app.workspaces where id=${created}`;
+      await fixture.cleanup();
+    }
+  },
+);
 
 dbTest(
   "owned workspace cleanup: digest fences mutations, exact fake effects disappear, unrelated data and Auth survive retry",
