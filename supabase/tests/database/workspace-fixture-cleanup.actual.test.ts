@@ -108,7 +108,7 @@ dbTest(
       assertEquals(applied.residual_rows, 0);
       assertEquals((await runWorkspaceCleanup(admin, manifest, fresh)).mode, "already-clean");
       assertEquals((await activity.getTask(deps, foreign.manager, sentinel.id)).title, sentinel.title);
-    assertEquals((await admin`select id from private.passage_effects where id=${effect.id}`).length, 0);
+      assertEquals((await admin`select id from private.passage_effects where id=${effect.id}`).length, 0);
       assertEquals(
         await admin`select id,state,workspace_id from private.passage_effects where workspace_id is null order by id`,
         beforeHistory,

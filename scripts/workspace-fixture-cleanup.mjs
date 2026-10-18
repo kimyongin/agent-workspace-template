@@ -119,7 +119,7 @@ export async function runWorkspaceCleanup(sql, manifest, approvedReport) {
       if (Object.values(report.counts).some((count) => count !== 0) || effects.length) {
         throw new Error("owned workspace cleanup has residual references");
       }
-      return { mode: "already-clean", ...approvedReport, residual_rows: 0 };
+      return { ...approvedReport, mode: "already-clean", residual_rows: 0 };
     }
     if (approvedReport.digest !== report.digest) throw new Error("cleanup approval digest changed; repeat dry-run");
     if (report.blockers.length) throw new Error("owned workspace cleanup blocked by changed ownership or unresolved work");
