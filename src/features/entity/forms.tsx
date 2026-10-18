@@ -1,4 +1,4 @@
-import { useEntityWriteAccess } from "./entity-access.ts";
+import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { cn } from "../../lib/utils.ts";
 import { FieldGroup } from "../../components/ui/field.tsx";
@@ -38,6 +38,7 @@ export function EntityForm({
   initialTypeLabel,
   fixedType = false,
   readonly = false,
+  visible = true,
   context,
   submitLabel = "저장",
   details,
@@ -52,6 +53,7 @@ export function EntityForm({
   initialTypeLabel?: string;
   fixedType?: boolean;
   readonly?: boolean;
+  visible?: boolean;
   context?: ReactNode;
   submitLabel?: string;
   details?: ReactNode;
@@ -61,7 +63,7 @@ export function EntityForm({
   onRouteDiscard?: () => void;
   onSave: (value: EntityCreate, requestKey: () => string) => Promise<void>;
 }) {
-  const api = useApi(), canWriteType = useEntityWriteAccess();
+  const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
   const [identitySettings, setIdentitySettings] = useState<EntityTypeIdentity | null>(null),
     [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
     [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
@@ -72,7 +74,8 @@ export function EntityForm({
     [identityReload, setIdentityReload] = useState(0),
     [nextType, setNextType] = useState<string | null>(null);
   const { types, error: catalogError, retry: retryCatalog } = useEntityTypes();
-  const canWrite = !readonly && canWriteType(typeId);
+  const readable = visible && (!typeId || canReadType(typeId));
+  const canWrite = readable && !readonly && canWriteType(typeId);
   const writableTypes = types?.filter((type) => !type.archived && canWriteType(type.id));
   const [archived, setArchived] = useState<EntityDetail | null>(initial?.deleted_at ? initial : null),
     [identityMessage, setIdentityMessage] = useState(""),
@@ -264,6 +267,7 @@ export function EntityForm({
     <>
       <FormModal
         open
+        visible={readable}
         domain={label}
         description="번호 출처와 번호를 확인하고, 자료의 입력 항목을 작성합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}

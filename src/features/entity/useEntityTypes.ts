@@ -1,11 +1,12 @@
 import { useApi, useRequestScope, sameRequestScope } from "../../lib/api-context.tsx";
 import { entityTypeCatalogEvent, readEntityTypeCatalog } from "./entity-type-catalog.ts";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import type { EntityType } from "@contracts/entity-type.ts";
 import { AuthContext } from "../auth/auth-context.ts";
 import { query } from "../../lib/api.ts";
 export function useEntityTypes(revision?: unknown, enabled = true) {
-  const api = useApi();
+  const api = useApi(), capabilities = useWorkspaceCapabilities();
   const { session } = useContext(AuthContext);
   const requestScope = useRequestScope();
   const scope = enabled && requestScope.workspaceId ? `${session?.user.id}:${requestScope.workspaceId}` : null;
@@ -39,8 +40,15 @@ export function useEntityTypes(revision?: unknown, enabled = true) {
     });
     return () => controller.abort();
   }, [scope, generation, revision]);
+  const types = useMemo(() => {
+    if (!scope || catalog?.scope !== scope) return null;
+    return catalog.types.filter(type => capabilities?.grants.some(grant =>
+      (grant.access === "read" || grant.access === "write") &&
+      (grant.target_kind === "settings" && grant.target_id === "*" ||
+        grant.target_kind === "entity_type" && grant.target_id === type.id)));
+  }, [scope, catalog, capabilities]);
   return {
-    types: scope && catalog?.scope === scope ? catalog.types : null,
+    types,
     error: !!scope && error === scope,
     retry: () => setGeneration((value) => value + 1),
   };

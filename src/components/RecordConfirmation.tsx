@@ -56,6 +56,7 @@ interface ConfirmationDescription {
 /** One confirmation lifetime owns memo drafts, errors, frozen retries and its dialog stage. */
 export function useRecordConfirmation(options: {
   open?: boolean;
+  visible?: boolean;
   disabled?: boolean;
   initial?: ConfirmationKind;
   describe: (kind: ConfirmationKind) => ConfirmationDescription;
@@ -85,7 +86,7 @@ export function useRecordConfirmation(options: {
   };
   const origin = useRef<FocusOrigin | null>(null);
   const begin = async (kind: ConfirmationKind, invoker?: HTMLElement | null) => {
-    if (latest.current.disabled) return;
+    if (latest.current.visible === false || latest.current.disabled) return;
     origin.current = captureFocusOrigin(invoker ?? document.activeElement);
     if (attempt.snapshot().busy || attempt.snapshot().uncertain) { setStage(kind); return; }
     setStage(kind);
@@ -134,7 +135,7 @@ export function useRecordConfirmation(options: {
   const write = async (kind: ConfirmationKind) => {
     // Retained retries keep their original operation, but current authority
     // still decides whether that operation may be submitted again.
-    if (latest.current.disabled || attempt.snapshot().busy || preparing) return;
+    if (latest.current.visible === false || latest.current.disabled || attempt.snapshot().busy || preparing) return;
     const description = latest.current.describe(kind);
     if (description.preparation && description.record && !preparationReady.current && !attempt.snapshot().uncertain) return;
     const local = description.record ? changeNoteErrors(note, false) : null;
@@ -155,7 +156,7 @@ export function useRecordConfirmation(options: {
   const description = stage ? options.describe(stage) : null;
   const retaining = uncertain && !!options.onCancel;
   useLayoutEffect(() => {
-    if (!register || options.open === false || !stage || !description) return;
+    if (!register || options.open === false || options.visible === false || !stage || !description) return;
     register({
       title: description.title, busy: busy || retaining, returnFocus: origin.current,
       body: <RecordMemoFields note={note} tags={tags} onNote={value => { touched.current.note = true; setNote(value); }} onTags={value => { touched.current.tags = true; setTags(value); }}
@@ -169,7 +170,7 @@ export function useRecordConfirmation(options: {
       onCancel: cancel,
     });
     return () => register(null);
-  }, [register, options.open, stage, note, tags, errors, failure, busy, uncertain, preparing,
+  }, [register, options.open, options.visible, stage, note, tags, errors, failure, busy, uncertain, preparing,
     options.disabled, retaining, description?.title, description?.label, description?.record, description?.danger, description?.excludeTag]);
   return { active: stage !== null, dirty: !!stage || touched.current.note || touched.current.tags || !!tags.length || uncertain,
     busy, uncertain, errors, failure, begin, write, reject };

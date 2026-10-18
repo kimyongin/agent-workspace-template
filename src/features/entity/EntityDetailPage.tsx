@@ -1,4 +1,4 @@
-import { useEntityWriteAccess } from "./entity-access.ts";
+import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { PlusIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
@@ -30,7 +30,7 @@ import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
 import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
-  const api = useApi(), canWriteType = useEntityWriteAccess();
+  const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams(),
     [params] = useSearchParams(),
@@ -67,6 +67,7 @@ export function EntityDetailPage() {
   });
   const { value: entity, editReady } = detail;
   const canWrite = !!entity && canWriteType(entity.entity_type_id);
+  const canRead = !!entity && canReadType(entity.entity_type_id);
   const taskRead = useEntityTaskRead(entity);
   const [actionError, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -191,10 +192,10 @@ export function EntityDetailPage() {
     </div>
   );
   return (
-    <DetailSurface ready={!detail.loading}
-      title={entity?.type.label ?? "자료"}
+    <DetailSurface visible={!entity || canRead} ready={!detail.loading}
+      title={entity && canRead ? entity.type.label : "자료"}
       description="속성과 연결된 자료·할 일·기록을 확인하고 수정합니다."
-      tabTitle={entity?.title ?? "자료"}
+      tabTitle={entity && canRead ? entity.title : "자료"}
       onClose={() => navigate(back)}
       onError={detail.failed}
       busy={busy}

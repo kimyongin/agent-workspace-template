@@ -22,6 +22,8 @@ export interface ModalProps {
   domain?: string;
   headingLevel?: 1 | 2;
   open: boolean;
+  /** Conceal the retained surface without ending its draft/request lifetime. */
+  visible?: boolean;
   /** 닫기 요청. dirty면 변경 버리기 확인을 먼저 묻는다. */
   onClose: () => void;
   /** Footer cancellation returns to the viewer; header dismissal exits the detail. */
@@ -64,10 +66,10 @@ export interface SurfaceAction {
 export const SurfaceActionContext = createContext<((action: SurfaceAction | null) => void) | null>(null);
 
 /** URL detail and its editor share one retained dialog and scroll surface. */
-export function DetailSurface({title, description, tabTitle = title, onClose, children, busy = false, footer, onError, ready = true}: {title: string; description?: string; tabTitle?: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode; onError?: (error: unknown) => void; ready?: boolean}) {
+export function DetailSurface({title, description, tabTitle = title, onClose, children, busy = false, footer, onError, ready = true, visible = true}: {title: string; description?: string; tabTitle?: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode; onError?: (error: unknown) => void; ready?: boolean; visible?: boolean}) {
   const previous = useDetailExploration();
   const tab = useContext(DetailTabContext);
-  useEffect(() => { tab?.title(tabTitle); }, [tabTitle, tab?.title]);
+  useLayoutEffect(() => { tab?.title(tabTitle); }, [tabTitle, tab?.title]);
   const [editor, setEditor] = useState<SurfaceEditor | null>(null);
   const [protection, setProtection] = useState<SurfaceProtection | null>(null);
   const protectionRef = useRef(protection);
@@ -93,7 +95,7 @@ export function DetailSurface({title, description, tabTitle = title, onClose, ch
   // Remove the editor before navigating, so its dirty guard cannot ask a second time.
   useEffect(()=>{if(dismissing&&!editor&&!protection){setDismissing(false);if(tab)tab.close();else onClose();}},[dismissing,editor,protection,onClose,tab]);
   return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef, onError, protection: protectionRef, protect}}>
-    <ModalShell open ready={ready} navigationTitle={tabTitle} title={editor?.title ?? title} description={editor ? editor.description : description} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
+    <ModalShell open visible={visible} ready={ready} navigationTitle={tabTitle} title={editor?.title ?? title} description={editor ? editor.description : description} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard ?? (protection ? () => protectionRef.current?.discard() : undefined)} dirty={editor?.dirty || protection?.dirty} busy={busy || editor?.busy || protection?.busy}
       previous={tab?.previous ?? (editor ? null : previous)} footer={editor?.footer ?? (protection?.dirty ? <fieldset className="flex flex-wrap items-center gap-2 border-0 p-0" disabled>{footer}</fieldset> : footer)}>
       <div ref={root} hidden={!!editor}>{children}</div>
@@ -111,10 +113,10 @@ export function ModalShell(props: ModalProps) {
   return props.open ? <ActiveModalShell {...props} /> : null;
 }
 
-function ActiveModalShell({ title, description, domain, headingLevel=2, open, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children, ready = true, navigationTitle = title }: ModalProps) {
+function ActiveModalShell({ title, description, domain, headingLevel=2, open, visible = true, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children, ready = true, navigationTitle = title }: ModalProps) {
   const tab = useContext(DetailTabContext);
   const workspace = useContext(WorkspaceContext);
-  const active = tab?.active ?? true;
+  const active = visible && (tab?.active ?? true);
   const [host] = useState(() => document.createElement("div"));
   const ref = useRef<HTMLElement>(host);
   const desktopSlot = useRef<HTMLDivElement>(null);
@@ -240,8 +242,8 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
       <div className="flex h-full min-h-0 flex-col" ref={node => { mobileSlot.current = node; if (!dialogDocked) attach(node); }} />
     </DialogContent>
     {createPortal(<PopupContainerContext.Provider value={host}>{contents}</PopupContainerContext.Provider>, host)}
-    {action && <ConfirmationSurface open returnFocus={action.returnFocus} title={action.title} busy={action.busy} onCancel={action.onCancel} closeButton footer={action.footer}>{action.body}</ConfirmationSurface>}
-    <ConfirmDialog open={confirmDiscard} returnFocus={discardOrigin.current} busy={busy || action?.busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { setConfirmDiscard(false); discardDestination.current(); }} onCancel={() => setConfirmDiscard(false)} />
+    {action && <ConfirmationSurface open={active} returnFocus={action.returnFocus} title={action.title} busy={action.busy} onCancel={action.onCancel} closeButton footer={action.footer}>{action.body}</ConfirmationSurface>}
+    <ConfirmDialog open={active && confirmDiscard} returnFocus={discardOrigin.current} busy={busy || action?.busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { setConfirmDiscard(false); discardDestination.current(); }} onCancel={() => setConfirmDiscard(false)} />
     {!workspace && <LocalModalRouteProtection shouldBlock={shouldBlock} busy={busy || !!action?.busy} discard={onRouteDiscard} />}
   </Dialog></SurfaceActionContext.Provider>;
 

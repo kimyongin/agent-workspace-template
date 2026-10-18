@@ -73,6 +73,9 @@ export function CreateRelatedEntityForm(
     return () => request.current?.abort();
   }, [api, originId, definitionId, side]);
   const writable = context?.definition.ends.every(end => capability?.grants.some(grant => grant.target_kind === "entity_type" && grant.target_id === end.type_id && grant.access === "write"));
+  const readable = context?.definition.ends.every(end => capability?.grants.some(grant =>
+    grant.target_kind === "entity_type" && grant.target_id === end.type_id &&
+    (grant.access === "read" || grant.access === "write")));
   const writableNow = useRef(false);
   writableNow.current = !!writable;
   const admitted = useRef<{ api: typeof api; base: string } | null>(null);
@@ -134,6 +137,7 @@ export function CreateRelatedEntityForm(
       initialTypeId={typeId}
       fixedType
       readonly={!writable}
+      visible={!!readable}
       context={notice}
       submitLabel="작성하고 연결"
       onClose={onClose}
