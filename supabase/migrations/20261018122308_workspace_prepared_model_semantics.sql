@@ -6,7 +6,7 @@ declare expected_refs jsonb;requirements jsonb;
 begin
  if old.workspace_id is null then return new;end if;
  if (old.plan-array['conversion_refs','baseline','review']) is distinct from (new.plan-array['conversion_refs','baseline','review'])
-  or (old.plan->'review'-'can_apply') is distinct from (new.plan->'review'-'can_apply') then
+  or ((old.plan->'review')-'can_apply') is distinct from ((new.plan->'review')-'can_apply') then
   raise exception 'model_plan_semantics_immutable' using errcode='23514';end if;
  if current_user='app_user' then
   if old.plan->'review'->'can_apply' is distinct from new.plan->'review'->'can_apply' then
