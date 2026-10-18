@@ -402,7 +402,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       const [kind, label, value] of [["entities", "분류 필터", "a"], ["tasks", "할 일 종류", "once"], [
         "records",
         "기록 종류",
-        "user",
+        "result",
       ]]
     ) {
       await go(page, "/" + kind);
@@ -449,6 +449,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       expect(tagBox.x + tagBox.width).toBeLessThanOrEqual(filterBottom.x + filterBottom.width);
       if (kind === "entities") await setEntityCategory(page, value);
       else { await page.getByLabel(label, { exact: true }).selectOption(value); await page.getByRole("button", { name: "필터 적용", exact: true }).click(); }
+      if (kind === "records") expect(new URL(page.url()).searchParams.get("record_kind")).toBe("result");
       const search = page.getByLabel(kind === "entities" ? "자료 제목 검색" : "검색어", { exact: true });
       await search.fill("조건 유지");
       await expect.poll(() => new URL(page.url()).searchParams.get(kind === "entities" ? "keyword" : "q")).toBe(

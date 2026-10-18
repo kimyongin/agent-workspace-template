@@ -48,7 +48,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       const [kind, label, value] of [["entities", "분류 필터", "b"], ["tasks", "할 일 상태", "open"], [
         "records",
         "기록 종류",
-        "user",
+        "result",
       ]]
     ) {
       await go(page, "/" + kind);
@@ -74,6 +74,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       if (kind === "entities") await setEntityCategory(page, value);
       else { await page.getByLabel(label, { exact: true }).selectOption(value); await applyTabFilters(page); }
       await changedRead;
+      if (kind === "records") expect(new URL(page.url()).searchParams.get("record_kind")).toBe("result");
       await expect(summary).toHaveAccessibleName(/적용 중/);
       const applied = page.url(), appliedReads = reads;
       await summary.click();
