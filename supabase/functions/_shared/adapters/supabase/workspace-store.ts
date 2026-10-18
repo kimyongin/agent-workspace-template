@@ -26,7 +26,11 @@ export class SqlWorkspaceStore implements WorkspaceStore {
     return r.result;
   }
   async list() {
-    return { items: await this.tx<Workspace[]>`select id,name,deleted_at from app.workspaces order by created_at,id` };
+    return {
+      items: Array.from(
+        await this.tx<Workspace[]>`select id,name,deleted_at from app.workspaces order by created_at,id`,
+      ),
+    };
   }
   async details() {
     const [r] = await this.tx`select app.workspace_details() as result`;
