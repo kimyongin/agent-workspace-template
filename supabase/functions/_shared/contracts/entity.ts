@@ -81,7 +81,13 @@ export const entityDetail = entitySummary.extend({
   properties: entityProperties,
   tasks: related,
   records: related.extend({
-    items: z.array(recordResult.pick({ id: true, body: true, updated_at: true, record_kind: true, occurred_at: true })),
+    items: z.array(z.object({
+      id: recordResult.shape.id,
+      body: recordResult.shape.body,
+      updated_at: recordResult.shape.updated_at,
+      record_kind: recordResult.shape.record_kind,
+      occurred_at: recordResult.shape.occurred_at,
+    })),
   }),
 });
 export const entityPage = page(entitySummary);
