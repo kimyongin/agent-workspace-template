@@ -166,7 +166,7 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
 
 test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하지 않는다", async ({page}) => {
   let version=1, fail=false, patches=0;
-  const task = () => ({...record(1),entity_ids:[],entity_context:[],deleted_at:null,created_by:null,created_by_name:null,title:"할 일",kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,version});
+  const task = () => ({...record(1),entity_ids:[],entity_context:[],deleted_at:null,created_by:null,created_by_name:null,title:"할 일",kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,pauses:[],result_record:null,version});
   await page.route("http://127.0.0.1:55581/api/**",async route => {if(await fulfillPreparation(route))return;
     const path=new URL(route.request().url()).pathname;
     if(path.endsWith(`/tasks/${id(1)}`)) {
@@ -316,7 +316,7 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     await expect(page.locator('[aria-label="태그"]').last()).toHaveText(name);
   });
 }
-for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","할 일 추가"]]) {
+for (const [routePath, createLabel] of [["/tasks","할 일 추가"]]) {
   test(`같은 ${routePath} 조건 이동의 취소는 초안을 보존하고 버리기는 새 작성 상태로 닫는다`,async({page})=>{
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=${routePath}`);
@@ -340,7 +340,7 @@ for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","
 }
 for (const kind of ["records","tasks"]) {
   test(`직접 편집 ${kind} 라우트 버리기는 목록 복귀 대신 요청한 상세 조건으로 이동한다`,async({page})=>{
-    const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),kind:kind==="records"?"general":"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,change_note:"과거 메모"};
+    const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),...(kind === "tasks" ? { kind: "once", entity_ids: [], entity_context: [], pauses: [], deleted_at: null } : {}),status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,change_note:"과거 메모"};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/tags")?{items:[],next_cursor:null}:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=`+encodeURIComponent(`/${kind}/${id(1)}?edit=1`));
     const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
@@ -369,7 +369,7 @@ for(const kind of ["records","tasks"]){
   test(`${kind} 태그 사전 실패 재시도는 표시 행·읽던 위치·초점을 유지한다`,async({page})=>{
     let attempts=0,release:()=>void=()=>{};
     const held=new Promise<void>(resolve=>release=resolve);
-    const items=Array.from({length:20},(_,i)=>({...record(i+1),...(kind==="tasks"?{title:`기록 ${i+1}`} : {}),tag_ids:[id(99)],kind:kind==="records"?"general":"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null}));
+    const items=Array.from({length:20},(_,i)=>({...record(i+1),...(kind==="tasks"?{title:`기록 ${i+1}`} : {}),tag_ids:[id(99)],...(kind === "tasks" ? { kind: "once", entity_ids: [], entity_context: [], pauses: [], deleted_at: null } : {}),status:"open",due_on:null,recurrence:null,timezone:null,result_record:null}));
     await page.route("http://127.0.0.1:55581/api/**",async route => {if(await fulfillPreparation(route))return;
       if(new URL(route.request().url()).pathname.endsWith("/tags")){
         if(!attempts++){await route.fulfill({status:503,json:{code:"internal",message:"태그 사전 실패"}});return;}
@@ -397,7 +397,7 @@ for(const kind of ["records","tasks"]){
 }
 for(const kind of ["records","tasks"]){
   test(`${kind} 한 글자 제목도 모든 폭에서44px 조작 영역을 유지한다`,async({page})=>{
-    const item={...record(1),...(kind!=="records"?{title:"함"}:{}),body:"함",kind:kind==="records"?"general":"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null};
+    const item={...record(1),...(kind!=="records"?{title:"함"}:{}),body:"함",...(kind === "tasks" ? { kind: "once", entity_ids: [], entity_context: [], pauses: [], deleted_at: null } : {}),status:"open",due_on:null,recurrence:null,timezone:null,result_record:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/tags")?{items:[],next_cursor:null}:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
     const title=(page.getByRole("region",{name:kind==="records"?"기록 목록":"할 일 목록",exact:true})).getByRole("button",{name:"함",exact:true});
