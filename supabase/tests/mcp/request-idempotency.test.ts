@@ -6,12 +6,13 @@ import { activityWorkspaceSuite, scopedHttp, scopedTool } from "../http/_workspa
 import { connectMcp } from "./_mcp.ts";
 
 // deno-lint-ignore no-explicit-any
+type Json = any;
 async function write(
   client: Client,
   workspace: string,
   name: string,
   arguments_: Record<string, unknown>,
-): Promise<any> {
+): Promise<Json> {
   const result = await client.callTool({ name, arguments: { workspace_id: workspace, ...arguments_ } });
   assertEquals(result.isError ?? false, false);
   assert(result.structuredContent);
@@ -134,8 +135,7 @@ activityWorkspaceSuite(
     const input = { kind: "once", title: `protocol-owner-${crypto.randomUUID()}` };
     const a = await scopedHttp(sessionA, w, "POST", "/tasks", input, key);
     assertEquals(a.status, 201);
-    let b: { id: string; version: number } | undefined;
-    b = await write(clientB, otherW, "create_task", { ...input, request_key: key });
+    const b = await write(clientB, otherW, "create_task", { ...input, request_key: key });
     assert(b);
     assertNotEquals(b.id, a.body.id);
     const replayB = await scopedHttp(sessionB, otherW, "POST", "/tasks", input, key);
