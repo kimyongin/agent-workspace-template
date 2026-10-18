@@ -237,7 +237,8 @@ for (const loseResponse of [false, true]) {
   );
 }
 
-test("a delayed leave entry cannot replace a newer uncertain workspace action", async ({ page }) => {
+for (const nextIntent of ["delete", "create"] as const) {
+test(`a delayed leave entry cannot replace a newer ${nextIntent} intent`, async ({ page }) => {
   const user = { id: actorId, aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: {} };
   await page.addInitScript((user) => localStorage.setItem("sb-127-auth-token", JSON.stringify({
     user, access_token: "isolated-lifecycle-token", refresh_token: "isolated-lifecycle-refresh",
@@ -267,21 +268,34 @@ test("a delayed leave entry cannot replace a newer uncertain workspace action", 
   });
   await page.goto(`/workspaces?leave=${workspaceId}`);
   await expect.poll(() => entryRequested).toBe(true);
-  await page.getByRole("row").filter({ hasText: newer.name }).getByRole("button", { name: "삭제", exact: true }).click();
-  const dialog = page.getByRole("alertdialog");
-  await dialog.getByRole("button", { name: "공간 삭제", exact: true }).click();
-  await expect(dialog.getByText("저장 여부를 알 수 없습니다.", { exact: false })).toBeVisible();
+  if (nextIntent === "delete") {
+    await page.getByRole("row").filter({ hasText: newer.name }).getByRole("button", { name: "삭제", exact: true }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "공간 삭제", exact: true }).click();
+    await expect(page.getByRole("alertdialog").getByText("저장 여부를 알 수 없습니다.", { exact: false })).toBeVisible();
+  } else {
+    await page.getByRole("button", { name: "새 공간 만들기", exact: true }).click();
+    await page.getByRole("textbox", { name: "공간 이름", exact: true }).fill("작성 중인 새 공간");
+  }
   const arrival = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/workspaces/${workspaceId}/membership`);
   releaseEntry();
   await arrival;
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(page.getByText("늦게 도착한 공간 A", { exact: true })).toHaveCount(0);
+  if (nextIntent === "create") {
+    await expect(page.getByRole("dialog", { name: "새 공간 만들기", exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "공간 이름", exact: true })).toHaveValue("작성 중인 새 공간");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    expect(writes).toHaveLength(0);
+    return;
+  }
+  const dialog = page.getByRole("alertdialog");
   await expect(dialog.getByText(newer.name, { exact: true })).toBeVisible();
-  await expect(dialog.getByText("늦게 도착한 공간 A", { exact: true })).toHaveCount(0);
   await dialog.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
   await expect.poll(() => writes.length).toBe(2);
   expect(writes[1]).toEqual(writes[0]);
   expect(writes[0]).toEqual({ path: `/api/workspaces/${newer.id}`, key: expect.stringMatching(/^[0-9a-f-]{36}$/), body: { expected_generation: 7 } });
 });
+}
 
 test("a known management revocation on focus disables a previously prepared lifecycle action", async ({ page }) => {
   const user = {

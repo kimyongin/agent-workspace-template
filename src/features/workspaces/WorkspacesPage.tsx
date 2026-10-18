@@ -25,8 +25,10 @@ export function WorkspacesPage() {
   const [lifecycle, setLifecycle] = useState<WorkspaceLifecycleIntent | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const lifecycleOrigin = useRef<Element | null>(null);
+  const intentVersion = useRef(0);
   const [completedAction, setCompletedAction] = useState(0);
   const openLifecycle = (intent: WorkspaceLifecycleIntent) => {
+    intentVersion.current++;
     lifecycleOrigin.current = document.activeElement;
     setLifecycle(intent);
   };
@@ -46,6 +48,7 @@ export function WorkspacesPage() {
   useEffect(() => {
     if (!requestedExit) return;
     const controller = new AbortController();
+    const version = intentVersion.current;
     void api<{ workspace: Workspace; membership_version: number }>(
       "GET",
       `/workspaces/${encodeURIComponent(requestedExit)}/membership`,
@@ -53,13 +56,14 @@ export function WorkspacesPage() {
       controller.signal,
     )
       .then((value) => {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && intentVersion.current === version) {
+          lifecycleOrigin.current = document.activeElement;
           setLifecycle({ workspace: value.workspace, action: "leave" });
           setEntryError("");
         }
       })
       .catch((error) => {
-        if (!controller.signal.aborted) setEntryError(writeErrorMessage(error));
+        if (!controller.signal.aborted && intentVersion.current === version) setEntryError(writeErrorMessage(error));
       });
     return () => controller.abort();
   }, [api, requestedExit]);
@@ -113,7 +117,7 @@ export function WorkspacesPage() {
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold">내 공간</h1>
-        <Button onClick={() => setCreating(true)}>새 공간 만들기</Button>
+        <Button onClick={() => { intentVersion.current++; setCreating(true); }}>새 공간 만들기</Button>
       </div>
       {error && (
         <Alert variant="destructive">
