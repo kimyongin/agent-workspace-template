@@ -2,13 +2,18 @@
 -- child. Retrying preserves the original deadline; progress cannot extend it.
 create function private.keep_model_source_expiry() returns trigger
  language plpgsql set search_path='' as $$
-declare deadline timestamptz;children integer;bounded_children integer;
+declare deadline timestamptz;children integer;bounded_children integer;snapshot_changed boolean;expiry_changed boolean;
 begin
- if old.workspace_id is null or current_user<>'app_user'
-   or new.source_expires_at is not distinct from old.source_expires_at then return new;end if;
+ if old.workspace_id is null or current_user<>'app_user' then return new;end if;
+ snapshot_changed:=new.source_templates is distinct from old.source_templates
+  or new.source_memberships is distinct from old.source_memberships;
+ expiry_changed:=new.source_expires_at is distinct from old.source_expires_at;
+ if not snapshot_changed and not expiry_changed then return new;end if;
  if old.status not in ('ready','failed') or new.status<>'queued' or new.version<>old.version+1 then
+  if snapshot_changed then raise exception 'model_plan_source_snapshot_immutable' using errcode='23514';end if;
   raise exception 'model_plan_source_expiry_immutable' using errcode='23514';end if;
  perform private.authorize_model_activation(old.workspace_id,old.id,new.initiated_by);
+ if not expiry_changed then return new;end if;
  select count(*),count(j.source_expires_at),min(j.source_expires_at)
   into children,bounded_children,deadline
   from app.data_model_children c join app.entity_schema_migrations j
