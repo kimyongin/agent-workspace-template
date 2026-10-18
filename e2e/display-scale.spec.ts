@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { openProfileMenu } from "./ui-actions.ts";
 import { baseWorkspace, detailDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { expect, test, type Page } from "@playwright/test";
@@ -62,12 +63,12 @@ test("display scale: failed save keeps selection; retry persists only changed me
 });
 test("display scale: 150% keeps main filters, details, confirmation and resize usable on desktop/mobile", async ({ page }, info) => {
   await page.setViewportSize({ width: 2160, height: 1080 });
-  const state = await fixture(page, "150"); await page.goto("/entities");
+  const state = await fixture(page, "150"); await page.goto(fixtureWorkspacePath("/entities"));
   await expect(page.getByRole("heading", { name: "전체 자료", exact: true, level: 1 })).toBeVisible();
   await expect.poll(() => rootSize(page)).toBe(24);
   await page.getByRole("button", { name: "필터 열기" }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.goto(`/tasks/${id(2)}`);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
   await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).toBeVisible();
   await page.getByRole("separator", { name: "상세 패널 너비 조절" }).press("End");
   expect((await baseWorkspace(page).boundingBox())!.width).toBeGreaterThanOrEqual(24 * 28);
@@ -132,7 +133,7 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
   await smallFont.evaluate(node => (node as HTMLStyleElement).remove());
   await page.setViewportSize({ width: 320, height: 844 });
   for (const path of ["/entities", "/tasks", "/records", "/guide"]) {
-    await page.goto(path);
+    await page.goto(fixtureWorkspacePath(path));
     await expect(page.locator("main h1")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
   }
@@ -228,7 +229,7 @@ for (const scale of [100, 110, 125, 150]) {
     });
     const width = 1280 * scale / 100, height = 480 * scale / 100;
     await page.setViewportSize({ width: 2160, height: 900 });
-    await page.goto(`/tasks/${id(2)}`);
+    await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
     await expect.poll(() => rootSize(page)).toBeCloseTo(16 * scale / 100, 1);
     await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "할 일 편집", exact: true });
