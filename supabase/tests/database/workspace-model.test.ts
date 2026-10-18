@@ -192,9 +192,31 @@ dbTest(
         { target_kind: "settings", target_id: "*", access: "write" },
         { target_kind: "entity_type", target_id: left.id, access: "write" },
       ]);
+      await runInWorkspace(sql, reader, {
+        mode: "business",
+        requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      }, async (tx) => {
+        const stripRequirements = await assertRejects(() => tx.savepoint((attempt) => attempt`update app.data_model_changes
+          set plan=jsonb_set(plan,'{protected_permissions}','[]'::jsonb)
+          where workspace_id=${owned[0]}::uuid and id=${dataPlan.id}::uuid`));
+        assertEquals((stripRequirements as { code?: string }).code, "23514");
+        assertEquals((stripRequirements as Error).message, "model_plan_permissions_immutable");
+      });
       await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
         expected_version: 3,
         grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      });
+      await runInWorkspace(sql, reader, {
+        mode: "business",
+        requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      }, async (tx) => {
+        const disclosed = await tx`select plan from app.data_model_changes
+          where workspace_id=${owned[0]}::uuid and id=${dataPlan.id}::uuid`;
+        assertEquals(disclosed.length, 0);
+        const stripped = await tx`update app.data_model_changes
+          set plan=jsonb_set(plan,'{protected_permissions}','[]'::jsonb)
+          where workspace_id=${owned[0]}::uuid and id=${dataPlan.id}::uuid returning id`;
+        assertEquals(stripped.length, 0);
       });
       assertEquals(
         (await assertRejects(() => prepareDataModel(modelDeps, dataRequest, dataPrepare), AppError)).code,
