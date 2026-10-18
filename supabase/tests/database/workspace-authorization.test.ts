@@ -467,3 +467,32 @@ dbTest("scoped kind anchors reject direct owner-policy escapes and cross-workspa
     await f.cleanup();
   }
 });
+
+dbTest("malformed permission targets are strictly false and rejected at the actual application role", async () => {
+  const f = await fixture();
+  try {
+    const workspace = await f.create(f.a);
+    const rows = await runInWorkspace(sql, { ...f.a, workspaceId: workspace.id }, {
+      mode: "business",
+      requirements: [],
+    }, async (tx) => {
+      return await tx`select app.workspace_allows(kind,target,access) as allowed from (values
+        ('settings'::text,'*'::text,null::text),
+        (null::text,'*'::text,'read'::text),
+        ('settings'::text,null::text,'write'::text),
+        ('settings'::text,'*'::text,'none'::text),
+        ('unknown'::text,'*'::text,'read'::text)
+      ) malformed(kind,target,access)`;
+    });
+    for (const row of rows) assertEquals(row.allowed, false);
+    await denied(() =>
+      runInWorkspace(sql, { ...f.a, workspaceId: workspace.id }, { mode: "business", requirements: [] }, async (tx) => {
+        await tx`select app.authorize_workspace(${
+          tx.json([{ target_kind: "settings", target_id: "*", access: null }])
+        })`;
+      })
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
