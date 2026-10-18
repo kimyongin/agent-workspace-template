@@ -1092,8 +1092,64 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
     await expect(page).toHaveURL(new RegExp(`/w/${fixtureWorkspaceId}/entities/`));
     await refresh("write");
     await region.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
+    await expect.poll(() => writes.length).toBe(2);
+    await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toBeVisible();
+    await expect(region.getByText("태그 연결을 저장했습니다.", { exact: true })).toBeVisible();
     await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
-    expect(writes).toHaveLength(2);
     expect(writes[1]).toEqual(writes[0]);
   } finally { release(); }
 });
+
+
+for (const mode of ["create", "edit"] as const) {
+  test(`미확정 자료 ${mode} 폼은 WRITE에서 READ 갱신 뒤에도 초안과 원래 재시도를 보존한다`, async ({ page }) => {
+    let access = "write", membership = 1;
+    await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: {
+      workspace: { id: fixtureWorkspaceId, name: "자료 폼 권한 전환 공간", deleted_at: null },
+      can_manage: false, membership_version: membership,
+      grants: [{ target_kind: "entity_type", target_id: fixtureType.id, access }],
+    } }));
+    let current = { ...makeEntity(361, { prop_1: "원래 자료" }), tag_ids: [] as string[] };
+    await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
+    const writes: { body: any; key?: string }[] = [];
+    await page.route("**/api/entities**", route => {
+      const request = route.request(), path = new URL(request.url()).pathname;
+      if (request.method() !== "GET") {
+        writes.push({ body: request.postDataJSON(), key: request.headers()["idempotency-key"] });
+        if (writes.length === 1) {
+          current = { ...current, properties: writes[0].body.properties, title: writes[0].body.properties.prop_1, version: 2 };
+          return route.abort();
+        }
+        return route.fulfill({ json: current });
+      }
+      return route.fulfill({ json: path.endsWith("/links") ? { items: [], next_cursor: null } : path.endsWith("/entities") ? { items: [current], next_cursor: null } : { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } });
+    });
+    const refresh = async (next: string) => {
+      access = next; membership++;
+      const response = page.waitForResponse(response => new URL(response.url()).pathname === `/api/workspaces/${fixtureWorkspaceId}`);
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await response;
+    };
+    await page.goto("/e2e/fixtures/entity-tags-app.html");
+    await page.goto(`/w/${fixtureWorkspaceId}/entities${mode === "create" ? `?entity_type_id=${fixtureType.id}` : `/${encodeURIComponent(current.id)}`}`);
+    if (mode === "create") await beginTabAction(page, `${fixtureType.label} 추가`);
+    else await openDetailEditor(page);
+    const form = page.getByRole("dialog", { name: `${fixtureType.label} ${mode === "create" ? "추가" : "편집"}`, exact: true });
+    const draft = `미확정 ${mode}`;
+    await form.getByRole("textbox", { name: "제목 (필수)", exact: true }).fill(draft);
+    await form.getByRole("button", { name: "저장", exact: true }).click();
+    const confirmation = executionDialog(page);
+    await confirmation.getByRole("button", { name: mode === "create" ? "등록하고 저장" : "수정하고 저장", exact: true }).click();
+    await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeVisible();
+    await refresh("read");
+    await expect(page.getByRole("textbox", { name: "제목 (필수)", exact: true, includeHidden: true })).toHaveValue(draft);
+    await expect(confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeDisabled();
+    expect(writes).toHaveLength(1);
+    await refresh("write");
+    await confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
+    await expect.poll(() => writes.length).toBe(2);
+    await expect(confirmation).toHaveCount(0);
+    expect(writes[1]).toEqual(writes[0]);
+    await expect(page).toHaveURL(new RegExp(`/w/${fixtureWorkspaceId}/entities/`));
+  });
+}
