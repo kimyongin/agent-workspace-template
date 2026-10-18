@@ -1,7 +1,8 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { connect, dbTest, urls } from "./_db.ts";
+import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
 import * as workspaces from "../../functions/_shared/core/workspaces/application.ts";
 import * as types from "../../functions/_shared/core/entity-types/application.ts";
@@ -104,6 +105,29 @@ dbTest("shared schema analysis captures the actual initiator and immutable works
     assertEquals(revoked.accepted, false);
     const [denied] = await worker`select app.claim_entity_schema_analysis() as batch`;
     assertEquals(denied.batch, null);
+    assertEquals(
+      (await assertRejects(() => changes.getEntitySchemaChange(typeDeps, executor, type.id, nextDraft.id), AppError))
+        .code,
+      "forbidden",
+    );
+    // Expire the original lease to make this a real reclaim attempt after revocation.
+    await admin`update app.entity_schema_analyses set lease_until=clock_timestamp()-interval '1 second' where workspace_id=${workspaceId} and id=${next.analysis_id}`;
+    assertEquals((await worker`select app.claim_entity_schema_analysis() as batch`)[0].batch, null);
+    // Deleting the actual executor retains shared source/history but cannot lend another actor's authority.
+    await admin`delete from auth.users where id=${b.userId}`;
+    assertEquals((await changes.getEntitySchemaChange(typeDeps, author, type.id, nextDraft.id)).analysis?.total, 1);
+    assertEquals((await worker`select app.claim_entity_schema_analysis() as batch`)[0].batch, null);
+    const oldGenerationDraft = await changes.createEntitySchemaChange(typeDeps, key(author), type.id, {
+      expected_schema_version: 1,
+      edits: [{ op: "set_metadata", description: "삭제 전 분석" }],
+      migration: { rules: [], overrides: [] },
+    });
+    await changes.analyzeEntitySchemaChange(typeDeps, key(author), type.id, oldGenerationDraft.id, {
+      expected_change_version: oldGenerationDraft.version,
+    });
+    await workspaces.deleteWorkspace(workspaceDeps, key(a), workspaceId, { expected_generation: 1 });
+    await workspaces.restoreWorkspace(workspaceDeps, key(a), workspaceId, { expected_generation: 2 });
+    assertEquals((await worker`select app.claim_entity_schema_analysis() as batch`)[0].batch, null);
   } finally {
     if (workspaceId) await admin`delete from app.workspaces where id=${workspaceId}`;
     for (const actor of [a, b]) await admin`delete from auth.users where id=${actor.userId}`;
