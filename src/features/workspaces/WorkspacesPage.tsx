@@ -1,8 +1,9 @@
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
-import type { Workspace } from "@contracts/workspace.ts";
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
+import type { Workspace, WorkspaceSummary } from "@contracts/workspace.ts";
+import { DeletedWorkspaces, WorkspaceLifecycleDialog, type WorkspaceLifecycleIntent } from "./WorkspaceLifecycle.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { workspacePath } from "../../lib/workspace-route.tsx";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -10,32 +11,68 @@ import { Button } from "../../components/ui/button.tsx";
 import { Field, FieldGroup, FieldLabel } from "../../components/ui/field.tsx";
 import { Input } from "../../components/ui/input.tsx";
 import { Alert, AlertDescription } from "../../components/ui/alert.tsx";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "../../components/ui/empty.tsx";
-import {
-  BusinessCell,
-  BusinessRow,
-  BusinessTable,
-} from "../../components/BusinessTable.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../components/ui/empty.tsx";
+import { BusinessCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 export function WorkspacesPage() {
   const api = useApi(), navigate = useDeferredNavigation();
-  const [items, setItems] = useState<Workspace[] | null>(null),
+  const [items, setItems] = useState<WorkspaceSummary[] | null>(null),
     [error, setError] = useState(""),
     [revision, setRevision] = useState(0),
     [creating, setCreating] = useState(false),
     [name, setName] = useState("");
+  const [lifecycle, setLifecycle] = useState<WorkspaceLifecycleIntent | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const lifecycleOrigin = useRef<Element | null>(null);
+  const intentVersion = useRef(0);
+  const [completedAction, setCompletedAction] = useState(0);
+  const openLifecycle = (intent: WorkspaceLifecycleIntent) => {
+    intentVersion.current++;
+    lifecycleOrigin.current = document.activeElement;
+    setLifecycle(intent);
+  };
+  useEffect(() => {
+    if (!completedAction) return;
+    const origin = lifecycleOrigin.current;
+    const frame = requestAnimationFrame(() => {
+      const focused = document.activeElement;
+      if (!focused || focused === document.body || focused === document.documentElement || focused === origin) {
+        heading.current?.focus();
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [completedAction]);
+  const [params] = useSearchParams(), requestedExit = params.get("leave");
+  const [entryError, setEntryError] = useState("");
+  useEffect(() => {
+    if (!requestedExit) return;
+    const controller = new AbortController();
+    const version = intentVersion.current;
+    void api<{ workspace: Workspace; membership_version: number }>(
+      "GET",
+      `/workspaces/${encodeURIComponent(requestedExit)}/membership`,
+      undefined,
+      controller.signal,
+    )
+      .then((value) => {
+        if (!controller.signal.aborted && intentVersion.current === version) {
+          lifecycleOrigin.current = document.activeElement;
+          setLifecycle({ workspace: value.workspace, action: "leave" });
+          setEntryError("");
+        }
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && intentVersion.current === version) setEntryError(writeErrorMessage(error));
+      });
+    return () => controller.abort();
+  }, [api, requestedExit]);
   const { attempt, busy, uncertain } = useWriteAttempt<
     { workspace: Workspace }
   >();
   useEffect(() => {
     const controller = new AbortController();
-    void api<{ items: Workspace[] }>(
+    void api<{ items: WorkspaceSummary[] }>(
       "GET",
       "/workspaces",
       undefined,
@@ -50,6 +87,11 @@ export function WorkspacesPage() {
     });
     return () => controller.abort();
   }, [api, revision]);
+  useEffect(() => {
+    const refresh = () => setRevision((value) => value + 1);
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
@@ -74,8 +116,8 @@ export function WorkspacesPage() {
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">내 공간</h1>
-        <Button onClick={() => setCreating(true)}>새 공간 만들기</Button>
+        <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold">내 공간</h1>
+        <Button onClick={() => { intentVersion.current++; setCreating(true); }}>새 공간 만들기</Button>
       </div>
       {error && (
         <Alert variant="destructive">
@@ -86,6 +128,11 @@ export function WorkspacesPage() {
           >
             다시 불러오기
           </Button>
+        </Alert>
+      )}
+      {entryError && (
+        <Alert variant="destructive">
+          <AlertDescription>{entryError}</AlertDescription>
         </Alert>
       )}
       {items === null
@@ -105,9 +152,19 @@ export function WorkspacesPage() {
               <BusinessRow key={item.id}>
                 <BusinessCell index={0}>{item.name}</BusinessCell>
                 <BusinessCell index={1}>
-                  <Button asChild variant="outline">
-                    <Link to={workspacePath(item.id)}>열기</Link>
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline">
+                      <Link to={workspacePath(item.id)}>열기</Link>
+                    </Button>
+                    {item.can_manage && (
+                      <Button
+                        variant="outline"
+                        onClick={() => openLifecycle({ workspace: item, action: "delete" })}
+                      >
+                        삭제
+                      </Button>
+                    )}
+                  </div>
                 </BusinessCell>
               </BusinessRow>
             ))}
@@ -123,6 +180,23 @@ export function WorkspacesPage() {
             </EmptyHeader>
           </Empty>
         )}
+      <DeletedWorkspaces
+        revision={revision}
+        onRestore={(workspace) => openLifecycle({ workspace, action: "restore" })}
+        onLeave={(workspace) => openLifecycle({ workspace, action: "leave" })}
+      />
+      {lifecycle && (
+        <WorkspaceLifecycleDialog
+          key={`${lifecycle.workspace.id}:${lifecycle.action}`}
+          intent={lifecycle}
+          onClose={() => setLifecycle(null)}
+          onSaved={() => {
+            setLifecycle(null);
+            setCompletedAction((value) => value + 1);
+            setRevision((value) => value + 1);
+          }}
+        />
+      )}
       <ModalShell
         title="새 공간 만들기"
         open={creating}
@@ -199,8 +273,7 @@ export function InvitationPage() {
     <section className="mx-auto flex w-full max-w-xl flex-col gap-5 p-6">
       <h1 className="text-2xl font-semibold">공간 초대</h1>
       <p>
-        초대받은 이메일의 Google 계정으로 로그인한 뒤 참여하세요. 초대의
-        유효성과 계정을 서버에서 확인합니다.
+        초대받은 이메일의 Google 계정으로 로그인한 뒤 참여하세요. 초대의 유효성과 계정을 서버에서 확인합니다.
       </p>
       {error && (
         <Alert variant="destructive">
