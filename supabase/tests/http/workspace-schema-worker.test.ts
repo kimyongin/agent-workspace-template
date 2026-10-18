@@ -1,6 +1,12 @@
 import { assert, assertEquals } from "@std/assert";
 import { admin, API, call, httpTest, signIn, SUPABASE_URL } from "./_client.ts";
-import { claimsOf, connectMcp, mcpGrant, tool } from "../mcp/_mcp.ts";
+import {
+  claimsOf,
+  connectMcp,
+  MCP_URL,
+  registerClient,
+  tool,
+} from "../mcp/_mcp.ts";
 import { connect, urls } from "../database/_db.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import type { DataModelDocument } from "../../functions/_shared/contracts/data-model.ts";
@@ -10,11 +16,10 @@ import type { DataModelDocument } from "../../functions/_shared/contracts/data-m
 httpTest(
   "workspace durable analysis HTTP/MCP keeps current kind authority and scoped replay",
   async () => {
-    const a = await signIn("A"), b = await signIn("B");
-    const aId = String(claimsOf(a).sub), bId = String(claimsOf(b).sub);
-    const grant = await mcpGrant(b),
-      client = await connectMcp(grant.access_token);
-    const sql = connect(urls.direct, { max: 1, prepare: false });
+    let client: Awaited<ReturnType<typeof connectMcp>> | undefined;
+    let sql: ReturnType<typeof connect> | undefined;
+    let aId: string | undefined, bId: string | undefined;
+    const auth: { clientId?: string; tokens: string[] } = { tokens: [] };
     const owned: { id: string; name: string }[] = [];
     const errors: unknown[] = [];
     const scoped = async (
@@ -43,6 +48,15 @@ httpTest(
       };
     };
     try {
+      const a = await signIn("A");
+      auth.tokens.push(a);
+      aId = String(claimsOf(a).sub);
+      const b = await signIn("B");
+      auth.tokens.push(b);
+      bId = String(claimsOf(b).sub);
+      const mcpToken = await trackedMcpToken(b, auth);
+      client = await connectMcp(mcpToken);
+      sql = connect(urls.direct, { max: 1, prepare: false });
       for (const label of ["shared", "other"]) {
         const name = `worker513-${label}-${crypto.randomUUID()}`;
         const created = await call(a, "POST", "/workspaces", { name });
@@ -288,8 +302,12 @@ httpTest(
       errors.push(error);
     } finally {
       try {
-        await client.close();
-        await sql.end();
+        await client?.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        await sql?.end();
       } catch (error) {
         errors.push(error);
       }
@@ -307,7 +325,7 @@ httpTest(
             );
             const [active] =
               await tx`select count(*)::int as n from app.entity_schema_migrations
-            where workspace_id=${workspace.id} and status in ('queued','running','committing')`;
+            where workspace_id=${workspace.id} and status in ('queued','preparing','ready_to_commit','committing')`;
             assertEquals(
               active.n,
               0,
@@ -325,23 +343,27 @@ httpTest(
         errors.push(error);
       }
       try {
-        const secret = Deno.env.get("LOCAL_SUPABASE_SECRET_KEY");
-        assert(secret);
-        const removed = await fetch(
-          `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${
-            encodeURIComponent(grant.client_id)
-          }`,
-          {
-            method: "DELETE",
-            headers: { apikey: secret, authorization: `Bearer ${secret}` },
-            signal: AbortSignal.timeout(15000),
-          },
-        );
-        await removed.body?.cancel();
-        assert(removed.ok || removed.status === 404);
-        const sessions = [a, b, grant.access_token].map((token) =>
-          claimsOf(token).session_id
-        )
+        if (auth.clientId) {
+          const secret = Deno.env.get("LOCAL_SUPABASE_SECRET_KEY");
+          assert(secret);
+          const removed = await fetch(
+            `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${
+              encodeURIComponent(auth.clientId)
+            }`,
+            {
+              method: "DELETE",
+              headers: { apikey: secret, authorization: `Bearer ${secret}` },
+              signal: AbortSignal.timeout(15000),
+            },
+          );
+          await removed.body?.cancel();
+          assert(removed.ok || removed.status === 404);
+        }
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        const sessions = auth.tokens.map((token) => claimsOf(token).session_id)
           .filter((id): id is string => typeof id === "string");
         if (sessions.length) {
           await admin`delete from auth.sessions where id=any(${sessions}::uuid[])`;
@@ -358,3 +380,103 @@ httpTest(
     }
   },
 );
+
+// Keep this fixture local until #518 owns a shared tracked OAuth bootstrap. The
+// ordinary helper cannot expose a registered client if consent/exchange fails.
+async function trackedMcpToken(
+  session: string,
+  owned: { clientId?: string; tokens: string[] },
+): Promise<string> {
+  const registered = await registerClient();
+  if (typeof registered.body.client_id === "string") {
+    owned.clientId = registered.body.client_id;
+  }
+  assertEquals(registered.status, 201);
+  assert(owned.clientId);
+  const encode = (bytes: Uint8Array) =>
+    btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const verifier = encode(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = encode(
+    new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
+    ),
+  );
+  const state = encode(crypto.getRandomValues(new Uint8Array(16)));
+  const redirect = "http://127.0.0.1:55390/callback";
+  const authUrl = `${SUPABASE_URL}/auth/v1`;
+  const authorize = new URL(`${authUrl}/oauth/authorize`);
+  for (
+    const [key, value] of Object.entries({
+      response_type: "code",
+      client_id: owned.clientId,
+      redirect_uri: redirect,
+      state,
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      resource: MCP_URL,
+      scope: "openid email",
+    })
+  ) authorize.searchParams.set(key, value);
+  const step = await fetch(authorize, {
+    redirect: "manual",
+    signal: AbortSignal.timeout(15000),
+  });
+  await step.body?.cancel();
+  const authorization = new URL(
+    step.headers.get("location") ?? "",
+    SUPABASE_URL,
+  ).searchParams.get("authorization_id");
+  assert(authorization, "local OAuth consent authorization is present");
+  const publishable = Deno.env.get("VITE_SUPABASE_PUBLISHABLE_KEY");
+  assert(publishable);
+  const headers = {
+    apikey: publishable,
+    authorization: `Bearer ${session}`,
+    "content-type": "application/json",
+  };
+  const details = await fetch(
+    `${authUrl}/oauth/authorizations/${authorization}`,
+    { headers, signal: AbortSignal.timeout(15000) },
+  );
+  const detail = await details.json();
+  assert(details.ok, "local OAuth authorization details succeed");
+  let callback = detail.redirect_url;
+  if (!callback) {
+    const consent = await fetch(
+      `${authUrl}/oauth/authorizations/${authorization}/consent`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ action: "approve" }),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    const approved = await consent.json();
+    assert(consent.ok, "local OAuth consent succeeds");
+    callback = approved.redirect_url;
+  }
+  const result = new URL(callback);
+  assertEquals(result.searchParams.get("state"), state);
+  const exchange = await fetch(`${authUrl}/oauth/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code: result.searchParams.get("code") ?? "",
+      redirect_uri: redirect,
+      client_id: owned.clientId,
+      code_verifier: verifier,
+      resource: MCP_URL,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const token = await exchange.json();
+  // Track any minted session before assertions or SDK connection can fail.
+  if (typeof token.access_token === "string") {
+    owned.tokens.push(token.access_token);
+  }
+  assert(exchange.ok, "local OAuth code exchange succeeds");
+  assert(typeof token.access_token === "string");
+  return token.access_token;
+}
