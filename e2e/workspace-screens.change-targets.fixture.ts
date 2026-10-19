@@ -94,15 +94,12 @@ for (const [kind, route, n] of targetCases) {
       };
       Object.assign(r, { record_kind: "change", entity_id: kind === "entity" ? change.target_id : null, task_id: kind === "task" ? change.target_id : null, body: "당시 편집 근거", change });
       const original = JSON.stringify(r);
-      let reads = 0, fail = outcome === "failed";
+      let reads = 0, fail = false;
       await page.route(
         `**/api/${route}/${routeId}`,
         (endpoint) => {
           reads++;
           const current = state.rows[route].find((row) => row.id === change.target_id)!;
-          if (kind === "entity" && reads === 1 && outcome === "failed") {
-            return endpoint.fulfill({ json: current });
-          }
           return outcome === "foreign"
             ? endpoint.fulfill({ status: 404, json: { code: "not_found", message: "항목을 찾을 수 없습니다" } })
             : fail
@@ -127,12 +124,15 @@ for (const [kind, route, n] of targetCases) {
       const link = target.getByRole("button", { name: change.target_title, exact: true });
       if (outcome === "exists") await expect(link).toHaveAttribute("aria-expanded", "false");
       else if (outcome === "failed") {
+        await expect(target.getByRole("status")).toHaveCount(0);
+        fail = true;
         await link.click();
-        await expect(target).toContainText("현재 항목을 불러오지 못했습니다.");
+        await expect(target).toContainText("내용을 불러오지 못했습니다.");
         await expect(target).not.toContainText("삭제된 항목");
         fail = false;
         await target.getByRole("button", { name: "다시 시도", exact: true }).click();
         await expect(target.getByRole("button", { name: "다시 시도", exact: true })).toHaveCount(0);
+        await expect(target.getByRole("link", { name: change.target_title + " 상세", exact: true })).toBeVisible();
         expect(reads).toBeGreaterThanOrEqual(2);
       } else if (outcome === "deleted") {
         await link.click();
@@ -252,11 +252,12 @@ for (const failure of [401, 403, 500, "network", "other404"] as const) {
         path: `/entities/${encodeURIComponent(entityKey(1))}`,
       },
     });
-    let reads = 0;
+    const original = JSON.stringify(r);
+    let fail = false;
     await page.route(
       `**/api/entities/${encodeURIComponent(entityKey(1))}`,
       (endpoint) => {
-        if (++reads === 1) return endpoint.fulfill({ json: state.rows.entities[0] });
+        if (!fail) return endpoint.fulfill({ json: state.rows.entities[0] });
         return failure === "network" ? endpoint.abort("connectionreset") : endpoint.fulfill({
           status: failure === "other404" ? 404 : failure,
           json: {
@@ -267,10 +268,21 @@ for (const failure of [401, 403, 500, "network", "other404"] as const) {
       },
     );
     await go(page, `/records/${r.id}`);
-    await connectedTarget(page, "entity").getByRole("button", { name: "당시 이름", exact: true }).click();
-    await expect(form(page)).toContainText("현재 항목을 불러오지 못했습니다.");
+    const target = connectedTarget(page, "entity");
+    const link = target.getByRole("button", { name: "당시 이름", exact: true });
+    await expect(link).toBeVisible();
+    await expect(target.getByRole("status")).toHaveCount(0);
+    fail = true;
+    await link.click();
+    await expect(form(page)).toContainText("내용을 불러오지 못했습니다.");
     await expect(form(page)).not.toContainText("삭제된 항목");
-    await expect(connectedTarget(page, "entity").getByRole("button", { name: "다시 시도", exact: true })).toBeEnabled();
+    const retry = target.getByRole("button", { name: "다시 시도", exact: true });
+    await expect(retry).toBeEnabled();
+    fail = false;
+    await retry.click();
+    await expect(target.getByRole("link", { name: "당시 이름 상세", exact: true })).toBeVisible();
+    await expect(target).not.toContainText("내용을 불러오지 못했습니다.");
+    expect(JSON.stringify(r)).toBe(original);
     expect(state.writes).toHaveLength(0);
     expect(state.errors).toEqual([]);
   });
@@ -303,20 +315,21 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
   };
   state.rows.records.push(second);
   state.rows.entities.push(entity(99));
-  let reads = 0, release = () => {};
+  let reads = 0, holdPreview = false, release = () => {}, previewRequested!: () => void;
+  const previewStarted = new Promise<void>(resolve => { previewRequested = resolve; });
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
   await page.route(`**/api/entities/${encodeURIComponent(entityKey(1))}`, async (endpoint) => {
-    if (++reads <= 2) return endpoint.fulfill({ json: state.rows.entities[0] });
+    reads++;
+    if (!holdPreview) return endpoint.fulfill({ json: state.rows.entities[0] });
+    previewRequested();
     await held;
     await endpoint.fulfill({ json: state.rows.entities[0] }).catch(() => {});
   });
-  let nextReads = 0;
-  await page.route(`**/api/entities/${encodeURIComponent(entityKey(99))}`, endpoint => {
-    if (++nextReads === 1) return endpoint.fulfill({ json: state.rows.entities.at(-1) });
-    return endpoint.fulfill({ status: 404, json: { code: "not_found", message: "항목을 찾을 수 없습니다" } });
-  });
+  await page.route(`**/api/entities/${encodeURIComponent(entityKey(99))}`, endpoint =>
+    endpoint.fulfill({ json: state.rows.entities.at(-1) })
+  );
   await go(page, "/records");
   await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("첫 대상");
   await page.locator("[data-list-anchor]").first().click();
@@ -324,13 +337,19 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
   expect(reads).toBe(0);
   await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("삭제된 대상");
   await go(page, `/records/${r.id}`);
-  await connectedTarget(page, "entity").getByRole("button", { name: "첫 대상", exact: true }).click();
+  const firstTarget = connectedTarget(page, "entity");
+  await expect(firstTarget.getByRole("button", { name: "첫 대상", exact: true })).toBeVisible();
+  await expect(firstTarget.getByRole("status")).toHaveCount(0);
+  holdPreview = true;
+  await firstTarget.getByRole("button", { name: "첫 대상", exact: true }).click();
   await expect(connectedTarget(page, "entity").getByRole("status")).toBeVisible();
-  await expect.poll(() => reads).toBe(3);
+  await previewStarted;
   await go(page, `/records/${second.id}`);
-  await expect(connectedTarget(page, "entity")).toContainText("조회 불가");
+  await expect(connectedTarget(page, "entity").getByRole("button", { name: "다음 대상", exact: true })).toBeVisible();
+  await expect(connectedTarget(page, "entity").getByRole("status")).toHaveCount(0);
   release();
   await expect(form(page)).toContainText("다음 대상");
+  await expect(form(page)).not.toContainText("첫 대상");
   await expect(connectedTarget(page, "entity").getByRole("button", { name: "다음 대상", exact: true })).toHaveAttribute(
     "aria-expanded",
     "false",
