@@ -1378,8 +1378,19 @@ for (const width of [320, 1440]) {
     await expect(summary).toBeVisible();
     await summary.press("Enter");
     await expect(summary).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("term").filter({ hasText: /^현재 구간 전송 시도$/ })
-      .locator("..").getByRole("definition")).toHaveText("1회");
+    const details = await disclosureContent(page, summary);
+    for (const [label, value] of [
+      ["현재 구간 전송 시도", "1회"],
+      ["본문 구간", "0/1 완료"],
+      ["준비 중", "0"],
+      ["응답 확인 불가", "1"],
+      ["확인된 실패", "0"],
+    ]) {
+      const displayedValue = details.getByRole("term").filter({ hasText: new RegExp(`^${label}$`) })
+        .locator("..").getByRole("definition");
+      await expect(displayedValue).toBeVisible();
+      await expect(displayedValue).toHaveText(value);
+    }
     const next = page.getByRole("button", { name: "다음", exact: true });
     await expect(next).toBeDisabled();
     expect((await next.boundingBox())!.height).toBeGreaterThanOrEqual(44);
