@@ -162,7 +162,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();
 
   await chooseTag(page, form, "기록 전용");
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes[0].body.value.entity_types[materials.id].create).toEqual({ memo: null, tag_ids: [tag.id] });
   await form.getByLabel("메모 템플릿").fill("종류 문구");
@@ -178,10 +178,10 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
     document.documentElement.style.fontSize = "";
   });
 
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes[2].body.value.entity_types[materials.id].create).toEqual({ memo: null, tag_ids: [tag.id] });
   expect(state.writes[2].body.value.entity_types[products.id].create.memo).toBe("상품 유지");
@@ -408,7 +408,7 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   await form.getByLabel("메모 템플릿").fill("수정 초안");
   await chooseSetting(page, target, "재료");
   await form.getByLabel("메모 템플릿").fill("재료 저장");
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(fixture.writes[0].body.value).not.toHaveProperty("task");
   await chooseSetting(page, target, "할 일");
@@ -422,7 +422,7 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
     .click();
   await page.keyboard.press("Escape");
   await expect(form.getByLabel("메모 템플릿")).toHaveText("할 일 초안");
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(fixture.writes[1].body.value.entity_types[materials.id].create.memo).toBe("재료 저장");
 });
@@ -444,7 +444,7 @@ test("action switches expose hidden errors and all changed actions before a scop
   await form.getByLabel("메모 템플릿").fill("삭제할 때 남길 문구");
   await expect(form.getByLabel("저장할 변경", { exact: true })).toHaveText("변경: 등록 · 삭제");
   await page.screenshot({ path: info.outputPath("record-changed-actions.png"), fullPage: true });
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   await expect(form).toContainText("기록 자동 완성을 저장했습니다.");
   expect(state.writes.at(-1)?.body.value).toMatchObject({
     task: { create: { memo: "다른 대상 유지" } },
@@ -497,8 +497,7 @@ test("editing another action retains hidden server validation errors and their j
   await expect(editor.getByText("등록 문구를 확인하세요", { exact: true }))
     .toBeVisible();
   await editor.getByLabel("메모 템플릿").fill("등록 문구 수정");
-  await editor.getByRole("button", { name: "기록 자동 완성 저장", exact: true })
-    .click();
+  await saveTemplate(page, editor);
   await expect(editor.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes).toHaveLength(1);
   expect(state.writes[0].body.value.entity_types[materials.id]).toMatchObject({
@@ -679,14 +678,14 @@ test("알 수 없는 변수와 조합 입력은 임의 치환 없이 원문을 �
   await memo.press("Enter");
   await memo.press("Enter");
   await memo.pressSequentially("끝 줄");
-  await save.click();
+  await saveTemplate(page, form);
   await expect(form.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toBeVisible();
   expect(state.writes[0].body.value.entity_types[materials.id].create.memo).toBe("첫 줄\n\n끝 줄");
   await memo.fill("첫 줄");
   await memo.press("End");
   await memo.press("Shift+Enter");
   await memo.pressSequentially("끝 줄");
-  await save.click();
+  await saveTemplate(page, form);
   await expect.poll(() => state.writes.length).toBe(2);
   await expect(form.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toBeVisible();
   expect(state.writes[1].body.value.entity_types[materials.id].create.memo).toBe("첫 줄\n끝 줄");
@@ -754,7 +753,12 @@ test("실행 취소는 다른 액션과 대상의 보존한 초안을 바꾸지 
   const form = await openTyped(page), target = page.getByLabel("대상", { exact: true });
   const memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
   await memo.fill("등록 초안");
-  await chooseSetting(page, form.getByLabel("액션", { exact: true }), "수정");
+  const action = form.getByLabel("액션", { exact: true });
+  await chooseSetting(page, action, "수정");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(action).toBeFocused();
+  await expect(memo).toHaveText("수정 기준");
+  await expect(memo).toHaveAttribute("contenteditable", "true");
   await memo.focus();
   await expect(memo).toBeFocused();
   await expect(memo).toHaveAttribute("contenteditable", "true");
@@ -813,10 +817,7 @@ test("실행 취소는 다른 액션과 대상의 보존한 초안을 바꾸지 
   await taskMemo.press("ControlOrMeta+u");
   await taskMemo.pressSequentially("U");
   await expect(taskMemo.locator("b,strong,i,em,u,font,[style]")).toHaveCount(0);
-  await page.getByRole("form", { name: "기록 자동 완성", exact: true }).getByRole("button", {
-    name: "기록 자동 완성 저장",
-    exact: true,
-  }).click();
+  await saveTemplate(page, page.getByRole("form", { name: "기록 자동 완성", exact: true }));
   expect(state.writes[0].body.value.task.create.memo).toBe("문장 BIU");
   await chooseSetting(page, target, "재료");
   await expect(memo).toHaveText("등록 초안");
@@ -841,7 +842,7 @@ test("변수 삽입 직후 그대로 문장을 입력하고 다음 변수를 이
   await expect(memo).toHaveText("수량 가격 · 이전 (1) → ");
   await chooseSetting(page, form.getByLabel("변수 삽입", { exact: true }), "가격 · 이후 (1)");
   await expect(memo).toHaveText("수량 가격 · 이전 (1) → 가격 · 이후 (1)");
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   expect(state.writes[0].body.value.entity_types[materials.id].update.memo).toBe(
     "수량 $엔터티.이전.prop_2$ → $엔터티.이후.prop_2$",
   );
