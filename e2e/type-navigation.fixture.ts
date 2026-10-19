@@ -300,7 +300,7 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeFocused();
 });
 
-test("short layouts and enlarged long labels keep controls inside viewport", async ({ page }) => {
+test("short layouts and enlarged long labels keep controls inside viewport", async ({ page }, info) => {
   const long = type(1, "아주긴자료종류이름공백없는문자열".repeat(4));
   await page.route(
     "**/api/entity-types{,?**}",
@@ -323,6 +323,33 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
     expect(size[0]).toBeGreaterThanOrEqual(44);
     expect(size[1]).toBeGreaterThanOrEqual(44);
   }
+  const layout = await page.getByRole("navigation", { name: "주 메뉴", exact: true }).evaluate(nav => {
+    const measure = (element: Element | null) => {
+      if (!element) return null;
+      const node = element as HTMLElement, style = getComputedStyle(node);
+      return {
+        rect: node.getBoundingClientRect().toJSON(),
+        clientWidth: node.clientWidth, clientHeight: node.clientHeight,
+        scrollWidth: node.scrollWidth, scrollHeight: node.scrollHeight,
+        scrollTop: node.scrollTop, scrollLeft: node.scrollLeft,
+        overflowX: style.overflowX, overflowY: style.overflowY,
+        fontSize: style.fontSize, minHeight: style.minHeight, maxHeight: style.maxHeight, flexShrink: style.flexShrink,
+      };
+    };
+    return {
+      navigation: measure(nav),
+      header: measure(nav.querySelector('[data-slot="sidebar-header"]')),
+      content: measure(nav.querySelector('[data-slot="sidebar-content"]')),
+      footer: measure(nav.querySelector('[data-slot="sidebar-footer"]')),
+      profile: measure(nav.querySelector('button[aria-label="내 프로필"]')),
+      sheet: measure(nav.closest('[role="dialog"]')),
+      rootFont: getComputedStyle(document.documentElement).fontSize,
+      viewport: { width: innerWidth, height: innerHeight, visualWidth: visualViewport?.width, visualHeight: visualViewport?.height, scale: visualViewport?.scale },
+      scroll: { x: scrollX, y: scrollY },
+    };
+  });
+  await info.attach("short-navigation-layout", { contentType: "application/json", body: JSON.stringify(layout, null, 2) });
+  await page.screenshot({ path: info.outputPath("short-navigation-before-profile.png") });
   await openProfileMenu(page);
   await page.getByRole("menuitem", { name: "로그아웃", exact: true }).focus();
   await page.keyboard.press("Escape");
