@@ -1281,6 +1281,7 @@ test("입력 항목 이름과 조건은 좁은 폼에서도 라벨과 값을 읽
   await name.fill("긴 입력 항목 이름과 초안 보존 확인");
   for (const width of [320, 640, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
+    await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
     const axes = await name.evaluate((input) => {
       const label = document.querySelector(`label[for="${input.id}"]`)!.getBoundingClientRect();
       const value = input.getBoundingClientRect();
@@ -1302,6 +1303,7 @@ test("입력 항목 이름과 조건은 좁은 폼에서도 라벨과 값을 읽
   await page.screenshot({ path: info.outputPath("schema-pairs-narrow-parent.png"), fullPage: true });
   await page.setViewportSize({ width: 320, height: 1000 });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(320);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("schema-pairs-200.png"), fullPage: true });
 });
