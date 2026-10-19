@@ -244,6 +244,8 @@ test("calendar reflows at enlarged text without shrinking day targets", async ({
     expect(layout.documentWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.viewport.width);
     expect(layout.day.width).toBeGreaterThanOrEqual(44); expect(layout.day.height).toBeGreaterThanOrEqual(44);
     expect(layout.selected.y, JSON.stringify(layout)).toBeGreaterThanOrEqual(layout.month.y + layout.month.height);
+    await page.getByRole("region", { name: /^\d{4}-\d{2}-\d{2} 기록$/ }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath(`calendar-200-${width}-boundary.png`) });
   }
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
