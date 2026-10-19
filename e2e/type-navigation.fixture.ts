@@ -1,12 +1,12 @@
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
-import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
+import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { fixtureIdentity } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
-import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
+import { entityDetail, entitySummary } from "../supabase/functions/_shared/contracts/entity.ts";
 import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import { closeDetail } from "./ui-actions.ts";
@@ -212,12 +212,19 @@ test("invalid and archived type URLs never widen or offer creation", async ({ pa
   expect(listRequests.every((url) => new URL(url).searchParams.get("entity_type_id") === retired.id)).toBe(true);
 });
 test("typed creation requires selection and protects drafts before changing kind", async ({ page }) => {
+  const writes: string[] = [];
+  page.on("request", request => {
+    if (new URL(request.url()).pathname.startsWith("/api/") && !["GET", "HEAD"].includes(request.method())) writes.push(request.method() + " " + new URL(request.url()).pathname);
+  });
   await page.goto(fixtureWorkspacePath("/entities"));
   await page.getByRole("button", { name: "자료 추가", exact: true }).click();
   let form = page.getByRole("dialog", { name: "자료 추가", exact: true });
-  await form.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(form.getByText("자료 종류와 속성 정의를 확인하세요", { exact: true })).toBeVisible();
-  await expect(form.getByLabel("자료 종류", { exact: true })).toBeFocused();
+  await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+  const kindPicker = form.getByRole("combobox", { name: "자료 종류", exact: true });
+  await expect(kindPicker).toBeEnabled();
+  await kindPicker.focus();
+  await expect(kindPicker).toBeFocused();
+  expect(writes).toEqual([]);
   await chooseEntityType(page, materials.label, form);
   form = page.getByRole("dialog", { name: "재료 추가", exact: true });
   await form.getByLabel("이름", { exact: false }).fill("보존할 초안");
@@ -229,6 +236,7 @@ test("typed creation requires selection and protects drafts before changing kind
   await confirmation.getByRole("button", { name: "종류 변경", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "상품 추가", exact: true }).getByLabel("이름", { exact: false }))
     .toHaveValue("");
+  expect(writes).toEqual([]);
 });
 test("settings profile route keeps drafts and treats settings as account location", async ({ page }) => {
   await page.goto(fixtureWorkspacePath("/settings"));
@@ -322,39 +330,40 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
 });
 
 test("a late old type list cannot replace current rows", async ({ page }) => {
-  let release!: () => void, started!: () => void;
-  const hold = new Promise<void>((resolve) => {
-      release = resolve;
-    }),
-    arrived = new Promise<void>((resolve) => {
-      started = resolve;
-    });
+  let release!: () => void, started!: () => void, finished!: () => void;
+  const hold = new Promise<void>((resolve) => { release = resolve; }),
+    arrived = new Promise<void>((resolve) => { started = resolve; }),
+    settled = new Promise<void>((resolve) => { finished = resolve; });
   await page.route("**/api/entities?**", async (route) => {
+    expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
     const id = new URL(route.request().url()).searchParams.get("entity_type_id");
-    if (id === materials.id) {
-      started();
-      await hold;
-    }
+    if (id === materials.id) { started(); await hold; }
     const kind = id === materials.id ? materials : products;
-    return route.fulfill({
-      json: {
-        items: [{
-          id: `app:${kind.id}:result`,
-          title: kind.label + " 결과",
-          type: kind,
-          tag_ids: [],
-        }],
-        next_cursor: null,
-      },
+    const item = entitySummary.parse({
+      id: `app:${kind.id}:result`, source: "app", external_id: "result", source_label: "앱", deleted_at: null,
+      entity_type_id: kind.id, type: kind, schema_version: 1, current_schema_version: 1,
+      title: kind.label + " 결과", display_properties: { prop_1: kind.label + " 결과" }, tag_ids: [],
+      version: 1, created_at: kind.created_at, updated_at: kind.updated_at,
     });
+    try {
+      await route.fulfill({ json: { items: [item], next_cursor: null } });
+    } catch (error) {
+      if (id !== materials.id) throw error;
+    } finally {
+      if (id === materials.id) finished();
+    }
   });
-  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}`));
-  await arrived;
-  await chooseEntityType(page, products.label);
-  await expect(page.getByRole("button", { name: "상품 결과", exact: true })).toBeVisible();
-  release();
-  await expect(page.getByRole("button", { name: "재료 결과", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "상품", level: 1 })).toBeVisible();
+  try {
+    await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}`));
+    await arrived;
+    await chooseEntityType(page, products.label);
+    await expect(page.getByRole("button", { name: "상품 결과", exact: true })).toBeVisible();
+    release();
+    await settled;
+    await expect(page.getByRole("button", { name: "재료 결과", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "상품 결과", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "상품", level: 1 })).toBeVisible();
+  } finally { release(); }
 });
 
 test("IME search preserves the selected type and current keyword after switching", async ({ page }) => {
