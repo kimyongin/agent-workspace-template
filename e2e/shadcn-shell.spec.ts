@@ -321,7 +321,7 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
 for (const [width, scale] of [[1440, "100"], [1280, "125"], [390, "100"]] as const) test(`shell previous ${width}px/${scale}%: returning from a related editor restores its originating detail link`, async ({ page }) => {
   const state = await fixture(page, scale);
   state.rows.tasks[0].entity_ids = [entity().id];
-  state.rows.tasks[0].entity_context = [{ id: entity().id, title: "자료", source: "selection", captured_at: entity().created_at }];
+  state.rows.tasks[0].entity_context = [{ id: entity().id, title: "자료", type: entity().type, schema_version: entity().schema_version, source: "selection", captured_at: entity().created_at }];
   await page.setViewportSize({ width, height: 900 });
   await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
   const detail = page.getByRole("dialog").filter({ visible: true });
