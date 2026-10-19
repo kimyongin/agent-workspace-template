@@ -132,11 +132,13 @@ async function fixture(page: Page, baseURL: string) {
           ...body,
           id: `${body.source}:${typeId}:${body.external_id}`,
           entity_type_id: typeId,
+          type: material,
           entity_type_label: "상품",
           source_label: issuers.find((i) => i.code === body.source)?.label,
           title: body.properties.prop_1,
           display_properties: body.properties,
-          schema_version: 1,
+          schema_version: material.schema_version,
+          current_schema_version: material.schema_version,
         };
         return route.fulfill({ status: 201, json: registered });
       }
