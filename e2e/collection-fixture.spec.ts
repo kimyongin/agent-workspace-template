@@ -216,17 +216,34 @@ test("table rows and headers share the same columns across wrapper types and vie
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
-test("calendar reflows at enlarged text without shrinking day targets", async ({ page }) => {
+test("calendar reflows at enlarged text without shrinking day targets", async ({ page }, info) => {
   const state = await fixture(page);
   for (const width of [320, 390, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 }); await page.goto(fixtureWorkspacePath("/records?view=calendar"));
     await expect(page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first()).toBeVisible();
     await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
-    const box = await page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first().boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
-    const month = (await page.getByRole("region", { name: "기록 달력", exact: true }).locator(':scope > [data-slot="card"]').boundingBox())!, selected = (await page.getByRole("region", { name: /^\d{4}-\d{2}-\d{2} 기록$/ }).boundingBox())!;
-    expect(selected.y).toBeGreaterThanOrEqual(month.y + month.height);
+    const layout = await page.getByRole("region", { name: "기록 달력", exact: true }).evaluate(root => {
+      const month = root.querySelector(':scope > [data-slot="card"]')!;
+      const selected = root.querySelector(':scope > section[aria-label]')!;
+      const day = [...root.querySelectorAll("button")].find(button => /^\d{4}-\d{2}-\d{2}, 불러온 기록/.test(button.getAttribute("aria-label") ?? ""))!;
+      const grid = getComputedStyle(root);
+      const main = root.closest("main");
+      return {
+        month: month.getBoundingClientRect().toJSON(),
+        selected: selected.getBoundingClientRect().toJSON(),
+        day: day.getBoundingClientRect().toJSON(),
+        grid: { columns: grid.gridTemplateColumns, rows: grid.gridTemplateRows, gap: grid.gap, alignItems: grid.alignItems },
+        font: { root: getComputedStyle(document.documentElement).fontSize, calendar: grid.fontSize },
+        scroll: { windowX: scrollX, windowY: scrollY, mainTop: main?.scrollTop, mainLeft: main?.scrollLeft },
+        viewport: { width: innerWidth, height: innerHeight, visualWidth: visualViewport?.width, visualHeight: visualViewport?.height, scale: visualViewport?.scale },
+        documentWidth: document.documentElement.scrollWidth,
+      };
+    });
+    await info.attach(`calendar-200-${width}-layout`, { contentType: "application/json", body: JSON.stringify(layout, null, 2) });
+    await page.screenshot({ path: info.outputPath(`calendar-200-${width}.png`) });
+    expect(layout.documentWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.viewport.width);
+    expect(layout.day.width).toBeGreaterThanOrEqual(44); expect(layout.day.height).toBeGreaterThanOrEqual(44);
+    expect(layout.selected.y, JSON.stringify(layout)).toBeGreaterThanOrEqual(layout.month.y + layout.month.height);
   }
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
