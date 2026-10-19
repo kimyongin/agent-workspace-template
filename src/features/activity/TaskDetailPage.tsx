@@ -287,7 +287,7 @@ export function TaskDetailPage() {
         tabTitle={canRead ? task.title : "할 일"}
         onClose={() => navigate(back)}
         onError={detail.failed}
-        busy={busy || transitionLocked}
+        busy={busy || transitionState.busy || transitionState.uncertain && canWrite}
         footer={canWrite && (
           task.deleted_at ? <Button type="button" disabled={busy || transitionLocked} onClick={() => manage("restore")}>복원</Button> : <>
             <Button variant="outline" type="button" disabled={busy || transitionLocked} onClick={editor.start}>편집</Button>

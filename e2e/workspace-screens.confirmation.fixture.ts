@@ -1,4 +1,4 @@
-import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
+import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
@@ -6,7 +6,7 @@ import { fillChangeMemo, openListDetail } from "./ui-actions.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { id, record, task } from "./support/workspace-data.ts";
-import { fillText, fixtures, form, go } from "./support/workspace-screens.ts";
+import { fillText, fixtures, form, go, goApp } from "./support/workspace-screens.ts";
 
 for (const uncertain of [false, true]) {
   test(`#181 반복 중단: 취소·재진입 메모/태그${uncertain ? "·같은 요청 재시도" : ""}`, async ({ page }) => {
@@ -43,6 +43,81 @@ for (const uncertain of [false, true]) {
       await expect.poll(() => attempts.length).toBe(2);
       expect(attempts[1]).toEqual(attempts[0]);
     } else expect(attempts).toHaveLength(0);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+for (const revoked of ["read", "none"] as const) {
+  test(`#181 미확정 반복 중단: ${revoked} 권한으로 바뀌면 새 쓰기 없이 공간을 나가고 미확정 메타데이터를 보존한다`, async ({ page }) => {
+    const state = await fixtures(page);
+    await page.unroute("http://127.0.0.1:55580/**");
+    Object.assign(state.rows.tasks[0], {
+      title: "접근 회수 시 숨길 반복 할 일", body: "비공개 반복 계획",
+      kind: "recurring", status: "active", timezone: "Asia/Seoul",
+      recurrence: { freq: "daily", starts_on: "2026-10-04" },
+    });
+    let access: "write" | "read" | "none" = "write", membershipVersion = 1;
+    const attempts: { body: unknown; key?: string }[] = [];
+    await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, route => route.fulfill({ json: {
+      workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null },
+      membership_version: membershipVersion,
+      grants: [{ target_kind: "tasks", target_id: "*", access }], can_manage: false,
+    } }));
+    await page.route("**/api/tasks/*/occurrences?**", route => route.fulfill({ json: { today: "2026-10-04", items: [] } }));
+    await page.route(`**/api/tasks/${id(2)}/stop`, route => {
+      expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
+      attempts.push({ body: route.request().postDataJSON(), key: route.request().headers()["idempotency-key"] });
+      return route.abort("connectionreset");
+    });
+    await goApp(page, `/tasks/${id(2)}`);
+    await form(page).getByRole("button", { name: "중단", exact: true }).click();
+    await form(page).getByLabel("기록 메모", { exact: true }).fill("권한 변경 뒤에도 남길 중단 의도");
+    await form(page).getByRole("button", { name: "중단하고 저장", exact: true }).click();
+    await expect(form(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeVisible();
+    await form(page).getByRole("button", { name: "취소", exact: true }).click();
+    await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeDisabled();
+    await expect(form(page).getByRole("button", { name: "중단", exact: true })).toBeEnabled();
+    expect(attempts).toHaveLength(1);
+    const storageKey = `workspace:unresolved-write:${attempts[0].key}`;
+    const metadata = await page.evaluate(key => sessionStorage.getItem(key), storageKey);
+    expect(JSON.parse(metadata!)).toMatchObject({
+      actorId: id(901), workspaceId: fixtureWorkspaceId, request_key: attempts[0].key,
+      method: "POST", path: `/tasks/${id(2)}/stop`, status: "unknown",
+    });
+    const workspaceLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "Workspace", exact: true });
+    const frozenUrl = page.url();
+    await workspaceLink.click();
+    await expect(page).toHaveURL(frozenUrl);
+    access = revoked; membershipVersion++;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    if (revoked === "none") {
+      await expect(page.getByRole("heading", { name: "이 내용을 읽을 권한이 없습니다.", exact: true })).toBeVisible();
+      await expect(page.getByText(state.rows.tasks[0].title, { exact: true })).toBeHidden();
+    } else await expect(form(page)).toContainText(state.rows.tasks[0].title);
+    await expect(page.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "중단", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("textbox")).toHaveCount(0);
+    expect(attempts).toHaveLength(1);
+    access = "write"; membershipVersion++;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await form(page).getByRole("button", { name: "중단", exact: true }).click();
+    await expect(form(page).getByLabel("기록 메모", { exact: true })).toHaveValue("권한 변경 뒤에도 남길 중단 의도");
+    await expect(form(page).getByLabel("기록 메모", { exact: true })).toBeDisabled();
+    await form(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
+    await expect.poll(() => attempts.length).toBe(2);
+    expect(attempts[1]).toEqual(attempts[0]);
+    await form(page).getByRole("button", { name: "취소", exact: true }).click();
+    access = revoked; membershipVersion++;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(page.getByRole("button", { name: "중단", exact: true })).toHaveCount(0);
+    await workspaceLink.click();
+    await expect(page).toHaveURL(new URL("/workspaces", page.url()).href);
+    expect(await page.evaluate(key => sessionStorage.getItem(key), storageKey)).toBe(metadata);
+    expect(attempts).toHaveLength(2);
+    await goApp(page, `/tasks/${id(2)}`);
+    await expect(page.getByText("이전 저장 결과를 확인하지 못했습니다. 현재 자료를 조회해 반영 여부를 확인하세요. 입력을 복원해 자동 재전송하지 않습니다. 확인 후 새 작업을 시작하세요.", { exact: true })).toBeVisible();
+    expect(await page.evaluate(key => sessionStorage.getItem(key), storageKey)).toBe(metadata);
+    expect(attempts).toHaveLength(2);
     expect(state.errors).toEqual([]);
   });
 }
