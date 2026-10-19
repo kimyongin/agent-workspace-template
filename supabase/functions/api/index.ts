@@ -14,6 +14,7 @@ import {
   searchDeps,
   statusDeps,
   tagDeps,
+  workspaceDeps,
 } from "../_shared/bootstrap.ts";
 
 const app = createHttpApp(
@@ -35,6 +36,7 @@ const app = createHttpApp(
   entityRelationLinkDeps(),
   dataModelDeps(),
   createAndLinkDeps(),
+  workspaceDeps(),
 );
 
 Deno.serve(app.fetch);

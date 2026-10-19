@@ -11,7 +11,6 @@ Deno.test("엔터티 판단: 복원의 생략·명시 속성은 준비와 저장
     source: "app",
     external_id: "000Ab:/한글%",
     properties: { prop_1: "새 대상" },
-    tag_ids: [],
   });
   const stored = {
     ...type,
@@ -20,10 +19,10 @@ Deno.test("엔터티 판단: 복원의 생략·명시 속성은 준비와 저장
     properties: { prop_1: "보관값", prop_2: 0, prop_3: null, prop_4: "c" },
     tag_ids: ["보관 태그"],
   };
-  assertEquals(registrationContent({ ...type, properties: { prop_3: "2026-10-10" }, tag_ids: [] }, identity, stored), {
-    ...stored,
+  assertEquals(registrationContent({ ...type, properties: { prop_3: "2026-10-10" } }, identity, stored), {
+    ...type,
+    ...identity,
     properties: { ...stored.properties, prop_3: "2026-10-10" },
-    tag_ids: [],
   });
   assertEquals(
     registrationContent({ ...type, properties: { prop_2: null } }, identity, stored).properties.prop_2,

@@ -1,13 +1,13 @@
 import { businessRows } from "./table-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { expect, test } from "@playwright/test";
-import { entity, id, record, stamp } from "./support/workspace-data.ts";
+import { entity, fixtureType, id, record, stamp } from "./support/workspace-data.ts";
 import { connectedTarget, fixtures, form, go, targetCases } from "./support/workspace-screens.ts";
 
 for (const kind of ["entity", "task"] as const) {
   for (const deleted of [false, true]) {
     test(
-      `#183 ${kind}: 사건 대상·기존 연결을 한 카드로 통합${deleted ? "·삭제된 대상" : ""}`,
+      `#183 ${kind}: 불변 귀속만 한 카드로 표시${deleted ? "·삭제된 대상" : ""}`,
       async ({ page }, info) => {
         const state = await fixtures(page),
           r = state.rows.records[0],
@@ -15,15 +15,9 @@ for (const kind of ["entity", "task"] as const) {
         state.rows.entities.push(entity(5, { prop_1: "다른 연결 엔터티" }));
         Object.assign(r, {
           record_kind: "change",
-          task_id: id(2),
-          occurrence_on: "2026-10-04",
-          entity_ids: [entityKey(1), entityKey(1), entityKey(5)],
-          entity_context: [{ id: entityKey(1), title: "중복된 연결 제목", source: "selection", captured_at: stamp }, {
-            id: entityKey(5),
-            title: "다른 연결 엔터티",
-            source: "selection",
-            captured_at: stamp,
-          }],
+          task_id: kind === "task" ? targetId : null,
+          entity_id: kind === "entity" ? targetId : null,
+          occurrence_on: kind === "task" ? "2026-10-04" : null,
           change: {
             event_id: id(30),
             target_kind: kind,
@@ -40,25 +34,28 @@ for (const kind of ["entity", "task"] as const) {
         if (deleted) {
           await page.route(
             `**/api/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(targetId)}`,
-            (route) => route.fulfill({ status: 404, json: { code: "not_found", message: "항목을 찾을 수 없습니다" } }),
+            (route) => route.fulfill({ json: {
+              ...(kind === "entity" ? state.rows.entities[0] : state.rows.tasks[0]), deleted_at: stamp,
+            } }),
           );
         }
         await page.setViewportSize({ width: 390, height: 844 });
         await go(page, `/records/${r.id}`);
-        const entities = form(page).getByRole("region", { name: "연결된 자료 (2개)", exact: true }),
-          tasks = connectedTarget(page, "task");
-        await expect(entities).toHaveCount(1);
-        await expect(businessRows(entities.getByRole("table"))).toHaveCount(2);
-        await expect(businessRows(tasks.getByRole("table"))).toHaveCount(1);
+        const changed = connectedTarget(page, kind);
+        await expect(businessRows(changed.getByRole("table"))).toHaveCount(1);
+        await expect(connectedTarget(page, kind === "entity" ? "task" : "entity")).toHaveCount(0);
         await expect(form(page).getByRole("heading", { name: /^변경 대상/ })).toHaveCount(0);
-        const changed = kind === "entity" ? entities : tasks;
-        await expect(businessRows(changed.getByRole("table")).filter({ hasText: "당시 대상" })).toHaveCount(1);
+        await expect(changed.getByRole("button", { name: "다른 연결 엔터티", exact: true })).toHaveCount(0);
         await changed.getByRole("button", { name: "당시 대상", exact: true }).click();
-        await expect(entities.getByRole("button", { name: "다른 연결 엔터티", exact: true })).toHaveAttribute(
-          "aria-expanded",
-          "false",
-        );
-        if (deleted) {
+        if (deleted && kind === "task") {
+          await expect(changed.getByText("삭제됨", { exact: true })).toBeVisible();
+          await expect(changed.locator("dt", { hasText: /^현재 제목$/ }).locator("../dd")).toHaveText(state.rows.tasks[0].title);
+          await expect(changed).toContainText(state.rows.tasks[0].body);
+          await expect(changed.locator("dt", { hasText: /^상태$/ }).locator("../dd")).toHaveText("진행 중");
+          const original = changed.getByRole("link", { name: "당시 대상 상세", exact: true });
+          await expect(original).toHaveAttribute("href", `/tasks/${targetId}`);
+          await expect(changed.getByRole("link")).toHaveCount(1);
+        } else if (deleted) {
           await expect(changed).toContainText("삭제된 항목입니다.");
           await expect(changed.getByRole("link", { name: "당시 대상 상세", exact: true })).toHaveCount(0);
         } else {await expect(changed.getByRole("button", { name: "당시 대상", exact: true })).toHaveAttribute(
@@ -66,8 +63,8 @@ for (const kind of ["entity", "task"] as const) {
             "true",
           );}
         if (kind === "task") {
-          await expect(tasks.locator("dt").filter({hasText:/^회차$/}).first().locator("../dd")).toHaveText("2026-10-04");
-          if (!deleted) await expect(tasks).toContainText("진행 중");
+          await expect(changed.locator("dt").filter({hasText:/^회차$/}).first().locator("../dd")).toHaveText("2026-10-04");
+          if (!deleted) await expect(changed).toContainText("진행 중");
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         await page.screenshot({ path: info.outputPath(`record-relations-${kind}-${deleted}.png`) });
@@ -89,39 +86,58 @@ for (const [kind, route, n] of targetCases) {
         target_kind: kind,
         target_id: kind === "entity" ? entityKey(n) : id(n),
         target_title: "당시 대상 이름",
-        action: "update",
+        action: outcome === "deleted" ? "delete" : "update",
         source: "mcp",
         before: { title: "수정 전" },
         after: { title: "수정 후" },
         path: `/${route}/${routeId}`,
       };
-      Object.assign(r, { record_kind: "change", body: "당시 편집 근거", change });
+      Object.assign(r, { record_kind: "change", entity_id: kind === "entity" ? change.target_id : null, task_id: kind === "task" ? change.target_id : null, body: "당시 편집 근거", change });
       const original = JSON.stringify(r);
-      let reads = 0, fail = outcome === "failed";
+      let reads = 0, fail = false;
       await page.route(
         `**/api/${route}/${routeId}`,
         (endpoint) => {
           reads++;
-          return outcome === "deleted" || outcome === "foreign"
+          const current = state.rows[route].find((row) => row.id === change.target_id)!;
+          return outcome === "foreign"
             ? endpoint.fulfill({ status: 404, json: { code: "not_found", message: "항목을 찾을 수 없습니다" } })
             : fail
             ? endpoint.fulfill({ status: 503, json: { code: "internal", message: "조회 실패" } })
-            : endpoint.fulfill({ json: state.rows[route].find((row) => row.id === change.target_id) ?? record(n) });
+            : endpoint.fulfill({ json: outcome === "deleted" ? { ...current, deleted_at: stamp } : current });
         },
       );
       await go(page, `/records/${r.id}`);
       const target = connectedTarget(page, kind);
+      if (kind === "entity" && outcome === "foreign") {
+        await expect(page.getByRole("heading", { name: "이 내용을 읽을 권한이 없습니다.", exact: true })).toBeVisible();
+        await expect(form(page)).toHaveCount(0);
+        for (const text of [change.target_title, "수정 전", "수정 후", r.body]) {
+          await expect(page.getByText(text, { exact: true })).toBeHidden();
+        }
+        expect(JSON.stringify(r)).toBe(original);
+        expect(state.writes).toHaveLength(0);
+        expect(state.errors).toEqual([]);
+        return;
+      }
       await expect(target.getByRole("button", { name: change.target_title, exact: true })).toContainText(change.target_title);
       const link = target.getByRole("button", { name: change.target_title, exact: true });
       if (outcome === "exists") await expect(link).toHaveAttribute("aria-expanded", "false");
       else if (outcome === "failed") {
+        await expect(target.getByRole("status")).toHaveCount(0);
+        fail = true;
         await link.click();
-        await expect(target).toContainText("현재 항목을 불러오지 못했습니다.");
+        await expect(target).toContainText("내용을 불러오지 못했습니다.");
         await expect(target).not.toContainText("삭제된 항목");
         fail = false;
         await target.getByRole("button", { name: "다시 시도", exact: true }).click();
         await expect(target.getByRole("button", { name: "다시 시도", exact: true })).toHaveCount(0);
+        await expect(target.getByRole("link", { name: change.target_title + " 상세", exact: true })).toBeVisible();
         expect(reads).toBeGreaterThanOrEqual(2);
+      } else if (outcome === "deleted") {
+        await link.click();
+        await expect(target).toContainText(kind === "entity" ? "삭제된 항목입니다." : "삭제됨");
+        if (kind === "entity") await expect(target.getByRole("link")).toHaveCount(0);
       } else {
         await expect(target).toContainText("조회 불가");
         await link.click();
@@ -149,11 +165,81 @@ for (const [kind, route, n] of targetCases) {
   }
 }
 
+for (const authorized of [true, false]) {
+  test(`현재 자료 귀속 권한 조회 503: 비공개 유지·재조회 후 현재 종류 ${authorized ? "허용" : "거부"}`, async ({ page }, info) => {
+    const state = await fixtures(page), r = state.rows.records[0];
+    const tag = state.rows.tags.find(value => value.scope === "record")!;
+    const typeId = authorized ? fixtureType.id : id(999);
+    const parent = { ...state.rows.entities[0], id: `app:${typeId}:${id(1)}`,
+      entity_type_id: typeId, type: { ...fixtureType, id: typeId } };
+    Object.assign(r, {
+      entity_id: parent.id, task_id: null, record_kind: "change", body: "비공개 기록 본문",
+      tag_ids: [tag.id],
+      change: { event_id: id(30), target_kind: "entity", target_id: parent.id,
+        target_title: "비공개 당시 이름", action: "update", source: "http",
+        before: { title: "비공개 수정 전" }, after: { title: "비공개 수정 후" }, path: null },
+    });
+    const original = JSON.stringify(r);
+    let release!: () => void, requested!: () => void, reads = 0, successfulReads = 0;
+    let phase: "fail" | "recover" = "fail";
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const started = new Promise<void>(resolve => { requested = resolve; });
+    await page.route(`**/api/entities/${encodeURIComponent(parent.id)}`, async endpoint => {
+      reads++;
+      requested();
+      // Authority and related previews share this endpoint: no sibling may authorize the parent yet.
+      if (phase === "fail") {
+        await held;
+        return endpoint.fulfill({ status: 503, json: { code: "internal", message: "권한 조회 실패" } });
+      }
+      successfulReads++;
+      return endpoint.fulfill({ json: parent });
+    });
+    const concealed = async () => {
+      await expect(form(page)).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("textbox")).toHaveCount(0);
+      for (const text of [r.body, "비공개 당시 이름", "비공개 수정 전", "비공개 수정 후", tag.name]) {
+        await expect(page.getByText(text, { exact: true })).toBeHidden();
+      }
+    };
+    try {
+      await go(page, `/records/${r.id}`);
+      await started;
+      await concealed();
+      release();
+      await expect(page.getByText("기록을 불러오지 못했습니다.", { exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "이 내용을 읽을 권한이 없습니다.", exact: true })).toHaveCount(0);
+      await concealed();
+      expect(successfulReads).toBe(0);
+      await page.screenshot({ path: info.outputPath(`record-parent-503-${authorized ? "allowed" : "denied"}.png`) });
+      phase = "recover";
+      await page.getByRole("button", { name: "조회 다시 시도", exact: true }).click();
+      if (authorized) {
+        await expect(form(page)).toContainText(r.body);
+        await expect(form(page)).toContainText("비공개 당시 이름");
+        await expect(form(page)).toContainText("비공개 수정 전");
+        await expect(form(page)).toContainText("비공개 수정 후");
+        await expect(form(page)).toContainText(tag.name);
+      } else {
+        await expect(page.getByRole("heading", { name: "이 내용을 읽을 권한이 없습니다.", exact: true })).toBeVisible();
+        await concealed();
+      }
+      await page.screenshot({ path: info.outputPath(`record-parent-recovered-${authorized ? "allowed" : "denied"}.png`) });
+      expect(reads).toBeGreaterThanOrEqual(2);
+      expect(successfulReads).toBeGreaterThanOrEqual(1);
+      expect(JSON.stringify(r)).toBe(original);
+      expect(state.writes).toHaveLength(0);
+      expect(state.errors).toEqual([]);
+    } finally { release(); }
+  });
+}
+
 for (const failure of [401, 403, 500, "network", "other404"] as const) {
   test(`변경 대상 조회 ${failure}: 삭제로 오인하지 않고 GET 재시도`, async ({ page }) => {
     const state = await fixtures(page), r = state.rows.records[0];
     Object.assign(r, {
-      record_kind: "change",
+      record_kind: "change", entity_id: entityKey(1), task_id: null,
       change: {
         event_id: id(30),
         target_kind: "entity",
@@ -166,22 +252,37 @@ for (const failure of [401, 403, 500, "network", "other404"] as const) {
         path: `/entities/${encodeURIComponent(entityKey(1))}`,
       },
     });
+    const original = JSON.stringify(r);
+    let fail = false;
     await page.route(
       `**/api/entities/${encodeURIComponent(entityKey(1))}`,
-      (endpoint) =>
-        failure === "network" ? endpoint.abort("connectionreset") : endpoint.fulfill({
+      (endpoint) => {
+        if (!fail) return endpoint.fulfill({ json: state.rows.entities[0] });
+        return failure === "network" ? endpoint.abort("connectionreset") : endpoint.fulfill({
           status: failure === "other404" ? 404 : failure,
           json: {
             code: failure === 401 ? "unauthenticated" : failure === 403 ? "forbidden" : "internal",
             message: "조회 실패",
           },
-        }),
+        });
+      },
     );
     await go(page, `/records/${r.id}`);
-    await connectedTarget(page, "entity").getByRole("button", { name: "당시 이름", exact: true }).click();
-    await expect(form(page)).toContainText("현재 항목을 불러오지 못했습니다.");
+    const target = connectedTarget(page, "entity");
+    const link = target.getByRole("button", { name: "당시 이름", exact: true });
+    await expect(link).toBeVisible();
+    await expect(target.getByRole("status")).toHaveCount(0);
+    fail = true;
+    await link.click();
+    await expect(form(page)).toContainText("내용을 불러오지 못했습니다.");
     await expect(form(page)).not.toContainText("삭제된 항목");
-    await expect(connectedTarget(page, "entity").getByRole("button", { name: "다시 시도", exact: true })).toBeEnabled();
+    const retry = target.getByRole("button", { name: "다시 시도", exact: true });
+    await expect(retry).toBeEnabled();
+    fail = false;
+    await retry.click();
+    await expect(target.getByRole("link", { name: "당시 이름 상세", exact: true })).toBeVisible();
+    await expect(target).not.toContainText("내용을 불러오지 못했습니다.");
+    expect(JSON.stringify(r)).toBe(original);
     expect(state.writes).toHaveLength(0);
     expect(state.errors).toEqual([]);
   });
@@ -200,45 +301,94 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
     after: { prop1: "첫 대상" },
     path: `/entities/${encodeURIComponent(entityKey(1))}`,
   };
-  Object.assign(r, { record_kind: "change", change: historical });
+  Object.assign(r, { record_kind: "change", entity_id: entityKey(1), task_id: null, change: historical });
   const second = {
     ...record(32),
+    entity_id: entityKey(99), task_id: null,
     record_kind: "change" as const,
     change: {
       ...historical,
+      event_id: id(31),
       target_id: entityKey(99),
       target_title: "다음 대상",
+      after: { prop1: "다음 대상" },
       path: `/entities/${encodeURIComponent(entityKey(99))}`,
     },
   };
   state.rows.records.push(second);
-  let reads = 0, release = () => {};
+  state.rows.entities.push(entity(99));
+  let reads = 0, holdPreview = false, release = () => {}, previewRequested!: () => void;
+  const previewStarted = new Promise<void>(resolve => { previewRequested = resolve; });
+  let previewSettled!: () => void;
+  const previewFinished = new Promise<void>(resolve => { previewSettled = resolve; });
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
   await page.route(`**/api/entities/${encodeURIComponent(entityKey(1))}`, async (endpoint) => {
     reads++;
-    await held;
-    await endpoint.fulfill({ json: state.rows.entities[0] }).catch(() => {});
+    if (!holdPreview) return endpoint.fulfill({ json: state.rows.entities[0] });
+    previewRequested();
+    try {
+      await held;
+      await endpoint.fulfill({ json: state.rows.entities[0] }).catch(() => {});
+    } finally { previewSettled(); }
   });
-  await go(page, "/records");
-  await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("첫 대상");
-  await page.locator("[data-list-anchor]").first().click();
-  await expect(page.getByRole("region", { name: "기록 목록", exact: true })).toContainText("첫 대상");
-  expect(reads).toBe(0);
-  await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("삭제된 대상");
-  await go(page, `/records/${r.id}`);
-  await connectedTarget(page, "entity").getByRole("button", { name: "첫 대상", exact: true }).click();
-  await expect(connectedTarget(page, "entity").getByRole("status")).toBeVisible();
-  await expect.poll(() => reads).toBe(1);
-  await go(page, `/records/${second.id}`);
-  await expect(connectedTarget(page, "entity")).toContainText("조회 불가");
-  release();
-  await expect(form(page)).toContainText("다음 대상");
-  await expect(connectedTarget(page, "entity").getByRole("button", { name: "다음 대상", exact: true })).toHaveAttribute(
-    "aria-expanded",
-    "false",
+  await page.route(`**/api/entities/${encodeURIComponent(entityKey(99))}`, endpoint =>
+    endpoint.fulfill({ json: state.rows.entities.at(-1) })
   );
-  expect(state.writes).toHaveLength(0);
-  expect(state.errors).toEqual([]);
+  try {
+    await go(page, "/records");
+    await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("첫 대상");
+    await page.locator("[data-list-anchor]").first().click();
+    await expect(page.getByRole("region", { name: "기록 목록", exact: true })).toContainText("첫 대상");
+    expect(reads).toBe(0);
+    await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("삭제된 대상");
+    await go(page, `/records/${r.id}`);
+    const firstTarget = connectedTarget(page, "entity");
+    await expect(firstTarget.getByRole("button", { name: "첫 대상", exact: true })).toBeVisible();
+    await expect(firstTarget.getByRole("status")).toHaveCount(0);
+    holdPreview = true;
+    await firstTarget.getByRole("button", { name: "첫 대상", exact: true }).click();
+    await expect(connectedTarget(page, "entity").getByRole("status")).toBeVisible();
+    await previewStarted;
+    await go(page, `/records/${second.id}`);
+    await expect(connectedTarget(page, "entity").getByRole("button", { name: "다음 대상", exact: true })).toBeVisible();
+    await expect(connectedTarget(page, "entity").getByRole("status")).toHaveCount(0);
+    release();
+    await previewFinished;
+    await expect(form(page)).toContainText("다음 대상");
+    await expect(form(page)).not.toContainText("첫 대상");
+    await expect(connectedTarget(page, "entity").getByRole("button", { name: "다음 대상", exact: true })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(state.writes).toHaveLength(0);
+    expect(state.errors).toEqual([]);
+  } finally { release(); }
 });
+
+// Captured event targets cannot introduce a second navigable parent.
+for (const outcome of ["exists", "deleted", "foreign", "failed"] as const) {
+  test(`기록 대상 이력 ${outcome}: 현재 귀속 이외의 기록은 탐색하지 않는다`, async ({ page }) => {
+    const state = await fixtures(page), r = state.rows.records[0];
+    Object.assign(r, { record_kind: "change", change: {
+      event_id: id(30), target_kind: "record", target_id: id(31), target_title: "당시 기록",
+      action: "update", source: "http", before: { body: "수정 전" }, after: { body: "수정 후" }, path: `/records/${id(31)}`,
+    } });
+    let reads = 0;
+    await page.route(`**/api/records/${id(31)}`, route => {
+      reads++;
+      return route.fulfill({ status: outcome === "exists" ? 200 : outcome === "failed" ? 503 : 404, json: record(31) });
+    });
+    await go(page, `/records/${r.id}`);
+    await expect(connectedTarget(page, "task")).toBeVisible();
+    await expect(form(page)).toContainText("당시 기록");
+    await expect(form(page)).toContainText("수정 전");
+    await expect(form(page)).toContainText("수정 후");
+    await expect(form(page).getByRole("button", { name: "당시 기록", exact: true })).toHaveCount(0);
+    await expect(form(page).getByRole("link", { name: "당시 기록 상세", exact: true })).toHaveCount(0);
+    expect(reads).toBe(0);
+    expect(state.writes).toHaveLength(0);
+    expect(state.errors).toEqual([]);
+  });
+}

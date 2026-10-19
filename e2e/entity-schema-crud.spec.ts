@@ -1,15 +1,14 @@
 import { executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import postgres from "postgres";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, ownedWorkspace, workspacePath} from "./support.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { analyzeAndApply } from "./entity-schema-support.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 
 test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편집은 summary에 없는 값도 유지한다", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
-  const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   let typeId: string | undefined, entityId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", {
@@ -17,6 +16,7 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
       icon_id: "leaf",
       representative_label: "이름",
     });
+    await workspace.grantKind(type.id);
     typeId = type.id;
     const definition = initialEntityDefinition("이름");
     Object.assign(definition.schema.properties, {
@@ -57,7 +57,7 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     entityId = created.id;
     const listed = await mcp.call("list_entities", { entity_type_id: typeId });
     expect(listed.items[0].display_properties).not.toHaveProperty("prop_3");
-    await page.goto(`/entities/${encodeURIComponent(entityId!)}`);
+    await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(entityId!)}`));
     await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
     await expect(page.getByText("확인 날짜", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "편집", exact: true }).click();
@@ -121,8 +121,5 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     expect(recovered.version).toBe(saved.version + 1);
   } finally {
     await mcp.close();
-    if (entityId) await admin`delete from app.entities where id=${entityId}`;
-    if (typeId) await admin`delete from app.entity_types where id=${typeId}`;
-    await admin.end();
   }
 });

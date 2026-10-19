@@ -11,27 +11,41 @@ import { resolvedBusinessSettings } from "../../contracts/business-settings.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { BusinessSettingsStore } from "../../core/settings/application.ts";
 import { conflict, invalidInput } from "../../core/shared/errors.ts";
-import { runAsActor } from "./sql-context.ts";
+import { requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import type { WorkspaceEntry } from "../../core/workspaces/application.ts";
 import { effectiveEntityTemplates, templateFields, type TemplateModel } from "../../contracts/record-template.ts";
 import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
 import type { RecordTemplates } from "../../contracts/record-template.ts";
 import type { ChangeFacts } from "../../core/shared/changes.ts";
-import { entityPresentationRow, loadEntityDefinition } from "./entity-values.ts";
+import { entityPresentationRow, loadBusinessEntityDefinition, loadEntityDefinition } from "./entity-values.ts";
 
 export class SqlBusinessSettingsStore implements BusinessSettingsStore {
+  private templateTarget?: Parameters<NonNullable<BusinessSettingsStore["getForTarget"]>>[0];
+  private get workspaceId(): string {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
   getTypeIdentity(typeId: string, lock = false) {
     return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId, lock);
   }
   definition(typeId: string, lock = false) {
-    return loadEntityDefinition(this.tx, typeId, lock);
+    return loadBusinessEntityDefinition(this.tx, typeId, lock);
   }
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
     return executeSqlRequest(this.tx, this.actor, request, execute);
   }
+  async getForTarget(
+    input: Parameters<NonNullable<BusinessSettingsStore["getForTarget"]>>[0],
+  ): Promise<BusinessSettingsResult> {
+    const [row] = await this.tx`select app.workspace_business_template(${input.model},${input.action},${
+      input.target_id ?? null
+    },${input.entity_type_id ?? null}::uuid) as result`;
+    this.templateTarget = input;
+    return row.result as BusinessSettingsResult;
+  }
   async get(): Promise<BusinessSettingsResult> {
     const rows = await this
-      .tx`select id,version,settings from app.user_business_settings where owner_id=${this.actor.userId} and id='record_templates'`;
+      .tx`select id,version,settings from app.user_business_settings where workspace_id=${this.workspaceId} and id='record_templates'`;
     const versions = { record_templates: 0 };
     const settings: BusinessSettings = {};
     for (const row of rows) {
@@ -65,32 +79,35 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
       }
     }
     // Lock even the absent initial row; concurrent first saves cannot silently overwrite.
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:${id}`},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.workspaceId}:${id}`},0))`;
     const current = await this.get();
     if (current.versions[id] !== expected) {
       throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
     }
     await this
-      .tx`insert into app.user_business_settings(owner_id,id,version,settings) values (${this.actor.userId},${id},${
+      .tx`insert into app.user_business_settings(workspace_id,id,version,settings) values (${this.workspaceId},${id},${
       expected + 1
     },${
       this.tx.json(value as never)
-    }) on conflict(owner_id,id) do update set version=excluded.version,settings=excluded.settings,updated_at=now()`;
+    }) on conflict(workspace_id,id) do update set version=excluded.version,settings=excluded.settings,updated_at=now()`;
     return this.get();
   }
   async recordTags(ids: string[]): Promise<string[]> {
     if (!ids.length) return [];
-    const rows = await this.tx`select id from app.tags where scope='record' and id=any(${ids}::text[])`;
-    return rows.map((row) => row.id as string);
+    const [row] = await this.tx`select app.workspace_record_template_tag_ids(${ids}::text[],${
+      this.tx.json((this.templateTarget ?? null) as never)
+    }::jsonb) as ids`;
+    return row.ids as string[];
   }
   async target(model: TemplateModel, id: string) {
     const table = model === "entity" ? "entities" : "tasks";
     const [row] = model === "entity"
       ? await this
         .tx`select e.*,t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version as current_schema_version,v.schema from app.entities e
-        join app.entity_types t on t.owner_id=e.owner_id and t.id=e.entity_type_id
-        join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where e.id=${id}`
-      : await this.tx`select * from app.${this.tx(table)} where id=${id}`;
+        join app.entity_types t on t.workspace_id=e.workspace_id and t.id=e.entity_type_id
+        join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version where e.id=${id}`
+      : await this.tx`select id,title,body,status,kind,due_on,recurrence,timezone,pauses,version,deleted_at
+        from app.${this.tx(table)} where workspace_id=${this.workspaceId} and id=${id}`;
     if (!row) return null;
     const facts = model === "entity"
       ? {
@@ -115,7 +132,19 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
 }
 export class SqlBusinessSettingsUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
-  run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, actor, (tx) => fn(new SqlBusinessSettingsStore(tx, actor)));
+  run<T>(
+    actor: Actor,
+    fn: (store: BusinessSettingsStore) => Promise<T>,
+    entry: WorkspaceEntry = {
+      mode: "business",
+      requirements: [],
+    },
+  ): Promise<T> {
+    return runInWorkspace(
+      this.sql,
+      requireWorkspaceActor(actor),
+      entry,
+      (tx) => fn(new SqlBusinessSettingsStore(tx, actor)),
+    );
   }
 }

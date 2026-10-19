@@ -1,28 +1,28 @@
 import { chooseSetting } from "./settings-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
 import { scalarFixtureType } from "./entity-schema-support.ts";
-import { test, mcpClient, mcpTokenViaConsent, requiredEnv } from "./support.ts";
+import { test, mcpClient, mcpTokenViaConsent } from "./support.ts";
 import { expect } from "@playwright/test";
-import { devLogin, env, unique } from "./support.ts";
+import { devLogin, unique , ownedWorkspace, workspacePath} from "./support.ts";
 import { beginTabAction, chooseTag } from "./ui-actions.ts";
 
 test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·수정 메모 보존·고정 재시도", async ({page}) => {
   await devLogin(page);
-  const login = await page.request.post(`${requiredEnv("VITE_SUPABASE_URL")}/auth/v1/token?grant_type=password`, {headers:{apikey:requiredEnv("VITE_SUPABASE_PUBLISHABLE_KEY")},data:{email:requiredEnv("DEV_USER_A_EMAIL"),password:requiredEnv("DEV_USER_A_PASSWORD")}});
-  const token = (await login.json()).access_token;
+  const workspace = await ownedWorkspace(page);
   const api = async(method:string,path:string,data?:unknown) => {
-    const response = await page.request.fetch(`${env.VITE_API_URL}${path}`,{method,headers:{authorization:`Bearer ${token}`,...(method!=="GET"?{"Idempotency-Key":crypto.randomUUID()}:{})},data});
+    const response = await workspace.fetch(method, path, data);
     const text = await response.text();
-    expect(response.ok(), `${method} ${path}: ${response.status()}`).toBeTruthy(); return response.status() === 204 ? null : JSON.parse(text);
+    expect(response.ok(), `${method} ${path}: ${response.status()}`).toBeTruthy();
+    return response.status() === 204 ? null : JSON.parse(text);
   };
-  const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page));
-  const fixtureType = await scalarFixtureType(fixtureMcp);
+  const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
+  const fixtureType = await scalarFixtureType(fixtureMcp, workspace);
   await fixtureMcp.close();
   const saved = await api("GET","/settings/business");
   const tag = await api("POST","/tags",{scope:"record",name:unique("템플릿")});
   let taskId:string|undefined;
   try {
-    await page.goto("/settings/records");
+    await page.goto(workspacePath(workspace.id, "/settings/records"));
     const target = page.getByLabel("대상", { exact: true });
     await chooseSetting(page, target, fixtureType.label);
     let form = page.getByRole("form",{name:"기록 자동 완성"});
@@ -49,7 +49,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await chooseTag(page,form,tag.name);
     await form.getByRole("button",{name:"기록 자동 완성 저장"}).click();
     await expect(form).toContainText("기록 자동 완성을 저장했습니다.");
-    await page.goto("/tasks");
+    await page.goto(workspacePath(workspace.id, "/tasks"));
     const preparedInputs:Record<string,unknown>[]=[];
     page.on("request", request => {if(request.url().endsWith("/records/prepare") && request.method()==="POST"){const input=request.postDataJSON();if(input.model==="task"&&input.action==="create")preparedInputs.push(input.input);}});
     await beginTabAction(page,"할 일 추가");

@@ -11,6 +11,9 @@ import { beginRoundtripPhase, finishRoundtripPhase, digestRoundtrip } from './ro
 import { outsideDirectory } from './files.mjs';
 import { webFieldLabel, webFailureDiagnostic } from './web-proof.mjs';
 
+// Historical #122–124 evidence is retained; this live protocol predates explicit workspaces.
+throw new Error('Retired owner/general-record experiment protocol: use current workspace fixtures; historical evidence is read-only');
+
 const [source, fixturePath] = process.argv.slice(2);
 if (!source || !fixturePath || process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !/^[a-f0-9]{40}$/.test(process.env.PREPARATION_BACKEND_REVISION ?? '')) throw new Error('Usage: allocated handoff web-roundtrip.mjs <allocated-source> <outside-fixture.json>');
 const helpers = await import(pathToFileURL(resolve(source, 'e2e/support.ts')).href);

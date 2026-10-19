@@ -1,33 +1,26 @@
-// contracts(정본)와 DB CHECK의 판정이 같은지, DB 컬럼과 contracts 응답 필드가 같은지 확인한다.
-// 형식 검사만 본다. 소유자 격리는 isolation.test.ts가 맡는다.
+// Public content validation and allowed-role storage constraints share limits.
+// Public projections deliberately omit private/legacy storage columns.
 import { assertEquals } from "@std/assert";
 import type { z } from "zod";
-import { recordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
+import { occurrenceRecordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
 import { taskCreate, taskResult } from "../../functions/_shared/contracts/task.ts";
-import { connect, dbTest, devUsers, urls } from "./_db.ts";
+import * as activity from "../../functions/_shared/core/activity/application.ts";
+import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
+import { connect, dbTest, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 });
-const { a: A } = await devUsers(admin);
-
-/** 한 행을 넣어 보고 롤백한다. CHECK·NOT NULL 위반이면 false. */
-async function dbAccepts(table: "tasks" | "records", row: Record<string, unknown>): Promise<boolean> {
-  try {
-    await admin.begin(async (tx) => {
-      await tx`insert into ${tx("app." + table)} ${tx({ owner_id: A, ...row })}`;
-      throw new Error("rollback");
-    });
-  } catch (e) {
-    if ((e as Error).message === "rollback") return true;
-    const code = (e as { code?: string }).code;
-    if (code === "23514" || code === "23502") return false;
-    throw e;
-  }
-  return true;
-}
-
-function contractAccepts(schema: z.ZodType, value: unknown): boolean {
-  return schema.safeParse({ ...(value as Record<string, unknown>) }).success;
-}
+const sql = connect(urls.direct, { max: 1, prepare: false });
+const deps = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
+const authority = {
+  mode: "business" as const,
+  requirements: [{
+    target_kind: "tasks" as const,
+    target_id: "*",
+    access: "write" as const,
+  }],
+};
 
 const boundaries = (field: "title" | "body", max: number, min: number) => [
   { name: `${field} ${max}자`, value: "가".repeat(max) },
@@ -35,49 +28,118 @@ const boundaries = (field: "title" | "body", max: number, min: number) => [
   ...(min > 0 ? [{ name: `${field} 빈 값`, value: "" }] : []),
 ];
 const onceTask = { kind: "once", title: "제목", body: "" };
-for (const [field, max, min] of [["title", 100, 1], ["body", 22000, 0]] as const) {
-  for (const b of boundaries(field, max, min)) {
-    dbTest(`할 일 parity: ${b.name}`, async () => {
-      const input = { ...onceTask, [field]: b.value };
-      assertEquals(await dbAccepts("tasks", { ...input, status: "open" }), contractAccepts(taskCreate, input));
-    });
+function accepts(schema: z.ZodType, input: unknown) {
+  return schema.safeParse(input).success;
+}
 
-    if (field === "body") {
-      dbTest(`기록 parity: ${b.name}`, async () => {
-        const input = { body: b.value };
-        assertEquals(await dbAccepts("records", input), contractAccepts(recordCreate, input));
-      });
+dbTest(
+  "workspace task and parented result storage retain public content limits",
+  async () => {
+    const f = await businessWorkspaceFixture(admin, sql);
+    try {
+      await f.grant(f.member, authority.requirements);
+      const task = await activity.createTask(
+        deps,
+        businessRequest(f.member),
+        taskCreate.parse(onceTask),
+      );
+      const dbAccepts = (
+        table: "tasks" | "records",
+        row: Record<string, unknown>,
+      ) =>
+        runInWorkspace(sql, f.member, authority, async (tx) => {
+          try {
+            await tx.savepoint(async (savepoint) => {
+              await savepoint`insert into ${savepoint(`app.${table}`)} ${
+                savepoint({ workspace_id: f.workspaceId, ...row })
+              }`;
+              throw new Error("parity rollback");
+            });
+          } catch (error) {
+            if ((error as Error).message === "parity rollback") return true;
+            if (
+              ["23514", "23502"].includes(
+                (error as { code?: string }).code ?? "",
+              )
+            ) return false;
+            throw error;
+          }
+          throw new Error("probe must roll back");
+        });
+      for (
+        const [field, max, min] of [["title", 100, 1], [
+          "body",
+          22000,
+          0,
+        ]] as const
+      ) {
+        for (const boundary of boundaries(field, max, min)) {
+          const input = { ...onceTask, [field]: boundary.value };
+          assertEquals(
+            await dbAccepts("tasks", { ...input, status: "open" }),
+            accepts(taskCreate, input),
+            boundary.name,
+          );
+          if (field === "body") {
+            assertEquals(
+              await dbAccepts("records", {
+                task_id: task.id,
+                record_kind: "result",
+                body: boundary.value,
+              }),
+              accepts(occurrenceRecordCreate, { body: boundary.value }),
+              boundary.name,
+            );
+          }
+        }
+      }
+      assertEquals(accepts(occurrenceRecordCreate, { body: "" }), false);
+      assertEquals(
+        await dbAccepts("records", {
+          task_id: task.id,
+          record_kind: "result",
+          body: "",
+        }),
+        true,
+      );
+      for (
+        const input of [{ ...onceTask, kind: "someday" }, {
+          ...onceTask,
+          kind: "recurring",
+        }]
+      ) {
+        assertEquals(
+          await dbAccepts("tasks", {
+            ...input,
+            status: input.kind === "recurring" ? "active" : "open",
+          }),
+          accepts(taskCreate, input),
+        );
+      }
+      const result = await activity.completeTask(
+        deps,
+        businessRequest(f.member),
+        task.id,
+        { expected_version: task.version, body: "유효한 소속의 결과" },
+      );
+      assertEquals(taskResult.safeParse(result.task).success, true);
+      assertEquals(recordResult.safeParse(result.record).success, true);
+      assertEquals(result.record.task_id, task.id);
+      assertEquals(result.record.entity_id, null);
+      assertEquals(result.record.created_by, f.member.userId);
+      for (
+        const key of [
+          "workspace_id",
+          "owner_id",
+          "entity_ids",
+          "entity_context",
+          "change_metadata",
+        ]
+      ) assertEquals(key in result.record, false, key);
+      assertEquals("workspace_id" in result.task, false);
+      assertEquals("owner_id" in result.task, false);
+    } finally {
+      await f.cleanup();
     }
-  }
-}
-dbTest("새 기록은 빈 본문을 거부하며 DB는 기존 빈 원문 보존을 허용한다", async () => {
-  assertEquals(contractAccepts(recordCreate, { body: "" }), false);
-  assertEquals(await dbAccepts("records", { body: "" }), true);
-});
-
-dbTest("할 일 parity: 선택지 밖의 종류", async () => {
-  const input = { ...onceTask, kind: "someday" };
-  assertEquals(await dbAccepts("tasks", { ...input, status: "open" }), contractAccepts(taskCreate, input));
-});
-
-dbTest("할 일 parity: 반복 할 일에 규칙·시간대가 없으면 거부", async () => {
-  const input = { ...onceTask, kind: "recurring" };
-  assertEquals(await dbAccepts("tasks", { ...input, status: "active" }), contractAccepts(taskCreate, input));
-});
-
-async function columns(table: string): Promise<string[]> {
-  const rows = await admin<{ column_name: string }[]>`
-    select column_name from information_schema.columns where table_schema = 'app' and table_name = ${table}`;
-  return rows.map((r) => r.column_name).filter((c) => c !== "owner_id").sort();
-}
-
-dbTest("할 일: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
-  assertEquals(await columns("tasks"), Object.keys(taskResult.shape).filter((k) => k !== "tag_ids").sort());
-});
-
-dbTest("기록: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
-  assertEquals(
-    (await columns("records")).map((k) => k === "change_metadata" ? "change" : k).sort(),
-    Object.keys(recordResult.shape).filter((k) => k !== "tag_ids").sort(),
-  );
-});
+  },
+);

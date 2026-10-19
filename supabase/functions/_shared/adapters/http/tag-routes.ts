@@ -1,3 +1,4 @@
+import { tagConnectionInput } from "../../contracts/tag-connection.ts";
 import { Hono } from "hono";
 import { tagCreate, tagListQuery, tagRename } from "../../contracts/tag.ts";
 import * as tags from "../../core/tags/application.ts";
@@ -5,6 +6,11 @@ import { parse } from "../errors.ts";
 import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
 export function tagRoutes(d: tags.TagDeps) {
   const app = new Hono<HttpEnv>();
+  app.post(
+    "/tag-connections",
+    async (c) =>
+      c.json(await tags.setTagConnections(d, c.get("actor"), parse(tagConnectionInput, await json(c.req.raw)))),
+  );
   app.get("/tags", async (c) => c.json(await tags.listTags(d, c.get("actor"), parse(tagListQuery, c.req.query()))));
   app.post(
     "/tags",

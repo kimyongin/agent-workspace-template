@@ -3,16 +3,30 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion, isoDate } from "../../contracts/common.ts";
-import { occurrenceRecordCreate, recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
+import { occurrenceRecordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
 import * as activity from "../../core/activity/application.ts";
-import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
+import { type HttpEnv, idParam, json } from "./input.ts";
 import { parse } from "../errors.ts";
 
+const recordVersionQuery = z.strictObject({ expected_version: z.coerce.number().pipe(expectedVersion) });
 const versionBody = z.strictObject({ expected_version: expectedVersion, ...businessMeta });
 
 export function activityRoutes(deps: activity.ActivityDeps) {
   const app = new Hono<HttpEnv>();
+  app.post("/tasks/:id/restore", async (c) => {
+    const input = parse(versionBody, await json(c.req.raw));
+    return c.json(
+      await activity.restoreTask(
+        deps,
+        c.get("actor"),
+        idParam(c.req.param("id")),
+        input.expected_version,
+        input.change_note,
+        input.change_tag_ids,
+      ),
+    );
+  });
   app.post("/tasks/:id/delete", async (c) => {
     const i = parse(versionBody, await json(c.req.raw));
     await activity.deleteTask(
@@ -84,10 +98,6 @@ export function activityRoutes(deps: activity.ActivityDeps) {
     return c.json(await activity.recordOccurrence(deps, c.get("actor"), id, date, input), 201);
   });
 
-  app.post("/records", async (c) => {
-    const input = parse(recordCreate, await json(c.req.raw));
-    return c.json(await activity.createRecord(deps, c.get("actor"), input), 201);
-  });
   app.get("/records", async (c) => {
     const raw = c.req.query();
     const query = parse(recordListQuery, {
@@ -106,8 +116,8 @@ export function activityRoutes(deps: activity.ActivityDeps) {
   });
   app.delete("/records/:id", async (c) => {
     const id = idParam(c.req.param("id"));
-    const i = parse(versionQuery, c.req.query());
-    await activity.deleteRecord(deps, c.get("actor"), id, i.expected_version, i.change_note, i.change_tag_ids);
+    const i = parse(recordVersionQuery, c.req.query());
+    await activity.deleteRecord(deps, c.get("actor"), id, i.expected_version);
     return c.body(null, 204);
   });
 

@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { expect, test, type Page } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { entity, task, record, id } from "./support/workspace-data.ts";
@@ -15,7 +16,7 @@ for (const scale of ["100", "110", "125", "150"]) {
   test(`shell ${scale}%: retained edit and cursor survive desktop/mobile round trip`, async ({ page }, info) => {
     const state = await fixture(page, scale);
     await page.setViewportSize({ width: 2160, height: 1080 });
-    await page.goto(`/tasks/${id(2)}`);
+    await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
     const surface = page.getByRole("dialog", { name: "할 일", exact: true });
     await surface.getByRole("button", { name: "편집", exact: true }).click();
     const body = page.getByRole("textbox", { name: /^본문/ });
@@ -40,7 +41,7 @@ test("shell desktop: closing a detail returns long-list scrolling and append own
   state.rows.entities = Array.from({ length: 61 }, (_, index) => entity(1000 + index, { prop_1: `스크롤 자료 ${index}` }));
   state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20, 40), state.rows.entities.slice(40, 60), state.rows.entities.slice(60)]);
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/entities");
+  await page.goto(fixtureWorkspacePath("/entities"));
   const main = page.getByRole("main");
   await expect(main.locator("[data-list-anchor]")).toHaveCount(20);
   await openListDetail(page, "스크롤 자료 19");
@@ -76,7 +77,7 @@ test("shell desktop: closing a detail returns long-list scrolling and append own
 test("shell mobile: nested confirmation, Escape and discard preserve the correct draft", async ({ page }, info) => {
   const state = await fixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/tasks/${id(2)}`);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const body = page.getByRole("textbox", { name: /^본문/ });
   await body.fill("확인 취소 뒤에도 유지할 초안");
@@ -103,7 +104,7 @@ test("shell mobile: nested confirmation, Escape and discard preserve the correct
 test("shell mobile: simulated visual viewport keeps confirmation actions visible and cancellation preserves the draft", async ({ page }) => {
   const state = await fixture(page);
   await page.setViewportSize({ width: 390, height: 800 });
-  await page.goto(`/tasks/${id(2)}`);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const body = page.getByRole("textbox", { name: /^본문/ });
   await body.fill("키보드가 열린 동안에도 유지할 초안");
@@ -153,7 +154,7 @@ test("shell mobile: simulated visual viewport keeps confirmation actions visible
 test("shell mobile: official navigation opens, follows a route and restores trigger focus", async ({ page }, info) => {
   await fixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/tasks");
+  await page.goto(fixtureWorkspacePath("/tasks"));
   const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
   await trigger.click();
   const menu = page.getByRole("dialog", { name: "주 메뉴", exact: true });
@@ -170,7 +171,7 @@ test("shell mobile: official navigation opens, follows a route and restores trig
 test("shell desktop: tabs retain drafts and both official dividers resize by keyboard", async ({ page }, info) => {
   const state = await fixture(page);
   await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.goto(`/tasks/${id(2)}`);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const body = page.getByRole("textbox", { name: /^본문/ });
   await body.fill("탭을 옮겨도 유지할 초안");
@@ -211,7 +212,7 @@ test("shell reflow: 200% text and zoom preserve a usable workspace at 1024 and 1
   });
   const state = await fixture(page);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(`/tasks/${id(2)}`);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const body = page.getByRole("textbox", { name: /^본문/ });
   await body.fill("텍스트 확대와 브라우저 확대에도 유지할 초안");
@@ -236,7 +237,7 @@ test("shell reflow: 200% text and zoom preserve a usable workspace at 1024 and 1
 
 test("shell enlarged text: navigation constraints remain feasible at desktop widths", async ({ page }, info) => {
   const state = await fixture(page, "150");
-  await page.goto("/tasks");
+  await page.goto(fixtureWorkspacePath("/tasks"));
   const divider = page.getByRole("separator", { name: "탐색 메뉴 너비 조절", exact: true });
   const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
   for (const width of [1024, 1440]) {
@@ -257,7 +258,32 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
         const current = Number(element.getAttribute("aria-valuenow"));
         return Math.abs(current - Number(element.getAttribute("aria-valuemax"))) <= 1;
       })).toBe(true);
-      await expect(navigation.getByRole("link", { name: "기록", exact: true })).toBeInViewport();
+      await navigation.getByRole("link", { name: "할 일", exact: true }).focus();
+      await page.keyboard.press("Tab");
+      const recordLink = navigation.getByRole("link", { name: "기록", exact: true });
+      await expect(recordLink).toBeFocused();
+      await expect(recordLink).toBeInViewport();
+      const layout = await recordLink.evaluate(link => {
+        const content = link.closest('[data-slot="sidebar-content"]') as HTMLElement;
+        const record = link.getBoundingClientRect(), box = content.getBoundingClientRect();
+        const top = box.top + content.clientTop, left = box.left + content.clientLeft;
+        return {
+          record: record.toJSON(),
+          content: { top, left, bottom: top + content.clientHeight, right: left + content.clientWidth },
+          scrollTop: content.scrollTop,
+          requiresScroll: record.bottom - top + content.scrollTop > content.clientHeight,
+        };
+      });
+      expect(layout.record.top).toBeGreaterThanOrEqual(layout.content.top);
+      expect(layout.record.bottom).toBeLessThanOrEqual(layout.content.bottom);
+      expect(layout.record.left).toBeGreaterThanOrEqual(layout.content.left);
+      expect(layout.record.right).toBeLessThanOrEqual(layout.content.right);
+      expect(layout.record.width).toBeGreaterThanOrEqual(44);
+      expect(layout.record.height).toBeGreaterThanOrEqual(44);
+      if (layout.requiresScroll) expect(layout.scrollTop).toBeGreaterThan(0);
+      await expect(navigation.locator('[data-slot="sidebar-header"]')).toBeInViewport();
+      await expect(navigation.locator('[data-slot="sidebar-footer"]')).toBeInViewport();
+      await page.screenshot({ path: info.outputPath(`navigation-keyboard-${width}-root-${fontSize}.png`) });
       await expect(page.getByRole("main")).toBeInViewport();
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px/root${fontSize}px`).toBe(width);
       if (width === 1024 && fontSize === 48) {
@@ -289,9 +315,9 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
 for (const [width, scale] of [[1440, "100"], [1280, "125"], [390, "100"]] as const) test(`shell previous ${width}px/${scale}%: returning from a related editor restores its originating detail link`, async ({ page }) => {
   const state = await fixture(page, scale);
   state.rows.tasks[0].entity_ids = [entity().id];
-  state.rows.tasks[0].entity_context = [{ id: entity().id, title: "자료", source: "selection", captured_at: entity().created_at }];
+  state.rows.tasks[0].entity_context = [{ id: entity().id, title: "자료", type: entity().type, schema_version: entity().schema_version, source: "selection", captured_at: entity().created_at }];
   await page.setViewportSize({ width, height: 900 });
-  await page.goto(`/tasks/${id(2)}`);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
   const detail = page.getByRole("dialog").filter({ visible: true });
   const related = detail.getByRole("region", { name: "연결된 자료 (1개)", exact: true });
   await related.getByRole("button", { name: "자료", exact: true }).click();
@@ -308,7 +334,7 @@ for (const [width, scale] of [[1440, "100"], [1280, "125"], [390, "100"]] as con
 test("shell blocked profile: discard cancellation restores the durable menu trigger", async ({ page }) => {
   const state = await fixture(page);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/settings/tags");
+  await page.goto(fixtureWorkspacePath("/settings/tags"));
   const name = page.getByRole("textbox", { name: /태그 이름/ });
   await name.fill("탐색 취소 뒤 유지할 태그 초안");
   const profile = page.getByRole("button", { name: "내 프로필", exact: true });

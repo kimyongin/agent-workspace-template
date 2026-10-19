@@ -1,14 +1,14 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import postgres from "postgres";
-import { admin, call, httpTest, signIn } from "../http/_client.ts";
-import { connectMcp, mcpToken, tool } from "./_mcp.ts";
+import { admin } from "../http/_client.ts";
+import { activityWorkspaceSuite, scopedHttp, scopedTool } from "../http/_workspace-activity-fixture.ts";
 import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
 import { prepareMigrationBatch } from "../../functions/_shared/core/entity-types/migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
-httpTest(
-  "migration jobs HTTP/MCP: fixed 202 acceptance replay, owner reads, cancel/retry versions and same-key replay after success",
-  async () => {
-    const token = await signIn("A"), other = await signIn("B"), client = await connectMcp(await mcpToken(token));
+activityWorkspaceSuite(
+  "migration jobs HTTP/MCP: fixed 202 acceptance replay, workspace reads, cancel/retry versions and same-key replay after success",
+  async ({ A: token, B: other, workspaceA: w, workspaceB: otherW, clientA: client, schema }) => {
+    assert(client);
     const url = new URL(Deno.env.get("LOCAL_DB_URL")!);
     url.username = "app_worker";
     url.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
@@ -18,17 +18,15 @@ httpTest(
       onnotice: () => {},
       connection: { statement_timeout: 15000 },
     });
-    let typeId: string | undefined, entityId: string | undefined;
+    const typeId = schema.entity_type_id;
     try {
-      const type = (await call(token, "POST", "/entity-types", { label: "job parity " + crypto.randomUUID() })).body;
-      typeId = type.id;
-      const entity = (await call(token, "POST", "/entities", {
+      const entity = (await scopedHttp(token, w, "POST", "/entities", {
         entity_type_id: typeId,
         schema_version: 1,
         properties: { prop_1: "source" },
       })).body;
-      entityId = entity.id;
-      const plan = (await call(token, "POST", `/entity-types/${typeId}/schema-changes`, {
+      const entityId = entity.id;
+      const plan = (await scopedHttp(token, w, "POST", `/entity-types/${typeId}/schema-changes`, {
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
@@ -38,7 +36,7 @@ httpTest(
         }],
         migration: { rules: [{ op: "fill", key: "prop_2", value: false }], overrides: [] },
       })).body;
-      await call(token, "POST", `/entity-types/${typeId}/schema-changes/${plan.id}/analyze`, {
+      await scopedHttp(token, w, "POST", `/entity-types/${typeId}/schema-changes/${plan.id}/analyze`, {
         expected_change_version: 1,
       });
       for (let i = 0; i < 4; i++) {
@@ -51,7 +49,7 @@ httpTest(
           ))
         })`;
       }
-      const ready = (await call(token, "GET", `/entity-types/${typeId}/schema-changes/${plan.id}`)).body;
+      const ready = (await scopedHttp(token, w, "GET", `/entity-types/${typeId}/schema-changes/${plan.id}`)).body;
       assert(ready.executable);
       const input = {
           expected_schema_version: 1,
@@ -61,9 +59,9 @@ httpTest(
         },
         path = `/entity-types/${typeId}/schema-changes/${plan.id}/migrations`,
         key = crypto.randomUUID();
-      assertEquals((await call(token, "POST", path, input, null)).status, 400);
-      assertEquals((await call(token, "POST", path, { ...input, owner_id: "invented" })).status, 400);
-      const accepted = await call(token, "POST", path, input, key);
+      assertEquals((await scopedHttp(token, w, "POST", path, input, null)).status, 400);
+      assertEquals((await scopedHttp(token, w, "POST", path, { ...input, owner_id: "invented" })).status, 400);
+      const accepted = await scopedHttp(token, w, "POST", path, input, key);
       assertEquals(accepted.status, 202);
       assertEquals(Object.keys(accepted.body).sort(), [
         "analysis_id",
@@ -74,7 +72,7 @@ httpTest(
         "type_id",
       ]);
       assertEquals(
-        await tool(client, "start_entity_schema_migration", {
+        await scopedTool(client, w, "start_entity_schema_migration", {
           type_id: typeId,
           change_id: plan.id,
           ...input,
@@ -82,30 +80,37 @@ httpTest(
         }),
         accepted.body,
       );
-      const jobId = accepted.body.job_id, job = (await call(token, "GET", `/entity-schema-migrations/${jobId}`)).body;
-      assertEquals(await tool(client, "get_entity_schema_migration", { job_id: jobId }), job);
-      assertEquals((await call(other, "GET", `/entity-schema-migrations/${jobId}`)).status, 404);
+      const jobId = accepted.body.job_id,
+        job = (await scopedHttp(token, w, "GET", `/entity-schema-migrations/${jobId}`)).body;
+      assertEquals(await scopedTool(client, w, "get_entity_schema_migration", { job_id: jobId }), job);
+      assertEquals((await scopedHttp(other, otherW, "GET", `/entity-schema-migrations/${jobId}`)).status, 404);
       assertEquals(
-        await tool(client, "list_entity_schema_migrations", { type_id: typeId }),
-        (await call(token, "GET", `/entity-schema-migrations?type_id=${typeId}`)).body,
+        await scopedTool(client, w, "list_entity_schema_migrations", { type_id: typeId }),
+        (await scopedHttp(token, w, "GET", `/entity-schema-migrations?type_id=${typeId}`)).body,
       );
-      const cancellation = await tool(client, "cancel_entity_schema_migration", {
+      const cancellation = await scopedTool(client, w, "cancel_entity_schema_migration", {
         job_id: jobId,
         expected_job_version: job.version,
         request_key: crypto.randomUUID(),
       });
       assertEquals(cancellation.status, "cancelled");
-      assertEquals((await call(token, "GET", `/entity-schema-migrations/${jobId}`)).body, cancellation);
+      assertEquals((await scopedHttp(token, w, "GET", `/entity-schema-migrations/${jobId}`)).body, cancellation);
       assertEquals(
-        (await call(token, "POST", `/entity-schema-migrations/${jobId}/retry`, {
+        (await scopedHttp(token, w, "POST", `/entity-schema-migrations/${jobId}/retry`, {
           expected_job_version: cancellation.version,
         })).status,
         409,
       );
-      assertEquals((await call(token, "POST", path, input)).status, 409);
-      const reanalysis = await call(token, "POST", `/entity-types/${typeId}/schema-changes/${plan.id}/analyze`, {
-        expected_change_version: 1,
-      });
+      assertEquals((await scopedHttp(token, w, "POST", path, input)).status, 409);
+      const reanalysis = await scopedHttp(
+        token,
+        w,
+        "POST",
+        `/entity-types/${typeId}/schema-changes/${plan.id}/analyze`,
+        {
+          expected_change_version: 1,
+        },
+      );
       for (let i = 0; i < 4; i++) {
         const [r] = await worker`select app.claim_entity_schema_analysis() as batch`;
         if (!r.batch) break;
@@ -118,22 +123,24 @@ httpTest(
       }
       input.analysis_id = reanalysis.body.analysis_id;
       const secondKey = crypto.randomUUID(),
-        second = await call(token, "POST", path, input, secondKey),
+        second = await scopedHttp(token, w, "POST", path, input, secondKey),
         secondId = second.body.job_id;
       const [claimed] = await worker`select app.claim_entity_schema_migration() as batch`;
       assertEquals(claimed.batch.id, secondId);
       await worker`select app.fail_entity_schema_migration(${secondId},${claimed.batch.fence},'migration_worker_failed',true)`;
-      const failed = (await call(token, "GET", `/entity-schema-migrations/${secondId}`)).body;
+      const failed = (await scopedHttp(token, w, "GET", `/entity-schema-migrations/${secondId}`)).body;
       assertEquals(failed.status, "failed");
       assert(failed.retryable);
       const retryKey = crypto.randomUUID(),
-        retried = await call(token, "POST", `/entity-schema-migrations/${secondId}/retry`, {
+        retried = await scopedHttp(token, w, "POST", `/entity-schema-migrations/${secondId}/retry`, {
           expected_job_version: failed.version,
         }, retryKey);
       assertEquals(retried.status, 202);
-      assertEquals(retried.body.job_id, secondId);
+      const retryId = retried.body.job_id;
+      assertNotEquals(retryId, secondId);
+      assertEquals((await scopedHttp(token, w, "GET", `/entity-schema-migrations/${secondId}`)).body.status, "failed");
       assertEquals(
-        await tool(client, "retry_entity_schema_migration", {
+        await scopedTool(client, w, "retry_entity_schema_migration", {
           job_id: secondId,
           expected_job_version: failed.version,
           request_key: retryKey,
@@ -142,7 +149,7 @@ httpTest(
       );
       for (let i = 0; i < 4; i++) {
         const [r] = await worker`select app.claim_entity_schema_migration() as batch`;
-        assertEquals(r.batch.id, secondId);
+        assertEquals(r.batch.id, retryId);
         const b = r.batch;
         if (b.status === "committing") {
           await worker`select app.commit_entity_schema_migration(${b.id},${b.fence},${b.source_template_fingerprint},${SEARCH_PIPELINE})`;
@@ -151,39 +158,44 @@ httpTest(
         const prepared = await prepareMigrationBatch(b, new Date("2026-10-12T00:00:00Z"));
         await worker`select app.stage_entity_schema_migration(${b.id},${b.fence},${worker.json(prepared.results)})`;
       }
-      const done = (await call(token, "GET", `/entity-schema-migrations/${secondId}`)).body;
+      const done = (await scopedHttp(token, w, "GET", `/entity-schema-migrations/${retryId}`)).body;
       assertEquals(done.status, "succeeded");
-      assertEquals(await tool(client, "get_entity_schema_migration", { job_id: secondId }), done);
-      const replay = await call(token, "POST", path, input, secondKey);
+      assertEquals(await scopedTool(client, w, "get_entity_schema_migration", { job_id: retryId }), done);
+      const replay = await scopedHttp(token, w, "POST", path, input, secondKey);
       assertEquals(replay.status, 202);
       assertEquals(replay.body, second.body);
       assertEquals(replay.headers.get("Idempotency-Replayed"), "true");
-      assertEquals((await call(token, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties, {
+      assertEquals((await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties, {
         prop_1: "source",
         prop_2: false,
       });
-      const recoveryPath = `/entity-schema-migrations/${secondId}/recovery-changes`;
+      const recoveryPath = `/entity-schema-migrations/${retryId}/recovery-changes`;
       const refs = {
         expected_job_version: done.version,
 
         expected_schema_version: done.recovery.current_schema_version,
       };
       assertEquals(done.recovery.status, "available");
-      assertEquals((await call(token, "POST", recoveryPath, refs, null)).status, 400);
-      assertEquals((await call(other, "POST", recoveryPath, refs)).status, 404);
-      assertEquals((await call(token, "POST", recoveryPath, { ...refs, target: {} })).status, 400);
-      const recoveryKey = crypto.randomUUID(), draft = await call(token, "POST", recoveryPath, refs, recoveryKey);
+      assertEquals((await scopedHttp(token, w, "POST", recoveryPath, refs, null)).status, 400);
+      assertEquals((await scopedHttp(other, otherW, "POST", recoveryPath, refs)).status, 404);
+      assertEquals((await scopedHttp(token, w, "POST", recoveryPath, { ...refs, target: {} })).status, 400);
+      const recoveryKey = crypto.randomUUID(),
+        draft = await scopedHttp(token, w, "POST", recoveryPath, refs, recoveryKey);
       assertEquals(draft.status, 201);
       assertEquals(draft.body.status, "draft");
       assertEquals(
-        await tool(client, "create_entity_schema_recovery", { job_id: secondId, ...refs, request_key: recoveryKey }),
+        await scopedTool(client, w, "create_entity_schema_recovery", {
+          job_id: retryId,
+          ...refs,
+          request_key: recoveryKey,
+        }),
         draft.body,
       );
       assertEquals(
-        (await call(token, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties.prop_2,
+        (await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties.prop_2,
         false,
       );
-      const recoveryAnalysis = await tool(client, "analyze_entity_schema_change", {
+      const recoveryAnalysis = await scopedTool(client, w, "analyze_entity_schema_change", {
         type_id: typeId,
         change_id: draft.body.id,
         expected_change_version: 1,
@@ -206,15 +218,16 @@ httpTest(
           )
         })`;
       }
-      const recoveredPlan = (await call(token, "GET", `/entity-types/${typeId}/schema-changes/${draft.body.id}`)).body;
+      const recoveredPlan =
+        (await scopedHttp(token, w, "GET", `/entity-types/${typeId}/schema-changes/${draft.body.id}`)).body;
       assert(recoveredPlan.executable);
-      const rows = await tool(client, "list_entity_schema_analysis_rows", {
+      const rows = await scopedTool(client, w, "list_entity_schema_analysis_rows", {
         type_id: typeId,
         change_id: draft.body.id,
         analysis_id: recoveredPlan.analysis.id,
       });
       assertEquals(rows.items[0].after, { prop_1: "source" });
-      const recovered = await tool(client, "start_entity_schema_migration", {
+      const recovered = await scopedTool(client, w, "start_entity_schema_migration", {
         type_id: typeId,
         change_id: draft.body.id,
         expected_change_version: 1,
@@ -236,14 +249,14 @@ httpTest(
         await worker`select app.stage_entity_schema_migration(${b.id},${b.fence},${worker.json(prepared.results)})`;
       }
       assertEquals(
-        (await call(token, "GET", `/entity-schema-migrations/${recovered.job_id}`)).body.status,
+        (await scopedHttp(token, w, "GET", `/entity-schema-migrations/${recovered.job_id}`)).body.status,
         "succeeded",
       );
-      assertEquals((await call(token, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties, {
+      assertEquals((await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties, {
         prop_1: "source",
       });
-      const newer = (await call(token, "GET", `/entity-schema-migrations/${recovered.job_id}`)).body;
-      await call(token, "PATCH", `/entities/${encodeURIComponent(entityId!)}`, {
+      const newer = (await scopedHttp(token, w, "GET", `/entity-schema-migrations/${recovered.job_id}`)).body;
+      await scopedHttp(token, w, "PATCH", `/entities/${encodeURIComponent(entityId!)}`, {
         expected_version: 3,
         schema_version: 3,
         properties: { prop_1: "later value" },
@@ -253,19 +266,24 @@ httpTest(
 
         expected_schema_version: newer.recovery.current_schema_version,
       };
-      const staleHttp = await call(
+      const staleHttp = await scopedHttp(
         token,
+        w,
         "POST",
         `/entity-schema-migrations/${recovered.job_id}/recovery-changes`,
         staleRefs,
       );
       assertEquals(staleHttp.status, 409);
       assertEquals(staleHttp.body.code, "schema_plan_stale");
-      const staleMcp = await tool(client, "create_entity_schema_recovery", { job_id: recovered.job_id, ...staleRefs });
+      const staleMcp = await scopedTool(client, w, "create_entity_schema_recovery", {
+        job_id: recovered.job_id,
+        ...staleRefs,
+      });
       assertEquals(staleMcp.error.code, "schema_plan_stale");
-      await admin`update app.entity_schema_migrations set source_expires_at=now()-interval '1 second' where id=${recovered.job_id}`;
-      const expiredHttp = await call(
+      await admin`update app.entity_schema_migrations set source_expires_at=now()-interval '1 second' where workspace_id=${w} and id=${recovered.job_id}`;
+      const expiredHttp = await scopedHttp(
         token,
+        w,
         "POST",
         `/entity-schema-migrations/${recovered.job_id}/recovery-changes`,
         staleRefs,
@@ -273,15 +291,13 @@ httpTest(
       assertEquals(expiredHttp.status, 410);
       assertEquals(expiredHttp.body.code, "migration_source_expired");
       assertEquals(
-        (await tool(client, "create_entity_schema_recovery", { job_id: recovered.job_id, ...staleRefs })).error.code,
+        (await scopedTool(client, w, "create_entity_schema_recovery", { job_id: recovered.job_id, ...staleRefs })).error
+          .code,
         "migration_source_expired",
       );
     } finally {
-      await client.close();
       await worker.end();
-      if (entityId) await admin`delete from app.records where entity_ids@>array[${entityId}]`;
-      if (entityId) await admin`delete from app.entities where id=${entityId}`;
-      if (typeId) await admin`delete from app.entity_types where id=${typeId}`;
     }
   },
+  { mcp: true },
 );

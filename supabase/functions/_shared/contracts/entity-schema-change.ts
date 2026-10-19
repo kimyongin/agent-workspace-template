@@ -23,6 +23,7 @@ export const entityFieldInput = z.strictObject({
   "x-list-order": z.number().int().positive().optional(),
   "x-representative": z.boolean().optional(),
   "x-show-in-list": z.boolean().optional(),
+  "x-search-text": z.boolean().optional(),
   default: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]).optional(),
 });
 // new_<client_ref> is valid in display/conversion input alongside its add_property.

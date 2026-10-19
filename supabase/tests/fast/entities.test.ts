@@ -58,7 +58,7 @@ function memory() {
       writes++;
       const row = {
         ...input,
-        tag_ids: input.tag_ids ?? [],
+        tag_ids: [],
         id: input.id ?? crypto.randomUUID(),
         source_label: input.source,
         type,

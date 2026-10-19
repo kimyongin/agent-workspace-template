@@ -1,15 +1,16 @@
+import { useApi, useRequestScope, sameRequestScope } from "../../lib/api-context.tsx";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { scrollOwner, shiftScroll, surfaceFor } from "../../lib/surface-dom.ts";
 import type { TagResult } from "@contracts/tag.ts";
 import { createContext, type ReactNode, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocation } from "react-router";
+import { useLocation } from "../../lib/workspace-router.tsx";
 import { WorkspaceContext } from "../details/workspace-context.ts";
-import { api } from "../../lib/api.ts";
+
 import { Notice } from "../../components/Field.tsx";
 import { TagSelection } from "./TagSelection.tsx";
-import { createTagRead } from "./tag-read.ts";
-const tagRead = createTagRead(api);
+import { createTagRead, type TagReadPurpose } from "./tag-read.ts";
+
 
 export type TagScope = TagResult["scope"];
 type TagDictionary = {
@@ -20,19 +21,23 @@ type TagDictionary = {
   retry: () => void;
 };
 export const tagScopeLabels: Record<TagScope, string> = { entity: "자료", task: "할 일", record: "기록" };
-export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "record") {
+export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "record", purpose?: TagReadPurpose) {
+  const api = useApi();
+  const requestScope = useRequestScope();
+  const tagRead = createTagRead(api, purpose);
   const location = useLocation(), workspace = useContext(WorkspaceContext);
   const revision = workspace?.revision, navigationKey = workspace?.navigationKey;
-  const [read, setRead] = useState<{ scope: TagScope; tags: TagResult[] | null; failed: boolean; pending: boolean }>({
+  const [read, setRead] = useState<{ scope: TagScope; purpose?: TagReadPurpose; tags: TagResult[] | null; failed: boolean; pending: boolean }>({
     scope,
+    purpose,
     tags: null,
     failed: false,
     pending: true,
   });
   const [retry, setRetry] = useState(0);
-  const tags = read.scope === scope ? read.tags : null,
-    failed = read.scope === scope && read.failed,
-    pending = read.scope !== scope || read.pending;
+  const tags = read.scope === scope && read.purpose === purpose ? read.tags : null,
+    failed = read.scope === scope && read.purpose === purpose && read.failed,
+    pending = read.scope !== scope || read.purpose !== purpose || read.pending;
   const position = useRef<{ target: HTMLElement; y: number; focus: boolean } | null>(null);
   useLayoutEffect(() => {
     const saved = position.current;
@@ -62,7 +67,8 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
   };
   useEffect(() => {
     if (!enabled) return;
-    const refresh = () => {
+    const refresh = (event: Event) => {
+      if (event.type === "workspace:tags-changed" && !sameRequestScope(event, requestScope)) return;
       if (document.visibilityState === "visible") setRetry((n) => n + 1);
     };
     window.addEventListener("focus", refresh);
@@ -79,24 +85,25 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
     const controller = new AbortController();
     setRead((previous) => ({
       scope,
-      tags: previous.scope === scope ? previous.tags : null,
-      failed: previous.scope === scope && previous.failed,
+      purpose,
+      tags: previous.scope === scope && previous.purpose === purpose ? previous.tags : null,
+      failed: previous.scope === scope && previous.purpose === purpose && previous.failed,
       pending: true,
     }));
     tagRead.all(scope, controller.signal).then((all) => {
       if (!controller.signal.aborted) {
         capturePosition();
-        setRead({ scope, tags: all, failed: false, pending: false });
+        setRead({ scope, purpose, tags: all, failed: false, pending: false });
       }
     }).catch(() => {
       if (!controller.signal.aborted) setRead((previous) => ({ ...previous, failed: true, pending: false }));
     });
     return () => controller.abort();
-  }, [retry, enabled, scope, location.pathname, location.search, location.hash, revision, navigationKey]);
+  }, [retry, enabled, scope, purpose, location.pathname, location.search, location.hash, revision, navigationKey]);
   return { scope, tags, failed, pending, retry: retryLookup };
 }
 export function TagPicker(
-  { value, onChange, error, scope = "record", label, excludeId, disabled = false }: {
+  { value, onChange, error, scope = "record", label, excludeId, disabled = false, visible = true, purpose }: {
     value: string[];
     onChange: (ids: string[]) => void;
     error?: string;
@@ -104,9 +111,11 @@ export function TagPicker(
     label?: string;
     excludeId?: string;
     disabled?: boolean;
+    visible?: boolean;
+    purpose?: TagReadPurpose;
   },
 ) {
-  const { tags, failed, retry } = useTagDictionary(true, false, scope);
+  const { tags, failed, retry } = useTagDictionary(true, false, scope, purpose);
   return (
     <TagSelection
       label={label ?? `${tagScopeLabels[scope]} 태그`}
@@ -116,6 +125,7 @@ export function TagPicker(
       error={error}
       excludeId={excludeId}
       disabled={disabled}
+      visible={visible}
       status={failed
         ? (
           <>

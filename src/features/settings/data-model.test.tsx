@@ -1,12 +1,13 @@
 import { expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DataModelReview } from "./DataModelSettings.tsx";
-import { api } from "../../lib/api.ts";
+import { createScopedApi } from "../../lib/api.ts";
+const api = createScopedApi({ actorId: "fixture-actor", workspaceId: "fixture-space" });
 vi.mock(
   "../../lib/supabase.ts",
   () => ({
     supabase: {
-      auth: { getSession: async () => ({ data: { session: null } }) },
+      auth: { getSession: async () => ({ data: { session: { user: { id: "fixture-actor" }, access_token: "fixture-token" } } }) },
     },
   }),
 );

@@ -1,11 +1,12 @@
 import { expect, it, vi } from "vitest";
-import { api } from "./api.ts";
+import { createScopedApi } from "./api.ts";
+const api = createScopedApi({ actorId: "fixture-actor", workspaceId: "fixture-space" });
 import { createPagedList, type ListPage } from "../features/collections/paged-list.ts";
 import { WriteAttempt } from "./write-attempt.ts";
 vi.mock(
   "./supabase.ts",
   () => ({
-    supabase: { auth: { getSession: async () => ({ data: { session: { access_token: "fixture-token" } } }) } },
+    supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: "fixture-actor" }, access_token: "fixture-token" } } }) } },
   }),
 );
 

@@ -1,3 +1,5 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { expect, test } from "@playwright/test";
 import type { ModelChange } from "../supabase/functions/_shared/contracts/data-model.ts";
 import type {
@@ -105,8 +107,9 @@ const user = {
   user_metadata: { full_name: "Fixture" },
 };
 test.beforeEach(async ({ page, baseURL }) => {
-  await page.route("**/*", (route) => {
+  await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }])) return;
     if (url.origin === new URL(baseURL!).origin) return route.continue();
     if (url.pathname.startsWith("/auth/v1/user")) return route.fulfill({ json: user });
     if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { items: [], next_cursor: null } });
@@ -198,7 +201,7 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
         },
       }),
   );
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("button", { name: "재고 모델 값 변환 필요", exact: true }).click();
   await page.getByRole("combobox", { name: "수량 변환 방식" }).selectOption("convert");
   await page.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
@@ -283,7 +286,7 @@ test("새로고침한 진행 작업은 읽기만 하고 실패 후 같은 그룹
     "**/api/entity-types/**/rows?**",
     (route) => route.fulfill({ json: { items: [], next_after: null } }),
   );
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("button", { name: "재고 모델 자료 값 변환 준비 중", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();
   await page.reload();
@@ -319,7 +322,7 @@ test("분석 접수 응답 유실은 변환안을 잠그고 같은 키·원래 �
     "**/api/entity-types/**/rows?**",
     (route) => route.fulfill({ json: { items: [], next_after: null } }),
   );
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("button", { name: "재고 모델 값 변환 필요", exact: true }).click();
   await page.getByRole("combobox", { name: "수량 변환 방식" }).selectOption("convert");
   await page.getByRole("button", { name: "변경 영향 확인", exact: true }).click();
@@ -360,7 +363,7 @@ test("변환 초안은 자료 설정 이동에서 보호하고 잘못된 숫자 
         },
       }),
   );
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("button", { name: "재고 모델 값 변환 필요", exact: true }).click();
   await page.getByRole("button", { name: "보완값 지정", exact: true }).click();
   await page.getByRole("textbox", { name: "보완값", exact: true }).fill("1.0000000000000001");
@@ -393,7 +396,7 @@ test("worker 준비 완료 상태는 규칙을 잠그고 GET 조회로 전체 �
     "**/api/entity-types/**/rows?**",
     (route) => route.fulfill({ json: { items: [], next_after: null } }),
   );
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("button", { name: "재고 모델 설정 적용 대기", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "수량 변환 방식" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "검토한 설정 적용", exact: true })).toHaveCount(0);

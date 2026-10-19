@@ -2,7 +2,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { SettingsHeading } from "../settings/SettingsHeading.tsx";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "../../lib/workspace-router.tsx";
 import { ConfirmationSurface, ConfirmDialog } from "../../components/ConfirmDialog.tsx";
 import { type SurfaceAction, SurfaceActionContext } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";

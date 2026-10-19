@@ -115,9 +115,9 @@ npm exec -- deno fmt --no-config --line-width 120 --check src/components/Collect
 
 로컬 Supabase·함수 서버를 준비하고 Chromium을 설치한 뒤 `npm run test:e2e -- e2e/web-mcp.spec.ts --project=desktop`처럼 실행한다. 전체 브라우저 검사는 `npm run test:e2e:all`로 실제 API와 각 격리 화면 설정을 순서대로 실행한다. 설정별 소요 시간도 마지막 표에 표시한다. 로컬 통합 묶음 `npm run test:integration:local`은 실제 API E2E도 포함하며, 웹 단위·격리 화면 전체 검사를 대신하지 않는다. 실제 Pinecone 검사는 API 키가 있는 환경에서 `RUN_PINECONE_E2E=1`로 별도 실행한다.
 
-빈 계정의 첫 사용은 `e2e/empty-workspace-ux.spec.ts`가 검사한다. 전용 로컬 `DEV_USER_B` 계정에 자료 종류·자료·할 일·기록·발급처가 없는지 먼저 확인하고 `RUN_EMPTY_WORKSPACE_UX=1`로 worker 1개에서 실행한다. 검사는 자료를 초기화하지 않으며, 이 조건을 준비하지 않은 일반 실행에서는 생략한다.
+빈 공간의 첫 사용은 `e2e/empty-workspace-ux.spec.ts`가 매번 명시적으로 생성한 새 독점 공간에서 검사한다. 일반 실제 브라우저 검사에 포함되며 별도 opt-in이나 계정 전체가 비어 있다는 전제는 없다. 기존 계정의 Auth·개인 설정·다른 공간 자료를 보존하고, 검사 후에는 같은 실행이 만든 정확한 공간을 명시 manifest와 승인 digest로 정리한다.
 
-빠른 core·웹·어댑터 검사는 실제 DB·OAuth·브라우저 연결의 증거를 대신하지 않는다. 제품의 권한·일관성·웹/MCP 행동은 관련 [계약](../../supabase/functions/_shared/contracts/search.ts)과 실제 진입점의 테스트에서 확인한다. 제품 플러그인의 정적 패키지 검사는 실제 Claude·Codex 사용과 구분한다([제품 행동 검증 도구](../../experiments/plugin-behavior/README.md)).
+빠른 core·웹·어댑터 검사는 실제 DB·OAuth·브라우저 연결의 증거를 대신하지 않는다. 제품의 권한·일관성·웹/MCP 행동은 관련 [계약](../../supabase/functions/_shared/contracts/search.ts)과 실제 진입점의 테스트에서 확인한다. 제품 플러그인의 정적 패키지 검사는 실제 Claude·Codex 사용과 구분한다([과거 제품 행동 검증 도구와 현재 계약의 제한](../../experiments/plugin-behavior/README.md)).
 
 Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질 수 있다. 필요한 실패 증거는 저장소 밖의 실행별 위치에 보존한다. 검증 결과와 실행할 수 없었던 범위는 해당 GitHub 이슈·PR에서 확인한다.
 
@@ -154,7 +154,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 
 페이지 읽기의 상한·취소·실패 규칙은 `paged-list.test.ts`에서 검증한다. `pagination-fixture.spec.ts`는 실제 앱에서 URL 복원·누적 행·재시도 cursor·초점·읽던 위치·필터 초기화를 확인한다. 대량 모의 목록 때문에 실제 로그인 검사를 반복하지 않는다. 실제 API의 로그인·저장·웹/MCP 왕복 검사는 기본 설정에 남긴다.
 
-전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 스물한 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
+전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 스물네 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
 
 자료 조회 영역의 배치는 `npm run test:e2e -- --config=e2e/query-layout.build.config.ts`로 정적 빌드에서도 확인한다. 개발 서버와 운영 빌드는 CSS chunk의 순서가 달라질 수 있으므로, 관련 조작끼리 같은 행에 있는지·서로 겹치지 않는지도 검사한다. 선택창 위/검색창 아래 같은 개별 위치와 전체 가로 넘침 검사만으로 완료하지 않는다. 검사는 `test-results/query-layout-dist`에 모의 공개 설정으로 빌드하며 운영 서비스에 접속하지 않는다.
 
@@ -164,6 +164,10 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 
 실제 전체 모델 변환은 `supabase/tests/database/data-model-groups.test.ts`에서 다중 종류의 비공개 준비·한 transaction 게시·후반 실패 rollback·취소·동일 작업 재시도·부모/자식 lease·템플릿 freshness·계정 cascade·분석 원문 만료를 검사한다. `supabase/tests/mcp/data-model-groups.test.ts`는 실제 HTTP/OAuth MCP 접수와 정확한 요청 재현·격리를 검사하고, `e2e/data-model-groups.spec.ts`는 두 종류의 웹 변환 입력·전체 분석/접수 후 페이지를 떠나 독립 local runner가 완료하는 경로와 재방문·새로고침을 desktop/mobile에서 검사한다. 모의 `model-group` 설정의 결과를 이 실제 저장·worker 검사의 증거로 대신하지 않는다.
 
-실제 API 검사의 `e2e/support.ts` 자동 fixture는 각 test의 새 자료 종류·업무 자료 ID와 요청 키를 소유자별로 추적한다. 전체 모델 준비 결과의 new 항목만 새 종류·관계·발급처·규칙으로 추적하고, 기존 update 대상은 정리 범위에 추가하지 않는다. 해당 실행의 모델 이력과 명시 관계·연결은 같은 digest/transaction 경계에서 정리한다. 응답 유실 시에는 그 실행의 정확한 요청 키로 보관된 결과를 회수한다. MCP 연결을 먼저 닫아도 자료는 화면 검사와 `afterEach`가 끝날 때까지 유지한다. 마지막에는 브라우저 context와 MCP 연결을 닫고, 도입한 종류의 현재·역사 참조와 검색 queue/state를 명시 manifest의 dry-run digest로 정리한다. Auth 사용자·OAuth 연결·다른 소유자·기존 종류·무관한 설정은 보존한다. 종류별 템플릿은 해당 종류의 명시 action 경로만 제거한다. 설정 도중 실패해도 성공한 요청 receipt로 도입 ID를 회수하며, 실패한 설정을 정리하는 동안 원래 테스트의 종류 ID를 가정하지 않는다.
+실제 API 검사의 `e2e/support.ts` 자동 fixture는 각 test가 공개 생성한 독점 공간과 정확한 구성원·요청 키를 추적한다. 자료 생성과 조회는 공간 문맥을 명시하고 새 자료 종류의 권한을 호출자가 명시적으로 부여한다. 전체 모델 준비 결과의 new 항목만 신규 종류로 인식하며 기존 update 대상을 채택하지 않는다. MCP 연결을 먼저 닫아도 자료는 화면 검사와 `afterEach`가 끝날 때까지 유지한다. 마지막에는 브라우저 context와 MCP 연결을 닫고 공간 manifest의 읽기 전용 계획·승인 digest·transaction 적용·잔존 0을 기록한다. Auth 계정과 개인 설정, 다른 공간과 소속 없는 외부 효과 이력은 보존한다. 이 실행이 만든 세션/OAuth 클라이언트는 별도 정확한 ID로 정리한다.
 
-이 정리는 worker 1개인 loopback 실제 설정에서만 허용한다. `ENTITY_SCHEMA_WORKER_CONFIG`가 가리키는 Supabase 설정의 API·직접 DB 포트가 환경 파일과 일치해야 하며, fixture는 그 환경/소유자/개수/잔여 행만 결과에 첨부한다. 정리 정책의 서비스 없는 검사는 `node --test scripts/actual-fixture-cleanup.test.mjs scripts/demo-cleanup.test.mjs`다. 실제 격리 DB의 소유자·같은 ID·검색 재큐잉 회귀는 실행 lease 안에서 `LOCAL_DB_URL`을 그 DB로 지정하고 `node --test scripts/actual-fixture-cleanup.integration.mjs`로 별도 실행한다. 테스트가 만든 두 임시 Auth 사용자는 해당 통합 검사 자체의 finally에서만 제거한다.
+이 정리는 worker 1개인 loopback 실제 설정에서만 허용한다. `ENTITY_SCHEMA_WORKER_CONFIG`, API·직접 DB 포트, 명시한 프로젝트/실행 소유권 파일과 source revision을 모두 대조한다. 서비스 없는 검사는 `node --test scripts/workspace-fixture-cleanup.test.mjs scripts/workspace-model-fixture.test.mjs`다. 실제 DB 검사는 `supabase/tests/database/workspace-fixture-cleanup.actual.test.ts`로, 실행 lease 안의 명시한 격리 DB와 프로젝트·source revision을 사용한다. 계정/개인 설정·다른 공간·분리된 효과 이력 보존, 승인 후 변경 거부, 정확한 시험 효과 정리와 재실행을 확인한다. 기존 저장소의 승인 업무 자료 초기화는 [별도 실행안](../operations/demo-cleanup.md)이며 fixture의 공간 전체 삭제와 혼동하지 않는다.
+
+공유 HTTP/MCP 실제 fixture와 정리 DB 검사는 `WORKSPACE_CLEANUP_SOURCE_REVISION`(검사 source의 40자리 commit)과 `WORKSPACE_CLEANUP_PROJECT_ID`(실행 lease의 격리 프로젝트)를 명시한다. 공유 fixture의 생성 intent·계획/적용/완료 보고서는 실행 로그에 남기며 토큰·본문·DB 비밀값은 포함하지 않는다. 응답을 잃은 공간 생성은 정확한 실행자·계정 범위·요청 키·`workspace.create` 완료 receipt로만 회수한다. 같은 이름을 검색해 정리 대상으로 채택하지 않으며 완료 receipt가 없으면 미결 intent를 보존하고 정리 실패로 보고한다.
+
+최종 통합 실제 브라우저 설정 `e2e/workspace-full-actual.config.ts`는 기본 실제 `*.spec.ts`와 모델·태그·활동·할 일 조회 권한·검색/상태의 다섯 `*.actual.ts`를 함께 수집한다. `scripts/test-e2e-all.mjs`의 실제 설정으로 이를 지정한 뒤 스물네 fixture 설정까지 실행한다. 모의 fixture 수집이나 기능별 일부 실행을 최종 전체 green으로 대신하지 않는다.

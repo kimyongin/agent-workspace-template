@@ -1,3 +1,5 @@
+import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
+import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,11 +12,11 @@ import { Input } from "../../components/ui/input.tsx";
 import { Textarea } from "../../components/ui/textarea.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link } from "../../lib/workspace-router.tsx";
 import type { DataModelDocument, ModelChange, ModelReview } from "@contracts/data-model.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { Field } from "../../components/Field.tsx";
 import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
@@ -301,6 +303,12 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
 }
 
 export function DataModelSettings() {
+  return <WorkspaceSettingsBoundary><DataModelSettingsContent /></WorkspaceSettingsBoundary>;
+}
+function DataModelSettingsContent() {
+  const { canWrite } = useSettingsAccess();
+  const api = useApi();
+  const requestScope = useRequestScope();
   const { session } = useAuth();
   const [document, setDocument] = useState(""),
     [mode, setMode] = useState<"update" | "copy">("update");
@@ -339,10 +347,10 @@ export function DataModelSettings() {
     setChanges((list) => list.map((item) => item.id === value.id && value.version >= item.version ? value : item));
     if (value.status === "applied") {
       setNotice(savedNotice(value));
-      if (session) invalidateEntityTypeCatalog(session.user.id);
+      if (session) invalidateEntityTypeCatalog(requestScope);
     }
   }, [session?.user.id]);
-  const locked = busy || uncertain || reading || groupBusy || groupUncertain;
+  const locked = busy || reading || groupBusy || canWrite && (uncertain || groupUncertain);
   const dirty = document !== accepted;
   const missingRemovalConfirmation = !!review?.items.some((item) =>
     item.removed_keys?.length &&
@@ -350,8 +358,8 @@ export function DataModelSettings() {
       item.removed_keys.some((key) => !removeKeys[item.ref].includes(key)))
   );
   const blocker = usePageNavigationBlocker(
-    dirty || groupDirty,
-    busy || uncertain || groupUncertain || reading || groupBusy,
+    dirty || groupDirty || uncertain || groupUncertain,
+    busy || reading || groupBusy || canWrite && (uncertain || groupUncertain),
   );
   useEffect(() => {
     if ((busy || reading || groupBusy) && blocker.state === "blocked") blocker.reset();
@@ -453,6 +461,7 @@ export function DataModelSettings() {
     attempt.reset();
   };
   const preview = async () => {
+    if (!canWrite) return;
     if (locked || !document.trim()) return;
     const controller = new AbortController();
     readRequest.current = controller;
@@ -476,6 +485,7 @@ export function DataModelSettings() {
     }
   };
   const readFile = async (value?: File) => {
+    if (!canWrite) return;
     if (!value || locked) return;
     const current = ++sequence.current;
     setReading(true);
@@ -509,6 +519,7 @@ export function DataModelSettings() {
     setReview(null);
   };
   const prepare = async () => {
+    if (!canWrite) return;
     if (
       busy || reading || groupBusy || groupUncertain || groupDirty || !review ||
       !uncertain && missingRemovalConfirmation || uncertain && pendingAction !== "prepare"
@@ -537,6 +548,7 @@ export function DataModelSettings() {
     }
   };
   const apply = async (change: ModelChange) => {
+    if (!canWrite) return;
     if (busy || reading || groupBusy || groupUncertain || uncertain && pendingAction !== change.id) return;
     setPendingAction(change.id);
     setError("");
@@ -554,7 +566,7 @@ export function DataModelSettings() {
           publish(value);
           void loadDetail(value.id);
           setNotice(savedNotice(value));
-          if (session) invalidateEntityTypeCatalog(session.user.id);
+          if (session) invalidateEntityTypeCatalog(requestScope);
         }
       });
     } catch (e) {
@@ -600,7 +612,7 @@ export function DataModelSettings() {
       )}
       {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
       <MaterialSettingsSection
-        title="가져오기·내보내기"
+        title={canWrite ? "가져오기·내보내기" : "설정 파일"}
         initialOpen
         state={{ dirty, busy: busy || reading, uncertain }}
       >
@@ -617,7 +629,8 @@ export function DataModelSettings() {
           <p className="text-sm text-muted-foreground">
             실제 자료와 개별 연결·기록은 포함하지 않습니다. 파일에 없는 현재 설정은 삭제하지 않습니다.
           </p>
-          <FieldSet className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" disabled={locked}>
+          <div hidden={!canWrite} className="flex min-w-0 flex-col gap-4">
+          <FieldSet className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" disabled={!canWrite || locked}>
             <Field
               label="가져오는 방법"
               help="현재 자료 종류에 반영하거나, 새 자료 종류와 연결 설정을 만들 수 있습니다."
@@ -683,7 +696,7 @@ export function DataModelSettings() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline"
 
-              disabled={locked || !document}
+              disabled={!canWrite || locked || !document}
               onClick={() => {
                 edit("");
                 setAccepted("");
@@ -694,7 +707,7 @@ export function DataModelSettings() {
             </Button>
             <Button variant="default"
 
-              disabled={locked || !document.trim()}
+              disabled={!canWrite || locked || !document.trim()}
               onClick={() => void preview()}
             >
               {reading ? "읽는 중…" : "가져올 내용 검토"}
@@ -718,7 +731,7 @@ export function DataModelSettings() {
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button variant="default"
 
-                  disabled={busy || reading || groupBusy || groupUncertain || groupDirty ||
+                  disabled={!canWrite || busy || reading || groupBusy || groupUncertain || groupDirty ||
                     uncertain && pendingAction !== "prepare" ||
                     review.items.some((i) => i.kind === "conflict") || !uncertain && missingRemovalConfirmation}
                   onClick={() => void prepare()}
@@ -728,6 +741,7 @@ export function DataModelSettings() {
               </div>
             </>
           )}
+          </div>
         </FieldGroup>
       </MaterialSettingsSection>
       <MaterialSettingsSection
@@ -802,7 +816,7 @@ export function DataModelSettings() {
                     change={change}
                     onChange={updateGroup}
                     onState={reportGroupState}
-                    disabled={busy || uncertain || reading ||
+                    disabled={!canWrite || busy || uncertain || reading ||
                       Object.entries(groupStates).some(([id, state]) =>
                         id !== change.id && (state.busy || state.uncertain)
                       )}
@@ -812,7 +826,7 @@ export function DataModelSettings() {
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     <Button variant="default"
 
-                      disabled={busy || reading || groupBusy || groupUncertain || detailState[change.id]?.loading ||
+                      disabled={!canWrite || busy || reading || groupBusy || groupUncertain || detailState[change.id]?.loading ||
                         !!detailState[change.id]?.error ||
                         uncertain && pendingAction !== change.id}
                       onClick={() => void apply(change)}

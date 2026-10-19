@@ -1,3 +1,5 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { executionDialog, saveOnce } from "./ui-actions.ts";
@@ -8,6 +10,7 @@ const second = { ...fixtureType, id: id(901), label: "다른 자료" };
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }, { target_kind: "tasks", target_id: "*", access: "write" }, ...[fixtureType, second].map(type => ({ target_kind: "entity_type" as const, target_id: type.id, access: "write" as const }))])) return;
     if (url.origin === new URL(baseURL!).origin) return route.continue();
     if (url.pathname === "/api/entity-types") {
       return route.fulfill({ json: { items: [fixtureType, second], next_cursor: null } });
@@ -81,7 +84,7 @@ test.beforeEach(async ({ page, baseURL }) => {
   );
 });
 test("typed list exposes current columns and AND filters, type switch clears only property conditions", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&keyword=資料&tag_id=tag&view=table`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&keyword=資料&tag_id=tag&view=table`));
   await expect(page.getByRole("heading", { name: "검사 자료", level: 1 })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "수량" })).toBeVisible();
   await openTabFilters(page);
@@ -148,7 +151,7 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
       },
     });
   });
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await form.getByLabel("제목", { exact: false }).fill("임시 입력");
@@ -158,10 +161,10 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
   await expect.poll(() => inputs.length).toBe(1);
   expect(inputs[0].properties).toEqual({ prop_1: "보존 이름", prop_2: 0, prop_3: null });
   expect(inputs[0].expected_version).toBe(1);
-  expect(inputs[0].tag_ids).toEqual([id(700)]);
+  expect(inputs[0]).not.toHaveProperty("tag_ids");
 });
 test("template insertion uses selected type labels and immutable property keys", async ({ page }) => {
-  await page.goto("/settings/records");
+  await page.goto(fixtureWorkspacePath("/settings/records"));
   await chooseSetting(page, page.getByLabel("대상", { exact: true }), fixtureType.label);
   const form = page.getByRole("form", { name: "기록 자동 완성" });
   await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
@@ -178,7 +181,7 @@ test("template insertion uses selected type labels and immutable property keys",
 });
 
 test("numeric filter rejects a precision-losing draft without applying or clearing its input", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   await openTabFilters(page);
   await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
   await page.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_2");
@@ -201,7 +204,7 @@ test("entity numeric draft rejects precision loss before preparing a record and 
     prepared++;
     return route.fulfill({ json: {} });
   });
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await form.getByLabel("제목", { exact: false }).fill("숫자 초안");
@@ -240,7 +243,7 @@ test(
       savedInputs.push(route.request().postDataJSON());
       return route.fulfill({ json: entity(1, { prop_1: "Auto" }) });
     });
-    await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+    await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
     await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
     const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
     const title = form.getByRole("term").filter({ hasText: /^제목 · 읽기 전용$/ });
@@ -290,7 +293,7 @@ for (const serverDefault of [true, false]) {
       savedInputs.push(route.request().postDataJSON());
       return route.fulfill({ json: entity(1, { prop_1: "명시적 null", prop_2: null }) });
     });
-    await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+    await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
     await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
     const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
     await form.getByLabel("제목", { exact: false }).fill("명시적 null");
@@ -332,7 +335,7 @@ test("date property calendar closes with Escape without closing the editor or wr
       writes.push(request.method());
     }
   });
-  await page.goto(`/entities/${encodeURIComponent(saved.id)}`);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(saved.id)}`));
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
   const input = form.getByLabel("확인 날짜", { exact: true });
@@ -356,7 +359,7 @@ test("date calendar keeps its popup within a narrow enlarged screen without shri
   await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: schema }));
   await page.route("**/api/entities/*", (route) => route.fulfill({ json: saved }));
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto(`/entities/${encodeURIComponent(saved.id)}`);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(saved.id)}`));
   await page.getByRole("button", { name: "편집", exact: true }).click();
   await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
   const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
@@ -404,7 +407,7 @@ test("date calendar keeps its popup within a narrow enlarged screen without shri
 });
 
 test("date calendar navigation preserves the supported civil-year boundaries", async ({ page }) => {
-  await page.goto(`/entities/${encodeURIComponent(entity().id)}`);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entity().id)}`));
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
   const input = form.getByLabel("날짜", { exact: true });
@@ -442,7 +445,7 @@ test("keyboard calendar selection changes only the date draft until explicit sav
     }
     return route.fulfill({ json: current });
   });
-  await page.goto(`/entities/${encodeURIComponent(current.id)}`);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(current.id)}`));
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
   await form.getByRole("button", { name: "날짜 달력 열기", exact: true }).click();
@@ -464,7 +467,7 @@ test("keyboard calendar selection changes only the date draft until explicit sav
 test.describe("date-only values independent of browser timezone", () => {
   test.use({ timezoneId: "Pacific/Apia" });
   test("calendar retains a civil day even when that day is absent from the browser timezone", async ({ page }) => {
-    await page.goto(`/entities/${encodeURIComponent(entity().id)}`);
+    await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entity().id)}`));
     await page.getByRole("button", { name: "편집", exact: true }).click();
     const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
     const input = form.getByLabel("날짜", { exact: true });
@@ -495,7 +498,7 @@ test("calendar loading failure keeps the raw editor draft available for manual c
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/api/") && request.method() !== "GET") writes.push(request.method());
   });
-  await page.goto(`/entities/${encodeURIComponent(entity().id)}`);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entity().id)}`));
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
   const title = form.getByRole("textbox", { name: /^제목/ });

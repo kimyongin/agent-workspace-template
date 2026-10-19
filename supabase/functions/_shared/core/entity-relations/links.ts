@@ -1,3 +1,4 @@
+import { entityChangeFacts, entityChangeTarget } from "../entity/change.ts";
 import { z } from "zod";
 import {
   type RelationLinkQuery,
@@ -32,10 +33,16 @@ export interface EntityRelationLinkStore extends ChangeStore {
   ): Promise<void>;
   list(q: RelationLinkQuery, after: string | undefined, candidates: boolean): Promise<EntitySummary[]>;
 }
+export interface RelationEntry {
+  definitionId: string;
+  endpointIds: string[];
+  typeIds?: string[];
+  access: "read" | "write";
+}
 export interface EntityRelationLinkDeps {
   uow: {
-    run<T>(actor: Actor, fn: (s: EntityRelationLinkStore) => Promise<T>): Promise<T>;
-    read<T>(actor: Actor, fn: (s: EntityRelationLinkStore) => Promise<T>): Promise<T>;
+    run<T>(actor: Actor, fn: (s: EntityRelationLinkStore) => Promise<T>, entry?: RelationEntry): Promise<T>;
+    read<T>(actor: Actor, fn: (s: EntityRelationLinkStore) => Promise<T>, entry?: RelationEntry): Promise<T>;
   };
 }
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
@@ -84,6 +91,13 @@ export async function mutateRelationInTransaction(
   const origin = values.find((e) => e.id === i.origin_id)!, other = values.find((e) => e.id === i.other_id)!;
   requireKind(def, i.side, origin);
   requireKind(def, i.side === 0 ? 1 : 0, other);
+  if (replacement?.previous_other_id) {
+    requireKind(
+      def,
+      i.side === 0 ? 1 : 0,
+      values.find((e) => e.id === replacement.previous_other_id)!,
+    );
+  }
   if (
     origin.version !== i.expected_version || other.version !== i.expected_other_version ||
     replacement?.previous_other_id &&
@@ -104,37 +118,18 @@ export async function mutateRelationInTransaction(
       }
     }
     await s.apply(def.id, i.side, origin.id, other.id, mode !== "unlink", replacement?.previous_other_id ?? null);
-    const captured_at = new Date().toISOString();
-    await s.appendChange({
-      target_kind: "entity",
-      action: "update",
-      target: {
-        id: origin.id,
-        title: `${def.ends[i.side].label}: ${origin.title} ↔ ${other.title}`,
-        entity_ids: ids,
-        entity_context: values.map((e) => ({
-          id: e.id,
-          title: e.title,
-          type: e.type,
-          schema_version: e.current_schema_version,
-          captured_at,
-          source: "selection" as const,
-        })),
-      },
-      before: {
-        entity_ids: mode === "replace"
-          ? replacement!.previous_other_id ? [origin.id, replacement!.previous_other_id] : []
-          : exists
-          ? [origin.id, other.id]
-          : [],
-      },
-      after: { entity_ids: mode === "unlink" ? [] : [origin.id, other.id] },
-      change_note: i.change_note ??
-        `${def.ends[i.side].label}: ${origin.title} ↔ ${other.title} ${
-          mode === "unlink" ? "연결 해제" : mode === "replace" ? "연결 교체" : "연결"
-        }`,
-      change_tag_ids: i.change_tag_ids,
-    });
+    for (const endpoint of values) {
+      await s.appendChange({
+        target_kind: "entity",
+        action: "update",
+        target: entityChangeTarget(endpoint),
+        before: entityChangeFacts(endpoint),
+        after: entityChangeFacts(endpoint),
+        change_note: i.change_note ??
+          `자료 관계 ${mode === "unlink" ? "연결 해제" : mode === "replace" ? "연결 교체" : "연결"}`,
+        change_tag_ids: i.change_tag_ids,
+      });
+    }
   }
   return {
     changed,
@@ -148,8 +143,17 @@ export async function mutateRelationInTransaction(
 function write(d: EntityRelationLinkDeps, a: Actor, raw: unknown, mode: "connect" | "unlink" | "replace") {
   const i = mode === "replace" ? parse(relationReplaceWrite, raw) : parse(relationLinkWrite, raw);
   if (i.origin_id === i.other_id) return Promise.reject(invalidInput("자기 자신은 연결할 수 없습니다"));
+  const previous = mode === "replace" ? (i as RelationReplaceWrite).previous_other_id : null;
+  const uow: Pick<EntityRelationLinkDeps["uow"], "run"> = {
+    run: (actor, fn) =>
+      d.uow.run(actor, fn, {
+        definitionId: i.definition_id,
+        endpointIds: [i.origin_id, i.other_id, ...(previous ? [previous] : [])],
+        access: "write",
+      }),
+  };
   return runWrite(
-    d.uow,
+    uow,
     a,
     `entity-relation.${mode}`,
     { definition_id: i.definition_id, side: i.side, origin_id: i.origin_id },
@@ -163,6 +167,7 @@ export const replaceEntityRelation = (d: EntityRelationLinkDeps, a: Actor, raw: 
 export async function listEntityRelationLinks(d: EntityRelationLinkDeps, a: Actor, raw: unknown, candidates = false) {
   const i = parse(relationLinkQuery, raw),
     scope = await scopeOf(a, {
+      workspace_id: a.workspaceId,
       list: candidates ? "typed-candidates" : "typed-links",
       definition_id: i.definition_id,
       side: i.side,
@@ -196,5 +201,5 @@ export async function listEntityRelationLinks(d: EntityRelationLinkDeps, a: Acto
       items,
       next_cursor: rows.length > i.limit ? btoa(String.fromCharCode(...new TextEncoder().encode(body))) : null,
     };
-  });
+  }, { definitionId: i.definition_id, endpointIds: [i.origin_id], access: "read" });
 }

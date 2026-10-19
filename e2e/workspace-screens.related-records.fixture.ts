@@ -1,6 +1,5 @@
 import { businessRows } from "./table-actions.ts";
-import { chooseTag } from "./ui-actions.ts";
-import { entityKey } from "./support/workspace-data.ts";
+import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { openListDetail } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { id, record, stamp, task } from "./support/workspace-data.ts";
@@ -145,96 +144,48 @@ test("연결 기록 자동 복원 상한 뒤에도 수동 더 보기는 다음 c
 });
 
 for (const width of [320, 1440]) {
-  test(`#191 기록 작성 ${width}px: 할 일·엔터티 공통 카드와 독립 기록 태그`, async ({ page }, info) => {
-    const state = await fixtures(page);
+  test(`#191 수행 결과 ${width}px: 불변 할 일 귀속과 결과 본문`, async ({ page }, info) => {
+    const state = await fixtures(page), t = state.rows.tasks[0];
+    Object.assign(t, { entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }] });
     await page.setViewportSize({ width, height: 900 });
-    await go(page, "/records?create=1");
+    await go(page, `/tasks/${t.id}`);
+    await form(page).getByRole("button", { name: "완료하고 기록", exact: true }).click();
     const draft = form(page);
     await draft.getByRole("textbox", { name: /^본문/ }).fill("상담 내역");
-    await expect(draft.getByRole("group", { name: "태그", exact: true })).toHaveCount(0);
-    const tags = draft.getByRole("group", { name: "기록 태그", exact: true });
-    await expect(tags).toContainText("기록 태그");
-    await chooseTag(page, tags, "같은 이름");
+    await expect(draft.getByRole("group", { name: "기록 태그", exact: true })).toHaveCount(0);
+    await expect(draft.getByRole("button", { name: /^(할 일|자료) 연결$/ })).toHaveCount(0);
     await expect(draft.getByRole("searchbox")).toHaveCount(0);
-    await draft.getByRole("button", { name: "할 일 연결", exact: true }).click();
-    const taskSearch = draft.getByRole("searchbox", { name: "할 일 제목 검색" });
-    await expect(taskSearch).toBeFocused();
-    await taskSearch.fill("할");
-    await taskSearch.press("Enter");
-    await draft.getByRole("group", { name: "할 일 검색 결과" }).getByRole("button", { name: "할 일 연결", exact: true })
-      .click();
-    await draft.getByRole("button", { name: "자료 연결", exact: true }).click();
-    const entitySearch = draft.getByRole("searchbox", { name: "자료 제목 검색" });
-    await entitySearch.fill("자료");
-    await entitySearch.press("Enter");
-    await draft.getByRole("group", { name: "자료 검색 결과" }).getByRole("button", {
-      name: "자료 연결",
-      exact: true,
-    }).click();
     expect(state.writes).toHaveLength(0);
-    await expect(businessRows(draft.getByRole("table", { name: "선택한 할 일" }))).toHaveCount(1);
-    await expect(businessRows(draft.getByRole("table", { name: "선택한 자료" }))).toHaveCount(1);
-    await expect(draft.getByRole("group", { name: "자료 검색 결과", exact: true }).getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
-    await draft.getByRole("button", { name: "자료 해제", exact: true }).click();
-    await expect(entitySearch).toBeFocused();
-    await draft.getByRole("group", { name: "자료 검색 결과" }).getByRole("button", {
-      name: "자료 연결",
-      exact: true,
-    }).click();
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-    ).toBe(true);
-    await draft.getByRole("button", { name: "할 일 검색 닫기", exact: true }).click();
-    await expect(taskSearch).toHaveCount(0);
-    await expect(draft.getByRole("table", { name: "선택한 할 일" })).toContainText("할 일");
-    await draft.getByRole("button", { name: "자료 검색 닫기", exact: true }).click();
-    await expect(entitySearch).toHaveCount(0);
-    await draft.getByRole("button", { name: "자료 해제", exact: true }).click();
-    await expect(draft.getByRole("button", { name: "자료 연결", exact: true })).toBeFocused();
-    await draft.getByRole("button", { name: "자료 연결", exact: true }).click();
-    await expect(entitySearch).toHaveValue("자료");
-    await draft.getByRole("group", { name: "자료 검색 결과" }).getByRole("button", {
-      name: "자료 연결",
-      exact: true,
-    }).click();
-    await draft.getByRole("button", { name: "자료 검색 닫기", exact: true }).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`record-relationships-${width}.png`) });
-    await draft.getByRole("button", { name: "저장", exact: true }).click();
+    await draft.getByRole("button", { name: "완료하고 기록 저장", exact: true }).click();
     await expect.poll(() => state.writes.length).toBe(1);
-    expect(state.writes[0].body).toMatchObject({
-      task_id: id(2),
-      entity_ids: [entityKey(1)],
-      tag_ids: [id(11)],
-      body: "상담 내역",
-    });
+    expect(state.writes[0].path).toBe(`/api/tasks/${t.id}/complete`);
+    expect(state.writes[0].body).toMatchObject({ body: "상담 내역", expected_version: 1 });
+    for (const key of ["task_id", "entity_id", "entity_ids", "tag_ids", "change_tag_ids"]) expect(state.writes[0].body).not.toHaveProperty(key);
+    const result = state.rows.records.find(row => row.id === t.result_record_id)!;
+    expect(result.task_id).toBe(t.id);
+    expect(result.entity_id).toBeNull();
+    expect(t.entity_ids).toEqual([entityKey(1)]);
+    expect(t.status).toBe("done");
     expect(state.errors).toEqual([]);
   });
 }
 
-test("#191 할 일에서 일반 기록 작성: 귀속 미리 선택·변경·엔터티 초안 유지", async ({ page }) => {
-  const state = await fixtures(page), t = state.rows.tasks[0];
-  Object.assign(t, {
-    entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }],
-  });
-  state.rows.tasks.push({ ...task(82), title: "다른 할 일" });
-  await go(page, `/tasks/${id(2)}`);
-  await form(page).getByRole("button", { name: "기록 작성", exact: true }).click();
-  const draft = form(page);
-  await draft.getByRole("textbox", { name: /^본문/ }).fill("추가 관찰");
-  await expect(draft.getByRole("table", { name: "선택한 할 일" })).toContainText("할 일");
-  await draft.getByRole("button", { name: "할 일 연결", exact: true }).click();
-  await draft.getByRole("searchbox", { name: "할 일 제목 검색" }).fill("다른");
-  await draft.getByRole("group", { name: "할 일 검색 결과" }).getByRole("button", {
-    name: "다른 할 일 연결",
-    exact: true,
-  }).click();
-  await expect(businessRows(draft.getByRole("table", { name: "선택한 할 일" }))).toHaveCount(1);
-  await expect(draft.getByRole("table", { name: "선택한 자료" })).toContainText("자료");
-  await draft.getByRole("button", { name: "저장", exact: true }).click();
-  await expect.poll(() => state.writes.length).toBe(1);
-  expect(state.writes[0].body).toMatchObject({ task_id: id(82), entity_ids: [entityKey(1)] });
-  expect(t.status).toBe("open");
+test("#191 일반 기록 작성 URL은 불변 귀속을 우회하지 않는다", async ({ page }) => {
+  const state = await fixtures(page);
+  for (const path of ["/records?create=1", `/tasks/${id(2)}?action=record`, `/entities/${encodeURIComponent(entityKey(1))}?create=record`]) {
+    await go(page, path);
+    if (path.startsWith("/records?")) {
+      await expect(page.getByRole("region", { name: "기록 목록", exact: true })).toBeVisible();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("searchbox", { name: "자료 제목 검색", exact: true })).toHaveCount(0);
+    }
+    await expect(page.getByRole("dialog", { name: "기록 작성", exact: true })).toHaveCount(0);
+    await expect(form(page).getByRole("button", { name: "기록 작성", exact: true })).toHaveCount(0);
+    expect(state.writes).toHaveLength(0);
+  }
   expect(state.errors).toEqual([]);
 });
 

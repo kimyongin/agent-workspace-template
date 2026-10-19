@@ -1,4 +1,13 @@
-import { loadEntityDefinition } from "./entity-values.ts";
+import type { RequestIdentity } from "../../core/shared/request.ts";
+import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
+import { replayRetainedSqlRequest } from "./request-ledger.ts";
+import { compareEntityIds } from "./entity-relation-locks.ts";
+import { searchInputHash } from "../../core/shared/operations.ts";
+import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import { AppError, invalidInput, notFound } from "../../core/shared/errors.ts";
+import type { TagConnectionInput } from "../../contracts/tag-connection.ts";
+import type { TagEntry } from "../../core/tags/application.ts";
+import { loadBusinessEntityDefinition } from "./entity-values.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { TagResult } from "../../contracts/tag.ts";
@@ -6,10 +15,10 @@ import type { TagStore, TagUse } from "../../core/tags/application.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { Keyset } from "../../core/shared/store.ts";
 import { conflict } from "../../core/shared/errors.ts";
-import { runAsActor, SqlActorStore } from "./sql-context.ts";
+import { SqlActorStore } from "./sql-context.ts";
 import { SqlEntityStore } from "./entity-store.ts";
-import { SqlActivityStore } from "./activity-store.ts";
-import { checkedProperties, requireDefinition } from "../../core/entity/values.ts";
+import { SqlTagTargets } from "./tag-targets.ts";
+import { setTagLinks } from "./tag-links.ts";
 const toTag = (r: Record<string, unknown>): TagResult => ({
   scope: r.scope as TagResult["scope"],
   id: r.id as string,
@@ -19,24 +28,82 @@ const toTag = (r: Record<string, unknown>): TagResult => ({
   updated_at: (r.updated_at as Date).toISOString(),
 });
 class SqlTagStore extends SqlActorStore implements TagStore {
-  private deletionTypes: Set<string> | undefined;
+  constructor(tx: postgres.TransactionSql, actor: Actor, private readonly missingTarget = false) {
+    super(tx, actor);
+  }
+  override async executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
+    if (!this.missingTarget) return super.executeRequest(request, execute);
+    const retained = await replayRetainedSqlRequest<T>(this.tx, this.actor, request);
+    if (!retained.found) throw notFound();
+    return retained.result as T;
+  }
+  private get workspaceId() {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
+  async connectionTarget(input: TagConnectionInput): Promise<TagUse | null> {
+    if (input.target_kind === "entity") {
+      const value = await new SqlEntityStore(this.tx, this.actor).get(input.target_id, true);
+      return value ? { kind: "entity", value } : null;
+    }
+    const targets = new SqlTagTargets(this.tx, this.actor);
+    if (input.target_kind === "task") {
+      const value = await targets.task(input.target_id);
+      return value ? { kind: "task", value } : null;
+    }
+    const value = await targets.record(input.target_id, true);
+    return value ? { kind: "record", value } : null;
+  }
+  private deletionTargets?: { entity: string[]; task: string[]; record: string[] };
+  private async targetIds(id: string) {
+    const result = { entity: [] as string[], task: [] as string[], record: [] as string[] };
+    for (const kind of ["entity", "task", "record"] as const) {
+      const rows = await this.tx`select ${this.tx(`${kind}_id`)} id from ${this.tx(`app.${kind}_tags`)}
+        where workspace_id=${this.workspaceId} and tag_id=${id}`;
+      result[kind] = rows.map((row) => String(row.id)).sort(compareEntityIds);
+    }
+    return result;
+  }
   private async deletionTypeIds(id: string) {
-    const rows = await this.tx<
-      { entity_type_id: string }[]
-    >`select distinct e.entity_type_id from app.entities e where e.id in (
-      select entity_id from app.entity_tags where tag_id=${id}
-      union select unnest(t.entity_ids) from app.tasks t join app.task_tags l on l.task_id=t.id where l.tag_id=${id}
-      union select unnest(r.entity_ids) from app.records r join app.record_tags l on l.record_id=r.id where l.tag_id=${id})`;
-    return rows.map((r) => r.entity_type_id).sort();
+    const rows = await this.tx<{ entity_type_id: string }[]>`select distinct e.entity_type_id from app.entities e
+      where e.workspace_id=${this.workspaceId} and e.id in (
+        select entity_id from app.entity_tags where workspace_id=${this.workspaceId} and tag_id=${id}
+        union select r.entity_id from app.records r join app.record_tags l on l.workspace_id=r.workspace_id and l.record_id=r.id
+          where l.workspace_id=${this.workspaceId} and l.tag_id=${id} and r.entity_id is not null)`;
+    return rows.map((row) => row.entity_type_id).sort();
   }
   async prepareDelete(id: string) {
-    this.deletionTypes = new Set(await this.deletionTypeIds(id));
-    for (const typeId of this.deletionTypes) await loadEntityDefinition(this.tx, typeId, true);
+    // The UoW has already authorized the complete server-resolved footprint.
+    // Lock known targets before the dictionary; its FK key lock then prevents
+    // new connections, and a second ID-only snapshot detects arrivals safely.
+    const typeIds = await this.deletionTypeIds(id);
+    for (const typeId of typeIds) await loadBusinessEntityDefinition(this.tx, typeId, true);
+    // A newly linked kind must restart with a complete sorted lock set rather
+    // than acquire a late kind lock behind already-held domain locks.
+    if (JSON.stringify(await this.deletionTypeIds(id)) !== JSON.stringify(typeIds)) {
+      throw conflict("태그 연결이 변경되었습니다. 최신 상태에서 다시 삭제하세요");
+    }
+    this.deletionTargets = await this.targetIds(id);
+    const entities = new SqlEntityStore(this.tx, this.actor), activity = new SqlTagTargets(this.tx, this.actor);
+    for (const item of this.deletionTargets.entity) if (!await entities.get(item, true)) throw notFound();
+    for (const item of this.deletionTargets.task) if (!await activity.task(item)) throw notFound();
+    for (const item of this.deletionTargets.record) {
+      if (!await activity.record(item, true)) throw notFound();
+    }
   }
   async get(id: string, lock = false) {
-    const [r] = await this.tx`select * from app.tags where id=${id} ${lock ? this.tx`for update` : this.tx``}`;
-    if (lock && this.deletionTypes && (await this.deletionTypeIds(id)).some((type) => !this.deletionTypes!.has(type))) {
+    const [r] = await this.tx`select * from app.tags where workspace_id=${this.workspaceId} and id=${id} ${
+      lock ? this.tx`for update` : this.tx``
+    }`;
+    if (
+      lock && this.deletionTargets && JSON.stringify(await this.targetIds(id)) !== JSON.stringify(this.deletionTargets)
+    ) {
       throw conflict("태그 연결이 변경되었습니다. 최신 상태에서 다시 삭제하세요");
+    }
+    if (lock && this.deletionTargets) {
+      // The dictionary lock excludes new FK connections. Resolve authority
+      // again now so the durable receipt covers every target we will change,
+      // including kinds that arrived after the initial request entry check.
+      await resolveDeleteRequirements(this.tx, id);
     }
     return r ? toTag(r) : null;
   }
@@ -51,58 +118,121 @@ class SqlTagStore extends SqlActorStore implements TagStore {
   async insert(name: string, scope: TagResult["scope"]) {
     return toTag(
       await insertWithIdRetry(() =>
-        this.tx`insert into app.tags(owner_id,name,scope) values (${this.actor.userId},${name},${scope})
+        this.tx`insert into app.tags(workspace_id,name,scope) values (${this.workspaceId},${name},${scope})
       on conflict (id) do nothing returning *`
       ),
     );
   }
   rename(id: string, name: string) {
     return this.unique(() =>
-      this.tx`update app.tags set name=${name},version=version+1,updated_at=now() where id=${id} returning *`
+      this
+        .tx`update app.tags set name=${name},version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id} returning *`
     );
   }
-  async *uses(id: string): AsyncIterable<TagUse> {
-    const entities = new SqlEntityStore(this.tx, this.actor), activity = new SqlActivityStore(this.tx, this.actor);
-    for (const row of await this.tx`select entity_id id from app.entity_tags where tag_id=${id} order by entity_id`) {
-      const value = await entities.get(row.id as string, true);
+  async *uses(_id: string): AsyncIterable<TagUse> {
+    const entities = new SqlEntityStore(this.tx, this.actor), activity = new SqlTagTargets(this.tx, this.actor);
+    if (!this.deletionTargets) throw invalidInput("태그 삭제 대상을 먼저 확인하세요");
+    for (const id of this.deletionTargets.entity) {
+      const value = await entities.get(id);
       if (value) yield { kind: "entity", value };
     }
-    for (const row of await this.tx`select task_id id from app.task_tags where tag_id=${id} order by task_id`) {
-      const value = await activity.getTask(row.id as string, { forUpdate: true });
+    for (const id of this.deletionTargets.task) {
+      const value = await activity.task(id);
       if (value) yield { kind: "task", value };
     }
-    for (const row of await this.tx`select record_id id from app.record_tags where tag_id=${id} order by record_id`) {
-      const value = await activity.getRecord(row.id as string, { forUpdate: true });
+    for (const id of this.deletionTargets.record) {
+      const value = await activity.record(id);
       if (value) yield { kind: "record", value };
     }
   }
   async setTags(use: TagUse, tag_ids: string[]): Promise<TagUse> {
     if (use.kind === "entity") {
       const entities = new SqlEntityStore(this.tx, this.actor);
-      const definition = await requireDefinition(entities, use.value.entity_type_id, use.value.current_schema_version);
-      checkedProperties(definition, use.value.properties, {}, false);
       return {
         kind: "entity",
-        value: await entities.update(use.value.id, { tag_ids, schema_version: definition.schema_version }),
+        value: await entities.setTags(use.value.id, tag_ids),
       };
     }
-    const activity = new SqlActivityStore(this.tx, this.actor);
-    if (use.kind === "task") return { kind: "task", value: await activity.updateTask(use.value.id, { tag_ids }) };
-    return { kind: "record", value: await activity.updateRecord(use.value.id, { tag_ids }) };
+    const activity = new SqlTagTargets(this.tx, this.actor);
+    await setTagLinks(this.tx, this.actor, use.kind, use.value.id, tag_ids);
+    if (use.kind === "task") return { kind: "task", value: (await activity.task(use.value.id, true))! };
+    await this
+      .tx`update app.records set version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${use.value.id}`;
+    const value = (await activity.record(use.value.id))!;
+    await this.enqueueIndex({ kind: "record", id: value.id, input_hash: await searchInputHash(value.body) });
+    return { kind: "record", value };
   }
   async delete(id: string) {
-    await this.tx`delete from app.tags where id=${id}`;
+    const [deleted] = await this
+      .tx`delete from app.tags where workspace_id=${this.workspaceId} and id=${id} returning id`;
+    if (!deleted) throw new AppError("forbidden", "태그에 연결된 모든 대상의 쓰기 권한이 필요합니다");
+  }
+  async listRecordTemplateTags(limit: number, after?: Keyset) {
+    const rows = await this.tx`select * from app.workspace_record_template_tags(${limit},${
+      after?.at ?? null
+    }::timestamptz,${after?.id ?? null}::text)`;
+    return rows.map(toTag);
   }
   async list(limit: number, after?: Keyset, scope: TagResult["scope"] = "record") {
     const tx = this.tx;
-    return (await tx`select * from app.tags where scope=${scope} ${
+    return (await tx`select * from app.tags where workspace_id=${this.workspaceId} and scope=${scope} ${
       after ? tx`and (updated_at,id)<(${after.at}::timestamptz,${after.id}::text)` : tx``
     } order by updated_at desc,id desc limit ${limit}`).map(toTag);
   }
 }
 export class SqlTagUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
-  run<T>(a: Actor, fn: (s: TagStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, a, (tx) => fn(new SqlTagStore(tx, a)));
+  run<T>(a: Actor, fn: (s: TagStore) => Promise<T>, entry?: TagEntry): Promise<T> {
+    const actor = requireWorkspaceActor(a);
+    return runInWorkspace(this.sql, actor, { mode: "business", requirements: [] }, async (tx) => {
+      if (entry?.deleteTagId) {
+        await resolveDeleteRequirements(tx, entry.deleteTagId);
+      }
+      if (entry?.connection) {
+        const input = entry.connection;
+        const requirements: WorkspaceRequirement[] = [];
+        if (input.target_kind === "task") {
+          requirements.push({ target_kind: "tasks", target_id: "*", access: "write" });
+        } else {
+          let entityId = input.target_id;
+          if (input.target_kind === "record") {
+            const [record] = await tx`select entity_id,task_id from app.records
+              where workspace_id=${actor.workspaceId} and id=${input.target_id}`;
+            if (!record) return fn(new SqlTagStore(tx, actor, true));
+            if (record.task_id) {
+              requirements.push({ target_kind: "tasks", target_id: "*", access: "write" });
+              await authorizeWorkspace(tx, requirements);
+              await tx`select id from app.tasks where workspace_id=${actor.workspaceId} and id=${record.task_id} for update`;
+            } else entityId = String(record.entity_id);
+          }
+          if (!requirements.length) {
+            const [entity] = await tx`select entity_type_id from app.entities
+              where workspace_id=${actor.workspaceId} and id=${entityId}`;
+            if (!entity) throw notFound();
+            requirements.push({
+              target_kind: "entity_type",
+              target_id: String(entity.entity_type_id),
+              access: "write",
+            });
+            await authorizeWorkspace(tx, requirements);
+            await loadBusinessEntityDefinition(tx, String(entity.entity_type_id), true);
+            await tx`select id from app.entities where workspace_id=${actor.workspaceId} and id=${entityId} for update`;
+          }
+        }
+        await authorizeWorkspace(tx, requirements);
+        await tx`select set_config('request.workspace_requirements',${JSON.stringify(requirements)},true)`;
+      }
+      return fn(new SqlTagStore(tx, a));
+    });
   }
+}
+
+/** Extend the same transaction's receipt authority after a fresh server check. */
+async function resolveDeleteRequirements(tx: postgres.TransactionSql, id: string) {
+  const [resolved] = await tx`select app.workspace_tag_delete_requirements(${id}) as requirements`;
+  await tx`select set_config('request.workspace_requirements',(
+    select coalesce(jsonb_agg(requirement order by requirement->>'target_kind',requirement->>'target_id'),'[]'::jsonb)::text
+    from (select distinct value requirement from jsonb_array_elements(
+      current_setting('request.workspace_requirements')::jsonb || ${tx.json(resolved.requirements)}::jsonb
+    )) required),true)`;
 }

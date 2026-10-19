@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { CollectionMessage } from "../../components/Collection.tsx";
 import { Button } from "@/components/ui/button";
 import type { TaskResult } from "@contracts/task.ts";
@@ -21,6 +22,7 @@ export function RelatedTaskItem({ id, occurrence }: { id: string; occurrence: st
           resource={read.resource}
           to={`/tasks/${id}`}
           title={task.title}
+          titleBadge={task.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : undefined}
           metadata={occurrence
             ? (
               <dl className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">

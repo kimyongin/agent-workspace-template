@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router";
+import { useNavigate } from "../../lib/workspace-router.tsx";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CardDescription } from "@/components/ui/card";
 import { PageHeading } from "../../components/PageHeading.tsx";

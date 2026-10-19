@@ -1,6 +1,5 @@
 import type { RequestStore } from "./request.ts";
 import type { ChangeMetadata } from "../../contracts/change.ts";
-import type { EntityContext } from "../../contracts/entity-links.ts";
 import type { Recurrence } from "../../contracts/task.ts";
 
 /** Facts used by the default memo, never a complete DTO or historical snapshot. */
@@ -23,12 +22,10 @@ export interface ChangeFacts {
   pauses?: { stopped_on: string; resumed_on: string | null }[];
 }
 
-/** Identity and selected entity context of the event, including a deleted target. */
+/** Stable parent identity and title of the change event, including a deleted target. */
 export interface ChangeTarget {
   id: string;
   title: string;
-  entity_ids: string[];
-  entity_context: EntityContext[];
 }
 export interface ChangeInput {
   target_kind: ChangeMetadata["target_kind"];

@@ -7,47 +7,39 @@ import { mcpClient, mcpTokenViaConsent, test } from "./support.ts";
 // Real browser + HTTP commit evidence. Only the response is lost; writes reach the local server.
 import postgres from "postgres";
 import { expect, type Page } from "@playwright/test";
-import { devLogin, env, unique } from "./support.ts";
+import { devLogin, env, unique , ownedWorkspace, workspacePath} from "./support.ts";
 import { beginTabAction, fillChangeMemo, openDetailEditor, saveOnce } from "./ui-actions.ts";
 
-async function evidence(page: Page) {
+async function evidence(workspace: Awaited<ReturnType<typeof ownedWorkspace>>) {
   const dbUrl = new URL(env.LOCAL_DB_URL ?? "");
   if (!["localhost", "127.0.0.1"].includes(dbUrl.hostname)) throw new Error("Browser evidence requires a local DB");
   const db = postgres(dbUrl.href, { max: 1, onnotice: () => {} });
-  const login = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY! },
-    data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
-  });
-  expect(login.ok()).toBeTruthy();
-  const session = await login.json(), owner = session.user.id as string;
   const api = async (method: string, path: string, data?: unknown) => {
-    const response = await page.request.fetch(`${env.VITE_API_URL}${path}`, {
-      method, headers: { authorization: `Bearer ${session.access_token}`, ...(method === "GET" ? {} : { "Idempotency-Key": crypto.randomUUID() }) }, data,
-    });
+    const response = await workspace.fetch(method, path, data);
     expect(response.ok()).toBeTruthy();
     return response.status() === 204 ? null : response.json();
   };
   return {
     api,
     async taskCount(title: string) {
-      const [row] = await db`select count(*)::int n from app.tasks where owner_id=${owner} and title=${title}`;
+      const [row] = await db`select count(*)::int n from app.tasks where workspace_id=${workspace.id} and title=${title} and deleted_at is null`;
       return row.n;
     },
     async assertEvent(target: string, action: string) {
-      const rows = await db`select id from app.records where owner_id=${owner} and record_kind='change'
+      const rows = await db`select id from app.records where workspace_id=${workspace.id} and record_kind='change'
         and change_metadata->>'target_id'=${target} and change_metadata->>'action'=${action}`;
       expect(rows).toHaveLength(1);
       const [queue] = await db`select count(*)::int n from pgmq.q_search_index
-        where message->>'owner_id'=${owner} and message->>'kind'='record' and message->>'id'=${rows[0].id}`;
+        where message->>'workspace_id'=${workspace.id} and message->>'kind'='record' and message->>'id'=${rows[0].id}`;
       expect(queue.n).toBe(1);
     },
     async preparationState() {
       const [row] = await db`select
-        (select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${owner}) jobs,
-        (select count(*)::int from private.request_results where owner_id=${owner}) receipts,
-        (select count(*)::int from app.tasks where owner_id=${owner}) tasks,
-        (select count(*)::int from app.entities where owner_id=${owner}) entities,
-        (select count(*)::int from app.records where owner_id=${owner}) records`;
+        (select count(*)::int from pgmq.q_search_index where message->>'workspace_id'=${workspace.id}) jobs,
+        (select count(*)::int from private.workspace_request_results where workspace_id=${workspace.id}) receipts,
+        (select count(*)::int from app.tasks where workspace_id=${workspace.id}) tasks,
+        (select count(*)::int from app.entities where workspace_id=${workspace.id}) entities,
+        (select count(*)::int from app.records where workspace_id=${workspace.id}) records`;
       return row;
     },
     close: () => db.end(),
@@ -55,12 +47,13 @@ async function evidence(page: Page) {
 }
 
 /** route.fetch commits against the real API before the first reply is aborted. */
-async function loseCommittedReply(page: Page, method: string, path: string, status: number, loss: "abort" | "empty" | "malformed" = "abort") {
+async function loseCommittedReply(page: Page, workspaceId: string, method: string, path: string, status: number, loss: "abort" | "empty" | "malformed" = "abort") {
   const requests: { key: string; body: string | null; result: any; replay: string | undefined }[] = [];
   const url = `${env.VITE_API_URL}${path}`;
   const handler: Parameters<Page["route"]>[1] = async route => {
     if (route.request().method() !== method) return route.continue();
     const request = route.request();
+    expect(request.headers()["x-workspace-id"]).toBe(workspaceId);
     const reply = await route.fetch({ maxRetries: 0 });
     expect(reply.status()).toBe(status);
     const captured = {
@@ -96,7 +89,11 @@ async function loseCommittedReply(page: Page, method: string, path: string, stat
       const unresolved = Object.entries(persisted).filter(([key]) => key.startsWith("workspace:unresolved-write:"));
       expect(unresolved).toHaveLength(1);
       const metadata = JSON.parse(unresolved[0][1]);
-      expect(Object.keys(metadata).sort()).toEqual(["operation", "request_key", "status", "target"]);
+      expect(Object.keys(metadata).sort()).toEqual(["actorId", "method", "operation", "path", "request_key", "status", "target", "workspaceId"]);
+      expect(metadata.workspaceId).toBe(workspaceId);
+      expect(metadata.actorId).toMatch(/^[a-f0-9-]{36}$/i);
+      expect(metadata.method).toBe(method);
+      expect(metadata.path).toBe(path);
       expect(metadata.request_key).toBe(requests[0].key);
       expect(metadata.status).toBe("unknown");
       const payload = JSON.parse(requests[0].body!);
@@ -121,7 +118,8 @@ async function loseCommittedReply(page: Page, method: string, path: string, stat
 
 test("committed task create, edit and delete survive a lost reply with one event and queue each", async ({ page }) => {
   await devLogin(page);
-  const proof = await evidence(page), title = unique("응답 유실 할 일"), body = unique("메모리에서만 보관할 본문");
+  const workspace = await ownedWorkspace(page);
+  const proof = await evidence(workspace), title = unique("응답 유실 할 일"), body = unique("메모리에서만 보관할 본문");
   let id: string | undefined;
   try {
     await beginTabAction(page, "할 일 추가");
@@ -129,7 +127,7 @@ test("committed task create, edit and delete survive a lost reply with one event
     await create.getByRole("textbox", { name: /^제목(?: \(필수\))?$/ }).fill(title);
     await create.getByLabel("본문").fill(body);
     await fillChangeMemo(page, create, unique("등록 메모"));
-    const lostCreate = await loseCommittedReply(page, "POST", "/tasks", 201);
+    const lostCreate = await loseCommittedReply(page, workspace.id, "POST", "/tasks", 201);
     await saveOnce(page, create, "추가");
     await lostCreate.retry();
     id = lostCreate.requests[0].result.id;
@@ -143,7 +141,7 @@ test("committed task create, edit and delete survive a lost reply with one event
     const edit = page.getByRole("dialog", { name: "할 일 편집", exact: true });
     await edit.getByLabel("본문").fill(`${body} 수정`);
     await fillChangeMemo(page, edit, unique("수정 메모"));
-    const lostEdit = await loseCommittedReply(page, "PATCH", `/tasks/${id}`, 200);
+    const lostEdit = await loseCommittedReply(page, workspace.id, "PATCH", `/tasks/${id}`, 200);
     await saveOnce(page, edit);
     await lostEdit.retry();
     expect(lostEdit.requests[0].result.id).toBe(id);
@@ -155,7 +153,7 @@ test("committed task create, edit and delete survive a lost reply with one event
     await page.getByRole("dialog", { name: "할 일 편집", exact: true }).getByRole("button", { name: "삭제", exact: true }).click();
     const remove = executionDialog(page);
     await remove.getByLabel("기록 메모", { exact: true }).fill(unique("삭제 메모"));
-    const lostDelete = await loseCommittedReply(page, "POST", `/tasks/${id}/delete`, 204);
+    const lostDelete = await loseCommittedReply(page, workspace.id, "POST", `/tasks/${id}/delete`, 204);
     await saveOnce(page, remove, "삭제 확인");
     await lostDelete.retry();
     expect(JSON.parse(lostDelete.requests[0].body!).expected_version).toBe(2);
@@ -170,11 +168,12 @@ test("committed task create, edit and delete survive a lost reply with one event
 
 test("external entity restore retries the committed tuple and type identity lookup allocates nothing", async ({ page }) => {
   await devLogin(page);
-  const proof = await evidence(page), external_id = `000Ab:/한글%${unique("복원 자료 번호")}`, title = unique("응답 유실 복원");
+  const workspace = await ownedWorkspace(page);
+  const proof = await evidence(workspace), external_id = `000Ab:/한글%${unique("복원 자료 번호")}`, title = unique("응답 유실 복원");
   let id: string | undefined;
   try {
-    const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page));
-    const type = await scalarFixtureType(fixtureMcp);
+    const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
+    const type = await scalarFixtureType(fixtureMcp, workspace);
     await fixtureMcp.close();
     const source = `e2e_${
       crypto.randomUUID().replaceAll("-", "").slice(0, 16)
@@ -233,7 +232,7 @@ test("external entity restore retries the committed tuple and type identity look
     expect(retained.version).toBe(2);
     expect(retained.deleted_at).toBeTruthy();
     expect(await proof.preparationState()).toEqual(before);
-    await page.goto(fixtureEntityList(type.id));
+    await page.goto(fixtureEntityList(workspace.id, type.id));
     await beginTabAction(page, "검사 자료 추가");
     const form = page.getByRole("dialog", { name: /^검사 자료.* 추가$/, exact: true });
     await expect(form.getByLabel("자료 번호")).toBeEnabled();
@@ -243,7 +242,7 @@ test("external entity restore retries the committed tuple and type identity look
     await expect(restore.getByLabel("제목")).toHaveValue(title);
     await fillChangeMemo(page, restore, unique("복원 메모"));
     expect(await proof.preparationState()).toEqual(before);
-    const lostRestore = await loseCommittedReply(page, "POST", "/entities", 201);
+    const lostRestore = await loseCommittedReply(page, workspace.id, "POST", "/entities", 201);
     await saveOnce(page, restore);
     await lostRestore.retry();
     const payload = JSON.parse(lostRestore.requests[0].body!);
@@ -266,14 +265,15 @@ test("external entity restore retries the committed tuple and type identity look
 for (const loss of ["empty", "malformed"] as const) {
   test(`committed create with a ${loss} success reply retains the original attempt`, async ({ page }) => {
     await devLogin(page);
-    const proof = await evidence(page), title = unique(`${loss} 응답 할 일`);
+  const workspace = await ownedWorkspace(page);
+    const proof = await evidence(workspace), title = unique(`${loss} 응답 할 일`);
     let id: string | undefined;
     try {
       await beginTabAction(page, "할 일 추가");
       const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });
       await form.getByRole("textbox", { name: /^제목(?: \(필수\))?$/ }).fill(title);
       await form.getByLabel("본문").fill(unique("불완전 응답 본문"));
-      const lost = await loseCommittedReply(page, "POST", "/tasks", 201, loss);
+      const lost = await loseCommittedReply(page, workspace.id, "POST", "/tasks", 201, loss);
       await saveOnce(page, form, "추가");
       await lost.retry();
       id = lost.requests[0].result.id;

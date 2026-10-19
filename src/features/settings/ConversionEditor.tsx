@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { Fragment } from "react";
 import { BusinessTable, BusinessRow, BusinessCell, BusinessDetails } from "../../components/BusinessTable.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -26,7 +27,7 @@ import type { EntityField } from "@contracts/entity-type.ts";
 import type { SchemaDefinition } from "@contracts/entity-schema-change.ts";
 import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { Field } from "../../components/Field.tsx";
-import { api } from "../../lib/api.ts";
+
 import { fieldType } from "../entity/property-fields.tsx";
 type Rule = MigrationPlan["rules"][number];
 function propertyValue(value: unknown, key: string, definition?: SchemaDefinition, showType = false) {
@@ -176,6 +177,7 @@ export function ConversionEditor(
     sourceDefinition?: SchemaDefinition;
   },
 ) {
+  const api = useApi();
   const [page, setPage] = useState<SchemaAnalysisPage>(),
     [failures, setFailures] = useState(false),
     [draftFailures, setDraftFailures] = useState(false),

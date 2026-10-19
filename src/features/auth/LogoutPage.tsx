@@ -2,7 +2,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { supabase } from "../../lib/supabase.ts";
 import { useAuth } from "./AuthProvider.tsx";
@@ -11,24 +11,49 @@ import { useAuth } from "./AuthProvider.tsx";
 export function LogoutPage() {
   const navigate = useNavigate();
   const { session, loading } = useAuth();
-  const started = useRef(false);
+  const started = useRef(false), mounted = useRef(true);
+  const lastAuthenticated = useRef(session), generation = useRef(0);
+  useLayoutEffect(() => {
+    if (session && session.access_token !== lastAuthenticated.current?.access_token) {
+      lastAuthenticated.current = session;
+      generation.current++;
+    }
+  }, [session]);
+  const activeAttempt = useRef<{ generation: number } | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const [error, setError] = useState(false);
   const [localSignedOut, setLocalSignedOut] = useState(false);
   const signOut = async () => {
+    if (!session) return;
+    const originalToken = session.access_token;
+    const attempt = { generation: generation.current };
+    activeAttempt.current = attempt;
+    const current = () => mounted.current && activeAttempt.current === attempt && generation.current === attempt.generation;
     setError(false);
     try {
       const result = await supabase.auth.signOut();
       if (result.error) throw result.error;
+      const { data } = await supabase.auth.getSession();
+      if (!current() || data.session && data.session.access_token !== originalToken) return;
       navigate("/login", { replace: true });
     } catch {
       // 현재 SDK는 원격 실패에도 로컬 세션을 지울 수 있다. 실제 남은 상태를 안내한다.
       const { data } = await supabase.auth.getSession();
+      if (!current() || data.session && data.session.access_token !== originalToken) return;
       setLocalSignedOut(!data.session);
       setError(true);
     }
   };
   useEffect(() => {
     if (loading) return;
+    // A later login belongs to a new operation; this page must never sign it out or apply an old result.
+    if (session && activeAttempt.current && generation.current !== activeAttempt.current.generation) {
+      navigate("/workspaces", { replace: true });
+      return;
+    }
     // 로그아웃 후 RequireAuth의 next=/logout 복귀를 만들지 않는다.
     if (!session) {
       if (!started.current) navigate("/login", { replace: true });
@@ -52,7 +77,7 @@ export function LogoutPage() {
           ? <Button asChild size="lg"><Link to="/login">로그인으로 이동</Link></Button>
           : <>
             <Button type="button" variant="outline" size="lg" onClick={signOut}>다시 시도</Button>
-            <Button asChild variant="ghost" size="lg"><Link to="/tasks">할 일로 돌아가기</Link></Button>
+            <Button asChild variant="ghost" size="lg"><Link to="/workspaces">내 공간으로 돌아가기</Link></Button>
           </>}
       </CardFooter>}
     </Card>

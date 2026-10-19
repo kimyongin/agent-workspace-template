@@ -1,3 +1,5 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
+import { useApi } from "../../lib/api-context.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
@@ -8,20 +10,13 @@ import { materialSettingsPath } from "./material-settings-path.ts";
 import { type MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { RecoveryChangeCreate, recoveryErrorMessage } from "./SchemaRecovery.tsx";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "../../lib/workspace-router.tsx";
 import type { EntitySchemaMigration, SchemaMigrationAccepted } from "@contracts/entity-schema-migration.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
-import { api } from "../../lib/api.ts";
+
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
-export const migrationLabels: Record<EntitySchemaMigration["status"], string> = {
-  queued: "접수",
-  preparing: "준비 중",
-  ready_to_commit: "적용 준비 완료",
-  committing: "적용 중",
-  succeeded: "완료",
-  failed: "실패",
-  cancelled: "취소",
-};
+import { migrationLabels } from "./schema-migration-status.ts";
+export { migrationLabels } from "./schema-migration-status.ts";
 export const migrationActive = (job: EntitySchemaMigration) =>
   ["queued", "preparing", "ready_to_commit", "committing"].includes(job.status);
 export function MigrationStart(
@@ -31,6 +26,8 @@ export function MigrationStart(
     onState?: (state: { busy: boolean; uncertain: boolean }) => void;
   },
 ) {
+  const { canWrite } = useSettingsAccess();
+  const api = useApi();
   const navigate = useNavigate(), location = useLocation(), { attempt, busy, uncertain } = useWriteAttempt();
   const [error, setError] = useState("");
   useLayoutEffect(() => {
@@ -39,6 +36,7 @@ export function MigrationStart(
   useLayoutEffect(() => () => onState?.({ busy: false, uncertain: false }), [onState]);
   const acceptedRef = useRef<SchemaMigrationAccepted | undefined>(undefined);
   const start = async () => {
+    if (!canWrite || busy || (!uncertain && disabled)) return;
     setError("");
 
     try {
@@ -72,7 +70,7 @@ export function MigrationStart(
     <div className="flex flex-wrap items-center justify-end gap-2">
       <Button variant="default"
 
-        disabled={busy || (!uncertain && (disabled || !plan.executable))}
+        disabled={!canWrite || busy || (!uncertain && (disabled || !plan.executable))}
         onClick={() => void start()}
       >
         {busy ? "접수 중…" : uncertain ? "같은 접수 요청 다시 확인" : "값 변환 시작"}
@@ -82,6 +80,7 @@ export function MigrationStart(
   );
 }
 export function useMigrationHistory(typeId: string, selectedJob?: string) {
+  const api = useApi();
   const [list, setList] = useState({
     typeId,
     items: [] as EntitySchemaMigration[],
@@ -250,6 +249,8 @@ export function SchemaMigrationJob(
     disabled?: boolean;
   },
 ) {
+  const { canWrite } = useSettingsAccess();
+  const api = useApi();
   const applied = useRef(onApplied);
   applied.current = onApplied;
   const changed = useRef(onJobChange);
@@ -258,6 +259,8 @@ export function SchemaMigrationJob(
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0);
   const { attempt, busy, uncertain } = useWriteAttempt();
+  const navigate = useNavigate(), location = useLocation();
+  const [accepted, setAccepted] = useState<SchemaMigrationAccepted | null>(null);
   const [recoveryState, setRecoveryState] = useState<MaterialSectionState>({
     dirty: false,
     busy: false,
@@ -273,6 +276,18 @@ export function SchemaMigrationJob(
   }, [busy, uncertain, error, publicationError, recoveryState, onState]);
   useLayoutEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
   const [pendingAction, setPendingAction] = useState<"cancel" | "retry">();
+  useEffect(() => {
+    if (!accepted || busy || uncertain) return;
+    // onState propagates busy through ancestor state; its guards commit after this effect flush.
+    const frame = requestAnimationFrame(() => {
+      setAccepted(null);
+      void navigate(materialSettingsPath(type_id, location.search, {
+        job_id: accepted.job_id,
+        change_id: accepted.change_id,
+      }));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [accepted, busy, uncertain, navigate, type_id, location.search]);
   useEffect(() => {
     setJob(undefined);
   }, [job_id, type_id]);
@@ -318,7 +333,7 @@ export function SchemaMigrationJob(
     };
   }, [job_id, type_id, refresh]);
   const write = async (action: "cancel" | "retry") => {
-    if (!job || disabled || busy) return;
+    if (!canWrite || !job || disabled || busy) return;
     setError("");
     setPendingAction(action);
     try {
@@ -330,16 +345,21 @@ export function SchemaMigrationJob(
           undefined,
           attempt.requestKey(),
         );
-        // Cancel returns the full job; retry returns an acceptance that needs the existing detail read.
+        // Cancel returns the full job; retry seals a new execution while preserving the failed job.
         if ("id" in confirmed) {
           changed.current?.(confirmed);
           setJob((current) =>
             current?.id === confirmed.id && current.version > confirmed.version ? current : confirmed
           );
+        } else {
+          if (confirmed.type_id !== type_id || confirmed.change_id !== job.change_id) {
+            throw new Error("이 자료 종류의 변경안 재시도 접수가 아닙니다");
+          }
+          setAccepted(confirmed);
         }
       });
       setPendingAction(undefined);
-      setRefresh((n) => n + 1);
+      if (action === "cancel") setRefresh((n) => n + 1);
     } catch (e) {
       setError(writeErrorMessage(e));
     }
@@ -418,13 +438,13 @@ export function SchemaMigrationJob(
             key={job.id}
             job={job}
             onState={setRecoveryState}
-            disabled={disabled || busy || uncertain}
+            disabled={!canWrite || disabled || busy || uncertain}
           />
           <div className="flex flex-wrap items-center justify-end gap-2">
             {["queued", "preparing", "ready_to_commit"].includes(job.status) && (
               <Button variant="outline"
 
-                disabled={busy || uncertain || disabled}
+                disabled={!canWrite || busy || uncertain || disabled}
                 onClick={() => void write("cancel")}
               >
                 변환 취소
@@ -433,7 +453,7 @@ export function SchemaMigrationJob(
             {job.status === "failed" && job.retryable && (
               <Button variant="default"
 
-                disabled={busy || uncertain || disabled}
+                disabled={!canWrite || busy || uncertain || disabled}
                 onClick={() => void write("retry")}
               >
                 같은 작업 재시도
@@ -442,7 +462,7 @@ export function SchemaMigrationJob(
             {uncertain && pendingAction && (
               <Button variant="outline"
 
-                disabled={busy}
+                disabled={!canWrite || busy}
                 onClick={() => void write(pendingAction)}
               >
                 같은 요청 다시 확인

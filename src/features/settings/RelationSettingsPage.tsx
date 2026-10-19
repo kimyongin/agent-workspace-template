@@ -1,3 +1,5 @@
+import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
+import { useApi } from "../../lib/api-context.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldSet } from "@/components/ui/field";
@@ -6,9 +8,9 @@ import { Input } from "../../components/ui/input.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useSearchParams } from "../../lib/workspace-router.tsx";
 import type { EntityRelationDefinition, EntityRelationDefinitionPage } from "@contracts/entity-relation.ts";
-import { api, query } from "../../lib/api.ts";
+import { query } from "../../lib/api.ts";
 import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 
@@ -17,6 +19,11 @@ import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
 import { IssuerRow } from "./IssuerRow.tsx";
 import { RelationDefinitionForm } from "./RelationDefinitionForm.tsx";
 export function RelationSettingsPage() {
+  return <WorkspaceSettingsBoundary><RelationSettingsPageContent /></WorkspaceSettingsBoundary>;
+}
+function RelationSettingsPageContent() {
+  const { canWrite } = useSettingsAccess();
+  const api = useApi();
   const [params, setParams] = useSearchParams(), typeId = params.get("type_id") ?? "";
   const [q, setQ] = useState(""),
     [archived, setArchived] = useState("active"),
@@ -139,7 +146,7 @@ export function RelationSettingsPage() {
 
           type="button"
           ref={add}
-          disabled={edit !== null || !catalog.types}
+          disabled={!canWrite || edit !== null || !catalog.types}
           onClick={() => open("new")}
         >
           연결 설정 추가

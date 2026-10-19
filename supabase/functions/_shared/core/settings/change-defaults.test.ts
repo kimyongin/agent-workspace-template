@@ -12,7 +12,7 @@ Deno.test("record deletion uses its existing action memo without introducing rec
   const input: ChangeInput = {
     target_kind: "record",
     action: "delete",
-    target: { id: "record", title: "기록", entity_ids: [], entity_context: [] },
+    target: { id: "record", title: "기록" },
     before: { body: "원문" },
     after: null,
   };
@@ -23,7 +23,7 @@ Deno.test("사용자 설정이 없으면 설정과 기록 준비가 같은 기�
   const input: ChangeInput = {
     target_kind: "entity",
     action: "update",
-    target: { id: "app:test", title: "고객", entity_ids: [], entity_context: [] },
+    target: { id: "app:test", title: "고객" },
     before: { properties: { prop_2: 1 } },
     after: { properties: { prop_2: 2 } },
   };
@@ -61,7 +61,7 @@ Deno.test("type-bound templates retain zero/false and explicit memo precedence",
   const input: ChangeInput = {
     target_kind: "entity",
     action: "update",
-    target: { id: "app:test", title: "재료", entity_ids: [], entity_context: [] },
+    target: { id: "app:test", title: "재료" },
     before: { entity_type_id: typeId, properties: { prop_2: 1, prop_3: true } },
     after: { entity_type_id: typeId, properties: { prop_2: 0, prop_3: false } },
   };
@@ -96,7 +96,7 @@ Deno.test("구 공통 자료 메모를 읽어도 종류의 고정 기본값이�
   const input: ChangeInput = {
     target_kind: "entity",
     action: "create",
-    target: { id: "app:new", title: "재료", entity_ids: [], entity_context: [] },
+    target: { id: "app:new", title: "재료" },
     before: null,
     after: { entity_type_id: id, properties: { prop_1: "재료" } },
   };

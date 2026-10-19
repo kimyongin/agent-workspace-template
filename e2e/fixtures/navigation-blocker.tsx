@@ -1,3 +1,4 @@
+import { FixtureWorkspace } from "./workspace-scope.tsx";
 // 실제 공통 UI + data-router 경로 차단을 격리해 초점 복귀만 검증한다. 제품 route에 포함하지 않는다.
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -24,4 +25,4 @@ const router = createMemoryRouter([{ element: <SidebarProvider><Outlet /><Naviga
   { path: "/tags", element: <DirtyPage /> },
   { path: "/logout", element: <h1>로그아웃 경로 진입</h1> },
 ] }], { initialEntries: ["/tags"] });
-createRoot(document.getElementById("root")!).render(<StrictMode><RouterProvider router={router} /></StrictMode>);
+createRoot(document.getElementById("root")!).render(<StrictMode><FixtureWorkspace actorId="fixture-actor"><RouterProvider router={router} /></FixtureWorkspace></StrictMode>);

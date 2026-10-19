@@ -1,7 +1,7 @@
 import { openDialogs, openMainNavigation } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entityKey, fixtureType, id, stamp } from "./support/workspace-data.ts";
-import { fixtures, go } from "./support/workspace-screens.ts";
+import { fixtures, goApp } from "./support/workspace-screens.ts";
 
 // Render the real App shell with isolated API data, rather than the reduced detail fixture shell.
 for (const width of [390, 1440]) {
@@ -49,7 +49,7 @@ for (const width of [390, 1440]) {
           period: { from: "2026-09-16", to: "2026-10-15", days: 30 },
           entities: { total: 12, active: 10, deleted: 2 },
           tasks: { total: 8, open: 4, done: 2, active: 2, stopped: 0 },
-          records: { total: 20, user: 10, result: 5, change: 5 },
+          records: { total: 20, result: 15, change: 5 },
           indexing: {
             total: 20,
             indexed: 18,
@@ -58,6 +58,7 @@ for (const width of [390, 1440]) {
             excluded: 0,
             waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 },
           },
+          entity_indexing: { total: 12, indexed: 10, preparing: 1, attention: 1, excluded: 0, waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 } },
           daily: Array.from(
             { length: 30 },
             (_, n) => ({
@@ -67,6 +68,7 @@ for (const width of [390, 1440]) {
               once_completed: n % 2,
               records_created: n % 5,
               indexing: { indexed: n % 4, preparing: n % 2, attention: 0, excluded: 0 },
+              entity_indexing: { indexed: n % 3, preparing: 1, attention: 0, excluded: 0 },
             }),
           ),
         },
@@ -90,7 +92,7 @@ for (const width of [390, 1440]) {
       ["missing-page", "/unknown-page"],
     ];
     for (const [name, path] of paths) {
-      await go(page, path);
+      await goApp(page, path);
       await expect(page.locator("h1").first()).toBeVisible();
       if (width < 1024 && name.endsWith("-detail")) {
         await expect(openDialogs(page)).toHaveCount(1);
@@ -113,7 +115,7 @@ for (const width of [390, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
       if (name === "status") await expect(page.getByRole("region", { name: "자료 현황" })).toBeVisible();
       if (name === "status") {
-        await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(4);
+        await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(5);
       }
       if (name === "material") {
         const menu = page.getByRole("button", { name: "설정 메뉴", exact: true });
@@ -150,12 +152,12 @@ for (const width of [390, 1440]) {
         ["record-calendar", "/records?view=calendar"],
         ["entity-create", "/entities?create=1"],
         ["task-create", "/tasks?create=1"],
-        ["record-create", "/records?create=1"],
+        ["result-create", `/tasks/${id(2)}?action=complete`],
         ["entity-edit", `/entities/${encodeURIComponent(entityKey(1))}?edit=1`],
         ["record-edit", `/records/${id(3)}?edit=1`],
       ]
     ) {
-      await go(page, path);
+      await goApp(page, path);
       if (name.endsWith("-create") || name.endsWith("-edit")) {
         await expect(page.getByRole("textbox").first()).toBeVisible();
         await expect(page.locator('[role="dialog"] [data-slot="dialog-description"]')).toBeVisible();
@@ -165,7 +167,7 @@ for (const width of [390, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
       await page.screenshot({ path: info.outputPath(`${name}-${width}.png`) });
     }
-    await go(page, `/tasks/${id(2)}?edit=1`);
+    await goApp(page, `/tasks/${id(2)}?edit=1`);
     await page.getByRole("textbox", { name: /^제목/ }).fill("보호할 변경 내용");
     const closeEditor = () =>
       width >= 1280
@@ -184,7 +186,7 @@ for (const width of [390, 1440]) {
       name: "변경 버리기",
       exact: true,
     }).click();
-    await go(page, "/settings");
+    await goApp(page, "/settings");
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
     await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath(`settings-menu-${width}.png`) });
@@ -205,7 +207,7 @@ for (const width of [390, 1440]) {
     await page.unroute("http://127.0.0.1:55580/**");
     await page.setViewportSize({ width, height: 900 });
     state.rows.tasks.length = 0;
-    await go(page, "/tasks");
+    await goApp(page, "/tasks");
     await expect(page.getByText("아직 할 일이 없습니다.", { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath(`empty-tasks-${width}.png`) });
     state.failRead({ kind: "tasks" }, { status: 503 });
@@ -228,14 +230,15 @@ for (const width of [390, 1440]) {
 test("상태의 실제 수치와 선택 날짜는 폭·글자 확대에서도 정확히 읽힌다", async ({ page }, info) => {
   await fixtures(page);
   await page.unroute("http://127.0.0.1:55580/**");
-  const day = (date: string, amount: number) => ({ date, entities_created: amount, tasks_created: amount, once_completed: 0, records_created: amount, indexing: { indexed: amount, preparing: 0, attention: 0, excluded: 0 } });
+  const day = (date: string, amount: number) => ({ date, entities_created: amount, tasks_created: amount, once_completed: 0, records_created: amount, indexing: { indexed: amount, preparing: 0, attention: 0, excluded: 0 }, entity_indexing: { indexed: amount, preparing: 0, attention: 0, excluded: 0 } });
   await page.route("**/api/status", route => route.fulfill({ json: {
     timezone: "Asia/Seoul", queried_at: stamp, period: { from: "2026-10-14", to: "2026-10-15", days: 2 },
     entities: { total: 2, active: 2, deleted: 0 }, tasks: { total: 1, open: 1, done: 0, active: 0, stopped: 0 },
-    records: { total: 2, user: 2, result: 0, change: 0 }, indexing: { total: 2, indexed: 1, preparing: 0, attention: 1, excluded: 0, waiting: { long_waiting: 1, oldest_waiting_since: stamp, threshold_minutes: 15 } },
+    records: { total: 2, result: 2, change: 0 }, indexing: { total: 2, indexed: 1, preparing: 0, attention: 1, excluded: 0, waiting: { long_waiting: 1, oldest_waiting_since: stamp, threshold_minutes: 15 } },
+    entity_indexing: { total: 2, indexed: 1, preparing: 1, attention: 0, excluded: 0, waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 } },
     daily: [day("2026-10-14", 0), day("2026-10-15", 2)],
   } }));
-  await go(page, "/status");
+  await goApp(page, "/status");
   const graph = page.getByRole("group", { name: "일별 등록 그래프: 막대를 누르거나 방향키로 날짜 선택", exact: true });
   const values = page.getByRole("table", {name:"일별 등록 날짜별 수치",exact:true});
   await graph.press("Home");

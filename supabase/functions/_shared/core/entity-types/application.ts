@@ -16,6 +16,7 @@ import {
   entityTypeUpdate,
   initialEntityDefinition,
 } from "../../contracts/entity-type.ts";
+import type { WorkspaceEntry } from "../workspaces/application.ts";
 import type { Actor } from "../shared/actor.ts";
 import type { RequestStore } from "../shared/request.ts";
 import { runWrite } from "../shared/request.ts";
@@ -50,7 +51,7 @@ export interface EntityTypeStore extends RequestStore, SchemaChangeStore, Schema
   ): Promise<{ items: EntitySchemaVersionSummary[]; next_before: number | null }>;
 }
 export interface EntityTypeDeps {
-  uow: { run<T>(actor: Actor, fn: (store: EntityTypeStore) => Promise<T>): Promise<T> };
+  uow: { run<T>(actor: Actor, fn: (store: EntityTypeStore) => Promise<T>, entry?: WorkspaceEntry): Promise<T> };
 }
 export function listEntityTypes(d: EntityTypeDeps, actor: Actor, raw: unknown = {}) {
   const input = parse(entityTypeList, raw);
@@ -64,10 +65,17 @@ export function getEntityType(d: EntityTypeDeps, actor: Actor, id: string) {
     return saved;
   });
 }
+const settingsWrite: WorkspaceEntry = {
+  mode: "business",
+  requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+};
+function writing(d: EntityTypeDeps): EntityTypeDeps["uow"] {
+  return { run: (actor, fn) => d.uow.run(actor, fn, settingsWrite) };
+}
 export function createEntityType(d: EntityTypeDeps, actor: Actor, raw: unknown) {
   const input = parse(entityTypeCreate, raw);
   return runWrite(
-    d.uow,
+    writing(d),
     actor,
     "entity-type.create",
     null,
@@ -80,9 +88,9 @@ export function updateEntityType(d: EntityTypeDeps, actor: Actor, id: string, ra
   if (
     raw && typeof raw === "object" && Object.hasOwn(raw, "expected_type_version") &&
     !entityTypeUpdate.safeParse(raw).success
-  ) return replayRetainedSchemaRequest<EntityType>(d, actor, "entity-type.update", id, raw);
+  ) return replayRetainedSchemaRequest<EntityType>({ uow: writing(d) }, actor, "entity-type.update", id, raw);
   const input = parse(entityTypeUpdate, raw);
-  return runWrite(d.uow, actor, "entity-type.update", id, input, (store) => store.update(id, input));
+  return runWrite(writing(d), actor, "entity-type.update", id, input, (store) => store.update(id, input));
 }
 export function getEntitySchema(d: EntityTypeDeps, actor: Actor, raw: unknown) {
   const input = parse(entitySchemaRead, raw);
@@ -101,7 +109,7 @@ export function listEntitySchemaVersions(d: EntityTypeDeps, actor: Actor, raw: u
   return d.uow.run(actor, async (store) => {
     if (!await store.get(input.type_id)) throw notFound();
     return store.history(input);
-  });
+  }, { mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "read" }] });
 }
 
 /** Storage adapters acquire locks before applying these shared business decisions. */

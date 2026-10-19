@@ -1,10 +1,12 @@
+import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
+import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EntityDetail, EntitySummary, EntityValues } from "@contracts/entity.ts";
 import type { EntityRelationDefinition } from "@contracts/entity-relation.ts";
 import type { RelationMutationResult } from "@contracts/entity-relation-links.ts";
 import { entityPath } from "@contracts/entity-identity.ts";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Notice } from "../../components/Field.tsx";
 
@@ -24,6 +26,8 @@ export function CreateRelatedEntityForm(
     onSaved: (result: { entity: EntityValues; relation: RelationMutationResult }) => void;
   },
 ) {
+  const api = useApi();
+  const capability = useWorkspaceCapabilities();
   const [context, setContext] = useState<Context | null>(null),
     [error, setError] = useState(""),
     [reading, setReading] = useState(false),
@@ -60,11 +64,27 @@ export function CreateRelatedEntityForm(
       if (!c.signal.aborted) setReading(false);
     }
   };
+  useLayoutEffect(() => {
+    setContext(null);
+    return () => request.current?.abort();
+  }, [api, originId, definitionId, side]);
   useEffect(() => {
     void read();
     return () => request.current?.abort();
-  }, [originId, definitionId, side]);
-  if (!context) {
+  }, [api, originId, definitionId, side]);
+  const writable = context?.definition.ends.every(end => capability?.grants.some(grant => grant.target_kind === "entity_type" && grant.target_id === end.type_id && grant.access === "write"));
+  const readable = context?.definition.ends.every(end => capability?.grants.some(grant =>
+    grant.target_kind === "entity_type" && grant.target_id === end.type_id &&
+    (grant.access === "read" || grant.access === "write")));
+  const writableNow = useRef(false);
+  writableNow.current = !!writable;
+  const admitted = useRef<{ api: typeof api; base: string } | null>(null);
+  const retained = admitted.current?.api === api && admitted.current.base === base;
+  useLayoutEffect(() => {
+    if (admitted.current?.api !== api || admitted.current.base !== base) admitted.current = null;
+    if (context && writable) admitted.current = { api, base };
+  }, [api, base, context, writable]);
+  if (!context || (!writable && !retained)) {
     return (
       <FormModal
         open
@@ -78,7 +98,7 @@ export function CreateRelatedEntityForm(
         onSubmit={async () => {}}
       >
         {() =>
-          reading ? <p role="status">관계와 현재 자료를 확인하는 중…</p> : (
+          context && !writable ? <Notice kind="error">양쪽 자료 종류의 쓰기 권한이 필요합니다.</Notice> : reading ? <p role="status">관계와 현재 자료를 확인하는 중…</p> : (
             <Notice kind="error">
               {error}
               <Button variant="ghost" type="button" onClick={() => void read()}>다시 조회</Button>
@@ -116,11 +136,14 @@ export function CreateRelatedEntityForm(
     <EntityForm
       initialTypeId={typeId}
       fixedType
+      readonly={!writable}
+      visible={!!readable}
       context={notice}
       submitLabel="작성하고 연결"
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
       onSave={async (entity, key) => {
+        if (!writableNow.current) throw new ApiError(403, "forbidden", "양쪽 자료 종류의 쓰기 권한이 필요합니다.");
         if (reading || contextChanged) {
           throw new ApiError(
             409,

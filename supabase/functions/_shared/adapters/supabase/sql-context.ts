@@ -1,3 +1,4 @@
+import { requireWorkspaceActor } from "./workspace-context.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import { setTagLinks } from "./tag-links.ts";
@@ -31,12 +32,21 @@ export class SqlActorStore {
 
   /** Explicit user commands call this once, never the internal insert itself. */
   async appendChange(input: ChangeInput) {
+    const actor = requireWorkspaceActor(this.actor);
+    if (input.target_kind === "record") {
+      throw new AppError("invalid_input", "기록 변경은 추가 변경 기록을 만들지 않습니다");
+    }
     const target = input.target, target_title = target.title;
-    const settingsStore = new SqlBusinessSettingsStore(this.tx, this.actor);
-    const settings = (await settingsStore.get()).settings;
+    const settingsStore = new SqlBusinessSettingsStore(this.tx, actor);
+    const settings = (await settingsStore.getForTarget({
+      model: input.target_kind,
+      action: input.action,
+      target_id: input.target.id,
+      entity_type_id: (input.after ?? input.before)?.entity_type_id,
+    })).settings;
     const ids = effectiveRecordTemplate(
       settings.record_templates,
-      input.target_kind as "entity" | "task",
+      input.target_kind,
       input.action,
       (input.after ?? input.before)?.entity_type_id,
     ).tag_ids;
@@ -57,8 +67,8 @@ export class SqlActorStore {
         : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${encodeURIComponent(target.id)}`,
     };
     const values = {
-      owner_id: this.actor.userId,
-      ...await this.entityLinks.changeSelection(input),
+      workspace_id: actor.workspaceId,
+      ...(input.target_kind === "entity" ? { entity_id: target.id } : { task_id: target.id }),
       body,
       record_kind: "change",
     };
@@ -87,11 +97,30 @@ export class SqlActorStore {
 }
 
 /** DB 오류를 업무 오류로 바꾼다. 내부 SQL·메시지는 밖으로 내보내지 않는다. */
-function translate(e: unknown): unknown {
+export function translate(e: unknown): unknown {
   if (e instanceof AppError) return e;
   const code = (e as { code?: string }).code ?? "";
   if (code === "42501" && (e as { message?: string }).message === "request_owner_missing") {
     return new AppError("unauthenticated", "계정을 확인할 수 없습니다");
+  }
+  const message = (e as { message?: string }).message;
+  if (code === "P0001" && message === "workspace_lifecycle_conflict") {
+    return new AppError("conflict", "공간 상태가 변경되었습니다. 최신 상태를 다시 조회하세요");
+  }
+  if (code === "42501" && message === "workspace_denied") {
+    return new AppError("forbidden", "워크스페이스에 접근할 수 없습니다");
+  }
+  if (code === "P0001" && message === "workspace_version_conflict") {
+    return new AppError("conflict", "참여 정보가 변경되었습니다. 다시 조회하세요");
+  }
+  if (code === "23514" && message === "workspace_final_admin") {
+    return new AppError("conflict", "마지막 관리자는 권한을 넘기거나 공간을 삭제한 뒤 나갈 수 있습니다");
+  }
+  if (code === "22023" && message === "invitation_delivery_ambiguous") {
+    return new AppError(
+      "conflict",
+      "이메일 발송 여부를 확인할 수 없어 재발송할 수 없습니다. 초대를 취소하고 새 초대를 만드세요",
+    );
   }
   if (code === "40001" || code === "40P01" || code === "55P03" || code === "57014") {
     return new AppError("unavailable", "잠시 후 다시 시도하세요");
@@ -109,29 +138,4 @@ function translate(e: unknown): unknown {
   }
   console.error("db error", code, (e as Error)?.message);
   return new AppError("internal", "서버 오류가 발생했습니다");
-}
-
-export async function runAsActor<T>(
-  sql: postgres.Sql,
-  actor: Actor,
-  fn: (tx: postgres.TransactionSql) => Promise<T>,
-  isolation?: "repeatable read" | "repeatable read read only",
-): Promise<T> {
-  try {
-    const transaction = async (tx: postgres.TransactionSql) => {
-      await tx`select set_config('request.jwt.claims', ${
-        JSON.stringify({ sub: actor.userId, role: "authenticated" })
-      }, true),
-        set_config('lock_timeout', '5s', true), set_config('statement_timeout', '15s', true)`;
-      await tx`set local role app_user`;
-      return await fn(tx);
-    };
-    return await (isolation === "repeatable read"
-      ? sql.begin("isolation level repeatable read", transaction)
-      : isolation === "repeatable read read only"
-      ? sql.begin("isolation level repeatable read read only", transaction)
-      : sql.begin(transaction)) as T;
-  } catch (e) {
-    throw translate(e);
-  }
 }

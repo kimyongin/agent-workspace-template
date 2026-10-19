@@ -228,32 +228,58 @@ test("취소 성공 응답은 후속 조회가 늦어도 즉시 표시하고 이
   }
 });
 
-test("재시도의 접수 응답은 작업 상세로 취급하지 않고 조회된 작업 이름과 상태를 유지한다", async ({ page }) => {
-  let retried = false;
-  await page.route(`**/api/entity-schema-migrations/${id(30)}`, async (route) => {
-    await route.fulfill({
-      json: retried ? job(30, "queued", 4) : { ...job(30, "failed", 3), retryable: true, failure_reason: "일시 오류" },
-    });
+test("재시도의 접수 응답은 새 작업 상세를 조회하고 이전 실패 이력을 유지한다", async ({ page }) => {
+  const historical = { ...job(30, "failed", 3), retryable: true, failure_reason: "일시 오류" };
+  let current = { ...job(31, "queued", 1), processed: 0 };
+  let release!: () => void, started!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const reading = new Promise<void>(resolve => { started = resolve; });
+  const retryInputs: unknown[] = [], newReads: string[] = [];
+  await page.route(`**/api/entity-schema-migrations/${id(30)}`, route => route.fulfill({ json: historical }));
+  await page.route(`**/api/entity-schema-migrations/${id(31)}`, async route => {
+    expect(route.request().method()).toBe("GET");
+    newReads.push(new URL(route.request().url()).pathname);
+    started();
+    await held;
+    await route.fulfill({ json: current });
   });
-  await page.route(`**/api/entity-schema-migrations/${id(30)}/retry`, async (route) => {
-    expect(route.request().postDataJSON()).toEqual({ expected_job_version: 3 });
-    retried = true;
-    await route.fulfill({
-      status: 202,
-      json: {
-        job_id: id(30),
-        type_id: typeId,
-        change_id: id(500),
-        analysis_id: id(501),
-        job_version: 4,
-        status: "queued",
-      },
-    });
+  await page.route(`**/api/entity-schema-migrations/${id(30)}/retry`, async route => {
+    expect(route.request().method()).toBe("POST");
+    retryInputs.push(route.request().postDataJSON());
+    expect(retryInputs).toEqual([{ expected_job_version: 3 }]);
+    await route.fulfill({ status: 202, json: {
+      job_id: id(31), type_id: typeId, change_id: historical.change_id,
+      analysis_id: historical.analysis_id, job_version: 1, status: "queued",
+    } });
   });
-  await page.goto("/e2e/fixtures/schema-job-history.html?job=30");
-  await expect(page.getByRole("status")).toContainText("실패");
-  await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("접수");
-  await expect(page.getByText(/작업 30의 수정·삭제·설정 적용/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "변환 취소", exact: true })).toBeVisible();
+  await page.route(`**/api/entity-schema-migrations/${id(31)}/cancel`, async route => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().postDataJSON()).toEqual({ expected_job_version: 1 });
+    current = { ...current, status: "cancelled", version: 2 };
+    await route.fulfill({ json: current });
+  });
+  try {
+    await page.goto("/e2e/fixtures/schema-job-history.html?job=30");
+    await expect(page.getByRole("status")).toContainText("실패");
+    await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
+    await reading;
+    expect(newReads).toEqual([`/api/entity-schema-migrations/${id(31)}`]);
+    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "변환 취소", exact: true })).toHaveCount(0);
+    await expect(page.getByText(/작업 31의 수정·삭제·설정 적용/)).toHaveCount(0);
+    release();
+    await expect(page.getByRole("status")).toContainText("접수");
+    await expect(page.getByRole("status")).toContainText("0/10개 준비");
+    await expect(page.getByText(/작업 31의 수정·삭제·설정 적용/)).toBeVisible();
+    await expect(page.getByText(/작업 30의 수정·삭제·설정 적용/)).toHaveCount(0);
+    await page.getByRole("button", { name: "변환 취소", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("취소");
+    await expect(page.getByRole("button", { name: "변환 취소", exact: true })).toHaveCount(0);
+    const oldRead = page.waitForResponse(response => response.request().method() === "GET" && new URL(response.url()).pathname.endsWith(`/entity-schema-migrations/${id(30)}`));
+    await page.goto("/e2e/fixtures/schema-job-history.html?job=30");
+    expect(await (await oldRead).json()).toEqual(historical);
+    await expect(page.getByRole("status")).toContainText("실패");
+    await expect(page.getByRole("button", { name: "같은 작업 재시도", exact: true })).toBeVisible();
+    expect(historical).toMatchObject({ id: id(30), version: 3, status: "failed", type: { label: "작업 30" } });
+  } finally { release(); }
 });

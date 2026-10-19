@@ -1,8 +1,9 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { restoreScroll } from "../../lib/surface-dom.ts";
 import { useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "../../lib/workspace-router.tsx";
 import type { SearchResult } from "@contracts/search.ts";
-import { api } from "../../lib/api.ts";
+
 import type { ListSnapshot } from "../collections/paged-list.ts";
 import { createSearchRead, searchAnchor } from "./search-read.ts";
 import { WorkspaceContext } from "../details/workspace-context.ts";
@@ -17,8 +18,8 @@ const subscribeIdle = () => () => {};
 
 /** This visit owns accepted results, URL page acknowledgement and return focus. */
 export function useSearchRead(params: URLSearchParams, retry: number) {
+  const api = useApi();
   const revision = useContext(WorkspaceContext)?.revision;
-  const previousRevision = useRef(revision);
   const location = useLocation(), navigate = useNavigate(), latest = useRef(location);
   latest.current = location;
   const scope = new URLSearchParams(params);
@@ -38,18 +39,17 @@ export function useSearchRead(params: URLSearchParams, retry: number) {
     } catch {
       return { read: null, invalid: true };
     }
-  }, [key, retry]);
+  }, [api, key, retry, revision]);
   const read = session.read;
+  useEffect(() => {
+    const refresh = () => { void read?.restart(); };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [read]);
   const state = useSyncExternalStore(read?.subscribe ?? subscribeIdle, read?.snapshot ?? (() => idle));
   useEffect(() => {
     void read?.restore(pages, location.hash);
   }, [read, pages, location.hash]);
-  useEffect(() => {
-    if (previousRevision.current !== revision) {
-      previousRevision.current = revision;
-      void read?.restart();
-    }
-  }, [read, revision]);
   useEffect(() => () => read?.cancel(), [read]);
   useEffect(() => {
     if (state.completion?.source !== "more") return;

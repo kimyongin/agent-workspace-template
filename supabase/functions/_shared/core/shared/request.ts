@@ -60,7 +60,13 @@ export async function requestIdentity(
   input: unknown,
 ): Promise<RequestIdentity> {
   const key = requireRequestKey(actor);
-  const bytes = new TextEncoder().encode(JSON.stringify(canonical({ revision: 1, operation, target, input })));
+  const bytes = new TextEncoder().encode(
+    JSON.stringify(canonical(
+      actor.workspaceId
+        ? { revision: 2, executor_id: actor.userId, workspace_id: actor.workspaceId, operation, target, input }
+        : { revision: 1, operation, target, input },
+    )),
+  );
   const fingerprint = Array.from(
     new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
     (b) => b.toString(16).padStart(2, "0"),

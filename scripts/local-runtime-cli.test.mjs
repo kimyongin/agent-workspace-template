@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { acquireRuntimeLock, createLocalRuntimeAdapter, realHostBindSource, removeOwnedContainer, runLeasedLocalChecks } from './local-runtime-cli.mjs';
 import { mkdtempSync, rmdirSync, readdirSync, writeFileSync, unlinkSync, realpathSync, chmodSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 test('CLI observation waits for a created container but fails an exited container', { skip: process.platform === 'win32' }, async () => {
@@ -68,8 +68,8 @@ test('Docker Desktop Windows bind bridge resolves the actual drive directory and
 });
 
 test('Docker Desktop macOS Users bridge resolves the actual directory and rejects guessed traversal', { skip: process.platform !== 'darwin' }, () => {
-  const canonical = realpathSync(process.cwd());
-  assert.ok(canonical.startsWith('/Users/'), 'fixture must use a real macOS Users checkout');
+  const canonical = realpathSync(homedir());
+  assert.ok(canonical.startsWith('/Users/'), 'fixture must use a real macOS Users directory');
   const bridge = `/host_mnt${canonical}`;
   assert.equal(realHostBindSource(bridge), canonical);
   assert.throws(() => realHostBindSource(`${bridge}/../${canonical.split('/').at(-1)}`));

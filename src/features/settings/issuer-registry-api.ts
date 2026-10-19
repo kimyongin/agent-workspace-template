@@ -1,12 +1,14 @@
+import { useMemo } from "react";
+import { useApi } from "../../lib/api-context.tsx";
 import type { EntityIssuer, EntityTypeIdentity, IdentifierRule } from "@contracts/entity-issuer.ts";
-import { api } from "../../lib/api.ts";
+import type { ApiRequest } from "../../lib/api.ts";
 import type { TypeIdentitySettingsPort } from "./type-identity-settings.ts";
-export const typeIdentityPort: TypeIdentitySettingsPort = {
+export const createTypeIdentityPort = (api: ApiRequest): TypeIdentitySettingsPort => ({
   read: (id, signal) => api("GET", `/entity-types/${encodeURIComponent(id)}/identity`, undefined, signal),
   save: (id, input, signal, key) =>
     api("PATCH", `/entity-types/${encodeURIComponent(id)}/identity`, input, signal, key),
-};
-export const issuerRegistry = {
+});
+export const createIssuerRegistry = (api: ApiRequest) => ({
   remove: (code: string, version: number, key: string) =>
     api<{ deleted: true }>(
       "DELETE",
@@ -34,4 +36,7 @@ export const issuerRegistry = {
     api<IdentifierRule>("POST", `/entity-issuers/${encodeURIComponent(source)}/rules`, input, undefined, key),
   updateRule: (id: string, input: { label: string; active: boolean; expected_version: number }, key: string) =>
     api<IdentifierRule>("PATCH", `/entity-identifier-rules/${encodeURIComponent(id)}`, input, undefined, key),
-};
+});
+
+export function useIssuerRegistry() { const api = useApi(); return useMemo(() => createIssuerRegistry(api), [api]); }
+export function useTypeIdentityPort() { const api = useApi(); return useMemo(() => createTypeIdentityPort(api), [api]); }

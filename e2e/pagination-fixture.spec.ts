@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 // Actual App and pagination bindings, with per-page Auth/API fixtures; no shared account.
 import { expect, type Page, test } from "@playwright/test";
@@ -73,7 +74,7 @@ for (const [kind, path, label, restored] of [
         },
       });
     });
-    await page.goto(`/${path}?pages=${restored}`);
+    await page.goto(fixtureWorkspacePath(`/${path}?pages=${restored}`));
     await expectRestoredPages();
     const first = page.getByRole("button", { name: `${label} 경계 0`, exact: true });
     await page.locator(`#activity-${path}-page-control`).click();
@@ -135,7 +136,7 @@ test("Entity restored pages: retry cursor, focus and filter reset", async ({ pag
       },
     });
   });
-  await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&pages=2");
+  await page.goto(fixtureWorkspacePath("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&pages=2"));
   const more = page.getByRole("button", { name: "더 보기", exact: true });
   await expect(more).toHaveAttribute("aria-disabled", "false", { timeout: 30000 });
   await expect(page.locator("[data-list-anchor]")).toHaveCount(2);
@@ -176,7 +177,7 @@ test("Entity pagination failure does not move focus or scroll after the user lea
     }
     return route.fulfill({ json: { items: [entity(1), entity(2)], next_cursor: "next" } });
   });
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   await page.getByRole("button", { name: "더 보기", exact: true }).click();
   await pending;
   try {

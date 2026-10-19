@@ -10,6 +10,9 @@ export type TaskKind = "once" | "recurring";
 export type TaskStatus = "open" | "done" | "active" | "stopped";
 
 export interface Task {
+  deleted_at?: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
   entity_ids?: string[];
   entity_context?: EntityContext[];
   id: string;
@@ -58,7 +61,7 @@ export function taskContent(
     title: input.title,
     body: input.body,
     pauses: [],
-    tag_ids: input.tag_ids ?? [],
+    tag_ids: [],
   };
   if (input.kind === "once") {
     return { ...common, kind: "once", due_on: input.due_on ?? null, recurrence: null, timezone: null, status: "open" };
@@ -82,7 +85,7 @@ export function assertVersion(current: { version: number }, expected: number): v
 export type TaskChanges = Partial<
   Pick<
     Task,
-    "title" | "body" | "due_on" | "recurrence" | "timezone" | "tag_ids" | "entity_ids"
+    "title" | "body" | "due_on" | "recurrence" | "timezone" | "entity_ids"
   >
 >;
 

@@ -1,7 +1,7 @@
 import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { taskComplete, taskCreate, taskResult, taskUpdate } from "../../functions/_shared/contracts/task.ts";
-import { recordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
+import { occurrenceRecordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import type { Task } from "../../functions/_shared/core/activity/domain.ts";
 import type { ActivityRecord, ActivityStore } from "../../functions/_shared/core/activity/ports.ts";
@@ -23,7 +23,7 @@ const unsupported = () => {
 };
 
 // Only this serial flow's storage operations. No SQL, ownership, locks or rollback simulation.
-function fixture(storageNow = () => now) {
+function fixture() {
   const tasks = new Map<string, Task>();
   const records = new Map<string, ActivityRecord>();
 
@@ -38,6 +38,9 @@ function fixture(storageNow = () => now) {
       const task: Task = {
         ...input,
         entity_context: [],
+        deleted_at: null,
+        created_by: actor.userId,
+        created_by_name: null,
         id: crypto.randomUUID(),
         version: 1,
         created_at: now,
@@ -56,15 +59,16 @@ function fixture(storageNow = () => now) {
       return Promise.resolve(structuredClone(task));
     },
     insertRecord: (input) => {
-      const { inherit_task_entities: _inherit, ...stored } = input;
       const record: ActivityRecord = {
-        ...stored,
-        record_kind: input.record_kind ?? "user",
-        entity_context: [],
+        ...input,
+        entity_id: null,
+        record_kind: "result",
+        created_by: null,
+        created_by_name: null,
         change: null,
         id: crypto.randomUUID(),
         occurred_at: input.occurred_at ?? now,
-        tag_ids: input.tag_ids ?? [],
+        tag_ids: [],
         version: 1,
         created_at: now,
         updated_at: now,
@@ -77,32 +81,12 @@ function fixture(storageNow = () => now) {
       return Promise.resolve();
     },
     listTasks: unsupported,
-    deleteTask: (id) => {
-      mutations.push(`delete:${id}`);
-      tasks.delete(id);
-      return Promise.resolve();
-    },
     getRecord: unsupported,
     getRecordBodies: unsupported,
     listRecords: unsupported,
     occurrenceRecords: unsupported,
     updateRecord: unsupported,
     deleteRecord: unsupported,
-    detachRecords: (taskId) => {
-      mutations.push(`detach:${taskId}`);
-      for (const [id, record] of records) {
-        if (record.task_id === taskId) {
-          records.set(id, {
-            ...record,
-            task_id: null,
-            occurrence_on: null,
-            version: record.version + 1,
-            updated_at: storageNow(),
-          });
-        }
-      }
-      return Promise.resolve();
-    },
     taskWithResult: unsupported,
   };
   const deps: activity.ActivityDeps = {
@@ -181,79 +165,83 @@ Deno.test("application: task edits never index latest task state; stale mutation
     assertEquals(snapshot(f), before);
   }
   await activity.deleteTask(f.deps, requestActor(actor), task.id, 4);
-  assertEquals(f.tasks.has(task.id), false);
+  assertEquals(f.tasks.get(task.id)?.deleted_at, now);
   assertEquals(f.jobs.length, 0);
 });
 
-Deno.test("application: deleting completed/recurring tasks detaches history and preserves unrelated records", async () => {
+Deno.test("application: task soft deletion and restoration preserve result parent and occurrence history", async () => {
   for (const kind of ["once", "recurring"] as const) {
-    let detachedAt = now;
-    const f = fixture(() => detachedAt);
+    const f = fixture();
     const task = await activity.createTask(
       f.deps,
       requestActor(actor),
       taskCreate.parse(
-        {
-          ...kind === "once" ? createInput : {
-            kind,
-            title: "반복 수행",
-            recurrence: { freq: "daily", starts_on: "2026-10-01" },
-            timezone: "Asia/Seoul",
-          },
+        kind === "once" ? createInput : {
+          kind,
+          title: "반복 수행",
+          recurrence: { freq: "daily", starts_on: "2026-10-01" },
+          timezone: "Asia/Seoul",
         },
       ),
     );
-    const input = recordCreate.parse({
-      ...{ body: "보존할 본문" },
-    });
-    const unrelated = await activity.createRecord(f.deps, requestActor(actor), input);
+    const other = await activity.createTask(f.deps, requestActor(actor), taskCreate.parse(createInput));
+    const unrelated =
+      (await activity.completeTask(f.deps, requestActor(actor), other.id, taskComplete.parse(completeInput))).record;
+    const input = occurrenceRecordCreate.parse({ body: "보존할 본문" });
     const linked = kind === "once"
       ? (await activity.completeTask(f.deps, requestActor(actor), task.id, taskComplete.parse(completeInput))).record
-      : await activity.recordOccurrence(f.deps, requestActor(actor), task.id, "2026-10-03", { ...input });
+      : await activity.recordOccurrence(f.deps, requestActor(actor), task.id, "2026-10-03", input);
     assertEquals(linked.task_id, task.id);
+    assertEquals(linked.entity_id, null);
     assertEquals(linked.occurrence_on, kind === "once" ? null : "2026-10-03");
     const current = f.tasks.get(task.id)!;
     if (kind === "once") assertEquals(current.result_record_id, linked.id);
-    assertEquals(linked.updated_at, now);
-    detachedAt = "2026-10-04T02:00:00.000Z";
     const before = snapshot(f);
-    const stale = await assertRejects(
-      () => activity.deleteTask(f.deps, requestActor(actor), task.id, current.version + 1),
-      AppError,
+    assertEquals(
+      (await assertRejects(
+        () => activity.deleteTask(f.deps, requestActor(actor), task.id, current.version + 1),
+        AppError,
+      )).code,
+      "conflict",
     );
-    assertEquals(stale.code, "conflict");
     assertEquals(snapshot(f), before);
     await activity.deleteTask(f.deps, requestActor(actor), task.id, current.version);
-    assertEquals(f.mutations.slice(-2), [`detach:${task.id}`, `delete:${task.id}`]);
-    assertEquals(f.tasks.size, 0);
+    const deletedTask = f.tasks.get(task.id)!;
+    assertEquals([deletedTask.deleted_at, deletedTask.version], [now, current.version + 1]);
+    assertEquals(f.tasks.size, 2);
     assertEquals(f.records.size, 2);
-    assertEquals(recordResult.parse(f.records.get(linked.id)), {
-      ...linked,
-      task_id: null,
-      occurrence_on: null,
-      version: linked.version + 1,
-      updated_at: detachedAt,
-    });
+    assertEquals(recordResult.parse(f.records.get(linked.id)), linked);
     assertEquals(f.records.get(unrelated.id), unrelated);
     assertEquals(f.jobs, before.jobs);
     const deleted = snapshot(f);
-    for (const id of [task.id, crypto.randomUUID()]) {
-      for (
-        const mutate of [
-          () =>
-            activity.updateTask(
-              f.deps,
-              requestActor(actor),
-              id,
-              taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "수정" }),
-            ),
-          () => activity.deleteTask(f.deps, requestActor(actor), id, 1),
-        ]
-      ) {
-        assertEquals((await assertRejects(mutate, AppError)).code, "not_found");
-        assertEquals(snapshot(f), deleted);
-      }
+    for (
+      const mutate of [
+        () =>
+          activity.updateTask(
+            f.deps,
+            requestActor(actor),
+            task.id,
+            taskUpdate.parse({ expected_version: deletedTask.version, title: "수정" }),
+          ),
+        () => activity.deleteTask(f.deps, requestActor(actor), task.id, deletedTask.version),
+        () =>
+          kind === "once"
+            ? activity.completeTask(f.deps, requestActor(actor), task.id, {
+              expected_version: deletedTask.version,
+              body: "삭제 후 결과",
+            })
+            : activity.recordOccurrence(f.deps, requestActor(actor), task.id, "2026-10-03", input),
+      ]
+    ) {
+      assertEquals((await assertRejects(mutate, AppError)).code, "conflict");
+      assertEquals(snapshot(f), deleted);
     }
+    const restored = await activity.restoreTask(f.deps, requestActor(actor), task.id, deletedTask.version);
+    assertEquals([restored.id, restored.deleted_at, restored.version], [task.id, null, deletedTask.version + 1]);
+    assertEquals([restored.status, restored.result_record_id], [current.status, current.result_record_id]);
+    assertEquals(recordResult.parse(f.records.get(linked.id)), linked);
+    assertEquals(f.records.get(unrelated.id), unrelated);
+    assertEquals(f.jobs, before.jobs);
   }
 });
 
@@ -293,6 +281,7 @@ async function post(app: ReturnType<typeof createHttpApp>, path: string, input?:
       method,
       headers: {
         "Idempotency-Key": crypto.randomUUID(),
+        "X-Workspace-Id": "fc48a529-57ed-429a-9080-0f78a8563375",
         authorization: "Bearer fixture",
         "content-type": "application/json",
       },
@@ -482,7 +471,8 @@ Deno.test("HTTP PATCH/POST delete and MCP task mutation schema/handler share val
       deleted: another.id,
     },
   );
-  assertEquals(f.tasks.size, 0);
+  assertEquals(f.tasks.size, 2);
+  assertEquals([...f.tasks.values()].every((task) => task.deleted_at === now), true);
   const after = snapshot(f);
   for (const id of [task.id, crypto.randomUUID()]) {
     for (const tool of [update, remove]) {
@@ -495,12 +485,12 @@ Deno.test("HTTP PATCH/POST delete and MCP task mutation schema/handler share val
         input,
         tool === remove ? "POST" : "PATCH",
       );
-      assertEquals(http.status, 404);
+      assertEquals(http.status, id === task.id ? 409 : 404);
       const error = await assertRejects(
         async () => await tool.handler({ request_key: crypto.randomUUID(), ...{ id, ...input } }, actor),
         AppError,
       );
-      assertEquals(error.code, "not_found");
+      assertEquals(error.code, id === task.id ? "conflict" : "not_found");
       assertEquals(await http.json(), toErrorBody(error).body);
       assertEquals(snapshot(f), after);
     }

@@ -4,6 +4,7 @@ import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { NewTask, Task } from "../../core/activity/domain.ts";
 import type {
+  ActivityEntry,
   ActivityRecord,
   ActivityStore,
   NewRecord,
@@ -13,9 +14,14 @@ import type {
   UnitOfWork,
 } from "../../core/activity/ports.ts";
 import type { Actor } from "../../core/shared/actor.ts";
-import { runAsActor, SqlActorStore } from "./sql-context.ts";
-import { AppError } from "../../core/shared/errors.ts";
-import { hasAnyTag, hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
+import { SqlActorStore } from "./sql-context.ts";
+import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import { AppError, notFound } from "../../core/shared/errors.ts";
+import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
+import { loadBusinessEntityDefinition } from "./entity-values.ts";
+import { hasAnyTag, hasTag, tagIdsColumn } from "./tag-links.ts";
+import type { RequestIdentity } from "../../core/shared/request.ts";
+import { replayRetainedSqlRequest } from "./request-ledger.ts";
 
 type Tx = postgres.TransactionSql;
 type Row = Record<string, unknown>;
@@ -24,6 +30,9 @@ const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v === null ? 
 
 function toTask(r: Row): Task {
   return {
+    deleted_at: iso(r.deleted_at ?? null),
+    created_by: (r.created_by as string | null) ?? null,
+    created_by_name: (r.created_by_name as string | null) ?? null,
     entity_ids: (r.entity_ids as string[]) ?? [],
     entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     id: r.id as string,
@@ -46,10 +55,11 @@ function toTask(r: Row): Task {
 
 function toRecord(r: Row): ActivityRecord {
   return {
-    record_kind: r.record_kind as "user" | "result" | "change",
+    created_by: (r.created_by as string | null) ?? null,
+    created_by_name: (r.created_by_name as string | null) ?? null,
+    entity_id: (r.entity_id as string | null) ?? null,
+    record_kind: r.record_kind as "result" | "change",
     change: (r.change_metadata as ActivityRecord["change"]) ?? null,
-    entity_ids: (r.entity_ids as string[]) ?? [],
-    entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
     body: r.body as string,
@@ -64,12 +74,14 @@ function toRecord(r: Row): ActivityRecord {
 
 // 날짜 컬럼은 문자열(YYYY-MM-DD)로 받는다.
 const taskColumns = (tx: Tx) =>
-  tx`id, entity_ids, entity_context, kind, title, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
-     result_record_id, pauses, version, created_at, updated_at,
+  tx`id, array(select jsonb_array_elements_text(app.workspace_task_associations(tasks.id)->'entity_ids')) as entity_ids,
+     app.workspace_task_associations(tasks.id)->'entity_context' as entity_context,
+     kind, title, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
+     result_record_id, pauses, version, created_at, updated_at,deleted_at,created_by,created_by_name,
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
-  tx`id, entity_ids, entity_context, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
-    record_kind,change_metadata,
+  tx`id, entity_id, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+    record_kind,change_metadata,created_by,created_by_name,
     ${tagIdsColumn(tx, "record")}`;
 
 /** 수정 가능한 컬럼의 허용 목록. 이 밖의 키는 SQL로 가지 않는다. */
@@ -83,6 +95,7 @@ const TASK_WRITABLE = [
   "completed_at",
   "result_record_id",
   "pauses",
+  "deleted_at",
 ] as const;
 const RECORD_WRITABLE = ["body", "occurred_at"] as const;
 
@@ -97,14 +110,54 @@ function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: rea
 }
 
 export class SqlActivityStore extends SqlActorStore implements ActivityStore {
+  constructor(tx: Tx, actor: Actor, private readonly missingRecord = false) {
+    super(tx, actor);
+  }
+
+  override async executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
+    if (!this.missingRecord) return super.executeRequest(request, execute);
+    // A hard-deleted record has no live authority metadata. The existing ledger
+    // checks the immutable saved footprint before returning any retained body.
+    const retained = await replayRetainedSqlRequest<T>(this.tx, this.actor, request);
+    if (!retained.found) throw notFound();
+    return retained.result as T;
+  }
+  private get workspaceId() {
+    return requireWorkspaceActor(this.actor).workspaceId;
+  }
+
+  async visibleTask(task: Task): Promise<Task> {
+    if (!task.entity_ids?.length) return { ...task, entity_ids: [], entity_context: [] };
+    const visible = await this.tx<{ id: string; entity_type_id: string }[]>`select id,entity_type_id from app.entities
+      where workspace_id=${this.workspaceId} and id=any(${task.entity_ids}::text[])`;
+    const requirements = [...new Set(visible.map((row) => row.entity_type_id))].sort().map((id) => ({
+      target_kind: "entity_type" as const,
+      target_id: id,
+      access: "read" as const,
+    }));
+    await authorizeWorkspace(this.tx, requirements);
+    await this.tx`select set_config('request.workspace_requirements',(
+      select coalesce(jsonb_agg(value),'[]'::jsonb)::text from (
+        select distinct value from jsonb_array_elements(current_setting('request.workspace_requirements')::jsonb || ${
+      this.tx.json(requirements)
+    }::jsonb)
+      ) required),true)`;
+    const ids = new Set(visible.map((row) => row.id));
+    return {
+      ...task,
+      entity_ids: task.entity_ids.filter((id) => ids.has(id)),
+      entity_context: (task.entity_context ?? []).filter((item) => ids.has(item.id)),
+    };
+  }
   async getTask(id: string, opts: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean } = {}) {
     if (opts.forUpdate) {
       if (opts.selectionWrite) await this.entityLinks.prepareSelection(opts.entityIds, id);
-      const rows = await this.tx`select id from app.tasks where id=${id} for update`;
+      const rows = await this
+        .tx`select id from app.tasks where workspace_id=${this.workspaceId} and id=${id} for update`;
       if (!rows.length) return null;
     }
     const [row] = await this.tx`
-      select ${taskColumns(this.tx)} from app.tasks where id = ${id}`;
+      select ${taskColumns(this.tx)} from app.tasks where workspace_id=${this.workspaceId} and id = ${id}`;
     return row ? toTask(row) : null;
   }
 
@@ -112,10 +165,21 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const rows = await tx`
       select ${taskColumns(tx)} from app.tasks
-      where true
+      where workspace_id=${this.workspaceId}
+        ${
+      f.deleted === "include"
+        ? tx``
+        : f.deleted === "only"
+        ? tx`and deleted_at is not null`
+        : tx`and deleted_at is null`
+    }
         ${f.keyword ? tx`and position(lower(${f.keyword}) in lower(title))>0` : tx``}
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
-        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::text[]` : tx``}
+        ${
+      f.entity_id
+        ? tx`and app.workspace_task_associations(tasks.id)->'entity_ids' @> jsonb_build_array(${f.entity_id}::text)`
+        : tx``
+    }
         ${f.status ? tx`and status = ${f.status}` : tx``}
         ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "task", f.tag_id)}` : tx``}
         ${f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "task", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``}
@@ -131,7 +195,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const selection = await this.entityLinks.taskSelection(task.entity_ids ?? []);
     const values = {
-      owner_id: this.actor.userId,
+      workspace_id: requireWorkspaceActor(this.actor).workspaceId,
       kind: task.kind,
       ...pick(tx, task, TASK_WRITABLE),
       ...selection,
@@ -139,12 +203,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const row = await insertWithIdRetry(() =>
       tx`insert into app.tasks ${tx(values)} on conflict (id) do nothing returning id`
     );
-    await this.setTaskTags(row.id as string, task.tag_ids);
     return (await this.getTask(row.id as string))!;
-  }
-
-  async setTaskTags(taskId: string, ids: string[]) {
-    await setTagLinks(this.tx, this.actor, "task", taskId, ids);
   }
 
   async updateTask(id: string, changes: Partial<Task>) {
@@ -153,49 +212,46 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       ...pick(tx, changes, TASK_WRITABLE),
       ...await this.entityLinks.taskSelection(changes.entity_ids, id),
     };
-    if (changes.tag_ids !== undefined) await this.setTaskTags(id, changes.tag_ids);
-    if (Object.keys(values).length === 0 && changes.tag_ids === undefined) {
+    if (Object.keys(values).length === 0 && changes.entity_ids === undefined) {
       throw new AppError("invalid_input", "바꿀 필드가 없습니다");
     }
     // set 도우미는 바로 앞의 `set` 문맥이 필요하므로 같은 템플릿에 둔다.
     const [row] = Object.keys(values).length
       ? await tx`
       update app.tasks set ${tx(values)}, version = version + 1, updated_at = now()
-      where id = ${id} returning ${taskColumns(tx)}`
-      : await tx`update app.tasks set version=version+1,updated_at=now() where id=${id} returning ${taskColumns(tx)}`;
+      where workspace_id=${this.workspaceId} and id = ${id} returning ${taskColumns(tx)}`
+      : await tx`update app.tasks set version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id} returning ${
+        taskColumns(tx)
+      }`;
     if (!row) throw new AppError("not_found", "항목을 찾을 수 없습니다");
     return toTask(row);
   }
 
-  async deleteTask(id: string) {
-    await this.tx`delete from app.tasks where id = ${id}`;
-  }
-
-  async getRecord(id: string, opts: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean } = {}) {
+  async getRecord(id: string, opts: { forUpdate?: boolean } = {}) {
     if (opts.forUpdate) {
-      if (opts.selectionWrite) await this.entityLinks.prepareSelection(opts.entityIds, undefined, id);
-      const rows = await this.tx`select id from app.records where id=${id} for update`;
+      const rows = await this
+        .tx`select id from app.records where workspace_id=${this.workspaceId} and id=${id} for update`;
       if (!rows.length) return null;
     }
     const [row] = await this.tx`
-      select ${recordColumns(this.tx)} from app.records where id = ${id}`;
+      select ${recordColumns(this.tx)} from app.records where workspace_id=${this.workspaceId} and id = ${id}`;
     return row ? toRecord(row) : null;
   }
 
   async getRecordBodies(ids: string[]) {
     if (ids.length === 0) return [];
     return await this.tx<{ id: string; body: string }[]>`
-      select id, body from app.records where id in ${this.tx(ids)}`;
+      select id, body from app.records where workspace_id=${this.workspaceId} and id in ${this.tx(ids)}`;
   }
 
   async listRecords(f: RecordFilter) {
     const tx = this.tx;
     const rows = await tx`
       select ${recordColumns(tx)} from app.records
-      where true
+      where workspace_id=${this.workspaceId}
         ${f.task_id ? tx`and task_id = ${f.task_id}` : tx``}
         ${f.record_kind ? tx`and record_kind=${f.record_kind}` : tx``}
-        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::text[]` : tx``}
+        ${f.entity_id ? tx`and entity_id=${f.entity_id}` : tx``}
         ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "record", f.tag_id)}` : tx``}
         ${
       f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "record", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``
@@ -213,30 +269,23 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     return await tx<{ task_id: string; id: string; occurrence_on: string }[]>`
       select task_id, id, occurrence_on::text as occurrence_on from app.records
-      where task_id in ${tx(taskIds)} and occurrence_on between ${from} and ${to}
+      where workspace_id=${this.workspaceId} and task_id in ${tx(taskIds)} and occurrence_on between ${from} and ${to}
       order by task_id, occurrence_on, occurred_at, id`;
   }
 
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
-    const selection = await this.entityLinks.recordSelection(
-      record.entity_ids ?? [],
-      undefined,
-      record.inherit_task_entities ? record.task_id ?? undefined : undefined,
-    );
     const values: Record<string, unknown> = {
-      owner_id: this.actor.userId,
-      ...selection,
+      workspace_id: requireWorkspaceActor(this.actor).workspaceId,
       body: record.body,
       task_id: record.task_id,
       occurrence_on: record.occurrence_on,
-      record_kind: record.record_kind ?? "user",
+      record_kind: "result",
     };
     if (record.occurred_at) values.occurred_at = record.occurred_at;
     const row = await insertWithIdRetry(() =>
       tx`insert into app.records ${tx(values)} on conflict (id) do nothing returning id`
     );
-    await setTagLinks(tx, this.actor, "record", row.id as string, record.tag_ids ?? []);
     return (await this.getRecord(row.id as string))!;
   }
 
@@ -244,36 +293,30 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const values = {
       ...pick(tx, changes, RECORD_WRITABLE),
-      ...await this.entityLinks.recordSelection(changes.entity_ids, id),
     };
-    if (changes.tag_ids !== undefined) await setTagLinks(tx, this.actor, "record", id, changes.tag_ids);
     if (
-      Object.keys(values).length === 0 && changes.tag_ids === undefined
+      Object.keys(values).length === 0
     ) {
       throw new AppError("invalid_input", "바꿀 필드가 없습니다");
     }
     const [row] = Object.keys(values).length
       ? await tx`update app.records set ${tx(values)}, version=version+1, updated_at=now()
-          where id=${id} returning ${recordColumns(tx)}`
+          where workspace_id=${this.workspaceId} and id=${id} returning ${recordColumns(tx)}`
       : await tx`update app.records set version=version+1, updated_at=now()
-          where id=${id} returning ${recordColumns(tx)}`;
+          where workspace_id=${this.workspaceId} and id=${id} returning ${recordColumns(tx)}`;
     if (!row) throw new AppError("not_found", "항목을 찾을 수 없습니다");
     return toRecord(row);
   }
 
   async deleteRecord(id: string) {
-    await this.tx`delete from app.records where id = ${id}`;
-  }
-
-  async detachRecords(taskId: string) {
-    await this.tx`
-      update app.records set task_id = null, occurrence_on = null, version = version + 1, updated_at = now()
-      where task_id = ${taskId}`;
+    await this.tx`delete from app.records where workspace_id=${this.workspaceId} and id = ${id}`;
   }
 
   async taskWithResult(recordId: string) {
     const [row] = await this.tx`
-      select ${taskColumns(this.tx)} from app.tasks where result_record_id = ${recordId} for update`;
+      select ${
+      taskColumns(this.tx)
+    } from app.tasks where workspace_id=${this.workspaceId} and result_record_id = ${recordId} for update`;
     return row ? toTask(row) : null;
   }
 }
@@ -281,7 +324,40 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 export class SqlUnitOfWork implements UnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
 
-  run<T>(actor: Actor, fn: (store: ActivityStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, actor, (tx) => fn(new SqlActivityStore(tx, actor)));
+  run<T>(a: Actor, fn: (store: ActivityStore) => Promise<T>, entry?: ActivityEntry): Promise<T> {
+    const actor = requireWorkspaceActor(a);
+    const requirements: WorkspaceRequirement[] = entry?.access === "write" && !entry.recordId
+      ? [{ target_kind: "tasks" as const, target_id: "*", access: "write" as const }]
+      : [];
+    return runInWorkspace(
+      this.sql,
+      actor,
+      { mode: "business", requirements },
+      async (tx) => {
+        if (entry?.recordId) {
+          const [record] =
+            await tx`select entity_id,task_id from app.records where workspace_id=${actor.workspaceId} and id=${entry.recordId}`;
+          if (!record) return fn(new SqlActivityStore(tx, actor, true));
+          if (record.task_id) requirements.push({ target_kind: "tasks", target_id: "*", access: entry.access });
+          else {
+            const [parent] =
+              await tx`select entity_type_id from app.entities where workspace_id=${actor.workspaceId} and id=${record.entity_id}`;
+            if (!parent) throw notFound();
+            requirements.push({ target_kind: "entity_type", target_id: parent.entity_type_id, access: entry.access });
+          }
+          await authorizeWorkspace(tx, requirements);
+          await tx`select set_config('request.workspace_requirements',${JSON.stringify(requirements)},true)`;
+          if (entry.access === "write") {
+            if (record.task_id) {
+              await tx`select id from app.tasks where workspace_id=${actor.workspaceId} and id=${record.task_id} for update`;
+            } else {
+              await loadBusinessEntityDefinition(tx, requirements[0].target_id, true);
+              await tx`select id from app.entities where workspace_id=${actor.workspaceId} and id=${record.entity_id} for update`;
+            }
+          }
+        }
+        return fn(new SqlActivityStore(tx, actor));
+      },
+    );
   }
 }

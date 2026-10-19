@@ -1,3 +1,4 @@
+import { businessPath } from "../src/lib/workspace-route.tsx";
 import { expect, type Locator, type Page, type Request } from "@playwright/test";
 
 /** Visible overlay boundaries include the visually retained editor behind a modal confirmation. */
@@ -159,7 +160,7 @@ export async function beginTabAction(page: Page, label: string) {
     await page.getByRole("button", { name: label, exact: true }).click();
     return;
   }
-  if (/^\/(entities|tasks|records)\/?$/.test(new URL(page.url()).pathname)) {
+  if (/^\/(entities|tasks|records)\/?$/.test(businessPath(new URL(page.url()).pathname))) {
     await page.getByRole("button", { name: action[1], exact: true }).click();
   } else await page.getByRole("button", { name: label, exact: true }).click();
 }

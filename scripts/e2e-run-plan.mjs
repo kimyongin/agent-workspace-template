@@ -12,6 +12,8 @@ export const fixtureConfigs = [
   "e2e/create-and-link.config.ts", "e2e/model-group.config.ts",
   "playwright.design-samples.config.ts",
   "e2e/query-layout.build.config.ts",
+  "e2e/workspace-scope.config.ts", "e2e/workspace-lifecycle.config.ts",
+  "e2e/workspace-settings-access.config.ts",
 ];
 export function e2eRunPlan(args) {
   if (args.length === 0) return ["playwright.config.ts", ...fixtureConfigs];

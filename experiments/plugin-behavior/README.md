@@ -1,5 +1,7 @@
 # 제품 스킬의 실제 CLI 행동 실험
 
+> 이 문서는 #122–124 당시 소유자 기반·일반 기록 계약의 보존 자료다. 현재 워크스페이스·불변 기록 소속 계약에서는 아래 실행 명령을 지원하지 않는다. `run-client.mjs`, `prepare-fixture.mjs`, `proxy-saving.mjs`, `web-roundtrip.mjs`는 네트워크·브라우저·CLI 실행 전에 중단한다. 기존 journal·proof는 당시 근거로만 읽는다. 현재 작업의 CLI 검증으로 계산하지 않으며 새 프로토콜은 #518의 명시 범위에서 별도 구현·검증한다. 메모는 자료로, 수행 결과는 명시 할 일 완료·회차로 작성한다.
+
 추적: [준비 행동 #122](https://github.com/kimyongin/agent-workspace-template/issues/122) · [요청 범위 저장 #123](https://github.com/kimyongin/agent-workspace-template/issues/123) · [웹·제품 왕복 #124](https://github.com/kimyongin/agent-workspace-template/issues/124). 앱이 이 폴더를 import하거나 배포하지 않는다. 기존 정상 CLI 로그인은 그대로 사용하고 개인 설정·자격 증명을 복사하지 않는다. 외부 웹·desktop·mobile 검증과 구분한다.
 
 ## 모델과 일회성 설정 준비

@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, FieldSet, FieldLabel } from "@/components/ui/field";
@@ -17,7 +18,7 @@ import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
 import { ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
-import { issuerRegistry } from "./issuer-registry-api.ts";
+import { useIssuerRegistry } from "./issuer-registry-api.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 export type RegistryEditTarget = { kind: "issuer"; issuer?: EntityIssuer } | {
   kind: "rule";
@@ -37,6 +38,8 @@ export function IssuerRegistryEditor(
     onState?: (state: MaterialSectionState) => void;
   },
 ) {
+  const { canWrite } = useSettingsAccess();
+  const issuerRegistry = useIssuerRegistry();
   const form = useRef<HTMLFormElement>(null);
   const formId = useId();
   useEffect(() => {
@@ -85,6 +88,7 @@ export function IssuerRegistryEditor(
     );
   };
   const remove = async () => {
+    if (!canWrite) return;
     if (!baseline || busy || reading || conflict || !onDeleted) return;
     setConfirmDelete(false);
     setError("");
@@ -131,6 +135,7 @@ export function IssuerRegistryEditor(
     [onState],
   );
   const save = async (confirmed = false) => {
+    if (!canWrite) return;
     if (busy || reading || conflict || (!dirty && !uncertain)) return;
     if (!label.trim()) {
       setError("이름을 입력하세요.");
@@ -194,7 +199,7 @@ export function IssuerRegistryEditor(
     <div className="flex flex-wrap items-center justify-between gap-3">
       <Button variant="destructive" type="button"
 
-        disabled={busy || reading || conflict || saving.uncertain ||
+        disabled={!canWrite || busy || reading || conflict || saving.uncertain ||
           repairState.uncertain}
         onClick={() => deleting.uncertain ? void remove() : setConfirmDelete(true)}
       >
@@ -207,7 +212,7 @@ export function IssuerRegistryEditor(
       <Button variant="outline"
 
         type="button"
-        disabled={busy || reading || uncertain}
+        disabled={busy || reading || canWrite && uncertain}
         onClick={requestClose}
       >
         {target.kind === "rule" && target.createdIssuer ? "나중에 추가" : "취소"}
@@ -216,7 +221,7 @@ export function IssuerRegistryEditor(
 
         type="submit"
         form={formId}
-        disabled={busy || reading || conflict || deleting.uncertain ||
+        disabled={!canWrite || busy || reading || conflict || deleting.uncertain ||
           repairState.uncertain ||
           (!dirty && !uncertain)}
       >
@@ -252,7 +257,7 @@ export function IssuerRegistryEditor(
             {blockedChoices.length > 0 && <BusinessTable label="기본 출처 변경이 필요한 자료 종류" columns={["자료 종류", "조작"]} disclosureColumn={false}>
               {blockedChoices.map(type => <BusinessRow key={type.type_id}>
                 <BusinessCell index={0}>{type.label}</BusinessCell>
-                <BusinessCell index={1}><Button variant="ghost" type="button" aria-label={`${type.label} 기본 번호 출처 변경`} disabled={busy || uncertain} onClick={() => setRepairing(type)}>기본 번호 출처 변경</Button></BusinessCell>
+                <BusinessCell index={1}><Button variant="ghost" type="button" aria-label={`${type.label} 기본 번호 출처 변경`} disabled={!canWrite || busy || uncertain} onClick={() => setRepairing(type)}>기본 번호 출처 변경</Button></BusinessCell>
               </BusinessRow>)}
             </BusinessTable>}
             {repairing && (
@@ -311,7 +316,7 @@ export function IssuerRegistryEditor(
         )}
         <FieldSet
           className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
-          disabled={busy || reading || uncertain}
+          disabled={!canWrite || busy || reading || uncertain}
         >
           <Field
             label={target.kind === "issuer" ? "번호 출처 이름" : "번호 종류 이름"}
@@ -327,8 +332,9 @@ export function IssuerRegistryEditor(
               />
             )}
           </Field>
-          {inline && target.kind === "rule" && baseline && (
+          {target.kind === "rule" && baseline && (
             <dl className="grid min-w-0 gap-3 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+              <div><dt>번호의 의미</dt><dd>{target.rule?.meaning}</dd></div>
               <div>
                 <dt>입력 방식</dt>
                 <dd>
@@ -379,7 +385,7 @@ export function IssuerRegistryEditor(
   );
   if (inline) {
     return (
-      <section className="flex min-w-0 flex-col gap-4 py-4" aria-label="번호 종류 편집">
+      <section className="flex min-w-0 flex-col gap-4 py-4" aria-label={canWrite ? "번호 종류 편집" : "번호 종류 보기"}>
         {content}
         <div className="flex flex-wrap items-center justify-between gap-3">
           {deleteAction}
@@ -400,7 +406,7 @@ export function IssuerRegistryEditor(
         ? "번호 종류 편집"
         : "번호 종류 추가"}
       dirty={dirty || conflict || uncertain}
-      busy={busy || reading || uncertain}
+      busy={busy || reading || canWrite && uncertain}
       onClose={onClose}
       footer={footer}
     >

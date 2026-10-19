@@ -1,10 +1,12 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { fixtureIdentity } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
-import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
+import { entityDetail, entitySummary } from "../supabase/functions/_shared/contracts/entity.ts";
 import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import { closeDetail } from "./ui-actions.ts";
@@ -33,6 +35,7 @@ const user = {
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }, { target_kind: "tasks", target_id: "*", access: "write" }, ...[materials, products, retired].map(type => ({ target_kind: "entity_type" as const, target_id: type.id, access: "write" as const }))])) return;
     if (url.origin === new URL(baseURL!).origin) return route.continue();
     if (url.pathname === "/api/entity-types") {
       return route.fulfill({ json: { items: [materials, products, retired], next_cursor: null } });
@@ -153,18 +156,18 @@ test("모든 페이지의 자료 종류가 목록과 생성 폼 및 종류 설�
         : { items: [materials], next_cursor: "second-page" },
     });
   });
-  await page.goto("/entities");
+  await page.goto(fixtureWorkspacePath("/entities"));
   await page.getByRole("combobox", { name: "자료 종류", exact: true }).click();
   await page.getByRole("combobox", { name: "자료 종류", exact: true }).press("ArrowDown");
   await expect(page.getByRole("option")).toContainText(["전체 자료", "재료", "상품", "보관 자료"]);
   await page.keyboard.press("Escape");
-  await page.goto(`/entities?entity_type_id=${products.id}&create=1`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${products.id}&create=1`));
   const form = detailDialog(page);
   await form.getByRole("combobox", { name: "자료 종류", exact: true }).click();
   await form.getByRole("combobox", { name: "자료 종류", exact: true }).press("ArrowDown");
   await expect(page.getByRole("option")).toContainText(["재료", "상품"]);
   await page.keyboard.press("Escape");
-  await page.goto("/settings/entity-types");
+  await page.goto(fixtureWorkspacePath("/settings/entity-types"));
   await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
     "기존 종류 선택",
     "재료",
@@ -173,11 +176,11 @@ test("모든 페이지의 자료 종류가 목록과 생성 폼 및 종류 설�
   ]);
 });
 test("typed shortcut and profile access preserve canonical list filters and Back", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${materials.id}&keyword=한글&tag_id=tag&sort=title&pages=2`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}&keyword=한글&tag_id=tag&sort=title&pages=2`));
   await openMainNavigation(page);
   const nav = page.getByRole("navigation", { name: "주 메뉴" });
   await expect(nav.locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link")).toHaveText(["재료", "상품", "할 일", "기록"]);
-  await expect(nav.locator(`a[href='/entities?entity_type_id=${materials.id}']`)).toHaveAttribute(
+  await expect(nav.locator(`a[href='${fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}`)}']`)).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -200,21 +203,28 @@ test("invalid and archived type URLs never widen or offer creation", async ({ pa
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === "/api/entities") listRequests.push(request.url());
   });
-  await page.goto("/entities?entity_type_id=invalid");
+  await page.goto(fixtureWorkspacePath("/entities?entity_type_id=invalid"));
   await expect(page.getByRole("alert")).toContainText("자료 종류를 찾을 수 없습니다");
   expect(listRequests).toHaveLength(0);
-  await page.goto(`/entities?entity_type_id=${retired.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${retired.id}`));
   await expect(page.getByText("보관된 자료 종류입니다.", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "보관 자료 추가", exact: true })).toHaveCount(0);
   expect(listRequests.every((url) => new URL(url).searchParams.get("entity_type_id") === retired.id)).toBe(true);
 });
 test("typed creation requires selection and protects drafts before changing kind", async ({ page }) => {
-  await page.goto("/entities");
+  const writes: string[] = [];
+  page.on("request", request => {
+    if (new URL(request.url()).pathname.startsWith("/api/") && !["GET", "HEAD"].includes(request.method())) writes.push(request.method() + " " + new URL(request.url()).pathname);
+  });
+  await page.goto(fixtureWorkspacePath("/entities"));
   await page.getByRole("button", { name: "자료 추가", exact: true }).click();
   let form = page.getByRole("dialog", { name: "자료 추가", exact: true });
-  await form.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(form.getByText("자료 종류와 속성 정의를 확인하세요", { exact: true })).toBeVisible();
-  await expect(form.getByLabel("자료 종류", { exact: true })).toBeFocused();
+  await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+  const kindPicker = form.getByRole("combobox", { name: "자료 종류", exact: true });
+  await expect(kindPicker).toBeEnabled();
+  await kindPicker.focus();
+  await expect(kindPicker).toBeFocused();
+  expect(writes).toEqual([]);
   await chooseEntityType(page, materials.label, form);
   form = page.getByRole("dialog", { name: "재료 추가", exact: true });
   await form.getByLabel("이름", { exact: false }).fill("보존할 초안");
@@ -226,9 +236,10 @@ test("typed creation requires selection and protects drafts before changing kind
   await confirmation.getByRole("button", { name: "종류 변경", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "상품 추가", exact: true }).getByLabel("이름", { exact: false }))
     .toHaveValue("");
+  expect(writes).toEqual([]);
 });
 test("settings profile route keeps drafts and treats settings as account location", async ({ page }) => {
-  await page.goto("/settings");
+  await page.goto(fixtureWorkspacePath("/settings"));
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { name: "기본 설정", exact: true, level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "주 메뉴" }).locator('a[aria-current="page"]'))
@@ -249,7 +260,7 @@ test("settings profile route keeps drafts and treats settings as account locatio
 test("0, 1, and many active types expose fixed account and all business paths", async ({ page }) => {
   let items: EntityType[] = [];
   await page.route("**/api/entity-types{,?**}", (route) => route.fulfill({ json: { items, next_cursor: null } }));
-  await page.goto("/entities");
+  await page.goto(fixtureWorkspacePath("/entities"));
   const shortcuts = page.getByRole("navigation", { name: "주 메뉴" }).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link");
   await openMainNavigation(page);
   await expect(shortcuts.first()).toHaveText("전체 자료");
@@ -289,14 +300,14 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeFocused();
 });
 
-test("short layouts and enlarged long labels keep controls inside viewport", async ({ page }) => {
+test("short layouts and enlarged long labels keep controls inside viewport", async ({ page }, info) => {
   const long = type(1, "아주긴자료종류이름공백없는문자열".repeat(4));
   await page.route(
     "**/api/entity-types{,?**}",
     (route) => route.fulfill({ json: { items: [long, products], next_cursor: null } }),
   );
   await page.setViewportSize({ width: 320, height: 300 });
-  await page.goto("/settings");
+  await page.goto(fixtureWorkspacePath("/settings"));
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   await openMainNavigation(page);
   await expect(page.getByRole("navigation", { name: "주 메뉴" }).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link").first()).toHaveText(long.label);
@@ -312,50 +323,86 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
     expect(size[0]).toBeGreaterThanOrEqual(44);
     expect(size[1]).toBeGreaterThanOrEqual(44);
   }
+  const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  const profile = navigation.getByRole("button", { name: "내 프로필", exact: true });
+  const switcher = navigation.getByRole("button", { name: "공간 선택", exact: true });
+  const wheelDistance = await navigation.evaluate(nav => Math.max(nav.scrollHeight, ...[...nav.querySelectorAll("*")].map(element => element.scrollHeight)));
+  const navBox = (await navigation.boundingBox())!;
+  await page.mouse.move(navBox.x + navBox.width / 2, navBox.y + navBox.height / 2);
+  await page.mouse.wheel(0, wheelDistance);
+  await expect(profile).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: info.outputPath("short-navigation-wheel-bottom.png") });
+  await page.mouse.wheel(0, -wheelDistance);
+  await expect(switcher).toBeInViewport({ ratio: 1 });
+  await switcher.focus();
+  await expect(switcher).toBeFocused();
+  const visited = ["공간 선택"];
+  const controls = await navigation.getByRole("button").or(navigation.getByRole("link")).count();
+  let reachedProfile = false;
+  for (let step = 0; step < controls; step++) {
+    await page.keyboard.press("Tab");
+    const focused = navigation.locator(":focus");
+    await expect(focused).toHaveCount(1);
+    await expect(focused).toBeInViewport({ ratio: 1 });
+    const target = (await focused.boundingBox())!;
+    expect(target.width).toBeGreaterThanOrEqual(44);
+    expect(target.height).toBeGreaterThanOrEqual(44);
+    visited.push(await focused.getAttribute("aria-label") ?? (await focused.innerText()).trim());
+    if (await profile.evaluate(element => element === document.activeElement)) { reachedProfile = true; break; }
+  }
+  expect(reachedProfile).toBe(true);
+  expect(visited).toEqual(expect.arrayContaining(["공간 선택", "메뉴 닫기", "Workspace", long.label, products.label, "할 일", "기록", "전체 자료", "내 프로필"]));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath("short-navigation-keyboard.png") });
   await openProfileMenu(page);
   await page.getByRole("menuitem", { name: "로그아웃", exact: true }).focus();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "주 메뉴 열기", exact: true })).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("a late old type list cannot replace current rows", async ({ page }) => {
-  let release!: () => void, started!: () => void;
-  const hold = new Promise<void>((resolve) => {
-      release = resolve;
-    }),
-    arrived = new Promise<void>((resolve) => {
-      started = resolve;
-    });
+  let release!: () => void, started!: () => void, finished!: () => void;
+  const hold = new Promise<void>((resolve) => { release = resolve; }),
+    arrived = new Promise<void>((resolve) => { started = resolve; }),
+    settled = new Promise<void>((resolve) => { finished = resolve; });
   await page.route("**/api/entities?**", async (route) => {
+    expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
     const id = new URL(route.request().url()).searchParams.get("entity_type_id");
-    if (id === materials.id) {
-      started();
-      await hold;
-    }
+    if (id === materials.id) { started(); await hold; }
     const kind = id === materials.id ? materials : products;
-    return route.fulfill({
-      json: {
-        items: [{
-          id: `app:${kind.id}:result`,
-          title: kind.label + " 결과",
-          type: kind,
-          tag_ids: [],
-        }],
-        next_cursor: null,
-      },
+    const item = entitySummary.parse({
+      id: `app:${kind.id}:result`, source: "app", external_id: "result", source_label: "앱", deleted_at: null,
+      entity_type_id: kind.id, type: kind, schema_version: 1, current_schema_version: 1,
+      title: kind.label + " 결과", display_properties: { prop_1: kind.label + " 결과" }, tag_ids: [],
+      version: 1, created_at: kind.created_at, updated_at: kind.updated_at,
     });
+    try {
+      await route.fulfill({ json: { items: [item], next_cursor: null } });
+    } catch (error) {
+      if (id !== materials.id) throw error;
+    } finally {
+      if (id === materials.id) finished();
+    }
   });
-  await page.goto(`/entities?entity_type_id=${materials.id}`);
-  await arrived;
-  await chooseEntityType(page, products.label);
-  await expect(page.getByRole("button", { name: "상품 결과", exact: true })).toBeVisible();
-  release();
-  await expect(page.getByRole("button", { name: "재료 결과", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "상품", level: 1 })).toBeVisible();
+  try {
+    await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}`));
+    await arrived;
+    await chooseEntityType(page, products.label);
+    await expect(page.getByRole("button", { name: "상품 결과", exact: true })).toBeVisible();
+    release();
+    await settled;
+    await expect(page.getByRole("button", { name: "재료 결과", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "상품 결과", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "상품", level: 1 })).toBeVisible();
+  } finally { release(); }
 });
 
 test("IME search preserves the selected type and current keyword after switching", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${materials.id}&keyword=기존`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}&keyword=기존`));
   const input = page.getByRole("textbox", { name: "자료 제목 검색", exact: true });
   await input.dispatchEvent("compositionstart");
   await input.fill("새 검색");
@@ -372,7 +419,7 @@ test("type catalog failure and all archived types have distinct recovery paths",
     "**/api/entity-types{,?**}",
     (route) => failing ? route.abort() : route.fulfill({ json: { items: [retired], next_cursor: null } }),
   );
-  await page.goto("/entities");
+  await page.goto(fixtureWorkspacePath("/entities"));
   await expect(page.getByRole("main").getByRole("alert")).toContainText("자료 종류를 불러오지 못했습니다");
   await expect(page.getByText("아직 자료 종류가 없습니다.", { exact: true })).toHaveCount(0);
   failing = false;
@@ -426,7 +473,7 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
     `**/api/entities/${encodeURIComponent(entity.id)}{,?**}`,
     (route) => route.fulfill({ json: entity }),
   );
-  await page.goto(`/entities?entity_type_id=${materials.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}`));
   await page.getByRole("button", { name: "재료 추가", exact: true }).click();
   const form = page.getByRole("dialog", { name: "재료 추가", exact: true });
   await form.getByLabel("이름", { exact: false }).fill("새 재료");
@@ -466,7 +513,7 @@ test("clean settings navigation proceeds while initial record templates are stil
     return route.fallback();
   });
   try {
-    await page.goto("/settings/records");
+    await page.goto(fixtureWorkspacePath("/settings/records"));
     await arrived;
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
     await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", {
@@ -528,7 +575,7 @@ test("type selection remains scoped while a returned list catalog is loading", a
   try {
     const list = `/entities?entity_type_id=${materials.id}&keyword=복귀`;
     await page.goto(
-      `/entities/${encodeURIComponent(entity.id)}?list=${encodeURIComponent(list)}`,
+      fixtureWorkspacePath(`/entities/${encodeURIComponent(entity.id)}?list=${encodeURIComponent(list)}`),
     );
     await expect(page.getByRole("dialog", { name: "재료", exact: true })).toBeVisible();
     await closeDetail(page, entity.title);
@@ -585,7 +632,7 @@ test("definition history reads beyond the first hundred versions and opens the i
     }
     return route.fulfill({ json: { ...materials, schema_version: 101 } });
   });
-  await page.goto(`/settings/entity-types/${materials.id}/versions`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}/versions`));
   await expect(page.getByRole("button", { name: "이전 적용 버전 더 보기", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "이전 적용 버전 더 보기", exact: true }).click();
   const history = page.getByRole("region", { name: "변경 이력", exact: true });
@@ -629,7 +676,7 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
     if (route.request().method() !== "GET") writes++;
     return route.fulfill({ json: { items: [], next_before: null } });
   });
-  await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^정확한 수량 항목 (?:펼치기|접기)$/, exact: true }).click();
   const section = page.getByRole("region", { name: "정확한 수량 입력 항목", exact: true });
@@ -684,7 +731,7 @@ test("conversion literals preserve unsafe drafts and removed properties permit e
     if (route.request().method() !== "GET") writes++;
     return route.fulfill({ json: plan });
   });
-  await page.goto(`/settings/entity-types/${materials.id}?change_id=${changeId}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?change_id=${changeId}`));
   const conversions = page.getByRole("region", { name: "변환 규칙과 영향 미리보기" });
   await conversions.getByLabel("이전 수량 변환 방식", { exact: true }).selectOption("remove");
   await expect(conversions.getByLabel("이전 수량 변환 방식", { exact: true })).toHaveValue("remove");
@@ -765,7 +812,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     },
   );
   try {
-    await page.goto(`/entities/${encodeURIComponent(entity.id)}`);
+    await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entity.id)}`));
     await page.getByRole("button", { name: "편집", exact: true }).click();
     const form = page.getByRole("dialog", { name: "재료 편집", exact: true });
     await reading;
@@ -859,7 +906,7 @@ test("immutable entity edit exposes identity catalog read failure and preserves 
         ? route.fulfill({ status: 500, json: { code: "internal", message: "catalog unavailable", retryable: true } })
         : route.fallback(),
   );
-  await page.goto(`/entities/${encodeURIComponent(entity.id)}`);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entity.id)}`));
   editing = true;
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const form = page.getByRole("dialog", { name: "재료 편집", exact: true });
@@ -882,7 +929,7 @@ test("materials workspace keeps basic drafts while history opens and guards type
     `**/api/entity-types/${materials.id}/schemas`,
     (route) => route.fulfill({ json: { items: [], next_before: null } }),
   );
-  await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
   await expect(page.getByRole("heading", { name: "자료 설정", level: 1 })).toBeVisible();
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
@@ -919,7 +966,7 @@ test("history selection preserves basic drafts and survives reload", async ({ pa
         },
       }),
   );
-  await page.goto(`/settings/entity-types/${materials.id}/versions`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}/versions`));
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("유지할 기본 정보");
   await page.getByRole("button", { name: /^최초 생성.*버전 1 · 적용됨$/ }).click();
@@ -972,7 +1019,7 @@ test(
       }
       return route.fulfill({ json: saved });
     });
-    await page.goto("/settings/materials");
+    await page.goto(fixtureWorkspacePath("/settings/materials"));
     await expect(page.getByRole("form", { name: "자료 종류 만들기", exact: true })).toBeVisible();
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
@@ -1006,7 +1053,7 @@ for (const existing of [materials, retired]) {
         "**/api/entity-types{,?**}",
         (route) => route.fulfill({ json: { items: [existing], next_cursor: null } }),
       );
-      await page.goto(`/settings/entity-types/${existing.id}`);
+      await page.goto(fixtureWorkspacePath(`/settings/entity-types/${existing.id}`));
       const selector = page.getByLabel("자료 종류 선택", { exact: true });
       await expect(selector.locator("option")).toHaveText([`${existing.label}${existing.archived ? " (보관)" : ""}`]);
       await page.getByRole("link", { name: "종류 추가", exact: true }).click();
@@ -1050,7 +1097,7 @@ test("basic conflict and uncertain responses retain input and retry the exact re
     if (attempts.length === 2) return route.abort();
     return route.fulfill({ json: { ...materials, label: "남길 입력", schema_version: 2 } });
   });
-  await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   const input = page.getByLabel("자료 종류 이름", { exact: true });
   await input.fill("남길 입력");
@@ -1078,7 +1125,7 @@ test("basic save preserves property edits and unfiltered archived selection at e
         ? route.fulfill({ json: { ...materials, label: "新しい基本情報", schema_version: 2 } })
         : route.fallback(),
   );
-  await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
   await page.getByLabel("항목 이름", { exact: true }).fill("保留する属性");
@@ -1135,7 +1182,7 @@ test("lost creation response replays one result and selects its workspace", asyn
     }
     return route.fulfill({ json: saved });
   });
-  await page.goto("/settings/entity-types");
+  await page.goto(fixtureWorkspacePath("/settings/entity-types"));
   const name = page.getByLabel("자료 종류 이름", { exact: true });
   await name.fill("응답 유실 자료");
   await page.getByLabel("대표 입력 항목 이름", { exact: true }).fill("제목");
@@ -1184,7 +1231,7 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
     latest = { ...latest, ...body, schema_version: 3 };
     return route.fulfill({ json: latest });
   });
-  await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
   await page.getByLabel("항목 이름", { exact: true }).fill("남길 속성 초안");
@@ -1253,7 +1300,7 @@ for (const width of [320, 390]) {
         "/guide",
       ]
     ) {
-      await page.goto(path);
+      await page.goto(fixtureWorkspacePath(path));
       const title = page.getByRole("heading", { level: 1 }).first();
       await expect(title, path).toBeVisible();
       const description = title.locator("xpath=ancestor::header[1]").locator(":scope > p");
@@ -1280,7 +1327,7 @@ for (const width of [320, 1440]) {
       period: { from: "2026-10-15", to: "2026-10-15", days: 1 },
       entities: { total: 0, active: 0, deleted: 0 },
       tasks: { total: 0, open: 0, done: 0, active: 0, stopped: 0 },
-      records: { total: 1, user: 1, result: 0, change: 0 },
+      records: { total: 1, result: 1, change: 0 },
       indexing: {
         total: 1,
         indexed: 0,
@@ -1289,6 +1336,7 @@ for (const width of [320, 1440]) {
         excluded: 0,
         waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 5 },
       },
+      entity_indexing: { total: 0, indexed: 0, preparing: 0, attention: 0, excluded: 0, waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 } },
       daily: [],
     };
     await page.route(
@@ -1305,7 +1353,7 @@ for (const width of [320, 1440]) {
           failIssues ? { status: 503, json: { error: { code: "unavailable", message: "조회 실패" } } } : {
             json: {
               items: [{
-                id: "issue",
+                kind: "record", path: "/records/20261015-ABCDEF12", id: "20261015-ABCDEF12",
                 created_at: "2026-10-15T00:00:00Z",
                 title: "긴 제목 ".repeat(15),
                 reason: "provider_unknown",
@@ -1317,7 +1365,7 @@ for (const width of [320, 1440]) {
           },
         ),
     );
-    await page.goto("/status");
+    await page.goto(fixtureWorkspacePath("/status"));
     await expect(page.getByRole("alert")).toContainText(/조회 실패|조회하지 못했습니다/);
     failStatus = false;
     await page.getByRole("button", { name: "새로고침", exact: true }).click();

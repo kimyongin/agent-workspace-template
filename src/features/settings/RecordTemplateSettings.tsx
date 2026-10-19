@@ -1,3 +1,5 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
+import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { RotateCcwIcon, EyeIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select";
@@ -12,7 +14,7 @@ import { changedTemplateActions, templateFieldTarget } from "./record-template-a
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   DEFAULT_RECORD_MEMO_TEMPLATES,
   effectiveRecordTemplate,
@@ -28,13 +30,13 @@ import {
 } from "@contracts/record-template.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 import { TagPicker } from "../tags/TagPicker.tsx";
-import { api, ApiError } from "../../lib/api.ts";
+import { ApiError } from "../../lib/api.ts";
 import { useSettingsDraft } from "./useSettingsDraft.ts";
 import { createRecordTemplatesDraft, unavailableTemplateTags } from "./business-settings-drafts.ts";
 
 import type { MaterialTemplateResource } from "./material-template-drafts.ts";
 
-const recordTemplatesDraft = createRecordTemplatesDraft(api);
+
 
 export function RecordTemplateSettings(
   props: {
@@ -57,6 +59,8 @@ export function RecordTemplateSettings(
 function GeneralRecordTemplateSettings(
   props: Parameters<typeof RecordTemplateSettings>[0],
 ) {
+  const api = useApi();
+  const recordTemplatesDraft = useMemo(() => createRecordTemplatesDraft(api), [api]);
   const editor = useSettingsDraft(recordTemplatesDraft, props.onStateChange);
   return <RecordTemplateForm {...props} editor={editor} />;
 }
@@ -110,6 +114,9 @@ function RecordTemplateForm({
     >
   >;
 }) {
+  const { canWrite } = useSettingsAccess();
+  const api = useApi();
+  const requestScope = useRequestScope();
   const [variableQuery, setVariableQuery] = useState("");
   const { draft, dirty, busy, conflict, uncertain, latestReady } = editor;
   const saved = editor.saved?.settings;
@@ -283,7 +290,7 @@ function RecordTemplateForm({
           aria-busy={busy}
           onSubmit={async (event) => {
             event.preventDefault();
-            if (busy || conflict || !dirty || schemaUnavailable) return;
+            if (!canWrite || busy || conflict || !dirty || schemaUnavailable) return;
             if (!parse.success) {
               setFields(
                 Object.fromEntries(
@@ -297,7 +304,7 @@ function RecordTemplateForm({
             }
             setMessage("");
             if (await editor.resource.save()) {
-              window.dispatchEvent(new Event("workspace:record-settings-changed"));
+              window.dispatchEvent(new CustomEvent("workspace:record-settings-changed", { detail: requestScope }));
               setMessage("기록 자동 완성을 저장했습니다.");
               setFields({});
             }
@@ -309,7 +316,7 @@ function RecordTemplateForm({
                 "정리는 현재 설정 범위에만 적용합니다. 다른 종류나 모델의 오류는 해당 설정에서 정리하세요."}{" "}
               <Button variant="ghost"
                 type="button"
-                disabled={busy}
+                disabled={!canWrite || busy}
                 onClick={() => {
                   setDraft((current) =>
                     mapRecordTemplateTags(current, (ids) => ids.filter((id) => !missing.includes(id)))
@@ -371,7 +378,7 @@ function RecordTemplateForm({
             )}
             <Field label="변수 삽입">
               {(props) => (
-                <Combobox<(typeof variables)[number]> items={variables} value={null} inputValue={variableQuery} onInputValueChange={setVariableQuery} itemToStringLabel={variable => variable.label} onValueChange={variable => { if(variable) text.current?.insert(variable.value); setVariableQuery(""); }} disabled={schemaUnavailable || busy || uncertain}>
+                <Combobox<(typeof variables)[number]> items={variables} value={null} inputValue={variableQuery} onInputValueChange={setVariableQuery} itemToStringLabel={variable => variable.label} onValueChange={variable => { if(variable) text.current?.insert(variable.value); setVariableQuery(""); }} disabled={!canWrite || schemaUnavailable || busy || uncertain}>
                   <ComboboxInput {...props} placeholder="변수를 선택하세요" /><ComboboxContent finalFocus={false}><ComboboxEmpty>일치하는 변수가 없습니다.</ComboboxEmpty><ComboboxList>{variable => <ComboboxItem key={variable.value} value={variable}>{variable.label}</ComboboxItem>}</ComboboxList></ComboboxContent>
                 </Combobox>
               )}
@@ -407,7 +414,7 @@ function RecordTemplateForm({
                       editorRef={text}
                       variables={variables}
                       disabled={busy}
-                      readOnly={uncertain}
+                      readOnly={!canWrite || uncertain}
                       value={stored?.memo ?? value.memo}
                       onChange={(memo) => setValue({ memo: model === "entity" && !memo.trim() ? null : memo })}
                     />
@@ -416,7 +423,7 @@ function RecordTemplateForm({
             </Field>
             {model === "entity" && !usingDefault && !schemaUnavailable && (
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                <Button variant="ghost" type="button"  onClick={() => setValue({ memo: null })}><RotateCcwIcon data-icon="inline-start" />
+                <Button variant="ghost" type="button" disabled={!canWrite} onClick={() => setValue({ memo: null })}><RotateCcwIcon data-icon="inline-start" />
                   기본 문구로 되돌리기
                 </Button>
               </div>
@@ -424,9 +431,10 @@ function RecordTemplateForm({
 
             <div className="min-w-0 col-span-full">
               <TagPicker
-                disabled={busy || uncertain}
+                disabled={!canWrite || busy || uncertain}
                 label="기본 기록 태그"
                 scope="record"
+                purpose="record-template"
                 value={value.tag_ids}
                 onChange={(tag_ids) => setValue({ tag_ids })}
               />
@@ -455,7 +463,9 @@ function RecordTemplateForm({
               );
             })}
           </FieldSet>
-          <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>
+          <div role="status" aria-atomic="true">
+            {message && <Alert role={undefined}><AlertDescription>{message}</AlertDescription></Alert>}
+          </div>
           {conflict && (
             <Button variant="ghost"  type="button" onClick={() => void read()}><RotateCcwIcon data-icon="inline-start" />
               최신값 확인
@@ -471,7 +481,7 @@ function RecordTemplateForm({
               <Button variant="outline"
                 type="button"
 
-                disabled={busy || uncertain || (conflict ? !latestReady : !dirty)}
+                disabled={!canWrite || busy || uncertain || (conflict ? !latestReady : !dirty)}
                 aria-label={conflict ? "최신값으로 다시 편집" : "변경 취소"}
                 onClick={() => {
                   editor.resource.reset();
@@ -484,7 +494,7 @@ function RecordTemplateForm({
               <Button variant="default"
                 type="submit"
 
-                disabled={busy || !dirty || conflict || schemaUnavailable}
+                disabled={!canWrite || busy || !dirty || conflict || schemaUnavailable}
                 aria-label={busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 자동 완성 저장"}
               >
                 {busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}

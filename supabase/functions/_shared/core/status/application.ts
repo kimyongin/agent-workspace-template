@@ -8,6 +8,8 @@ import {
   type StatusInput,
   type StatusOverview,
 } from "../../contracts/status.ts";
+import { entityReferenceId } from "../../contracts/entity-identity.ts";
+import { id } from "../../contracts/common.ts";
 import type { Actor } from "../shared/actor.ts";
 import { decodeCursor, paginate, scopeOf } from "../shared/operations.ts";
 import type { Keyset } from "../shared/store.ts";
@@ -33,8 +35,14 @@ export async function listIndexingIssues(
   actor: Actor,
   input: IndexingIssuesInput,
 ): Promise<IndexingIssuesPage> {
-  const scope = await scopeOf(actor, { list: "indexing_issues" });
-  const after = input.cursor ? decodeCursor(input.cursor, scope) : undefined;
+  const scope = await scopeOf(actor, { list: "indexing_issues", workspace_id: actor.workspaceId });
+  const after = input.cursor
+    ? decodeCursor(
+      input.cursor,
+      scope,
+      (value) => id.safeParse(value).success || entityReferenceId.safeParse(value).success,
+    )
+    : undefined;
   const rows = (await d.reader.issues(actor, d.clock.now(), after)).map((row) => indexingIssue.parse(row));
   return indexingIssuesPage.parse(await paginate(rows, 5, (row) => row.created_at, scope));
 }

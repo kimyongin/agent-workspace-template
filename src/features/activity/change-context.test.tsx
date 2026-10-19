@@ -3,19 +3,20 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { ChangeContext, type WorkspaceRecord } from "./ChangeContext.tsx";
 
-vi.mock("../../lib/api.ts", () => ({ api: vi.fn(), ApiError: Error }));
+vi.mock("../../lib/api.ts", () => ({ createScopedApi: () => vi.fn(), ApiError: Error }));
 
 it("shows stored historical snapshots, without implying missing snapshots describe historical absence", () => {
   const stamp = "2026-10-01T02:03:04Z";
   const record: WorkspaceRecord = {
     id: "record",
+    created_by: null,
+    created_by_name: null,
     body: "고객 수정",
     record_kind: "change",
     occurred_at: stamp,
     task_id: null,
     occurrence_on: null,
-    entity_ids: [],
-    entity_context: [],
+    entity_id: "target",
     tag_ids: [],
     version: 1,
     created_at: stamp,
@@ -53,13 +54,14 @@ it("reads saved changes as labeled values while preserving zero, false, null and
   const stamp = "2026-10-01T02:03:04Z";
   const record: WorkspaceRecord = {
     id: "record",
+    created_by: null,
+    created_by_name: null,
     body: "고객 수정",
     record_kind: "change",
     occurred_at: stamp,
     task_id: null,
     occurrence_on: null,
-    entity_ids: [],
-    entity_context: [],
+    entity_id: "target",
     tag_ids: [],
     version: 1,
     created_at: stamp,

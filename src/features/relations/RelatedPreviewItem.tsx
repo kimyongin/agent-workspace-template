@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link, type LinkProps } from "react-router";
+import { Link, type LinkProps } from "../../lib/workspace-router.tsx";
 import { RelatedItem, useRelatedExpansion } from "../../components/RelatedItems.tsx";
 
 import { useExpansionRegistration } from "../../components/item-expansion.tsx";

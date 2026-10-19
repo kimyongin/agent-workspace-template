@@ -1,7 +1,7 @@
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { createFixtureEntity, fixtureEntityList, scalarFixtureType } from "./entity-schema-support.ts";
 import { expect } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique , ownedWorkspace, workspacePath} from "./support.ts";
 
 import { openDetailEditor, saveOnce } from "./ui-actions.ts";
 
@@ -9,19 +9,20 @@ for (const model of ["entity", "task"] as const) {
   for (const stage of ["prepare", "write"] as const) {
     test(`#335 실제 MCP→웹 ${model}: ${stage} 충돌·초안 보존·취소 후 재조회·새 의도 저장`, async ({ page }) => {
       await devLogin(page);
-      const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+      const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
       const title = unique(`충돌 ${model}`), latest = `${title} 최신`, draft = `${title} 초안`;
       let target: { id: string; version: number } | undefined;
       let resultId: string | undefined;
       try {
         if (model === "entity") {
-          const type = await scalarFixtureType(mcp);
+          const type = await scalarFixtureType(mcp, workspace);
           const identity = await mcp.call("get_entity_type_identity", {
             type_id: type.id,
           });
           target = await createFixtureEntity(
             mcp,
-            { prop_1: title, prop_2: 0 },
+            workspace, { prop_1: title, prop_2: 0 },
             {
               source: identity.default_source,
               identity_version: identity.version,
@@ -33,7 +34,7 @@ for (const model of ["entity", "task"] as const) {
         }
         const list = model === "entity" ? "entities" : "tasks";
         const inputLabel = model === "entity" ? "제목" : "제목";
-        await page.goto(`/${list}/${encodeURIComponent(target!.id)}`);
+        await page.goto(workspacePath(workspace.id, `/${list}/${encodeURIComponent(target!.id)}`));
         await openDetailEditor(page);
         const editor = detailDialog(page);
         const confirmation = executionDialog(page);
@@ -47,7 +48,7 @@ for (const model of ["entity", "task"] as const) {
           expected_version: target!.version,
           ...(model === "entity"
             ? {
-              schema_version: (await scalarFixtureType(mcp)).schema_version,
+              schema_version: (await scalarFixtureType(mcp, workspace)).schema_version,
               properties: { prop_1: latest, prop_2: 10 },
             }
             : { title: latest, body: "다른 접점의 최신 본문" }),

@@ -1,15 +1,16 @@
 import { chooseSetting } from "./settings-actions.ts";
 import { expect } from "@playwright/test";
 import { createFixtureEntity, scalarFixtureType } from "./entity-schema-support.ts";
-import { devLogin, mcpClient, mcpTokenViaConsent, test } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, workspacePath } from "./support.ts";
 
 test("속성 이름으로 작성한 문구는 안정 키로 저장되고 MCP의 실제 변경 메모에 사용된다", async ({ page }, info) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
-    const type = await scalarFixtureType(mcp);
-    const entity = await createFixtureEntity(mcp, { prop_1: "문구 검사", prop_2: 0 });
-    await page.goto("/settings/records");
+    const type = await scalarFixtureType(mcp, workspace);
+    const entity = await createFixtureEntity(mcp, workspace, { prop_1: "문구 검사", prop_2: 0 });
+    await page.goto(workspacePath(workspace.id, "/settings/records"));
     await chooseSetting(page, page.getByLabel("대상", { exact: true }), type.label);
     let form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
     await chooseSetting(page, form.getByLabel("액션", { exact: true }), "수정");

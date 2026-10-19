@@ -11,7 +11,9 @@ import type { ChangeFacts, ChangeInput } from "../shared/changes.ts";
 import { canonical } from "./evolution.ts";
 export type MigrationWorkerBatch = {
   id: string;
-  owner_id: string;
+  workspace_id: string;
+  initiated_by: string;
+  workspace_generation: number;
   type_id: string;
   fence: number;
   status: string;
@@ -69,7 +71,7 @@ export function migrationRecordRenderer(
     const input: ChangeInput = {
       target_kind: "entity",
       action: "update",
-      target: { id: row.entity_id, title, entity_ids: [row.entity_id], entity_context: context },
+      target: { id: row.entity_id, title },
       before: facts(row.properties, batch.source_definition),
       after: facts(row.after, batch.target),
     };

@@ -22,8 +22,21 @@ export interface EntityRelationDefinitionStore extends RequestStore {
   update(id: string, ends: EntityRelationDefinition["ends"], archived: boolean): Promise<EntityRelationDefinition>;
   delete(id: string): Promise<void>;
 }
+export interface RelationDefinitionEntry {
+  access: "read" | "write";
+  business?: boolean;
+}
 export interface EntityRelationDefinitionDeps {
-  uow: { run<T>(actor: Actor, fn: (store: EntityRelationDefinitionStore) => Promise<T>): Promise<T> };
+  uow: {
+    run<T>(
+      actor: Actor,
+      fn: (store: EntityRelationDefinitionStore) => Promise<T>,
+      entry?: RelationDefinitionEntry,
+    ): Promise<T>;
+  };
+}
+function settingsWrite(d: EntityRelationDefinitionDeps): EntityRelationDefinitionDeps["uow"] {
+  return { run: (actor, fn) => d.uow.run(actor, fn, { access: "write" }) };
 }
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   const value = schema.safeParse(raw);
@@ -42,19 +55,20 @@ function version(current: EntityRelationDefinition, expected: number) {
 }
 export function listEntityRelationDefinitions(d: EntityRelationDefinitionDeps, a: Actor, raw: unknown = {}) {
   const input = parse(relationDefinitionQuery, raw);
-  return d.uow.run(a, (s) => s.list(input));
+  return d.uow.run(a, (s) => s.list(input), { access: "read", business: input.purpose === "business" });
 }
-export function getEntityRelationDefinition(d: EntityRelationDefinitionDeps, a: Actor, id: string) {
+export function getEntityRelationDefinition(d: EntityRelationDefinitionDeps, a: Actor, id: string, purpose?: unknown) {
+  purpose = parse(z.literal("business").optional(), purpose);
   id = parse(z.string().uuid(), id);
   return d.uow.run(a, async (s) => {
     const row = await s.get(id);
     if (!row) throw notFound();
     return row;
-  });
+  }, { access: "read", business: purpose === "business" });
 }
 export function createEntityRelationDefinition(d: EntityRelationDefinitionDeps, a: Actor, raw: unknown) {
   const i = parse(relationDefinitionCreate, raw);
-  return runWrite(d.uow, a, "entity-relation-definition.create", null, i, async (s) => {
+  return runWrite(settingsWrite(d), a, "entity-relation-definition.create", null, i, async (s) => {
     if (!await s.typesAvailable(i.ends)) throw invalidInput("활성 자료 종류를 선택하세요");
     return s.create(i.ends);
   });
@@ -62,7 +76,7 @@ export function createEntityRelationDefinition(d: EntityRelationDefinitionDeps, 
 export function updateEntityRelationDefinition(d: EntityRelationDefinitionDeps, a: Actor, id: string, raw: unknown) {
   id = parse(z.string().uuid(), id);
   const i = parse(relationDefinitionUpdate, raw);
-  return runWrite(d.uow, a, "entity-relation-definition.update", id, i, async (s) => {
+  return runWrite(settingsWrite(d), a, "entity-relation-definition.update", id, i, async (s) => {
     const old = await s.lock(id);
     if (!old) throw notFound();
     version(old, i.expected_version);
@@ -79,7 +93,7 @@ export function updateEntityRelationDefinition(d: EntityRelationDefinitionDeps, 
 export function deleteEntityRelationDefinition(d: EntityRelationDefinitionDeps, a: Actor, id: string, raw: unknown) {
   id = parse(z.string().uuid(), id);
   const i = parse(relationDefinitionDelete, raw);
-  return runWrite(d.uow, a, "entity-relation-definition.delete", id, i, async (s) => {
+  return runWrite(settingsWrite(d), a, "entity-relation-definition.delete", id, i, async (s) => {
     const old = await s.lock(id);
     if (!old) throw notFound();
     version(old, i.expected_version);

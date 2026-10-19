@@ -40,14 +40,32 @@ export async function scopeOf(actor: Actor, filter: unknown): Promise<string> {
   return (await sha256Hex(`${actor.userId}:${canonical(filter)}`)).slice(0, 16);
 }
 
+/** Cursor metadata may include an immutable entity number containing Unicode. */
+export function encodeCursorData(value: unknown): string {
+  return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value)))).replace(/\+/g, "-").replace(
+    /\//g,
+    "_",
+  ).replace(/=+$/, "");
+}
+export function decodeCursorData(value: string): unknown {
+  const bytes = Uint8Array.from(
+    atob(value.replace(/-/g, "+").replace(/_/g, "/")),
+    (character) => character.charCodeAt(0),
+  );
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+}
 function encodeCursor(body: CursorBody): string {
-  return btoa(JSON.stringify(body)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return encodeCursorData(body);
 }
 
-export function decodeCursor(cursor: string, scope: string): Keyset {
+export function decodeCursor(
+  cursor: string,
+  scope: string,
+  validId: (value: unknown) => boolean = (value) => id.safeParse(value).success,
+): Keyset {
   try {
-    const body = JSON.parse(atob(cursor.replace(/-/g, "+").replace(/_/g, "/"))) as CursorBody;
-    if (body.scope === scope && isoDateTime.safeParse(body.at).success && id.safeParse(body.id).success) {
+    const body = decodeCursorData(cursor) as CursorBody;
+    if (body.scope === scope && isoDateTime.safeParse(body.at).success && validId(body.id)) {
       return { at: body.at, id: body.id };
     }
   } catch {

@@ -2,9 +2,9 @@
 // 실패는 HTTP와 같은 오류 본문 {code, message, retryable, fields}를 isError 결과로 돌려준다.
 import { keyedTool, type ToolDef } from "./tools.ts";
 import { z } from "zod";
-import { businessMeta, mutationMeta } from "../../contracts/change.ts";
+import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
-import { occurrenceRecordCreate, recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
+import { occurrenceRecordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
 import * as activity from "../../core/activity/application.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -23,7 +23,7 @@ const createTaskInput = z.strictObject({
 const withId = <T extends z.ZodObject>(schema: T) => z.strictObject({ id, ...schema.shape });
 const idOnly = z.strictObject({ id });
 const deleteInput = z.strictObject({ id, expected_version: expectedVersion, ...businessMeta });
-const recordDeleteInput = z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta });
+const recordDeleteInput = z.strictObject({ id, expected_version: expectedVersion });
 
 /** 경로 ID와 같은 규칙: 유효한 데이터 ID가 아니면 존재 여부를 드러내지 않고 not_found(HTTP와 같음). */
 function split(args: Record<string, unknown>) {
@@ -49,7 +49,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "create_task",
       description:
-        "할 일을 만든다. kind=once는 due_on만 선택 가능하며 timezone·recurrence를 보내지 않는다. kind=recurring은 timezone·recurrence 필수이며 due_on을 보내지 않는다. 일회성은 open, 반복은 active. tag_ids는 내 태그 ID 최대 10개. 반복 할 일은 앱이 자동 실행·알림하지 않는다.",
+        "할 일을 만든다. kind=once는 due_on만 선택 가능하며 timezone·recurrence를 보내지 않는다. kind=recurring은 timezone·recurrence 필수이며 due_on을 보내지 않는다. 일회성은 open, 반복은 active. 저장 후 set_tag_connections로 분류한다. 반복 할 일은 앱이 자동 실행·알림하지 않는다.",
       input: createTaskInput,
       inputVariants: taskCreate.options,
       readOnly: false,
@@ -73,7 +73,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "update_task",
       description:
-        "할 일의 내용 필드를 고친다. tag_ids 생략은 유지, 빈 배열은 제거. 완료된 할 일도 고칠 수 있다. expected_version이 다르면 conflict.",
+        "할 일의 내용 필드를 고친다. 현재 태그는 유지하며 분류 변경은 set_tag_connections를 쓴다. 완료된 할 일도 고칠 수 있다. expected_version이 다르면 conflict.",
       input: withId(taskUpdate),
       readOnly: false,
       handler: (args, actor) => {
@@ -94,7 +94,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     },
     {
       name: "delete_task",
-      description: "할 일만 지운다. 결과·회차 기록은 남고 할 일 연결만 비워진다.",
+      description: "할 일을 소프트 삭제한다. 결과·회차 기록의 소속과 수행 문맥을 유지하며 복원할 수 있다.",
       input: deleteInput,
       readOnly: false,
       destructive: true,
@@ -109,6 +109,24 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.change_tag_ids,
         );
         return { deleted: input.id };
+      },
+    },
+    {
+      name: "restore_task",
+      description:
+        "삭제된 할 일을 같은 ID와 결과·회차 문맥으로 복원한다. 현재 할 일 쓰기 권한과 expected_version이 필요하다.",
+      input: deleteInput,
+      readOnly: false,
+      handler: (args, actor) => {
+        const input = byIdDelete(args);
+        return activity.restoreTask(
+          deps,
+          actor,
+          input.id,
+          input.expected_version,
+          input.change_note,
+          input.change_tag_ids,
+        );
       },
     },
     {
@@ -171,17 +189,9 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       },
     },
     {
-      name: "create_record",
-      description:
-        "일반 기록을 작성한다. 선택적 task_id로 할 일에 연결해도 완료·회차 상태는 바뀌지 않는다. 자료 선택 생략 시 해당 할 일의 현재 연결을 담는다. 본문은 검색에 쓰이며 판단 근거는 본문에 설명한다.",
-      input: recordCreate,
-      readOnly: false,
-      handler: (args, actor) => activity.createRecord(deps, actor, parse(recordCreate, args)),
-    },
-    {
       name: "get_record",
       description:
-        "기록의 전체 본문과 사건 정보·연결된 자료의 당시 문맥을 읽는다. 현재 자료 상태는 해당 자료 조회로 확인한다.",
+        "기록의 전체 본문과 사건 정보를 읽는다. 같은 공간의 자료 하나 또는 할 일 하나에 고정 소속되며 현재 소속 대상의 권한을 따른다.",
       input: idOnly,
       readOnly: true,
       handler: (args, actor) => activity.getRecord(deps, actor, byId(args)),
@@ -196,7 +206,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "update_record",
       description:
-        "일반 기록·수행 결과·업무 사건의 본문을 추가 편집 로그 없이 고친다. 사건 정보는 변경할 수 없다. tag_ids 생략은 유지, 빈 배열은 태그 제거. 과거 적용 원문 캡처는 읽기 전용이다. expected_version이 다르면 conflict.",
+        "수행 결과·업무 사건의 메모를 추가 편집 로그 없이 고친다. 소속·사건 정보·현재 태그는 변경할 수 없다. 수행 결과 분류는 set_tag_connections를 쓴다. expected_version이 다르면 conflict.",
       input: withId(recordUpdate),
       readOnly: false,
       handler: (args, actor) => {
@@ -218,8 +228,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           actor,
           input.id,
           input.expected_version,
-          input.change_note,
-          input.change_tag_ids,
         );
         return { deleted: input.id };
       },

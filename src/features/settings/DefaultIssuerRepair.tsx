@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup } from "@/components/ui/field";
@@ -6,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { APP_IDENTIFIER_RULE_ID, type EntityTypeIdentity, type IdentityDefaultType } from "@contracts/entity-issuer.ts";
 
 import { Field } from "../../components/Field.tsx";
-import { typeIdentityPort } from "./issuer-registry-api.ts";
+import { useTypeIdentityPort } from "./issuer-registry-api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 /** Resolve one blocking default while keeping the original registry draft open. */
 export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved, onState }: {
@@ -16,6 +17,8 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
   onSaved: () => void;
   onState: (busy: boolean, uncertain: boolean) => void;
 }) {
+  const { canWrite } = useSettingsAccess();
+  const typeIdentityPort = useTypeIdentityPort();
   const choice = useRef<HTMLSelectElement>(null);
   const [identity, setIdentity] = useState<EntityTypeIdentity | null>(null);
   const [source, setSource] = useState("");
@@ -62,6 +65,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
     (s.code !== blockedSource || blockedRule !== undefined && s.rule_id !== blockedRule)
   );
   const save = async () => {
+    if (!canWrite) return;
     if (!identity || !source || busy) return;
     setError("");
     try {
@@ -98,7 +102,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
               ref={choice}
 
               value={source}
-              disabled={busy || uncertain}
+              disabled={!canWrite || busy || uncertain}
               onChange={(e) => {
                 setSource(e.target.value);
                 attempt.reset();
@@ -114,7 +118,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
         <Alert role="status"><AlertDescription>다른 활성 번호 출처가 없습니다. 자료 설정에서 번호 출처를 연결한 뒤 다시 시도하세요.</AlertDescription></Alert>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="ghost" type="button" disabled={!source || busy} onClick={() => void save()}>
+        <Button variant="ghost" type="button" disabled={!canWrite || !source || busy} onClick={() => void save()}>
           {uncertain ? "같은 요청 다시 확인" : busy ? "저장 중…" : "기본 번호 출처 변경"}
         </Button>
         {error && !uncertain && (

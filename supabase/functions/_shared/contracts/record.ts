@@ -1,31 +1,25 @@
 import { entityReferenceId } from "./entity-identity.ts";
-import { entityContext, entitySelection } from "./entity-links.ts";
 // 활동 기록(ActivityRecord) 계약.
 import { z } from "zod";
 import { changeMetadata } from "./change.ts";
-import { tagFilterIds, tagIds } from "./tag.ts";
+import { tagFilterIds } from "./tag.ts";
 import { expectedVersion, id, isoDate, isoDateTime, page, pageInput, recordBody } from "./common.ts";
 
-/** 직접 작성과 반복 할 일의 회차 기록이 같은 입력을 쓴다. */
-export const recordCreate = z.strictObject({
-  ...entitySelection,
-  tag_ids: tagIds.optional(),
+/** The occurrence route owns the immutable task and date. */
+export const occurrenceRecordCreate = z.strictObject({
   body: recordBody,
   occurred_at: isoDateTime.optional(),
-  task_id: id.optional(),
 });
-export type RecordCreate = z.infer<typeof recordCreate>;
-/** The occurrence route owns the task and date; content cannot override them. */
-export const occurrenceRecordCreate = recordCreate.omit({ task_id: true });
+export type OccurrenceRecordCreate = z.infer<typeof occurrenceRecordCreate>;
 
 export const recordUpdate = z
   .strictObject({
     expected_version: expectedVersion,
-    ...entitySelection,
-    tag_ids: tagIds.optional(),
     body: recordBody.optional(),
     occurred_at: isoDateTime.optional(),
-  }); // Automatic change records allow editing their body.
+  }).refine((value) => value.body !== undefined || value.occurred_at !== undefined, {
+    message: "바꿀 필드가 없습니다",
+  });
 export type RecordUpdate = z.infer<typeof recordUpdate>;
 
 export const recordListQuery = z
@@ -33,7 +27,7 @@ export const recordListQuery = z
     occurred_from: isoDateTime.optional(),
     occurred_to: isoDateTime.optional(),
     task_id: id.optional(),
-    record_kind: z.enum(["user", "result", "change"]).optional(),
+    record_kind: z.enum(["result", "change"]).optional(),
     tag_id: id.optional(),
     tag_ids: tagFilterIds.optional(),
     entity_id: entityReferenceId.optional(),
@@ -46,11 +40,12 @@ export const recordListQuery = z
 export type RecordListQuery = z.infer<typeof recordListQuery>;
 
 export const recordResult = z.object({
-  record_kind: z.enum(["user", "result", "change"]),
+  created_by: z.string().uuid().nullable(),
+  created_by_name: z.string().nullable(),
+  record_kind: z.enum(["result", "change"]),
   change: changeMetadata.nullable(),
   id,
-  entity_ids: z.array(entityReferenceId),
-  entity_context: z.array(entityContext),
+  entity_id: entityReferenceId.nullable(),
   tag_ids: z.array(id),
   body: z.string(),
   occurred_at: isoDateTime,
@@ -59,6 +54,8 @@ export const recordResult = z.object({
   version: z.number().int(),
   created_at: isoDateTime,
   updated_at: isoDateTime,
+}).refine((record) => (record.entity_id !== null) !== (record.task_id !== null), {
+  message: "기록은 자료 하나 또는 할 일 하나에 속해야 합니다",
 });
 export type RecordResult = z.infer<typeof recordResult>;
 

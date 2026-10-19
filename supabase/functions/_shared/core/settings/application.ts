@@ -1,3 +1,4 @@
+import { tagConnectionSelection } from "../../contracts/tag-connection.ts";
 import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import type { EntityTypeIdentity } from "../../contracts/entity-issuer.ts";
 import { assertImmutableType } from "../entity/application.ts";
@@ -13,10 +14,15 @@ import {
   businessSettingsUpdate,
   resolvedBusinessSettings,
 } from "../../contracts/business-settings.ts";
+import type { WorkspaceEntry } from "../workspaces/application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { conflict, notFound } from "../shared/errors.ts";
-import { type PreparedRecordMemo, prepareRecordMemo } from "../../contracts/record-preparation.ts";
+import {
+  type PreparedRecordMemo,
+  type PrepareRecordMemo,
+  prepareRecordMemo,
+} from "../../contracts/record-preparation.ts";
 import {
   effectiveRecordTemplate,
   modelActions,
@@ -26,7 +32,7 @@ import {
 import { changeDefaults } from "./change-defaults.ts";
 import { registrationContent, registrationIdentity, registrationState, restorationContent } from "../entity/domain.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
-import { taskCreate, taskUpdate } from "../../contracts/task.ts";
+import { taskCreate, taskUpdate, versionOnly } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { type EntityCreate, entityCreate, entityUpdate } from "../../contracts/entity.ts";
 import { entityId } from "../../contracts/entity-identity.ts";
@@ -35,6 +41,9 @@ export interface BusinessSettingsStore extends RequestStore {
   getTypeIdentity?(typeId: string, lock?: boolean): Promise<EntityTypeIdentity | null>;
   definition?: EntityDefinitions["definition"];
   get(): Promise<BusinessSettingsResult>;
+  getForTarget?(
+    input: Pick<PrepareRecordMemo, "model" | "action" | "target_id"> & { entity_type_id?: string },
+  ): Promise<BusinessSettingsResult>;
   update(input: BusinessSettingsUpdate): Promise<BusinessSettingsResult>;
   recordTags(ids: string[]): Promise<string[]>;
   target?(
@@ -60,21 +69,28 @@ export function prepareBusinessRecord(
     throw invalidInput("입력 크기가 너무 큽니다");
   }
   return d.uow.run(actor, async (store) => {
-    const saved = await store.get();
+    if (!store.getForTarget) throw invalidInput("업무 기본 문구 준비 저장소가 필요합니다");
+    const saved = await store.getForTarget({
+      model: input.model,
+      action: input.action,
+      target_id: input.target_id,
+      entity_type_id: typeof input.input.entity_type_id === "string" ? input.input.entity_type_id : undefined,
+    });
     let before: ChangeFacts | null = null;
     if (input.action !== "create") {
       if (!input.target_id || !input.expected_version) throw invalidInput("대상과 expected_version이 필요합니다");
       const target = await store.target?.(input.model, input.target_id);
       if (!target) throw notFound();
       if (target.version !== input.expected_version) throw conflict("다른 변경이 저장되어 있습니다. 다시 조회하세요.");
-      if (input.model === "entity" && !!target.deleted_at !== (input.action === "restore")) {
+      if (!!target.deleted_at !== (input.action === "restore")) {
         throw conflict(
           input.action === "restore" ? "삭제된 대상만 복원할 수 있습니다" : "삭제된 대상입니다. 복원을 먼저 확인하세요",
         );
       }
       before = target.facts;
     }
-    let content = input.input;
+    const connectingTags = input.intent === "tag-connections";
+    let content: Record<string, unknown> = connectingTags ? tagConnectionSelection.parse(input.input) : input.input;
     if (input.model === "entity" && input.action === "update") assertImmutableType(content);
     let identity: EntityTypeIdentity | null = null;
     if (input.model === "entity" && ["create", "restore"].includes(input.action)) {
@@ -82,8 +98,12 @@ export function prepareBusinessRecord(
       if (!identity) throw notFound();
     }
     let prepared_input = content;
-    if (input.action === "update" || input.action === "restore") {
-      const schema = input.action === "restore" ? entityCreate : input.model === "task" ? taskUpdate : entityUpdate;
+    if (!connectingTags && (input.action === "update" || input.action === "restore")) {
+      const schema = input.action === "restore"
+        ? input.model === "task" ? versionOnly : entityCreate
+        : input.model === "task"
+        ? taskUpdate
+        : entityUpdate;
       const mutation = schema.safeParse({ ...content, expected_version: input.expected_version });
       if (!mutation.success) {
         throw invalidInput(
@@ -92,14 +112,14 @@ export function prepareBusinessRecord(
         );
       }
       const { expected_version: _version, ...fields } = mutation.data;
-      content = input.model === "task"
+      content = input.model === "task" && input.action === "update"
         ? updateTask(
           { kind: before?.kind ?? "once", version: input.expected_version! },
           taskUpdate.parse({ ...fields, expected_version: input.expected_version }),
         )
         : fields;
       prepared_input = content;
-      if (input.action === "restore") {
+      if (input.action === "restore" && input.model === "entity") {
         content = restorationContent(
           identity!,
           before!,
@@ -158,7 +178,7 @@ export function prepareBusinessRecord(
         d.clock.now(),
       );
     }
-    if (input.model === "entity" && input.action !== "delete") {
+    if (!connectingTags && input.model === "entity" && input.action !== "delete") {
       if (!store.definition) throw invalidInput("자료 종류 정의 저장소가 필요합니다");
       const typeId = String(content.entity_type_id ?? before?.entity_type_id ?? "");
       const definition = await requireDefinition(
@@ -197,7 +217,7 @@ export function prepareBusinessRecord(
       ...before,
       ...content,
     } as ChangeFacts;
-    if (input.action === "restore") {
+    if (input.action === "restore" && input.model === "entity") {
       prepared_input = {
         ...prepared_input,
         source: before?.source,
@@ -217,7 +237,7 @@ export function prepareBusinessRecord(
       {
         target_kind: input.model,
         action: input.action,
-        target: { id: input.target_id ?? "", title, entity_ids: [], entity_context: [] },
+        target: { id: input.target_id ?? "", title },
         before,
         after,
         change_note: input.change_note,
@@ -231,7 +251,7 @@ export function prepareBusinessRecord(
 }
 export interface BusinessSettingsDeps {
   clock: { now(): Date };
-  uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>): Promise<T> };
+  uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>, entry?: WorkspaceEntry): Promise<T> };
 }
 export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor): Promise<BusinessSettingsResult>;
 export function getBusinessSettings(
@@ -256,7 +276,7 @@ export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor, input
     const settings = resolvedBusinessSettings(saved.settings);
     if (id) return { settings: { [id]: settings[id] }, versions: { [id]: saved.versions[id] } };
     return { ...saved, settings };
-  });
+  }, { mode: "business", requirements: [{ target_kind: "settings", target_id: "*", access: "read" }] });
 }
 export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, input: unknown) {
   const parsed = businessSettingsUpdate.safeParse(input);
@@ -266,23 +286,36 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
       parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
     );
   }
-  return runWrite(d.uow, actor, "settings.update", parsed.data.id, parsed.data, async (store) => {
-    const sections: BusinessSettings = { [parsed.data.id]: parsed.data.value };
-    const current = await store.get();
-    if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
-      throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
-    }
-    if (
-      new TextEncoder().encode(JSON.stringify(parsed.data.value)).length >
-        BUSINESS_SETTINGS_MAX_BYTES
-    ) throw invalidInput(`업무 설정은 ${BUSINESS_SETTINGS_MAX_BYTES}바이트 이하입니다`);
-    const ids = recordTemplateTagIds(sections.record_templates);
-    if ((await store.recordTags(ids)).length !== ids.length) {
-      throw invalidInput("기록 범위에서 존재하는 태그만 기본값으로 사용할 수 있습니다", [{
-        path: "value",
-        message: "삭제되었거나 다른 범위의 태그를 제거하세요",
-      }]);
-    }
-    return store.update(parsed.data);
-  });
+  return runWrite<BusinessSettingsStore, BusinessSettingsResult>(
+    {
+      run: (actor, fn) =>
+        d.uow.run(actor, fn, {
+          mode: "business",
+          requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+        }),
+    },
+    actor,
+    "settings.update",
+    parsed.data.id,
+    parsed.data,
+    async (store) => {
+      const sections: BusinessSettings = { [parsed.data.id]: parsed.data.value };
+      const current = await store.get();
+      if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
+        throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
+      }
+      if (
+        new TextEncoder().encode(JSON.stringify(parsed.data.value)).length >
+          BUSINESS_SETTINGS_MAX_BYTES
+      ) throw invalidInput(`업무 설정은 ${BUSINESS_SETTINGS_MAX_BYTES}바이트 이하입니다`);
+      const ids = recordTemplateTagIds(sections.record_templates);
+      if ((await store.recordTags(ids)).length !== ids.length) {
+        throw invalidInput("기록 범위에서 존재하는 태그만 기본값으로 사용할 수 있습니다", [{
+          path: "value",
+          message: "삭제되었거나 다른 범위의 태그를 제거하세요",
+        }]);
+      }
+      return store.update(parsed.data);
+    },
+  );
 }

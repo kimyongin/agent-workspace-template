@@ -13,6 +13,10 @@ export function activityLocation(kind: WorkspaceListKind, source: URLSearchParam
     params.set("create", "1");
     changed = true;
   }
+  if (target === "records" && params.has("create")) {
+    params.delete("create");
+    changed = true;
+  }
   if (params.has("tasks_pages") || params.has("records_pages")) {
     const pages = params.get(`${target}_pages`);
     if (pages) params.set("pages", pages);
@@ -20,7 +24,7 @@ export function activityLocation(kind: WorkspaceListKind, source: URLSearchParam
     params.delete("records_pages");
     changed = true;
   }
-  const unsupported = target === "tasks" ? ["record_kind", "from", "to"] : ["kind", "status"];
+  const unsupported = target === "tasks" ? ["record_kind", "from", "to"] : ["kind", "status", "deleted"];
   for (const key of [...unsupported, "collapsed"]) {
     if (params.has(key)) {
       params.delete(key);

@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "../lib/workspace-router.tsx";
 import { Field } from "./Field.tsx";
 import { Button } from "./ui/button.tsx";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "./ui/input-group.tsx";

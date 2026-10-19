@@ -35,6 +35,9 @@ Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유�
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () => Promise.resolve(value),
           update: ({ id, expected_version, value: section }) => {
             if (value.versions[id] !== expected_version) throw new AppError("conflict", "다른 설정이 저장되었습니다");
@@ -79,6 +82,9 @@ Deno.test("기록 준비: 생성 할 일의 실제 기본 상태·빈 본문·�
       run: (_a, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },
@@ -108,6 +114,9 @@ Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
           target: () => Promise.resolve(null),
           getTypeIdentity: () => Promise.resolve(identityFixture(entity_type_id)),
@@ -137,7 +146,6 @@ Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기
     entity_type_id,
     schema_version: 1,
     properties: { prop_1: "새 대상", prop_2: null, prop_3: null, prop_4: "a" },
-    tag_ids: [],
     expected_version: 2,
     change_note: "입력 기록",
     change_tag_ids: [],
@@ -151,6 +159,9 @@ Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리�
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
           update: () => Promise.reject(new Error("읽기만")),
           recordTags: () => Promise.resolve([]),
@@ -182,6 +193,9 @@ Deno.test("기록 준비: 해석 후 메모가 본문 제한을 넘으면 쓰기
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },
@@ -210,6 +224,9 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },
@@ -280,6 +297,9 @@ Deno.test("기록 준비: 반복 중단·재개의 기간은 실제 상태 전�
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },
@@ -312,4 +332,45 @@ Deno.test("기록 준비: 반복 중단·재개의 기간은 실제 상태 전�
   assertEquals(resumed.change_note, JSON.stringify([{ stopped_on: "2026-10-08", resumed_on: "2026-10-09" }]));
   facts = { ...facts, kind: "once", status: "open", recurrence: null, timezone: null, pauses: [] };
   await assertRejects(() => prepareBusinessRecord(d, actor, { ...input, action: "stop" }), AppError, "반복 할 일에만");
+});
+
+Deno.test("saved tag connection prepares its memo without a content update input", async () => {
+  const targetId = crypto.randomUUID(), tagId = crypto.randomUUID();
+  const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-18T00:00:00Z") },
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          getForTarget: () =>
+            Promise.resolve({
+              versions: { record_templates: 1 },
+              settings: { record_templates: { task: { update: { memo: "태그 분류 변경", tag_ids: [] } } } },
+            }),
+          get: () => Promise.resolve({ versions: { record_templates: 1 }, settings: {} }),
+          update: () => Promise.reject(new Error("preparation is read only")),
+          recordTags: () => Promise.resolve([]),
+          target: () => Promise.resolve({ version: 2, facts: { title: "저장된 업무", tag_ids: [] } }),
+        }),
+    },
+  };
+  const result = await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+    intent: "tag-connections",
+    model: "task",
+    action: "update",
+    target_id: targetId,
+    expected_version: 2,
+    input: { tag_ids: [tagId] },
+  });
+  assertEquals(result.prepared_input, { tag_ids: [tagId], expected_version: 2 });
+  assertEquals(result.change_note, "태그 분류 변경");
+  const invalid = await assertRejects(async () =>
+    await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+      intent: "tag-connections",
+      model: "task",
+      action: "update",
+      target_id: targetId,
+      expected_version: 2,
+      input: { tag_ids: [tagId], title: "content cannot enter a link command" },
+    }), AppError);
+  assertEquals(invalid.code, "invalid_input");
 });

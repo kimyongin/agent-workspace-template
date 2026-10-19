@@ -31,14 +31,13 @@ export const templateFields: Record<TemplateModel, Record<string, string>> = {
     반복규칙: "recurrence",
     시간대: "timezone",
     태그: "tag_ids",
-    엔터티: "entity_ids",
     중단기간: "pauses",
   },
 };
 export function modelActions(model: TemplateModel): TemplateAction[] {
   return model === "entity"
     ? ["create", "update", "delete", "restore"]
-    : ["create", "update", "delete", "stop", "resume"];
+    : ["create", "update", "delete", "restore", "stop", "resume"];
 }
 export function templateVariables(model: TemplateModel, action: TemplateAction, propertyKeys: string[] = []): string[] {
   return [

@@ -1,4 +1,4 @@
-vi.mock("../../lib/api.ts", () => ({ api: vi.fn() }));
+vi.mock("../../lib/api.ts", () => ({ createScopedApi: () => vi.fn() }));
 import { expect, test, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ConversionEditor } from "./ConversionEditor.tsx";

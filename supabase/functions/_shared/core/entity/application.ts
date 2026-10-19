@@ -45,13 +45,18 @@ export interface EntityStore extends ChangeStore, EntityDefinitions {
     typeIds?: string[],
   ): Promise<Array<EntitySummary & { _cursor?: EntityKeyset }>>;
 }
+export interface EntityEntry {
+  access: "read" | "write";
+  typeId?: string;
+  entityId?: string;
+}
 export interface EntityDeps {
-  uow: { run<T>(actor: Actor, fn: (store: EntityStore) => Promise<T>): Promise<T> };
+  uow: { run<T>(actor: Actor, fn: (store: EntityStore) => Promise<T>, entry?: EntityEntry): Promise<T> };
 }
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
   i = { ...i, entity_type_id: entityTypeKey.parse(i.entity_type_id) };
   return runWrite(
-    d.uow,
+    entityWork(d, { access: "write", typeId: i.entity_type_id }),
     a,
     i.expected_version === undefined ? "entity.create" : "entity.restore",
     null,
@@ -121,7 +126,7 @@ export function getEntity(d: EntityDeps, a: Actor, id: string) {
     const entity = await s.get(id);
     if (!entity) throw notFound();
     return { ...entity, ...await s.related(id) };
-  });
+  }, { access: "read", entityId: id });
 }
 async function requireVersion(s: EntityStore, id: string, expected: number) {
   const entity = await s.get(id, true);
@@ -131,7 +136,7 @@ async function requireVersion(s: EntityStore, id: string, expected: number) {
   return entity;
 }
 export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdate) {
-  return runWrite(d.uow, a, "entity.update", id, i, async (s) => {
+  return runWrite(entityWork(d, { access: "write", entityId: id }), a, "entity.update", id, i, async (s) => {
     assertImmutableType(i);
     const old = await requireVersion(s, id, i.expected_version);
     const definition = await requireDefinition(s, old.entity_type_id, i.schema_version);
@@ -172,7 +177,7 @@ export function deleteEntity(
   change_tag_ids?: string[],
 ) {
   return runWrite(
-    d.uow,
+    entityWork(d, { access: "write", entityId: id }),
     a,
     "entity.delete",
     id,
@@ -209,7 +214,7 @@ export function listEntities(d: EntityDeps, a: Actor, q: EntityQuery) {
     const definition = q.entity_type_id ? await s.definition(q.entity_type_id) : null;
     validateEntityQuery(q, definition);
     const { cursor, limit, ...filter } = q;
-    const scope = await scopeOf(a, { list: "entities", ...filter, revisions });
+    const scope = await scopeOf(a, { list: "entities", workspace_id: a.workspaceId, ...filter, revisions });
     if (q.entity_type_id && !definition) {
       if (cursor) throw invalidInput("커서의 자료 종류를 찾을 수 없습니다");
       throw notFound();
@@ -248,5 +253,9 @@ export function listEntities(d: EntityDeps, a: Actor, q: EntityQuery) {
       items: selected.map(({ _cursor: _private, ...item }) => item),
       next_cursor: rows.length > limit ? btoa(String.fromCharCode(...new TextEncoder().encode(body))) : null,
     };
-  });
+  }, { access: "read", typeId: q.entity_type_id });
+}
+
+function entityWork(d: EntityDeps, entry: EntityEntry): EntityDeps["uow"] {
+  return { run: (actor, fn) => d.uow.run(actor, fn, entry) };
 }

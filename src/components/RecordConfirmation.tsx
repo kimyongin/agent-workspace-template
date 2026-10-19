@@ -1,3 +1,4 @@
+import { useApi } from "../lib/api-context.tsx";
 import { FieldGroup, FieldSet } from "./ui/field.tsx";
 import { Spinner } from "./ui/spinner.tsx";
 import { Textarea } from "./ui/textarea.tsx";
@@ -11,7 +12,7 @@ import { useWriteAttempt, writeErrorMessage } from "../lib/write-attempt.ts";
 import { Field, Notice } from "./Field.tsx";
 import { TagPicker } from "../features/tags/TagPicker.tsx";
 import type { PrepareRecordMemo, PreparedRecordMemo } from "@contracts/record-preparation.ts";
-import { api } from "../lib/api.ts";
+
 import { WorkspaceContext } from "../features/details/workspace-context.ts";
 
 export type ConfirmationValue = { label: string; value: ReactNode; fullWidth?: boolean };
@@ -55,12 +56,17 @@ interface ConfirmationDescription {
 /** One confirmation lifetime owns memo drafts, errors, frozen retries and its dialog stage. */
 export function useRecordConfirmation(options: {
   open?: boolean;
+  visible?: boolean;
+  disabled?: boolean;
   initial?: ConfirmationKind;
   describe: (kind: ConfirmationKind) => ConfirmationDescription;
   onCancel?: () => void;
+  /** The caller keeps this owner mounted when cancellation only hides its view. */
+  retainOnCancel?: boolean;
   closeOnSuccess?: boolean;
   clearOnCancel?: boolean;
 }) {
+  const api = useApi();
   const latest = useRef(options);
   latest.current = options;
   const { attempt, busy, uncertain } = useWriteAttempt();
@@ -82,6 +88,7 @@ export function useRecordConfirmation(options: {
   };
   const origin = useRef<FocusOrigin | null>(null);
   const begin = async (kind: ConfirmationKind, invoker?: HTMLElement | null) => {
+    if (latest.current.visible === false || latest.current.disabled) return;
     origin.current = captureFocusOrigin(invoker ?? document.activeElement);
     if (attempt.snapshot().busy || attempt.snapshot().uncertain) { setStage(kind); return; }
     setStage(kind);
@@ -119,13 +126,18 @@ export function useRecordConfirmation(options: {
   };
   useEffect(() => { if (options.initial && options.open !== false) void begin(options.initial); if(options.open===false){setStage(null);setPreparing(false);} return () => { preparationRun.current++; }; }, [options.initial, options.open]);
   const cancel = () => {
-    if (attempt.snapshot().busy) return;
+    const state = attempt.snapshot();
+    // External cancellation can unmount the owner of the retained operation.
+    // Inner confirmation dismissal keeps that owner and may remain available.
+    if (state.busy || (state.uncertain && latest.current.onCancel && !latest.current.retainOnCancel)) return;
     if (latest.current.clearOnCancel) reject({}, null);
     if (latest.current.onCancel) latest.current.onCancel();
     else setStage(null);
   };
   const write = async (kind: ConfirmationKind) => {
-    if (attempt.snapshot().busy || preparing) return;
+    // Retained retries keep their original operation, but current authority
+    // still decides whether that operation may be submitted again.
+    if (latest.current.visible === false || latest.current.disabled || attempt.snapshot().busy || preparing) return;
     const description = latest.current.describe(kind);
     if (description.preparation && description.record && !preparationReady.current && !attempt.snapshot().uncertain) return;
     const local = description.record ? changeNoteErrors(note, false) : null;
@@ -144,23 +156,24 @@ export function useRecordConfirmation(options: {
     }
   };
   const description = stage ? options.describe(stage) : null;
+  const retaining = uncertain && !!options.onCancel && !options.retainOnCancel;
   useLayoutEffect(() => {
-    if (!register || options.open === false || !stage || !description) return;
+    if (!register || options.open === false || options.visible === false || !stage || !description) return;
     register({
-      title: description.title, busy, returnFocus: origin.current,
+      title: description.title, busy: busy || retaining, returnFocus: origin.current,
       body: <RecordMemoFields note={note} tags={tags} onNote={value => { touched.current.note = true; setNote(value); }} onTags={value => { touched.current.tags = true; setTags(value); }}
         preparing={preparing}
-        errors={errors} failure={failure} frozen={busy || uncertain || preparing} record={description.record}
+        errors={errors} failure={failure} frozen={!!options.disabled || busy || uncertain || preparing} record={description.record}
         data={description.data} message={description.message} excludeTag={description.excludeTag}/>,
-      footer: <><Button variant="outline" type="button"  disabled={busy} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</Button>
-        <Button variant={description.danger ? "destructive" : "default"} type="button" disabled={busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)} onClick={() => void write(stage)}>
+      footer: <><Button variant="outline" type="button"  disabled={busy || retaining} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</Button>
+        <Button variant={description.danger ? "destructive" : "default"} type="button" disabled={!!options.disabled || busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)} onClick={() => void write(stage)}>
           {busy ? description.pendingLabel ?? "처리 중…" : uncertain ? "같은 내용 다시 시도" : description.label}
         </Button></>,
       onCancel: cancel,
     });
     return () => register(null);
-  }, [register, options.open, stage, note, tags, errors, failure, busy, uncertain, preparing,
-    description?.title, description?.label, description?.record, description?.danger, description?.excludeTag]);
+  }, [register, options.open, options.visible, stage, note, tags, errors, failure, busy, uncertain, preparing,
+    options.disabled, retaining, description?.title, description?.label, description?.record, description?.danger, description?.excludeTag]);
   return { active: stage !== null, dirty: !!stage || touched.current.note || touched.current.tags || !!tags.length || uncertain,
     busy, uncertain, errors, failure, begin, write, reject };
 }

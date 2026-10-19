@@ -70,7 +70,7 @@ export function dataModelTools(d: DataModelDeps): ToolDef[] {
     }),
     {
       name: "list_data_model_changes",
-      description: "소유자의 전체 모델 변경 이력을 페이지 조회합니다.",
+      description: "현재 공간에서 설정 권한으로 전체 모델 변경 이력을 페이지 조회합니다.",
       input: z.strictObject({
         limit: z.number().int().min(1).max(100).default(20),
         cursor: z.string().optional(),

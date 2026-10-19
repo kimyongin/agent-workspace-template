@@ -1,8 +1,8 @@
 import { runWrite } from "../shared/request.ts";
-import { activityChangeTarget, recordChangeFacts, taskChangeFacts } from "./change.ts";
+import { activityChangeTarget, taskChangeFacts } from "./change.ts";
 // 할 일·기록 유스케이스. HTTP와 MCP가 같은 함수를 호출한다(ADR-0001).
 // 읽기 → 도메인 판단 → 저장 순서와 트랜잭션 경계, 색인 작업 등록, 요청 재전송 처리를 맡는다.
-import type { RecordCreate, RecordListQuery, RecordResult, RecordUpdate } from "../../contracts/record.ts";
+import type { OccurrenceRecordCreate, RecordListQuery, RecordResult, RecordUpdate } from "../../contracts/record.ts";
 import type {
   TaskComplete,
   TaskCreate,
@@ -27,7 +27,7 @@ import {
   todayOf,
   updateTask as decideUpdate,
 } from "./domain.ts";
-import type { ActivityRecord, ActivityStore, Clock, UnitOfWork } from "./ports.ts";
+import type { ActivityEntry, ActivityRecord, ActivityStore, Clock, UnitOfWork } from "./ports.ts";
 import { listOccurrences as computeOccurrences } from "./recurrence.ts";
 
 export interface ActivityDeps {
@@ -37,9 +37,17 @@ export interface ActivityDeps {
 
 export type { Page } from "../shared/operations.ts";
 
-function toTaskResult(task: Task): TaskResult {
+function activityWork(deps: ActivityDeps, entry: ActivityEntry): UnitOfWork {
+  return { run: (actor, fn) => deps.uow.run(actor, fn, entry) };
+}
+
+async function toTaskResult(store: ActivityStore, raw: Task): Promise<TaskResult> {
+  const task = store.visibleTask ? await store.visibleTask(raw) : raw;
   return {
     ...task,
+    deleted_at: task.deleted_at ?? null,
+    created_by: task.created_by ?? null,
+    created_by_name: task.created_by_name ?? null,
     entity_ids: task.entity_ids ?? [],
     entity_context: task.entity_context ?? [],
   };
@@ -48,9 +56,10 @@ function toTaskResult(task: Task): TaskResult {
 function toRecordResult(record: ActivityRecord): RecordResult {
   return {
     ...record,
-    entity_ids: record.entity_ids ?? [],
-    entity_context: record.entity_context ?? [],
-    record_kind: record.record_kind ?? "user",
+    created_by: record.created_by ?? null,
+    created_by_name: record.created_by_name ?? null,
+    entity_id: record.entity_id ?? null,
+    record_kind: record.record_kind,
     change: record.change ?? null,
   };
 }
@@ -61,9 +70,11 @@ async function requireTask(
   forUpdate = false,
   entityIds?: string[],
   selectionWrite = false,
+  allowDeleted = false,
 ): Promise<Task> {
   const task = await store.getTask(id, { forUpdate, entityIds, selectionWrite });
   if (!task) throw notFound();
+  if (forUpdate && task.deleted_at && !allowDeleted) throw conflict("삭제된 할 일입니다. 복원 후 변경하세요");
   return task;
 }
 
@@ -71,10 +82,8 @@ async function requireRecord(
   store: ActivityStore,
   id: string,
   forUpdate = false,
-  entityIds?: string[],
-  selectionWrite = false,
 ): Promise<ActivityRecord> {
-  const record = await store.getRecord(id, { forUpdate, entityIds, selectionWrite });
+  const record = await store.getRecord(id, { forUpdate });
   if (!record) throw notFound();
   return record;
 }
@@ -82,7 +91,7 @@ async function requireRecord(
 // ---------- 할 일 ----------
 
 export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCreate): Promise<TaskResult> {
-  return await runWrite(deps.uow, actor, "task.create", null, input, async (store) => {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.create", null, input, async (store) => {
     const task = await store.insertTask(newTask(input));
 
     await store.appendChange({
@@ -94,7 +103,7 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
       change_note: input.change_note,
       change_tag_ids: input.change_tag_ids,
     });
-    return toTaskResult(task);
+    return toTaskResult(store, task);
   });
 }
 
@@ -102,13 +111,13 @@ export async function getTask(deps: ActivityDeps, actor: Actor, id: string): Pro
   return await deps.uow.run(actor, async (store) => {
     const task = await requireTask(store, id);
     const [result] = task.result_record_id ? await store.getRecordBodies([task.result_record_id]) : [];
-    return { ...toTaskResult(task), result_record: result ?? null };
+    return { ...await toTaskResult(store, task), result_record: result ?? null };
   });
 }
 
 export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskListQuery): Promise<Page<TaskListItem>> {
   const { cursor, limit, ...filter } = query;
-  const scope = await scopeOf(actor, { list: "tasks", ...filter });
+  const scope = await scopeOf(actor, { list: "tasks", workspace_id: actor.workspaceId, ...filter });
   const after = cursor ? decodeCursor(cursor, scope) : undefined;
   const now = deps.clock.now();
 
@@ -116,7 +125,10 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
     if (!filter.occurrence_on) {
       const rows = await store.listTasks({ ...filter, after, limit: limit + 1 });
       const page = await paginate(rows, limit, (t) => t.updated_at, scope);
-      return { ...page, items: page.items.map((t) => ({ ...toTaskResult(t), occurrence: null })) };
+      return {
+        ...page,
+        items: await Promise.all(page.items.map(async (t) => ({ ...await toTaskResult(store, t), occurrence: null }))),
+      };
     }
 
     // 그 날짜에 회차가 있는 반복 할 일. 회차는 계산값이라 반복 할 일을 모두 읽어 거른다(개인 앱 규모).
@@ -129,6 +141,7 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
       tag_ids: filter.tag_ids,
       entity_id: filter.entity_id,
       keyword: filter.keyword,
+      deleted: filter.deleted,
       limit: 5000,
     });
     const records = await store.occurrenceRecords(
@@ -153,7 +166,7 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
         date,
         todayOf(task, now),
       );
-      if (occurrence) items.push({ ...toTaskResult(task), occurrence });
+      if (occurrence) items.push({ ...await toTaskResult(store, task), occurrence });
     }
     const sorted = items
       .filter((t) => !after || t.updated_at < after.at || (t.updated_at === after.at && t.id < after.id))
@@ -163,10 +176,10 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
 }
 
 export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, patch: TaskUpdate): Promise<TaskResult> {
-  return await runWrite(deps.uow, actor, "task.update", id, patch, async (store) => {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.update", id, patch, async (store) => {
     const task = await requireTask(store, id, true, patch.entity_ids, patch.entity_ids !== undefined);
     const changes = decideUpdate(task, patch);
-    if (!changed(task, changes)) return toTaskResult(task);
+    if (!changed(task, changes)) return toTaskResult(store, task);
     const updated = await store.updateTask(id, changes);
     await store.appendChange({
       target_kind: "task",
@@ -177,7 +190,7 @@ export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, p
       change_note: patch.change_note,
       change_tag_ids: patch.change_tag_ids,
     });
-    return toTaskResult(updated);
+    return toTaskResult(store, updated);
   });
 }
 
@@ -188,27 +201,23 @@ export async function completeTask(
   id: string,
   input: TaskComplete,
 ): Promise<{ task: TaskResult; record: RecordResult }> {
-  return await runWrite(deps.uow, actor, "task.complete", id, input, async (store) => {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.complete", id, input, async (store) => {
     const now = deps.clock.now();
-    const task = await requireTask(store, id, true, undefined, true);
+    const task = await requireTask(store, id, true);
     const decided = decideComplete(task, input.expected_version, now);
     const record = await store.insertRecord({
-      record_kind: "result",
-      inherit_task_entities: true,
-      entity_ids: task.entity_ids ?? [],
       body: input.body,
       occurred_at: input.occurred_at ?? null,
       task_id: task.id,
       occurrence_on: null,
-      tag_ids: input.tag_ids,
     });
     const updated = await store.updateTask(id, { ...decided, result_record_id: record.id });
     await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
-    return { task: toTaskResult(updated), record: toRecordResult(record) };
+    return { task: await toTaskResult(store, updated), record: toRecordResult(record) };
   });
 }
 
-/** 할 일만 삭제한다. 결과·회차 기록은 보존하고 task_id·occurrence_on을 비운다. */
+/** 소프트 삭제하며 결과·회차의 불변 소속과 수행 문맥을 보존한다. */
 export async function deleteTask(
   deps: ActivityDeps,
   actor: Actor,
@@ -217,15 +226,14 @@ export async function deleteTask(
   change_note?: string,
   change_tag_ids?: string[],
 ): Promise<void> {
-  await runWrite(deps.uow, actor, "task.delete", id, {
+  await runWrite(activityWork(deps, { access: "write" }), actor, "task.delete", id, {
     expected_version: expectedVersion,
     change_note,
     change_tag_ids,
   }, async (store) => {
-    const task = await requireTask(store, id, true, undefined, true);
+    const task = await requireTask(store, id, true);
     assertVersion(task, expectedVersion);
-    await store.detachRecords(id);
-    await store.deleteTask(id);
+    await store.updateTask(id, { deleted_at: deps.clock.now().toISOString() });
     await store.appendChange({
       target_kind: "task",
       target: activityChangeTarget(task),
@@ -239,6 +247,36 @@ export async function deleteTask(
   });
 }
 
+export function restoreTask(
+  deps: ActivityDeps,
+  actor: Actor,
+  id: string,
+  expectedVersion: number,
+  change_note?: string,
+  change_tag_ids?: string[],
+): Promise<TaskResult> {
+  return runWrite(activityWork(deps, { access: "write" }), actor, "task.restore", id, {
+    expected_version: expectedVersion,
+    change_note,
+    change_tag_ids,
+  }, async (store) => {
+    const task = await requireTask(store, id, true, undefined, false, true);
+    assertVersion(task, expectedVersion);
+    if (!task.deleted_at) throw conflict("삭제된 할 일만 복원할 수 있습니다");
+    const restored = await store.updateTask(id, { deleted_at: null });
+    await store.appendChange({
+      target_kind: "task",
+      target: activityChangeTarget(restored),
+      action: "restore",
+      before: null,
+      after: taskChangeFacts(restored),
+      change_note,
+      change_tag_ids,
+    });
+    return toTaskResult(store, restored);
+  });
+}
+
 export async function stopTask(
   deps: ActivityDeps,
   actor: Actor,
@@ -247,7 +285,7 @@ export async function stopTask(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return await runWrite(deps.uow, actor, "task.stop", id, {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.stop", id, {
     expected_version: expectedVersion,
     change_note,
     change_tag_ids,
@@ -263,7 +301,7 @@ export async function stopTask(
       change_note,
       change_tag_ids,
     });
-    return toTaskResult(result);
+    return toTaskResult(store, result);
   });
 }
 
@@ -275,7 +313,7 @@ export async function resumeTask(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return await runWrite(deps.uow, actor, "task.resume", id, {
+  return await runWrite(activityWork(deps, { access: "write" }), actor, "task.resume", id, {
     expected_version: expectedVersion,
     change_note,
     change_tag_ids,
@@ -291,7 +329,7 @@ export async function resumeTask(
       change_note,
       change_tag_ids,
     });
-    return toTaskResult(result);
+    return toTaskResult(store, result);
   });
 }
 
@@ -317,45 +355,31 @@ export async function recordOccurrence(
   actor: Actor,
   id: string,
   date: string,
-  input: Omit<RecordCreate, "task_id">,
+  input: OccurrenceRecordCreate,
 ): Promise<RecordResult> {
-  return await runWrite(deps.uow, actor, "occurrence.record", { task_id: id, date }, input, async (store) => {
-    // 중단·규칙 수정과 겹치지 않도록 할 일을 잠그고 판단한다.
-    const task = await requireTask(store, id, true, undefined, true);
-    assertRecordableOccurrence(task, date, deps.clock.now());
-    const record = await store.insertRecord({
-      record_kind: "result",
-      inherit_task_entities: input.entity_ids === undefined,
-      entity_ids: input.entity_ids ?? task.entity_ids ?? [],
-      body: input.body,
-      occurred_at: input.occurred_at ?? null,
-      task_id: id,
-      occurrence_on: date,
-      tag_ids: input.tag_ids,
-    });
-    await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
-    return toRecordResult(record);
-  });
+  return await runWrite(
+    activityWork(deps, { access: "write" }),
+    actor,
+    "occurrence.record",
+    { task_id: id, date },
+    input,
+    async (store) => {
+      // 중단·규칙 수정과 겹치지 않도록 할 일을 잠그고 판단한다.
+      const task = await requireTask(store, id, true);
+      assertRecordableOccurrence(task, date, deps.clock.now());
+      const record = await store.insertRecord({
+        body: input.body,
+        occurred_at: input.occurred_at ?? null,
+        task_id: id,
+        occurrence_on: date,
+      });
+      await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
+      return toRecordResult(record);
+    },
+  );
 }
 
 // ---------- 기록 ----------
-
-export async function createRecord(deps: ActivityDeps, actor: Actor, input: RecordCreate): Promise<RecordResult> {
-  return await runWrite(deps.uow, actor, "record.create", null, input, async (store) => {
-    const task = input.task_id ? await requireTask(store, input.task_id, true, input.entity_ids, true) : null;
-    const record = await store.insertRecord({
-      inherit_task_entities: input.entity_ids === undefined,
-      entity_ids: input.entity_ids ?? task?.entity_ids ?? [],
-      body: input.body,
-      occurred_at: input.occurred_at ?? null,
-      task_id: task?.id ?? null,
-      occurrence_on: null,
-      tag_ids: input.tag_ids,
-    });
-    await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
-    return toRecordResult(record);
-  });
-}
 
 export async function getRecord(deps: ActivityDeps, actor: Actor, id: string): Promise<RecordResult> {
   return await deps.uow.run(actor, async (store) => toRecordResult(await requireRecord(store, id)));
@@ -367,7 +391,7 @@ export async function listRecords(
   query: RecordListQuery,
 ): Promise<Page<RecordResult>> {
   const { cursor, limit, ...filter } = query;
-  const scope = await scopeOf(actor, { list: "records", ...filter });
+  const scope = await scopeOf(actor, { list: "records", workspace_id: actor.workspaceId, ...filter });
   const after = cursor ? decodeCursor(cursor, scope) : undefined;
   return await deps.uow.run(actor, async (store) => {
     const rows = await store.listRecords({ ...filter, after, limit: limit + 1 });
@@ -376,35 +400,40 @@ export async function listRecords(
   });
 }
 
-/** 본문 변경만 구간 색인을 교체한다. */
+/** 변경된 기록 버전마다 구간 색인을 새 원본 버전에 연결한다. */
 export async function updateRecord(
   deps: ActivityDeps,
   actor: Actor,
   id: string,
   patch: RecordUpdate,
 ): Promise<RecordResult> {
-  return await runWrite(deps.uow, actor, "record.update", id, patch, async (store) => {
-    const record = await requireRecord(store, id, true, patch.entity_ids, patch.entity_ids !== undefined);
-    assertVersion(record, patch.expected_version);
-    if (
-      record.record_kind === "change" &&
-      ["entity_ids", "tag_ids", "occurred_at"].some((k) => k in patch)
-    ) {
-      throw invalidInput("변경 기록은 본문만 정정할 수 있습니다");
-    }
-    const { expected_version: _v, ...changes } = patch;
-    if (
-      !changed(record, changes)
-    ) return toRecordResult(record);
-    const updated = await store.updateRecord(id, {
-      ...changes,
-    });
-    if (updated.body !== record.body) {
+  return await runWrite(
+    activityWork(deps, { access: "write", recordId: id }),
+    actor,
+    "record.update",
+    id,
+    patch,
+    async (store) => {
+      const record = await requireRecord(store, id, true);
+      assertVersion(record, patch.expected_version);
+      if (
+        record.record_kind === "change" &&
+        "occurred_at" in patch
+      ) {
+        throw invalidInput("변경 기록은 본문만 정정할 수 있습니다");
+      }
+      const { expected_version: _v, ...changes } = patch;
+      if (
+        !changed(record, changes)
+      ) return toRecordResult(record);
+      const updated = await store.updateRecord(id, {
+        ...changes,
+      });
       await store.enqueueIndex({ kind: "record", id, input_hash: await searchInputHash(updated.body) });
-    }
-    // Records are editable knowledge. Editing their memo does not create another event.
-    return toRecordResult(updated);
-  });
+      // Records are editable knowledge. Editing their memo does not create another event.
+      return toRecordResult(updated);
+    },
+  );
 }
 
 /**
@@ -416,28 +445,15 @@ export async function deleteRecord(
   actor: Actor,
   id: string,
   expectedVersion: number,
-  change_note?: string,
-  change_tag_ids?: string[],
 ) {
-  await runWrite(deps.uow, actor, "record.delete", id, {
+  await runWrite(activityWork(deps, { access: "write", recordId: id }), actor, "record.delete", id, {
     expected_version: expectedVersion,
-    change_note,
-    change_tag_ids,
   }, async (store) => {
-    const record = await requireRecord(store, id, true, undefined, true);
+    const record = await requireRecord(store, id, true);
     assertVersion(record, expectedVersion);
     const owner = await store.taskWithResult(id);
     if (owner) await store.updateTask(owner.id, { result_record_id: null });
     await store.deleteRecord(id);
-    await store.appendChange({
-      target_kind: "record",
-      target: activityChangeTarget(record),
-      action: "delete",
-      before: recordChangeFacts(record),
-      after: null,
-      change_note,
-      change_tag_ids,
-    });
     return { deleted: true };
   });
 }

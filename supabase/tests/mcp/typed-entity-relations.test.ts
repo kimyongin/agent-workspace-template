@@ -1,121 +1,222 @@
-import { assertEquals } from "@std/assert";
-import { admin, call, httpTest, signIn } from "../http/_client.ts";
-import { connectMcp, mcpToken, tool } from "./_mcp.ts";
-httpTest(
+import { assert, assertEquals } from "@std/assert";
+import { admin, call } from "../http/_client.ts";
+import { activityWorkspaceSuite, scopedHttp, scopedTool } from "../http/_workspace-activity-fixture.ts";
+import { claimsOf, tool } from "./_mcp.ts";
+activityWorkspaceSuite(
   "typed relation HTTP/MCP parity: roles, candidates, exact replay, conflict and explicit replacement",
-  async () => {
-    const a = await signIn("A"), b = await signIn("B"), client = await connectMcp(await mcpToken(a));
-    let typeId: string | undefined, definitionId: string | undefined;
-    const owner = JSON.parse(atob(a.split(".")[1].replaceAll("-", "+").replaceAll("_", "/"))).sub as string;
-    const keys: string[] = [], failures: unknown[] = [];
-    const nextKey = () => {
-      const key = crypto.randomUUID();
-      keys.push(key);
-      return key;
+  async ({ A: a, B: b, workspaceA: w, workspaceB: otherW, clientA: client, schema }) => {
+    assert(client);
+    const typeId = schema.entity_type_id;
+    const nextKey = () => crypto.randomUUID();
+    const def = await scopedTool(client, w, "create_entity_relation_definition", {
+      request_key: nextKey(),
+      ends: [{ type_id: typeId, label: "소속", cardinality: "one" }, {
+        type_id: typeId,
+        label: "구성",
+        cardinality: "many",
+      }],
+    });
+    const values = [];
+    for (const title of ["원점", "상대", "새 상대"]) {
+      values.push(
+        (await scopedHttp(a, w, "POST", "/entities", {
+          entity_type_id: typeId,
+          schema_version: 1,
+          properties: { prop_1: title },
+        }, nextKey())).body,
+      );
+    }
+    const location = { definition_id: def.id, side: 0, origin_id: values[0].id },
+      base = `/entity-relations/${def.id}/0/${encodeURIComponent(values[0].id)}`;
+    const input = {
+      other_id: values[1].id,
+      expected_definition_version: 1,
+      expected_version: 1,
+      expected_other_version: 1,
     };
+    const key = nextKey(), linked = await scopedHttp(a, w, "POST", `${base}/connect`, input, key);
+    assertEquals(linked.status, 200);
+    assertEquals(
+      await scopedTool(client, w, "connect_entity_relation", { ...location, ...input, request_key: key }),
+      linked.body,
+    );
+    assertEquals(
+      (await scopedTool(client, w, "list_entity_relation_links", location)).items.map((e: { id: string }) => e.id),
+      [values[1].id],
+    );
+    assertEquals((await scopedHttp(b, otherW, "GET", `${base}/links`)).status, 404);
+    const candidates = await scopedTool(client, w, "list_entity_relation_candidates", { ...location, q: "새 상대" });
+    assertEquals(candidates.items.map((e: { id: string }) => e.id), [values[2].id]);
+    const replaced = await scopedTool(client, w, "replace_entity_relation", {
+      request_key: nextKey(),
+      ...location,
+      ...input,
+      other_id: values[2].id,
+      expected_version: 2,
+      previous_other_id: values[1].id,
+      expected_previous_version: 2,
+    });
+    assertEquals(replaced.changed, true);
+    const stale = await scopedHttp(a, w, "POST", `${base}/connect`, input, nextKey());
+    assertEquals(stale.status, 409);
+    const removed = await scopedTool(client, w, "unlink_entity_relation", {
+      request_key: nextKey(),
+      ...location,
+      ...input,
+      other_id: values[2].id,
+      expected_version: 3,
+      expected_other_version: 2,
+    });
+    assertEquals(removed.changed, true);
+    assertEquals((await scopedHttp(a, w, "GET", `${base}/links`)).body.items, []);
+  },
+  { mcp: true },
+);
+
+activityWorkspaceSuite(
+  "workspace relation real HTTP MCP share business metadata keyed writes and create replace",
+  async (
+    {
+      A: token,
+      B: memberToken,
+      workspaceA: workspace,
+      workspaceB: foreignWorkspace,
+      clientB: client,
+      schema,
+      registerMember,
+    },
+  ) => {
+    assert(client);
+    const typeId = schema.entity_type_id;
+    const request = (
+      selectedWorkspace: string,
+      method: string,
+      path: string,
+      body?: unknown,
+      key = crypto.randomUUID(),
+    ) => scopedHttp(memberToken, selectedWorkspace, method, path, body, key);
+    const createdDefinition = await scopedHttp(token, workspace, "POST", "/entity-relation-definitions", {
+      ends: [{ type_id: typeId, label: "설정 원점", cardinality: "one" }, {
+        type_id: typeId,
+        label: "설정 상대",
+        cardinality: "one",
+      }],
+    });
+    assertEquals(createdDefinition.status, 201);
+    const memberId = String(claimsOf(memberToken).sub);
+    const [ownedRoot] = await admin`select created_by from app.workspaces where id=${workspace}`;
+    assertEquals(ownedRoot.created_by, claimsOf(token).sub);
+    // Admit only this real fixture session to the exact freshly owned workspace.
+    // Public manager authorization then supplies its minimal business grant.
+    await admin`insert into private.workspace_members(workspace_id,user_id) values(${workspace},${memberId})`;
+    registerMember(workspace, memberId);
+    assertEquals(
+      (await call(token, "PATCH", `/workspaces/${workspace}/members/${memberId}`, {
+        expected_version: 1,
+        grants: [{ target_kind: "entity_type", target_id: typeId, access: "write" }],
+      })).status,
+      200,
+    );
+    const failures: unknown[] = [];
     try {
-      const type = await call(a, "POST", "/entity-types", { label: `관계 업무 ${crypto.randomUUID()}` }, nextKey());
-      assertEquals(type.status, 201);
-      typeId = type.body.id;
-      const def = await tool(client, "create_entity_relation_definition", {
-        request_key: nextKey(),
-        ends: [{ type_id: typeId, label: "소속", cardinality: "one" }, {
-          type_id: typeId,
-          label: "구성",
-          cardinality: "many",
-        }],
-      });
-      definitionId = def.id;
-      const values = [];
-      for (const title of ["원점", "상대", "새 상대"]) {
-        values.push(
-          (await call(a, "POST", "/entities", {
-            entity_type_id: typeId,
-            schema_version: 1,
-            properties: { prop_1: title },
-          }, nextKey())).body,
-        );
-      }
-      const location = { definition_id: def.id, side: 0, origin_id: values[0].id },
-        base = `/entity-relations/${def.id}/0/${encodeURIComponent(values[0].id)}`;
+      const scope = { workspace_id: workspace };
+      const def = createdDefinition.body;
+      assertEquals((await request(workspace, "GET", "/entity-relation-definitions")).status, 403);
+      assertEquals(
+        (await tool(client, "list_entity_relation_definitions", { ...scope, purpose: "business", type_id: typeId }))
+          .items
+          .map((item: { id: string }) => item.id),
+        [def.id],
+      );
+      assertEquals(
+        (await request(workspace, "GET", `/entity-relation-definitions/${def.id}?purpose=business`)).body,
+        def,
+      );
+      const create = (title: string) =>
+        request(workspace, "POST", "/entities", {
+          entity_type_id: typeId,
+          schema_version: 1,
+          properties: { prop_1: title },
+        });
+      const origin = await create("전송 원점"), previous = await create("전송 이전 상대");
+      assertEquals([origin.status, previous.status], [201, 201]);
+      const location = { definition_id: def.id, side: 0, origin_id: origin.body.id },
+        base = `/entity-relations/${def.id}/0/${encodeURIComponent(origin.body.id)}`;
+      const candidates = await request(
+        workspace,
+        "GET",
+        `${base}/candidates?q=${encodeURIComponent("전송 이전 상대")}`,
+      );
+      assertEquals(candidates.status, 200);
+      assertEquals(
+        await tool(client, "list_entity_relation_candidates", { ...scope, ...location, q: "전송 이전 상대" }),
+        candidates.body,
+      );
       const input = {
-        other_id: values[1].id,
+        other_id: previous.body.id,
         expected_definition_version: 1,
         expected_version: 1,
         expected_other_version: 1,
       };
-      const key = nextKey(), linked = await call(a, "POST", `${base}/connect`, input, key);
-      assertEquals(linked.status, 200);
+      const key = crypto.randomUUID(), connected = await request(workspace, "POST", `${base}/connect`, input, key);
+      assertEquals(connected.status, 200);
       assertEquals(
-        await tool(client, "connect_entity_relation", { ...location, ...input, request_key: key }),
-        linked.body,
+        await tool(client, "connect_entity_relation", { ...scope, ...location, ...input, request_key: key }),
+        connected.body,
       );
-      assertEquals(
-        (await tool(client, "list_entity_relation_links", location)).items.map((e: { id: string }) => e.id),
-        [values[1].id],
-      );
-      assertEquals((await call(b, "GET", `${base}/links`)).status, 404);
-      const candidates = await tool(client, "list_entity_relation_candidates", { ...location, q: "새 상대" });
-      assertEquals(candidates.items.map((e: { id: string }) => e.id), [values[2].id]);
-      const replaced = await tool(client, "replace_entity_relation", {
-        request_key: nextKey(),
+      const nextKey = crypto.randomUUID(),
+        nextInput = {
+          expected_definition_version: 1,
+          expected_version: 2,
+          previous_other_id: previous.body.id,
+          expected_previous_version: 2,
+          entity: { entity_type_id: typeId, schema_version: 1, properties: { prop_1: "전송 새 상대" } },
+        };
+      const replaced = await tool(client, "create_and_link_entity", {
+        ...scope,
         ...location,
-        ...input,
-        other_id: values[2].id,
-        expected_version: 2,
-        previous_other_id: values[1].id,
-        expected_previous_version: 2,
+        ...nextInput,
+        request_key: nextKey,
       });
-      assertEquals(replaced.changed, true);
-      const stale = await call(a, "POST", `${base}/connect`, input, nextKey());
-      assertEquals(stale.status, 409);
+      assertEquals(replaced.entity.version, 2);
+      assertEquals((await request(workspace, "POST", `${base}/create-and-link`, nextInput, nextKey)).body, replaced);
+      assertEquals(
+        (await tool(client, "list_entity_relation_links", { ...scope, ...location })).items.map((
+          item: { id: string },
+        ) => item.id),
+        [replaced.entity.id],
+      );
       const removed = await tool(client, "unlink_entity_relation", {
-        request_key: nextKey(),
+        ...scope,
         ...location,
-        ...input,
-        other_id: values[2].id,
+        other_id: replaced.entity.id,
+        expected_definition_version: 1,
         expected_version: 3,
         expected_other_version: 2,
+        request_key: crypto.randomUUID(),
       });
       assertEquals(removed.changed, true);
-      assertEquals((await call(a, "GET", `${base}/links`)).body.items, []);
+      assertEquals((await request(workspace, "GET", `${base}/links`)).body.items, []);
+      assertEquals((await request(foreignWorkspace, "GET", `${base}/links`)).status, 404);
     } catch (error) {
       failures.push(error);
     } finally {
+      // Restore the fixture's explicit creator-only membership invariant before
+      // its common cleanup verifies and deletes the exact owned workspace.
       try {
-        await admin.begin(async (tx) => {
-          const rows = typeId
-            ? await tx`select id from app.entities where owner_id=${owner} and entity_type_id=${typeId}::uuid`
-            : [];
-          const ids = rows.map((row) => String(row.id));
-          const records =
-            await tx`select id from app.records where owner_id=${owner} and change_metadata->>'target_kind'='entity' and change_metadata->>'target_id'=any(${ids}::text[])`;
-          const recordIds = records.map((row) => String(row.id));
-          await tx`delete from private.request_results where owner_id=${owner} and request_key=any(${keys}::uuid[])`;
-          await tx`delete from pgmq.q_search_index where message->>'owner_id'=${owner} and message->>'kind'='record' and message->>'id'=any(${recordIds}::text[])`;
-          await tx`delete from pgmq.a_search_index where message->>'owner_id'=${owner} and message->>'kind'='record' and message->>'id'=any(${recordIds}::text[])`;
-          await tx`delete from private.passage_effects where owner_id=${owner} and record_id=any(${recordIds}::text[])`;
-          await tx`delete from app.search_chunks where owner_id=${owner} and record_id=any(${recordIds}::text[])`;
-          await tx`delete from app.search_index_state where owner_id=${owner} and kind='record' and id=any(${recordIds}::text[])`;
-          await tx`delete from app.records where owner_id=${owner} and id=any(${recordIds}::text[])`;
-          if (definitionId) {
-            await tx`delete from app.entity_relation_links where owner_id=${owner} and definition_id=${definitionId}::uuid`;
-            await tx`delete from app.entity_relation_definitions where owner_id=${owner} and id=${definitionId}::uuid`;
-          }
-          if (typeId) {
-            await tx`delete from app.entities where owner_id=${owner} and entity_type_id=${typeId}::uuid`;
-            await tx`delete from app.entity_types where owner_id=${owner} and id=${typeId}::uuid`;
-          }
-        });
-      } catch (error) {
-        failures.push(error);
-      }
-      try {
-        await client.close();
+        const membership = await call(memberToken, "GET", `/workspaces/${workspace}/membership`);
+        assertEquals(membership.status, 200);
+        assertEquals(
+          (await call(memberToken, "POST", `/workspaces/${workspace}/leave`, {
+            expected_version: membership.body.membership_version,
+          })).status,
+          200,
+        );
       } catch (error) {
         failures.push(error);
       }
     }
-    if (failures.length) throw new AggregateError(failures, "typed relation workflow or owned fixture cleanup failed");
+    if (failures.length) throw new AggregateError(failures, "relation workflow or explicit member exit failed");
   },
+  { mcp: true },
 );

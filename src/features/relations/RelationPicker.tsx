@@ -1,3 +1,4 @@
+import { useApi } from "../../lib/api-context.tsx";
 import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -10,18 +11,20 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { EntitySummary } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
-import { api } from "../../lib/api.ts";
+
 import { type Candidate, RelationSearch, RelationSearchAction } from "./RelationSearch.tsx";
 
 /** Draft membership only; callers decide when and how to persist the relationship. */
-export function RelationPicker({ kind, value, context = [], onChange, error, disabled = false }: {
+export function RelationPicker({ kind, value, context = [], onChange, error, disabled = false, canReadEntityType }: {
   kind: "entity" | "task";
   value: string[];
   context?: Array<Pick<EntityContext, "id" | "title" | "type" | "schema_version">>;
   onChange: (ids: string[]) => void;
   error?: string;
   disabled?: boolean;
+  canReadEntityType?: (typeId: string) => boolean;
 }) {
+  const api = useApi();
   const label = kind === "entity" ? "자료" : "할 일";
   const [names, setNames] = useState(() => new Map(context.map((item) => [item.id, item.title])));
   const [types, setTypes] = useState(() =>
@@ -34,6 +37,8 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
   const [searching, setSearching] = useState(false), searchId = useId();
   const root = useRef<HTMLDivElement>(null), nextFocus = useRef<string | null>(null);
   const selection = value.join(",");
+  const readable = (id: string) => !canReadEntityType || !!types.get(id) && canReadEntityType(types.get(id)!.id);
+  const shown = value.filter(readable);
   useEffect(() => {
     const controller = new AbortController();
     const unresolved = value.filter((id) => !names.has(id) || kind === "entity" && !identities.has(id));
@@ -78,7 +83,7 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
     nextFocus.current = null;
   }, [selection]);
   const choose = (item: Candidate) => {
-    if (disabled) return;
+    if (disabled || canReadEntityType && (!item.type || !canReadEntityType(item.type.id))) return;
     setNames((prior) => new Map(prior).set(item.id, item.title));
     if (item.type) setTypes((prior) => new Map(prior).set(item.id, item.type!));
     if (item.identity) setIdentities((prior) => new Map(prior).set(item.id, item.identity!));
@@ -90,7 +95,7 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
       <RelatedSection
         views={false}
         title={label}
-        count={value.length}
+        count={shown.length}
         action={
           <RelationSearchAction
             kind={kind}
@@ -102,7 +107,7 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
         }
       >
         {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
-        {[...failed].some((id) => value.includes(id)) && (
+        {[...failed].some((id) => shown.includes(id)) && (
           <p className="text-sm text-destructive" role="alert">
             선택한 {label} 정보를 확인하지 못했습니다.{" "}
             <Button variant="ghost" type="button"  onClick={() => setRetry((value) => value + 1)}><RotateCcwIcon data-icon="inline-start" />다시 조회</Button>
@@ -114,15 +119,15 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
               draftMode
               kind={kind}
               disabled={disabled}
-              excluded={(item) => value.includes(item.id)}
+              excluded={(item) => value.includes(item.id) || !!canReadEntityType && (!item.type || !canReadEntityType(item.type.id))}
               onChoose={choose}
             />
           )}
         </div>
         <CollectionList disclosureColumn={false} view="table" label={`선택한 ${label}`} columns={kind === "entity" ? ["자료 이름", "자료 종류", "자료 식별", "선택"] : ["제목", "선택"]}>
-          {value.map((id) => {
+          {shown.map((id) => {
             const remove = <Button variant="ghost" type="button" disabled={disabled} data-selection={id}
-              aria-label={`${names.get(id) ?? label} 해제`} onClick={() => { nextFocus.current = ""; onChange(value.filter(value => value !== id)); }}>
+              aria-label={`${names.get(id) ?? label} 해제`} onClick={() => { if (disabled || !readable(id)) return; nextFocus.current = ""; onChange(value.filter(value => value !== id)); }}>
               <UnlinkIcon data-icon="inline-start" />해제
             </Button>;
             const identity = <>

@@ -1,33 +1,49 @@
+// Workspace sources use the current business contract; #516 owns the search/worker consumer conversion.
 import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
 import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
 import type { Embedder, IndexQueue, IndexScope } from "../../functions/_shared/core/search/index-worker.ts";
-import { requestActor } from "../_request.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/search-store.ts";
-import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { searchInput } from "../../functions/_shared/contracts/search.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { EmbeddingError, indexBatch, type IndexedChunk } from "../../functions/_shared/core/search/index-worker.ts";
 import { search } from "../../functions/_shared/core/search/application.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
-import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
+import { asUser, connect, dbTest, outcome, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 }), user = connect(urls.pooler, { max: 3, prepare: false });
 const workerUrl = new URL(urls.pooler);
 workerUrl.username = "app_worker.pooler-dev";
 workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
 const worker = connect(workerUrl.href, { max: 3, prepare: false }), queue = new SqlIndexQueue(worker);
-const fixture = await fixtureOwner(admin), foreign = await fixtureOwner(admin), A = fixture.actor;
+const fixture = await businessWorkspaceFixture(admin, user);
+await fixture.grant(fixture.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+const A = fixture.member;
+const otherWorkspace = await fixture.addWorkspace("격리된 검색 검증");
+await fixture.grant(otherWorkspace.member, [{ target_kind: "tasks", target_id: "*", access: "write" }]);
+const foreign = { actor: otherWorkspace.member };
 const deps = { uow: new SqlUnitOfWork(user), clock: { now: () => new Date() } };
 const vector = Array.from({ length: 1024 }, (_, i) => i === 0 ? 1 : 0);
-const state = async (id: string) => (await admin`select * from app.search_index_state where id=${id}`)[0];
-const create = (body: string) => activity.createRecord(deps, requestActor(A), recordCreate.parse({ body }));
+const state = async (id: string) =>
+  (await admin`select * from app.search_index_state where workspace_id=${A.workspaceId} and id=${id}`)[0];
+async function completeFixtureTask(body: string) {
+  const task = await activity.createTask(
+    deps,
+    businessRequest(A),
+    taskCreate.parse({ kind: "once", title: "색인 작업 결과" }),
+  );
+  return (await activity.completeTask(deps, businessRequest(A), task.id, { expected_version: task.version, body }))
+    .record;
+}
 const update = (id: string, version: number, body: string) =>
-  activity.updateRecord(deps, requestActor(A), id, recordUpdate.parse({ expected_version: version, body }));
-const scope = (id: string) => ({ limit: 1, owner_id: A.userId, kind: "record", id });
+  activity.updateRecord(deps, businessRequest(A), id, recordUpdate.parse({ expected_version: version, body }));
+const scope = (id: string) => ({ limit: 1, workspace_id: A.workspaceId, kind: "record", id });
 
 const ledger = new SqlExternalEffectLedger(worker);
 const providerScope = "a".repeat(64);
@@ -52,12 +68,15 @@ function runBatch(q: IndexQueue, embedder: Embedder, input: IndexScope) {
 async function retryReady(id: string) {
   await admin`update pgmq.q_search_index set vt=now()-interval '1 second' where msg_id=${id}`;
   await admin`update private.passage_effects e set next_attempt_at=now()-interval '1 second',lease_until=now()-interval '1 second'
-    where e.owner_id=${A.userId}::uuid
-      and e.record_id=(select message->>'id' from pgmq.q_search_index where msg_id=${id}::bigint)`;
+    from app.search_index_state s where e.workspace_id=${A.workspaceId} and e.source_kind='record'
+      and s.workspace_id=e.workspace_id and s.kind=e.source_kind and s.id=e.source_id and s.message_id=${id}::bigint
+      and e.source_version=s.source_version and e.source_hash=s.input_hash and e.pipeline=s.pipeline
+      and e.workspace_generation=s.workspace_generation and e.initiated_by is not distinct from s.initiated_by
+      and e.required_permissions=s.required_permissions`;
 }
 
 dbTest("record worker: complete generation, duplicate delivery, body edit/delete during embedding", async () => {
-  const item = await create("처음😀본문".repeat(400) + "마지막 근거");
+  const item = await completeFixtureTask("처음😀본문".repeat(400) + "마지막 근거");
   assertEquals((await runBatch(queue, { embed: () => Promise.resolve(vector) }, scope(item.id))).indexed, 1);
   assertEquals((await state(item.id)).state, "indexed");
   assertEquals((await runBatch(queue, { embed: () => Promise.resolve(vector) }, scope(item.id))).claimed, 0);
@@ -75,7 +94,11 @@ dbTest("record worker: complete generation, duplicate delivery, body edit/delete
   released.resolve(vector);
   assertEquals((await old).stale, 1);
   assertEquals((await state(item.id)).state, "pending");
-  assertEquals((await admin`select * from app.search_chunks where record_id=${item.id}`).length, 0);
+  assertEquals(
+    (await admin`select * from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='record' and source_id=${item.id}`)
+      .length,
+    0,
+  );
   const [claim] = await queue.claim(scope(item.id));
   assertEquals((await queue.prepare(claim.msg_id, SEARCH_PIPELINE))?.body, "최신 본문");
   const chunks: IndexedChunk[] = [{ start: 0, end: 5, text: "최신 본문", vector }];
@@ -86,17 +109,21 @@ dbTest("record worker: complete generation, duplicate delivery, body edit/delete
   released = Promise.withResolvers<number[]>();
   const late = runBatch(queue, delayed, scope(item.id));
   await started.promise;
-  await activity.deleteRecord(deps, requestActor(A), item.id, 4);
+  await activity.deleteRecord(deps, businessRequest(A), item.id, 4);
   released.resolve(vector);
   assertEquals((await late).stale, 1);
   assertEquals(await state(item.id), undefined);
-  assertEquals((await admin`select * from app.search_chunks where record_id=${item.id}`).length, 0);
+  assertEquals(
+    (await admin`select * from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='record' and source_id=${item.id}`)
+      .length,
+    0,
+  );
 });
 
 dbTest(
   "record worker: partial failure/retry, malformed coverage rollback, forged queue and role boundaries",
   async () => {
-    const item = await create("가".repeat(900));
+    const item = await completeFixtureTask("가".repeat(900));
     let calls = 0;
     assertEquals(
       (await runBatch(queue, {
@@ -106,7 +133,11 @@ dbTest(
     );
     const first = await state(item.id);
     assertEquals(first.state, "pending");
-    assertEquals((await admin`select * from app.search_chunks where record_id=${item.id}`).length, 0);
+    assertEquals(
+      (await admin`select * from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='record' and source_id=${item.id}`)
+        .length,
+      0,
+    );
     for (let count = 2; count <= 5; count++) {
       await retryReady(String(first.message_id));
       const result = await runBatch(queue, {
@@ -121,11 +152,16 @@ dbTest(
       queue.finish(claim.msg_id, SEARCH_PIPELINE, "indexed", null, [{ start: 0, end: 1, text: "새", vector }])
     );
     assertEquals((await state(item.id)).state, "pending");
-    assertEquals((await admin`select * from app.search_chunks where record_id=${item.id}`).length, 0);
+    assertEquals(
+      (await admin`select * from app.search_chunks where workspace_id=${A.workspaceId} and source_kind='record' and source_id=${item.id}`)
+        .length,
+      0,
+    );
     const current = await state(item.id);
     const [forged] = await admin`select pgmq.send('search_index',${
       admin.json({
-        owner_id: foreign.actor.userId,
+        workspace_id: foreign.actor.workspaceId,
+        initiated_by: foreign.actor.userId,
         kind: "record",
         id: item.id,
         input_hash: current.input_hash,
@@ -135,7 +171,12 @@ dbTest(
     assertEquals(await queue.prepare(String(forged.id), SEARCH_PIPELINE), null);
     assertEquals((await state(item.id)).message_id, current.message_id);
     assertEquals(
-      (await asUser(user, foreign.actor.userId, (tx) => tx`select * from app.search_chunks`)).length,
+      (await runInWorkspace(
+        user,
+        foreign.actor,
+        { mode: "business", requirements: [] },
+        (tx) => tx`select * from app.search_chunks`,
+      )).length,
       0,
     );
     for (
@@ -158,12 +199,12 @@ dbTest(
         /^42501/,
       );
     }
-    await activity.deleteRecord(deps, requestActor(A), item.id, 2);
+    await activity.deleteRecord(deps, businessRequest(A), item.id, 2);
   },
 );
 
 dbTest("durable worker reuses successful sibling after partial failure and finish response loss", async () => {
-  const item = await create("가".repeat(900));
+  const item = await completeFixtureTask("가".repeat(900));
   let sends = 0;
   const embedder: Embedder = {
     embed: () => ++sends === 2 ? Promise.reject(new EmbeddingError("transient")) : Promise.resolve(vector),
@@ -188,11 +229,11 @@ dbTest("durable worker reuses successful sibling after partial failure and finis
   await retryReady(String(current.message_id));
   assertEquals((await runBatch(queue, embedder, scope(item.id))).indexed, 1);
   assertEquals(sends, 3);
-  await activity.deleteRecord(deps, requestActor(A), item.id, 1);
+  await activity.deleteRecord(deps, businessRequest(A), item.id, 1);
 });
 
 dbTest("recursive input limit children reuse successful sibling and failed parent", async () => {
-  const item = await create("abcdefgh");
+  const item = await completeFixtureTask("abcdefgh");
   const sent: string[] = [];
   let rightFailed = false;
   const embedder: Embedder = {
@@ -210,11 +251,11 @@ dbTest("recursive input limit children reuse successful sibling and failed paren
   await retryReady(String((await state(item.id)).message_id));
   assertEquals((await runBatch(queue, embedder, scope(item.id))).indexed, 1);
   assertEquals(sent, ["abcdefgh", "abcd", "efgh", "efgh"]);
-  await activity.deleteRecord(deps, requestActor(A), item.id, 1);
+  await activity.deleteRecord(deps, businessRequest(A), item.id, 1);
 });
 
 dbTest("competing worker cannot send active passage and lost committed finish response stays indexed", async () => {
-  const item = await create("경쟁 검증");
+  const item = await completeFixtureTask("경쟁 검증");
   const started = Promise.withResolvers<void>(), release = Promise.withResolvers<number[]>();
   let sends = 0;
   const embedder: Embedder = {
@@ -248,11 +289,11 @@ dbTest("competing worker cannot send active passage and lost committed finish re
   await assertRejects(() => runBatch(lost, { embed: () => Promise.resolve(vector) }, scope(item.id)));
   assertEquals((await state(item.id)).state, "indexed");
   assertEquals((await runBatch(queue, embedder, scope(item.id))).claimed, 0);
-  await activity.deleteRecord(deps, requestActor(A), item.id, 2);
+  await activity.deleteRecord(deps, businessRequest(A), item.id, 2);
 });
 
 dbTest("unknown passage exhausts five durable sends and fresh queue delivery cannot reset it", async () => {
-  const item = await create("불명 응답");
+  const item = await completeFixtureTask("불명 응답");
   let sends = 0;
   const embedder: Embedder = {
     embed: () => {
@@ -270,23 +311,24 @@ dbTest("unknown passage exhausts five durable sends and fresh queue delivery can
   assertEquals((await state(item.id)).state, "pending");
   assertEquals((await state(item.id)).reason, "retry_exhausted");
   const heldSource = await state(item.id);
-  await asUser(
+  await runInWorkspace(
     user,
-    A.userId,
+    A,
+    { mode: "business", requirements: [{ target_kind: "tasks", target_id: "*", access: "write" }] },
     (tx) => tx`select app.enqueue_search_index('record',${item.id},${heldSource.input_hash},${SEARCH_PIPELINE})`,
   );
   await retryReady(String((await state(item.id)).message_id));
   assertEquals((await runBatch(queue, embedder, scope(item.id))).held, 1);
   assertEquals(sends, 5);
   assertEquals((await state(item.id)).reason, "retry_exhausted");
-  await activity.deleteRecord(deps, requestActor(A), item.id, 1);
+  await activity.deleteRecord(deps, businessRequest(A), item.id, 1);
 });
 
 dbTest("latest task content creates no task vector job and remains keyword searchable", async () => {
   const token = crypto.randomUUID();
   const task = await activity.createTask(
     deps,
-    requestActor(A),
+    businessRequest(A),
     taskCreate.parse({ title: token, body: "현재 본문", kind: "once" }),
   );
   assertEquals(await state(task.id), undefined);
@@ -295,7 +337,7 @@ dbTest("latest task content creates no task vector job and remains keyword searc
       embed: () => {
         throw new Error("must not embed task");
       },
-    }, { limit: 1, owner_id: A.userId, kind: "task", id: task.id })).claimed,
+    }, { limit: 1, kind: "task", id: task.id })).claimed,
     0,
   );
   const result = await search(
@@ -305,9 +347,12 @@ dbTest("latest task content creates no task vector job and remains keyword searc
   );
   assertEquals(result.items[0].id, task.id);
   assertEquals(result.items[0].match, "keyword");
-  assertEquals(result.semantic_coverage, { pending: 0, excluded: 0 });
+  assertEquals(result.semantic_coverage, { pending: 0, excluded: 0, failed: 0 });
 });
 dbTest("index-worker fixture cleanup", async () => {
+  for (const workspaceId of [A.workspaceId, foreign.actor.workspaceId]) {
+    const effects = await admin`select id from private.passage_effects where workspace_id=${workspaceId}`;
+    for (const effect of effects) await admin`delete from private.passage_effects where id=${effect.id}`;
+  }
   await fixture.cleanup();
-  await foreign.cleanup();
 });

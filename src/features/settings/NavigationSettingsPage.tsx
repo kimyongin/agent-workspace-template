@@ -9,7 +9,7 @@ import { Button } from "../../components/ui/button.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { PageHeading } from "../../components/PageHeading.tsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router";
+import { useLocation } from "../../lib/workspace-router.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 
 import { NavigationRowActions } from "./NavigationRowActions.tsx";

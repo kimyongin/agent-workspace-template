@@ -1,3 +1,4 @@
+import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import { openDialogs } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListDetail, openListEditor } from "./ui-actions.ts";
@@ -9,24 +10,31 @@ import { compatibleEdit, fillText, fixtures, form, go } from "./support/workspac
 for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
   test(`${kind}: uncertain 생성 폐기 후 새 작성은 새로운 요청키`, async ({ page }) => {
     const state = await fixtures(page, { failWrite: "unknown" });
-    await go(page, `/${kind}`);
-    const begin = () =>
-      beginTabAction(
-        page,
-        kind === "records" ? "기록 작성" : `${label} 추가`,
-      );
+    await go(page, kind === "records" ? `/tasks/${id(2)}` : `/${kind}`);
+    const begin = () => kind === "records" ? form(page).getByRole("button", { name: "완료하고 기록", exact: true }).click() : beginTabAction(page, `${label} 추가`);
     const fill = async (value: string) => {
       if (kind === "entities") await form(page).getByLabel("제목", { exact: false }).fill(value);
       else await fillText(page, value);
     };
-    const submit = () => saveOnce(page, form(page), kind === "tasks" ? "추가" : "저장");
+    const submit = () => kind === "records" ? form(page).getByRole("button", { name: "완료하고 기록 저장", exact: true }).click() : saveOnce(page, form(page), kind === "tasks" ? "추가" : "저장");
     await begin();
     await fill("첫 작성");
     await submit();
     await expect(form(page).getByRole("button", { name: "같은 내용 다시 시도" })).toBeVisible();
     await discardEditor(page);
     await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
-    await expect(form(page)).toHaveCount(0);
+    if (kind === "records") {
+      await expect(page.getByRole("dialog", { name: "할 일 완료", exact: true })).toHaveCount(0);
+      await expect.poll(() => {
+        const params = new URL(page.url()).searchParams;
+        return params.has("action") || params.has("occurrence");
+      }).toBe(false);
+      await expect(form(page)).toHaveCount(0);
+      await expect(page.getByRole("region", { name: "할 일 목록", exact: true })).toBeVisible();
+      await openListDetail(page, "할 일");
+      await expect(form(page).getByRole("button", { name: "완료하고 기록", exact: true })).toBeEnabled();
+    }
+    else await expect(form(page)).toHaveCount(0);
     await begin();
     await fill("새 작성");
     await submit();
@@ -75,7 +83,7 @@ test("dirty 작성 조건 이동 승인: create 유지 URL도 새 초안", async
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, label, submit] of [["task", "할 일 작성", "추가"], ["record", "기록 작성", "저장"]]) {
+for (const [kind, label, submit] of [["task", "할 일 작성", "추가"]]) {
   test(`엔터티 관련 ${kind}: uncertain 폐기 후 새 작성은 새 요청키`, async ({ page }) => {
     const state = await fixtures(page, { failWrite: "unknown" });
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
@@ -111,7 +119,7 @@ test("엔터티 create/edit 복합 직접 링크는 연결 작성 한 폼만 연
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, label] of [["task", "할 일 작성"], ["record", "기록 작성"]] as const) {
+for (const [kind, label] of [["task", "할 일 작성"]] as const) {
   test(`자료 연결 ${kind}: 취소·폐기 승인은 작성 URL을 닫고 reload는 읽기`, async ({ page }) => {
     const state = await fixtures(page);
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}?list=%2Fentities%3Fq%3D%EC%97%94%ED%84%B0%ED%8B%B0`);
@@ -123,7 +131,7 @@ for (const [kind, label] of [["task", "할 일 작성"], ["record", "기록 작�
       if (dirty) {
         const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
         await confirm.getByRole("button", { name: "취소", exact: true }).click();
-        await expect(form(page).getByRole("textbox", { name: kind === "record" ? /^본문/ : /^제목/ })).toHaveValue(
+        await expect(form(page).getByRole("textbox", { name: /^제목/ })).toHaveValue(
           "폐기할 연결 작성",
         );
         await form(page).getByRole("button", { name: "취소", exact: true }).click();
@@ -158,7 +166,7 @@ test("엔터티 관련 작성은 URL·뒤로가기 초안 보호·reload·같은
   expect(state.writes[0].body.entity_ids).toEqual([entityKey(1)]);
   await expect(form(page)).not.toContainText("할 일을 추가했습니다.");
   await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toBeFocused();
-  await form(page).getByRole("button", { name: "기록 작성", exact: true }).click();
+  await form(page).getByRole("button", { name: "할 일 작성", exact: true }).click();
   await page.reload();
   await expect(form(page).getByLabel("본문")).toHaveValue("");
   expect(state.errors).toEqual([]);
@@ -299,11 +307,11 @@ test("#229 엔터티 관련 작성 취소는 직접 편집 의도와 목록 문�
   const list = `/entities?pages=2&scroll=83#entity-${encodeURIComponent(entityKey(1))}`;
   await go(
     page,
-    `/entities/${encodeURIComponent(entityKey(1))}?edit=1&edit_from=view&create=record&list=${
+    `/entities/${encodeURIComponent(entityKey(1))}?edit=1&edit_from=view&create=task&list=${
       encodeURIComponent(list)
     }`,
   );
-  await expect(form(page)).toHaveAccessibleName("기록 작성");
+  await expect(form(page)).toHaveAccessibleName("할 일 추가");
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByRole("textbox", { name: "제목 (필수)", exact: true })).toBeVisible();
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
@@ -329,7 +337,14 @@ test("미확정 저장 새로고침: 최소 메타데이터만 보관하고 자�
     )
   );
   expect(stored).toHaveLength(1);
-  expect(Object.keys(stored[0]).sort()).toEqual(["operation", "request_key", "status", "target"]);
+  expect(Object.keys(stored[0]).sort()).toEqual([
+    "actorId", "method", "operation", "path", "request_key", "status", "target", "workspaceId",
+  ]);
+  expect(stored[0]).toEqual({
+    actorId: id(901), workspaceId: fixtureWorkspaceId, method: "POST", path: "/tasks",
+    operation: "task.create", target: "", request_key: state.writes[0].requestKey, status: "unknown",
+  });
+  expect(stored[0].request_key).toMatch(/^[0-9a-f-]{36}$/);
   expect(JSON.stringify(stored)).not.toContain("비공개 초안 본문");
   await page.reload();
   await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toBeVisible();
@@ -345,3 +360,14 @@ test("미확정 저장 새로고침: 최소 메타데이터만 보관하고 자�
   expect(state.writes).toHaveLength(1);
   expect(state.errors).toEqual([]);
 });
+
+for (const intent of ["create=record", "edit=1&create=record"]) {
+  test(`제거된 자료 기록 작성 의도 ${intent}: 현재 자료 귀속과 읽기만 유지`, async ({ page }) => {
+    const state = await fixtures(page);
+    await go(page, `/entities/${encodeURIComponent(entityKey(1))}?${intent}`);
+    await expect(page.getByRole("dialog", { name: "기록 작성", exact: true })).toHaveCount(0);
+    await expect(form(page).getByRole("button", { name: "기록 작성", exact: true })).toHaveCount(0);
+    expect(state.writes).toHaveLength(0);
+    expect(state.errors).toEqual([]);
+  });
+}

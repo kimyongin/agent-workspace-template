@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 import { BusinessTable, BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 import { RadioGroup } from "@/components/ui/radio-group";
@@ -20,6 +21,7 @@ import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
 import { fieldTypeLabel, schemaChangeLabels, schemaDiffValueLabel } from "./schema-labels.ts";
+import { SchemaSearchTextSetting } from "./SchemaSearchTextSetting.tsx";
 import { SchemaRepresentativeSetting } from "./SchemaRepresentativeSetting.tsx";
 import {
   migrationActive,
@@ -28,7 +30,7 @@ import {
   SchemaMigrationJob,
   useMigrationHistory,
 } from "./SchemaMigrationJobs.tsx";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "../../lib/workspace-router.tsx";
 import { ConversionEditor } from "./ConversionEditor.tsx";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type {
@@ -104,6 +106,9 @@ export function SchemaEditor(
     historyInitiallyOpen?: boolean;
   },
 ) {
+  const { canWrite } = useSettingsAccess();
+  disabled = disabled || !canWrite;
+  jobDisabled = jobDisabled || !canWrite;
   const location = useLocation(), navigate = useNavigate();
   const jobs = useMigrationHistory(type.id, selectedJob);
   const lockedPlan = jobs.items.some((job) =>
@@ -304,7 +309,7 @@ export function SchemaEditor(
                 aria-controls="schema-property-inputs"
                 onClick={() => {
                   if (
-                    !propertiesOpen && plan && ["applied", "cancelled", "stale"].includes(plan.status)
+                    canWrite && !propertiesOpen && plan && ["applied", "cancelled", "stale"].includes(plan.status)
                   ) void newEditing();
                   else setPropertiesOpen(!propertiesOpen);
                 }}
@@ -325,7 +330,8 @@ export function SchemaEditor(
           <p className="text-sm text-muted-foreground">
             상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다.
           </p>
-          <div hidden={!propertiesOpen} className="min-w-0">
+          {propertiesOpen && !canWrite && <SchemaDefinitionRead definition={definition} />}
+          <div hidden={!propertiesOpen || !canWrite} className="min-w-0">
             <FieldSet
               id="schema-property-inputs"
               hidden={!propertiesOpen}
@@ -436,6 +442,7 @@ export function SchemaEditor(
                                       "x-list-order": f["x-list-order"],
                                       "x-representative": f["x-representative"],
                                       "x-show-in-list": f["x-show-in-list"],
+                                      ...(value === "string" ? { "x-search-text": f["x-search-text"] } : {}),
                                       deprecated: f.deprecated,
                                       readOnly: f.readOnly,
                                       examples: f.examples,
@@ -529,6 +536,11 @@ export function SchemaEditor(
                               </p>
                             </div>
                           )}
+                          <SchemaSearchTextSetting
+                            field={f}
+                            disabled={Boolean(plan?.recovery)}
+                            onChange={(field) => editField(key, field)}
+                          />
                           <SchemaRepresentativeSetting
                             draft={draft}
                             propertyKey={key}

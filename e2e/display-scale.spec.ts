@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { openProfileMenu } from "./ui-actions.ts";
 import { baseWorkspace, detailDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { expect, test, type Page } from "@playwright/test";
@@ -29,7 +30,7 @@ async function navigate(page: Page, name: string) {
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name, exact: true }).click();
 }
 test("display scale: preview, cancel and approved leaving restore confirmed size without writes", async ({ page }) => {
-  const state = await fixture(page); await page.goto("/settings");
+  const state = await fixture(page); await page.goto(fixtureWorkspacePath("/settings"));
   const scale = page.getByLabel("데스크톱 화면 배율", { exact: true });
   await expect(scale.getByRole("radio", { name: "100% (기본)", exact: true })).toHaveAttribute("aria-checked", "true"); await expect.poll(() => rootSize(page)).toBe(16);
   await scale.getByRole("radio", { name: "125%", exact: true }).click(); await expect.poll(() => rootSize(page)).toBe(20);
@@ -42,7 +43,7 @@ test("display scale: preview, cancel and approved leaving restore confirmed size
   expect(state.writes).toEqual([]);
 });
 test("display scale: failed save keeps selection; retry persists only changed metadata across reload", async ({ page }) => {
-  const state = await fixture(page); await page.goto("/settings");
+  const state = await fixture(page); await page.goto(fixtureWorkspacePath("/settings"));
   const scale = page.getByLabel("데스크톱 화면 배율", { exact: true });
   await scale.getByRole("radio", { name: "150%", exact: true }).click(); state.fail = true;
   await page.getByRole("button",{name:"화면 표시 저장", exact: true }).click();
@@ -62,12 +63,12 @@ test("display scale: failed save keeps selection; retry persists only changed me
 });
 test("display scale: 150% keeps main filters, details, confirmation and resize usable on desktop/mobile", async ({ page }, info) => {
   await page.setViewportSize({ width: 2160, height: 1080 });
-  const state = await fixture(page, "150"); await page.goto("/entities");
+  const state = await fixture(page, "150"); await page.goto(fixtureWorkspacePath("/entities"));
   await expect(page.getByRole("heading", { name: "전체 자료", exact: true, level: 1 })).toBeVisible();
   await expect.poll(() => rootSize(page)).toBe(24);
   await page.getByRole("button", { name: "필터 열기" }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.goto(`/tasks/${id(2)}`);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
   await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).toBeVisible();
   await page.getByRole("separator", { name: "상세 패널 너비 조절" }).press("End");
   expect((await baseWorkspace(page).boundingBox())!.width).toBeGreaterThanOrEqual(24 * 28);
@@ -96,7 +97,7 @@ test("display scale: 150% keeps main filters, details, confirmation and resize u
   expect(state.writes).toEqual([]);
 });
 test("display scale: 150% settings, menus and lists reflow at compact widths", async ({ page }, info) => {
-  await fixture(page, "150"); await page.goto("/settings");
+  await fixture(page, "150"); await page.goto(fixtureWorkspacePath("/settings"));
   await expect(page.getByLabel("데스크톱 화면 배율", { exact: true }).getByRole("radio", { name: "150%", exact: true })).toBeChecked();
   for (const width of [320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -132,7 +133,7 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
   await smallFont.evaluate(node => (node as HTMLStyleElement).remove());
   await page.setViewportSize({ width: 320, height: 844 });
   for (const path of ["/entities", "/tasks", "/records", "/guide"]) {
-    await page.goto(path);
+    await page.goto(fixtureWorkspacePath(path));
     await expect(page.locator("main h1")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
   }
@@ -141,7 +142,7 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 test("display scale: external profile updates preserve dirty preview and cancel to latest saved size", async ({ page }) => {
-  const state = await fixture(page); await page.goto("/settings");
+  const state = await fixture(page); await page.goto(fixtureWorkspacePath("/settings"));
   const scale = page.getByLabel("데스크톱 화면 배율", { exact: true });
   await expect(scale.getByRole("radio", { name: "100% (기본)", exact: true })).toHaveAttribute("aria-checked", "true");
   const notify = () => page.evaluate(id => { const channel = new BroadcastChannel("workspace-decorative-profile"); channel.postMessage(id); channel.close(); }, id(100));
@@ -156,7 +157,7 @@ test("display scale: external profile updates preserve dirty preview and cancel 
   expect(state.writes).toEqual([]);
 });
 test("display scale: switching accounts removes the previous account's unsaved preview", async ({ page }) => {
-  const state = await fixture(page); await page.goto("/settings");
+  const state = await fixture(page); await page.goto(fixtureWorkspacePath("/settings"));
   const scale = page.getByLabel("데스크톱 화면 배율", { exact: true });
   await scale.getByRole("radio", { name: "150%", exact: true }).click(); await expect.poll(() => rootSize(page)).toBe(24);
   await page.getByLabel("모바일 화면 배율", { exact: true }).getByRole("radio", { name: "150%", exact: true }).click();
@@ -188,7 +189,7 @@ test("display scale: switching accounts removes the previous account's unsaved p
 });
 
 test("display scale: mobile and desktop preview, save and cancel independently at the 1024px boundary", async ({ page }, info) => {
-  const state = await fixture(page); await page.goto("/settings");
+  const state = await fixture(page); await page.goto(fixtureWorkspacePath("/settings"));
   const desktop = page.getByLabel("데스크톱 화면 배율", { exact: true }), mobile = page.getByLabel("모바일 화면 배율", { exact: true });
   await desktop.getByRole("radio", { name: "125%", exact: true }).click(); await mobile.getByRole("radio", { name: "150%", exact: true }).click(); await expect.poll(() => rootSize(page)).toBe(20);
   await page.setViewportSize({ width: 1023, height: 900 }); await expect.poll(() => rootSize(page)).toBe(24);
@@ -208,7 +209,7 @@ test("display scale: mobile and desktop preview, save and cancel independently a
 
 test("display scale: existing saved scale is preserved for desktop; mobile-only saves leave it untouched", async ({ page }) => {
   const state = await fixture(page, "125"); Object.assign(state.metadata, { workspace_mobile_display_scale: undefined });
-  await page.goto("/settings"); await expect.poll(() => rootSize(page)).toBe(20);
+  await page.goto(fixtureWorkspacePath("/settings")); await expect.poll(() => rootSize(page)).toBe(20);
   await expect(page.getByLabel("모바일 화면 배율", { exact: true }).getByRole("radio", { name: "100% (기본)", exact: true })).toBeChecked();
   await page.setViewportSize({ width: 390, height: 844 }); await expect.poll(() => rootSize(page)).toBe(16);
   await page.getByLabel("모바일 화면 배율", { exact: true }).getByRole("radio", { name: "150%", exact: true }).click();
@@ -228,7 +229,7 @@ for (const scale of [100, 110, 125, 150]) {
     });
     const width = 1280 * scale / 100, height = 480 * scale / 100;
     await page.setViewportSize({ width: 2160, height: 900 });
-    await page.goto(`/tasks/${id(2)}`);
+    await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
     await expect.poll(() => rootSize(page)).toBeCloseTo(16 * scale / 100, 1);
     await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "할 일 편집", exact: true });

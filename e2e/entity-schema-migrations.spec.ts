@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv , ownedWorkspace, workspacePath} from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 async function stopWorker(child: ChildProcess | undefined) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
@@ -22,13 +22,15 @@ async function stopWorker(child: ChildProcess | undefined) {
 }
 test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완료→MCP 상태→직접 링크·새로고침", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   const types: string[] = [], entities: string[] = [], relations: string[] = [];
   let runner: ChildProcess | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("재료 작업"), icon_id: "leaf" }),
       other = await mcp.call("create_entity_type", { label: unique("상품 업무") });
+    await workspace.grantKind(other.id);
+    await workspace.grantKind(type.id);
     types.push(type.id, other.id);
     const x = await mcp.call("create_entity", {
         entity_type_id: type.id,
@@ -78,22 +80,22 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: plan.id })).executable;
     }, { timeout: 30000 }).toBe(true);
-    await page.goto(`/settings/entity-types/${type.id}/migrations?change_id=${plan.id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}/migrations?change_id=${plan.id}`));
     const response = page.waitForResponse((r) =>
       r.url().endsWith(`/schema-changes/${plan.id}/migrations`) && r.request().method() === "POST"
     );
     await page.getByRole("button", { name: "값 변환 시작", exact: true }).click();
     const accepted = await (await response).json();
     expect(accepted.status).toBe("queued");
-    const path = `/settings/entity-types/${type.id}/migrations/${accepted.job_id}`;
+    const path = workspacePath(workspace.id, `/settings/entity-types/${type.id}/migrations/${accepted.job_id}`);
     await expect(page).toHaveURL(new RegExp(`job_id=${accepted.job_id}(?:&|$)`));
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     expect((await mcp.call("get_entity", { id: x.id })).properties).toEqual({ prop_1: "원본" });
     await openMainNavigation(page);
     const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
-    await expect(tasksLink).toHaveAttribute("href", "/tasks");
+    await expect(tasksLink).toHaveAttribute("href", workspacePath(workspace.id, "/tasks"));
     await tasksLink.click();
-    await page.goto(`/entities?entity_type_id=${other.id}`);
+    await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${other.id}`));
     // Explicit test infrastructure owns execution. No GET/page poll calls the worker.
     const origin = new URL(requiredEnv("VITE_SUPABASE_URL"));
     expect(["127.0.0.1", "localhost"]).toContain(origin.hostname);
@@ -129,36 +131,19 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
-    try {
-      await stopWorker(runner);
-    } finally {
-      try {
-        await admin.begin(async (tx) => {
-          if (entities.length) await tx`delete from app.records where entity_ids&&${entities}::text[]`;
-          if (relations.length) {
-            await tx`delete from app.entity_relation_definitions where id=any(${relations}::uuid[])`;
-          }
-          if (entities.length) await tx`delete from app.entities where id=any(${entities}::text[])`;
-          if (types.length) await tx`delete from app.entity_types where id=any(${types}::uuid[])`;
-        });
-      } finally {
-        try {
-          await mcp.close();
-        } finally {
-          await admin.end();
-        }
-      }
-    }
+    await stopWorker(runner);
+    await mcp.close();
   }
 });
 
 test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유지", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   let typeId: string | undefined, entityId: string | undefined, restartedJobId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("취소 작업"), icon_id: "leaf" });
+    await workspace.grantKind(type.id);
     typeId = type.id;
     const entity = await mcp.call("create_entity", {
       entity_type_id: typeId,
@@ -191,7 +176,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
         analysis_id: ready.analysis.id,
         fingerprint: ready.fingerprint,
       });
-    await page.goto(`/settings/entity-types/${typeId}?job_id=${job.job_id}&change_id=${plan.id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${typeId}?job_id=${job.job_id}&change_id=${plan.id}`));
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     await page.getByRole("button", { name: "변환 취소", exact: true }).click();
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("취소");
@@ -247,10 +232,6 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
       }
     }
     await mcp.close();
-    if (entityId) await admin`delete from app.records where entity_ids@>array[${entityId}]`;
-    if (entityId) await admin`delete from app.entities where id=${entityId}`;
-    if (typeId) await admin`delete from app.entity_types where id=${typeId}`;
-    await admin.end();
   }
 });
 
@@ -271,12 +252,13 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
   workerUrl.username = "app_worker";
   workerUrl.password = encodeURIComponent(env.APP_WORKER_PASSWORD);
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} }),
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id }),
     worker = postgres(workerUrl.href, { max: 1, prepare: false, onnotice: () => {} });
   let typeId: string | undefined, entityId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("재시도 작업"), icon_id: "leaf" });
+    await workspace.grantKind(type.id);
     typeId = type.id;
     const entity = await mcp.call("create_entity", {
       entity_type_id: typeId,
@@ -322,7 +304,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     expect(failed.retryable).toBe(true);
     expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "보존 원본" });
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
-    await page.goto(`/settings/entity-types/${typeId}/migrations/${job.job_id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${typeId}/migrations/${job.job_id}`));
     await expect(page.getByRole("alert")).toContainText("같은 작업을 재시도할 수 있습니다");
     const response = page.waitForResponse((r) =>
       r.url().endsWith(`/entity-schema-migrations/${job.job_id}/retry`) && r.request().method() === "POST"
@@ -330,14 +312,27 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
     const resumedResponse = await response, resumed = await resumedResponse.json();
     expect(resumedResponse.status()).toBe(202);
-    expect(resumed).toMatchObject({ job_id: job.job_id, job_version: failed.version + 1, status: "queued" });
+    expect(resumed.job_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(resumed.job_id).not.toBe(job.job_id);
+    expect(resumed).toMatchObject({ type_id: typeId, change_id: plan.id, analysis_id: ready.analysis.id, job_version: 1, status: "queued" });
+    const assertFailedHistory = async () => {
+      expect(await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).toMatchObject({
+        id: failed.id, status: "failed", version: failed.version, failure_reason: failed.failure_reason,
+        analysis_id: failed.analysis_id, fingerprint: failed.fingerprint, processed: failed.processed,
+        total: failed.total, source_expires_at: failed.source_expires_at, updated_at: failed.updated_at,
+      });
+    };
+    await assertFailedHistory();
     const retryKey = resumedResponse.request().headers()["idempotency-key"];
     expect(retryKey).toBeTruthy();
+    const acceptedJobUrl = new URL(workspacePath(workspace.id,
+      `/settings/entity-types/${typeId}?job_id=${resumed.job_id}&change_id=${plan.id}`), page.url()).href;
+    await expect(page).toHaveURL(acceptedJobUrl);
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
     expect((await mcp.call("get_entity", { id: entityId })).version).toBe(entity.version);
     await expect.poll(async () => {
       await schemaAnalysisTick();
-      return (await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status;
+      return (await mcp.call("get_entity_schema_migration", { job_id: resumed.job_id })).status;
     }, { timeout: 30000 }).toBe("succeeded");
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
     const current = await mcp.call("get_entity", { id: entityId });
@@ -351,14 +346,12 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
         request_key: retryKey,
       }),
     ).toEqual(resumed);
+    await assertFailedHistory();
     await page.reload();
+    await expect(page).toHaveURL(acceptedJobUrl);
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
   } finally {
     await worker.end();
     await mcp.close();
-    if (entityId) await admin`delete from app.records where entity_ids@>array[${entityId}]`;
-    if (entityId) await admin`delete from app.entities where id=${entityId}`;
-    if (typeId) await admin`delete from app.entity_types where id=${typeId}`;
-    await admin.end();
   }
 });

@@ -1,6 +1,6 @@
 import type { BusinessSettingsSectionResult } from "@contracts/business-settings.ts";
 import { type RecordTemplates, recordTemplates, recordTemplateTagIds } from "@contracts/record-template.ts";
-import type { api as request } from "../../lib/api.ts";
+import type { ApiRequest } from "../../lib/api.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { createTagRead } from "../tags/tag-read.ts";
 import type { SettingsDraftAdapter } from "./settings-draft.ts";
@@ -17,8 +17,8 @@ export function unavailableTemplateTags(saved: TemplatesSaved | null, draft: Rec
   );
   return [...new Set(selectedRecordTags(draft))].filter((id) => missing.has(id));
 }
-export function createRecordTemplatesDraft(api: typeof request): SettingsDraftAdapter<RecordTemplates, TemplatesSaved> {
-  const tagRead = createTagRead(api);
+export function createRecordTemplatesDraft(api: ApiRequest): SettingsDraftAdapter<RecordTemplates, TemplatesSaved> {
+  const tagRead = createTagRead(api, "record-template");
   return {
     initial: {},
     isConflict,

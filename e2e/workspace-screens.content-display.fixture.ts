@@ -1,6 +1,6 @@
 import { businessRows } from "./table-actions.ts";
 import { expect, test } from "@playwright/test";
-import { entityKey, id, stamp } from "./support/workspace-data.ts";
+import { entityKey, id, record } from "./support/workspace-data.ts";
 import { connectedTarget, fixtures, form, go } from "./support/workspace-screens.ts";
 
 for (const width of [390, 1440]) {
@@ -81,7 +81,7 @@ for (const width of [390, 1440]) {
       "\n\n- [ ] 읽기 항목\n\n" + "아래 본문\n\n".repeat(30);
     await page.setViewportSize({ width, height: 800 });
     await go(page, `/records/${id(3)}`);
-    const table = form(page).getByRole("table");
+    const table = form(page).locator(".markdown").getByRole("table");
     await expect(table).toBeVisible();
     await expect(table.getByRole("columnheader")).toHaveCount(40);
     expect(await table.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
@@ -104,8 +104,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     Object.assign(state.rows.records[0], {
       body: "상담 준비 수정 (일정, 내용)",
       record_kind: "change",
-      entity_ids: [entityKey(1)],
-      entity_context: [{ id: entityKey(1), title: "테스트 속성1222", source: "selection", captured_at: stamp }],
+      entity_id: null, task_id: id(2),
       change: {
         event_id: id(30),
         target_kind: "task",
@@ -118,7 +117,17 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         path: `/tasks/${id(2)}`,
       },
     });
+    const entityRecord = {
+      ...record(34), body: "자료 수정 (내용)", record_kind: "change" as const,
+      entity_id: entityKey(1), task_id: null,
+      change: { event_id: id(31), target_kind: "entity" as const, target_id: entityKey(1),
+        target_title: state.rows.entities[0].title, action: "update" as const, source: "http" as const,
+        before: { title: "기존 자료" }, after: { title: state.rows.entities[0].title }, path: `/entities/${encodeURIComponent(entityKey(1))}` },
+    };
+    state.rows.records.push(entityRecord);
+    const originals = state.rows.records.map(row => JSON.stringify(row));
     await go(page, `/records/${id(3)}`);
+    await expect(connectedTarget(page, "entity")).toHaveCount(0);
     await expect(
       connectedTarget(page, "task").getByRole("button", {
         name: state.rows.records[0].change!.target_title,
@@ -141,15 +150,27 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBe(true);
     const card = businessRows(connectedTarget(page, "task").getByRole("table"));
-    const entityCard = businessRows(form(page).getByRole("region", { name: "연결된 자료 (1개)", exact: true }).getByRole("table"));
     const cardStyle = async (el: ReturnType<typeof form>) =>
       el.evaluate((n) => {
         const c = getComputedStyle(n);
         return [c.padding, c.borderRadius, c.backgroundColor, c.borderWidth].join("|");
       });
-    expect(await cardStyle(card)).toBe(await cardStyle(entityCard));
+    const taskCardStyle = await cardStyle(card);
     expect((await card.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await page.screenshot({ path: info.outputPath(`record-layout-${width}.png`) });
+    await go(page, `/records/${entityRecord.id}`);
+    const entityParent = connectedTarget(page, "entity");
+    await expect(entityParent.getByRole("button", { name: entityRecord.change.target_title, exact: true })).toBeVisible();
+    await expect(connectedTarget(page, "task")).toHaveCount(0);
+    const entityCard = businessRows(entityParent.getByRole("table"));
+    expect(await cardStyle(entityCard)).toBe(taskCardStyle);
+    expect((await entityCard.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(await style(form(page).locator(".markdown"))).toEqual(bodyStyle);
+    expect(await style(form(page).getByRole("term").filter({ hasText: /^종류$/ }))).toEqual(metadataStyle);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`record-entity-layout-${width}.png`) });
+    expect(state.rows.records.map(row => JSON.stringify(row))).toEqual(originals);
+    expect(state.writes).toHaveLength(0);
     expect(state.errors).toEqual([]);
   });
 }

@@ -48,7 +48,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       const [kind, label, value] of [["entities", "분류 필터", "b"], ["tasks", "할 일 상태", "open"], [
         "records",
         "기록 종류",
-        "user",
+        "result",
       ]]
     ) {
       await go(page, "/" + kind);
@@ -74,6 +74,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       if (kind === "entities") await setEntityCategory(page, value);
       else { await page.getByLabel(label, { exact: true }).selectOption(value); await applyTabFilters(page); }
       await changedRead;
+      if (kind === "records") expect(new URL(page.url()).searchParams.get("record_kind")).toBe("result");
       await expect(summary).toHaveAccessibleName(/적용 중/);
       const applied = page.url(), appliedReads = reads;
       await summary.click();
@@ -349,7 +350,7 @@ for (const kind of ["tasks"] as const) {
           }],
           next_cursor: input.query === "old" && !input.cursor ? "next" : null,
           search_state: stale ? "keyword_fallback" : "ok",
-          semantic_coverage: { pending: stale ? 99 : 1, excluded: 0 },
+          semantic_coverage: { pending: stale ? 99 : 1, excluded: 0, failed: 0 },
         },
       }).catch((error) => {
         if (!route.request().failure()) throw error;
@@ -399,7 +400,7 @@ test("검색 복원의 마지막 요청 페이지가 cursor를 반복하면 이�
         }],
         next_cursor: "next",
         search_state: input.cursor ? "keyword_fallback" : "ok",
-        semantic_coverage: { pending: input.cursor ? 99 : 1, excluded: 0 },
+        semantic_coverage: { pending: input.cursor ? 99 : 1, excluded: 0, failed: 0 },
       },
     });
   });
@@ -436,7 +437,7 @@ test("검색의 반복 cursor 실패는 기존 행·coverage를 보존하고 같
         }],
         next_cursor: !input.cursor || bad ? "next" : null,
         search_state: bad ? "keyword_fallback" : "ok",
-        semantic_coverage: { pending: bad ? 99 : 1, excluded: 0 },
+        semantic_coverage: { pending: bad ? 99 : 1, excluded: 0, failed: 0 },
       },
     });
   });

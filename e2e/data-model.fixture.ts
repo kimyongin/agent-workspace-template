@@ -1,3 +1,5 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect, test } from "@playwright/test";
 import type { ModelChange, ModelReview } from "../supabase/functions/_shared/contracts/data-model.ts";
@@ -42,8 +44,9 @@ const user = {
   user_metadata: { full_name: "Fixture" },
 };
 test.beforeEach(async ({ page, baseURL }) => {
-  await page.route("**/*", (route) => {
+  await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }])) return;
     if (url.origin === new URL(baseURL!).origin) return route.continue();
     if (url.pathname.startsWith("/auth/v1/user")) {
       return route.fulfill({ json: user });
@@ -119,7 +122,7 @@ test(
         json: req.method() === "POST" ? created : { items: [], next_cursor: null },
       });
     });
-    await page.goto("/settings/data-model");
+    await page.goto(fixtureWorkspacePath("/settings/data-model"));
     await page.getByRole("textbox", { name: "설정 파일 내용" }).fill(
       '{"format":"workspace-data-model"}',
     );
@@ -174,7 +177,7 @@ test("충돌은 적용을 막고 가져온 원문과 보완 경로를 보존한�
         },
       }),
   );
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("textbox", { name: "설정 파일 내용" }).fill("원문 보존");
   await page.getByRole("button", { name: "가져올 내용 검토" }).click();
   await expect(page.getByRole("button", { name: "검토 내용 저장" }))
@@ -209,7 +212,7 @@ test("적용 응답이 유실돼도 입력을 잠그고 같은 키와 버전으�
     }
     return route.fulfill({ json: { items: [created], next_cursor: null } });
   });
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("button", { name: "오픈마켓 모델 적용 준비됨" }).click();
   await page.getByRole("button", { name: "설정 적용", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
@@ -225,7 +228,7 @@ test("적용 응답이 유실돼도 입력을 잠그고 같은 키와 버전으�
 });
 
 test("자료 설정으로 이동해도 미저장 전체 모델을 보호하고 취소하면 원문이 남는다", async ({ page }) => {
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("textbox", { name: "설정 파일 내용" }).fill(
     "미저장 원문",
   );
@@ -251,7 +254,7 @@ test("파일의 중복 키 원문은 서버에 그대로 보내고 검증 실패
       },
     });
   });
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.locator('input[type="file"]').setInputFiles({
     name: "domain.json",
     mimeType: "application/json",
@@ -267,7 +270,7 @@ test("파일의 중복 키 원문은 서버에 그대로 보내고 검증 실패
 test("화면 폭 전환은 모델 원문과 검토·펼침 상태를 보존한다", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   await page.route("**/api/data-model/preview", (route) => route.fulfill({ json: review }));
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("textbox", { name: "설정 파일 내용" }).fill("검토 원문");
   await page.getByRole("button", { name: "가져올 내용 검토" }).click();
   await page.getByRole("button", { name: "주문 추가", exact: true }).click();
@@ -294,7 +297,7 @@ test("변경 이력 더 보기는 다음 cursor를 읽고 실패해도 기존 �
       json: { items: [{ ...created, id: "older", review: { ...review, title: "요리 모델" } }], next_cursor: null },
     });
   });
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("button", { name: "더 보기", exact: true }).click();
   await expect(page.getByText("다음 페이지 조회 실패")).toBeVisible();
   await expect(page.getByRole("button", { name: "오픈마켓 모델 적용 준비됨" })).toBeVisible();
@@ -324,7 +327,7 @@ test("변경안 저장 성공 후 상세 실패는 저장 성공을 유지하고
     }
     return route.fulfill({ json: { items: [], next_cursor: null } });
   });
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("textbox", { name: "설정 파일 내용" }).fill("모델 원문");
   await page.getByRole("button", { name: "가져올 내용 검토" }).click();
   await page.getByRole("button", { name: "검토 내용 저장" }).click();
@@ -366,7 +369,7 @@ test("낡은 원본과 세 버전을 구분하고 누락 속성의 명시 확인
     if (path.endsWith("/change-id")) return route.fulfill({ json: created });
     return route.fulfill({ json: { items: [], next_cursor: null } });
   });
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("textbox", { name: "설정 파일 내용" }).fill("오래된 원본");
   await page.getByRole("button", { name: "가져올 내용 검토" }).click();
   await expect(page.getByRole("button", { name: "검토 내용 저장" })).toBeDisabled();
@@ -409,7 +412,7 @@ for (const noOp of [true, false]) {
       if (path.endsWith("/change-id")) return route.fulfill({ json: change });
       return route.fulfill({ json: { items: [], next_cursor: null } });
     });
-    await page.goto("/settings/data-model");
+    await page.goto(fixtureWorkspacePath("/settings/data-model"));
     await page.getByRole("textbox", { name: "설정 파일 내용" }).fill("검토할 모델");
     await page.getByRole("button", { name: "가져올 내용 검토" }).click();
     await page.getByRole("button", { name: "검토 내용 저장" }).click();
@@ -456,7 +459,7 @@ test("신규 종류의 실제 정의와 번호 및 원본 대응을 검토한다
     }],
   };
   await page.route("**/api/data-model/preview", (route) => route.fulfill({ json: detailed }));
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("textbox", { name: "설정 파일 내용" }).fill('{"format":"workspace-data-model"}');
   await page.getByRole("button", { name: "가져올 내용 검토" }).click();
   await page.getByRole("button", { name: "주문 추가", exact: true }).click();
@@ -501,7 +504,7 @@ test("요약 이력을 다시 열면 독립 상세를 읽어 저장한 전체 �
     }
     return route.fulfill({ json: { items: [summary], next_cursor: null } });
   });
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("button", { name: "오픈마켓 모델 값 변환 필요", exact: true }).click();
   const group = page.getByRole("region", { name: "기존 자료 값 변환" });
   await expect(group.getByRole("button", { name: "주문 변환 분석 전", exact: true })).toBeVisible();
@@ -523,7 +526,7 @@ test("모델 검토의 번호 출처와 설정 차이는 읽기 전용 표로 �
     current_identity: { version: 1, label: "기존 판매 번호", default_source: "seller", sources: [{ code: "seller", rule_id: "기존 판매 규칙", active: false }] },
   }] };
   await page.route("**/api/data-model/preview", route => route.fulfill({ json: detailed }));
-  await page.goto("/settings/data-model");
+  await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("textbox", { name: "설정 파일 내용" }).fill("검토할 모델");
   await page.getByRole("button", { name: "가져올 내용 검토", exact: true }).click();
   await page.getByRole("button", { name: "주문 수정", exact: true }).click();

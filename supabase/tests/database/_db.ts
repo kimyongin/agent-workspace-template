@@ -58,16 +58,3 @@ export async function outcome(p: Promise<unknown>): Promise<string> {
 export function dbTest(name: string, fn: () => Promise<void>) {
   Deno.test({ name, fn, sanitizeOps: false, sanitizeResources: false });
 }
-
-/** A test owns this whole account; cleanup never selects unrelated rows. */
-export async function fixtureOwner(admin: postgres.Sql) {
-  const userId = crypto.randomUUID();
-  await admin`insert into auth.users(id,email) values(${userId},${`template20-${userId}@example.test`})`;
-  return {
-    actor: { userId },
-    cleanup: async () => {
-      await admin`delete from pgmq.q_search_index where message->>'owner_id'=${userId}`;
-      await admin`delete from auth.users where id=${userId}`;
-    },
-  };
-}

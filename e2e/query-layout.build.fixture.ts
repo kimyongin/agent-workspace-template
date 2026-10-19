@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { fixtures } from "./support/workspace-screens.ts";
@@ -13,7 +14,7 @@ for (const width of [320, 390, 640, 1440]) {
     const state = await fixtures(page);
     await page.unroute("http://127.0.0.1:55580/**");
     await page.setViewportSize({ width, height: 844 });
-    await page.goto(`/agent-workspace-template/entities?entity_type_id=${fixtureType.id}`);
+    await page.goto(`/agent-workspace-template${fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`)}`);
     const picker = page.getByRole("combobox", { name: "자료 종류", exact: true });
     await expect(picker).toBeEnabled();
     const search = page.getByRole("textbox", { name: "자료 제목 검색", exact: true });

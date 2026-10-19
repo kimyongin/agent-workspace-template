@@ -1,14 +1,14 @@
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { changeConfiguredRelation, configuredRelationFixture, listConfiguredLinks } from "./_configured-relations.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import {
-  createEntityType,
+  createEntityType as createPublicEntityType,
   getEntitySchema,
   getEntityType,
   updateEntityType,
@@ -21,7 +21,7 @@ import {
   updateEntity,
 } from "../../functions/_shared/core/entity/application.ts";
 import {
-  createRecord,
+  completeTask,
   createTask,
   updateRecord,
   updateTask,
@@ -44,14 +44,28 @@ import { jsonbText } from "../../functions/_shared/core/entity-types/schema-rule
 import { prepareMigrationBatch } from "../../functions/_shared/core/entity-types/migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
-import { createTag } from "../../functions/_shared/core/tags/application.ts";
+import { createTag, setTagConnections } from "../../functions/_shared/core/tags/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { SchemaEdit } from "../../functions/_shared/contracts/entity-schema-change.ts";
+import { businessWorkspaceFixture } from "./_workspace-business.ts";
+import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 async function fixture() {
   const admin = connect(urls.admin),
     sql = connect(urls.direct, { max: 6 }),
-    a = await fixtureOwner(admin),
-    b = await fixtureOwner(admin);
+    workspace = await businessWorkspaceFixture(admin, sql),
+    foreign = await businessWorkspaceFixture(admin, sql),
+    a = { ...workspace, actor: workspace.manager },
+    b = { ...foreign, actor: foreign.manager };
+  await a.grant(a.actor, [{
+    target_kind: "settings",
+    target_id: "*",
+    access: "write",
+  }, { target_kind: "tasks", target_id: "*", access: "write" }]);
+  await b.grant(b.actor, [{
+    target_kind: "settings",
+    target_id: "*",
+    access: "write",
+  }]);
   const url = new URL(urls.admin);
   url.username = "app_worker";
   url.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
@@ -68,6 +82,13 @@ async function fixture() {
       clock: { now: () => new Date("2026-10-12T00:00:00Z") },
     };
   const actor = () => requestActor(a.actor);
+  const createWritableType = async (
+    input: Parameters<typeof createPublicEntityType>[2],
+  ) => {
+    const type = await createPublicEntityType(d, actor(), input);
+    await a.grantKind(a.actor, type.id, "write");
+    return type;
+  };
   async function analyze(type: string, id: string, version: number) {
     await analyzeEntitySchemaChange(d, actor(), type, id, {
       expected_change_version: version,
@@ -136,7 +157,10 @@ async function fixture() {
         assert(done.done);
         return;
       }
-      const prep = await prepareMigrationBatch(batch, new Date("2026-10-12T00:00:00Z"));
+      const prep = await prepareMigrationBatch(
+        batch,
+        new Date("2026-10-12T00:00:00Z"),
+      );
       assert(!prep.stale);
       assert(batch.rows.length === 0 || prep.results.length > 0);
       assert(
@@ -157,7 +181,7 @@ async function fixture() {
     throw Error("budget");
   }
   async function original(label = "Recovery") {
-    const type = await createEntityType(d, actor(), { label });
+    const type = await createWritableType({ label });
     const fields = [
       { type: ["string", "null"] },
       { type: "integer" },
@@ -198,7 +222,7 @@ async function fixture() {
       properties: { prop_1: "deleted" },
     });
     await deleteEntity(e, actor(), deleted.id, deleted.version);
-    const other = await createEntityType(d, actor(), { label: `${label} Peer` }),
+    const other = await createWritableType({ label: `${label} Peer` }),
       peer = await createEntity(e, actor(), {
         entity_type_id: other.id,
         schema_version: 1,
@@ -225,13 +249,16 @@ async function fixture() {
       title: "Selection",
       body: "old body",
       entity_ids: [x.id],
-      tag_ids: [],
     });
-    const record = await createRecord(activity, actor(), {
+    const resultRoot = await createTask(activity, actor(), {
+      kind: "once",
+      title: "고정 수행 원본",
+      body: "",
+    });
+    const record = (await completeTask(activity, actor(), resultRoot.id, {
+      expected_version: resultRoot.version,
       body: "historical body",
-      entity_ids: [x.id],
-      tag_ids: [],
-    });
+    })).record;
     const source = await getEntitySchema(d, a.actor, { type_id: type.id });
     const edits: SchemaEdit[] = [2, 3, 4, 5, 6].map((i) => ({
       op: "remove_property",
@@ -258,7 +285,7 @@ async function fixture() {
     });
   }
   async function largeOriginal(count: number) {
-    const type = await createEntityType(d, actor(), {
+    const type = await createWritableType({
       label: "Large recovery",
     });
     const addition = await createEntitySchemaChange(d, actor(), type.id, {
@@ -279,11 +306,12 @@ async function fixture() {
       analysis_id: ready.analysis!.id,
     });
     // Fixture owner only: valid multibyte properties, no shared account or service mutations.
-    await asUser(
+    await runInWorkspace(
       sql,
-      a.actor.userId,
+      a.actor,
+      { mode: "business", requirements: [] },
       (tx) =>
-        tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.actor.userId},'app:'||${type.id}::text||':'||n,'app',n::text,${type.id},2,jsonb_build_object('prop_1','row '||n,'prop_2',repeat('한',4096),'prop_3',repeat('글',4096),'prop_4',repeat('값',4096),'prop_5',repeat('복',4096),'prop_6',repeat('구',4096)) from generate_series(1,${count}) n`,
+        tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.workspaceId},'app:'||${type.id}::text||':'||n,'app',n::text,${type.id},2,jsonb_build_object('prop_1','row '||n,'prop_2',repeat('한',4096),'prop_3',repeat('글',4096),'prop_4',repeat('값',4096),'prop_5',repeat('복',4096),'prop_6',repeat('구',4096)) from generate_series(1,${count}) n`,
     );
     await updateBusinessSettings(
       { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: activity.clock },
@@ -403,10 +431,11 @@ dbTest(
           analysis_id: peerAnalysis.analysis!.id,
         },
       );
-      const history = await asUser(
+      const history = await runInWorkspace(
         f.sql,
-        f.a.actor.userId,
-        (tx) => tx`select id,body,entity_context from app.records order by id`,
+        f.a.actor,
+        { mode: "business", requirements: [] },
+        (tx) => tx`select id,body,entity_context from app.records where workspace_id=${f.a.workspaceId} order by id`,
       );
       const key = f.actor(), c = await f.recovery(o.job.job_id, key);
       assertEquals(c.status, "draft");
@@ -488,7 +517,8 @@ dbTest(
         [o.peer.id, o.same.id].sort(),
       );
       assert(
-        (await listConfiguredLinks(f.p, f.a.actor, o.peer.id, { limit: 100 })).items
+        (await listConfiguredLinks(f.p, f.a.actor, o.peer.id, { limit: 100 }))
+          .items
           .some((r) => r.id === o.x.id),
       );
       assertEquals(
@@ -498,13 +528,19 @@ dbTest(
       const restored = await getEntitySchema(f.d, f.a.actor, {
         type_id: o.type.id,
       });
-      assertEquals(restored.schema, { ...o.source.schema, title: "Renamed", "x-icon": "leaf", "x-version": 5 });
+      assertEquals(restored.schema, {
+        ...o.source.schema,
+        title: "Renamed",
+        "x-icon": "leaf",
+        "x-version": 5,
+      });
       assertEquals(restored.schema.properties, o.source.schema.properties);
-      const old = await asUser(
+      const old = await runInWorkspace(
         f.sql,
-        f.a.actor.userId,
+        f.a.actor,
+        { mode: "business", requirements: [] },
         (tx) =>
-          tx`select id,body,entity_context from app.records where id=any(${
+          tx`select id,body,entity_context from app.records where workspace_id=${f.a.workspaceId} and id=any(${
             history.map((r) => r.id)
           }::text[]) order by id`,
       );
@@ -550,7 +586,6 @@ dbTest(
         "pair",
         "pair_same",
         "task",
-        "record",
       ]
     ) {
       const f = await fixture();
@@ -573,11 +608,16 @@ dbTest(
               name: "later tag",
             },
           );
-          await updateEntity(f.e, f.actor(), x.id, {
-            expected_version: x.version,
-            schema_version: 3,
-            tag_ids: [tag.id],
-          });
+          await setTagConnections(
+            { uow: new SqlTagUnitOfWork(f.sql) },
+            f.actor(),
+            {
+              target_kind: "entity",
+              target_id: x.id,
+              expected_version: x.version,
+              tag_ids: [tag.id],
+            },
+          );
         }
         if (action === "pair_same") {
           const same = await getEntity(f.e, f.a.actor, o.same.id);
@@ -619,12 +659,6 @@ dbTest(
         if (action === "task") {
           await updateTask(f.activity, f.actor(), o.task.id, {
             expected_version: o.task.version,
-            entity_ids: [],
-          });
-        }
-        if (action === "record") {
-          await updateRecord(f.activity, f.actor(), o.record.id, {
-            expected_version: o.record.version,
             entity_ids: [],
           });
         }
@@ -716,9 +750,15 @@ dbTest(
       });
       const archivedRecovery = await h.recovery(o.job.job_id);
       assertEquals(archivedRecovery.target.schema.deprecated, true);
-      const recovered = await h.accept(t.id, archivedRecovery.id, archivedRecovery.version);
+      const recovered = await h.accept(
+        t.id,
+        archivedRecovery.id,
+        archivedRecovery.version,
+      );
       await h.finish(recovered.job_id);
-      const definition = await getEntitySchema(h.d, h.a.actor, { type_id: t.id });
+      const definition = await getEntitySchema(h.d, h.a.actor, {
+        type_id: t.id,
+      });
       assertEquals(definition.schema.deprecated, true);
       assertEquals(definition.schema.title, next.label);
       assertEquals(definition.schema["x-icon"], next.icon_id);
@@ -754,6 +794,7 @@ dbTest(
         (await getEntity(f.e, f.a.actor, o.x.id)).properties.prop_4,
         false,
       );
+      await f.worker`select app.prune_entity_schema_sources()`;
       const [clean] = await f
         .admin`select count(*)::int as count from private.entity_schema_migration_rows where job_id=${o.job.job_id}`;
       assertEquals(clean.count, 0);
@@ -767,14 +808,35 @@ dbTest(
       );
       await code(() => f.recovery(other.job.job_id), "conflict");
       await f
-        .admin`update app.entity_schema_analyses set created_at=now()-interval '31 days' where owner_id=${f.a.actor.userId}`;
-      await f.worker`select app.claim_entity_schema_migration()`;
+        .admin`update app.entity_schema_analyses set created_at=now()-interval '31 days' where workspace_id=${f.a.workspaceId}`;
+      const protectedRows = await f
+        .admin`select r.analysis_id,r.entity_id from private.entity_schema_analysis_rows r
+        where r.workspace_id=${f.a.workspaceId} and exists(select 1 from app.entity_schema_migrations j
+          where j.workspace_id=r.workspace_id and j.analysis_id=r.analysis_id
+           and (j.status in ('queued','preparing','ready_to_commit','committing') or j.source_expires_at>clock_timestamp())) order by r.analysis_id,r.entity_id`;
+      assert(
+        protectedRows.length > 0,
+        "live accepted jobs retain their sealed analysis source",
+      );
+      await f.worker`select app.prune_entity_schema_sources()`;
       const [rows] = await f
-        .admin`select count(*)::int as count from private.entity_schema_analysis_rows r join app.entity_schema_analyses a on a.id=r.analysis_id where a.owner_id=${f.a.actor.userId} and a.created_at<=now()-interval '30 days'`;
+        .admin`select count(*)::int as count from private.entity_schema_analysis_rows r
+        join app.entity_schema_analyses a on a.id=r.analysis_id and a.workspace_id=r.workspace_id
+        where a.workspace_id=${f.a.workspaceId} and a.created_at<=now()-interval '30 days'
+        and not exists(select 1 from app.entity_schema_migrations j where j.workspace_id=r.workspace_id and j.analysis_id=r.analysis_id
+          and (j.status in ('queued','preparing','ready_to_commit','committing') or j.source_expires_at>clock_timestamp()))`;
       assertEquals(rows.count, 0);
+      assertEquals(
+        await f
+          .admin`select r.analysis_id,r.entity_id from private.entity_schema_analysis_rows r
+        where r.workspace_id=${f.a.workspaceId} and exists(select 1 from app.entity_schema_migrations j
+          where j.workspace_id=r.workspace_id and j.analysis_id=r.analysis_id
+           and (j.status in ('queued','preparing','ready_to_commit','committing') or j.source_expires_at>clock_timestamp())) order by r.analysis_id,r.entity_id`,
+        protectedRows,
+      );
       await f.a.cleanup();
       const [deleted] = await f
-        .admin`select (select count(*) from private.entity_schema_migration_rows where owner_id=${f.a.actor.userId})::int as sources,(select count(*) from private.entity_schema_analysis_rows where owner_id=${f.a.actor.userId})::int as analyses`;
+        .admin`select (select count(*) from private.entity_schema_migration_rows where workspace_id=${f.a.workspaceId})::int as sources,(select count(*) from private.entity_schema_analysis_rows where workspace_id=${f.a.workspaceId})::int as analyses`;
       assertEquals(deleted, { sources: 0, analyses: 0 });
     } finally {
       await f.cleanup();
@@ -792,15 +854,25 @@ dbTest(
         accepted = await f.accept(o.type.id, c.id, c.version);
       const [claim] = await f
         .worker`select app.claim_entity_schema_migration() as batch`;
-      const staged = await prepareMigrationBatch(claim.batch, new Date("2026-10-12T00:00:00Z"));
+      const staged = await prepareMigrationBatch(
+        claim.batch,
+        new Date("2026-10-12T00:00:00Z"),
+      );
       assert(!staged.stale);
       await f
         .worker`select app.stage_entity_schema_migration(${accepted.job_id},${claim.batch.fence},${
         f.worker.json(staged.results)
       })`;
       // Privileged fixture injection proves the final RPC gate, beyond the ordinary public write lock.
-      await f
-        .admin`update app.tasks set entity_ids='{}',entity_context='[]' where id=${o.task.id}`;
+      await f.admin.begin(async (tx) => {
+        await tx`select set_config('request.jwt.claims',${
+          JSON.stringify({ sub: f.a.actor.userId, role: "authenticated" })
+        },true),
+          set_config('request.workspace_id',${f.a.workspaceId},true)`;
+        await tx`select app.lock_workspace_account()`;
+        await tx`select app.lock_workspace(${f.a.workspaceId},false)`;
+        await tx`update app.tasks set entity_ids='{}',entity_context='[]' where workspace_id=${f.a.workspaceId} and id=${o.task.id}`;
+      });
       const [final] = await f
         .worker`select app.claim_entity_schema_migration() as batch`;
       const [result] = await f
@@ -875,6 +947,7 @@ dbTest(
           .status,
         "succeeded",
       );
+      await f.worker`select app.prune_entity_schema_sources()`;
       const [source] = await f
         .admin`select count(*)::int as count from private.entity_schema_migration_rows where job_id=${o.job.job_id}`;
       assertEquals(source.count, 0);
@@ -906,14 +979,17 @@ dbTest(
           }),
         "schema_plan_stale",
       );
-      assertEquals(await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`), before);
+      assertEquals(
+        await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
+        before,
+      );
       assertEquals(
         (await getEntitySchema(f.d, f.a.actor, { type_id: o.type.id }))
           .schema_version,
         3,
       );
       const [state] = await f
-        .admin`select schema_write_locked,(select count(*) from app.entity_schema_migrations where change_id=${c.id})::int as jobs,(select count(*) from app.records where owner_id=${f.a.actor.userId})::int as records from app.entity_types where id=${o.type.id}`;
+        .admin`select schema_write_locked,(select count(*) from app.entity_schema_migrations where change_id=${c.id})::int as jobs,(select count(*) from app.records where workspace_id=${f.a.workspaceId})::int as records from app.entity_types where id=${o.type.id}`;
       assertEquals(state, { schema_write_locked: false, jobs: 0, records: 70 });
     } finally {
       await f.cleanup();
@@ -945,28 +1021,35 @@ dbTest(
           },
         },
       );
-      const c = await f.recovery(o.job.job_id), ready = await f.analyze(o.type.id, c.id, c.version);
+      const c = await f.recovery(o.job.job_id),
+        ready = await f.analyze(o.type.id, c.id, c.version);
       const before = await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
         t = await getEntityType(f.d, f.a.actor, o.type.id);
       assert(ready.executable);
-      await code(() =>
-        startEntitySchemaMigration(f.d, f.actor(), o.type.id, c.id, {
-          expected_change_version: c.version,
-          expected_schema_version: t.schema_version,
-          analysis_id: ready.analysis!.id,
-          fingerprint: ready.fingerprint,
-        }), "invalid_input");
+      await code(
+        () =>
+          startEntitySchemaMigration(f.d, f.actor(), o.type.id, c.id, {
+            expected_change_version: c.version,
+            expected_schema_version: t.schema_version,
+            analysis_id: ready.analysis!.id,
+            fingerprint: ready.fingerprint,
+          }),
+        "invalid_input",
+      );
       const [jobs] = await f
         .admin`select count(*)::int as count from app.entity_schema_migrations where type_id=${o.type.id}`;
       assertEquals(jobs.count, 1);
-      assertEquals(await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`), before);
+      assertEquals(
+        await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
+        before,
+      );
       assertEquals(
         (await getEntitySchema(f.d, f.a.actor, { type_id: o.type.id }))
           .schema_version,
         3,
       );
       const [state] = await f
-        .admin`select schema_write_locked,(select count(*) from app.records where owner_id=${f.a.actor.userId})::int as records from app.entity_types where id=${o.type.id}`;
+        .admin`select schema_write_locked,(select count(*) from app.records where workspace_id=${f.a.workspaceId})::int as records from app.entity_types where id=${o.type.id}`;
       assertEquals(state, { schema_write_locked: false, records: 66 });
     } finally {
       await f.cleanup();
@@ -1019,14 +1102,17 @@ dbTest(
           }),
         "invalid_input",
       );
-      assertEquals(await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`), before);
+      assertEquals(
+        await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
+        before,
+      );
       assertEquals(
         (await getEntitySchema(f.d, f.a.actor, { type_id: o.type.id }))
           .schema_version,
         3,
       );
       const [state] = await f
-        .admin`select schema_write_locked,(select count(*) from app.entity_schema_migrations where change_id=${c.id})::int as jobs,(select count(*) from app.records where owner_id=${f.a.actor.userId})::int as records from app.entity_types where id=${o.type.id}`;
+        .admin`select schema_write_locked,(select count(*) from app.entity_schema_migrations where change_id=${c.id})::int as jobs,(select count(*) from app.records where workspace_id=${f.a.workspaceId})::int as records from app.entity_types where id=${o.type.id}`;
       assertEquals(state, { schema_write_locked: false, jobs: 0, records: 68 });
     } finally {
       await f.cleanup();
@@ -1034,74 +1120,87 @@ dbTest(
   },
 );
 
-dbTest("recovery expiry uses wallclock after type/template lock waits and before acceptance", async () => {
-  for (const phase of ["type", "template-create", "template-start"] as const) {
-    const f = await fixture();
-    try {
-      const o = await f.original(phase), before = await getEntity(f.e, f.a.actor, o.x.id);
-      const c = phase === "template-start" ? await f.recovery(o.job.job_id) : null;
-      const ready = c ? await f.analyze(o.type.id, c.id, c.version) : null;
-      const [counts] = await f
-        .admin`select (select count(*)::int from app.entity_schema_changes where type_id=${o.type.id}) changes,(select count(*)::int from app.entity_schema_migrations where type_id=${o.type.id}) jobs`;
-      let acquired!: () => void, release!: () => void;
-      const locked = new Promise<void>((resolve) => acquired = resolve),
-        untilRelease = new Promise<void>((resolve) => release = resolve);
-      const hold = f.admin.begin(async (tx) => {
-        if (phase === "type") {
-          await tx`select id from app.entity_types where id=${o.type.id} for update`;
-          await tx`update app.entity_types set schema_write_locked=true where id=${o.type.id}`;
-        } else await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.actor.userId}:record_templates`},0))`;
-        await tx`update app.entity_schema_migrations set source_expires_at=clock_timestamp()+interval '1 second' where id=${o.job.job_id}`;
-        // Commit expiry before template waits; type-lock case publishes it on release.
-        acquired();
-        await untilRelease;
-      });
-      await locked;
-      // Template cases need a committed source expiry before the application obtains its job lock.
-      if (phase !== "type") {
-        release();
-        await hold;
-      }
-      let unlockTemplate!: () => void, secondLocked: Promise<unknown> | null = null;
-      if (phase !== "type") {
-        let signal!: () => void;
-        const taken = new Promise<void>((resolve) => signal = resolve),
-          wait = new Promise<void>((resolve) => unlockTemplate = resolve);
-        secondLocked = f.admin.begin(async (tx) => {
-          await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.actor.userId}:record_templates`},0))`;
-          signal();
-          await wait;
-        });
-        await taken;
-      }
-      const result = (phase === "template-start"
-        ? startEntitySchemaMigration(f.d, f.actor(), o.type.id, c!.id, {
-          expected_change_version: c!.version,
-          expected_schema_version: ready!.source_schema_version,
-          analysis_id: ready!.analysis!.id,
-          fingerprint: ready!.fingerprint,
-        })
-        : f.recovery(o.job.job_id)).then(() => ({ code: "accepted" }), (error) => ({ code: (error as AppError).code }));
+dbTest(
+  "recovery expiry uses wallclock after type/template lock waits and before acceptance",
+  async () => {
+    for (
+      const phase of ["type", "template-create", "template-start"] as const
+    ) {
+      const f = await fixture();
       try {
-        await f.admin`select pg_sleep(1.2)`;
-      } finally {
-        if (phase === "type") {
+        const o = await f.original(phase),
+          before = await getEntity(f.e, f.a.actor, o.x.id);
+        const c = phase === "template-start" ? await f.recovery(o.job.job_id) : null;
+        const ready = c ? await f.analyze(o.type.id, c.id, c.version) : null;
+        const [counts] = await f
+          .admin`select (select count(*)::int from app.entity_schema_changes where type_id=${o.type.id}) changes,(select count(*)::int from app.entity_schema_migrations where type_id=${o.type.id}) jobs`;
+        let acquired!: () => void, release!: () => void;
+        const locked = new Promise<void>((resolve) => acquired = resolve),
+          untilRelease = new Promise<void>((resolve) => release = resolve);
+        const hold = f.admin.begin(async (tx) => {
+          if (phase === "type") {
+            await tx`select id from app.entity_types where id=${o.type.id} for update`;
+            await tx`update app.entity_types set schema_write_locked=true where id=${o.type.id}`;
+          } else {
+            await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.workspaceId}:record_templates`},0))`;
+          }
+          await tx`update app.entity_schema_migrations set source_expires_at=clock_timestamp()+interval '1 second' where id=${o.job.job_id}`;
+          // Commit expiry before template waits; type-lock case publishes it on release.
+          acquired();
+          await untilRelease;
+        });
+        await locked;
+        // Template cases need a committed source expiry before the application obtains its job lock.
+        if (phase !== "type") {
           release();
           await hold;
-        } else {
-          unlockTemplate();
-          await secondLocked;
         }
+        let unlockTemplate!: () => void,
+          secondLocked: Promise<unknown> | null = null;
+        if (phase !== "type") {
+          let signal!: () => void;
+          const taken = new Promise<void>((resolve) => signal = resolve),
+            wait = new Promise<void>((resolve) => unlockTemplate = resolve);
+          secondLocked = f.admin.begin(async (tx) => {
+            await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.workspaceId}:record_templates`},0))`;
+            signal();
+            await wait;
+          });
+          await taken;
+        }
+        const result = (phase === "template-start"
+          ? startEntitySchemaMigration(f.d, f.actor(), o.type.id, c!.id, {
+            expected_change_version: c!.version,
+            expected_schema_version: ready!.source_schema_version,
+            analysis_id: ready!.analysis!.id,
+            fingerprint: ready!.fingerprint,
+          })
+          : f.recovery(o.job.job_id)).then(
+            () => ({ code: "accepted" }),
+            (error) => ({ code: (error as AppError).code }),
+          );
+        try {
+          await f.admin`select pg_sleep(1.2)`;
+        } finally {
+          if (phase === "type") {
+            release();
+            await hold;
+          } else {
+            unlockTemplate();
+            await secondLocked;
+          }
+        }
+        assertEquals((await result).code, "migration_source_expired");
+        const [after] = await f
+          .admin`select (select count(*)::int from app.entity_schema_changes where type_id=${o.type.id}) changes,(select count(*)::int from app.entity_schema_migrations where type_id=${o.type.id}) jobs`;
+        assertEquals(after, counts);
+        assertEquals(await getEntity(f.e, f.a.actor, o.x.id), before);
+        const [gate] = await f
+          .admin`select schema_write_locked from app.entity_types where id=${o.type.id}`;
+        assertEquals(gate.schema_write_locked, phase === "type");
+      } finally {
+        await f.cleanup();
       }
-      assertEquals((await result).code, "migration_source_expired");
-      const [after] = await f
-        .admin`select (select count(*)::int from app.entity_schema_changes where type_id=${o.type.id}) changes,(select count(*)::int from app.entity_schema_migrations where type_id=${o.type.id}) jobs`;
-      assertEquals(after, counts);
-      assertEquals(await getEntity(f.e, f.a.actor, o.x.id), before);
-      const [gate] = await f.admin`select schema_write_locked from app.entity_types where id=${o.type.id}`;
-      assertEquals(gate.schema_write_locked, phase === "type");
-    } finally {
-      await f.cleanup();
     }
-  }
-});
+  },
+);

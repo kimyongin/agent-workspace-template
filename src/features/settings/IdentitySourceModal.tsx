@@ -1,3 +1,4 @@
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { PlusIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup } from "@/components/ui/field";
@@ -9,7 +10,7 @@ import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { Field } from "../../components/Field.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 import { IssuerRegistryEditor, type RegistryEditTarget } from "./IssuerRegistryEditor.tsx";
-import { issuerRegistry } from "./issuer-registry-api.ts";
+import { useIssuerRegistry } from "./issuer-registry-api.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 export function IdentitySourceModal({
   issuers,
@@ -28,6 +29,8 @@ export function IdentitySourceModal({
   onRule: (rule: IdentifierRule) => void;
   onState: (state: MaterialSectionState) => void;
 }) {
+  const { canWrite } = useSettingsAccess();
+  const issuerRegistry = useIssuerRegistry();
   const [source, setSource] = useState(""),
     [ruleId, setRuleId] = useState(""),
     [rules, setRules] = useState<IdentifierRule[] | null>(null),
@@ -108,7 +111,7 @@ export function IdentitySourceModal({
       title="번호 출처 연결"
       description="이 자료 종류에 사용할 번호 출처와 번호 종류를 선택합니다."
       dirty={!!source || editState.dirty || !!editState.uncertain}
-      busy={editState.busy || !!editState.uncertain}
+      busy={editState.busy || canWrite && !!editState.uncertain}
       onClose={onClose}
       footer={(requestClose) => (
         <>
@@ -116,9 +119,10 @@ export function IdentitySourceModal({
           <Button variant="default"
 
             type="button"
-            disabled={!issuer?.active || !rule?.active || !!editing}
+            disabled={!canWrite || !issuer?.active || !rule?.active || !!editing}
             onClick={() => {
-              if (issuer && rule) onConnect(issuer, rule);
+                if (!canWrite) return;
+              if (canWrite && issuer && rule) onConnect(issuer, rule);
             }}
           >
             연결
@@ -149,6 +153,7 @@ export function IdentitySourceModal({
 
             ref={issuerAdd}
             onClick={() => {
+                if (!canWrite) return;
               returnTo.current = "issuer";
               setEditing({ kind: "issuer" });
             }}
@@ -193,6 +198,7 @@ export function IdentitySourceModal({
                 ref={ruleAdd}
                 disabled={rules === null}
                 onClick={() => {
+                if (!canWrite) return;
                   returnTo.current = "rule";
                   setEditing({ kind: "rule", source, sourceLabel: issuer.label });
                 }}

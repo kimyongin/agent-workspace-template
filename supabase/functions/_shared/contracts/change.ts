@@ -1,4 +1,5 @@
 import { entityReferenceId } from "./entity-identity.ts";
+import { entityContext } from "./entity-links.ts";
 import { z } from "zod";
 import { tagIds } from "./tag.ts";
 import { codePointLength, id, TEXT_LIMITS } from "./common.ts";
@@ -18,5 +19,7 @@ export const changeMetadata = z.object({
   before: z.record(z.string(), z.unknown()).nullable(),
   after: z.record(z.string(), z.unknown()).nullable(),
   path: z.string().nullable(),
+  /** Historic display only; the record's singular stored parent controls authorization. */
+  target_snapshot: entityContext.optional(),
 });
 export type ChangeMetadata = z.infer<typeof changeMetadata>;

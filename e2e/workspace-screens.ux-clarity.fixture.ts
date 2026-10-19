@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { fixtures, form, go } from "./support/workspace-screens.ts";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
-import { saveOnce } from "./ui-actions.ts";
+import { openDialogs, saveOnce } from "./ui-actions.ts";
 
 const marketEntity = (n: number, source: string, label: string) => ({
   ...entity(n, { prop_1: "같은 상품" }),
@@ -74,17 +74,17 @@ for (const width of [320, 1440]) {
     state.rows.entities.splice(0, state.rows.entities.length, item);
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(item.id)}`);
-    await expect(form(page).getByRole("button", { name: "기록 작성", exact: true })).toBeVisible();
+    await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toBeVisible();
     state.failRead({ kind: "entities", id: item.id });
-    await form(page).getByRole("button", { name: "기록 작성", exact: true }).click();
-    await form(page).getByLabel("본문", { exact: false }).fill("보존할 기록 초안");
+    await form(page).getByRole("button", { name: "할 일 작성", exact: true }).click();
+    await form(page).getByLabel("본문", { exact: false }).fill("보존할 할 일 초안");
     await expect(form(page).getByRole("alert")).toContainText("선택한 자료 정보를 확인하지 못했습니다");
     const selected = form(page).getByRole("table", { name: "선택한 자료", exact: true });
     await expect(selected).toContainText("같은 상품");
     await expect(selected).not.toContainText(item.id);
     await form(page).getByRole("button", { name: "다시 조회", exact: true }).click();
     await expect(selected).toContainText("쿠팡 · 000Ab-21");
-    await expect(form(page).getByLabel("본문", { exact: false })).toHaveValue("보존할 기록 초안");
+    await expect(form(page).getByLabel("본문", { exact: false })).toHaveValue("보존할 할 일 초안");
     expect(state.writes).toHaveLength(0);
   });
 
@@ -147,9 +147,10 @@ for (const archived of [false, true]) {
         }),
     );
     await page.goto("http://127.0.0.1:55580/entities?create=1");
-    const editor = form(page);
+    const content = page.getByRole("main");
+    await expect(openDialogs(page)).toHaveCount(0);
     await expect(
-      editor.getByRole("link", {
+      content.getByRole("link", {
         name: archived ? "보관된 종류 관리" : "자료 종류 추가",
         exact: true,
       }),
@@ -158,7 +159,7 @@ for (const archived of [false, true]) {
       archived ? "/settings/materials" : "/settings/entity-types",
     );
     await expect(
-      editor.getByText(
+      content.getByText(
         archived
           ? "모든 자료 종류가 보관되어 있습니다."
           : "아직 자료 종류가 없습니다.",
@@ -166,7 +167,7 @@ for (const archived of [false, true]) {
       ),
     ).toBeVisible();
     await expect(
-      editor.getByRole("link", { name: "자료 종류 만들기·보관 관리" }),
+      content.getByRole("link", { name: "자료 종류 만들기·보관 관리" }),
     ).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
   });

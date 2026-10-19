@@ -141,7 +141,7 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
         source_label: i.source,
         created_at: "2026-10-09T00:00:00Z",
         updated_at: "2026-10-09T00:00:00Z",
-        tag_ids: i.tag_ids ?? [],
+        tag_ids: [],
         deleted_at: null,
         version: 1,
       };
@@ -213,6 +213,9 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
             }),
           definition: () => Promise.resolve(definition),
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+          getForTarget() {
+            return this.get();
+          },
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1 },
@@ -350,6 +353,9 @@ Deno.test("Registration rejects stale type identity and retired creation while e
     uow: {
       run: (_actor, run) =>
         run({
+          getForTarget() {
+            return this.get();
+          },
           get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
           getTypeIdentity: () => Promise.resolve(config()),
           definition: () => Promise.resolve(definition),

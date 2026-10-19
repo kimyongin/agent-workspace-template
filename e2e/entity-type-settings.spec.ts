@@ -2,28 +2,28 @@ import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { entitySchemaPresentation } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
-import postgres from "postgres";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, ownedWorkspace, workspacePath} from "./support.ts";
 import { analyzeAndApply, schemaAnalysisTick } from "./entity-schema-support.ts";
 import { revealSetting } from "./ui-actions.ts";
 
 test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 버전을 MCP로 확인한다", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   const label = unique("자료 종류");
   let typeId: string | undefined;
   let releaseDestination: (() => void) | undefined;
   try {
-    await page.goto("/settings/entity-types");
+    await page.goto(workspacePath(workspace.id, "/settings/entity-types"));
     await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
     const creation = page.getByRole("form", { name: "자료 종류 만들기", exact: true });
     await expect(creation).toBeVisible();
-    await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveCount(0);
     await creation.getByRole("radio", { name: "별", exact: true }).check();
     const beforeNavigation = page.url();
     await openMainNavigation(page);
     const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
-    await expect(tasksLink).toHaveAttribute("href", "/tasks");
+    await expect(tasksLink).toHaveAttribute("href", workspacePath(workspace.id, "/tasks"));
     await tasksLink.click();
     const initialConfirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
     await expect(initialConfirm).toBeVisible();
@@ -61,6 +61,8 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveCount(0);
     releaseDestination!();
+    await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(typeId!);
+    await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option:checked")).toHaveText(label);
     await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
     const changedLabel = unique("이름 변경");
@@ -161,20 +163,13 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
   } finally {
     releaseDestination?.();
     await mcp.close();
-    if (typeId) {
-      const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
-      try {
-        await admin`delete from app.entity_types where id=${typeId}`;
-      } finally {
-        await admin.end();
-      }
-    }
   }
 });
 
 test("자료 종류 생성의 성공 응답 유실은 초안·같은 요청을 보존하고 재시도로 하나만 생성한다", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   const label = unique("응답 유실 자료");
   let typeId: string | undefined;
   const keys: string[] = [];
@@ -190,7 +185,7 @@ test("자료 종류 생성의 성공 응답 유실은 초안·같은 요청을 �
     } else await route.continue();
   });
   try {
-    await page.goto("/settings/entity-types");
+    await page.goto(workspacePath(workspace.id, "/settings/entity-types"));
     const creation = page.getByRole("form", { name: "자료 종류 만들기", exact: true });
     await expect(creation).toBeVisible();
     await creation.getByLabel("자료 종류 이름", { exact: true }).fill(label);
@@ -214,23 +209,17 @@ test("자료 종류 생성의 성공 응답 유실은 초안·같은 요청을 �
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
   } finally {
     await mcp.close();
-    if (typeId) {
-      const admin = postgres(requiredEnv("LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
-      try {
-        await admin`delete from app.entity_types where id=${typeId}`;
-      } finally {
-        await admin.end();
-      }
-    }
   }
 });
 
 test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표시를 MCP 변경안과 게시 정의에 그대로 저장한다", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const type = await mcp.call("create_entity_type", { label: unique("첫 항목 검토") });
-    await page.goto(`/settings/entity-types/${type.id}`);
+    await workspace.grantKind(type.id);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}`));
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await page.getByRole("button", { name: "항목 추가", exact: true }).click();
     let field = page.getByRole("region", { name: "새 항목 입력 항목", exact: true });
@@ -292,9 +281,11 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
 
 test("기록 템플릿이 바뀌면 같은 이력 행에서 변환 초안을 유지해 최신 기준의 새 변경안을 검토한다", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const type = await mcp.call("create_entity_type", { label: unique("템플릿 변경 재검토") });
+    await workspace.grantKind(type.id);
     const addition = await mcp.call("create_entity_schema_change", {
       type_id: type.id,
       expected_schema_version: 1,
@@ -334,7 +325,7 @@ test("기록 템플릿이 바뀌면 같은 이력 행에서 변환 초안을 유
       analysis: { status: "succeeded", failed: 1 },
       executable: false,
     });
-    await page.goto(`/settings/entity-types/${type.id}?change_id=${change.id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}?change_id=${change.id}`));
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await history.getByLabel("가격 변환 방식", { exact: true }).selectOption("convert");
     const before = await mcp.call("get_business_settings", { id: "record_templates" });

@@ -11,7 +11,7 @@
 | [0003](0003-core-rules-and-local-transactions.md) | 업무 규칙은 core, 일관성은 로컬 트랜잭션과 큐 | 채택 |
 | [0004](0004-summary-single-vector-search.md) | 제목+요약 단일 벡터 검색 | ADR-0014로 대체 |
 | [0005](0005-plugin-delivery-claude-codex.md) | 에이전트 제공 단위는 플러그인, Claude·Codex 지원 | 채택 |
-| [0006](0006-owner-only-access-and-separate-auth.md) | 소유자 한정 접근과 로그인·MCP 인증 분리 | 채택 |
+| [0006](0006-owner-only-access-and-separate-auth.md) | 소유자 한정 접근과 로그인·MCP 인증 분리 | 접근 범위는 ADR-0026으로 확장, 인증 분리는 유지 |
 | [0008](0008-document-ownership.md) | 문서 소유권 | 채택 |
 | [0011](0011-matt-skills-and-github-workflow.md) | Matt Pocock 스킬과 GitHub 작업 정본 | 채택 |
 | [0012](0012-current-state-and-unified-records.md) | 최신 상태와 메모 기반 통합 기록 | 채택 |
@@ -33,6 +33,8 @@
 | [0023](0023-single-schema-document.md) | 자료 종류·속성·표시의 단일 JSON Schema 정본 | 채택, 구현은 #468 |
 
 | [0024](0024-entity-relations-and-data-model.md) | 역할이 있는 자료 관계와 전체 자료 모델 교환 | 채택, 구현은 #482 |
+
+| [0026](0026-workspace-membership-and-inherited-record-access.md) | 워크스페이스 참여와 연결 대상에 따른 기록 권한 | 설계 채택, 구현은 [#511](https://github.com/kimyongin/agent-workspace-template/issues/511) |
 
 ## 문서의 책임
 

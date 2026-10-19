@@ -1,3 +1,5 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { listHeader, openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import {
   fixtureIdentity,
@@ -11,6 +13,7 @@ const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated",
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }, { target_kind: "tasks", target_id: "*", access: "write" }, { target_kind: "entity_type", target_id: fixtureType.id, access: "write" }])) return;
     if (url.pathname === "/api/entity-types") {
       await route.fulfill({json:{items:[fixtureType],next_cursor:null}});
     } else if (url.pathname.startsWith("/api/entity-types/")) {
@@ -66,11 +69,11 @@ async function signIn(page: Page, id = user.id) {
 
 test("업무 메뉴와 프로필은 320~1440px와 200%에서 조작 가능하다", async ({ page }, info) => {
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 844 }); await page.goto("/settings");
+    await page.setViewportSize({ width, height: 844 }); await page.goto(fixtureWorkspacePath("/settings"));
     await expect(page.getByRole("banner").getByText("Workspace", { exact: true })).toBeVisible();
     await openNavigation(page);
     const nav = page.getByRole("navigation", { name: "주 메뉴" });
-    await expect(nav.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/entities");
+    await expect(nav.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/workspaces");
     for (const name of [fixtureType.label, "할 일", "기록"]) {
       const link = nav.getByRole("link", { name, exact: true }); await expect(link).toBeVisible();
       const box = (await link.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
@@ -83,7 +86,7 @@ test("업무 메뉴와 프로필은 320~1440px와 200%에서 조작 가능하다
     await page.keyboard.press("Escape"); await expect(profileButton(page)).toBeFocused();
   }
   for (const [width, height, text] of [[320, 844, "200%"], [720, 450, ""]] as const) {
-    await page.setViewportSize({ width, height }); await page.goto("/settings");
+    await page.setViewportSize({ width, height }); await page.goto(fixtureWorkspacePath("/settings"));
     await page.evaluate(text => document.documentElement.style.fontSize = text, text);
     await openProfile(page); await expect(profileMenu(page).getByRole("menuitem", { name: "사용 가이드", exact: true })).toBeVisible();
     await expect(profileMenu(page).getByRole("menuitem", { name: "로그아웃", exact: true })).toBeInViewport();
@@ -95,7 +98,7 @@ test("업무 메뉴와 프로필은 320~1440px와 200%에서 조작 가능하다
 });
 
 test("프로필 팝오버는 키보드·외부 클릭·경로 이동에 초점을 유지한다", async ({ page }) => {
-  await page.goto("/settings"); const profile = page.getByRole("button", { name:/^내 프로필(?: · .+)?$/, exact:true }), popup = profileMenu(page);
+  await page.goto(fixtureWorkspacePath("/settings")); const profile = page.getByRole("button", { name:/^내 프로필(?: · .+)?$/, exact:true }), popup = profileMenu(page);
   await expect(page.getByRole("button", { name:"메뉴", exact:true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "설정", exact: true }).getByRole("link", { name:"사용 가이드", exact:true })).toHaveCount(0);
   await profile.focus(); await profile.press("ArrowDown");
@@ -123,7 +126,7 @@ test("저장 실패의 초안을 보존하고 서버 성공 응답·재조회·�
     if (fail) await route.fulfill({ status: 500, json: { msg: "fixture failure" } });
     else await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "leaf" } } });
   });
-  await page.goto("/settings"); await page.getByRole("radio", { name: "잎", exact: true }).check();
+  await page.goto(fixtureWorkspacePath("/settings")); await page.getByRole("radio", { name: "잎", exact: true }).check();
   const originalPath = await profileIcon(page).textContent();
   await page.getByRole("button",{name:"프로필 저장", exact: true }).click(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("alert")).toContainText("입력한 설정을 유지"); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
   await expect(profileIcon(page)).toHaveText(originalPath!);
@@ -140,7 +143,7 @@ test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 
   await refreshedProfile(page, () => saved ? "sun" : "person");
   let finish!: () => void; const waiting = new Promise<void>(resolve => { finish = resolve; }); let calls = 0;
   await page.route("**/auth/v1/user", async route => { if (route.request().method() !== "PUT") return route.fallback(); calls++; await waiting; saved = true; await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "sun" } } }); });
-  await page.goto("/settings"); await page.getByRole("radio", { name: "해바라기", exact: true }).check(); await page.getByRole("button",{name:"프로필 저장", exact: true }).click();
+  await page.goto(fixtureWorkspacePath("/settings")); await page.getByRole("radio", { name: "해바라기", exact: true }).check(); await page.getByRole("button",{name:"프로필 저장", exact: true }).click();
   await expect(page.getByRole("button",{name:"프로필 저장" })).toBeDisabled(); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: fixtureType.label, exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/); await expect(page.getByRole("dialog")).toHaveCount(0);
   await requestLogout(page); await expect(page).toHaveURL(/\/settings$/); expect(calls).toBe(1);
@@ -148,7 +151,7 @@ test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 
 });
 
 test("알 수 없는 아이콘은 기본값이며 계정 전환과 세션 만료는 이전 초안을 지운다", async ({ page }) => {
-  await page.goto("/settings");
+  await page.goto(fixtureWorkspacePath("/settings"));
   await page.evaluate(() => { const stored = JSON.parse(localStorage.getItem("sb-127-auth-token")!); stored.user.user_metadata.workspace_avatar_id = "unknown-old-id"; localStorage.setItem("sb-127-auth-token", JSON.stringify(stored)); });
   await page.reload(); await expect(page.getByRole("radio", { name: "기본", exact: true })).toBeChecked(); await page.getByRole("radio", { name: "별", exact: true }).check();
   const alternate = { ...user, id: "00000000-0000-0000-0000-000000000002", email: "other@example.test", user_metadata: { full_name: "Other", workspace_avatar_id: "leaf" } };
@@ -167,7 +170,7 @@ test("알 수 없는 아이콘은 기본값이며 계정 전환과 세션 만료
 
 test("미저장 설정의 탭·프로필·뒤로가기·로그아웃은 같은 폐기 확인을 거친다", async ({ page }) => {
   let logoutCalls = 0; await page.route("**/auth/v1/logout*", async route => { logoutCalls++; await route.fulfill({ status: 204 }); });
-  await page.goto("/guide"); await settings(page); await page.getByRole("radio", { name: "별", exact: true }).check();
+  await page.goto(fixtureWorkspacePath("/guide")); await settings(page); await page.getByRole("radio", { name: "별", exact: true }).check();
   const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   let step = 0;
   for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click(), async () => { await openProfile(page); await profileMenu(page).getByRole("menuitem", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
@@ -188,7 +191,7 @@ test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인�
   let fail = true; let calls = 0;
   await page.route("**/auth/v1/logout*", async route => { calls++; await route.fulfill(fail ? { status: 500, json: { msg: "fixture failure" } } : { status: 204 }); });
   await page.route("**/auth/v1/user", route => route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "leaf" } } }));
-  await page.goto("/settings"); await requestLogout(page);
+  await page.goto(fixtureWorkspacePath("/settings")); await requestLogout(page);
   await expect(page.getByRole("alert")).toContainText("이 기기에서는 로그아웃했습니다",{timeout:15000});
   await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
   for (const width of [390, 1440]) {
@@ -197,11 +200,60 @@ test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인�
     await page.screenshot({ path: info.outputPath(`logout-failure-${width}.png`) });
   }
   fail = false; await page.getByRole("link", { name: "로그인으로 이동", exact: true }).click(); await expect(page).toHaveURL(/\/login$/); expect(calls).toBe(1);
-  await signIn(page); await expect(page).toHaveURL(/\/tasks$/); await settings(page); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); expect(calls).toBe(1);
+  await signIn(page);
+  await expect(page).toHaveURL(/\/workspaces$/);
+  const workspace = page.getByRole("table", { name: "공간 목록", exact: true }).getByRole("row").filter({ hasText: "테스트 공간" });
+  await expect(workspace).toHaveCount(1);
+  const enter = workspace.getByRole("link", { name: "열기", exact: true });
+  await expect(enter).toHaveAttribute("href", fixtureWorkspacePath(""));
+  await enter.click();
+  await expect(page).toHaveURL(new URL(fixtureWorkspacePath("/tasks"), page.url()).href);
+  await settings(page); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); expect(calls).toBe(1);
+});
+
+test("떠난 로그아웃의 늦은 성공은 보호 화면의 로그인 복귀 경로를 덮지 않는다", async ({ page }) => {
+  let release!: () => void, arrived!: () => void;
+  let calls = 0;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { arrived = resolve; });
+  await page.route("**/auth/v1/logout*", async route => {
+    calls++;
+    arrived();
+    await waiting;
+    await route.fulfill({ status: 204 });
+  });
+  await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
+  const original = fixtureWorkspacePath("/settings?logout_return=1#settings-profile");
+  await page.goto(original);
+  await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+  await requestLogout(page);
+  await started;
+  try {
+    await expect(page).toHaveURL(/\/logout$/);
+    await page.goBack();
+    await expect(page).toHaveURL(new URL(original, page.url()).href);
+    await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+    release();
+    await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
+    expect(await page.evaluate(async () => {
+      const path = "/src/lib/supabase.ts";
+      const { supabase } = await import(path);
+      const { data } = await supabase.auth.getSession();
+      return { actor: data.session?.user.id ?? null, stored: localStorage.getItem("sb-127-auth-token") };
+    })).toEqual({ actor: null, stored: null });
+    await expect(page).toHaveURL(new URL(`/login?next=${encodeURIComponent(original)}`, page.url()).href);
+    await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toHaveCount(0);
+    await signIn(page);
+    await expect(page).toHaveURL(new URL(original, page.url()).href);
+    await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+    expect(calls).toBe(1);
+  } finally {
+    release();
+  }
 });
 
 test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ page }) => {
-  await page.goto("/guide");
+  await page.goto(fixtureWorkspacePath("/guide"));
   await page.getByText("설치·연결 정보",{exact:true}).click();
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }));
   await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("status")).toContainText("위 주소를 선택해 직접 복사");
@@ -210,17 +262,17 @@ test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ pag
 });
 
 for (const width of [390, 1440]) test(`#205 ${width}px: 설정·가이드 구획과 탐색 팝오버`, async ({ page }, info) => {
-  await page.setViewportSize({ width, height: 900 }); await page.goto("/settings");
+  await page.setViewportSize({ width, height: 900 }); await page.goto(fixtureWorkspacePath("/settings"));
   for (const name of ["프로필 설정", "화면 표시 설정"]) await expect(page.getByRole("form", { name, exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath(`settings-${width}.png`) });
   await openProfile(page); await expect(profileMenu(page).getByRole("menuitem", { name: "로그아웃", exact: true })).toBeInViewport();
   await page.keyboard.press("Escape"); await expect(profileButton(page)).toBeFocused();
-  await page.goto("/guide"); await expect(page.getByRole("list").filter({ has: page.getByRole("heading", { level: 2 }) }).locator(":scope > li")).toHaveCount(5);
+  await page.goto(fixtureWorkspacePath("/guide")); await expect(page.getByRole("list").filter({ has: page.getByRole("heading", { level: 2 }) }).locator(":scope > li")).toHaveCount(5);
   await page.screenshot({ path: info.outputPath(`guide-${width}.png`) });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   for (const [label, path] of [["할 일로 이동", "/tasks"], ["기록으로 이동", "/records"]]) {
     const link = page.getByRole("link", { name: label, exact: true });
-    await expect(link).toHaveAttribute("href", path);
+    await expect(link).toHaveAttribute("href", fixtureWorkspacePath(path));
     await link.click();
     await expect(page).toHaveURL(new RegExp(`${path}$`));
     await page.goBack();
@@ -239,7 +291,7 @@ test("#215 메인 목록 탭의 상단 구획·브랜드·필터 조작은 좁�
   for (const width of [320, 360, 390, 479, 480, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     for (const [path, title] of [["entities", "전체 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
-      await page.goto(`/${path}`);
+      await page.goto(fixtureWorkspacePath(`/${path}`));
       const header = page.getByRole("region", { name: title, exact: true });
       await expect(header.getByRole("heading", { level: 1, name: title, exact: true })).toBeVisible();
       await expect(page.getByRole("banner")).toBeVisible();
@@ -264,7 +316,7 @@ test("#215 메인 목록 탭의 상단 구획·브랜드·필터 조작은 좁�
       if (width === 390 || width === 1440) await page.screenshot({ path: info.outputPath(`main-${path}-${width}.png`) });
     }
   }
-  await page.setViewportSize({ width: 320, height: 844 }); await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&filters=1&property_filters=%5B%7B%22key%22%3A%22prop_4%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22a%22%7D%5D");
+  await page.setViewportSize({ width: 320, height: 844 }); await page.goto(fixtureWorkspacePath("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&filters=1&property_filters=%5B%7B%22key%22%3A%22prop_4%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22a%22%7D%5D"));
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   const toggle = page.getByRole("button", { name: /필터 닫기/ }), reset = listHeader(page).getByRole("button", { name: "조건 초기화" });
   const t = (await toggle.boundingBox())!, r = (await reset.boundingBox())!;
@@ -280,7 +332,7 @@ test("#215 메인 목록 탭의 상단 구획·브랜드·필터 조작은 좁�
 test("#217 아이콘 선택은 가용 폭에서 조작 가능하고 프로필 메뉴는 키보드로 이동한다", async ({ page }, info) => {
   const columns: number[] = [];
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 900 }); await page.goto("/settings");
+    await page.setViewportSize({ width, height: 900 }); await page.goto(fixtureWorkspacePath("/settings"));
     const grid = page.getByRole("radiogroup", { name: "프로필 아이콘", exact: true });
     await expect(grid).toBeVisible();
     await expect(grid.getByRole("radio")).toHaveCount(20);
@@ -308,7 +360,7 @@ test("#340 열린 메뉴가 화면 높이·확대·긴 닉네임 변경에도 �
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/auth/v1/user", route => route.fulfill({json:{...user,user_metadata:{...user.user_metadata,full_name:"긴 닉네임 ".repeat(15)}}}));
-  await page.goto("/settings"); await openProfile(page);
+  await page.goto(fixtureWorkspacePath("/settings")); await openProfile(page);
   const popup = profileMenu(page);
   for (const height of [900, 481, 480, 321, 320, 280, 900]) {
     await page.setViewportSize({width:1440,height});

@@ -62,7 +62,7 @@ async function fixture() {
     },
     membership: "members",
   };
-  const observation = { at: "2026-10-13T00:00:00Z", locked: false, references: true };
+  const observation = { at: "2026-10-13T00:00:00Z", locked: false, references: true, executionCurrent: true };
   const bindings: SchemaApplicationBindings = { templates: {}, recovery: null };
   const store: SchemaMigrationActionStore = {
     executeRequest: (_request, execute) => execute(),
@@ -71,6 +71,7 @@ async function fixture() {
         job: structuredClone(job),
         observed_at: observation.at,
         schema_write_locked: observation.locked,
+        execution_current: observation.executionCurrent,
       }),
     getMigration: () => Promise.resolve(structuredClone(job)),
     saveMigrationCancellation: () => {
@@ -109,6 +110,16 @@ Deno.test("public cancellation returns committed terminal status even for an out
   const f = await fixture();
   f.set({ status: "succeeded", version: 4 });
   assertEquals((await f.cancel()).status, "succeeded");
+  assertEquals(f.job().version, 4);
+});
+Deno.test("current writer cancels stranded committing work while preserving the active version check", async () => {
+  const f = await fixture();
+  f.set({ status: "committing" });
+  f.observation.executionCurrent = false;
+  const error = await assertRejects(() => f.cancel(2));
+  assertEquals((error as { code: string }).code, "conflict");
+  assertEquals(f.job().status, "committing");
+  assertEquals((await f.cancel()).status, "cancelled");
   assertEquals(f.job().version, 4);
 });
 Deno.test("public retry durably resumes a valid failed job with a new version", async () => {

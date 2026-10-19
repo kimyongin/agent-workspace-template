@@ -17,8 +17,8 @@ Deno.test("task write without logical request key never starts a transaction", a
   assertEquals(error.code, "invalid_input");
 });
 
-import { createRecord } from "../../functions/_shared/core/activity/application.ts";
-Deno.test("record write without request key never starts a transaction", async () => {
+import { recordOccurrence } from "../../functions/_shared/core/activity/application.ts";
+Deno.test("occurrence write without request key never starts a transaction", async () => {
   const deps = {
     clock: { now: () => new Date() },
     uow: {
@@ -28,7 +28,7 @@ Deno.test("record write without request key never starts a transaction", async (
     },
   };
   const error = await assertRejects(
-    () => createRecord(deps, { userId: crypto.randomUUID() }, { body: "memo" } as never),
+    () => recordOccurrence(deps, { userId: crypto.randomUUID() }, "20261016-ABCDEFGH", "2026-10-16", { body: "memo" }),
     AppError,
   );
   assertEquals(error.code, "invalid_input");
@@ -55,7 +55,8 @@ Deno.test("every public MCP business write requires UUID request_key before exec
     ...settingsTools(deps),
   ];
   const writes = tools.filter((tool) => !tool.readOnly);
-  assertEquals(writes.length, 17);
+  assertEquals(writes.length, 18);
+  assertEquals(writes.some((tool) => tool.name === "set_tag_connections"), true);
   for (const tool of writes) {
     const schema = z.toJSONSchema(tool.input, { io: "input" });
     assertEquals(schema.required?.includes("request_key"), true, tool.name);

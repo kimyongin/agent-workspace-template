@@ -30,14 +30,18 @@ const indexSeries: Series[] = [
   { key: "excluded", label: "대상 제외", value: (d) => d.indexing.excluded },
 ];
 
-function DailyChart({ title, days, series, stacked = false }: {
+const entityIndexSeries: Series[] = indexSeries.map((series) => ({ ...series, value: (day) => day.entity_indexing[series.key as keyof StatusDay["entity_indexing"]] }));
+
+function DailyChart({ title, days, series, stacked = false, initialDate, onSelectDate }: {
   title: string;
   days: StatusDay[];
   series: Series[];
   stacked?: boolean;
+  initialDate?: string;
+  onSelectDate?: (date: string) => void;
 }) {
   const id = useId();
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate ?? null);
   const [tooltipOpen, setTooltipOpen] = useState(false);
   // Keep the selected calendar day across refreshes. If it leaves the window,
   // use the closest available preceding day (or the first day).
@@ -52,7 +56,10 @@ function DailyChart({ title, days, series, stacked = false }: {
   function select(next: number) {
     setTooltipOpen(false);
     const day = days[Math.max(0, Math.min(days.length - 1, next))];
-    if (day) setSelectedDate(day.date);
+    if (day) {
+      setSelectedDate(day.date);
+      onSelectDate?.(day.date);
+    }
   }
   function selectActive(state: { activeTooltipIndex?: string | number | null }) {
     if (state.activeTooltipIndex === null || state.activeTooltipIndex === undefined) return;
@@ -107,7 +114,8 @@ function DailyChart({ title, days, series, stacked = false }: {
                     data={rows}
                     accessibilityLayer={false}
                     onClick={selectActive}
-                    margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                    // Leave room for the final date label at the supported 150% display size.
+                    margin={{ top: 8, right: 24, bottom: 0, left: 0 }}
                   >
                     <CartesianGrid vertical={false} />
                     <XAxis
@@ -203,8 +211,14 @@ function Summary({ total, values }: { total: number; values: [string, number][] 
     </dl>
   );
 }
-export function StatusContent({ data, children }: { data: StatusOverview; children?: React.ReactNode }) {
-  const { entities, tasks, records, indexing, daily } = data;
+export function StatusContent({ data, children, selectedDates = {}, onDateSelect }: {
+  data: StatusOverview;
+  children?: React.ReactNode;
+  selectedDates?: Record<string, string>;
+  onDateSelect?: (chart: string, date: string) => void;
+}) {
+  const { entities, tasks, records, indexing, entity_indexing, daily } = data;
+  const selection = (title: string) => ({ initialDate: selectedDates[title], onSelectDate: (date: string) => onDateSelect?.(title, date) });
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <section aria-labelledby="status-current-title" className="flex min-w-0 flex-col gap-4">
@@ -230,7 +244,7 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
             </CardHeader>
             <CardContent className="flex min-w-0 flex-col gap-6">
               <Summary total={entities.total} values={[["활성", entities.active], ["삭제 보관", entities.deleted]]} />
-              <DailyChart title="일별 등록" days={daily} series={entitySeries} />
+              <DailyChart {...selection("일별 등록")} title="일별 등록" days={daily} series={entitySeries} />
             </CardContent>
           </Card>
           <Card role="region" aria-label="할 일 현황" className="min-w-0">
@@ -246,7 +260,7 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
                   tasks.stopped,
                 ]]}
               />
-              <DailyChart title="일별 생성·완료" days={daily} series={taskSeries} />
+              <DailyChart {...selection("일별 생성·완료")} title="일별 생성·완료" days={daily} series={taskSeries} />
             </CardContent>
           </Card>
           <Card role="region" aria-label="기록 현황" className="min-w-0">
@@ -257,19 +271,46 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
             <CardContent className="flex min-w-0 flex-col gap-6">
               <Summary
                 total={records.total}
-                values={[["일반", records.user], ["수행 결과", records.result], ["변경", records.change]]}
+                values={[["수행 결과", records.result], ["변경", records.change]]}
               />
-              <DailyChart title="일별 작성" days={daily} series={recordSeries} />
+              <DailyChart {...selection("일별 작성")} title="일별 작성" days={daily} series={recordSeries} />
             </CardContent>
           </Card>
         </div>
       </section>
-      <Card role="region" aria-label="색인 현황" className="min-w-0">
+      <div className="grid min-w-0 gap-4 @min-[64rem]:grid-cols-2">
+        <IndexingCard label="기록" indexing={indexing} daily={daily} series={indexSeries} timezone={data.timezone} days={data.period.days}
+          chartTitle="작성일별 현재 색인 상태" {...selection("작성일별 현재 색인 상태")} />
+        <IndexingCard label="자료" indexing={entity_indexing} daily={daily} series={entityIndexSeries} timezone={data.timezone} days={data.period.days}
+          chartTitle="등록일별 현재 자료 색인 상태" {...selection("등록일별 현재 자료 색인 상태")} />
+      </div>
+      {children && <Card role="region" aria-label="자료·기록 색인 문제" className="min-w-0">
+        <CardHeader><CardTitle>자료·기록 색인 문제</CardTitle><CardDescription>확인이 필요한 자료와 기록을 원문과 함께 확인합니다.</CardDescription></CardHeader>
+        <CardContent>{children}</CardContent>
+      </Card>}
+    </div>
+  );
+}
+
+
+function IndexingCard({ label, indexing, daily, series, timezone, days, chartTitle, initialDate, onSelectDate }: {
+  label: "기록" | "자료";
+  indexing: StatusOverview["indexing"];
+  daily: StatusDay[];
+  series: Series[];
+  timezone: string;
+  days: number;
+  chartTitle: string;
+  initialDate?: string;
+  onSelectDate?: (date: string) => void;
+}) {
+  return (
+      <Card role="region" aria-label={`${label} 색인 현황`} className="min-w-0">
         <CardHeader>
           <CardTitle>
-            <h2>색인 현황</h2>
+            <h2>{label} 색인 현황</h2>
           </CardTitle>
-          <CardDescription>전체 기록 {indexing.total.toLocaleString("ko-KR")}개 · 현재 검색 준비 상태</CardDescription>
+          <CardDescription>전체 {label} {indexing.total.toLocaleString("ko-KR")}개 · 현재 검색 준비 상태</CardDescription>
         </CardHeader>
         <CardContent className="flex min-w-0 flex-col gap-6">
           <Summary
@@ -289,7 +330,7 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
                     <dd>{indexing.waiting.threshold_minutes}분</dd>
                   </div>
                   <div>
-                    <dt>오래 갱신되지 않은 기록</dt>
+                    <dt>오래 갱신되지 않은 {label}</dt>
                     <dd>{indexing.waiting.long_waiting}개</dd>
                   </div>
                   <div>
@@ -297,12 +338,12 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
                     <dd>
                       <time dateTime={indexing.waiting.oldest_waiting_since!}>
                         {new Intl.DateTimeFormat("ko-KR", {
-                          timeZone: data.timezone,
+                          timeZone: timezone,
                           dateStyle: "medium",
                           timeStyle: "short",
                         }).format(new Date(indexing.waiting.oldest_waiting_since!))}
                       </time>{" "}
-                      ({data.timezone})
+                      ({timezone})
                     </dd>
                   </div>
                 </dl>
@@ -313,15 +354,13 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
               </AlertDescription>
             </Alert>
           )}
-          <DailyChart title="작성일별 현재 색인 상태" days={daily} series={indexSeries} stacked />
+          <DailyChart title={chartTitle} days={daily} series={series} stacked initialDate={initialDate} onSelectDate={onSelectDate} />
           <p className="text-sm text-muted-foreground">
             최근{" "}
-            {data.period.days}일 작성한 기록을 작성일로 묶은 현재 상태입니다. 과거 대기량·실패량이나 당일 처리량의
+            {days}일 {label === "기록" ? "작성한 기록을 작성일" : "등록한 자료를 등록일"}로 묶은 현재 상태입니다. 과거 대기량·실패량이나 당일 처리량의
             이력이 아닙니다.
           </p>
-          {children}
         </CardContent>
       </Card>
-    </div>
   );
 }

@@ -444,6 +444,10 @@ verify_jwt = false
 
 # 운영 프로젝트 workspace-template(서울). `supabase config push --project-ref <ref>`가 위 기본 설정에 이 값을 덮어 올린다.
 # 로컬 개발용 값(이메일 확인 끔, 짧은 발송 간격, MFA 끔 등)이 운영에 올라가지 않도록 운영값을 여기서 다시 정한다.
+[functions.invitation-mail-worker]
+# 내부 PROCESSING_TOKEN으로만 보호하며 사용자 JWT는 처리 권한이 아니다.
+verify_jwt = false
+
 # 운영 웹은 GitHub Pages(.github/workflows/pages.yml)에 있다. 로그인 복귀와 MCP 동의 화면(/oauth/consent)이 이 주소 아래에 있다.
 [remotes.production]
 project_id = "ayzcluvdppsppwszzaqx"

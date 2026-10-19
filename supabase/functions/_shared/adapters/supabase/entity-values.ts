@@ -30,7 +30,7 @@ export async function loadEntityDefinition(
   }
   const [row] =
     await tx`select v.schema,t.id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version as version,t.schema_version from app.entity_types t
-    join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where t.id::text=${typeId}`;
+    join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version where t.id::text=${typeId}`;
   return row
     ? {
       schema: row.schema,
@@ -40,6 +40,31 @@ export async function loadEntityDefinition(
       type: { id: row.id, label: row.label, icon_id: resolvedEntityTypeIcon(row.icon_id), archived: row.archived },
     }
     : null;
+}
+/** Business mutations lock only their permitted current kind; settings editing
+ * retains its separate settings-authorized row lock above. */
+export async function loadBusinessEntityDefinition(
+  tx: postgres.TransactionSql,
+  typeId: string,
+  lock = false,
+): Promise<EntityDefinition | null> {
+  if (lock) {
+    const [locked] = await tx`select app.lock_business_entity_type(${typeId}::uuid,true) as kind`;
+    const kind = locked.kind;
+    if (!kind) return null;
+    if (kind.schema_write_locked) {
+      throw new AppError(
+        "schema_migration_in_progress",
+        "속성 마이그레이션 중입니다. 완료 후 다시 저장하세요",
+        undefined,
+        {
+          type_id: typeId,
+          schema_version: Number(kind.schema_version),
+        },
+      );
+    }
+  }
+  return loadEntityDefinition(tx, typeId);
 }
 /** Current display settings project unchanged stored values after compatible publication. */
 /** Joined entity+current definition reads use one statement snapshot, including during atomic migration. */

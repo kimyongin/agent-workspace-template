@@ -1,6 +1,6 @@
 import { useNavigationBlocker } from "../../lib/navigation-protection.tsx";
 import { createContext, useContext } from "react";
-import { type Location, type NavigateOptions, type To, useLocation } from "react-router";
+import { type Location, type NavigateOptions, type To, useLocation } from "../../lib/workspace-router.tsx";
 
 export const detailIdentity = (path: string) =>
   path.split(/[?#]/)[0].match(/^\/(entities|tasks|records)\/[^/]+$/)?.[0] ?? null;

@@ -3,7 +3,7 @@ import { useItemLayout } from "../../components/Collection.tsx";
 import { restoreScroll, scrollTop } from "../../lib/surface-dom.ts";
 import { useContext, useEffect, useMemo, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { WorkspaceContext } from "../details/workspace-context.ts";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "../../lib/workspace-router.tsx";
 import { ExpansionGroupProvider } from "../../components/item-expansion.tsx";
 import { ItemExpansionProvider } from "../../components/RelatedItems.tsx";
 import { anchorId, listAnchor, listDetailVisit, listScope, type ActivityListKind } from "../activity/list-state.ts";

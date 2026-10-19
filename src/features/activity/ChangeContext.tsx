@@ -7,7 +7,6 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
 export type WorkspaceRecord = RecordResult;
 export const recordKindNames = {
-  user: "직접 작성",
   result: "수행 결과",
   change: "변경 기록",
 };
@@ -144,14 +143,7 @@ export function ChangeContext(
 ) {
   const { formatDateTime } = useDisplayTime();
   const change = record.change;
-  const target = change
-    ? `${
-      change.target_kind === "entity"
-        ? record.entity_context.find((item) => item.id === change.target_id)
-          ?.type?.label ?? targets.entity
-        : targets[change.target_kind]
-    } 「${change.target_title}」`
-    : null;
+  const target = change ? `${targets[change.target_kind]} 「${change.target_title}」` : null;
   const pair = (label: string, value: ReactNode, full = false) => (
     <dl
       className={cn(

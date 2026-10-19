@@ -1,3 +1,5 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { expect, type Page, test } from "@playwright/test";
 import { entity as sampleEntity } from "./support/workspace-data.ts";
@@ -107,6 +109,7 @@ async function fixture(page: Page, baseURL: string) {
   );
   await page.route("**/*", async (route) => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname;
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }, { target_kind: "entity_type", target_id: typeId, access: "write" }])) return;
     if (url.origin === new URL(baseURL).origin) return route.continue();
     if (path.startsWith("/api/") && request.method() !== "GET") {
       const body = request.postDataJSON(), key = request.headers()["idempotency-key"];
@@ -129,11 +132,13 @@ async function fixture(page: Page, baseURL: string) {
           ...body,
           id: `${body.source}:${typeId}:${body.external_id}`,
           entity_type_id: typeId,
+          type: material,
           entity_type_label: "상품",
           source_label: issuers.find((i) => i.code === body.source)?.label,
           title: body.properties.prop_1,
           display_properties: body.properties,
-          schema_version: 1,
+          schema_version: material.schema_version,
+          current_schema_version: material.schema_version,
         };
         return route.fulfill({ status: 201, json: registered });
       }
@@ -305,7 +310,7 @@ async function fixture(page: Page, baseURL: string) {
   };
 }
 async function identityEditor(page: Page) {
-  await page.goto(`/settings/entity-types/${typeId}`);
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${typeId}`));
   await page.getByRole("button", { name: "자료 번호", exact: false }).click();
   return page.getByRole("form", { name: "자료 번호 설정" });
 }
@@ -371,7 +376,7 @@ test("issuer and rule creation dialogs return to an unchanged dirty type draft",
 });
 test("issuer retry retains its hidden stable code and request key; builtin app stays read only", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "기본 정보", exact: false })).toHaveCount(0);
@@ -435,7 +440,7 @@ test("returning from issuer creation keeps the connection selection and protects
 test("default policy refusal preserves the draft and resolves affected types without a version-conflict detour", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
   state.concurrentIdentity();
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await page.getByRole("button", { name: "쿠팡", exact: true }).click();
   await page.getByRole("button", { name: "쿠팡 편집", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "번호 출처 편집", exact: true });
@@ -465,7 +470,12 @@ test("default policy refusal preserves the draft and resolves affected types wit
   await expect(modal.getByLabel("이름")).toHaveValue("내 쿠팡");
   await expect(modal.getByLabel("이름")).toBeFocused();
   await modal.getByRole("button", { name: "저장", exact: true }).click();
+  const savedIssuer = page.waitForResponse(response => response.request().method() === "PATCH" &&
+    new URL(response.url()).pathname === "/api/entity-issuers/coupang");
   await page.getByRole("alertdialog", { name: "사용을 중지할까요?" }).getByRole("button", { name: "중지하고 저장" }).click();
+  const savedIssuerResponse = await savedIssuer;
+  expect(savedIssuerResponse.status()).toBe(200);
+  expect(await savedIssuerResponse.json()).toMatchObject({ code: "coupang", label: "내 쿠팡", active: false });
   await expect(modal).not.toBeVisible();
   expect(state.identity().default_source).toBe("app");
   expect(state.writes.map((w) => w.path)).toEqual([
@@ -477,7 +487,7 @@ test("default policy refusal preserves the draft and resolves affected types wit
 
 test("selecting the current settings category closes its menu without leaving the page", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
   const url = page.url(), trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
   await trigger.click();
@@ -494,7 +504,7 @@ test("selecting the current settings category closes its menu without leaving th
 
 test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 찾고 폭에 맞게 표시한다", async ({ page, baseURL }, info) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   const navigation = page.getByRole("tablist", { name: "자료 설정 항목", exact: true });
   await expect(navigation.getByRole("tab")).toHaveText(["자료 종류", "연결 설정", "번호 설정", "일괄 설정"]);
   await expect(navigation.getByRole("tab", { name: "번호 설정", exact: true })).toHaveAttribute("aria-current", "page");
@@ -557,7 +567,7 @@ test("자료 설정 탭 이동도 미저장 번호 초안을 보호한다", asyn
 
 test("settings menu supports directional keys and visibly identifies the current category", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
   await trigger.focus();
   await trigger.press("ArrowDown");
@@ -637,7 +647,7 @@ test("nested issuer save detects a concurrent identity change and requires expli
 
 test("closing settings menu on a noninteractive background restores its trigger focus", async ({ page, baseURL }) => {
   await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
   await trigger.focus();
   await trigger.press("ArrowDown");
@@ -654,7 +664,7 @@ test("closing settings menu on a noninteractive background restores its trigger 
 
 test("first number failure and unknown result preserve the saved issuer and retry only the number", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await page.getByRole("button", { name: "번호 출처 추가", exact: true }).click();
   const issuer = page.getByRole("dialog", { name: "번호 출처 추가", exact: true });
   await issuer.getByLabel("번호 출처 이름").fill("새 마켓");
@@ -681,7 +691,7 @@ test(
   "issuer management through type connection reaches direct registration with an unchanged leading-zero number",
   async ({ page, baseURL }, info) => {
     const state = await fixture(page, baseURL!);
-    await page.goto("/settings/issuers");
+    await page.goto(fixtureWorkspacePath("/settings/issuers"));
     await page.getByRole("button", { name: "번호 출처 추가", exact: true }).click();
     const issuer = page.getByRole("dialog", { name: "번호 출처 추가", exact: true });
     await issuer.getByLabel("번호 출처 이름").fill("새 마켓");
@@ -702,7 +712,7 @@ test(
     await page.screenshot({ path: info.outputPath("type-default-choice.png"), fullPage: true });
     await form.getByRole("button", { name: "자료 번호 저장", exact: true }).click();
     await expect(page.getByText("자료 번호 설정을 저장했습니다.")).toBeVisible();
-    await page.goto(`/entities?entity_type_id=${typeId}&create=1`);
+    await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${typeId}&create=1`));
     const create = page.getByRole("dialog", { name: "상품 추가", exact: true });
     await expect(create.getByRole("combobox", { name: "번호 출처", exact: true })).toHaveCount(0);
     await expect(create.getByText("새 마켓", { exact: true })).toBeVisible();
@@ -712,7 +722,16 @@ test(
     await create.getByRole("button", { name: "저장", exact: true }).click();
     const confirm = page.getByRole("dialog", { name: "등록하시겠습니까?", exact: true });
     await expect(confirm).toBeVisible();
+    const registeredEntity = page.waitForResponse(response => response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/entities");
     await confirm.getByRole("button", { name: "등록하고 저장", exact: true }).click();
+    const registeredResponse = await registeredEntity;
+    expect(registeredResponse.status()).toBe(201);
+    expect(await registeredResponse.json()).toMatchObject({
+      id: `${createdSource}:${typeId}:000Ab-9`, source: createdSource, external_id: "000Ab-9",
+      entity_type_id: typeId, type: { id: typeId, label: "상품" }, schema_version: 1,
+      properties: { prop_1: "테스트 상품" },
+    });
     await expect(create).toHaveCount(0);
     expect(state.writes.find((w) => w.path === "/api/entities")?.body).toMatchObject({
       source: createdSource,
@@ -741,7 +760,7 @@ test(
     const state = await fixture(page, baseURL!);
     const label = "쿠팡마켓상품번호 출처".repeat(6);
     state.renameIssuer("coupang", label);
-    await page.goto("/settings/issuers");
+    await page.goto(fixtureWorkspacePath("/settings/issuers"));
     await expect(page.getByRole("table", { name: "번호 출처 목록", exact: true })).toBeVisible();
     await page.getByRole("button", { name: label, exact: true }).focus();
     await page.keyboard.press("Enter");
@@ -779,7 +798,7 @@ test(
       numberFail = false;
       return route.fulfill({ status: 503, json: { code: "internal", message: "번호 조회 실패" } });
     });
-    await page.goto("/settings/issuers");
+    await page.goto(fixtureWorkspacePath("/settings/issuers"));
     await expect(page.getByRole("alert")).toContainText("번호 출처 조회 실패");
     await expect(page.getByText("번호 출처가 없습니다.", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "다시 조회", exact: true }).click();
@@ -837,7 +856,7 @@ test("skipping first number before its slow read completes restores focus to the
 
 test("unused number kind and issuer can be removed, confirmation cancels and a lost response replays the same deletion", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await page.getByRole("button", { name: "네이버", exact: true }).click();
   await page.getByRole("button", { name: "상품 ID 편집", exact: true }).click();
   let editor = page.getByRole("region", { name: "번호 종류 편집", exact: true });
@@ -864,7 +883,7 @@ test("unused number kind and issuer can be removed, confirmation cancels and a l
 
 test("linked number deletion refuses without losing the editor draft", async ({ page, baseURL }) => {
   await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await page.getByRole("button", { name: "쿠팡", exact: true }).click();
   await page.getByRole("button", { name: "상품 ID 편집", exact: true }).click();
   const editor = page.getByRole("region", { name: "번호 종류 편집", exact: true });
@@ -883,7 +902,7 @@ test(
     const state = await fixture(page, baseURL!);
     state.concurrentIdentity();
     state.withoutApp();
-    await page.goto("/settings/issuers");
+    await page.goto(fixtureWorkspacePath("/settings/issuers"));
     await page.getByRole("button", { name: "쿠팡", exact: true }).click();
     await page.getByRole("button", { name: "쿠팡 편집", exact: true }).click();
     const modal = page.getByRole("dialog", { name: "번호 출처 편집", exact: true });
@@ -898,7 +917,12 @@ test(
     await modal.getByRole("button", { name: "기본 번호 출처 변경", exact: true }).click();
     await expect(modal.getByLabel("상품 기본 번호 출처", { exact: true })).toBeDisabled();
     await expect(modal.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+    const confirmedRepair = page.waitForResponse(response => response.request().method() === "PATCH" &&
+      new URL(response.url()).pathname === `/api/entity-types/${typeId}/identity`);
     await modal.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
+    const repairResponse = await confirmedRepair;
+    expect(repairResponse.status()).toBe(200);
+    expect(state.writes).toHaveLength(3);
     expect(state.writes[1]).toEqual(state.writes[2]);
     expect(state.identity().sources.find((s) => s.code === "app")?.active).toBe(true);
     await expect(modal.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
@@ -909,7 +933,7 @@ test(
   "inline number editing protects cancel, collapse, other numbers, sources and tabs",
   async ({ page, baseURL }, info) => {
     const state = await fixture(page, baseURL!);
-    await page.goto("/settings/issuers");
+    await page.goto(fixtureWorkspacePath("/settings/issuers"));
     const source = page.getByRole("region", { name: "쿠팡", exact: true });
     const toggle = page.getByRole("button", { name: "쿠팡", exact: true });
     await toggle.click();
@@ -998,7 +1022,7 @@ test(
 
 test("inline number conflict preserves draft and an unknown save blocks navigation until identical retry", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await page.getByRole("button", { name: "쿠팡", exact: true }).click();
   await page.getByRole("button", { name: "상품 ID 편집", exact: true }).click();
   const editor = page.getByRole("region", { name: "번호 종류 편집" });
@@ -1035,7 +1059,7 @@ test("inline number conflict preserves draft and an unknown save blocks navigati
 test("inline number stop retains its draft through default repair and a pending save blocks leaving", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
   state.concurrentIdentity();
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await page.getByRole("button", { name: "쿠팡", exact: true }).click();
   await page.getByRole("button", { name: "상품 ID 편집", exact: true }).click();
   const editor = page.getByRole("region", { name: "번호 종류 편집" });
@@ -1071,7 +1095,7 @@ test("inline number stop retains its draft through default repair and a pending 
 
 test("inline discard switches to the requested number and allows confirmed tab navigation", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
-  await page.goto("/settings/issuers");
+  await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await page.getByRole("button", { name: "쿠팡", exact: true }).click();
   await page.getByRole("button", { name: "상품 ID 편집", exact: true }).click();
   const editor = page.getByRole("region", { name: "번호 종류 편집" });

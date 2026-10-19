@@ -1,3 +1,6 @@
+import { WorkspaceCapabilitiesContext } from "../../src/features/workspaces/workspace-context.tsx";
+import { fixtureType } from "../support/workspace-data.ts";
+import { FixtureWorkspace, fixtureWorkspaceId } from "./workspace-scope.tsx";
 import type { Session } from "@supabase/supabase-js";
 import { AuthContext } from "../../src/features/auth/auth-context.ts";
 import { NavigationProtection } from "../../src/lib/navigation-protection.tsx";
@@ -29,6 +32,7 @@ const router = createBrowserRouter([{
   { path: "/entities/:id", element: <EntityDetailPage /> },
   { path: "/tasks/:id", element: <TaskDetailPage /> },
   { path: "/records/:id", element: <RecordDetailPage /> },
+  { path: "/records", element: <h1>기록 목록 fixture</h1> },
   { path: "/modal-guard", element: <ModalDiscardFixture /> },
 ],
 }]);
@@ -71,4 +75,13 @@ function ModalDiscardFixture() {
     </FormModal>
   );
 }
-createRoot(document.getElementById("root")!).render(<AuthContext.Provider value={{session: {user: {id:"tag-fixture-owner"}} as Session, loading:false, savePreferences:async()=>{throw new Error("fixture");}}}><RouterProvider router={router} /></AuthContext.Provider>);
+createRoot(document.getElementById("root")!).render(<AuthContext.Provider value={{session: {user: {id:"tag-fixture-owner"}} as Session, loading:false, savePreferences:async()=>{throw new Error("fixture");}}}><FixtureWorkspace><WorkspaceCapabilitiesContext.Provider value={{
+  workspace: { id: fixtureWorkspaceId, name: "태그 기능 검사 공간", deleted_at: null },
+  membership_version: 1,
+  can_manage: true,
+  grants: [
+    { target_kind: "settings", target_id: "*", access: "write" },
+    { target_kind: "entity_type", target_id: fixtureType.id, access: "write" },
+    { target_kind: "tasks", target_id: "*", access: "write" },
+  ],
+}}><RouterProvider router={router} /></WorkspaceCapabilitiesContext.Provider></FixtureWorkspace></AuthContext.Provider>);

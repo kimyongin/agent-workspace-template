@@ -1,3 +1,4 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { expect, test } from "@playwright/test";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
@@ -29,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("filter drafts survive search and disclosure and commit only with common apply", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&filters=1`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&filters=1`));
   await expect(page.getByLabel("정렬", { exact: true })).toBeVisible();
   await page.getByLabel("정렬", { exact: true }).selectOption("title");
   expect(new URL(page.url()).searchParams.has("sort")).toBe(false);
@@ -51,7 +52,7 @@ test("filter drafts survive search and disclosure and commit only with common ap
 });
 
 test("invalid property draft and reset retain applied results until common apply", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&filters=1&sort=title`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&filters=1&sort=title`));
   await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
   await page.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_2");
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
@@ -73,9 +74,9 @@ test("invalid property draft and reset retain applied results until common apply
 });
 
 test("record dates and kind apply together and invalid dates preserve URL and edited fields", async ({ page }) => {
-  await page.goto("/records?filters=1&from=2026-09-01&to=2026-10-01");
+  await page.goto(fixtureWorkspacePath("/records?filters=1&from=2026-09-01&to=2026-10-01"));
   await page.getByLabel("기록 시작일", { exact: true }).fill("2026-11-01");
-  await page.getByLabel("기록 종류", { exact: true }).selectOption("user");
+  await page.getByLabel("기록 종류", { exact: true }).selectOption("result");
   expect(new URL(page.url()).searchParams.get("from")).toBe("2026-09-01");
   expect(new URL(page.url()).searchParams.has("record_kind")).toBe(false);
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
@@ -85,7 +86,7 @@ test("record dates and kind apply together and invalid dates preserve URL and ed
   await page.getByLabel("기록 종료일", { exact: true }).fill("2026-12-01");
   await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("from")).toBe("2026-11-01");
-  expect(new URL(page.url()).searchParams.get("record_kind")).toBe("user");
+  expect(new URL(page.url()).searchParams.get("record_kind")).toBe("result");
 });
 
 test("mixed search text submission preserves optional drafts and disclosure causes no read", async ({ page }) => {
@@ -93,10 +94,10 @@ test("mixed search text submission preserves optional drafts and disclosure caus
   await page.route("**/api/search", async (route) => {
     reads.push(route.request().postDataJSON());
     await route.fulfill({
-      json: { items: [], next_cursor: null, search_state: "keyword", semantic_coverage: { pending: 0, excluded: 0 } },
+      json: { items: [], next_cursor: null, search_state: "keyword", semantic_coverage: { pending: 0, excluded: 0, failed: 0 } },
     });
   });
-  await page.goto("/search?q=alpha&filters=1");
+  await page.goto(fixtureWorkspacePath("/search?q=alpha&filters=1"));
   await expect.poll(() => reads.length).toBe(1);
   await page.getByLabel("검색 대상", { exact: true }).selectOption("task");
   await page.getByRole("textbox", { name: "검색어", exact: false }).fill("beta");
@@ -114,8 +115,8 @@ test("mixed search text submission preserves optional drafts and disclosure caus
 });
 
 test("history synchronizes optional drafts and property rows keep their responsive list order", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&filters=1&sort=title`);
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&filters=1`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&filters=1&sort=title`));
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&filters=1`));
   await page.getByLabel("정렬", { exact: true }).selectOption("title");
   await page.goBack();
   await expect(page.getByLabel("정렬", { exact: true })).toHaveValue("title");
@@ -130,12 +131,20 @@ test("history synchronizes optional drafts and property rows keep their responsi
     const value = page.getByLabel("조건 1 값", { exact: true });
     const remove = page.getByRole("button", { name: "조건 1 제거", exact: true });
     for (const control of [property, comparison, value, remove]) {
-      await expect(control).toBeVisible();
-      const box = (await control.boundingBox())!;
-      expect(box.height).toBeGreaterThanOrEqual(44);
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      // Resizing can refresh the current catalog and remount its controls.
+      // Retry the complete geometry assertion, rather than dereferencing a stale box.
+      await expect.poll(async () => {
+        const visible = await control.isVisible(), box = await control.boundingBox();
+        return {
+          visible,
+          heightAtLeast44: !!box && box.height >= 44,
+          widthAtLeast44: !!box && box.width >= 44,
+          insideLeft: !!box && box.x >= 0,
+          insideRight: !!box && box.x + box.width <= width,
+        };
+      }, { message: `filter control remains visible, at least44px and inside${width}px` }).toEqual({
+        visible: true, heightAtLeast44: true, widthAtLeast44: true, insideLeft: true, insideRight: true,
+      });
     }
     const sequence = await property.evaluate((node) => {
       const row = node.closest("div:has(> button[aria-label='조건 1 제거'])") ?? node.parentElement!.parentElement!;
@@ -150,7 +159,7 @@ test("history synchronizes optional drafts and property rows keep their responsi
 });
 
 test("legacy entity filter recovery reveals the pending reset before common apply", async ({ page }) => {
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}&prop3_from=2026-10-01`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&prop3_from=2026-10-01`));
   await expect(page.getByText("이전 속성 조건은 더 이상 지원하지 않습니다. 조건을 초기화하세요.", { exact: true }))
     .toBeVisible();
   await page.getByRole("button", { name: "조건 초기화", exact: true }).click();

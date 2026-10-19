@@ -18,7 +18,7 @@ import { registerSurface } from "../../lib/surface-dom.ts";
 
 /** Selection belongs to the parent's draft; closing the chooser never saves it. */
 export function TagSelection(
-  { label, tags, value, onChange, error, status, excludeId, maxSelected = 10, disabled = false }: {
+  { label, tags, value, onChange, error, status, excludeId, maxSelected = 10, disabled = false, visible = true }: {
     label: string;
     tags: { id: string; name: string }[] | null;
     value: string[];
@@ -28,6 +28,7 @@ export function TagSelection(
     excludeId?: string;
     maxSelected?: number;
     disabled?: boolean;
+    visible?: boolean;
   },
 ) {
   const id = useId();
@@ -35,7 +36,13 @@ export function TagSelection(
   const knownNames = useRef(new Map<string, string>());
   if (tags !== null) knownNames.current = new Map(tags.map((tag) => [tag.id, tag.name]));
   const [open, setOpen] = useState(false);
-  const focusTrigger = () => trigger.current?.focus();
+  const focusTrigger = () => {
+    const control = trigger.current;
+    const destination = control?.disabled
+      ? control.closest<HTMLElement>('section[tabindex], [role="region"][tabindex]')
+      : control;
+    destination?.focus();
+  };
   return (
     <FieldSet
       disabled={disabled}
@@ -101,6 +108,7 @@ export function TagSelection(
       )}
       <TagPickerDialog
         open={open}
+        visible={visible}
         onOpenChange={setOpen}
         label={label}
         onClosed={focusTrigger}
@@ -117,7 +125,7 @@ export function TagSelection(
 }
 
 function TagPickerDialog(
-  { open, onOpenChange, label, onClosed, tags, value, onChange, status, excludeId, maxSelected, disabled }: {
+  { open, onOpenChange, label, onClosed, tags, value, onChange, status, excludeId, maxSelected, disabled, visible }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     label: string;
@@ -129,6 +137,7 @@ function TagPickerDialog(
     excludeId?: string;
     maxSelected: number;
     disabled: boolean;
+    visible: boolean;
   },
 ) {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
@@ -138,8 +147,19 @@ function TagPickerDialog(
   const heading = useRef<HTMLHeadingElement>(null),
     footer = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
+  const [revealed, setRevealed] = useState(visible);
   useLayoutEffect(() => {
-    if (!open || !element) return;
+    if (!visible) {
+      setRevealed(false);
+      return;
+    }
+    // Restore the nested portal after its parent dialog has reattached and isolated its siblings.
+    const frame = requestAnimationFrame(() => setRevealed(true));
+    return () => cancelAnimationFrame(frame);
+  }, [visible]);
+  const shown = visible && revealed;
+  useLayoutEffect(() => {
+    if (!open || !shown || !element) return;
     setSearch("");
     return registerSurface(
       element,
@@ -154,18 +174,17 @@ function TagPickerDialog(
         ready: true,
       }),
     );
-  }, [open, label, element]);
+  }, [open, shown, label, element]);
   const choices = (tags ?? []).filter((tag) =>
     tag.id !== excludeId && tag.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
   );
   return (
     <Dialog
-      open={open}
+      open={open && shown}
       onOpenChange={(next) => {
-        if (!disabled) {
-          if (next) setSearch("");
-          onOpenChange(next);
-        }
+        if (next && disabled) return;
+        if (next) setSearch("");
+        onOpenChange(next);
       }}
     >
       <DialogContent
@@ -180,9 +199,6 @@ function TagPickerDialog(
           onClosed();
         }}
         showCloseButton={false}
-        onEscapeKeyDown={(event) => {
-          if (disabled) event.preventDefault();
-        }}
         onInteractOutside={(event) => event.preventDefault()}
         className="flex min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
       >
@@ -252,10 +268,10 @@ function TagPickerDialog(
         <DialogFooter ref={footer} className="m-0 shrink-0 flex-row flex-wrap items-center">
           <span role="status" className="mr-auto text-sm text-muted-foreground">{value.length}개 선택</span>
           <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={disabled} aria-label="닫기">닫기</Button>
+            <Button type="button" variant="outline" aria-label="닫기">닫기</Button>
           </DialogClose>
           <DialogClose asChild>
-            <Button type="button" disabled={disabled}>선택 완료</Button>
+            <Button type="button">선택 완료</Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>

@@ -5,7 +5,8 @@ import type { RequestIdentity } from "../../core/shared/request.ts";
 import type { EntityRelationDefinitionStore } from "../../core/entity-relations/application.ts";
 import type { EntityRelationDefinition } from "../../contracts/entity-relation.ts";
 import { invalidInput } from "../../core/shared/errors.ts";
-import { runAsActor } from "./sql-context.ts";
+import { requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
+import type { RelationDefinitionEntry } from "../../core/entity-relations/application.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 export function relationDefinitionRow(r: postgres.Row): EntityRelationDefinition {
   return {
@@ -20,29 +21,39 @@ export function relationDefinitionRow(r: postgres.Row): EntityRelationDefinition
   };
 }
 export class SqlEntityRelationDefinitionStore implements EntityRelationDefinitionStore {
-  constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
+  constructor(
+    protected readonly tx: postgres.TransactionSql,
+    protected readonly actor: Actor,
+    private readonly business = false,
+  ) {}
   executeRequest<T>(r: RequestIdentity, execute: () => Promise<T>) {
     return executeSqlRequest(this.tx, this.actor, r, execute);
   }
   async lockOwner() {
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-relations"},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${
+      requireWorkspaceActor(this.actor).workspaceId + ":entity-relations"
+    },0))`;
   }
   async list(input: Parameters<EntityRelationDefinitionStore["list"]>[0]) {
     const scope = await scopeOf(this.actor, {
       list: "entity-relation-definitions",
+      workspace_id: this.actor.workspaceId,
+      purpose: input.purpose,
       type_id: input.type_id,
       q: input.q,
       archived: input.archived,
     });
     const after = input.cursor ? decodeCursor(input.cursor, scope).id : null;
-    const rows = await this.tx`select d.* from app.entity_relation_definitions d
-      join app.entity_types lt on lt.owner_id=d.owner_id and lt.id=d.left_type_id
-      join app.entity_schema_versions lv on lv.owner_id=lt.owner_id and lv.type_id=lt.id and lv.schema_version=lt.schema_version
-      join app.entity_types rt on rt.owner_id=d.owner_id and rt.id=d.right_type_id
-      join app.entity_schema_versions rv on rv.owner_id=rt.owner_id and rv.type_id=rt.id and rv.schema_version=rt.schema_version
-      where (${input.type_id ?? null}::uuid is null or d.left_type_id=${
+    const rows = await this.tx`select d.* from ${
+      this.business ? this.tx`app.business_relation_definitions()` : this.tx`app.entity_relation_definitions`
+    } d
+      join app.entity_types lt on lt.workspace_id=d.workspace_id and lt.id=d.left_type_id
+      join app.entity_schema_versions lv on lv.workspace_id=lt.workspace_id and lv.type_id=lt.id and lv.schema_version=lt.schema_version
+      join app.entity_types rt on rt.workspace_id=d.workspace_id and rt.id=d.right_type_id
+      join app.entity_schema_versions rv on rv.workspace_id=rt.workspace_id and rv.type_id=rt.id and rv.schema_version=rt.schema_version
+      where d.workspace_id=${requireWorkspaceActor(this.actor).workspaceId} and (${
       input.type_id ?? null
-    }::uuid or d.right_type_id=${input.type_id ?? null}::uuid)
+    }::uuid is null or d.left_type_id=${input.type_id ?? null}::uuid or d.right_type_id=${input.type_id ?? null}::uuid)
       and (${input.archived}='all' or d.archived=(${input.archived}='archived'))
       and (${
       input.q ?? ""
@@ -53,35 +64,48 @@ export class SqlEntityRelationDefinitionStore implements EntityRelationDefinitio
     return paginate(rows.map(relationDefinitionRow), input.limit, () => "1970-01-01T00:00:00.000Z", scope);
   }
   async get(id: string) {
-    const [r] = await this.tx`select * from app.entity_relation_definitions where id=${id}::uuid`;
+    if (this.business) {
+      const [r] = await this.tx`select app.business_relation_definition(${id}::uuid,false) as definition`;
+      return r.definition ? relationDefinitionRow(r.definition) : null;
+    }
+    const [r] = await this.tx`select * from app.entity_relation_definitions where workspace_id=${
+      requireWorkspaceActor(this.actor).workspaceId
+    } and id=${id}::uuid`;
     return r ? relationDefinitionRow(r) : null;
   }
   async lock(id: string) {
+    if (this.business) {
+      const [r] = await this.tx`select app.business_relation_definition(${id}::uuid,true) as definition`;
+      return r.definition ? relationDefinitionRow(r.definition) : null;
+    }
     await this.lockOwner();
-    const [r] = await this.tx`select * from app.entity_relation_definitions where id=${id}::uuid for update`;
+    const [r] = await this.tx`select * from app.entity_relation_definitions where workspace_id=${
+      requireWorkspaceActor(this.actor).workspaceId
+    } and id=${id}::uuid for update`;
     return r ? relationDefinitionRow(r) : null;
   }
   async typesAvailable(ends: EntityRelationDefinition["ends"]) {
     await this.lockOwner();
     const ids = [...new Set(ends.map((e) => e.type_id))].sort();
-    await this.tx`select id from app.entity_types where id=any(${ids}::uuid[]) order by id for share`;
+    await this
+      .tx`select id from app.entity_types where workspace_id=app.current_workspace_id() and id=any(${ids}::uuid[]) order by id for share`;
     const rows = await this.tx`select t.id,coalesce((v.schema->>'deprecated')::boolean,false) as archived
-      from app.entity_types t join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
-      where t.id=any(${ids}::uuid[]) order by t.id`;
+      from app.entity_types t join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version
+      where t.workspace_id=app.current_workspace_id() and t.id=any(${ids}::uuid[]) order by t.id`;
     return rows.length === ids.length && rows.every((r) => !r.archived);
   }
   async hasLinks(id: string) {
     const [r] = await this
-      .tx`select exists(select 1 from app.entity_relation_links where definition_id=${id}::uuid) as used`;
+      .tx`select exists(select 1 from app.entity_relation_links where workspace_id=app.current_workspace_id() and definition_id=${id}::uuid) as used`;
     return r.used as boolean;
   }
   async assertCompatible(id: string, ends: EntityRelationDefinition["ends"]) {
     const [r] = await this
-      .tx`select exists(select 1 from app.entity_relation_links l join app.entities e on e.owner_id=l.owner_id and e.id=l.left_entity_id join app.entities r on r.owner_id=l.owner_id and r.id=l.right_entity_id where l.definition_id=${id}::uuid and (e.entity_type_id<>${
+      .tx`select exists(select 1 from app.entity_relation_links l join app.entities e on e.workspace_id=l.workspace_id and e.id=l.left_entity_id join app.entities r on r.workspace_id=l.workspace_id and r.id=l.right_entity_id where l.workspace_id=app.current_workspace_id() and l.definition_id=${id}::uuid and (e.entity_type_id<>${
       ends[0].type_id
     }::uuid or r.entity_type_id<>${
       ends[1].type_id
-    }::uuid)) as wrong_kind, exists(select 1 from app.entity_relation_links where definition_id=${id}::uuid group by left_entity_id having count(*)>1) as left_many, exists(select 1 from app.entity_relation_links where definition_id=${id}::uuid group by right_entity_id having count(*)>1) as right_many`;
+    }::uuid)) as wrong_kind, exists(select 1 from app.entity_relation_links where workspace_id=app.current_workspace_id() and definition_id=${id}::uuid group by left_entity_id having count(*)>1) as left_many, exists(select 1 from app.entity_relation_links where workspace_id=app.current_workspace_id() and definition_id=${id}::uuid group by right_entity_id having count(*)>1) as right_many`;
     if (r.wrong_kind || ends[0].cardinality === "one" && r.left_many || ends[1].cardinality === "one" && r.right_many) {
       throw invalidInput("기존 연결과 맞지 않는 자료 종류·개수입니다. 연결을 먼저 정리하세요");
     }
@@ -89,22 +113,35 @@ export class SqlEntityRelationDefinitionStore implements EntityRelationDefinitio
   async create(ends: EntityRelationDefinition["ends"]) {
     const [a, b] = ends;
     const [r] = await this
-      .tx`insert into app.entity_relation_definitions(owner_id,left_type_id,left_label,left_cardinality,right_type_id,right_label,right_cardinality) values(${this.actor.userId},${a.type_id},${a.label},${a.cardinality},${b.type_id},${b.label},${b.cardinality}) returning *`;
+      .tx`insert into app.entity_relation_definitions(workspace_id,left_type_id,left_label,left_cardinality,right_type_id,right_label,right_cardinality) values(${
+      requireWorkspaceActor(this.actor).workspaceId
+    },${a.type_id},${a.label},${a.cardinality},${b.type_id},${b.label},${b.cardinality}) returning *`;
     return relationDefinitionRow(r);
   }
   async update(id: string, ends: EntityRelationDefinition["ends"], archived: boolean) {
     const [a, b] = ends;
     const [r] = await this
-      .tx`update app.entity_relation_definitions set left_type_id=${a.type_id},left_label=${a.label},left_cardinality=${a.cardinality},right_type_id=${b.type_id},right_label=${b.label},right_cardinality=${b.cardinality},archived=${archived},version=version+1 where id=${id}::uuid returning *`;
+      .tx`update app.entity_relation_definitions set left_type_id=${a.type_id},left_label=${a.label},left_cardinality=${a.cardinality},right_type_id=${b.type_id},right_label=${b.label},right_cardinality=${b.cardinality},archived=${archived},version=version+1 where workspace_id=app.current_workspace_id() and id=${id}::uuid returning *`;
     return relationDefinitionRow(r);
   }
   async delete(id: string) {
-    await this.tx`delete from app.entity_relation_definitions where id=${id}::uuid`;
+    await this
+      .tx`delete from app.entity_relation_definitions where workspace_id=app.current_workspace_id() and id=${id}::uuid`;
   }
 }
 export class SqlEntityRelationDefinitionUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
-  run<T>(actor: Actor, fn: (store: EntityRelationDefinitionStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, actor, (tx) => fn(new SqlEntityRelationDefinitionStore(tx, actor)));
+  run<T>(
+    a: Actor,
+    fn: (store: EntityRelationDefinitionStore) => Promise<T>,
+    entry?: RelationDefinitionEntry,
+  ): Promise<T> {
+    const actor = requireWorkspaceActor(a);
+    return runInWorkspace(this.sql, actor, {
+      mode: "business",
+      requirements: entry?.business
+        ? []
+        : [{ target_kind: "settings", target_id: "*", access: entry?.access ?? "read" }],
+    }, (tx) => fn(new SqlEntityRelationDefinitionStore(tx, actor, entry?.business)));
   }
 }

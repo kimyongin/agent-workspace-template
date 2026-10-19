@@ -1,3 +1,5 @@
+import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { expect, test } from "@playwright/test";
 import type { EntityRelationDefinition } from "../supabase/functions/_shared/contracts/entity-relation.ts";
 const types = [{ id: "11111111-1111-4111-8111-111111111111", label: "주문", archived: false }, {
@@ -30,6 +32,7 @@ test(
       ), user);
     await page.route("**/*", async (route) => {
       const req = route.request(), url = new URL(req.url()), path = url.pathname;
+    if (await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "write" }, ...types.map(type => ({ target_kind: "entity_type" as const, target_id: type.id, access: "write" as const }))])) return;
       if (url.origin === new URL(baseURL!).origin) {
         return route.continue();
       }
@@ -81,7 +84,7 @@ test(
       }
       return route.fulfill({ json: { items: [], next_cursor: null } });
     });
-    await page.goto("/settings/relations");
+    await page.goto(fixtureWorkspacePath("/settings/relations"));
     await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "연결 설정 추가", exact: true }).click();
     await page.getByLabel(/첫 번째 자료 종류/).selectOption(types[0].id);

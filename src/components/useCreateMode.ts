@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "../lib/workspace-router.tsx";
 import { useDeferredNavigation } from "../lib/useDeferredNavigation.ts";
 
 /** Commit form removal before changing URL, preserving one dirty route guard. */

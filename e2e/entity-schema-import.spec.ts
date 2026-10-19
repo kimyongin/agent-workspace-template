@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import type { DataModelDocument } from "../supabase/functions/_shared/contracts/data-model.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import type { EntitySchema } from "../supabase/functions/_shared/contracts/entity-type.ts";
@@ -9,13 +10,15 @@ import {
   mcpTokenViaConsent,
   test,
   unique,
+  ownedWorkspace,
+  workspacePath,
 } from "./support.ts";
 import { saveOnce } from "./ui-actions.ts";
 
 type Mcp = Awaited<ReturnType<typeof mcpClient>>;
 
-async function currentDocument(page: Page, typeId: string) {
-  await page.goto("/settings/data-model");
+async function currentDocument(page: Page, workspaceId: string, typeId: string) {
+  await page.goto(workspacePath(workspaceId, "/settings/data-model"));
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "설정 내보내기", exact: true })
@@ -26,8 +29,8 @@ async function currentDocument(page: Page, typeId: string) {
     t.schema["x-type-id"] === typeId
   ).schema as EntitySchema;
 }
-async function importModelFile(page: Page, document: DataModelDocument) {
-  await page.goto("/settings/data-model");
+async function importModelFile(page: Page, workspaceId: string, document: DataModelDocument) {
+  await page.goto(workspacePath(workspaceId, "/settings/data-model"));
   await page.getByLabel("가져오는 방법", { exact: true }).selectOption(
     "update",
   );
@@ -47,14 +50,13 @@ async function importModelFile(page: Page, document: DataModelDocument) {
   await expect(page.getByRole("textbox", { name: "설정 파일 내용", exact: true })).toHaveValue(contents);
   await page.getByRole("button", { name: "가져올 내용 검토", exact: true })
     .click();
+  const saveReview = page.getByRole("button", { name: "검토 내용 저장", exact: true });
+  await expect(saveReview).toBeVisible();
   const prepared = page.waitForResponse((r) =>
     r.request().method() === "POST" &&
     new URL(r.url()).pathname.endsWith("/data-model/changes")
   );
-  await page.getByRole("button", {
-    name: "검토 내용 저장",
-    exact: true,
-  }).click();
+  await saveReview.click();
   const response = await prepared;
   expect(response.ok()).toBe(true);
   const change = await response.json();
@@ -78,7 +80,8 @@ async function importAndPublish(
   const model = await mcp.call("export_data_model", {}) as DataModelDocument;
   model.entity_types.find((t) => t.schema["x-type-id"] === typeId)!.schema =
     document;
-  const change = await importModelFile(page, model);
+  if (!mcp.workspaceId) throw new Error("explicit model fixture workspace required");
+  const change = await importModelFile(page, mcp.workspaceId, model);
   expect((await mcp.call("get_data_model_change", { id: change.id })).status)
     .toBe("applied");
   return mcp.call("get_entity_schema", { type_id: typeId });
@@ -87,15 +90,17 @@ async function importAndPublish(
 test("JSON file export→edited import→normal publication→web create/read→MCP export preserves choices, defaults and archive restoration", async ({ page }) => {
   test.setTimeout(240_000);
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const type = await mcp.call("create_entity_type", {
       label: unique("JSON 왕복 자료"),
       icon_id: "leaf",
       representative_label: "상품명",
     });
-    await page.goto(`/settings/entity-types/${type.id}`);
-    const exported = await currentDocument(page, type.id);
+    await workspace.grantKind(type.id);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}`));
+    const exported = await currentDocument(page, workspace.id, type.id);
     expect(exported).toEqual(
       (await mcp.call("get_entity_schema", { type_id: type.id })).schema,
     );
@@ -154,7 +159,7 @@ test("JSON file export→edited import→normal publication→web create/read→
       "prop_16",
     ]);
 
-    await page.goto(`/entities?entity_type_id=${type.id}`);
+    await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${type.id}`));
     await page.getByRole("button", { name: `${label} 추가`, exact: true })
       .click();
     const form = page.getByRole("dialog", {
@@ -202,14 +207,14 @@ test("JSON file export→edited import→normal publication→web create/read→
       },
     );
 
-    await page.goto(`/settings/entity-types/${type.id}`);
-    expect(await currentDocument(page, type.id)).toEqual(published.schema);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}`));
+    expect(await currentDocument(page, workspace.id, type.id)).toEqual(published.schema);
     const archived = await importAndPublish(page, mcp, type.id, {
       ...published.schema,
       deprecated: true,
     });
     expect(archived.schema).toMatchObject({ deprecated: true, "x-version": 3 });
-    await page.goto(`/entities?entity_type_id=${type.id}`);
+    await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${type.id}`));
     await expect(
       page.getByRole("button", { name: `${label} 추가`, exact: true }),
     ).toHaveCount(0);
@@ -219,7 +224,7 @@ test("JSON file export→edited import→normal publication→web create/read→
         [statusKey]: "ready",
       },
     );
-    await page.goto(`/settings/entity-types/${type.id}`);
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}`));
     const restored = await importAndPublish(page, mcp, type.id, {
       ...archived.schema,
       deprecated: false,
@@ -229,8 +234,8 @@ test("JSON file export→edited import→normal publication→web create/read→
       "x-version": 4,
     });
     expect(restored.schema.properties).toEqual(published.schema.properties);
-    expect(await currentDocument(page, type.id)).toEqual(restored.schema);
-    await page.goto(`/entities?entity_type_id=${type.id}`);
+    expect(await currentDocument(page, workspace.id, type.id)).toEqual(restored.schema);
+    await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${type.id}`));
     await expect(
       page.getByRole("button", { name: `${label} 추가`, exact: true }),
     ).toBeVisible();
@@ -242,13 +247,10 @@ test("JSON file export→edited import→normal publication→web create/read→
 test("one whole-model file configures two new kinds and their typed relationship for actual web and MCP work", async ({ page }) => {
   test.setTimeout(240_000);
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const workspace = await ownedWorkspace(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
     const productName = unique("파일 상품"), orderName = unique("파일 주문");
-    const current = await mcp.call(
-      "export_data_model",
-      {},
-    ) as DataModelDocument;
     const source: DataModelDocument = {
       format: "workspace-data-model",
       format_version: 1,
@@ -267,7 +269,7 @@ test("one whole-model file configures two new kinds and their typed relationship
             version: 1,
             sources: [{
               code: "app",
-              rule_id: "00000000-0000-4000-8000-000000000001",
+              rule_id: APP_IDENTIFIER_RULE_ID,
               active: true,
             }],
           },
@@ -285,7 +287,7 @@ test("one whole-model file configures two new kinds and their typed relationship
             version: 1,
             sources: [{
               code: "app",
-              rule_id: "00000000-0000-4000-8000-000000000001",
+              rule_id: APP_IDENTIFIER_RULE_ID,
               active: true,
             }],
           },
@@ -302,23 +304,29 @@ test("one whole-model file configures two new kinds and their typed relationship
         }, { type_ref: "orders", label: "주문 상품", cardinality: "one" }],
       }],
       identity_definitions: {
-        issuers: current.identity_definitions.issuers.filter((i) =>
-          i.code === "app"
-        ),
-        rules: current.identity_definitions.rules.filter((r) =>
-          r.id === "00000000-0000-4000-8000-000000000001"
-        ),
+        issuers: [{ code: "app", label: "앱", active: true, system: true, version: 1 }],
+        rules: [{
+          id: APP_IDENTIFIER_RULE_ID,
+          source: "app",
+          label: "앱 자동 번호",
+          meaning: "앱이 자료 등록 시 발급하는 내부 자료 번호",
+          generation: "automatic",
+          active: true,
+          version: 1,
+        }],
       },
     };
-    const applied = await importModelFile(page, source);
+    const applied = await importModelFile(page, workspace.id, source);
     const detail = await mcp.call("get_data_model_change", { id: applied.id });
     const productType = detail.review.mapping.types.products,
       orderType = detail.review.mapping.types.orders,
       definition = detail.result.relation_ids[0];
+    await workspace.grantKind(productType);
+    await workspace.grantKind(orderType);
     expect(productType).not.toBe(orderType);
     expect(detail.result.counts.types.added).toBe(2);
     expect(detail.result.counts.relations.added).toBe(1);
-    await page.goto(`/entities?entity_type_id=${productType}`);
+    await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${productType}`));
     await page.getByRole("button", { name: `${productName} 추가`, exact: true })
       .click();
     const form = page.getByRole("dialog", {
@@ -357,14 +365,14 @@ test("one whole-model file configures two new kinds and their typed relationship
         origin_id: product.id,
       })).items.map((e: { id: string }) => e.id),
     ).toEqual([order.id]);
-    await page.goto(`/entities/${encodeURIComponent(product.id)}`);
+    await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(product.id)}`));
     await expect(
       page.getByLabel("등록 주문 관계", { exact: true }).filter({
         visible: true,
       }).getByRole("button", { name: orderTitle, exact: true }),
     ).toBeVisible();
     const before = await mcp.call("export_data_model", {});
-    const repeated = await importModelFile(page, source);
+    const repeated = await importModelFile(page, workspace.id, source);
     expect(repeated.result.changed).toBe(false);
     expect(await mcp.call("export_data_model", {})).toEqual(before);
   } finally {

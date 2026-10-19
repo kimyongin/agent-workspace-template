@@ -28,6 +28,12 @@ export function RecordDataFields({ record, body, occurredAt }: {
               </div>
             </dl>
           )}
+        <dl className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+          <div>
+            <dt>작성자</dt>
+            <dd>{record.created_by_name ?? "—"}</dd>
+          </div>
+        </dl>
       </section>
       <ChangeContext record={record} occurredAt={occurredAt} />
     </>

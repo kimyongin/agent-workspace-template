@@ -1,3 +1,5 @@
+import type { RecordResult } from "../supabase/functions/_shared/contracts/record.ts";
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { openMainNavigation } from "./ui-actions.ts";
 // Actual App and routing; remote Auth/API are isolated, with no DB or real-account writes.
 import { fixtureType, fixtureSchema, entityKey } from "./support/workspace-data.ts";
@@ -5,12 +7,12 @@ import { expect, test, type Page } from "@playwright/test";
 import {id,stamp,identity as base,entity as makeEntity,task as makeTask,record as makeRecord} from "./support/workspace-data.ts";
 import {installWorkspaceApi} from "./support/workspace-api.ts";
 import {closeDetail} from "./ui-actions.ts";
-const task={...makeTask(),title:"다음 상담 준비",body:"필요한 자료를 준비합니다.",due_on:"2026-10-12",entity_ids:[entityKey(1)],entity_context:[{id:entityKey(1),title:"김민수",source:"selection" as const,captured_at:stamp}]};
-const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2),entity_ids:[entityKey(1)],entity_context:task.entity_context};
-const entity={...makeEntity(1, {prop_1:"김민수",prop_3:"2026-10-08"}),tasks:{count:1,items:[task]},records:{count:1,items:[record]}};
+const task={...makeTask(),title:"다음 상담 준비",body:"필요한 자료를 준비합니다.",due_on:"2026-10-12",entity_ids:[entityKey(1)],entity_context:[{id:entityKey(1),title:"김민수",type:fixtureType,schema_version:1,source:"selection" as const,captured_at:stamp}]};
+const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2)};
+const entity={...makeEntity(1, {prop_1:"김민수",prop_3:"2026-10-08"}),tasks:{count:1,items:[task]},records:{count:0,items:[]}};
 const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_timezone: "Asia/Seoul" } };
 
-async function fixture(page: Page, records = [record]) {
+async function fixture(page: Page, records: RecordResult[] = [record]) {
   const state=await installWorkspaceApi(page,"http://127.0.0.1:55587",structuredClone({entities:[entity],tasks:[task],records,tags:[]}),{pageSize:20});
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   await page.route("**/*",async route=>{
@@ -23,9 +25,15 @@ async function fixture(page: Page, records = [record]) {
   return state;
 }
 
+function addEntityRecord(state: Awaited<ReturnType<typeof fixture>>) {
+  const own = { ...makeRecord(34), body: record.body, entity_id: entity.id, task_id: null, record_kind: "change" as const };
+  state.rows.records.push(own);
+  state.rows.entities[0].records = { count: 1, items: [own] };
+}
+
 for (const [kind, label, title] of [["entities", "전체 자료", entity.title], ["tasks", "할 일", task.title], ["records", "기록", record.body]] as const) test(`${kind}: views keep filters, list reads and disclosure/detail return`, async ({ page }) => {
   const state = await fixture(page);
-  await page.goto(`/${kind}`);
+  await page.goto(fixtureWorkspacePath(`/${kind}`));
   const list = page.getByRole("region", { name: `${label} 목록`, exact: true });
   const modes = list.getByRole("radiogroup", { name: `${label} 보기 방식` });
   await expect(list.getByRole("heading", { name: `${label} (1개)`, exact: true })).toBeVisible();
@@ -64,7 +72,8 @@ test("related sections switch independently and return from a linked detail", as
   const invalidMarkup: string[] = [];
   page.on("console", message => { if (message.type() === "error" && /cannot (be a child|contain)|In HTML/.test(message.text())) invalidMarkup.push(message.text()); });
   const state = await fixture(page);
-  await page.goto(`/entities/${entity.id}`);
+  addEntityRecord(state);
+  await page.goto(fixtureWorkspacePath(`/entities/${entity.id}`));
   const dialog = page.getByRole("dialog"), tasks = dialog.getByRole("region", { name: "할 일 (1개)" }), records = dialog.getByRole("region", { name: "기록 (1개)" });
   await tasks.getByRole("radio", { name: "카드", exact: true }).click();
   await records.getByRole("radio", { name: "테이블", exact: true }).click();
@@ -73,8 +82,9 @@ test("related sections switch independently and return from a linked detail", as
   await closeDetail(page, task.title);
   await expect(tasks.getByRole("radio", { name: "카드", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(records.getByRole("radio", { name: "테이블", exact: true })).toHaveAttribute("aria-checked", "true");
-  await page.goto(`/records/${record.id}`);
-  await expect(dialog.getByRole("radiogroup", { name: "연결된 자료 보기 방식" })).toBeVisible();
+  await page.goto(fixtureWorkspacePath(`/records/${record.id}`));
+  await expect(dialog.getByRole("radiogroup", { name: "연결된 자료 보기 방식" })).toHaveCount(0);
+  await expect(dialog.getByRole("region", { name: "자료 (1개)", exact: true })).toHaveCount(0);
   await expect(dialog.getByRole("radiogroup", { name: "할 일 보기 방식" })).toBeVisible();
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
   expect(invalidMarkup).toEqual([]);
@@ -84,7 +94,7 @@ test("empty and failed lists keep truthful counts and retry in every view", asyn
   const state = await fixture(page);
   state.rows.records.length = 0;
   const clearFailure = state.failRead({ kind: "records", page: 1 }, { once: false });
-  await page.goto("/records");
+  await page.goto(fixtureWorkspacePath("/records"));
   await expect(page.getByRole("alert")).toContainText("기록을 불러오지 못했습니다");
   await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toHaveText("기록");
   const recordReads = () => state.reads.filter(url => new URL(url).pathname === "/api/records").length;
@@ -103,7 +113,7 @@ test("empty and failed lists keep truthful counts and retry in every view", asyn
 test("calendar uses display dates, keyboard month edges, partial pages and saved selection", async ({ page }) => {
   const rows = Array.from({ length: 21 }, (_, n) => ({ ...record, ...base(200 + n), body: `기록 ${n}`, occurred_at: n === 0 ? "2026-10-07T15:30:00Z" : "2026-09-30T15:30:00Z" }));
   const state = await fixture(page, rows);
-  await page.goto("/records?view=calendar");
+  await page.goto(fixtureWorkspacePath("/records?view=calendar"));
   await expect(page.getByRole("heading", { name: "기록 (20개+)" })).toBeVisible();
   const day = page.getByRole("button", { name: "2026-10-08, 불러온 기록 1개", exact: true });
   await expect(day).toHaveAttribute("aria-pressed", "true");
@@ -140,7 +150,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   for (const width of [320, 390, 640, 1440]) for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 844 });
     for (const view of ["list", "cards", "table", ...(kind === "records" ? ["calendar"] : [])]) {
-      await page.goto(`/${kind}?view=${view}`); await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toContainText("1개");
+      await page.goto(fixtureWorkspacePath(`/${kind}?view=${view}`)); await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toContainText("1개");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
       if (view === "calendar") {
         const target = await page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first().boundingBox();
@@ -153,7 +163,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
       await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
     }
   }
-  await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/tasks?view=table");
+  await page.setViewportSize({ width: 390, height: 844 }); await page.goto(fixtureWorkspacePath("/tasks?view=table"));
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
   const modes = page.getByRole("radiogroup", { name: "할 일 보기 방식" });
@@ -167,8 +177,9 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
 test("table rows and headers share the same columns across wrapper types and viewports", async ({ page }) => {
   const rows = [record, { ...record, ...base(4), body: "짧은 기록" }, { ...record, ...base(5), body: "아주 긴 한국어 기록을 제목처럼 표시할 때에도 날짜와 종류의 열은 흔들리지 않아야 합니다." }];
   const state = await fixture(page, rows);
+  addEntityRecord(state);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) for (const kind of ["entities", "tasks", "records"]) {
-    await page.setViewportSize({ width, height: 900 }); await page.goto(`/${kind}?view=table`);
+    await page.setViewportSize({ width, height: 900 }); await page.goto(fixtureWorkspacePath(`/${kind}?view=table`));
     const table = page.getByRole("table").first();
     await expect(table.getByRole("columnheader").first()).toHaveCount(1);
     const geometry = await table.evaluate(table => {
@@ -196,7 +207,7 @@ test("table rows and headers share the same columns across wrapper types and vie
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
   }
-  await page.goto(`/entities/${entity.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities/${entity.id}`));
   const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
   await section.getByRole("radio", { name: "테이블", exact: true }).click();
   const table = section.getByRole("table");
@@ -205,17 +216,36 @@ test("table rows and headers share the same columns across wrapper types and vie
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
-test("calendar reflows at enlarged text without shrinking day targets", async ({ page }) => {
+test("calendar reflows at enlarged text without shrinking day targets", async ({ page }, info) => {
   const state = await fixture(page);
   for (const width of [320, 390, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 900 }); await page.goto("/records?view=calendar");
+    await page.setViewportSize({ width, height: 900 }); await page.goto(fixtureWorkspacePath("/records?view=calendar"));
     await expect(page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first()).toBeVisible();
     await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
-    const box = await page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first().boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
-    const month = (await page.getByRole("region", { name: "기록 달력", exact: true }).locator(':scope > [data-slot="card"]').boundingBox())!, selected = (await page.getByRole("region", { name: /^\d{4}-\d{2}-\d{2} 기록$/ }).boundingBox())!;
-    expect(selected.y).toBeGreaterThanOrEqual(month.y + month.height);
+    const layout = await page.getByRole("region", { name: "기록 달력", exact: true }).evaluate(root => {
+      const month = root.querySelector(':scope > [data-slot="card"]')!;
+      const selected = root.querySelector(':scope > section[aria-label]')!;
+      const day = [...root.querySelectorAll("button")].find(button => /^\d{4}-\d{2}-\d{2}, 불러온 기록/.test(button.getAttribute("aria-label") ?? ""))!;
+      const grid = getComputedStyle(root);
+      const main = root.closest("main");
+      return {
+        month: month.getBoundingClientRect().toJSON(),
+        selected: selected.getBoundingClientRect().toJSON(),
+        day: day.getBoundingClientRect().toJSON(),
+        grid: { columns: grid.gridTemplateColumns, rows: grid.gridTemplateRows, gap: grid.gap, alignItems: grid.alignItems },
+        font: { root: getComputedStyle(document.documentElement).fontSize, calendar: grid.fontSize },
+        scroll: { windowX: scrollX, windowY: scrollY, mainTop: main?.scrollTop, mainLeft: main?.scrollLeft },
+        viewport: { width: innerWidth, height: innerHeight, visualWidth: visualViewport?.width, visualHeight: visualViewport?.height, scale: visualViewport?.scale },
+        documentWidth: document.documentElement.scrollWidth,
+      };
+    });
+    await info.attach(`calendar-200-${width}-layout`, { contentType: "application/json", body: JSON.stringify(layout, null, 2) });
+    await page.screenshot({ path: info.outputPath(`calendar-200-${width}.png`) });
+    expect(layout.documentWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.viewport.width);
+    expect(layout.day.width).toBeGreaterThanOrEqual(44); expect(layout.day.height).toBeGreaterThanOrEqual(44);
+    expect(layout.selected.y, JSON.stringify(layout)).toBeGreaterThanOrEqual(layout.month.y + layout.month.height);
+    await page.getByRole("region", { name: /^\d{4}-\d{2}-\d{2} 기록$/ }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath(`calendar-200-${width}-boundary.png`) });
   }
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
@@ -226,7 +256,9 @@ test("restored preview waits for its read and settles even when tag lookup fails
   const state = await fixture(page, [row]);
   state.failRead({ kind: "tags", page: 1 }, { once: false });
   const held = state.holdRead({ kind: "records", id: row.id });
-  await page.goto("/records?open=" + encodeURIComponent("/records/" + row.id) + "&scroll=0#activity-records-" + row.id);
+  await page.goto(fixtureWorkspacePath(`/records?open=${encodeURIComponent(`/records/${row.id}`)}&scroll=0#activity-records-${row.id}`));
+  expect(new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/records"));
+  expect(new URL(page.url()).searchParams.get("open")).toBe(`/records/${row.id}`);
   await held.started;
   const title = page.getByRole("button", { name: row.body, exact: true });
   await expect(title).not.toBeFocused();
@@ -237,16 +269,17 @@ test("restored preview waits for its read and settles even when tag lookup fails
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
 
-for (const action of ["delete", "create"] as const) test(`unavailable change target ${action} keeps the same disclosure row and entity links`, async ({page}) => {
+for (const action of ["delete", "create"] as const) test(`unavailable change target ${action} keeps the immutable task disclosure without adopting entity links`, async ({page}) => {
   const history={...record,record_kind:"change" as const,change:{target_kind:"task" as const,target_id:task.id,target_title:task.title,action,source:"http" as const,event_id:id(88),path:null,before:null,after:null}};
   const state=await fixture(page,[history]);
   state.rows.tasks.length=0;
-  await page.goto(`/records/${history.id}`);
+  await page.goto(fixtureWorkspacePath(`/records/${history.id}`));
   const detail=page.getByRole("dialog");
   const tasks=detail.getByRole("region",{name:"할 일 (1개)"});
   const badge=action==="delete"?"삭제됨":"조회 불가";
   await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
-  await expect(detail.getByRole("region",{name:"연결된 자료 (1개)"})).toBeVisible();
+  await expect(detail.getByRole("region",{name:"자료 (1개)"})).toHaveCount(0);
+  await expect(detail.getByRole("region",{name:"연결된 자료 (1개)"})).toHaveCount(0);
   for(const view of ["테이블","카드"]){
     await tasks.getByRole("radio",{name:view,exact:true}).click();
     await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
@@ -263,7 +296,7 @@ for (const action of ["delete", "create"] as const) test(`unavailable change tar
 });
 
 test("responsive workspace brand and list heading remain reachable at every width", async ({ page }) => {
-  await fixture(page); await page.goto("/entities");
+  await fixture(page); await page.goto(fixtureWorkspacePath("/entities"));
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const title = page.getByRole("heading", { name: "전체 자료", level: 1, exact: true });
@@ -273,7 +306,7 @@ test("responsive workspace brand and list heading remain reachable at every widt
     expect(titleBox.y).toBeGreaterThanOrEqual(banner.y + banner.height - 1);
     await openMainNavigation(page);
     const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
-    await expect(navigation.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/entities");
+    await expect(navigation.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/workspaces");
     await expect(navigation.getByRole("link", { name: "할 일", exact: true })).toBeVisible();
     const close = page.getByRole("button", { name: "메뉴 닫기", exact: true }); if (await close.isVisible()) await close.click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -284,7 +317,7 @@ test("responsive workspace brand and list heading remain reachable at every widt
 test("closed filters show conditions below search and opening hides the summary", async ({ page }) => {
   await fixture(page);
   for (const [path, condition] of [["/entities?entity_type_id=00000000-0000-4000-8000-000000000900&property_filters=%5B%7B%22key%22%3A%22prop_4%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22a%22%7D%5D", "분류: a"], ["/tasks?status=done", "상태: 완료"], ["/records?record_kind=change", "종류: 변경 기록"]]) {
-    await page.goto(path);
+    await page.goto(fixtureWorkspacePath(path));
     const summary = page.getByLabel("적용된 필터", {exact:true});
     await expect(summary).toContainText(condition);
     await page.getByRole("button", {name:/필터 열기/}).click();
@@ -295,11 +328,11 @@ test("closed filters show conditions below search and opening hides the summary"
 });
 
 test("soft-deleted entity returned by GET keeps historical relation without a detail link", async ({page}) => {
-  const history={...record,record_kind:"change" as const,change:{target_kind:"entity" as const,target_id:entity.id,target_title:entity.title,action:"delete" as const,source:"http" as const,event_id:id(90),path:null,before:null,after:null}};
+  const history={...record,entity_id:entity.id,task_id:null,record_kind:"change" as const,change:{target_kind:"entity" as const,target_id:entity.id,target_title:entity.title,action:"delete" as const,source:"http" as const,event_id:id(90),path:null,before:null,after:null}};
   const state=await fixture(page,[history]);
   state.rows.entities[0].deleted_at="2026-10-10T00:00:00Z";
-  await page.goto(`/records/${history.id}`);
-  const section=page.getByRole("dialog").getByRole("region",{name:"연결된 자료 (1개)",exact:true});
+  await page.goto(fixtureWorkspacePath(`/records/${history.id}`));
+  const section=page.getByRole("dialog").getByRole("region",{name:"자료 (1개)",exact:true});
   await expect(section.getByText("삭제됨",{exact:true})).toBeVisible();
   await section.getByRole("button",{name:entity.title,exact:true}).click();
   await expect(section).toContainText("기록에 저장된 당시 제목");
@@ -312,7 +345,7 @@ for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read 
   const key=kind==="entities"?entity.id:kind==="tasks"?task.id:record.id;
   for(const width of [320,360,390,639,640,768,1024,1440]) {
     await page.setViewportSize({width,height:900});
-    await page.goto(`/${kind}/${encodeURIComponent(key)}`);
+    await page.goto(fixtureWorkspacePath(`/${kind}/${encodeURIComponent(key)}`));
     const surface = page.getByRole("dialog").filter({ visible: true });
     const properties = surface;
     const expectedKeys = kind === "entities"
@@ -349,8 +382,13 @@ test("selected entity fields stay identical in every layout and expansion withou
   schema.schema.properties.prop_4={type:"boolean",title:"검사", "x-order":40,"x-show-in-list":true};
   const selected={...entity,properties:{prop_1:"선택 자료",prop_2:0,prop_3:"숨긴 날짜",prop_4:false},display_properties:{prop_1:"선택 자료",prop_2:0,prop_4:false},title:"선택 자료"};
   state.rows.entities.splice(0,state.rows.entities.length,selected);
+  Object.assign(state.rows.tasks[0], {
+    entity_ids: [selected.id],
+    entity_context: [{ id: selected.id, title: selected.title, type: selected.type,
+      schema_version: selected.schema_version, source: "selection", captured_at: stamp }],
+  });
   await page.route("**/api/entity-types/*/schema{,?**}",route=>route.fulfill({json:schema}));
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   for(const view of ["테이블","카드"]) {
     await page.getByRole("radio",{name:view,exact:true}).click();
     const collection = page.getByRole("region", { name: / 목록$/ });
@@ -376,13 +414,27 @@ test("selected entity fields stay identical in every layout and expansion withou
     await page.screenshot({path:info.outputPath(`selected-${view}.png`),fullPage:true});
     await row.getByRole("button",{name:selected.title,exact:true}).click();
   }
-  await page.goto(`/tasks/${task.id}`);
+  await page.goto(fixtureWorkspacePath(`/tasks/${task.id}`));
   const related=page.getByRole("region",{name:"연결된 자료 (1개)",exact:true});
-  await related.getByRole("button",{name:entity.title,exact:true}).click();
-  await expect(related.getByText("품명",{exact:true})).toBeVisible();
-  await expect(related.getByText("숨긴 날짜",{exact:true})).toHaveCount(0);
-  await expect(related.getByText("0",{exact:true})).toBeVisible();
-  await expect(related.getByText("거짓",{exact:true})).toBeVisible();
+  for (const view of ["테이블", "카드"]) {
+    await related.getByRole("radio", { name: view, exact: true }).click();
+    const toggle = related.getByRole("button", { name: selected.title, exact: true });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    // visual-spec.md:45: table headers are keys; card entries carry their own labels.
+    if (view === "테이블") {
+      await expect(related.getByRole("columnheader", { name: "자료 이름", exact: true })).toHaveText("자료 이름");
+      await expect(related.getByText("품명", { exact: true })).toHaveCount(0);
+    } else await expect(related.getByText("품명", { exact: true })).toBeVisible();
+    await expect(related.getByText(selected.title, { exact: true })).toHaveCount(1);
+    await expect(related.getByText("숨긴 날짜", { exact: true })).toHaveCount(0);
+    await expect(related.getByText("0", { exact: true })).toBeVisible();
+    await expect(related.getByText("0", { exact: true })).toHaveCount(1);
+    await expect(related.getByText("거짓", { exact: true })).toBeVisible();
+    await expect(related.getByText("거짓", { exact: true })).toHaveCount(1);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  }
   expect(state.writes).toEqual([]);
   expect(state.errors).toEqual([]);
 });
@@ -394,7 +446,7 @@ test("card title labels and wrapped values remain ordered and readable", async (
   state.rows.entities.splice(0, state.rows.entities.length, short, long);
   for (const width of [320, 640]) {
     await page.setViewportSize({ width, height: 1000 });
-    await page.goto(`/entities?entity_type_id=${fixtureType.id}&view=cards`);
+    await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&view=cards`));
     await page.getByRole("radio", { name: "카드", exact: true }).click();
     for (const item of [short, long]) {
       const title = page.getByRole("button", { name: item.title, exact: true });
@@ -425,7 +477,7 @@ test("calendar loads only when selected and retains keyboard control after loadi
     await route.continue();
   });
   try {
-    await page.goto("/records?calendar_month=2026-10&calendar_day=2026-10-08", { waitUntil: "commit" });
+    await page.goto(fixtureWorkspacePath("/records?calendar_month=2026-10&calendar_day=2026-10-08"), { waitUntil: "commit" });
     await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible({ timeout: 5000 });
     expect(requests).toBe(0);
     const toggle = page.getByRole("radio", { name: "캘린더", exact: true });
@@ -452,7 +504,7 @@ test("calendar loads only when selected and retains keyboard control after loadi
 
 test("business tables: legacy list URLs keep context and disclosure columns stay stable", async ({ page }) => {
   const state = await fixture(page);
-  await page.goto("/entities?view=list&keyword=김민수");
+  await page.goto(fixtureWorkspacePath("/entities?view=list&keyword=김민수"));
   const collection = page.getByRole("region", { name: "전체 자료 목록", exact: true });
   await expect(collection.getByRole("radio", { name: "테이블", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(collection.getByRole("radio", { name: "리스트", exact: true })).toHaveCount(0);
@@ -482,7 +534,7 @@ test("business tables: selected values reflow without horizontal scrolling at wi
   schema.schema.properties.prop_5 = { type: "boolean", title: "확인 상태를 나타내는 긴 라벨", "x-order": 50, "x-show-in-list": true };
   await page.route("**/api/entity-types/*/schema**", route => route.fulfill({ json: schema }));
   state.rows.entities[0].display_properties = { prop_1: entity.title, prop_2: 240000, prop_3: "2026-10-08", prop_4: "a", prop_5: false };
-  await page.goto("/entities?entity_type_id=" + fixtureType.id);
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   const table = page.getByRole("table", { name: "검사 자료 목록", exact: true });
   const title = table.getByRole("button", { name: entity.title, exact: true });
   const row = table.getByRole("row").filter({ has: page.getByRole("button", { name: entity.title, exact: true }) });
@@ -514,7 +566,7 @@ test("business tables: selected values reflow without horizontal scrolling at wi
 test("business tables: search results retain snippets and return context at narrow widths", async ({ page }) => {
   const state = await fixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/search?q=상담&kind=task&mode=keyword");
+  await page.goto(fixtureWorkspacePath("/search?q=상담&kind=task&mode=keyword"));
   const table = page.getByRole("table", { name: "검색 결과", exact: true });
   const link = table.getByRole("link", { name: task.title, exact: true });
   await expect(link).toBeVisible();await expect(table.getByText(task.body, { exact: true })).toBeVisible();
@@ -539,7 +591,7 @@ test("business tables: many selected columns keep dates readable and never omit 
   }
   state.rows.entities[0].display_properties = projected;
   await page.route("**/api/entity-types/*/schema**", route=>route.fulfill({json:schema}));
-  await page.setViewportSize({width:1440,height:1000});await page.goto("/entities?entity_type_id="+fixtureType.id);
+  await page.setViewportSize({width:1440,height:1000});await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   const row = page.getByRole("row").filter({has:page.getByRole("button",{name:entity.title,exact:true})});
   await expect(row.getByRole("cell")).toHaveCount(16);
   const date = row.getByText("2026-10-02",{exact:true});await expect(date).toBeVisible();

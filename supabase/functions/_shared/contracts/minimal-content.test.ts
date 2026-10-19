@@ -1,12 +1,12 @@
 import { assertEquals } from "@std/assert";
-import { recordCreate } from "./record.ts";
+import { occurrenceRecordCreate } from "./record.ts";
 import { taskCreate } from "./task.ts";
 import { changeNote } from "./change.ts";
-Deno.test("body-only records and title/body tasks reject retired content", () => {
-  assertEquals(recordCreate.safeParse({ body: "기록 내용" }).success, true);
-  assertEquals(recordCreate.safeParse({ body: "" }).success, false);
+Deno.test("body-only occurrence results and title/body tasks reject retired content", () => {
+  assertEquals(occurrenceRecordCreate.safeParse({ body: "기록 내용" }).success, true);
+  assertEquals(occurrenceRecordCreate.safeParse({ body: "" }).success, false);
   for (const field of ["title", "summary", "change_memo", "change_note"]) {
-    assertEquals(recordCreate.safeParse({ body: "내용", [field]: "옛 입력" }).success, false);
+    assertEquals(occurrenceRecordCreate.safeParse({ body: "내용", [field]: "옛 입력" }).success, false);
   }
   const task = { kind: "once", title: "할 일" };
   assertEquals(taskCreate.safeParse(task).success, true);
