@@ -26,7 +26,6 @@ import { SchemaRepresentativeSetting } from "./SchemaRepresentativeSetting.tsx";
 import {
   migrationActive,
   migrationLabels,
-  MigrationStart,
   SchemaMigrationJob,
   useMigrationHistory,
 } from "./SchemaMigrationJobs.tsx";
@@ -111,10 +110,6 @@ export function SchemaEditor(
   jobDisabled = jobDisabled || !canWrite;
   const location = useLocation(), navigate = useNavigate();
   const jobs = useMigrationHistory(type.id, selectedJob);
-  const lockedPlan = jobs.items.some((job) =>
-    migrationActive(job) &&
-    job.change_id === new URLSearchParams(location.search).get("change_id")
-  );
   const [expandedRow, setExpandedRow] = useState<string>();
   const [selectedJobOpen, setSelectedJobOpen] = useState(true);
   const [versionErrors, setVersionErrors] = useState<Record<string, string>>(
@@ -161,7 +156,9 @@ export function SchemaEditor(
     definition,
     onApplied,
     onState,
-    disabled: disabled || lockedPlan,
+    disabled,
+    jobs: jobs.items,
+    onNavigate: navigate,
     selectionSearch: location.search,
     onFieldKeysChanged,
     onInvalidField,
@@ -191,11 +188,11 @@ export function SchemaEditor(
     busy,
     uncertain,
     readBusy,
-    startState,
+    startError,
+    inputsDisabled,
     restartedFrom,
     planSyncNeeded,
   } = editor.view;
-  const inputsDisabled = lockedPlan || busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain;
   const {
     editField,
     editNumeric,
@@ -218,17 +215,6 @@ export function SchemaEditor(
       setSelectedJobOpen(true);
     }
   }, [selectedJob]);
-  const refreshedJobs = useRef(new Set<string>());
-  useEffect(() => {
-    if (!plan) return;
-    const terminal = jobs.items.find((job) =>
-      job.change_id === plan.id && !migrationActive(job) &&
-      !refreshedJobs.current.has(`${job.id}:${job.version}`)
-    );
-    if (!terminal) return;
-    refreshedJobs.current.add(`${terminal.id}:${terminal.version}`);
-    void editor.refreshPlan();
-  }, [jobs.items, plan?.id]);
   const historyRows = schemaHistoryRows(
     jobs.selectedChange && !changes.some((c) => c.id === jobs.selectedChange!.id)
       ? [...changes, jobs.selectedChange]
@@ -251,6 +237,7 @@ export function SchemaEditor(
     analyze: "변경 검토",
     reanalyze: "검토 재시도",
     publish: "변경 적용",
+    migration: "값 변환 시작",
   };
   const openEditing = () => {
     setPropertiesOpen(true);
@@ -833,7 +820,7 @@ export function SchemaEditor(
               <Button variant="ghost"
 
                 type="button"
-                disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain ||
+                disabled={inputsDisabled ||
                   Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
                 onClick={() => {
                   setPropertiesOpen(true);
@@ -1161,11 +1148,7 @@ export function SchemaEditor(
                                   : undefined}
                                 migration={migration}
                                 onChange={editor.editMigration}
-                                disabled={!!row.version || busy || uncertain ||
-                                  disabled || Boolean(plan.recovery) ||
-                                  ["applied", "cancelled", "stale"].includes(
-                                    plan.status,
-                                  )}
+                                disabled={!!row.version || editor.view.conversionDisabled}
                               />
                             )
                             : null}
@@ -1222,23 +1205,19 @@ export function SchemaEditor(
                                   >
                                     폐기
                                   </Button>
-                                  {primaryAction?.kind === "migration"
-                                    ? (
-                                      <MigrationStart
-                                        plan={plan}
-                                        disabled={primaryAction.disabled}
-                                        onState={editor.migrationStateChanged}
-                                      />
-                                    )
-                                    : primaryAction && (
-                                      <Button variant="default"
-
-                                        disabled={primaryAction.disabled}
-                                        onClick={() => void primaryAction.run?.()}
-                                      >
-                                        {actionLabels[primaryAction.kind]}
-                                      </Button>
-                                    )}
+                                  {primaryAction && (
+                                    <Button variant="default"
+                                      disabled={primaryAction.disabled}
+                                      onClick={() => void primaryAction.run?.()}
+                                    >
+                                      {primaryAction.label ?? actionLabels[primaryAction.kind]}
+                                    </Button>
+                                  )}
+                                  {primaryAction?.kind === "migration" && startError && (
+                                    <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>
+                                      {startError} 작업 목록에서 접수 여부를 확인할 수 있습니다.
+                                    </AlertDescription></Alert>
+                                  )}
                                 </>
                               )}
                           </div>

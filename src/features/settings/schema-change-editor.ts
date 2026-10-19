@@ -1,6 +1,6 @@
 import { useApi } from "../../lib/api-context.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EntityField, EntitySchemaVersion, EntityType } from "@contracts/entity-type.ts";
 import type {
   EntitySchemaChange,
@@ -12,6 +12,9 @@ import type {
 } from "@contracts/entity-schema-change.ts";
 import { entityFieldInput } from "@contracts/entity-schema-change.ts";
 
+import { useSettingsAccess } from "./workspace-settings-access.tsx";
+import type { EntitySchemaMigration, SchemaMigrationAccepted } from "@contracts/entity-schema-migration.ts";
+import { migrationActive } from "./schema-migration-status.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { migrationNumericValues, SchemaNumericDraftError, schemaNumericValues } from "./numeric-drafts.ts";
@@ -59,13 +62,16 @@ type ReviewAction = {
     | "migration"
     | "publish";
   disabled: boolean;
+  label?: string;
   run?: () => void | Promise<void>;
 };
 /** Owns a material's schema-change editing intent, reads, and writes.
  * Published definitions come from the settings owner; rows and focus stay in the UI.
  */
 export function useSchemaChangeEditor(
-  { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField, onReviewed }: {
+  { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField, onReviewed, onNavigate, jobs }: {
+    onNavigate: (path: string) => void;
+    jobs: EntitySchemaMigration[];
     type: EntityType;
     definition: EntitySchemaVersion;
     onApplied: (change?: EntitySchemaChange) => Promise<string>;
@@ -78,8 +84,15 @@ export function useSchemaChangeEditor(
   },
 ) {
   const api = useApi();
-  const [startState, setStartState] = useState({ busy: false, uncertain: false });
-  const startStateChange = useCallback((state: { busy: boolean; uncertain: boolean }) => setStartState(state), []);
+  const latestApi = useRef(api);
+  latestApi.current = api;
+  const { canWrite } = useSettingsAccess();
+  // Receipt confirmation has its own frozen request, independent of saving a change.
+  const { attempt: startAttempt, ...startState } = useWriteAttempt<SchemaMigrationAccepted>();
+  const [startError, setStartError] = useState("");
+  const lockedPlan = jobs.some((job) => migrationActive(job) &&
+    job.change_id === new URLSearchParams(selectionSearch).get("change_id"));
+  disabled = disabled || !canWrite || lockedPlan;
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [draft, setDraft] = useState<SchemaDefinition>(() => clone(definition)),
     [saved, setSaved] = useState<SchemaDefinition>(() => clone(definition));
@@ -133,7 +146,7 @@ export function useSchemaChangeEditor(
   };
   useLayoutEffect(() => {
     onState({ dirty, busy: busy || startState.busy, uncertain: uncertain || startState.uncertain, error: !!error });
-  }, [dirty, busy, uncertain, error, startState, onState]);
+  }, [dirty, busy, uncertain, error, startState.busy, startState.uncertain, onState]);
   useLayoutEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
   useEffect(() => {
     mounted.current = true;
@@ -502,6 +515,15 @@ export function useSchemaChangeEditor(
       }
     }
   };
+  const refreshedJobs = useRef(new Set<string>());
+  useEffect(() => {
+    if (!plan) return;
+    const terminal = jobs.find((job) => job.type_id === type.id && job.change_id === plan.id &&
+      !migrationActive(job) && !refreshedJobs.current.has(`${job.id}:${job.version}`));
+    if (!terminal) return;
+    refreshedJobs.current.add(`${terminal.id}:${terminal.version}`);
+    void refreshPlan();
+  }, [jobs, plan?.id, type.id]);
   const loadPlan = async (id: string) => {
     if (protectedDraft.current.dirty || protectedDraft.current.busy || protectedDraft.current.uncertain) {
       setReadBusy(false);
@@ -670,9 +692,11 @@ export function useSchemaChangeEditor(
     setMigration(plan?.migration ?? { rules: [], overrides: [] });
     setError("");
   };
+  const conversionDisabled = busy || uncertain || disabled || startState.busy || startState.uncertain ||
+    !!plan?.recovery || !!plan && ["applied", "cancelled", "stale"].includes(plan.status);
   const editMigration = (value: MigrationPlan) => {
     // Conversion input can still be edited while a plan read is in flight.
-    if (!busy && !uncertain && !disabled && !plan?.recovery) {
+    if (!conversionDisabled) {
       setMigration(value);
     }
   };
@@ -763,6 +787,30 @@ export function useSchemaChangeEditor(
   const changeCount = changedFields.length +
     Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
     (draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
+  const startMigration = async () => {
+    if (!plan || !canWrite || startState.busy || (!startState.uncertain && (!actionReady || !plan.executable))) return;
+    setStartError("");
+    const requestApi = api;
+    try {
+      const accepted = await startAttempt.run(() => api<SchemaMigrationAccepted>(
+        "POST", `${base}/${plan.id}/migrations`, {
+          expected_change_version: plan.version,
+          expected_schema_version: plan.source_schema_version,
+          analysis_id: plan.analysis!.id,
+          fingerprint: plan.fingerprint,
+        }, undefined, startAttempt.requestKey(),
+      ));
+      if (!accepted || !mounted.current) return;
+      const params = new URLSearchParams(selectionSearch);
+      params.set("job_id", accepted.job_id);
+      params.set("change_id", plan.id);
+      requestAnimationFrame(() => {
+        if (mounted.current && latestApi.current === requestApi) onNavigate(`/settings/entity-types/${plan.type_id}?${params}`);
+      });
+    } catch (e) {
+      if (mounted.current) setStartError(plan.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));
+    }
+  };
   const historyAction = (): ReviewAction | null => {
     if (!plan || ["applied", "cancelled"].includes(plan.status)) return null;
     if (planSyncNeeded) return { kind: readBusy ? "sync-pending" : "sync-required", disabled: true };
@@ -779,7 +827,12 @@ export function useSchemaChangeEditor(
       return { kind: plan.analysis ? "reanalyze" : "analyze", disabled: !canAnalyze, run: analyze };
     }
     if (plan.change_kind === "migration_required" && !emptyPublication && plan.executable) {
-      return { kind: "migration", disabled: !actionReady };
+      return {
+        kind: "migration",
+        disabled: startState.busy || !canWrite || (!startState.uncertain && (!actionReady || !plan.executable)),
+        run: startMigration,
+        label: startState.busy ? "접수 중…" : startState.uncertain ? "같은 접수 요청 다시 확인" : "값 변환 시작",
+      };
     }
     if ((plan.change_kind === "compatible" || emptyPublication) && plan.status !== "stale") {
       return { kind: "publish", disabled: !canPublish, run: publish };
@@ -807,7 +860,9 @@ export function useSchemaChangeEditor(
       busy,
       uncertain,
       readBusy,
-      startState,
+      startError,
+      inputsDisabled: !editable(),
+      conversionDisabled,
       restartedFrom,
       planSyncNeeded,
       migrationEdited:
@@ -846,6 +901,5 @@ export function useSchemaChangeEditor(
     refreshPlan,
     refreshChanges,
     moreChanges,
-    migrationStateChanged: startStateChange,
   };
 }

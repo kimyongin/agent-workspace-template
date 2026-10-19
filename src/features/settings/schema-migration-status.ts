@@ -9,3 +9,6 @@ export const migrationLabels: Record<EntitySchemaMigration["status"], string> = 
   failed: "실패",
   cancelled: "취소",
 };
+
+export const migrationActive = (job: EntitySchemaMigration) =>
+  ["queued", "preparing", "ready_to_commit", "committing"].includes(job.status);
