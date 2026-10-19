@@ -1,3 +1,4 @@
+import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import { openDialogs } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListDetail, openListEditor } from "./ui-actions.ts";
@@ -22,7 +23,14 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
     await expect(form(page).getByRole("button", { name: "같은 내용 다시 시도" })).toBeVisible();
     await discardEditor(page);
     await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
-    if (kind === "records") await expect(page.getByRole("dialog", { name: "할 일 완료", exact: true })).toHaveCount(0);
+    if (kind === "records") {
+      await expect(page.getByRole("dialog", { name: "할 일 완료", exact: true })).toHaveCount(0);
+      await expect.poll(() => {
+        const params = new URL(page.url()).searchParams;
+        return params.has("action") || params.has("occurrence");
+      }).toBe(false);
+      await expect(form(page).getByRole("button", { name: "완료하고 기록", exact: true })).toBeEnabled();
+    }
     else await expect(form(page)).toHaveCount(0);
     await begin();
     await fill("새 작성");
@@ -300,7 +308,7 @@ test("#229 엔터티 관련 작성 취소는 직접 편집 의도와 목록 문�
       encodeURIComponent(list)
     }`,
   );
-  await expect(form(page)).toHaveAccessibleName("할 일 작성");
+  await expect(form(page)).toHaveAccessibleName("할 일 추가");
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByRole("textbox", { name: "제목 (필수)", exact: true })).toBeVisible();
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
@@ -326,7 +334,14 @@ test("미확정 저장 새로고침: 최소 메타데이터만 보관하고 자�
     )
   );
   expect(stored).toHaveLength(1);
-  expect(Object.keys(stored[0]).sort()).toEqual(["operation", "request_key", "status", "target"]);
+  expect(Object.keys(stored[0]).sort()).toEqual([
+    "actorId", "method", "operation", "path", "request_key", "status", "target", "workspaceId",
+  ]);
+  expect(stored[0]).toEqual({
+    actorId: id(901), workspaceId: fixtureWorkspaceId, method: "POST", path: "/tasks",
+    operation: "task.create", target: "", request_key: state.writes[0].requestKey, status: "unknown",
+  });
+  expect(stored[0].request_key).toMatch(/^[0-9a-f-]{36}$/);
   expect(JSON.stringify(stored)).not.toContain("비공개 초안 본문");
   await page.reload();
   await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toBeVisible();

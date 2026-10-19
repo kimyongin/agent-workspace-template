@@ -1,4 +1,5 @@
 import { businessRows } from "./table-actions.ts";
+import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { entityKey, fixtureType } from "./support/workspace-data.ts";
@@ -143,9 +144,9 @@ test("연결 범위 해제 뒤 늦은 scoped 페이지는 전체 행·cursor를 
   state.listPages("tasks", [Array.from({ length: 20 }, (_, i) => ({ ...task(100 + i), title: "연결 업무 " + i })), [{
     ...task(60),
     title: "오래된 범위 추가",
-  }]], { entityId: entityKey(1) });
-  state.listPages("tasks", [[{ ...task(), title: "전체 업무" }]]);
-  const held = state.holdRead({ kind: "tasks", page: 2, entityId: entityKey(1) });
+  }]], { workspaceId: fixtureWorkspaceId, entityId: entityKey(1) });
+  state.listPages("tasks", [[{ ...task(), title: "전체 업무" }]], { workspaceId: fixtureWorkspaceId });
+  const held = state.holdRead({ kind: "tasks", page: 2, workspaceId: fixtureWorkspaceId, entityId: entityKey(1) });
   await go(page, `/tasks?entity_id=${encodeURIComponent(entityKey(1))}`);
   await openTabFilters(page);
   await page.getByRole("region", { name: "할 일 목록", exact: true }).getByRole("button", { name: "할 일 더 보기", exact: true }).click();
@@ -187,7 +188,7 @@ for (const scope of ["invalid", entityKey(99)]) {
   });
 }
 
-for (const kind of ["tasks", "records"] as const) {
+for (const kind of ["tasks"] as const) {
   test(`엔터티 제목 연결 검색 ${kind}: 빈 검색·부분 일치·선택 보존·해제·저장`, async ({ page }) => {
     const state = await fixtures(page), reads: URLSearchParams[] = [];
     const targets = [entity(81, { prop_1: "Alpha 고객" }), entity(82, { prop_1: "Beta 고객" })];
@@ -204,9 +205,7 @@ for (const kind of ["tasks", "records"] as const) {
       });
     });
     await go(page, `/${kind}?create=1`);
-    if (kind === "tasks") {
-      await form(page).getByRole("textbox", { name: "제목 (필수)", exact: true }).fill("새 관계 업무");
-    } else await form(page).getByLabel("본문", { exact: false }).fill("새 관계 기록");
+    await form(page).getByRole("textbox", { name: "제목 (필수)", exact: true }).fill("새 관계 업무");
     await form(page).getByRole("button", { name: "자료 연결", exact: true }).click();
     const search = form(page).getByRole("searchbox", { name: "자료 제목 검색", exact: true });
     await expect(search).toBeVisible();
@@ -225,7 +224,7 @@ for (const kind of ["tasks", "records"] as const) {
     await form(page).getByRole("button", { name: "Alpha 고객 해제", exact: true }).click();
     await expect(form(page).getByRole("button", { name: "Alpha 고객 해제", exact: true })).toHaveCount(0);
     await expect(search).toBeFocused();
-    await saveOnce(page, form(page), kind === "tasks" ? "추가" : "저장");
+    await saveOnce(page, form(page), "추가");
     await expect.poll(() => state.writes.at(-1)?.body.entity_ids).toEqual([entityKey(82)]);
     expect(reads).toHaveLength(2);
     expect(state.errors).toEqual([]);
@@ -296,7 +295,7 @@ test("엔터티 제목 연결 검색: IME·늦은 응답 격리·페이지 실�
   expect(state.errors).toEqual([]);
 });
 
-for (const kind of ["tasks", "records"] as const) {
+for (const kind of ["tasks"] as const) {
   test(`#185 ${kind}: 검색 Enter는 저장하지 않고 검색·선택은 아래 표준 카드`, async ({ page }, info) => {
     const state = await fixtures(page);
     Object.assign(state.rows.entities[0], entity(1, { prop_1: "검색 대상" }));
@@ -329,6 +328,7 @@ for (const kind of ["tasks", "records"] as const) {
 
 test("#185 빈 연결 개수만 표시·관계 카드 빈 공간은 이동하지 않음", async ({ page }) => {
   const state = await fixtures(page);
+  state.rows.records.length = 0;
   await go(page, `/tasks/${id(2)}`);
   await expect(form(page).getByRole("heading", { name: "기록 (0개)", exact: true })).toBeVisible();
   await expect(form(page).getByText("연결된 기록이 없습니다.", { exact: true })).toHaveCount(0);

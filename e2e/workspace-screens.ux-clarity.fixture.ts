@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { fixtures, form, go } from "./support/workspace-screens.ts";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
-import { saveOnce } from "./ui-actions.ts";
+import { openDialogs, saveOnce } from "./ui-actions.ts";
 
 const marketEntity = (n: number, source: string, label: string) => ({
   ...entity(n, { prop_1: "같은 상품" }),
@@ -147,9 +147,10 @@ for (const archived of [false, true]) {
         }),
     );
     await page.goto("http://127.0.0.1:55580/entities?create=1");
-    const editor = form(page);
+    const content = page.getByRole("main");
+    await expect(openDialogs(page)).toHaveCount(0);
     await expect(
-      editor.getByRole("link", {
+      content.getByRole("link", {
         name: archived ? "보관된 종류 관리" : "자료 종류 추가",
         exact: true,
       }),
@@ -158,7 +159,7 @@ for (const archived of [false, true]) {
       archived ? "/settings/materials" : "/settings/entity-types",
     );
     await expect(
-      editor.getByText(
+      content.getByText(
         archived
           ? "모든 자료 종류가 보관되어 있습니다."
           : "아직 자료 종류가 없습니다.",
@@ -166,7 +167,7 @@ for (const archived of [false, true]) {
       ),
     ).toBeVisible();
     await expect(
-      editor.getByRole("link", { name: "자료 종류 만들기·보관 관리" }),
+      content.getByRole("link", { name: "자료 종류 만들기·보관 관리" }),
     ).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
   });

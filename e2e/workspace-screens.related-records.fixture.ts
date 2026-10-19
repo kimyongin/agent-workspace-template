@@ -176,6 +176,12 @@ test("#191 일반 기록 작성 URL은 불변 귀속을 우회하지 않는다",
   const state = await fixtures(page);
   for (const path of ["/records?create=1", `/tasks/${id(2)}?action=record`, `/entities/${encodeURIComponent(entityKey(1))}?create=record`]) {
     await go(page, path);
+    if (path.startsWith("/records?")) {
+      await expect(page.getByRole("region", { name: "기록 목록", exact: true })).toBeVisible();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "자료 연결", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("searchbox", { name: "자료 제목 검색", exact: true })).toHaveCount(0);
+    }
     await expect(page.getByRole("dialog", { name: "기록 작성", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("button", { name: "기록 작성", exact: true })).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
