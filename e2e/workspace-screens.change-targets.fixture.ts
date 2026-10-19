@@ -317,6 +317,8 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
   state.rows.entities.push(entity(99));
   let reads = 0, holdPreview = false, release = () => {}, previewRequested!: () => void;
   const previewStarted = new Promise<void>(resolve => { previewRequested = resolve; });
+  let previewSettled!: () => void;
+  const previewFinished = new Promise<void>(resolve => { previewSettled = resolve; });
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
@@ -324,38 +326,43 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
     reads++;
     if (!holdPreview) return endpoint.fulfill({ json: state.rows.entities[0] });
     previewRequested();
-    await held;
-    await endpoint.fulfill({ json: state.rows.entities[0] }).catch(() => {});
+    try {
+      await held;
+      await endpoint.fulfill({ json: state.rows.entities[0] }).catch(() => {});
+    } finally { previewSettled(); }
   });
   await page.route(`**/api/entities/${encodeURIComponent(entityKey(99))}`, endpoint =>
     endpoint.fulfill({ json: state.rows.entities.at(-1) })
   );
-  await go(page, "/records");
-  await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("첫 대상");
-  await page.locator("[data-list-anchor]").first().click();
-  await expect(page.getByRole("region", { name: "기록 목록", exact: true })).toContainText("첫 대상");
-  expect(reads).toBe(0);
-  await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("삭제된 대상");
-  await go(page, `/records/${r.id}`);
-  const firstTarget = connectedTarget(page, "entity");
-  await expect(firstTarget.getByRole("button", { name: "첫 대상", exact: true })).toBeVisible();
-  await expect(firstTarget.getByRole("status")).toHaveCount(0);
-  holdPreview = true;
-  await firstTarget.getByRole("button", { name: "첫 대상", exact: true }).click();
-  await expect(connectedTarget(page, "entity").getByRole("status")).toBeVisible();
-  await previewStarted;
-  await go(page, `/records/${second.id}`);
-  await expect(connectedTarget(page, "entity").getByRole("button", { name: "다음 대상", exact: true })).toBeVisible();
-  await expect(connectedTarget(page, "entity").getByRole("status")).toHaveCount(0);
-  release();
-  await expect(form(page)).toContainText("다음 대상");
-  await expect(form(page)).not.toContainText("첫 대상");
-  await expect(connectedTarget(page, "entity").getByRole("button", { name: "다음 대상", exact: true })).toHaveAttribute(
-    "aria-expanded",
-    "false",
-  );
-  expect(state.writes).toHaveLength(0);
-  expect(state.errors).toEqual([]);
+  try {
+    await go(page, "/records");
+    await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("첫 대상");
+    await page.locator("[data-list-anchor]").first().click();
+    await expect(page.getByRole("region", { name: "기록 목록", exact: true })).toContainText("첫 대상");
+    expect(reads).toBe(0);
+    await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("삭제된 대상");
+    await go(page, `/records/${r.id}`);
+    const firstTarget = connectedTarget(page, "entity");
+    await expect(firstTarget.getByRole("button", { name: "첫 대상", exact: true })).toBeVisible();
+    await expect(firstTarget.getByRole("status")).toHaveCount(0);
+    holdPreview = true;
+    await firstTarget.getByRole("button", { name: "첫 대상", exact: true }).click();
+    await expect(connectedTarget(page, "entity").getByRole("status")).toBeVisible();
+    await previewStarted;
+    await go(page, `/records/${second.id}`);
+    await expect(connectedTarget(page, "entity").getByRole("button", { name: "다음 대상", exact: true })).toBeVisible();
+    await expect(connectedTarget(page, "entity").getByRole("status")).toHaveCount(0);
+    release();
+    await previewFinished;
+    await expect(form(page)).toContainText("다음 대상");
+    await expect(form(page)).not.toContainText("첫 대상");
+    await expect(connectedTarget(page, "entity").getByRole("button", { name: "다음 대상", exact: true })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(state.writes).toHaveLength(0);
+    expect(state.errors).toEqual([]);
+  } finally { release(); }
 });
 
 // Captured event targets cannot introduce a second navigable parent.
