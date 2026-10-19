@@ -166,12 +166,15 @@ function useFeasiblePanelMinimums(group: RefObject<HTMLDivElement | null>, handl
       const available = element.clientWidth - (handle.current?.offsetWidth ?? 0);
       if (available <= 0) return;
       const rem = parseFloat(getComputedStyle(element.ownerDocument.documentElement).fontSize);
-      const cap = 55 * rem > available ? available / 2 : Infinity;
+      const constrained = 55 * rem > available;
       // Match the official Group axis, including each panel's integer offset-width rounding.
       const axis = [...element.children].filter(child => child.hasAttribute("data-panel"))
         .reduce((total, child) => total + (child as HTMLElement).offsetWidth, 0);
       if (axis <= 0) return;
-      const next = { list: `${100 * Math.min(28 * rem, cap) / axis}%`, detail: `${100 * Math.min(27 * rem, cap) / axis}%` };
+      // A constrained split is exactly half on the official axis. Converting half
+      // of clientWidth back through rounded panel widths can leave residual room.
+      const next = constrained ? { list: "50%", detail: "50%" }
+        : { list: `${100 * 28 * rem / axis}%`, detail: `${100 * 27 * rem / axis}%` };
       setMinimums(previous => previous.list === next.list && previous.detail === next.detail ? previous : next);
     };
     measure();
