@@ -258,38 +258,32 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
         const current = Number(element.getAttribute("aria-valuenow"));
         return Math.abs(current - Number(element.getAttribute("aria-valuemax"))) <= 1;
       })).toBe(true);
-      const layout = await navigation.evaluate((nav, href) => {
-        const measure = (element: Element | null) => {
-          if (!element) return null;
-          const node = element as HTMLElement, style = getComputedStyle(node);
-          return {
-            rect: node.getBoundingClientRect().toJSON(),
-            clientWidth: node.clientWidth, clientHeight: node.clientHeight,
-            scrollWidth: node.scrollWidth, scrollHeight: node.scrollHeight,
-            scrollTop: node.scrollTop, scrollLeft: node.scrollLeft,
-            overflowX: style.overflowX, overflowY: style.overflowY,
-            fontSize: style.fontSize, minHeight: style.minHeight, maxHeight: style.maxHeight,
-            display: style.display, flexShrink: style.flexShrink,
-          };
-        };
+      await navigation.getByRole("link", { name: "할 일", exact: true }).focus();
+      await page.keyboard.press("Tab");
+      const recordLink = navigation.getByRole("link", { name: "기록", exact: true });
+      await expect(recordLink).toBeFocused();
+      await expect(recordLink).toBeInViewport();
+      const layout = await recordLink.evaluate(link => {
+        const content = link.closest('[data-slot="sidebar-content"]') as HTMLElement;
+        const record = link.getBoundingClientRect(), box = content.getBoundingClientRect();
+        const top = box.top + content.clientTop, left = box.left + content.clientLeft;
         return {
-          navigation: measure(nav),
-          recordLink: measure(nav.querySelector(`a[href="${href}"]`)),
-          sidebarPanel: measure(nav.closest('[data-slot="resizable-panel"]')),
-          sidebarHeader: measure(nav.querySelector('[data-slot="sidebar-header"]')),
-          sidebarContent: measure(nav.querySelector('[data-slot="sidebar-content"]')),
-          sidebarFooter: measure(nav.querySelector('[data-slot="sidebar-footer"]')),
-          main: measure(document.querySelector("main")),
-          divider: measure(document.querySelector('[role="separator"][aria-label="탐색 메뉴 너비 조절"]')),
-          rootFont: getComputedStyle(document.documentElement).fontSize,
-          scroll: { x: scrollX, y: scrollY },
-          viewport: { width: innerWidth, height: innerHeight, devicePixelRatio, visualWidth: visualViewport?.width, visualHeight: visualViewport?.height, scale: visualViewport?.scale },
-          documentWidth: document.documentElement.scrollWidth,
+          record: record.toJSON(),
+          content: { top, left, bottom: top + content.clientHeight, right: left + content.clientWidth },
+          scrollTop: content.scrollTop,
+          requiresScroll: record.bottom - top + content.scrollTop > content.clientHeight,
         };
-      }, fixtureWorkspacePath("/records"));
-      await info.attach(`navigation-feasibility-${width}-root-${fontSize}-layout`, { contentType: "application/json", body: JSON.stringify(layout, null, 2) });
-      await page.screenshot({ path: info.outputPath(`navigation-feasibility-${width}-root-${fontSize}.png`) });
-      await expect(navigation.getByRole("link", { name: "기록", exact: true })).toBeInViewport();
+      });
+      expect(layout.record.top).toBeGreaterThanOrEqual(layout.content.top);
+      expect(layout.record.bottom).toBeLessThanOrEqual(layout.content.bottom);
+      expect(layout.record.left).toBeGreaterThanOrEqual(layout.content.left);
+      expect(layout.record.right).toBeLessThanOrEqual(layout.content.right);
+      expect(layout.record.width).toBeGreaterThanOrEqual(44);
+      expect(layout.record.height).toBeGreaterThanOrEqual(44);
+      if (layout.requiresScroll) expect(layout.scrollTop).toBeGreaterThan(0);
+      await expect(navigation.locator('[data-slot="sidebar-header"]')).toBeInViewport();
+      await expect(navigation.locator('[data-slot="sidebar-footer"]')).toBeInViewport();
+      await page.screenshot({ path: info.outputPath(`navigation-keyboard-${width}-root-${fontSize}.png`) });
       await expect(page.getByRole("main")).toBeInViewport();
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px/root${fontSize}px`).toBe(width);
       if (width === 1024 && fontSize === 48) {
