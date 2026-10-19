@@ -1,7 +1,7 @@
 import { FixtureWorkspace } from "./workspace-scope.tsx";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Link, MemoryRouter } from "react-router";
+import { Link, MemoryRouter, useLocation } from "react-router";
 import {
   migrationLabels,
   SchemaMigrationJob,
@@ -29,16 +29,20 @@ function History({ typeId }: { typeId: string }) {
   );
 }
 function Screen() {
-  const [typeId, setTypeId] = useState("00000000-0000-4000-8000-000000000001");
+  const [selectedTypeId, setTypeId] = useState("00000000-0000-4000-8000-000000000001");
+  const location = useLocation(), params = new URLSearchParams(location.search);
+  const typeId = location.pathname.match(/^\/settings\/entity-types\/([^/]+)$/)?.[1] ?? selectedTypeId;
+  const initialJob = params.get("job");
+  const jobId = params.get("job_id") ?? (initialJob
+    ? /^\d+$/.test(initialJob) ? `00000000-0000-4000-8000-${initialJob.padStart(12, "0")}` : initialJob
+    : null);
   return (
-    <MemoryRouter>
-      <main>
-        <button onClick={() => setTypeId("00000000-0000-4000-8000-000000000002")}>상품 작업으로 이동</button>
-        {new URLSearchParams(window.location.search).has("job")
-          ? <SchemaMigrationJob typeId={typeId} jobId="00000000-0000-4000-8000-000000000030" onState={stateChange} />
-          : <History typeId={typeId} />}
-      </main>
-    </MemoryRouter>
+    <main>
+      <button onClick={() => setTypeId("00000000-0000-4000-8000-000000000002")}>상품 작업으로 이동</button>
+      {jobId
+        ? <SchemaMigrationJob typeId={typeId} jobId={jobId} onState={stateChange} />
+        : <History typeId={typeId} />}
+    </main>
   );
 }
-createRoot(document.getElementById("root")!).render(<FixtureWorkspace actorId="fixture-actor"><Screen /></FixtureWorkspace>);
+createRoot(document.getElementById("root")!).render(<FixtureWorkspace actorId="fixture-actor"><MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><Screen /></MemoryRouter></FixtureWorkspace>);
