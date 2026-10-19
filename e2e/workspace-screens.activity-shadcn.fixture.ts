@@ -1,4 +1,4 @@
-import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
+import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { fixtures, goApp } from "./support/workspace-screens.ts";
@@ -7,6 +7,7 @@ import { id } from "./support/workspace-data.ts";
 for (const width of [390, 1440]) {
   test(`기록 ${width}: 태그 선택·연결 저장은 본문 저장과 독립이고 중첩창은 초점을 돌려준다`, async ({ page }, info) => {
     const state = await fixtures(page);
+    const original = structuredClone(state.rows.records[0]);
     await page.unroute("http://127.0.0.1:55580/**");
     await page.setViewportSize({ width, height: 900 });
     await goApp(page, `/records/${id(3)}`);
@@ -25,8 +26,17 @@ for (const width of [390, 1440]) {
     expect(state.writes).toHaveLength(0);
     await viewer.getByRole("button", { name: "연결 적용", exact: true }).click();
     await expect(viewer).toContainText("태그 연결을 저장했습니다.");
-    const tagWrite = state.writes.find((row) => row.method === "PATCH" && row.path === `/api/records/${id(3)}`);
-    expect(tagWrite?.body).toMatchObject({ tag_ids: [id(11)] });
+    expect(state.writes).toHaveLength(1);
+    const tagWrite = state.writes[0];
+    expect(tagWrite).toMatchObject({ workspaceId: fixtureWorkspaceId, method: "POST", path: "/api/tag-connections" });
+    expect(tagWrite.body).toEqual({
+      target_kind: "record", target_id: original.id, expected_version: original.version, tag_ids: [id(11)],
+    });
+    expect(tagWrite.requestKey).toMatch(/^[0-9a-f-]{36}$/);
+    expect(state.rows.records[0]).toMatchObject({
+      id: original.id, body: original.body, task_id: original.task_id, entity_id: original.entity_id,
+      version: original.version + 1, tag_ids: [id(11)],
+    });
     await viewer.getByRole("button", { name: "편집", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "기록 편집", exact: true });
     await editor.getByRole("textbox", { name: /^본문/ }).fill("태그 연결을 유지하는 새 본문");
@@ -35,7 +45,16 @@ for (const width of [390, 1440]) {
     await expect(page.getByRole("dialog", { name: "기록", exact: true })).toContainText("태그 연결을 유지하는 새 본문");
     const contentWrite = state.writes.filter((row) => row.method === "PATCH" && row.path === `/api/records/${id(3)}`)
       .at(-1)!;
+    expect(contentWrite).toMatchObject({ workspaceId: fixtureWorkspaceId, method: "PATCH", path: `/api/records/${original.id}` });
+    expect(contentWrite.body).toEqual({
+      body: "태그 연결을 유지하는 새 본문", occurred_at: original.occurred_at, expected_version: original.version + 1,
+    });
     expect(contentWrite.body).not.toHaveProperty("tag_ids");
+    expect(state.writes).toHaveLength(2);
+    expect(state.rows.records[0]).toMatchObject({
+      id: original.id, body: "태그 연결을 유지하는 새 본문", task_id: original.task_id, entity_id: original.entity_id,
+      version: original.version + 2, tag_ids: [id(11)],
+    });
     expect(state.errors).toEqual([]);
     await page.screenshot({ path: info.outputPath(`record-tags-${width}.png`), fullPage: true });
   });
