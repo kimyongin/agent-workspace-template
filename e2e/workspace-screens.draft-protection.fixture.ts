@@ -29,6 +29,9 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
         const params = new URL(page.url()).searchParams;
         return params.has("action") || params.has("occurrence");
       }).toBe(false);
+      await expect(form(page)).toHaveCount(0);
+      await expect(page.getByRole("region", { name: "할 일 목록", exact: true })).toBeVisible();
+      await openListDetail(page, "할 일");
       await expect(form(page).getByRole("button", { name: "완료하고 기록", exact: true })).toBeEnabled();
     }
     else await expect(form(page)).toHaveCount(0);
