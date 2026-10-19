@@ -164,9 +164,13 @@ test("공간의 구성원이 아닌 사용자는 URL을 알아도 할 일을 볼
     message: "워크스페이스에 접근할 수 없습니다",
     retryable: false,
   });
-  await expect(pageB.getByRole("button", { name: "다시 시도", exact: true }))
+  const deniedGate = pageB.getByRole("main").getByRole("alert").filter({
+    hasText: "워크스페이스에 접근할 수 없습니다",
+  });
+  await expect(deniedGate).toHaveCount(1);
+  await expect(deniedGate).toBeVisible();
+  await expect(deniedGate.getByRole("button", { name: "다시 시도", exact: true }))
     .toBeVisible();
-  await expect(pageB.getByRole("alert")).toContainText("워크스페이스에 접근할 수 없습니다");
   await expect(pageB.getByText(title, { exact: true })).toHaveCount(0);
   await expect(pageB.getByText("B에게 보이면 안 됨", { exact: true })).toHaveCount(0);
   await expect(detailDialog(pageB)).toHaveCount(0);

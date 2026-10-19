@@ -279,17 +279,22 @@ test("#370 MCP 태그 생성·정정 뒤 유지한 웹 목록과 상세가 최�
     await mcp.call("set_tag_connections", { target_kind: "entity", target_id: created.id, expected_version: created.version, tag_ids: [tag.id] });
     // A filter navigation receives fresh rows without reloading the page.
     await page.getByRole("textbox", { name: "자료 제목 검색", exact: true }).fill(title);
+    await expect(page).toHaveURL(url => url.searchParams.get("keyword") === title);
     const list = page.getByRole("table", { name: `${type.label} 목록`, exact: true });
     await list.getByRole("button", { name: title, exact: true }).click();
     await expect(list.locator('[aria-label="태그"]').getByText(name, { exact: true })).toBeVisible();
     await expect(list.getByText("삭제된 태그", { exact: true })).toHaveCount(0);
-    await openListDetail(page, title);
+    await expect(list.getByRole("button", { name: title, exact: true }))
+      .toHaveAttribute("aria-expanded", "true");
+    await list.getByRole("link", { name: title + " 상세", exact: true }).click();
     await expect(openDialogs(page).getByText(name, { exact: true })).toBeVisible();
     await closeDetail(page, title);
     const renamed = unique("외부 정정").slice(0, 30);
     await mcp.call("rename_tag", { id: tag.id, expected_version: 1, name: renamed });
     // Revisit the already-expanded item without changing filters or toggling its preview.
-    await openListDetail(page, title);
+    await expect(list.getByRole("button", { name: title, exact: true }))
+      .toHaveAttribute("aria-expanded", "true");
+    await list.getByRole("link", { name: title + " 상세", exact: true }).click();
     await expect(openDialogs(page).getByText(renamed, { exact: true })).toBeVisible();
     if (!isMobile) await expect(list.locator('[aria-label="태그"]').getByText(renamed, { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath("tag-refresh-fixed.png"), fullPage: true });
