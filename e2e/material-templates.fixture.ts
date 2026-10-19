@@ -118,6 +118,21 @@ async function settingsFixture(
     },
   };
 }
+async function saveTemplate(
+  page: import("@playwright/test").Page,
+  form: import("@playwright/test").Locator,
+) {
+  const saved = page.waitForResponse((response) =>
+    response.request().method() === "PATCH" &&
+    new URL(response.url()).pathname === "/api/settings/business"
+  );
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  const response = await saved;
+  expect(response.status()).toBe(200);
+  await response.finished();
+  await expect(form).toHaveAttribute("aria-busy", "false");
+  await expect(form.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toBeVisible();
+}
 async function openTyped(page: import("@playwright/test").Page) {
   await page.goto(fixtureWorkspacePath("/settings/records"));
   await chooseSetting(page, page.getByLabel("대상", { exact: true }), "재료");
@@ -546,7 +561,7 @@ test("속성 변수는 이름으로 읽고 선택 위치에 삽입하며 canonic
     window.getSelection()!.addRange(range);
   });
   await memo.press("!");
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   expect(state.writes[0].body.value.entity_types[materials.id].create.memo).toBe(
     "${엔터티.이후.prop_2$} / $엔터티.이후.prop_3$ / $엔터티.이후.prop_4$ / $$대상$$!",
   );
@@ -561,7 +576,7 @@ test("속성 변수는 이름으로 읽고 선택 위치에 삽입하며 canonic
   await chooseSetting(page, form.getByLabel("변수 삽입"), "가격 · 이후 (1)");
   await expect(memo.locator("[data-memo-token]")).toHaveAttribute("aria-label", "변수: 가격 · 이후 (1)");
   await expect(memo).toHaveText("앞 가격 · 이후 (1)뒤");
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   expect(state.writes[1].body.value.entity_types[materials.id].create.memo).toBe("앞 $엔터티.이후.prop_2$뒤");
 });
 
@@ -611,7 +626,7 @@ test("변수 붙여넣기와 복사·잘라내기·실행 취소는 원문과 �
     return data.getData("text/plain");
   });
   expect(copied).toBe("앞 " + raw);
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   expect(state.writes[0].body.value.entity_types[materials.id].create.memo).toBe("앞 " + raw);
   await expect(form).toHaveAttribute("aria-busy", "false");
   await expect(memo).toHaveAttribute("contenteditable", "true");
@@ -724,7 +739,7 @@ test("속성 정의를 기다리거나 실패한 동안 변수·편집·저장�
     window.getSelection()!.addRange(range);
   });
   await memo.press("!");
-  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await saveTemplate(page, form);
   expect(state.writes[0].body.value.entity_types[materials.id].create.memo).toBe(raw + "!");
 });
 
