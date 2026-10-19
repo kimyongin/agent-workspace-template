@@ -92,7 +92,7 @@ test("#181 실제 StrictMode 앱의 중단·재개 성공은 확인창을 닫고
 });
 
 for (const revoked of ["read", "none"] as const) {
-  test(`#181 미확정 반복 중단: ${revoked} 권한으로 바뀌면 새 쓰기 없이 공간을 나가고 미확정 메타데이터를 보존한다`, async ({ page }) => {
+  test(`#181 미확정 반복 중단: ${revoked} 권한으로 바뀌면 새 쓰기 없이 공간을 나가고 미확정 메타데이터를 보존한다`, async ({ page }, info) => {
     const state = await fixtures(page);
     await page.unroute("http://127.0.0.1:55580/**");
     Object.assign(state.rows.tasks[0], {
@@ -134,13 +134,15 @@ for (const revoked of ["read", "none"] as const) {
     await expect(page).toHaveURL(frozenUrl);
     access = revoked; membershipVersion++;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    const detail = page.getByTestId("detail");
     if (revoked === "none") {
-      await expect(page.getByRole("heading", { name: "이 내용을 읽을 권한이 없습니다.", exact: true })).toBeVisible();
+      await expect(detail.getByRole("heading", { name: "이 내용을 읽을 권한이 없습니다.", exact: true })).toBeVisible();
       await expect(page.getByText(state.rows.tasks[0].title, { exact: true })).toBeHidden();
-    } else await expect(form(page)).toContainText(state.rows.tasks[0].title);
-    await expect(page.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "중단", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("textbox")).toHaveCount(0);
+    } else await expect(detail).toContainText(state.rows.tasks[0].title);
+    await expect(detail.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
+    await expect(detail.getByRole("button", { name: "중단", exact: true })).toHaveCount(0);
+    await expect(detail.getByRole("textbox")).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath(`transition-${revoked}-revoked.png`) });
     expect(attempts).toHaveLength(1);
     access = "write"; membershipVersion++;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -153,9 +155,10 @@ for (const revoked of ["read", "none"] as const) {
     await form(page).getByRole("button", { name: "취소", exact: true }).click();
     access = revoked; membershipVersion++;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await expect(page.getByRole("button", { name: "중단", exact: true })).toHaveCount(0);
+    await expect(detail.getByRole("button", { name: "중단", exact: true })).toHaveCount(0);
     await workspaceLink.click();
     await expect(page).toHaveURL(new URL("/workspaces", page.url()).href);
+    await page.screenshot({ path: info.outputPath(`transition-${revoked}-exited.png`) });
     expect(await page.evaluate(key => sessionStorage.getItem(key), storageKey)).toBe(metadata);
     expect(attempts).toHaveLength(2);
     await goApp(page, `/tasks/${id(2)}`);
