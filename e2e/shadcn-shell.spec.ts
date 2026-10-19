@@ -258,6 +258,37 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
         const current = Number(element.getAttribute("aria-valuenow"));
         return Math.abs(current - Number(element.getAttribute("aria-valuemax"))) <= 1;
       })).toBe(true);
+      const layout = await navigation.evaluate((nav, href) => {
+        const measure = (element: Element | null) => {
+          if (!element) return null;
+          const node = element as HTMLElement, style = getComputedStyle(node);
+          return {
+            rect: node.getBoundingClientRect().toJSON(),
+            clientWidth: node.clientWidth, clientHeight: node.clientHeight,
+            scrollWidth: node.scrollWidth, scrollHeight: node.scrollHeight,
+            scrollTop: node.scrollTop, scrollLeft: node.scrollLeft,
+            overflowX: style.overflowX, overflowY: style.overflowY,
+            fontSize: style.fontSize, minHeight: style.minHeight, maxHeight: style.maxHeight,
+            display: style.display, flexShrink: style.flexShrink,
+          };
+        };
+        return {
+          navigation: measure(nav),
+          recordLink: measure(nav.querySelector(`a[href="${href}"]`)),
+          sidebarPanel: measure(nav.closest('[data-slot="resizable-panel"]')),
+          sidebarHeader: measure(nav.querySelector('[data-slot="sidebar-header"]')),
+          sidebarContent: measure(nav.querySelector('[data-slot="sidebar-content"]')),
+          sidebarFooter: measure(nav.querySelector('[data-slot="sidebar-footer"]')),
+          main: measure(document.querySelector("main")),
+          divider: measure(document.querySelector('[role="separator"][aria-label="탐색 메뉴 너비 조절"]')),
+          rootFont: getComputedStyle(document.documentElement).fontSize,
+          scroll: { x: scrollX, y: scrollY },
+          viewport: { width: innerWidth, height: innerHeight, devicePixelRatio, visualWidth: visualViewport?.width, visualHeight: visualViewport?.height, scale: visualViewport?.scale },
+          documentWidth: document.documentElement.scrollWidth,
+        };
+      }, fixtureWorkspacePath("/records"));
+      await info.attach(`navigation-feasibility-${width}-root-${fontSize}-layout`, { contentType: "application/json", body: JSON.stringify(layout, null, 2) });
+      await page.screenshot({ path: info.outputPath(`navigation-feasibility-${width}-root-${fontSize}.png`) });
       await expect(navigation.getByRole("link", { name: "기록", exact: true })).toBeInViewport();
       await expect(page.getByRole("main")).toBeInViewport();
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px/root${fontSize}px`).toBe(width);
