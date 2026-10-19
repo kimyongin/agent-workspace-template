@@ -180,15 +180,19 @@ for (const authorized of [true, false]) {
         before: { title: "비공개 수정 전" }, after: { title: "비공개 수정 후" }, path: null },
     });
     const original = JSON.stringify(r);
-    let release!: () => void, requested!: () => void, reads = 0;
+    let release!: () => void, requested!: () => void, reads = 0, successfulReads = 0;
+    let phase: "fail" | "recover" = "fail";
     const held = new Promise<void>(resolve => { release = resolve; });
     const started = new Promise<void>(resolve => { requested = resolve; });
     await page.route(`**/api/entities/${encodeURIComponent(parent.id)}`, async endpoint => {
-      if (++reads === 1) {
-        requested();
+      reads++;
+      requested();
+      // Authority and related previews share this endpoint: no sibling may authorize the parent yet.
+      if (phase === "fail") {
         await held;
         return endpoint.fulfill({ status: 503, json: { code: "internal", message: "권한 조회 실패" } });
       }
+      successfulReads++;
       return endpoint.fulfill({ json: parent });
     });
     const concealed = async () => {
@@ -207,6 +211,8 @@ for (const authorized of [true, false]) {
       await expect(page.getByText("기록을 불러오지 못했습니다.", { exact: true })).toBeVisible();
       await expect(page.getByRole("heading", { name: "이 내용을 읽을 권한이 없습니다.", exact: true })).toHaveCount(0);
       await concealed();
+      expect(successfulReads).toBe(0);
+      phase = "recover";
       await page.getByRole("button", { name: "조회 다시 시도", exact: true }).click();
       if (authorized) {
         await expect(form(page)).toContainText(r.body);
@@ -219,6 +225,7 @@ for (const authorized of [true, false]) {
         await concealed();
       }
       expect(reads).toBeGreaterThanOrEqual(2);
+      expect(successfulReads).toBeGreaterThanOrEqual(1);
       expect(JSON.stringify(r)).toBe(original);
       expect(state.writes).toHaveLength(0);
       expect(state.errors).toEqual([]);
