@@ -15,70 +15,9 @@ import type { EntitySchemaMigration, SchemaMigrationAccepted } from "@contracts/
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
-import { migrationLabels } from "./schema-migration-status.ts";
+import { migrationLabels, migrationActive } from "./schema-migration-status.ts";
 export { migrationLabels } from "./schema-migration-status.ts";
-export const migrationActive = (job: EntitySchemaMigration) =>
-  ["queued", "preparing", "ready_to_commit", "committing"].includes(job.status);
-export function MigrationStart(
-  { plan, disabled, onState }: {
-    plan: EntitySchemaChange;
-    disabled: boolean;
-    onState?: (state: { busy: boolean; uncertain: boolean }) => void;
-  },
-) {
-  const { canWrite } = useSettingsAccess();
-  const api = useApi();
-  const navigate = useNavigate(), location = useLocation(), { attempt, busy, uncertain } = useWriteAttempt();
-  const [error, setError] = useState("");
-  useLayoutEffect(() => {
-    onState?.({ busy, uncertain });
-  }, [busy, uncertain, onState]);
-  useLayoutEffect(() => () => onState?.({ busy: false, uncertain: false }), [onState]);
-  const acceptedRef = useRef<SchemaMigrationAccepted | undefined>(undefined);
-  const start = async () => {
-    if (!canWrite || busy || (!uncertain && disabled)) return;
-    setError("");
-
-    try {
-      await attempt.run(async () => {
-        acceptedRef.current = await api<SchemaMigrationAccepted>(
-          "POST",
-          `/entity-types/${plan.type_id}/schema-changes/${plan.id}/migrations`,
-          {
-            expected_change_version: plan.version,
-            expected_schema_version: plan.source_schema_version,
-            analysis_id: plan.analysis!.id,
-            fingerprint: plan.fingerprint,
-          },
-          undefined,
-          attempt.requestKey(),
-        );
-      });
-      if (acceptedRef.current) {
-        const params = new URLSearchParams(location.search);
-        params.set("job_id", acceptedRef.current.job_id);
-        params.set("change_id", plan.id);
-        requestAnimationFrame(() => {
-          navigate(`/settings/entity-types/${plan.type_id}?${params}`);
-        });
-      }
-    } catch (e) {
-      setError(plan.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));
-    }
-  };
-  return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button variant="default"
-
-        disabled={!canWrite || busy || (!uncertain && (disabled || !plan.executable))}
-        onClick={() => void start()}
-      >
-        {busy ? "접수 중…" : uncertain ? "같은 접수 요청 다시 확인" : "값 변환 시작"}
-      </Button>
-      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error} 작업 목록에서 접수 여부를 확인할 수 있습니다.</AlertDescription></Alert>}
-    </div>
-  );
-}
+export { migrationActive } from "./schema-migration-status.ts";
 export function useMigrationHistory(typeId: string, selectedJob?: string) {
   const api = useApi();
   const [list, setList] = useState({

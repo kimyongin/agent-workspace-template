@@ -272,7 +272,7 @@ test("desktop: pointer cancellation ends resizing without consuming later mouse 
   await expect.poll(() => detailWidth(page)).toBeCloseTo(width - 20, 0);
   expect(state.writes).toEqual([]);
 });
-test("desktop: separator target leaves tab icons clickable and adapts to large text", async ({ page }) => {
+for (const width of [1280, 1282, 1292]) test(`desktop: separator target leaves tab icons clickable and adapts to large text (${width}px)`, async ({ page }) => {
   await fixture(page); await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`)); await openTask(page);
   const first = page.getByRole("tab", { name: "등심", exact: true });
   await first.locator("svg").click({ position: { x: 2, y: 8 } });
@@ -285,7 +285,7 @@ test("desktop: separator target leaves tab icons clickable and adapts to large t
   await page.mouse.move(box.x - 10, box.y + box.height / 2); await page.mouse.down();
   await page.mouse.move(box.x - 30, box.y + box.height / 2); await page.mouse.up();
   await expect.poll(() => detailWidth(page)).toBeCloseTo(before + 20, 0);
-  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.setViewportSize({ width, height: 900 });
   await page.addStyleTag({ content: ":root { font-size: 21px; }" });
   const currentHalfDifference = () => workspaceGroup(page).evaluate(group => {
     const separator = group.querySelector('[role="separator"][aria-label="상세 패널 너비 조절"]');

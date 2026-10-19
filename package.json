@@ -61,6 +61,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
     "deno": "2.9.6",
+    "happy-dom": "21.0.3",
     "postgres": "3.4.9",
     "smol-toml": "1.9.0",
     "supabase": "2.119.0",

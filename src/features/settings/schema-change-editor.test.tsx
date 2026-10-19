@@ -1,0 +1,246 @@
+// @vitest-environment happy-dom
+import { act, useState } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { MemoryRouter, useLocation, useNavigate } from "react-router";
+import { afterEach, expect, test, vi } from "vitest";
+import type { Session } from "@supabase/supabase-js";
+import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
+import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
+import { initialEntityDefinition, type EntitySchemaVersion, type EntityType } from "@contracts/entity-type.ts";
+import { ApiSessionContext } from "../../lib/api-context.tsx";
+import { AuthContext } from "../auth/auth-context.ts";
+import { WorkspaceRouteContext } from "../../lib/workspace-route.tsx";
+import { WorkspaceCapabilitiesContext } from "../workspaces/workspace-context.tsx";
+import { useSchemaChangeEditor, type EditState } from "./schema-change-editor.ts";
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+const type = { id: "kind", label: "재료", schema_version: 2 } as EntityType;
+const definition = { type_id: type.id, schema_version: 2, ...initialEntityDefinition("이름") } as EntitySchemaVersion;
+const plan: EntitySchemaChange = {
+  id: "change", type_id: type.id, source_schema_version: 2, source_template_fingerprint: "template",
+  version: 3, status: "ready", change_kind: "migration_required", edits: [], migration: { rules: [], overrides: [] },
+  executable: true, reservations: {}, target: definition, diff: [], fingerprint: "reviewed-values",
+  analysis: { id: "analysis", change_version: 3, status: "succeeded", total: 1, snapshot_fingerprint: "snapshot",
+    definition_fingerprint: "definition", processed: 1, failed: 0, changed: 1, unchanged: 0, removed: 0,
+    replacements: 0, retryable: false, failure_reason: null, errors: [], created_at: "2026-10-19T00:00:00Z" },
+  created_at: "2026-10-19T00:00:00Z", updated_at: "2026-10-19T00:00:00Z",
+};
+const session = { user: { id: "actor" }, access_token: "test-token" } as Session;
+const sessionReader = async () => ({ data: { session } });
+let root: Root | undefined;
+afterEach(async () => {
+  if (root) await act(() => root!.unmount());
+  root = undefined;
+  document.body.innerHTML = "";
+  sessionStorage.clear();
+  vi.unstubAllGlobals();
+});
+async function openEditor() {
+  let current!: ReturnType<typeof useSchemaChangeEditor>;
+  let path = "";
+  const config = { jobs: [] as EntitySchemaMigration[], workspace: "space", visible: true, access: "write" as "read" | "write" };
+  function Editor({ onState }: { onState: (state: EditState) => void }) {
+    const location = useLocation(), navigate = useNavigate();
+    current = useSchemaChangeEditor({ type, definition, disabled: false, selectionSearch: location.search,
+      onApplied: async () => "", onState, onFieldKeysChanged: () => {}, onInvalidField: () => {},
+      onReviewed: () => {}, onNavigate: navigate, jobs: config.jobs,
+    });
+    return null;
+  }
+  function Screen() {
+    const location = useLocation();
+    const [protection, setProtection] = useState<EditState>({ dirty: false, busy: false, uncertain: false });
+    path = location.pathname + location.search;
+    return <>{config.visible && <Editor onState={setProtection} />}<output>{protection.uncertain ? "응답 확인 필요" : protection.busy ? "처리 중" : protection.dirty ? "편집 중" : "준비"}</output></>;
+  }
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  const render = () => root!.render(
+    <AuthContext.Provider value={{ session, loading: false, savePreferences: async () => { throw new Error("unused"); } }}>
+      <ApiSessionContext.Provider value={sessionReader}>
+        <WorkspaceRouteContext.Provider value={config.workspace}>
+          <WorkspaceCapabilitiesContext.Provider value={{ workspace: { id: config.workspace, name: "공간", deleted_at: null },
+            grants: [{ target_kind: "settings", target_id: "*", access: config.access }], can_manage: true, membership_version: 1 }}>
+            <MemoryRouter initialEntries={["/settings/entity-types/kind?change_id=change&keep=1"]}><Screen /></MemoryRouter>
+          </WorkspaceCapabilitiesContext.Provider>
+        </WorkspaceRouteContext.Provider>
+      </ApiSessionContext.Provider>
+    </AuthContext.Provider>,
+  );
+  await act(async () => render());
+  return { editor: () => current, path: () => path, update: async (next: Partial<typeof config>) => {
+    Object.assign(config, next);
+    await act(async () => render());
+  } };
+}
+function json(value: unknown) { return new Response(JSON.stringify(value), { status: 200 }); }
+
+test("검토된 속성 변경안은 값 변환을 접수하고 같은 변경안·접수 작업의 주소로 이동한다", async () => {
+  const submissions: { input: unknown; key: string | null; workspace: string | null }[] = [];
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    if (init.method === "POST") {
+      submissions.push({ input: JSON.parse(String(init.body)), key: new Headers(init.headers).get("Idempotency-Key"),
+        workspace: new Headers(init.headers).get("X-Workspace-Id") });
+      return json({ job_id: "job", type_id: type.id, change_id: plan.id });
+    }
+    return json(url.endsWith("/change") ? plan : { items: [], next_before: null });
+  });
+  const screen = await openEditor();
+  await act(async () => { await screen.editor().actions.history?.run?.(); });
+  await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
+  expect({ submissions, path: screen.path() }).toEqual({ submissions: [{ input: {
+    expected_change_version: 3, expected_schema_version: 2, analysis_id: "analysis", fingerprint: "reviewed-values",
+  }, key: expect.stringMatching(/^[0-9a-f-]{36}$/), workspace: "space" }],
+    path: "/settings/entity-types/kind?change_id=change&keep=1&job_id=job" });
+});
+
+test("값 변환 접수의 응답 불명은 초안을 잠그고 변경안 최신 조회 뒤에도 원래 요청으로 확인한다", async () => {
+  const requests: { body: string; key: string | null }[] = [];
+  let serverPlan = plan;
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    if (init.method === "POST") {
+      requests.push({ body: String(init.body), key: new Headers(init.headers).get("Idempotency-Key") });
+      if (requests.length === 1) throw new TypeError("response lost");
+      return json({ job_id: "reconfirmed", type_id: type.id, change_id: plan.id });
+    }
+    return json(url.endsWith("/change") ? serverPlan : { items: [], next_before: null });
+  });
+  const screen = await openEditor();
+  await act(async () => { await screen.editor().actions.history?.run?.(); });
+  expect(screen.editor().actions.history?.label).toBe("같은 접수 요청 다시 확인");
+  expect(document.querySelector("output")?.textContent).toBe("응답 확인 필요");
+  expect(screen.editor().view.inputsDisabled).toBe(true);
+  await act(async () => screen.editor().editField("prop_1", { ...definition.schema.properties.prop_1, title: "바뀌면 안 됨" }));
+  expect(screen.editor().view.draft.schema.properties.prop_1.title).toBe("이름");
+  serverPlan = { ...plan, version: 4, fingerprint: "different" };
+  await act(async () => screen.editor().refreshPlan());
+  await act(async () => { await screen.editor().actions.history?.run?.(); });
+  await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
+  expect({ first: JSON.parse(requests[0].body), replay: requests[1], path: screen.path() }).toEqual({
+    first: { expected_change_version: 3, expected_schema_version: 2, analysis_id: "analysis", fingerprint: "reviewed-values" },
+    replay: requests[0], path: "/settings/entity-types/kind?change_id=change&keep=1&job_id=reconfirmed",
+  });
+});
+
+test("자기 값 변환이 완료되면 변경안을 확인하며 편집 중인 입력은 유지한다", async () => {
+  let serverPlan = plan;
+  vi.stubGlobal("fetch", async (url: string) => json(url.endsWith("/change") ? serverPlan : { items: [], next_before: null }));
+  const screen = await openEditor();
+  await act(async () => screen.editor().editField("prop_1", { ...definition.schema.properties.prop_1, title: "내 초안" }));
+  serverPlan = { ...plan, status: "applied", version: 5 };
+  await screen.update({ jobs: [{ id: "job", change_id: "change", type_id: type.id, version: 2, status: "succeeded" } as EntitySchemaMigration] });
+  expect({ status: screen.editor().view.plan?.status, title: screen.editor().view.draft.schema.properties.prop_1.title,
+    dirty: screen.editor().view.dirty }).toEqual({ status: "applied", title: "내 초안", dirty: true });
+});
+
+test("설정 쓰기 권한을 잃으면 표시된 이전 접수 대신 현재 읽기 권한으로 접수를 막는다", async () => {
+  const writes: string[] = [];
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    if (init.method !== "GET") writes.push(url);
+    return json(url.endsWith("/change") ? plan : { items: [], next_before: null });
+  });
+  const screen = await openEditor();
+  expect(screen.editor().actions.history?.disabled).toBe(false);
+  await screen.update({ access: "read" });
+  await act(async () => { await screen.editor().actions.history?.run?.(); });
+  expect({ disabled: screen.editor().actions.history?.disabled, writes, path: screen.path() }).toEqual({
+    disabled: true, writes: [], path: "/settings/entity-types/kind?change_id=change&keep=1",
+  });
+});
+
+test("접수 확인과 화면 이동 사이 공간이 바뀌면 이전 공간의 예약된 이동을 적용하지 않는다", async () => {
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => json(init.method === "POST"
+    ? { job_id: "old-job", type_id: type.id, change_id: plan.id }
+    : url.endsWith("/change") ? plan : { items: [], next_before: null }));
+  const screen = await openEditor();
+  await act(async () => { await screen.editor().actions.history?.run?.(); });
+  await screen.update({ workspace: "other-space" });
+  await act(async () => { for (const frame of frames) frame(0); });
+  expect(screen.path()).toBe("/settings/entity-types/kind?change_id=change&keep=1");
+});
+
+test("접수 응답 불명 중에는 원래 변환 규칙과 행 보완 입력도 변경하지 않는다", async () => {
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    if (init.method === "POST") throw new TypeError("response lost");
+    return json(url.endsWith("/change") ? plan : { items: [], next_before: null });
+  });
+  const screen = await openEditor();
+  await act(async () => { await screen.editor().actions.history?.run?.(); });
+  await act(async () => screen.editor().editMigration({ rules: [{ op: "fill", key: "prop_1", value: "다른 값", include_null: false }], overrides: [] }));
+  expect(screen.editor().view.migration).toEqual({ rules: [], overrides: [] });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+const completedJob = (version: number): EntitySchemaMigration =>
+  ({ id: "job", change_id: "change", type_id: type.id, version, status: "succeeded" }) as EntitySchemaMigration;
+
+test("새 완료를 확인한 뒤 늦은 이전 완료와 같은 완료의 재등장은 현재 변경안을 되돌리지 않는다", async () => {
+  const older = deferred<Response>();
+  let selectedResponse: Response | Promise<Response> | undefined;
+  vi.stubGlobal("fetch", async (url: string) => {
+    if (!url.endsWith("/change")) return json({ items: [], next_before: null });
+    return selectedResponse ?? json(plan);
+  });
+  const screen = await openEditor();
+  selectedResponse = older.promise;
+  await screen.update({ jobs: [completedJob(2)] });
+  selectedResponse = json({ ...plan, status: "applied", version: 6 });
+  await screen.update({ jobs: [completedJob(3)] });
+  await act(async () => older.resolve(json({ ...plan, status: "ready", version: 4 })));
+  selectedResponse = json({ ...plan, status: "ready", version: 7 });
+  await screen.update({ jobs: [completedJob(3)] });
+  expect({ status: screen.editor().view.plan?.status, version: screen.editor().view.plan?.version }).toEqual({ status: "applied", version: 6 });
+});
+
+test("자기 변경안 이외의 완료나 진행 중인 작업은 현재 검토를 완료 상태로 바꾸지 않는다", async () => {
+  let serverPlan = plan;
+  vi.stubGlobal("fetch", async (url: string) => json(url.endsWith("/change") ? serverPlan : { items: [], next_before: null }));
+  const screen = await openEditor();
+  serverPlan = { ...plan, status: "applied", version: 6 };
+  await screen.update({ jobs: [{ ...completedJob(2), change_id: "another-change" }] });
+  await screen.update({ jobs: [{ ...completedJob(2), type_id: "another-kind" }] });
+  await screen.update({ jobs: [{ ...completedJob(2), status: "preparing" }] });
+  expect(screen.editor().view.plan?.status).toBe("ready");
+});
+
+test("완료 뒤 변경안 조회가 실패해도 초안을 보존하고 같은 변경안을 다시 확인할 수 있다", async () => {
+  let unavailable = false;
+  vi.stubGlobal("fetch", async (url: string) => {
+    if (!url.endsWith("/change")) return json({ items: [], next_before: null });
+    return unavailable ? new Response(JSON.stringify({ code: "unavailable", message: "최신 변경안 조회 실패" }), { status: 503 }) : json(plan);
+  });
+  const screen = await openEditor();
+  await act(async () => screen.editor().editField("prop_1", { ...definition.schema.properties.prop_1, title: "잃으면 안 되는 초안" }));
+  unavailable = true;
+  await screen.update({ jobs: [completedJob(2)] });
+  expect(screen.editor().view.error).toBe("최신 변경안 조회 실패");
+  unavailable = false;
+  await act(async () => screen.editor().refreshPlan());
+  expect({ error: screen.editor().view.error, title: screen.editor().view.draft.schema.properties.prop_1.title,
+    dirty: screen.editor().view.dirty, sync: screen.editor().view.planSyncNeeded }).toEqual({
+    error: "", title: "잃으면 안 되는 초안", dirty: true, sync: false,
+  });
+});
+
+test.each(["workspace", "unmount"] as const)("접수 응답이 늦는 동안 %s 전환이 있으면 이전 접수로 이동하지 않는다", async (transition) => {
+  const accepted = deferred<Response>();
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => init.method === "POST"
+    ? accepted.promise : json(url.endsWith("/change") ? plan : { items: [], next_before: null }));
+  const screen = await openEditor();
+  let starting: void | Promise<void>;
+  await act(async () => { starting = screen.editor().actions.history?.run?.(); });
+  await screen.update(transition === "workspace" ? { workspace: "another-space" } : { visible: false });
+  await act(async () => {
+    accepted.resolve(json({ job_id: "old-job", type_id: type.id, change_id: plan.id }));
+    await starting;
+  });
+  await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
+  expect(screen.path()).toBe("/settings/entity-types/kind?change_id=change&keep=1");
+});

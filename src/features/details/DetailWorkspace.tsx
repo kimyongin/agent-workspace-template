@@ -6,27 +6,17 @@ import { XIcon } from "lucide-react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { activeSurface, registerScrollOwner, scrollOwner, restoreScroll } from "../../lib/surface-dom.ts";
 import { useNavigationBlocker, useNavigationBusy } from "../../lib/navigation-protection.tsx";
-import { entityListAnchor, detailListReturn } from "../../lib/entity-list-url.ts";
+import { entityListAnchor } from "../../lib/entity-list-url.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { useLocation, useNavigate, useNavigationType, type Location, type NavigateOptions, type To } from "../../lib/workspace-router.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, workspaceBase, materialSettingsBase, type WorkspaceGuard } from "./workspace-context.ts";
 import { useDisplayScale } from "../settings/display-scale.tsx";
 import { DetailTabs } from "./DetailTabs.tsx";
+import { createDetailVisits, type DetailVisit } from "./detail-visits.ts";
 
-type Tab = { id: string; location: Location; title: string; returnTo?: string };
-const kindLabels: Record<string, string> = { entities: "자료", tasks: "할 일", records: "기록" };
+type Tab = DetailVisit;
 const href = (location: Location) => `${location.pathname}${location.search}${location.hash}`;
-function destination(to: To, from: Location): string {
-  if (typeof to !== "string") return `${to.pathname ?? from.pathname}${to.search ? (to.search.startsWith("?") ? to.search : `?${to.search}`) : ""}${to.hash ?? ""}`;
-  const url = new URL(to, `https://workspace.invalid${href(from)}`);
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-function ownerList(location: Location): Location {
-  const owner = `/${location.pathname.split("/")[1]}`;
-  const url = new URL(detailListReturn(location) ?? owner, "https://workspace.invalid");
-  return { ...location, pathname: url.pathname, search: url.search, hash: url.hash, state: null, key: `list:${location.key}` };
-}
 
 /** One owner for retained detail visits, their URLs and all guards within the desktop workspace. */
 export function DetailWorkspace({ children, render, enabled }: { children: ReactNode; render: (location: Location) => ReactNode; enabled: boolean }) {
@@ -42,33 +32,21 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   // Settings and other base pages keep one parent when a mobile screen grows into the split layout.
   const retainedBase = workspaceBase(location.pathname) && !workspaceList(location.pathname);
   const [started, setStarted] = useState(eligible && (desktop || retainedBase));
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [active, setActive] = useState<string | null>(null);
-  const [visible, setVisible] = useState(true);
-  const [revision, setRevision] = useState(0);
-  const [identityDestination, setIdentityDestination] = useState<{path:string;owner:string} | null>(null);
-  const [base, setBase] = useState<Location>(() => detailIdentity(location.pathname) ? ownerList(location) : location);
-  const current = useRef({ tabs, active, base, visible });
-  current.current = { tabs, active, base, visible };
+  const navigateRef = useRef(navigate); navigateRef.current = navigate;
+  const [visits] = useState(() => createDetailVisits(location, (path, options) => navigateRef.current(path, options)));
+  const { tabs, active, base, visible, revision, routeTransfer } = useSyncExternalStore(visits.subscribe, visits.snapshot);
   const guards = useRef(new Map<string, () => WorkspaceGuard>());
   const baseFocus = useRef<HTMLElement | null>(null);
   const tabFocus = useRef<string | null>(null);
-  const openedLocation = useRef<Location | null>(null);
-  const pendingVisit = useRef<string | null>(null);
   const registerGuard = useCallback((key: string, guard: () => WorkspaceGuard) => {
     guards.current.set(key, guard);
     return () => { guards.current.delete(key); };
   }, []);
   const navigationBusy = useNavigationBusy();
   const anyBusy = useCallback(() => navigationBusy() || [...guards.current.values()].some(read => read().busy), [navigationBusy]);
-  const saved = useCallback(() => setRevision(value => value + 1), []);
+  const saved = visits.saved;
   // Replaced or closed TabContent removes its busy guard before the route transfer.
-  useEffect(() => {
-    if (!identityDestination) return;
-    setIdentityDestination(null);
-    pendingVisit.current = null;
-    void navigate(identityDestination.path, {replace:true,state:{workspaceOwner:identityDestination.owner}});
-  }, [identityDestination,navigate]);
+  useEffect(() => { visits.transferRoute(); }, [visits, routeTransfer]);
   const [discard, setDiscard] = useState<(() => void) | null>(null);
   const shown = visible && !!active;
   const detailPanel = useRef<PanelImperativeHandle | null>(null);
@@ -92,75 +70,20 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     return () => window.removeEventListener("beforeunload", unload);
   }, []);
   useLayoutEffect(() => {
-    if (openedLocation.current !== location && (navigationType === "POP" || !eligible || !detailIdentity(location.pathname) || pendingVisit.current === href(location))) pendingVisit.current = null;
-    if (!eligible) { setTabs([]); setActive(null); setStarted(false); return; }
+    if (!eligible) { visits.reset(location); setStarted(false); return; }
     // Do not reparent a mobile form while its native dialog owns an unfinished visit.
     if (!started) {
       if ((!desktop && !retainedBase) || activeSurface(false)) return;
       setStarted(true);
     }
-    const id = detailIdentity(location.pathname);
-    if (!id) {
-      if (current.current.active && detailIdentity(openedLocation.current?.pathname ?? "")) {
-        setRevision(value => value + 1);
-        // Desktop navigation changes the left pane, preserving the user's panel visibility.
-        if (!desktop) setVisible(false);
-        tabFocus.current = "list";
-      }
-      openedLocation.current = location;
-      setBase(location);
-      return;
-    }
-    if (new URLSearchParams(current.current.base.search).has("create")) {
-      const search = new URLSearchParams(current.current.base.search); search.delete("create");
-      setBase({ ...current.current.base, search: `?${search}`, key: crypto.randomUUID() });
-      setRevision(value => value + 1);
-    }
-    if (openedLocation.current !== location) setVisible(true);
-    openedLocation.current = location; setActive(id);
-    setTabs(previous => previous.some(tab => tab.id === id)
-      ? previous.map(tab => tab.id === id && href(tab.location) !== href(location) ? { ...tab, location } : tab)
-      : [...previous, { id, location, title: kindLabels[id.split("/")[1]], returnTo: typeof location.state?.workspaceReturnTo === "string" && previous.some(value => value.id === location.state.workspaceReturnTo) ? location.state.workspaceReturnTo : undefined }]);
-  }, [location, navigationType, eligible, desktop, started, retainedBase]);
+    if (visits.acceptRoute(location, navigationType, desktop)) tabFocus.current = "list";
+  }, [location, navigationType, eligible, desktop, started, retainedBase, visits]);
 
-  // Related visits remember only their starting tab, never a growing history of cross-links.
-  const returnTarget = (origin: Location, target: string | null) => {
-    const source = current.current.tabs.find(tab => tab.id === detailIdentity(origin.pathname));
-    const root = source?.returnTo ?? source?.id;
-    return root && root !== target && current.current.tabs.some(tab => tab.id === root) ? root : undefined;
-  };
-  const rememberReturn = (target: string | null, returnTo: string | undefined) => {
-    if (target && returnTo) setTabs(previous => previous.map(tab => tab.id === target ? {...tab, returnTo} : tab));
-  };
-  const navigateTab = useCallback((id: string, to: To, options: NavigateOptions = {}) => {
-    const state = current.current, tab = state.tabs.find(tab => tab.id === id);
-    if (!tab) return;
-    const path = destination(to, tab.location), identity = detailIdentity(path);
-    if (identity === id) {
-      const prior = new URLSearchParams(tab.location.search), next = new URL(path, "https://workspace.invalid").searchParams;
-      if (["edit", "action", "create", "occurrence"].some(key => prior.has(key) && !next.has(key))) setRevision(value => value + 1);
-      const url = new URL(path, "https://workspace.invalid");
-      // A mode transition is a new visit even when its URL matches; selecting a retained tab is not.
-      setTabs(previous => previous.map(value => value.id === id ? { ...value, location: { ...value.location, pathname: url.pathname, search: url.search, hash: url.hash, key: crypto.randomUUID() } } : value));
-      if (state.active === id) { pendingVisit.current = null; void navigate(path, { replace: true, state: { workspaceOwner: state.base.pathname } }); }
-    } else if (identity) {
-      const returnTo = returnTarget(tab.location, identity);
-      rememberReturn(identity, returnTo);
-      pendingVisit.current = path;
-      void navigate(path, { state: { workspaceOwner: state.base.pathname, workspaceReturnTo: returnTo } });
-    }
-    else closeTab(id);
-  }, [navigate]);
-  const closeTab = (id: string) => {
-    const state = current.current, index = state.tabs.findIndex(tab => tab.id === id);
-    const remaining = state.tabs.filter(tab => tab.id !== id).map(tab => tab.returnTo === id ? {...tab, returnTo: undefined} : tab);
-    setTabs(remaining);
-    setRevision(value => value + 1);
-    if (state.active !== id) { tabFocus.current = state.active; return; }
-    const next = remaining[Math.min(index, remaining.length - 1)];
-    tabFocus.current = next?.id ?? "list";
-    setActive(next?.id ?? null);
-    setIdentityDestination({path:next ? href(next.location) : href(state.base),owner:state.base.pathname});
+  const closeTab = (id: string) => { tabFocus.current = visits.close(id) ?? null; };
+  const navigateTab = (id: string, to: To) => {
+    // A non-detail destination closes this visit, with focus following the retained selection.
+    const focus = visits.navigateTab(id, to);
+    if (focus !== undefined) tabFocus.current = focus;
   };
   const requestClose = (id: string) => {
     if (anyBusy()) return;
@@ -169,40 +92,16 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   };
   const open = useCallback((to: To, origin: Location) => {
     if (anyBusy()) return;
-    const state = current.current, path = destination(to, origin), identity = detailIdentity(path);
-    const existing = state.tabs.find(tab => tab.id === identity);
-    if (workspaceBase(origin.pathname)) { setBase(origin); if(materialSettingsBase(origin.pathname) && !detailIdentity(location.pathname))baseFocus.current=document.activeElement instanceof HTMLElement ? document.activeElement : null; }
-    // A prior visit can be pending while React still renders this target as selected.
-    if (existing && state.active === identity && href(location) === href(existing.location) && (!pendingVisit.current || pendingVisit.current === href(existing.location))) { setVisible(true); return; }
-    const returnTo = returnTarget(origin, identity);
-    rememberReturn(identity, returnTo);
-    const visit = () => {
-      const target = existing ? href(existing.location) : path;
-      pendingVisit.current = target;
-      return navigate(target, { replace: !!existing && !!detailIdentity(location.pathname), state: { workspaceOwner: workspaceBase(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
-    };
-    // Back must return to the same row context as the retained list pane.
-    if (workspaceList(location.pathname) && workspaceList(origin.pathname) && href(origin) !== href(location)) {
-      void Promise.resolve(navigate(href(origin), { replace: true, state: location.state, preventScrollReset: true })).then(visit);
-    } else void visit();
-  }, [navigate, location, anyBusy]);
+    if (materialSettingsBase(origin.pathname) && !detailIdentity(location.pathname)) baseFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    visits.open(to, origin);
+  }, [visits, location.pathname, anyBusy]);
   const select = (tab: Tab, focusTab = true) => {
     if (anyBusy()) return;
     tabFocus.current = focusTab ? tab.id : null;
     open(href(tab.location), base);
     if (focusTab) document.getElementById(`tab-${tab.id}`)?.focus();
   };
-  const reorder = (id: string, target: string, before: boolean) => {
-    if (anyBusy() || id === target) return null;
-    const state = current.current.tabs;
-    const tab = state.find(tab => tab.id === id);
-    if (!tab || !state.some(tab => tab.id === target)) return null;
-    const next = state.filter(tab => tab.id !== id);
-    const index = next.findIndex(tab => tab.id === target) + (before ? 0 : 1);
-    if (state.findIndex(tab => tab.id === id) === index) return null;
-    next.splice(index, 0, tab); setTabs(next);
-    return index;
-  };
+  const reorder = (id: string, target: string, before: boolean) => anyBusy() ? null : visits.reorder(id, target, before);
   useEffect(() => {
     if ((!desktop && !materialSettingsBase(base.pathname)) || (!visible && tabFocus.current !== "list")) return;
     const frame = requestAnimationFrame(() => {
@@ -227,7 +126,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       <ResizablePanel id="list" minSize={desktop && shown ? minimums.list : 0} className="min-w-0">
         <div className={cn("flex min-w-0 flex-col gap-5 p-4 lg:p-6", desktop && shown && "h-full overflow-y-auto overscroll-contain")} ref={listRef} role="region" aria-label="기본 작업 영역">
           {render(base)}
-          {desktop && !visible && tabs.length > 0 && <Button variant="outline" className="self-end" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</Button>}
+          {desktop && !visible && tabs.length > 0 && <Button variant="outline" className="self-end" onClick={() => visits.setVisible(true)}>상세 탭 보기 ({tabs.length}개)</Button>}
         </div>
       </ResizablePanel>
       {desktop && shown && <ResizableHandle elementRef={handleElement} aria-label="상세 패널 너비 조절" className="w-2 shrink-0" onPointerDownCapture={() => { rememberResize.current = true; }} onKeyDownCapture={() => { rememberResize.current = true; }} onDoubleClick={() => { detailRatio.current = 46; detailPanel.current?.resize("46%"); }} />}
@@ -236,16 +135,16 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
           {/* The visit model activates clicks and keys; pointer-down activation would change the URL before a drag. */}
           <Tabs value={active ?? ""} activationMode="manual" className="h-full min-h-0 gap-0">
             <div className="flex min-w-0 shrink-0 items-center border-b" hidden={!desktop}>
-              <DetailTabs tabs={tabs} active={active} enabled={desktop && shown} isBusy={anyBusy} select={id => { const tab = current.current.tabs.find(tab => tab.id === id); if (tab) select(tab); }} close={requestClose} reorder={reorder} />
-              <Button variant="ghost" size="icon" aria-label="상세 패널 숨기기" onClick={() => { if (!anyBusy()) setVisible(false); }}><XIcon /></Button>
+              <DetailTabs tabs={tabs} active={active} enabled={desktop && shown} isBusy={anyBusy} select={id => { const tab = visits.snapshot().tabs.find(tab => tab.id === id); if (tab) select(tab); }} close={requestClose} reorder={reorder} />
+              <Button variant="ghost" size="icon" aria-label="상세 패널 숨기기" onClick={() => { if (!anyBusy()) visits.setVisible(false); }}><XIcon /></Button>
             </div>
       {tabs.map(tab => <TabContent key={tab.id} tab={tab} active={shown && active === tab.id} docked={desktop}
         previous={tab.returnTo && tabs.some(value => value.id === tab.returnTo) ? {
           label: `이전: ${tabs.find(value => value.id === tab.returnTo)!.title}`,
-          back: () => { const root = current.current.tabs.find(value => value.id === tab.returnTo); if (root) select(root, false); },
+          back: () => { const root = visits.snapshot().tabs.find(value => value.id === tab.returnTo); if (root) select(root, false); },
         } : null}
-        navigate={(to, options) => navigateTab(tab.id, to, options)} close={() => requestClose(tab.id)} registerGuard={registerGuard}
-        title={title => setTabs(previous => previous.map(value => value.id === tab.id && value.title !== title ? { ...value, title } : value))}>
+        navigate={to => navigateTab(tab.id, to)} close={() => requestClose(tab.id)} registerGuard={registerGuard}
+        title={title => visits.title(tab.id, title)}>
         {render(tab.location)}
       </TabContent>)}
           </Tabs>
@@ -267,12 +166,15 @@ function useFeasiblePanelMinimums(group: RefObject<HTMLDivElement | null>, handl
       const available = element.clientWidth - (handle.current?.offsetWidth ?? 0);
       if (available <= 0) return;
       const rem = parseFloat(getComputedStyle(element.ownerDocument.documentElement).fontSize);
-      const cap = 55 * rem > available ? available / 2 : Infinity;
+      const constrained = 55 * rem > available;
       // Match the official Group axis, including each panel's integer offset-width rounding.
       const axis = [...element.children].filter(child => child.hasAttribute("data-panel"))
         .reduce((total, child) => total + (child as HTMLElement).offsetWidth, 0);
       if (axis <= 0) return;
-      const next = { list: `${100 * Math.min(28 * rem, cap) / axis}%`, detail: `${100 * Math.min(27 * rem, cap) / axis}%` };
+      // A constrained split is exactly half on the official axis. Converting half
+      // of clientWidth back through rounded panel widths can leave residual room.
+      const next = constrained ? { list: "50%", detail: "50%" }
+        : { list: `${100 * 28 * rem / axis}%`, detail: `${100 * 27 * rem / axis}%` };
       setMinimums(previous => previous.list === next.list && previous.detail === next.detail ? previous : next);
     };
     measure();

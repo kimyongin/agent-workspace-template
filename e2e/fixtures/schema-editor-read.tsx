@@ -2,11 +2,13 @@ import { FixtureWorkspace } from "./workspace-scope.tsx";
 import { useState } from "react";
 import { type PropertyDraft, PropertyFields } from "../../src/features/entity/property-fields.tsx";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Link, useLocation } from "react-router";
+import { BrowserRouter, Link, useLocation, useNavigate } from "react-router";
 import { SchemaEditor } from "../../src/features/settings/SchemaEditor.tsx";
 import { useSchemaChangeEditor } from "../../src/features/settings/schema-change-editor.ts";
 import { type EntityType, initialEntityDefinition } from "../../supabase/functions/_shared/contracts/entity-type.ts";
+import type { EntitySchemaMigration } from "../../supabase/functions/_shared/contracts/entity-schema-migration.ts";
 import "../../src/styles/app.css";
+const noJobs: EntitySchemaMigration[] = [];
 const type: EntityType = {
   id: "00000000-0000-4000-8000-000000000001",
   label: "재료",
@@ -78,12 +80,14 @@ function EmptyInputsFixture() {
   );
 }
 function ReviewActionsFixture() {
-  const location = useLocation();
+  const location = useLocation(), navigate = useNavigate();
   const [disabled, setDisabled] = useState(false);
   const editor = useSchemaChangeEditor({
     type,
     definition,
     disabled,
+    jobs: noJobs,
+    onNavigate: navigate,
     selectionSearch: location.search,
     onState,
     onApplied,
@@ -96,16 +100,10 @@ function ReviewActionsFixture() {
     <>
       <output aria-label="현재 행동">{action?.kind ?? "none"}</output>
       <output aria-label="행동 차단">{String(action?.disabled ?? true)}</output>
+      <output aria-label="접수 안내">{action?.label ?? ""}</output>
+      <output aria-label="입력 차단">{String(editor.view.inputsDisabled)}</output>
+      <output aria-label="검토 차단">{String(editor.actions.review.disabled)}</output>
       <button onClick={() => setDisabled(!disabled)}>상위 차단 전환</button>
-      <button onClick={() => editor.migrationStateChanged({ busy: true, uncertain: false })}>
-        변환 접수 대기
-      </button>
-      <button onClick={() => editor.migrationStateChanged({ busy: false, uncertain: true })}>
-        변환 접수 결과 불명
-      </button>
-      <button onClick={() => editor.migrationStateChanged({ busy: false, uncertain: false })}>
-        변환 접수 종료
-      </button>
       <button onClick={() => void editor.refreshPlan()}>상태 조회</button>
       {/* Invoke the public command without a DOM disabled guard to verify its own policy. */}
       <button onClick={() => void action?.run?.()}>행동 실행 요청</button>

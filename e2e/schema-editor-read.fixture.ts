@@ -62,30 +62,64 @@ test.beforeEach(async ({ page, baseURL }) => {
   });
 });
 test("편집 interface의 행동 안내와 실행은 상위 차단과 변환 접수 대기를 함께 따른다", async ({ page }) => {
-  const current = readyActionPlan(), writes: string[] = [];
-  await page.route(`**${base}/b**`, (route) => {
+  let current = readyActionPlan();
+  const writes: Array<{ path: string; key: string | undefined; body: unknown }> = [];
+  let release!: () => void, arrived!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const submitted = new Promise<void>(resolve => { arrived = resolve; });
+  const jobId = "00000000-0000-4000-8000-000000000090";
+  await page.route(`**${base}/b**`, async (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: current });
-    writes.push(new URL(route.request().url()).pathname);
-    return route.fulfill({ json: { ...current, status: "applied" } });
+    writes.push({ path: new URL(route.request().url()).pathname,
+      key: route.request().headers()["idempotency-key"], body: route.request().postDataJSON() });
+    if (writes.length === 1) {
+      arrived();
+      await held;
+      return route.abort();
+    }
+    return route.fulfill({ json: { job_id: jobId, type_id: current.type_id, change_id: current.id,
+      analysis_id: current.analysis!.id, job_version: 1, status: "queued" } });
   });
-  await page.goto("/e2e/fixtures/schema-editor-read.html?action-probe&change_id=b");
-  await expect(page.getByLabel("현재 행동")).toHaveText("publish");
-  await expect(page.getByLabel("행동 차단")).toHaveText("false");
-  await page.getByRole("button", { name: "상위 차단 전환" }).click();
-  await expect(page.getByLabel("행동 차단")).toHaveText("true");
-  await page.getByRole("button", { name: "행동 실행 요청" }).click();
-  await page.getByRole("button", { name: "상위 차단 전환" }).click();
-  await page.getByRole("button", { name: "변환 접수 대기" }).click();
-  await expect(page.getByLabel("행동 차단")).toHaveText("true");
-  await page.getByRole("button", { name: "행동 실행 요청" }).click();
-  await page.getByRole("button", { name: "변환 접수 결과 불명" }).click();
-  await expect(page.getByLabel("행동 차단")).toHaveText("true");
-  await page.getByRole("button", { name: "행동 실행 요청" }).click();
-  await page.getByRole("button", { name: "변환 접수 종료" }).click();
-  await expect(page.getByLabel("행동 차단")).toHaveText("false");
-  await page.getByRole("button", { name: "행동 실행 요청" }).click();
-  await expect(page.getByLabel("현재 행동")).toHaveText("none");
-  expect(writes).toEqual([`${base}/b/apply`]);
+  try {
+    await page.goto("/e2e/fixtures/schema-editor-read.html?action-probe&change_id=b");
+    await expect(page.getByLabel("현재 행동", { exact: true })).toHaveText("publish");
+    await expect(page.getByLabel("행동 차단")).toHaveText("false");
+    await page.getByRole("button", { name: "상위 차단 전환" }).click();
+    await expect(page.getByLabel("행동 차단")).toHaveText("true");
+    await page.getByRole("button", { name: "행동 실행 요청" }).click();
+    await page.getByRole("button", { name: "상위 차단 전환" }).click();
+    await expect(page.getByLabel("행동 차단")).toHaveText("false");
+    expect(writes).toEqual([]);
+
+    current = { ...current, change_kind: "migration_required", fingerprint: "a".repeat(64),
+      analysis: { ...current.analysis!, id: "00000000-0000-4000-8000-000000000099", changed: 1, unchanged: 0 } };
+    await page.getByRole("button", { name: "상태 조회", exact: true }).click();
+    await expect(page.getByLabel("현재 행동", { exact: true })).toHaveText("migration");
+    await page.getByRole("button", { name: "행동 실행 요청" }).click();
+    await submitted;
+    await expect(page.getByLabel("접수 안내")).toHaveText("접수 중…");
+    await expect(page.getByLabel("행동 차단")).toHaveText("true");
+    await expect(page.getByLabel("입력 차단")).toHaveText("true");
+    await page.getByRole("button", { name: "행동 실행 요청" }).click();
+    expect(writes).toHaveLength(1);
+
+    release();
+    await expect(page.getByLabel("접수 안내")).toHaveText("같은 접수 요청 다시 확인");
+    await expect(page.getByLabel("입력 차단")).toHaveText("true");
+    await expect(page.getByLabel("검토 차단")).toHaveText("true");
+    await page.getByRole("button", { name: "속성 검토 요청" }).click();
+    expect(writes).toHaveLength(1);
+    await page.getByRole("button", { name: "행동 실행 요청" }).click();
+    await expect(page).toHaveURL(new RegExp(`change_id=b&job_id=${jobId}$`));
+    expect(writes).toHaveLength(2);
+    expect(writes[0].path).toBe(`${base}/b/migrations`);
+    expect(writes[0].key).toMatch(/^[0-9a-f-]{36}$/);
+    expect(writes[0].body).toEqual({ expected_change_version: 1, expected_schema_version: 1,
+      analysis_id: current.analysis!.id, fingerprint: current.fingerprint });
+    expect(writes[1]).toEqual(writes[0]);
+  } finally {
+    release();
+  }
 });
 
 test("편집 interface는 상태 조회 실패 뒤 이전 결과로 적용하거나 검토하지 않는다", async ({ page }) => {
@@ -1247,6 +1281,7 @@ test("입력 항목 이름과 조건은 좁은 폼에서도 라벨과 값을 읽
   await name.fill("긴 입력 항목 이름과 초안 보존 확인");
   for (const width of [320, 640, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
+    await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
     const axes = await name.evaluate((input) => {
       const label = document.querySelector(`label[for="${input.id}"]`)!.getBoundingClientRect();
       const value = input.getBoundingClientRect();
@@ -1268,6 +1303,7 @@ test("입력 항목 이름과 조건은 좁은 폼에서도 라벨과 값을 읽
   await page.screenshot({ path: info.outputPath("schema-pairs-narrow-parent.png"), fullPage: true });
   await page.setViewportSize({ width: 320, height: 1000 });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(320);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("schema-pairs-200.png"), fullPage: true });
 });

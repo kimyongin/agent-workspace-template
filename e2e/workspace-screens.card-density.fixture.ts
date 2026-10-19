@@ -20,15 +20,27 @@ test("카드 밀도와 선택 속성·펼친 기본 정보의 정렬은 화면 �
   for (const width of [390, 1440, 2410]) {
     await page.setViewportSize({ width, height: 1100 });
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const rowBox = (await row.boundingBox())!;
-    const lastValue = (await row.getByRole("definition").last().boundingBox())!;
-    expect(rowBox.y + rowBox.height - lastValue.y - lastValue.height).toBeLessThanOrEqual(24);
+    // Read related rectangles in one browser task: responsive transitions can
+    // move the whole card between separate boundingBox calls.
+    const geometry = await row.evaluate((node, { value, title, property, identity }) => {
+      const rect = (element: Element | null) => {
+        if (!element?.isConnected) throw new Error("Measured card content must remain connected");
+        const bounds = element.getBoundingClientRect();
+        if (bounds.width <= 0 || bounds.height <= 0) throw new Error("Measured card content must have a nonempty rectangle");
+        return bounds;
+      };
+      const bounds = rect(node), last = rect(value), titleBounds = rect(title);
+      return { width: bounds.width, titleWidth: titleBounds.width, bottomGap: bounds.bottom - last.bottom,
+        leftDifference: property && identity ? Math.abs(rect(property).left - rect(identity).left) : null,
+        grids: [...node.querySelectorAll("dl")].map(grid => ({ text: grid.textContent?.slice(0, 80), width: grid.getBoundingClientRect().width,
+          left: grid.getBoundingClientRect().left, columns: getComputedStyle(grid).gridTemplateColumns })) };
+    }, { value: await row.getByRole("definition").last().elementHandle(), title: await trigger.elementHandle(),
+      property: width >= 1440 ? await row.getByText("날짜", { exact: true }).elementHandle() : null,
+      identity: width >= 1440 ? await row.getByText("번호 출처", { exact: true }).elementHandle() : null });
+    expect(geometry.bottomGap).toBeLessThanOrEqual(24);
     if (width >= 1440) {
-      if (rowBox.width >= 800) expect((await trigger.boundingBox())!.width).toBeLessThan(rowBox.width / 2);
-      const property = (await row.getByText("날짜", { exact: true }).boundingBox())!;
-      const identity = (await row.getByText("번호 출처", { exact: true }).boundingBox())!;
-      const grids = await row.locator("dl").evaluateAll(nodes => nodes.map(node => ({ text: node.textContent?.slice(0, 80), width: node.getBoundingClientRect().width, left: node.getBoundingClientRect().left, columns: getComputedStyle(node).gridTemplateColumns })));
-      expect(Math.abs(property.x - identity.x), JSON.stringify({ width, grids })).toBeLessThan(1);
+      if (geometry.width >= 800) expect(geometry.titleWidth).toBeLessThan(geometry.width / 2);
+      expect(geometry.leftDifference, JSON.stringify({ width, grids: geometry.grids })).toBeLessThan(1);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await row.scrollIntoViewIfNeeded();
