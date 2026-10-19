@@ -61,6 +61,8 @@ export function useRecordConfirmation(options: {
   initial?: ConfirmationKind;
   describe: (kind: ConfirmationKind) => ConfirmationDescription;
   onCancel?: () => void;
+  /** The caller keeps this owner mounted when cancellation only hides its view. */
+  retainOnCancel?: boolean;
   closeOnSuccess?: boolean;
   clearOnCancel?: boolean;
 }) {
@@ -127,7 +129,7 @@ export function useRecordConfirmation(options: {
     const state = attempt.snapshot();
     // External cancellation can unmount the owner of the retained operation.
     // Inner confirmation dismissal keeps that owner and may remain available.
-    if (state.busy || (state.uncertain && latest.current.onCancel)) return;
+    if (state.busy || (state.uncertain && latest.current.onCancel && !latest.current.retainOnCancel)) return;
     if (latest.current.clearOnCancel) reject({}, null);
     if (latest.current.onCancel) latest.current.onCancel();
     else setStage(null);
@@ -154,7 +156,7 @@ export function useRecordConfirmation(options: {
     }
   };
   const description = stage ? options.describe(stage) : null;
-  const retaining = uncertain && !!options.onCancel;
+  const retaining = uncertain && !!options.onCancel && !options.retainOnCancel;
   useLayoutEffect(() => {
     if (!register || options.open === false || options.visible === false || !stage || !description) return;
     register({

@@ -8,6 +8,7 @@ import { useDetailResource } from "../details/useDetailResource.ts";
 import { RelatedRecords } from "./RelatedRecords.tsx";
 import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
+import { useRecordConfirmation } from "../../components/RecordConfirmation.tsx";
 import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
@@ -62,7 +63,14 @@ export function TaskDetailPage() {
   const relationSaved = useRef(false);
   const directEdit = params.get("edit") === "1";
   const [dialog, setDialog] = useState<Dialog>(requestedDialog(params));
+  const [transitionState, setTransitionState] = useState({ busy: false, uncertain: false });
+  const transitionLocked = transitionState.busy || transitionState.uncertain;
   const manage = (action: string, occurrence?: string) => {
+    if (transitionState.busy || transitionState.uncertain && action !== "transition") return;
+    if (action === "transition") {
+      setDialog("transition");
+      if (transitionState.uncertain) return;
+    }
     const next = new URLSearchParams(params);
     next.set("action", action);
     occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence");
@@ -70,6 +78,7 @@ export function TaskDetailPage() {
   };
   const closeManagement = () => {
     setDialog(null);
+    if (transitionState.uncertain) return;
     const next = new URLSearchParams(params);
     next.delete("action");
     next.delete("occurrence");
@@ -191,7 +200,7 @@ export function TaskDetailPage() {
           onDraftClosed={detail.editClosed}
           scope="task"
           target={task}
-          readonly={!canWrite || !!task.deleted_at}
+          readonly={!canWrite || !!task.deleted_at || transitionLocked}
           visible={canRead}
           onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
         />
@@ -278,15 +287,15 @@ export function TaskDetailPage() {
         tabTitle={canRead ? task.title : "할 일"}
         onClose={() => navigate(back)}
         onError={detail.failed}
-        busy={busy}
+        busy={busy || transitionLocked}
         footer={canWrite && (
-          task.deleted_at ? <Button type="button" disabled={busy} onClick={() => manage("restore")}>복원</Button> : <>
-            <Button variant="outline" type="button" disabled={busy} onClick={editor.start}>편집</Button>
+          task.deleted_at ? <Button type="button" disabled={busy || transitionLocked} onClick={() => manage("restore")}>복원</Button> : <>
+            <Button variant="outline" type="button" disabled={busy || transitionLocked} onClick={editor.start}>편집</Button>
             {task.kind === "once" && task.status === "open" && (
               <Button
                 variant="default"
                 type="button"
-                disabled={busy}
+                disabled={busy || transitionLocked}
                 onClick={() => manage("complete")}
               >
                 완료하고 기록
@@ -296,7 +305,7 @@ export function TaskDetailPage() {
               <Button
                 variant="default"
                 type="button"
-                disabled={busy}
+                disabled={busy || transitionState.busy}
                 onClick={() => manage("transition")}
               >
                 {task.status === "active" ? "중단" : "재개"}
@@ -309,6 +318,7 @@ export function TaskDetailPage() {
           {management}
           <div className="flex min-w-0 flex-col gap-6">
             <TaskEntityRelations
+              readOnly={transitionLocked}
               task={task}
               onSaved={(saved, before) => {
                 if (before) relationSaved.current = true;
@@ -322,7 +332,7 @@ export function TaskDetailPage() {
               revision={task.version + recordRefresh}
 
             />
-            {occurrenceSection()}
+            {occurrenceSection(transitionLocked)}
           </div>
         </div>
         {editing && (
@@ -391,11 +401,12 @@ export function TaskDetailPage() {
             }}
           />
         )}
-        {task.kind === "recurring" && dialog === "transition" && (
+        {task.kind === "recurring" && (
           <TaskTransitionForm
             key={task.id}
             open={dialog === "transition"}
             task={task}
+            onState={setTransitionState}
             onClose={closeManagement}
             onSaved={async () => {
               closeManagement();
@@ -460,55 +471,81 @@ export function TaskDetailPage() {
   );
 }
 
+type TransitionState = { busy: boolean; uncertain: boolean };
 function TaskTransitionForm(
-  { task, open, onClose, onSaved }: {
+  { task, open, onClose, onSaved, onState }: {
     task: TaskResult;
     open: boolean;
     onClose: () => void;
     onSaved: () => Promise<void>;
+    onState: (state: TransitionState) => void;
+  },
+) {
+  const [session, setSession] = useState<{ target: TaskResult; generation: number; completed: boolean } | null>(null);
+  useLayoutEffect(() => {
+    // Capture the optimistic target at first opening, then keep the attempt across view dismissal.
+    if (open && (!session || session.completed)) {
+      setSession({ target: task, generation: (session?.generation ?? 0) + 1, completed: false });
+    }
+  }, [open, session, task]);
+  return session && <TaskTransitionSession
+    key={session.generation}
+    target={session.target}
+    task={task}
+    open={open && !session.completed}
+    onClose={onClose}
+    onState={onState}
+    onSaved={async () => {
+      await onSaved();
+      setSession(current => current?.generation === session.generation ? { ...current, completed: true } : current);
+    }}
+  />;
+}
+function TaskTransitionSession(
+  { target, task, open, onClose, onSaved, onState }: {
+    target: TaskResult;
+    task: TaskResult;
+    open: boolean;
+    onClose: () => void;
+    onSaved: () => Promise<void>;
+    onState: (state: TransitionState) => void;
   },
 ) {
   const api = useApi();
   const { canRead, canWrite } = useTaskAccess();
   const [owner] = useState(() => api);
   const active = owner === api;
-  const [target] = useState(task);
+  const current = useRef({ api, task, canWrite, onSaved });
+  current.current = { api, task, canWrite, onSaved };
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
   const action = target.status === "active" ? "stop" : "resume", label = action === "stop" ? "중단" : "재개";
-  return (
-    <FormModal
-      open={open}
-      visible={active && canRead}
-      submitDisabled={!active || !canWrite || !!task.deleted_at}
-      title={`반복 할 일 ${label}`}
-      submitLabel={label}
-      dirty={false}
-      confirmationOnly
-      preparation={() => ({ model: "task", action, target_id: target.id, expected_version: target.version, input: {} })}
-      mutation={{
-        target: target.title,
-        action: label,
-        message: action === "stop"
-          ? "오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다."
-          : "오늘부터 규칙에 따라 회차가 다시 생깁니다.",
-      }}
-      onClose={onClose}
-      onRouteDiscard={onClose}
-      validate={() => null}
-      onSubmit={async (requestKey, memo) => {
-        if (!active || !canWrite || task.deleted_at) throw new Error("이 할 일을 현재 변경할 수 없습니다.");
-        await api(
-          "POST",
-          `/tasks/${target.id}/${action}`,
-          { expected_version: target.version, ...memo },
-          undefined,
-          requestKey(),
-        );
-        await onSaved();
-      }}
-    >
-      {() => null}
-    </FormModal>
-  );
+  const confirmation = useRecordConfirmation({
+    open, visible: active && canRead, disabled: !active || !canWrite || !!task.deleted_at,
+    initial: "save", retainOnCancel: true, onCancel: onClose,
+    describe: () => ({
+      title: `${label}하시겠습니까?`, label: `${label}하고 저장`, defaultNote: `${target.title} ${label}`,
+      preparation: () => ({ model: "task", action, target_id: target.id, expected_version: target.version, input: {} }),
+      record: true,
+      data: [{ label: "대상", value: target.title, fullWidth: true }, { label: "작업", value: label }],
+      message: action === "stop"
+        ? "오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다."
+        : "오늘부터 규칙에 따라 회차가 다시 생깁니다.",
+      execute: async (requestKey, memo) => {
+        const latest = current.current;
+        if (latest.api !== owner || latest.task.id !== target.id || !latest.canWrite || latest.task.deleted_at) {
+          throw new Error("이 할 일을 현재 변경할 수 없습니다.");
+        }
+        await owner("POST", `/tasks/${target.id}/${action}`, { expected_version: target.version, ...memo }, undefined, requestKey());
+        if (alive.current && current.current.api === owner && current.current.task.id === target.id) await current.current.onSaved();
+      },
+    }),
+  });
+  useLayoutEffect(() => {
+    onState({ busy: confirmation.busy, uncertain: confirmation.uncertain });
+  }, [onState, confirmation.busy, confirmation.uncertain]);
+  useLayoutEffect(() => () => onState({ busy: false, uncertain: false }), [onState]);
+  return null;
 }
 
 function TaskRestoreForm({ task, onClose, onSaved }: {
