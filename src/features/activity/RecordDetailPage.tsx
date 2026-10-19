@@ -2,6 +2,7 @@ import { useRecordAccess } from "./record-access.ts";
 import { WorkspacePermissionNotice } from "../workspaces/WorkspacePermissionNotice.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { useDetailResource } from "../details/useDetailResource.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { RecordRelations } from "./RecordRelations.tsx";
@@ -43,7 +44,8 @@ export function RecordDetailPage() {
   });
   const editor = useDetailEditor(detail.editClosed);
   const { value: record, editReady } = detail;
-  const { canRead, canWrite } = useRecordAccess(record);
+  const access = useRecordAccess(record);
+  const { canRead, canWrite } = access;
   const admittedEdit = useRef<{ api: typeof api; id: string; key: string } | null>(null);
   const editing = editor.active && editReady && (canWrite ||
     admittedEdit.current?.api === api && admittedEdit.current.id === id && admittedEdit.current.key === location.key);
@@ -97,7 +99,14 @@ export function RecordDetailPage() {
   );
   return (
     <>
-      {!canRead && <WorkspacePermissionNotice />}
+      {!canRead && (access.loading
+        ? <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner aria-hidden="true" />불러오는 중…</p>
+        : access.error
+        ? <div className="flex min-w-0 flex-col items-start gap-4">
+            <Notice kind="error">기록을 불러오지 못했습니다.</Notice>
+            <Button variant="outline" type="button" onClick={access.retry}>조회 다시 시도</Button>
+          </div>
+        : <WorkspacePermissionNotice />)}
       <DetailSurface
         ready={!detail.loading}
         visible={canRead}
