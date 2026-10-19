@@ -1,4 +1,4 @@
-import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
+import { fulfillFixtureWorkspace, fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
@@ -209,27 +209,40 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
 });
 
 test("실패 작업의 응답 불명 재시도는 같은 내용과 키로 확인하며 기본 입력을 보존한다", async ({ page }) => {
-  let version = 1;
+  const failed: EntitySchemaMigration = {
+    ...job(20, "failed", 1), retryable: true, failure_reason: "임시 처리 실패",
+  };
+  const queued: EntitySchemaMigration = { ...job(21, "queued", 1), processed: 0 };
+  const accepted = {
+    job_id: queued.id, type_id: queued.type_id, change_id: queued.change_id,
+    analysis_id: queued.analysis_id, job_version: 1, status: "queued",
+  };
+  let received = false, newReads = 0;
+  const oldReads: EntitySchemaMigration[] = [];
   const requests: Array<{ body: unknown; key: string | undefined }> = [];
+  await page.route("**/api/entity-schema-migrations?**", route => {
+    expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
+    return route.fulfill({ json: { items: received ? [queued, failed] : [failed], next_before: null } });
+  });
   await page.route("**/api/entity-schema-migrations/**", (route) => {
-    if (route.request().method() === "POST") {
-      requests.push({
-        body: route.request().postDataJSON(),
-        key: route.request().headers()["idempotency-key"],
-      });
-      if (requests.length === 1) {
-        version = 2;
-        return route.abort("failed");
-      }
-      return route.fulfill({ json: { job_id: id(20), status: "queued" } });
+    const request = route.request(), path = new URL(request.url()).pathname;
+    expect(request.headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
+    if (request.method() === "POST") {
+      expect(path).toBe(`/api/entity-schema-migrations/${failed.id}/retry`);
+      requests.push({ body: request.postDataJSON(), key: request.headers()["idempotency-key"] });
+      expect(requests.at(-1)!.body).toEqual({ expected_job_version: failed.version });
+      received = true;
+      if (requests.length === 1) return route.abort("failed");
+      return route.fulfill({ status: 202, json: accepted });
     }
-    return route.fulfill({
-      json: {
-        ...job(20, "failed", version),
-        retryable: true,
-        failure_reason: "임시 처리 실패",
-      },
-    });
+    if (path === `/api/entity-schema-migrations/${failed.id}`) {
+      oldReads.push(structuredClone(failed));
+      return route.fulfill({ json: failed });
+    }
+    expect(path).toBe(`/api/entity-schema-migrations/${queued.id}`);
+    expect(received).toBe(true);
+    newReads++;
+    return route.fulfill({ json: queued });
   });
   await page.goto(
     fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${id(20)}`),
@@ -250,7 +263,26 @@ test("실패 작업의 응답 불명 재시도는 같은 내용과 키로 확인
   await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
   await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
   await expect.poll(() => requests.length).toBe(2);
+  expect(requests[0].key).toMatch(/^[0-9a-f-]{36}$/);
   expect(requests[1]).toEqual(requests[0]);
+  const selectedUrl = (jobId: string) => new URL(fixtureWorkspacePath(
+    `/settings/entity-types/${materials.id}?job_id=${jobId}&change_id=${failed.change_id}`,
+  ), page.url()).href;
+  await expect(page).toHaveURL(selectedUrl(queued.id));
+  await expect.poll(() => newReads).toBeGreaterThan(0);
+  const detail = page.getByRole("region", { name: "값 변환 상세", exact: true });
+  await expect(detail.getByRole("status")).toContainText("접수");
+  await expect(detail.getByRole("status")).toContainText("0/10개 준비");
+  const executions = page.getByRole("navigation", { name: "이 변경의 값 변환 이력", exact: true });
+  await executions.getByRole("link", { name: / · 실패$/ }).click();
+  await expect(page).toHaveURL(selectedUrl(failed.id));
+  await expect(detail.getByRole("status")).toContainText("실패");
+  expect(oldReads.length).toBeGreaterThan(0);
+  for (const historical of oldReads) expect(historical).toEqual(failed);
+  await executions.getByRole("link", { name: / · 접수$/ }).click();
+  await expect(page).toHaveURL(selectedUrl(queued.id));
+  await expect(detail.getByRole("status")).toContainText("접수");
+  expect(requests).toHaveLength(2);
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(
     "기본 초안",
   );
