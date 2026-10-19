@@ -782,9 +782,11 @@ test("entity edit preserves draft and tags while identity settings are delayed b
       if (route.request().method() === "PATCH") {
         const input = route.request().postDataJSON();
         writes.push(input);
-        return route.fulfill({
-          json: { ...entity, properties: input.properties, title: input.properties.prop_1, version: 2 },
+        Object.assign(entity, {
+          properties: input.properties, display_properties: input.properties,
+          title: input.properties.prop_1, version: 2,
         });
+        return route.fulfill({ json: entity });
       }
       return route.fulfill({ json: entity });
     },
@@ -845,6 +847,8 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     });
     expect(preparations[0].input).not.toHaveProperty("tag_ids");
     await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
+    // The confirmation hides the editor from role queries before the write finishes.
+    await expect(confirmation).not.toBeVisible();
     await expect(form).not.toBeVisible();
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject({
@@ -853,6 +857,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
       properties: { prop_1: "保持する下書き" },
     });
     expect(writes[0]).not.toHaveProperty("tag_ids");
+    await expect(detailDialog(page).getByText("保持する下書き", { exact: true })).toBeVisible();
     const connections = detailDialog(page).getByRole("region", { name: "태그 연결", exact: true });
     const assigned = connections.getByLabel("태그", { exact: true });
     await expect(assigned).toBeVisible();
