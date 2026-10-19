@@ -308,8 +308,10 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
     record_kind: "change" as const,
     change: {
       ...historical,
+      event_id: id(31),
       target_id: entityKey(99),
       target_title: "다음 대상",
+      after: { prop1: "다음 대상" },
       path: `/entities/${encodeURIComponent(entityKey(99))}`,
     },
   };
