@@ -169,10 +169,13 @@ for (const authorized of [true, false]) {
   test(`현재 자료 귀속 권한 조회 503: 비공개 유지·재조회 후 현재 종류 ${authorized ? "허용" : "거부"}`, async ({ page }) => {
     const state = await fixtures(page), r = state.rows.records[0];
     const tag = state.rows.tags.find(value => value.scope === "record")!;
+    const typeId = authorized ? fixtureType.id : id(999);
+    const parent = { ...state.rows.entities[0], id: `app:${typeId}:${id(1)}`,
+      entity_type_id: typeId, type: { ...fixtureType, id: typeId } };
     Object.assign(r, {
-      entity_id: entityKey(1), task_id: null, record_kind: "change", body: "비공개 기록 본문",
+      entity_id: parent.id, task_id: null, record_kind: "change", body: "비공개 기록 본문",
       tag_ids: [tag.id],
-      change: { event_id: id(30), target_kind: "entity", target_id: entityKey(1),
+      change: { event_id: id(30), target_kind: "entity", target_id: parent.id,
         target_title: "비공개 당시 이름", action: "update", source: "http",
         before: { title: "비공개 수정 전" }, after: { title: "비공개 수정 후" }, path: null },
     });
@@ -180,17 +183,13 @@ for (const authorized of [true, false]) {
     let release!: () => void, requested!: () => void, reads = 0;
     const held = new Promise<void>(resolve => { release = resolve; });
     const started = new Promise<void>(resolve => { requested = resolve; });
-    await page.route(`**/api/entities/${encodeURIComponent(entityKey(1))}`, async endpoint => {
+    await page.route(`**/api/entities/${encodeURIComponent(parent.id)}`, async endpoint => {
       if (++reads === 1) {
         requested();
         await held;
         return endpoint.fulfill({ status: 503, json: { code: "internal", message: "권한 조회 실패" } });
       }
-      return endpoint.fulfill({ json: {
-        ...state.rows.entities[0],
-        entity_type_id: authorized ? fixtureType.id : id(999),
-        type: { ...fixtureType, id: authorized ? fixtureType.id : id(999) },
-      } });
+      return endpoint.fulfill({ json: parent });
     });
     const concealed = async () => {
       await expect(form(page)).toHaveCount(0);
