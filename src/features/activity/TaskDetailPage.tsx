@@ -518,7 +518,10 @@ function TaskTransitionSession(
   const current = useRef({ api, task, canWrite, onSaved });
   current.current = { api, task, canWrite, onSaved };
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
   const action = target.status === "active" ? "stop" : "resume", label = action === "stop" ? "중단" : "재개";
   const confirmation = useRecordConfirmation({
     open, visible: active && canRead, disabled: !active || !canWrite || !!task.deleted_at,

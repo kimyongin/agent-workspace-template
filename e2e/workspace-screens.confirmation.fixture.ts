@@ -47,6 +47,50 @@ for (const uncertain of [false, true]) {
   });
 }
 
+test("#181 실제 StrictMode 앱의 중단·재개 성공은 확인창을 닫고 새 버전·새 의도로 다음 작업을 연다", async ({ page }) => {
+  const state = await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
+  const recurring = state.rows.tasks[0];
+  Object.assign(recurring, {
+    kind: "recurring", status: "active", timezone: "Asia/Seoul",
+    recurrence: { freq: "daily", starts_on: "2026-10-04" },
+  });
+  const writes: { action: string; key?: string; body: unknown }[] = [];
+  await page.route("**/api/tasks/*/occurrences?**", route => route.fulfill({ json: { today: "2026-10-04", items: [] } }));
+  await page.route(`**/api/tasks/${recurring.id}/{stop,resume}`, route => {
+    const request = route.request(), action = new URL(request.url()).pathname.split("/").at(-1)!;
+    expect(request.method()).toBe("POST");
+    expect(request.headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
+    expect(request.postDataJSON().expected_version).toBe(recurring.version);
+    writes.push({ action, key: request.headers()["idempotency-key"], body: request.postDataJSON() });
+    Object.assign(recurring, { status: action === "stop" ? "stopped" : "active", version: recurring.version + 1 });
+    return route.fulfill({ json: recurring });
+  });
+  // This entry loads src/main.tsx and its real StrictMode effect replay, rather than the standalone host.
+  await goApp(page, `/tasks/${recurring.id}`);
+  await form(page).getByRole("button", { name: "중단", exact: true }).click();
+  await form(page).getByLabel("기록 메모", { exact: true }).fill("StrictMode 중단 사유");
+  await chooseTag(page, form(page), "같은 이름");
+  await form(page).getByRole("button", { name: "중단하고 저장", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "중단하시겠습니까?", exact: true })).toHaveCount(0);
+  await expect(form(page).getByRole("button", { name: "재개", exact: true })).toBeVisible();
+  await expect(form(page)).toContainText("중단된 할 일입니다.");
+  await form(page).getByRole("button", { name: "재개", exact: true }).click();
+  await expect(form(page).getByLabel("기록 메모", { exact: true })).toHaveValue("할 일 재개");
+  await expect(form(page).getByRole("button", { name: "같은 이름 선택 해제", exact: true })).toHaveCount(0);
+  await form(page).getByRole("button", { name: "재개하고 저장", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "재개하시겠습니까?", exact: true })).toHaveCount(0);
+  await expect(form(page).getByRole("button", { name: "중단", exact: true })).toBeVisible();
+  expect(writes).toHaveLength(2);
+  expect(writes[0]).toMatchObject({ action: "stop", body: { expected_version: 1, change_note: "StrictMode 중단 사유", change_tag_ids: [id(11)] } });
+  expect(writes[1]).toMatchObject({ action: "resume", body: { expected_version: 2, change_note: "할 일 재개", change_tag_ids: [] } });
+  expect(writes[0].key).toMatch(/^[0-9a-f-]{36}$/);
+  expect(writes[1].key).toMatch(/^[0-9a-f-]{36}$/);
+  expect(writes[1].key).not.toBe(writes[0].key);
+  expect(recurring).toMatchObject({ status: "active", version: 3 });
+  expect(state.errors).toEqual([]);
+});
+
 for (const revoked of ["read", "none"] as const) {
   test(`#181 미확정 반복 중단: ${revoked} 권한으로 바뀌면 새 쓰기 없이 공간을 나가고 미확정 메타데이터를 보존한다`, async ({ page }) => {
     const state = await fixtures(page);
