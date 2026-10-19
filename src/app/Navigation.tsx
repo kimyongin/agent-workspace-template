@@ -97,7 +97,10 @@ export function Navigation({ brand }: { brand: string }) {
   </>;
   return <Sidebar collapsible={isMobile ? "offcanvas" : "none"} className="h-full min-w-0" aria-label="주 메뉴" role="navigation" id="workspace-navigation">
     {isMobile
-      ? <ScrollArea className="min-h-0 flex-1"><div className="flex min-h-full flex-col">{menu}</div></ScrollArea>
+      ? <ScrollArea className="min-h-0 min-w-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block!">
+          {/* The viewport's measurement table must not grow to untruncated menu labels. */}
+          <div className="flex min-h-full w-full min-w-0 flex-col">{menu}</div>
+        </ScrollArea>
       : menu}
   </Sidebar>;
 }
