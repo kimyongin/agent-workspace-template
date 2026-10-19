@@ -9,6 +9,7 @@ import { Field, FieldGroup, FieldLabel } from "../components/ui/field.tsx";
 import { Input } from "../components/ui/input.tsx";
 import { Alert, AlertDescription } from "../components/ui/alert.tsx";
 import { Button } from "../components/ui/button.tsx";
+import { ScrollArea } from "../components/ui/scroll-area.tsx";
 import { BookOpenIcon, ChartNoAxesCombinedIcon, ChevronsUpDownIcon, LogOutIcon, SettingsIcon, XIcon } from "lucide-react";
 import { useNavigationPreview } from "../features/settings/navigation-preview.tsx";
 import { useAuth } from "../features/auth/AuthProvider.tsx";
@@ -79,9 +80,9 @@ export function Navigation({ brand }: { brand: string }) {
   const builtin = resolveNavigationRefs(["entities", "tasks", "records"].map(id => ({ kind: "builtin" as const, id: id as "entities" | "tasks" | "records" })), catalog.types ?? []);
   const renderLink = (entry: (typeof entries)[number]) => <SidebarMenuItem key={entry.key}><SidebarMenuButton asChild isActive={isCurrent(entry)} className="min-h-[max(2.75rem,44px)]"><Link to={entry.to} aria-current={isCurrent(entry) ? "page" : undefined}><EntityTypeIcon id={entry.icon} /><span>{entry.label}</span></Link></SidebarMenuButton></SidebarMenuItem>;
   const destinations = [{ to: "/status", label: "상태", icon: ChartNoAxesCombinedIcon }, { to: "/settings", label: "설정", icon: SettingsIcon }, { to: "/guide", label: "사용 가이드", icon: BookOpenIcon }, { to: "/logout", label: "로그아웃", icon: LogOutIcon }];
-  return <Sidebar collapsible={isMobile ? "offcanvas" : "none"} className="h-full min-w-0" aria-label="주 메뉴" role="navigation" id="workspace-navigation">
+  const menu = <>
     <SidebarHeader><WorkspaceSwitcher />{isMobile && <Button variant="ghost" size="icon" aria-label="메뉴 닫기" className="self-end" onClick={() => setOpenMobile(false)}><XIcon /></Button>}<SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild className="min-h-12"><Link to="/workspaces"><img className="size-6 shrink-0" src={appIcon} alt="" /><span>{brand}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarHeader>
-    <SidebarContent>{workspaceId && <>
+    <SidebarContent className={isMobile ? "flex-none overflow-visible" : undefined}>{workspaceId && <>
       {!!entries.length && <SidebarGroup><SidebarGroupLabel>바로가기</SidebarGroupLabel><SidebarMenu>{entries.map(renderLink)}</SidebarMenu></SidebarGroup>}
       <SidebarGroup><SidebarGroupLabel>업무</SidebarGroupLabel><SidebarMenu>{builtin.filter(entry => !entries.some(pinned => pinned.key === entry.key)).map(renderLink)}</SidebarMenu></SidebarGroup>
       <SidebarGroup><SidebarGroupLabel>자료 종류</SidebarGroupLabel>
@@ -90,8 +91,13 @@ export function Navigation({ brand }: { brand: string }) {
         {catalog.error && <Alert variant="destructive"><AlertDescription>자료 종류를 불러오지 못했습니다.</AlertDescription><Button variant="outline" onClick={catalog.retry}>다시 시도</Button></Alert>}
       </SidebarGroup>
     </>}</SidebarContent>
-    <SidebarFooter><DropdownMenu><DropdownMenuTrigger asChild><SidebarMenuButton className="min-h-12" aria-label="내 프로필"><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><span className="min-w-0 flex-1 truncate">{profileName(session?.user.user_metadata)}</span><ChevronsUpDownIcon /></SidebarMenuButton></DropdownMenuTrigger>
+    <SidebarFooter className={isMobile ? "mt-auto" : undefined}><DropdownMenu><DropdownMenuTrigger asChild><SidebarMenuButton className="min-h-12" aria-label="내 프로필"><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><span className="min-w-0 flex-1 truncate">{profileName(session?.user.user_metadata)}</span><ChevronsUpDownIcon /></SidebarMenuButton></DropdownMenuTrigger>
       <DropdownMenuContent ref={retainProfileFocusVisibility} side={isMobile ? "bottom" : "right"} align="end"><DropdownMenuLabel>{profileName(session?.user.user_metadata)}</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuGroup>{destinations.filter(destination => workspaceId || ["/settings", "/logout"].includes(destination.to)).map(({ to, label, icon: Icon }) => <DropdownMenuItem asChild key={to}><Link to={to}><Icon /><span>{label}</span></Link></DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent>
     </DropdownMenu></SidebarFooter>
+  </>;
+  return <Sidebar collapsible={isMobile ? "offcanvas" : "none"} className="h-full min-w-0" aria-label="주 메뉴" role="navigation" id="workspace-navigation">
+    {isMobile
+      ? <ScrollArea className="min-h-0 flex-1"><div className="flex min-h-full flex-col">{menu}</div></ScrollArea>
+      : menu}
   </Sidebar>;
 }
