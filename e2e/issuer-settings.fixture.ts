@@ -470,7 +470,12 @@ test("default policy refusal preserves the draft and resolves affected types wit
   await expect(modal.getByLabel("이름")).toHaveValue("내 쿠팡");
   await expect(modal.getByLabel("이름")).toBeFocused();
   await modal.getByRole("button", { name: "저장", exact: true }).click();
+  const savedIssuer = page.waitForResponse(response => response.request().method() === "PATCH" &&
+    new URL(response.url()).pathname === "/api/entity-issuers/coupang");
   await page.getByRole("alertdialog", { name: "사용을 중지할까요?" }).getByRole("button", { name: "중지하고 저장" }).click();
+  const savedIssuerResponse = await savedIssuer;
+  expect(savedIssuerResponse.status()).toBe(200);
+  expect(await savedIssuerResponse.json()).toMatchObject({ code: "coupang", label: "내 쿠팡", active: false });
   await expect(modal).not.toBeVisible();
   expect(state.identity().default_source).toBe("app");
   expect(state.writes.map((w) => w.path)).toEqual([
@@ -717,7 +722,16 @@ test(
     await create.getByRole("button", { name: "저장", exact: true }).click();
     const confirm = page.getByRole("dialog", { name: "등록하시겠습니까?", exact: true });
     await expect(confirm).toBeVisible();
+    const registeredEntity = page.waitForResponse(response => response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/entities");
     await confirm.getByRole("button", { name: "등록하고 저장", exact: true }).click();
+    const registeredResponse = await registeredEntity;
+    expect(registeredResponse.status()).toBe(201);
+    expect(await registeredResponse.json()).toMatchObject({
+      id: `${createdSource}:${typeId}:000Ab-9`, source: createdSource, external_id: "000Ab-9",
+      entity_type_id: typeId, type: { id: typeId, label: "상품" }, schema_version: 1,
+      properties: { prop_1: "테스트 상품" },
+    });
     await expect(create).toHaveCount(0);
     expect(state.writes.find((w) => w.path === "/api/entities")?.body).toMatchObject({
       source: createdSource,
@@ -903,7 +917,12 @@ test(
     await modal.getByRole("button", { name: "기본 번호 출처 변경", exact: true }).click();
     await expect(modal.getByLabel("상품 기본 번호 출처", { exact: true })).toBeDisabled();
     await expect(modal.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+    const confirmedRepair = page.waitForResponse(response => response.request().method() === "PATCH" &&
+      new URL(response.url()).pathname === `/api/entity-types/${typeId}/identity`);
     await modal.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
+    const repairResponse = await confirmedRepair;
+    expect(repairResponse.status()).toBe(200);
+    expect(state.writes).toHaveLength(3);
     expect(state.writes[1]).toEqual(state.writes[2]);
     expect(state.identity().sources.find((s) => s.code === "app")?.active).toBe(true);
     await expect(modal.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
