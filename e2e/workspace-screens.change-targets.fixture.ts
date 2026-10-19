@@ -166,7 +166,7 @@ for (const [kind, route, n] of targetCases) {
 }
 
 for (const authorized of [true, false]) {
-  test(`현재 자료 귀속 권한 조회 503: 비공개 유지·재조회 후 현재 종류 ${authorized ? "허용" : "거부"}`, async ({ page }) => {
+  test(`현재 자료 귀속 권한 조회 503: 비공개 유지·재조회 후 현재 종류 ${authorized ? "허용" : "거부"}`, async ({ page }, info) => {
     const state = await fixtures(page), r = state.rows.records[0];
     const tag = state.rows.tags.find(value => value.scope === "record")!;
     const typeId = authorized ? fixtureType.id : id(999);
@@ -212,6 +212,7 @@ for (const authorized of [true, false]) {
       await expect(page.getByRole("heading", { name: "이 내용을 읽을 권한이 없습니다.", exact: true })).toHaveCount(0);
       await concealed();
       expect(successfulReads).toBe(0);
+      await page.screenshot({ path: info.outputPath(`record-parent-503-${authorized ? "allowed" : "denied"}.png`) });
       phase = "recover";
       await page.getByRole("button", { name: "조회 다시 시도", exact: true }).click();
       if (authorized) {
@@ -224,6 +225,7 @@ for (const authorized of [true, false]) {
         await expect(page.getByRole("heading", { name: "이 내용을 읽을 권한이 없습니다.", exact: true })).toBeVisible();
         await concealed();
       }
+      await page.screenshot({ path: info.outputPath(`record-parent-recovered-${authorized ? "allowed" : "denied"}.png`) });
       expect(reads).toBeGreaterThanOrEqual(2);
       expect(successfulReads).toBeGreaterThanOrEqual(1);
       expect(JSON.stringify(r)).toBe(original);
