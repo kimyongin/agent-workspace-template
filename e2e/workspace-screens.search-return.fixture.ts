@@ -1,8 +1,9 @@
+import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows } from "./table-actions.ts";
 import { baseWorkspace } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { record, task } from "./support/workspace-data.ts";
-import { fixtures, form, go } from "./support/workspace-screens.ts";
+import { fixtures, form, goApp } from "./support/workspace-screens.ts";
 import { closeDetail, openListDetail } from "./ui-actions.ts";
 
 for (const exit of ["close", "back"] as const) {
@@ -10,12 +11,13 @@ for (const exit of ["close", "back"] as const) {
     const state = await fixtures(page);
     await page.unroute("http://127.0.0.1:55580/**");
     await page.setViewportSize({ width: 1440, height: 900 });
-    await go(page, "/search?q=기준&kind=record&mode=keyword");
+    await goApp(page, "/search?q=기준&kind=record&mode=keyword");
     const link = page.locator('[aria-label="기본 작업 영역"] [data-list-anchor]').first();
     await expect(link).toBeVisible();
     for (let n = 1; n <= 2; n++) {
       await link.click();
       await expect(page).toHaveURL(/\/records\//);
+      expect(new URL(page.url()).pathname.startsWith(fixtureWorkspacePath("/records/"))).toBe(true);
       await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
       // A retained detail is already visible; allow this navigation to paint before returning through history.
       await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -25,6 +27,7 @@ for (const exit of ["close", "back"] as const) {
       if (exit === "back") await page.goBack();
       else await closeDetail(page, "기록");
       await expect(page).toHaveURL(/\/search\?/);
+      expect(new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/search"));
       if (exit === "back") {
         await expect(page.locator("[aria-label=\"상세 작업 영역\"]")).toBeVisible();
         await expect(page.getByRole("tab")).toHaveCount(1);
@@ -47,12 +50,13 @@ test("할 일 상세 뒤로 가기는 외부 추가와 원래 행 초점을 복�
   const state = await fixtures(page);
   await page.unroute("http://127.0.0.1:55580/**");
   await page.setViewportSize({ width: 1440, height: 900 });
-  await go(page, "/tasks");
+  await goApp(page, "/tasks");
   await openListDetail(page, "할 일");
   await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
   state.rows.tasks.push({ ...task(510), title: "외부 할 일" });
   await page.goBack();
   await expect(page).toHaveURL(/\/tasks\?/);
+  expect(new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/tasks"));
   await expect(businessRows(baseWorkspace(page).getByRole("region", { name: "할 일 목록", exact: true }).getByRole("table"))).toHaveCount(2);
   await expect(baseWorkspace(page).getByRole("button", { name: "할 일", exact: true })).toBeFocused();
   expect(state.writes).toHaveLength(0);
@@ -65,7 +69,7 @@ for (const width of [320, 1440]) {
     state.rows.records[0].body = "짧음";
     await page.unroute("http://127.0.0.1:55580/**");
     await page.setViewportSize({ width, height: 900 });
-    await go(page, "/search?q=짧음&kind=record&mode=keyword");
+    await goApp(page, "/search?q=짧음&kind=record&mode=keyword");
     const link = page.getByRole("link", { name: "짧음", exact: true });
     await expect(link).toBeVisible();
     const bounds = (await link.boundingBox())!;
@@ -78,9 +82,11 @@ for (const width of [320, 1440]) {
     await expect(link).toBeFocused();
     await link.press("Enter");
     await expect(page).toHaveURL(/\/records\//);
+    expect(new URL(page.url()).pathname.startsWith(fixtureWorkspacePath("/records/"))).toBe(true);
     await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
     await closeDetail(page, "짧음");
     await expect(page).toHaveURL(/\/search\?/);
+    expect(new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/search"));
     expect(new URL(page.url()).searchParams.get("q")).toBe("짧음");
     await expect(link).toBeFocused();
     expect(state.writes).toHaveLength(0);

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { entity, fixtureSchema, fixtureType } from "./support/workspace-data.ts";
-import { fixtures, go } from "./support/workspace-screens.ts";
+import { fixtures, goApp } from "./support/workspace-screens.ts";
 
 test("카드 밀도와 선택 속성·펼친 기본 정보의 정렬은 화면 폭에 맞게 유지한다", async ({ page }, info) => {
   const state = await fixtures(page);
@@ -11,7 +11,7 @@ test("카드 밀도와 선택 속성·펼친 기본 정보의 정렬은 화면 �
   const title = "17761cc7-f259-48dd-869e-ad8c19611b10";
   Object.assign(state.rows.entities[0], entity(1, { prop_1: title, prop_2: null, prop_3: null }), { display_properties: { prop_1: title, prop_2: null, prop_3: null } });
   state.rows.entities.push(entity(4, { prop_1: "다음 자료" }));
-  await go(page, `/entities?entity_type_id=${fixtureType.id}&view=cards`);
+  await goApp(page, `/entities?entity_type_id=${fixtureType.id}&view=cards`);
   const trigger = page.getByRole("button", { name: title, exact: true });
   const row = page.getByRole("listitem").filter({ has: trigger });
   await trigger.press("Enter");

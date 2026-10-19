@@ -1,4 +1,5 @@
 import { entityKey } from "./workspace-data.ts";
+import { fixtureWorkspacePath } from "./workspace-scope.ts";
 import { openDetailEditor } from "../ui-actions.ts";
 import { expect, type Page } from "@playwright/test";
 import { base, entity, fixtureType, id,  record, stamp, task, type WorkspaceRows } from "./workspace-data.ts";
@@ -57,10 +58,21 @@ export async function fixtures(
   return installWorkspaceApi(page, "http://127.0.0.1:55581", rows, options);
 }
 
-export const go = async (page: Page, path: string) => {
+function screenPath(path: string) {
   const url = new URL(path, "http://fixture.test");
   if (url.pathname === "/entities" && !url.searchParams.has("entity_type_id")) url.searchParams.set("entity_type_id", "00000000-0000-4000-8000-000000000900");
-  return page.goto(url.pathname + url.search + url.hash);
+  return url.pathname + url.search + url.hash;
+}
+
+/** Standalone screen routers intentionally use business-relative paths. */
+export const go = (page: Page, path: string) => page.goto(screenPath(path));
+
+/** Real-App callers explicitly enter the owned mock workspace and retain the full URL. */
+export const goApp = async (page: Page, path: string) => {
+  const target = fixtureWorkspacePath(screenPath(path));
+  const response = await page.goto(target);
+  await expect(page).toHaveURL(new URL(target, page.url()).href);
+  return response;
 };
 
 export const form = (page: Page) => page.getByRole("dialog").filter({ visible: true }).last();

@@ -1,7 +1,7 @@
 import { openDialogs, openMainNavigation } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entityKey, fixtureType, id, stamp } from "./support/workspace-data.ts";
-import { fixtures, go } from "./support/workspace-screens.ts";
+import { fixtures, goApp } from "./support/workspace-screens.ts";
 
 // Render the real App shell with isolated API data, rather than the reduced detail fixture shell.
 for (const width of [390, 1440]) {
@@ -92,7 +92,7 @@ for (const width of [390, 1440]) {
       ["missing-page", "/unknown-page"],
     ];
     for (const [name, path] of paths) {
-      await go(page, path);
+      await goApp(page, path);
       await expect(page.locator("h1").first()).toBeVisible();
       if (width < 1024 && name.endsWith("-detail")) {
         await expect(openDialogs(page)).toHaveCount(1);
@@ -157,7 +157,7 @@ for (const width of [390, 1440]) {
         ["record-edit", `/records/${id(3)}?edit=1`],
       ]
     ) {
-      await go(page, path);
+      await goApp(page, path);
       if (name.endsWith("-create") || name.endsWith("-edit")) {
         await expect(page.getByRole("textbox").first()).toBeVisible();
         await expect(page.locator('[role="dialog"] [data-slot="dialog-description"]')).toBeVisible();
@@ -167,7 +167,7 @@ for (const width of [390, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
       await page.screenshot({ path: info.outputPath(`${name}-${width}.png`) });
     }
-    await go(page, `/tasks/${id(2)}?edit=1`);
+    await goApp(page, `/tasks/${id(2)}?edit=1`);
     await page.getByRole("textbox", { name: /^제목/ }).fill("보호할 변경 내용");
     const closeEditor = () =>
       width >= 1280
@@ -186,7 +186,7 @@ for (const width of [390, 1440]) {
       name: "변경 버리기",
       exact: true,
     }).click();
-    await go(page, "/settings");
+    await goApp(page, "/settings");
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
     await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath(`settings-menu-${width}.png`) });
@@ -207,7 +207,7 @@ for (const width of [390, 1440]) {
     await page.unroute("http://127.0.0.1:55580/**");
     await page.setViewportSize({ width, height: 900 });
     state.rows.tasks.length = 0;
-    await go(page, "/tasks");
+    await goApp(page, "/tasks");
     await expect(page.getByText("아직 할 일이 없습니다.", { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath(`empty-tasks-${width}.png`) });
     state.failRead({ kind: "tasks" }, { status: 503 });
@@ -238,7 +238,7 @@ test("상태의 실제 수치와 선택 날짜는 폭·글자 확대에서도 �
     entity_indexing: { total: 2, indexed: 1, preparing: 1, attention: 0, excluded: 0, waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 } },
     daily: [day("2026-10-14", 0), day("2026-10-15", 2)],
   } }));
-  await go(page, "/status");
+  await goApp(page, "/status");
   const graph = page.getByRole("group", { name: "일별 등록 그래프: 막대를 누르거나 방향키로 날짜 선택", exact: true });
   const values = page.getByRole("table", {name:"일별 등록 날짜별 수치",exact:true});
   await graph.press("Home");

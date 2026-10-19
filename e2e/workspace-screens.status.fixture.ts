@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { fixtures, go } from "./support/workspace-screens.ts";
+import { fixtures, goApp } from "./support/workspace-screens.ts";
 import { stamp } from "./support/workspace-data.ts";
 import type { StatusOverview } from "../supabase/functions/_shared/contracts/status.ts";
 
@@ -28,7 +28,7 @@ async function fixture(page: Page, data = overview()) {
   await fixtures(page);
   await page.unroute("http://127.0.0.1:55580/**");
   await page.route("**/api/status", (route) => route.fulfill({ json: data }));
-  await go(page, "/status");
+  await goApp(page, "/status");
   return data;
 }
 const charts = [
