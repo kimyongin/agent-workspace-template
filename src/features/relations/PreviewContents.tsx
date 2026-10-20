@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import type { EntityDetail } from "@contracts/entity.ts";
 import { EntityProperties } from "../entity/EntityProperties.tsx";
 import { taskLabels, type TaskResult } from "@contracts/task.ts";
@@ -30,7 +31,7 @@ export function PreviewContents(
     if (main && kind === "entities") onPropertiesReady(true);
   }, [kind, main, onPropertiesReady]);
   const tags = (scope: "entity" | "task" | "record", ids: string[]) => (
-    <dl className="min-w-0 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere col-span-full">
+    <DataFields className="col-span-full">
       <div>
         <dt>태그</dt>
         <dd>
@@ -38,7 +39,7 @@ export function PreviewContents(
           {!ids.length && "없음"}
         </dd>
       </div>
-    </dl>
+    </DataFields>
   );
   if (kind === "entities") {
     const entity = item as EntityDetail;
@@ -53,7 +54,7 @@ export function PreviewContents(
             onRepresentativeLabel={onRepresentativeLabel}
           />
         )}
-        <dl className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+        <DataFields>
           <div>
             <dt>자료 종류</dt>
             <dd>{entity.type.label}</dd>
@@ -72,7 +73,7 @@ export function PreviewContents(
               <dd>삭제됨</dd>
             </div>
           )}
-        </dl>
+        </DataFields>
         {tags("entity", entity.tag_ids)}
       </>
     );
@@ -81,7 +82,7 @@ export function PreviewContents(
     const task = item as TaskResult;
     return (
       <>
-        <dl className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+        <DataFields>
           {!main && task.title !== shownTitle && (
             <div className="col-span-full">
               <dt>현재 제목</dt>
@@ -114,7 +115,7 @@ export function PreviewContents(
               </div>
             </>
           )}
-        </dl>
+        </DataFields>
         {tags("task", task.tag_ids)}
       </>
     );
@@ -124,14 +125,14 @@ export function PreviewContents(
     return (
       <>
         {record.body && (
-          <dl className="min-w-0 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+          <DataFields>
             <div>
               <dt>본문</dt>
               <dd>
                 <MarkdownContent text={record.body} />
               </dd>
             </div>
-          </dl>
+          </DataFields>
         )}
         {main && <ChangeContext record={record} compact />}
         {tags("record", record.tag_ids)}

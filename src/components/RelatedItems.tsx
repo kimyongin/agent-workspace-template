@@ -1,6 +1,8 @@
+import { DataFields } from "./DataFields.tsx";
 import { type ReactNode, useId } from "react";
 import { DetailLink, useDetailViewState } from "../lib/detail-exploration.tsx";
 import { CollectionHeading, type ItemView, RelatedCollectionView, useItemLayout } from "./Collection.tsx";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "./ui/empty.tsx";
 import { Button } from "./ui/button.tsx";
 import { Item, ItemContent, ItemHeader, ItemActions } from "./ui/item.tsx";
 import { BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "./BusinessTable.tsx";
@@ -31,7 +33,7 @@ export function RelatedSection(
         <section className="flex min-w-0 flex-col gap-4" aria-labelledby={heading} aria-busy={busy || undefined}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              {views
+              {views && count !== 0
                 ? (
                   <CollectionHeading
                     id={heading}
@@ -56,6 +58,19 @@ export function RelatedSection(
       </ExpansionGroupProvider>
     </RelatedCollectionView.Provider>
   );
+}
+
+/** A confirmed empty relationship keeps its allowed actions in the section header. */
+export function RelatedEmpty({ title = "연결된 자료가 없습니다.", description }: {
+  title?: string;
+  description?: ReactNode;
+}) {
+  return <Empty className="flex-none items-start gap-2 p-0 text-left">
+    <EmptyHeader className="max-w-none items-start">
+      <EmptyTitle>{title}</EmptyTitle>
+      {description && <EmptyDescription>{description}</EmptyDescription>}
+    </EmptyHeader>
+  </Empty>;
 }
 
 export function ItemExpansionProvider(
@@ -120,7 +135,7 @@ export function RelatedItem(
   </ItemActions>;
   const metadataContent = metadata && (!disclosure || disclosure.expanded) && <div className="min-w-0 text-sm text-muted-foreground">{metadata}</div>;
   const previewContent = disclosure?.expanded && disclosure.content;
-  const titleData = <dl className="min-w-0 flex-1"><div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="flex min-w-0 flex-wrap items-center gap-2">{titleContent}{titleBadge}</dd></div></dl>;
+  const titleData = <DataFields className="flex-1"><div><dt>{label}</dt><dd className="flex min-w-0 flex-wrap items-center gap-2">{titleContent}{titleBadge}</dd></div></DataFields>;
   if (table) return <>
     <BusinessRow data-expanded={disclosure?.expanded || undefined}>
       <BusinessDisclosureCell>{toggle}</BusinessDisclosureCell>
@@ -134,9 +149,9 @@ export function RelatedItem(
   const item = <Item variant="outline" className="@container min-w-0 flex-col flex-nowrap items-stretch">
     <ItemHeader className="flex-wrap items-start">{titleData}{actions}</ItemHeader>
     <ItemContent className="min-w-0">
-      {cells.length > 0 && <dl className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] gap-4">
-        {(layout?.columns.slice(1) ?? cells.map(() => "값")).map((column, index) => <div key={column} className="min-w-0"><dt className="text-xs text-muted-foreground">{column}</dt><dd className="wrap-anywhere">{cells[index] ?? "—"}</dd></div>)}
-      </dl>}
+      {cells.length > 0 && <DataFields>
+        {(layout?.columns.slice(1) ?? cells.map(() => "값")).map((column, index) => <div key={column} className="min-w-0"><dt>{column}</dt><dd className="wrap-anywhere">{cells[index] ?? "—"}</dd></div>)}
+      </DataFields>}
       {summary && cells.length === 0 && <div className="min-w-0 text-muted-foreground">{summary}</div>}
       {metadataContent}
       {disclosure && <CollapsibleContent id={panel} aria-labelledby={heading} className="min-w-0 pt-3">{previewContent}</CollapsibleContent>}

@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { PlusIcon, LinkIcon, UnlinkIcon } from "lucide-react";
 import { Input } from "../components/ui/input.tsx";
 import { Button } from "../components/ui/button.tsx";
@@ -5,7 +6,7 @@ import { useState } from "react";
 
 import { CollectionItem, CollectionList  } from "../components/Collection.tsx";
 import { Field } from "../components/Field.tsx";
-import { RelatedItem } from "../components/RelatedItems.tsx";
+import { RelatedEmpty, RelatedItem } from "../components/RelatedItems.tsx";
 /** Presentation-only example: the app's real permission, version and atomic writes are integration-tested. */
 export function TypedRelationsSample() {
   const [selected, setSelected] = useState(true),
@@ -21,7 +22,7 @@ export function TypedRelationsSample() {
       </p>
       <section className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h4 className="text-base font-semibold">소속 주문</h4>
+          <h4 className="text-base font-semibold">소속 주문 ({selected ? 1 : 0}개)</h4>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" type="button"  onClick={() => setWriting(true)}><PlusIcon data-icon="inline-start" />
               작성
@@ -38,7 +39,7 @@ export function TypedRelationsSample() {
             )}
           </div>
         </div>
-        <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>주문명</dt><dd>{selected ? "주문 2026-001" : "연결된 자료가 없습니다."}</dd></div></dl>
+        {selected ? <DataFields><div><dt>주문명</dt><dd>주문 2026-001</dd></div></DataFields> : <RelatedEmpty description="작성하거나 연결해 자료를 추가하세요." />}
       </section>
       {writing && (
         <section
@@ -46,11 +47,11 @@ export function TypedRelationsSample() {
           aria-label="작성해서 연결 샘플"
         >
           <h4 className="text-base font-semibold">작성 후 연결</h4>
-          <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+          <DataFields>
             <div><dt>연결 설정</dt><dd>주문품목 → 소속 주문</dd></div>
             <div><dt>기존 연결</dt><dd>주문 2026-001</dd></div>
             <div><dt>번호</dt><dd>등록 시 자동 발급</dd></div>
-          </dl>
+          </DataFields>
           <p className="text-sm text-muted-foreground">저장하면 새로 작성한 자료로 교체합니다.</p>
           <Field label="주문명" required>
             {(p) => (
@@ -92,7 +93,7 @@ export function TypedRelationsSample() {
               <RelatedItem
                 title={title}
                 titleLabel="자료 이름"
-                metadata={<dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>종류</dt><dd>재료</dd></div></dl>}
+                metadata={<DataFields><div><dt>종류</dt><dd>재료</dd></div></DataFields>}
                 action={<Button variant="ghost" type="button" ><UnlinkIcon data-icon="inline-start" />해제</Button>}
               />
             </CollectionItem>

@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CollectionItem, CollectionList, CollectionMessage } from "../../components/Collection.tsx";
@@ -84,12 +85,12 @@ function ChangedRelation(
     : undefined;
   const occurrenceData = occurrence
     ? (
-      <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+      <DataFields>
         <div>
           <dt>회차</dt>
           <dd>{occurrence}</dd>
         </div>
-      </dl>
+      </DataFields>
     )
     : undefined;
   if (readOnly) {
@@ -101,12 +102,12 @@ function ChangedRelation(
           <>
             {occurrenceData}
             {(missing || retainedTask) && (
-              <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+              <DataFields>
                 <div>
                   <dt>조회 상태</dt>
                   <dd>{deleted ? "삭제됨" : "조회 불가"}</dd>
                 </div>
-              </dl>
+              </DataFields>
             )}
             {fallback}
           </>
@@ -138,7 +139,7 @@ function ReadonlyTask(
       <RelatedItem
         title={task.title}
         metadata={
-          <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+          <DataFields>
             <div>
               <dt>상태</dt>
               <dd>
@@ -151,7 +152,7 @@ function ReadonlyTask(
                 <dd>{occurrence}</dd>
               </div>
             )}
-          </dl>
+          </DataFields>
         }
       />
     );
