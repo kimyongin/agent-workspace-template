@@ -5,7 +5,6 @@ import { Button } from "../../components/ui/button.tsx";
 import { XIcon, LinkIcon } from "lucide-react";
 import { Input } from "../../components/ui/input.tsx";
 import type { RelationLocation } from "@contracts/entity-relation-links.ts";
-import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import { createPagedList } from "../collections/paged-list.ts";
 
@@ -197,7 +196,7 @@ export function RelationSearch(
                 to={draftMode ? undefined : `/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(item.id)}`}
                 restoreKey={`relation-candidate-${kind}-${item.id}`}
                 title={item.title}
-                cells={kind === "entity" ? [item.type ? <span><EntityTypeIcon id={item.type.icon_id} /> {item.type.label}</span> : "—", item.identity ?? "—", choose] : [choose]}
+                cells={kind === "entity" ? [item.type ? item.type.label : "—", item.identity ?? "—", choose] : [choose]}
               /></CollectionItem>;
             })}
           </CollectionList>}

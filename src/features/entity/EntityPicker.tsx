@@ -1,8 +1,8 @@
+import { DataFields } from "@/components/DataFields";
 import { useApi } from "../../lib/api-context.tsx";
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Button } from "../../components/ui/button.tsx";
-import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
@@ -137,11 +137,11 @@ export function EntityLinkItem({ id, context = [] }: { id: string; context?: Ent
       to={`/entities/${encodeURIComponent(id)}`}
       title={capture?.title ?? "연결된 자료"}
       metadata={
-        <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-          {capture?.type && <div><dt>당시 자료 종류</dt><dd><EntityTypeIcon id={capture.type.icon_id} /> {capture.type.label}</dd></div>}
+        <DataFields>
+          {capture?.type && <div><dt>당시 자료 종류</dt><dd>{capture.type.label}</dd></div>}
           {capture?.type && <div><dt>당시 입력 항목 버전</dt><dd>{capture.schema_version ?? "확인 필요"}</dd></div>}
           <div className="col-span-full"><dt>자료 식별</dt><dd>{id}</dd></div>
-        </dl>
+        </DataFields>
       }
       restoreKey={`linked-entity-${id}`}
     />

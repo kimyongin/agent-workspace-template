@@ -10,6 +10,7 @@ it("task association picker conceals retained selected names and counts when kin
   expect(html).not.toContain("보호된 초안 이름");
   expect(html).not.toContain("보호된 종류");
   expect(html).toContain("자료 (0개)");
+  expect(html).not.toContain("연결된 자료가 없습니다.");
 });
 it("task association picker restores a readable retained selection", () => {
   const html = renderToStaticMarkup(<MemoryRouter><RelationPicker kind="entity" value={["secret"]} context={context} canReadEntityType={() => true} onChange={() => {}} /></MemoryRouter>);

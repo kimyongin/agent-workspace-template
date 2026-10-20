@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { Badge } from "@/components/ui/badge";
 import { CollectionMessage } from "../../components/Collection.tsx";
 import { Button } from "@/components/ui/button";
@@ -25,12 +26,12 @@ export function RelatedTaskItem({ id, occurrence }: { id: string; occurrence: st
           titleBadge={task.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : undefined}
           metadata={occurrence
             ? (
-              <dl className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+              <DataFields>
                 <div>
                   <dt>회차</dt>
                   <dd>{occurrence}</dd>
                 </div>
-              </dl>
+              </DataFields>
             )
             : undefined}
         />

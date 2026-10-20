@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useApi } from "../../lib/api-context.tsx";
 import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ export function ReadonlyTags(
   { ids, scope, onRemove }: { ids: string[]; scope: TagScope; onRemove?: (id: string) => void },
 ) {
   return (
-    <dl className="grid min-w-0 gap-2 [&_dt]:text-sm [&_dt]:text-muted-foreground">
+    <DataFields>
       <div>
         <dt>태그</dt>
         <dd>
@@ -23,7 +24,7 @@ export function ReadonlyTags(
             : <span className="text-sm text-muted-foreground">연결된 태그 없음</span>}
         </dd>
       </div>
-    </dl>
+    </DataFields>
   );
 }
 

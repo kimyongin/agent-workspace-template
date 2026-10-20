@@ -11,7 +11,7 @@ import { type ReactNode, useContext, useEffect, useRef } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import type { RecordResult } from "@contracts/record.ts";
 import { recordDisplayText } from "@contracts/record-display.ts";
-import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedEmpty, RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { query } from "../../lib/api.ts";
@@ -89,6 +89,7 @@ function TaskRecords(
           ))}
         </CollectionList>
       )}
+      {page && !page.items.length && !page.next_cursor && !busy && !error && <RelatedEmpty title="연결된 기록이 없습니다." description={action ? "작성으로 기록을 추가하세요." : undefined} />}
       {!!error && <Notice kind="error">연결된 기록을 불러오지 못했습니다.</Notice>}
       {!readOnly && (page?.next_cursor || !!error) && (
         <Button
