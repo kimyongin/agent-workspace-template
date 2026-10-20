@@ -1,5 +1,5 @@
 import { useApi } from "../../lib/api-context.tsx";
-import { cn } from "../../lib/utils.ts";
+import { DataFields } from "../../components/DataFields.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { Fragment, type ReactNode, useEffect, useLayoutEffect, useState } from "react";
@@ -23,12 +23,6 @@ export function EntityProperties(
   const [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);
-  const gridClassName = cn(
-    "grid min-w-0 gap-4 [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere",
-    selection === "list"
-      ? "grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] [&_dt]:text-xs"
-      : "grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] [&_dt]:text-sm",
-  );
   const key = `${entity.entity_type_id}:${entity.current_schema_version}:${retry}`;
   const [readKey, setReadKey] = useState(key);
   if (readKey !== key) {
@@ -65,13 +59,13 @@ export function EntityProperties(
       <>
         <Notice kind="error">속성 정의를 불러오지 못했습니다.</Notice>
         <Button variant="outline"  onClick={() => setRetry((n) => n + 1)}>속성 정의 다시 조회</Button>
-        {identity && <dl className={gridClassName}>{identity}</dl>}
+        {identity && <DataFields>{identity}</DataFields>}
       </>
     );
   }
   if (!definition) return <p role="status">속성 정의를 불러오는 중…</p>;
   return (
-    <dl className={gridClassName}>
+    <DataFields>
       {(selection === "list"
         ? [
           schemaPresentation(definition).representative,
@@ -89,11 +83,7 @@ export function EntityProperties(
           index,
         ) => (
           <Fragment key={key}>
-            <div
-              className={cn(key === schemaPresentation(definition).representative
-                ? "col-span-full col-span-full"
-                : undefined)}
-            >
+            <div>
               <dt>
                 {definition.schema.properties[key].title ?? key}
                 {schemaPresentation(definition).archived.includes(key)
@@ -123,6 +113,6 @@ export function EntityProperties(
             {index === 0 && identity}
           </Fragment>
         ))}
-    </dl>
+    </DataFields>
   );
 }
