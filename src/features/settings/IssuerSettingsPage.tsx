@@ -232,6 +232,25 @@ function IssuerSettingsPageContent() {
                     </Button>
                   </AlertDescription></Alert>
                 )}
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-sm font-medium">번호 종류{rules ? ` (${rules.length}개)` : ""}</h3>
+                {!issuer.system && (
+                  <div className="shrink-0">
+                    <Button variant="ghost" type="button"
+
+                      disabled={!canWrite || rules === null || !issuer.active || locked}
+                      onClick={() =>
+                        edit({
+                          kind: "rule",
+                          source: issuer.code,
+                          sourceLabel: issuer.label,
+                        })}
+                    ><PlusIcon data-icon="inline-start" />
+                      번호 종류 추가
+                    </Button>
+                  </div>
+                )}
+                </div>
                 {rules?.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
                 <CollectionList view="table" disclosureColumn={!issuer.system} label="번호 종류 목록" columns={["번호 종류 이름", "입력 방식", "사용"]}>
                   {rules?.map((rule) => {
@@ -251,22 +270,7 @@ function IssuerSettingsPageContent() {
                     </Fragment>;
                   })}
                 </CollectionList>
-                {!issuer.system && (
-                  <div>
-                    <Button variant="ghost" type="button"
 
-                      disabled={!canWrite || rules === null || !issuer.active || locked}
-                      onClick={() =>
-                        edit({
-                          kind: "rule",
-                          source: issuer.code,
-                          sourceLabel: issuer.label,
-                        })}
-                    ><PlusIcon data-icon="inline-start" />
-                      번호 종류 추가
-                    </Button>
-                  </div>
-                )}
               </>
             )}
           </IssuerRow>

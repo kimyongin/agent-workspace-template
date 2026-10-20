@@ -389,7 +389,7 @@ export function IssuerRegistryEditor(
         {content}
         <div className="flex flex-wrap items-center justify-between gap-3">
           {deleteAction}
-          <div>{footer(onClose)}</div>
+          <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">{footer(onClose)}</div>
         </div>
       </section>
     );

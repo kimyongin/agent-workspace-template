@@ -163,13 +163,9 @@ export function SchemaEditor(
     onFieldKeysChanged,
     onInvalidField,
     onReviewed: () => {
-      setPropertiesOpen(false);
-      setHistoryOpen(true);
-      setReviewOpen(true);
-      requestAnimationFrame(() => {
-        reviewHeading.current?.scrollIntoView({ block: "start" });
-        reviewHeading.current?.focus();
-      });
+      setPropertiesOpen(true);
+      // Keep ordinary schema edits in place; impact details remain available in history.
+      requestAnimationFrame(() => propertiesHeading.current?.focus({ preventScroll: true }));
     },
   });
   const {
@@ -288,8 +284,8 @@ export function SchemaEditor(
               ref={propertiesHeading}
               tabIndex={-1}
             >
-              <Button variant="outline"
-                className="h-auto min-h-[max(2.75rem,44px)] w-full justify-between whitespace-normal text-left"
+              <Button variant="ghost"
+                className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 whitespace-normal text-left"
                 type="button"
                 aria-expanded={propertiesOpen}
                 aria-label="입력 항목"
@@ -301,6 +297,7 @@ export function SchemaEditor(
                   else setPropertiesOpen(!propertiesOpen);
                 }}
               >
+                {propertiesOpen ? <ChevronDownIcon data-icon="inline-start" /> : <ChevronRightIcon data-icon="inline-start" />}
                 <span>입력 항목</span>
                 <span className="text-sm text-muted-foreground">
                   {busy
@@ -313,6 +310,21 @@ export function SchemaEditor(
                 </span>
               </Button>
             </h2>
+            <div className="flex max-w-full flex-wrap items-center gap-2">
+              <Button variant="ghost"
+
+                type="button"
+                disabled={inputsDisabled ||
+                  Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
+                onClick={() => {
+                  setPropertiesOpen(true);
+                  const key = editor.addField();
+                  if (key) setOpenFields((keys) => [...keys, key]);
+                }}
+              ><PlusIcon data-icon="inline-start" />
+                항목 추가
+              </Button>
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">
             상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다.
@@ -816,22 +828,28 @@ export function SchemaEditor(
               </CollectionList>
               </RadioGroup>
             </FieldSet>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="ghost"
-
-                type="button"
-                disabled={inputsDisabled ||
-                  Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
-                onClick={() => {
-                  setPropertiesOpen(true);
-                  const key = editor.addField();
-                  if (key) setOpenFields((keys) => [...keys, key]);
-                }}
-              ><PlusIcon data-icon="inline-start" />
-                항목 추가
-              </Button>
-            </div>
             <p className="text-sm text-muted-foreground">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
+            {plan && !["applied", "cancelled"].includes(plan.status) && !actions.review.visible && (
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3" aria-label="입력 항목 적용 상태">
+                <p className="text-sm text-muted-foreground" role="status">
+                  {plan.analysis?.status === "queued" || plan.analysis?.status === "running"
+                    ? "기존 자료에 미치는 영향을 확인하고 있습니다."
+                    : plan.analysis?.status === "succeeded" && !plan.analysis.failed
+                    ? "기존 자료 확인 완료 · 적용할 수 있습니다."
+                    : "적용 전에 기존 자료에 미치는 영향을 확인하세요."}
+                </p>
+                <div className="flex max-w-full flex-wrap items-center gap-2">
+                  {actions.conversionVisible || plan.analysis?.failed || plan.analysis?.status === "failed" || plan.status === "stale"
+                    ? <Button variant="outline" type="button" disabled={busy || uncertain} onClick={() => {
+                      setHistoryOpen(true); setReviewOpen(true);
+                      requestAnimationFrame(() => { reviewHeading.current?.scrollIntoView({ block: "start" }); reviewHeading.current?.focus(); });
+                    }}>영향·보완 내용 확인</Button>
+                    : primaryAction && <Button variant="default" type="button" disabled={primaryAction.disabled} onClick={() => void primaryAction.run?.()}>
+                      {primaryAction.label ?? actionLabels[primaryAction.kind]}
+                    </Button>}
+                </div>
+              </div>
+            )}
             {actions.review.visible && (
               <div className="flex flex-col gap-3 pt-4">
                 {(dirty || plan && plan.status !== "applied") && (
