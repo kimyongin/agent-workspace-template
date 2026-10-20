@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { Badge } from "./ui/badge.tsx";
 import type { SearchItem } from "@contracts/search.ts";
 
@@ -6,7 +7,7 @@ const indexNames = { pending: "색인 대기", excluded: "색인 제외", indexe
 
 export function SearchMatch({ item }: { item: Pick<SearchItem, "match" | "index_state"> }) {
   return (
-    <dl className="grid min-w-0 grid-cols-2 gap-4 text-sm [&_dt]:text-xs [&_dt]:text-muted-foreground">
+    <DataFields>
       <div>
         <dt>검색 일치</dt>
         <dd><Badge variant="secondary">{matchNames[item.match]}</Badge></dd>
@@ -15,6 +16,6 @@ export function SearchMatch({ item }: { item: Pick<SearchItem, "match" | "index_
         <dt>색인 상태</dt>
         <dd><Badge variant="outline">{indexNames[item.index_state]}</Badge></dd>
       </div>
-    </dl>
+    </DataFields>
   );
 }

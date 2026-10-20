@@ -1,3 +1,4 @@
+import { DataFields } from "../../components/DataFields.tsx";
 import { cn } from "../../lib/utils.ts";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Input } from "../../components/ui/input.tsx";
@@ -123,10 +124,7 @@ export function PropertyFields(
           archived = schemaPresentation(definition).archived.includes(key);
         if (archived || field.readOnly) {
           return (
-            <dl
-              key={key}
-              className={cn("min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere", key === schemaPresentation(definition).representative ? " col-span-full" : "")}
-            >
+            <DataFields key={key} className="col-span-full">
               <div>
                 <dt>
                   {field.title ?? key} <span className="text-sm text-muted-foreground">· {archived ? "보관" : "읽기 전용"}</span>
@@ -141,7 +139,7 @@ export function PropertyFields(
                     : displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}
                 </dd>
               </div>
-            </dl>
+            </DataFields>
           );
         }
         return (

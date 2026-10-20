@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useApi } from "../lib/api-context.tsx";
 import { FieldGroup, FieldSet } from "./ui/field.tsx";
 import { Spinner } from "./ui/spinner.tsx";
@@ -25,7 +26,7 @@ function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, 
   errors: Record<string,string>; failure?: string | null; frozen: boolean; message?: ReactNode; record?: boolean; excludeTag?: string;
 }) {
   return <div className="flex min-w-0 flex-col gap-5">
-    {!!data?.length && <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">{data.map(({label,value,fullWidth}) => <div key={label} className={fullWidth ? "col-span-full" : undefined}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
+    {!!data?.length && <DataFields>{data.map(({label,value}) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</DataFields>}
     {message && <div className="text-sm">{message}</div>}
     {failure && <Notice kind="error">{failure}</Notice>}
     {record && preparing && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner />기록 메모 준비 중…</p>}

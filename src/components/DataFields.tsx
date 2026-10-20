@@ -1,0 +1,17 @@
+import type { ComponentProps, ReactNode } from "react";
+import { cn } from "../lib/utils.ts";
+
+/** A single reading axis that responds to its content area, including narrow nested panels. */
+export function DataFields({ className, ...props }: ComponentProps<"dl">) {
+  return <dl {...props} className={cn(
+    "@container/data-fields flex min-w-0 flex-col gap-3 [&>div]:grid [&>div]:min-w-0 [&>div]:grid-cols-1 [&>div]:gap-x-4 [&>div]:gap-y-1 [&>div>dt]:min-w-0 [&>div>dt]:text-sm [&>div>dt]:text-muted-foreground [&>div>dt]:wrap-anywhere [&>div>dd]:min-w-0 [&>div>dd]:wrap-anywhere @min-[16rem]/data-fields:[&>div]:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)]",
+    className,
+  )} />;
+}
+
+export function DataField({ label, children, className, ...props }: Omit<ComponentProps<"div">, "children"> & {
+  label: ReactNode;
+  children: ReactNode;
+}) {
+  return <div {...props} className={cn("min-w-0", className)}><dt>{label}</dt><dd>{children}</dd></div>;
+}

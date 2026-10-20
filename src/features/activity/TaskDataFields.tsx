@@ -4,7 +4,7 @@ import { DateInput } from "../../components/DateInput.tsx";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldGroup } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { cn } from "@/lib/utils";
+import { DataFields, DataField } from "@/components/DataFields";
 import type { ReactNode } from "react";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -32,11 +32,9 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
   const value = draft ?? task!;
   const recurrence = task?.recurrence;
   const freq = draft?.freq ?? recurrence?.freq;
-  const pair = (label: string, content: ReactNode, full = false) => (
-    <dl className={cn("flex min-w-0 flex-col gap-1", full && "col-span-full")}>
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 wrap-anywhere">{content}</dd>
-    </dl>
+  const pair = (label: string, content: ReactNode, _full = false) => (
+    draft ? <DataFields className="col-span-full"><DataField label={label}>{content}</DataField></DataFields>
+      : <DataField label={label}>{content}</DataField>
   );
   const field = (
     label: string,
@@ -86,9 +84,9 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
           )}
     </Field>
   );
-  const Grid = draft ? FieldGroup : "div";
+  const Grid = draft ? FieldGroup : DataFields;
   return (
-    <Grid className={draft ? undefined : "@container grid min-w-0 gap-4 @min-[36rem]:grid-cols-2"}>
+    <Grid>
       {draft ? field("제목", "title", "text", true) : pair("제목", <DetailTitle>{value.title}</DetailTitle>, true)}
       {draft ? field("본문", "body", "text", true) : pair(
         "본문",
