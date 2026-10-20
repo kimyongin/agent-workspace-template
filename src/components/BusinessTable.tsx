@@ -20,7 +20,7 @@ const layouts = {
     label: "@max-[36rem]/business:block",
     disclosure: "@max-[36rem]/business:col-start-1 @max-[36rem]/business:row-start-1",
     details: "@max-[36rem]/business:pl-2",
-    nested: "@max-[36rem]/business:-ml-[calc(4rem+1px)]",
+    nested: "@max-[36rem]/business:-ml-16",
   },
   regular: {
     table: "@max-[64rem]/business:block",
@@ -38,7 +38,7 @@ const layouts = {
     label: "@max-[64rem]/business:block",
     disclosure: "@max-[64rem]/business:col-start-1 @max-[64rem]/business:row-start-1",
     details: "@max-[64rem]/business:pl-2",
-    nested: "@max-[64rem]/business:-ml-[calc(4rem+1px)]",
+    nested: "@max-[64rem]/business:-ml-16",
   },
   wide: {
     table: "@max-[128rem]/business:block",
@@ -56,7 +56,7 @@ const layouts = {
     label: "@max-[128rem]/business:block",
     disclosure: "@max-[128rem]/business:col-start-1 @max-[128rem]/business:row-start-1",
     details: "@max-[128rem]/business:pl-2",
-    nested: "@max-[128rem]/business:-ml-[calc(4rem+1px)]",
+    nested: "@max-[128rem]/business:-ml-16",
   },
   many: {
     table: "@max-[192rem]/business:block",
@@ -74,7 +74,7 @@ const layouts = {
     label: "@max-[192rem]/business:block",
     disclosure: "@max-[192rem]/business:col-start-1 @max-[192rem]/business:row-start-1",
     details: "@max-[192rem]/business:pl-2",
-    nested: "@max-[192rem]/business:-ml-[calc(4rem+1px)]",
+    nested: "@max-[192rem]/business:-ml-16",
   },
   extensive: {
     table: "@max-[512rem]/business:block",
@@ -92,12 +92,12 @@ const layouts = {
     label: "@max-[512rem]/business:block",
     disclosure: "@max-[512rem]/business:col-start-1 @max-[512rem]/business:row-start-1",
     details: "@max-[512rem]/business:pl-2",
-    nested: "@max-[512rem]/business:-ml-[calc(4rem+1px)]",
+    nested: "@max-[512rem]/business:-ml-16",
   },
 };
 type TableLayout = typeof layouts.regular;
 
-// Nested disclosures reuse the 3.5rem gutter, 0.5rem cell inset, and 1px border.
+// Nested disclosures reuse the 3.5rem gutter and 0.5rem cell inset.
 // Repeated indentation would otherwise narrow editors at each level.
 const DetailsGutter = createContext(false);
 const TableColumns = createContext<{ columns: string[]; numeric: number[]; heading: string; disclosureColumn: boolean; style: TableLayout } | null>(null);

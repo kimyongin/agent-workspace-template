@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
@@ -25,7 +26,7 @@ const recoveryLabels = {
 export function RecoveryAvailability({ job }: { job: EntitySchemaMigration }) {
   if (job.status !== "succeeded") return null;
   return (
-    <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+    <DataFields>
       <div>
         <dt>복구 상태</dt>
         <dd>{job.recovery ? recoveryLabels[job.recovery.status] : "복구 가능 여부 확인 필요"}</dd>
@@ -44,7 +45,7 @@ export function RecoveryAvailability({ job }: { job: EntitySchemaMigration }) {
           </dd>
         </div>
       )}
-    </dl>
+    </DataFields>
   );
 }
 type RecoveryConflict = { path: string; message: string };

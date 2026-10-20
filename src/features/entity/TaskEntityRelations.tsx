@@ -183,16 +183,16 @@ export function TaskEntityRelations(
   const readable = task.entity_context.filter(item => canRead && item.type && canReadType(item.type.id));
   const hasUnreadableLinks = task.entity_ids.length > 0 && !readable.length;
   task = { ...task, entity_ids: task.entity_ids.filter(id => readable.some(item => item.id === id)), entity_context: readable };
-  if (!canRead || hasUnreadableLinks) return null;
-  if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={task.entity_ids.length}>
-    {!task.entity_ids.length ? <RelatedEmpty /> : <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <CollectionItem key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></CollectionItem>)}</CollectionList>}
+  if (!canRead) return null;
+  if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={hasUnreadableLinks ? undefined : task.entity_ids.length}>
+    {hasUnreadableLinks ? <p className="text-sm text-muted-foreground">연결된 자료를 조회할 수 없습니다.</p> : !task.entity_ids.length ? <RelatedEmpty /> : <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <CollectionItem key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></CollectionItem>)}</CollectionList>}
   </RelatedSection>;
   return (
     <RelationControls key={task.id} task={task} onSaved={onSaved}>
       {({ search, button, unlink }) => (
-        <RelatedSection title="연결된 자료" count={task.entity_ids.length} action={button}>
+        <RelatedSection title="연결된 자료" count={hasUnreadableLinks ? undefined : task.entity_ids.length} action={button}>
           {search}
-          {!task.entity_ids.length ? <RelatedEmpty description={button ? "연결로 기존 자료를 선택하세요." : undefined} /> : <CollectionList columns={["자료 이름"]}>
+          {hasUnreadableLinks ? <p className="text-sm text-muted-foreground">연결된 자료를 조회할 수 없습니다.</p> : !task.entity_ids.length ? <RelatedEmpty description={button ? "연결로 기존 자료를 선택하세요." : undefined} /> : <CollectionList columns={["자료 이름"]}>
             {task.entity_ids.map((id) => {
               const item = {
                 id,

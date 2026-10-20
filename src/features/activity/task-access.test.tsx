@@ -57,3 +57,17 @@ it("a failed relation read is not reported as empty", () => {
   expect(html).toContain("연결된 할 일을 불러오지 못했습니다.");
   expect(html).not.toContain("연결된 할 일이 없습니다.");
 });
+
+
+it("unreadable existing material links do not remove an authorized new connection", () => {
+  const task = { id: "task", entity_ids: ["secret"], entity_context: [{ id: "secret", title: "보호된 이름", type: { id: "secret-type", label: "보호된 종류", icon_id: "file", archived: false } }] } as unknown as TaskResult;
+  const html = renderToStaticMarkup(<MemoryRouter><WorkspaceCapabilitiesContext.Provider value={{ grants: [
+    { target_kind: "tasks", target_id: "*", access: "write" },
+    { target_kind: "entity_type", target_id: "other-type", access: "read" },
+  ] } as WorkspaceCapabilities}><TaskEntityRelations task={task} onSaved={() => {}} /></WorkspaceCapabilitiesContext.Provider></MemoryRouter>);
+  expect(html).toContain('aria-label="자료 연결"');
+  expect(html).toContain("연결된 자료를 조회할 수 없습니다.");
+  expect(html).not.toContain("보호된 이름");
+  expect(html).not.toContain("연결된 자료가 없습니다.");
+  expect(html).not.toContain("연결된 자료 (0개)");
+});

@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
@@ -168,7 +169,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
     >
       {item.message && <p>{item.message}</p>}
       {item.relation_impact && (
-        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+        <DataFields>
           <div>
             <dt>현재 연결</dt>
             <dd>{item.relation_impact.links}개</dd>
@@ -181,13 +182,13 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
             <dt>두 번째 자료에 여러 개 연결</dt>
             <dd>{item.relation_impact.right_many ? "있음" : "없음"}</dd>
           </div>
-        </dl>
+        </DataFields>
       )}
       {item.schema && <SchemaDefinitionRead definition={{ schema: item.schema }} />}
       {item.identity && (
         <section aria-label="번호 설정 검토">
           <h3 className="text-base font-semibold">번호 설정</h3>
-          <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+          <DataFields>
             <div>
               <dt>번호 이름</dt>
               <dd>{item.identity.label}</dd>
@@ -197,7 +198,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
               <dd>{item.identity.default_source}</dd>
             </div>
 
-          </dl>
+          </DataFields>
           <BusinessTable label="가져올 번호 출처 목록" columns={["번호 출처", "번호 종류", "사용"]} disclosureColumn={false}>
             {item.identity.sources.map(source => <BusinessRow key={source.code}>
               <BusinessCell index={0}>{source.code}</BusinessCell>
@@ -208,7 +209,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
           {item.current_identity && (
             <Collapsible>
               <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">현재 번호 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
-              <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+              <DataFields>
                 <div>
                   <dt>번호 이름</dt>
                   <dd>{item.current_identity.label}</dd>
@@ -218,7 +219,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
                   <dd>{item.current_identity.default_source}</dd>
                 </div>
 
-              </dl>
+              </DataFields>
               <BusinessTable label="현재 번호 출처 목록" columns={["번호 출처", "번호 종류", "사용"]} disclosureColumn={false}>
                 {item.current_identity.sources.map(source => <BusinessRow key={source.code}>
                   <BusinessCell index={0}>{source.code}</BusinessCell>
@@ -231,7 +232,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
         </section>
       )}
       {(item.source_schema_version !== undefined || item.current_schema_version !== undefined) && (
-        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+        <DataFields>
           <div>
             <dt>파일 원본 버전</dt>
             <dd>{item.source_schema_version ?? "기록 없음"}</dd>
@@ -244,7 +245,7 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
             <dt>적용 버전</dt>
             <dd>{item.target_schema_version ?? "유지"}</dd>
           </div>
-        </dl>
+        </DataFields>
       )}
       {item.source_is_stale && (
         <p className="text-sm text-muted-foreground">
@@ -791,7 +792,7 @@ function DataModelSettingsContent() {
                   }
                 }}
               >
-                <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+                <DataFields>
                   <div>
                     <dt>시각</dt>
                     <dd>
@@ -800,7 +801,7 @@ function DataModelSettingsContent() {
                       </time>
                     </dd>
                   </div>
-                </dl>
+                </DataFields>
                 {detailState[change.id]?.loading && <Alert role="status"><AlertDescription>변경안 상세를 읽는 중…</AlertDescription></Alert>}
                 {detailState[change.id]?.error && (
                   <Alert variant="destructive" role="alert"><AlertDescription>

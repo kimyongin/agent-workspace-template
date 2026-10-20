@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 import { BusinessTable, BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
@@ -197,11 +198,13 @@ export function SchemaEditor(
     loadPlan,
   } = editor;
   useEffect(() => {
-    if (plan?.id) {
+    const explicitlySelected = new URLSearchParams(location.search).get("change_id") === plan?.id;
+    const needsImpactReview = plan?.change_kind === "migration_required" || !!plan?.recovery || (plan?.analysis?.failed ?? 0) > 0;
+    if (plan?.id && (explicitlySelected || needsImpactReview)) {
       setHistoryOpen(true);
       setReviewOpen(true);
     }
-  }, [plan?.id]);
+  }, [plan?.id, plan?.change_kind, plan?.recovery, plan?.analysis?.failed, location.search]);
   useEffect(() => {
     if (historyInitiallyOpen) setHistoryOpen(true);
   }, [historyInitiallyOpen]);
@@ -1303,7 +1306,7 @@ export function SchemaEditor(
       <ConfirmDialog
         open={deleteKey !== null}
         title="항목을 삭제할까요?"
-        message={<><dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3"><div className="col-span-full"><dt>항목 이름</dt><dd>{deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"}</dd></div></dl><p>삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제 자료는 변경되지 않습니다.</p></>}
+        message={<><DataFields><div className="col-span-full"><dt>항목 이름</dt><dd>{deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"}</dd></div></DataFields><p>삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제 자료는 변경되지 않습니다.</p></>}
         confirmLabel="삭제 변경안 만들기"
         danger
         confirmDisabled={busy || uncertain || disabled || readBusy}

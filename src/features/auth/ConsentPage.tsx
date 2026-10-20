@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 // MCP OAuth 동의 화면(/oauth/consent). Supabase OAuth 서버가 authorization_id와 함께 보낸다.
 // 클라이언트 이름과 돌아갈 주소를 보여 주고 사용자가 승인·거부한다(T02-1 실험 2의 채택 방식).
 import { useEffect, useRef, useState } from "react";
@@ -89,11 +90,11 @@ export function ConsentPage() {
               <AlertDescription>이 에이전트가 내 할 일과 기록을 조회하고 변경하려고 합니다.</AlertDescription>
             </Alert>
             <CardDescription>클라이언트 이름은 등록한 쪽이 정한 값이므로 돌아갈 주소와 함께 확인하세요.</CardDescription>
-            <dl className="flex min-w-0 flex-col gap-4">
+            <DataFields>
               <div className="flex min-w-0 flex-col gap-1"><dt>클라이언트</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{name}</dd></div>
               <div className="flex min-w-0 flex-col gap-1"><dt>돌아갈 주소</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{details.redirect_uri ?? "—"}</dd></div>
               <div className="flex min-w-0 flex-col gap-1"><dt>요청 범위</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{details.scope || "기본"}</dd></div>
-            </dl>
+            </DataFields>
             <Separator />
             <CardDescription>직접 시작한 연결이 아니거나 돌아갈 주소를 모르면 거부하세요. 승인은 에이전트가 이 계정의 데이터에 접근하도록 허용합니다.</CardDescription>
           </>}

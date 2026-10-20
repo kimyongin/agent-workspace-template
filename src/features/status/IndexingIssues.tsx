@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useApi } from "../../lib/api-context.tsx";
 import { useContext, useEffect, useId, useRef, useState } from "react";
 import {
@@ -175,7 +176,7 @@ export function IndexingIssueRows({ items, expanded, id, onToggle }: {
                         </AlertDescription>
                       </Alert>
                     )}
-                    <dl className="flex flex-wrap gap-x-6 gap-y-3 tabular-nums">
+                    <DataFields className="tabular-nums">
                       {([
                         ["현재 구간 전송 시도", `${issue.attempts}회`],
                         ["본문 구간", `${issue.chunks.succeeded}/${issue.chunks.total} 완료`],
@@ -188,7 +189,7 @@ export function IndexingIssueRows({ items, expanded, id, onToggle }: {
                           <dd>{value}</dd>
                         </div>
                       ))}
-                    </dl>
+                    </DataFields>
 
                   </BusinessDetails>
                 </Fragment>;

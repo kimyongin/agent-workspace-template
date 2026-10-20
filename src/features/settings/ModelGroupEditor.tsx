@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
@@ -203,7 +204,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
         </AlertDescription></Alert>
       )}
       {change.group && (
-        <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3" role="status">
+        <DataFields role="status">
           <div>
             <dt>전체</dt>
             <dd>{change.group.total}개</dd>
@@ -216,7 +217,7 @@ export function ModelGroupEditor({ change, onChange, onState, disabled }: {
             <dt>실패</dt>
             <dd>{change.group.failed}개</dd>
           </div>
-        </dl>
+        </DataFields>
       )}
       {change.group?.failure_reason && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{change.group.failure_reason}</AlertDescription></Alert>}
       {active && (

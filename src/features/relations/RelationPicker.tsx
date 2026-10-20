@@ -94,7 +94,7 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
       <RelatedSection
         views={false}
         title={label}
-        count={shown.length}
+        count={shown.length === value.length ? shown.length : undefined}
         action={
           <RelationSearchAction
             kind={kind}

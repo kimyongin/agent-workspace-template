@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -261,7 +262,7 @@ export function RelationDefinitionForm(
         open={confirm !== null}
         title={confirm === "delete" ? "연결 설정을 삭제할까요?" : "변경을 버릴까요?"}
         message={confirm === "delete"
-          ? <><dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3"><div className="col-span-full"><dt>대상</dt><dd>{ends.map(end => end.label).join(" ↔ ")}</dd></div></dl><p>자료 연결이 있는 설정은 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요.</p></>
+          ? <><DataFields><div className="col-span-full"><dt>대상</dt><dd>{ends.map(end => end.label).join(" ↔ ")}</dd></div></DataFields><p>자료 연결이 있는 설정은 삭제할 수 없습니다. 기존 연결을 유지하려면 보관하세요.</p></>
           : "저장하지 않은 연결 설정이 사라집니다."}
         confirmLabel={confirm === "delete" ? "삭제" : "버리기"}
         onConfirm={() => confirm === "delete" ? void remove() : onClose()}
