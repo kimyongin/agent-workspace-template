@@ -1,3 +1,4 @@
+import { DataFields, DataFieldGroup } from "@/components/DataFields";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { cn } from "../../lib/utils.ts";
@@ -409,7 +410,7 @@ export function EntityForm({
           <>
             {typeId && !canWrite && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
             {context}
-            <section className="flex-col grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+            <DataFieldGroup>
               {catalogError && (
                 <p className="text-sm text-destructive" role="alert">
                   자료 종류를 읽지 못했습니다.{" "}
@@ -512,7 +513,7 @@ export function EntityForm({
               )}
               {(initial || archived)
                 ? (
-                  <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+                  <DataFields>
                     <div>
                       <dt>번호 출처</dt>
                       <dd>
@@ -520,11 +521,11 @@ export function EntityForm({
                           initial?.source_label ?? source}
                       </dd>
                     </div>
-                  </dl>
+                  </DataFields>
                 )
                 : identitySettings?.sources.filter((item) => item.active).length === 1
                 ? (
-                  <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+                  <DataFields>
                     <div>
                       <dt>번호 출처</dt>
                       <dd>
@@ -532,7 +533,7 @@ export function EntityForm({
                         {errors.source && <p className="text-sm text-destructive" role="alert">{errors.source}</p>}
                       </dd>
                     </div>
-                  </dl>
+                  </DataFields>
                 )
                 : (
                   <Field label="번호 출처" required error={errors.source}>
@@ -563,16 +564,16 @@ export function EntityForm({
                 )}
               {initial || archived
                 ? (
-                  <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+                  <DataFields>
                     <div>
                       <dt>자료 번호</dt>
                       <dd className="wrap-anywhere tabular-nums">{external}</dd>
                     </div>
-                  </dl>
+                  </DataFields>
                 )
                 : identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"
                 ? (
-                  <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+                  <DataFields>
                     <div>
                       <dt>{identitySettings.label}</dt>
                       <dd>
@@ -580,7 +581,7 @@ export function EntityForm({
                         {errors.external_id && <p className="text-sm text-destructive" role="alert">{errors.external_id}</p>}
                       </dd>
                     </div>
-                  </dl>
+                  </DataFields>
                 )
                 : (
                   <Field label={identitySettings?.label ?? "번호"} error={errors.external_id}>
@@ -647,7 +648,7 @@ export function EntityForm({
                   />
                 )
                 : typeId && !schemaError && <p role="status">속성 정의를 불러오는 중…</p>}
-            </section>
+            </DataFieldGroup>
             {(initial || archived) && (
               <section className="flex min-w-0 flex-col gap-5">
                 <ReadonlyTags scope="entity" ids={(archived ?? initial)!.tag_ids} />

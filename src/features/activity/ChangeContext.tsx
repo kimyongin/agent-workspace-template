@@ -1,5 +1,5 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { cn } from "@/lib/utils";
+import { DataFields, DataField, DataFieldGroup } from "@/components/DataFields";
 import type { ReactNode } from "react";
 import { recordLabels, type RecordResult } from "@contracts/record.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -85,7 +85,7 @@ function SnapshotValue(
     const entries = Object.entries(value).filter(([key]) => key !== "property_labels");
     return entries.length
       ? (
-        <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+        <div className="flex min-w-0 flex-col gap-3">
           {entries.map(([key, item]) => {
             const label = (labels && Object.hasOwn(labels, key) ? labels[key] : undefined) ||
               (Object.hasOwn(snapshotLabels, key) ? snapshotLabels[key] : undefined) ||
@@ -104,14 +104,14 @@ function SnapshotValue(
                 </div>
               )
               : (
-                <dl key={key} className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere">
+                <DataFields key={key}>
                   <div>
                     <dt>{label}</dt>
                     <dd>
                       <SnapshotValue value={item} field={key} />
                     </dd>
                   </div>
-                </dl>
+                </DataFields>
               );
           })}
         </div>
@@ -144,21 +144,11 @@ export function ChangeContext(
   const { formatDateTime } = useDisplayTime();
   const change = record.change;
   const target = change ? `${targets[change.target_kind]} 「${change.target_title}」` : null;
-  const pair = (label: string, value: ReactNode, full = false) => (
-    <dl
-      className={cn(
-        "min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere",
-        full && "col-span-full",
-      )}
-    >
-      <div>
-        <dt>{label}</dt>
-        <dd>{value}</dd>
-      </div>
-    </dl>
+  const pair = (label: string, value: ReactNode, _full = false) => (
+    <DataFields><DataField label={label}>{value}</DataField></DataFields>
   );
   const properties = (
-    <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+    <DataFieldGroup className="gap-3">
       {pair("종류", recordKindNames[record.record_kind] ?? "기록")}
       {change && pair("출처", change.source === "http" ? "웹" : "에이전트")}
       {occurredAt ??
@@ -178,7 +168,7 @@ export function ChangeContext(
           true,
         )}
       {change && pair("행동", changeActionNames[change.action])}
-    </div>
+    </DataFieldGroup>
   );
   if (compact) return properties;
   return (

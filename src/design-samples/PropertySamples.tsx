@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { FieldLabel } from "../components/ui/field.tsx";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "../components/ui/collapsible.tsx";
 import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group.tsx";
@@ -514,7 +515,7 @@ export function MaterialWorkspaceSample() {
                     <PropertyDefinition fields={plan.after} />
                     <div className="min-w-0">
                       <h4 className="text-base font-semibold">변경 결과</h4>
-                      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>버전</dt><dd>{plan.version - 1} → {plan.version} · {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</dd></div></dl>
+                      <DataFields><div><dt>버전</dt><dd>{plan.version - 1} → {plan.version} · {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</dd></div></DataFields>
                       <BusinessTable label="변경 결과 예시" columns={["변경"]} disclosureColumn={false}>{changes(plan).map((change, index) => <BusinessRow key={index}><BusinessCell index={0}>{change}</BusinessCell></BusinessRow>)}</BusinessTable>
                       <p className="text-sm text-muted-foreground">
                         {plan.status === "applied"
@@ -554,7 +555,7 @@ export function MaterialWorkspaceSample() {
         title={action?.kind === "discard" ? "변경안을 폐기할까요?" : "변경안을 적용할까요?"}
         message={action?.kind === "discard"
           ? "이 변경안을 더 이상 적용하지 않습니다. 입력 초안과 현재 버전은 유지됩니다."
-          : <><dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>버전</dt><dd>{action?.plan.version}</dd></div></dl><p>예시 입력 항목을 적용합니다.</p></>}
+          : <><DataFields><div><dt>버전</dt><dd>{action?.plan.version}</dd></div></DataFields><p>예시 입력 항목을 적용합니다.</p></>}
         danger={action?.kind === "discard"}
         confirmLabel={action?.kind === "discard" ? "변경안 폐기" : "변경 적용"}
         onCancel={() => setAction(null)}

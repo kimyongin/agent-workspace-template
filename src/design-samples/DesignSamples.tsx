@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group.tsx";
 import { FieldGroup, FieldSet, FieldLegend } from "../components/ui/field.tsx";
 import { PlusIcon, RotateCcwIcon, UnlinkIcon } from "lucide-react";
@@ -328,7 +329,7 @@ function FormSamples() {
           {(props) => <Input {...props}  disabled value="처리 중" />}
         </Field>
       </div>
-      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere min-w-0">
+      <DataFields>
         <div>
           <dt>수량</dt>
           <dd>0</dd>
@@ -341,7 +342,7 @@ function FormSamples() {
           <dt>긴 이름</dt>
           <dd>공백없는아주긴상품이름도글자크기를줄이지않고자연스럽게줄바꿈합니다</dd>
         </div>
-      </dl>
+      </DataFields>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="default"  type="submit">입력 확인</Button>
       </div>

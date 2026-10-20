@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { RecordResult } from "@contracts/record.ts";
+import { DataFields, DataField, DataFieldGroup } from "../../components/DataFields.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { ChangeContext } from "./ChangeContext.tsx";
 
@@ -9,33 +10,13 @@ export function RecordDataFields({ record, body, occurredAt }: {
   body?: ReactNode;
   occurredAt?: ReactNode;
 }) {
-  return (
-    <>
-      <section className="flex min-w-0 flex-col gap-4">
-        {body
-          ? (
-            <div className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-              {body}
-            </div>
-          )
-          : (
-            <dl className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-              <div className="col-span-full min-w-0">
-                <dt>본문</dt>
-                <dd>
-                  {record.body ? <MarkdownContent text={record.body} /> : "—"}
-                </dd>
-              </div>
-            </dl>
-          )}
-        <dl className="grid min-w-0 gap-4 @min-[36rem]:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
-          <div>
-            <dt>작성자</dt>
-            <dd>{record.created_by_name ?? "—"}</dd>
-          </div>
-        </dl>
-      </section>
-      <ChangeContext record={record} occurredAt={occurredAt} />
-    </>
-  );
+  return <>
+    <section className="flex min-w-0 flex-col gap-4">
+      {body ? <DataFieldGroup>{body}</DataFieldGroup> : <DataFields><DataField label="본문">
+        {record.body ? <MarkdownContent text={record.body} /> : "—"}
+      </DataField></DataFields>}
+      <DataFields><DataField label="작성자">{record.created_by_name ?? "—"}</DataField></DataFields>
+    </section>
+    <ChangeContext record={record} occurredAt={occurredAt} />
+  </>;
 }
