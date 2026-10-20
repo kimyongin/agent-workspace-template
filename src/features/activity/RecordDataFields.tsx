@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { RecordResult } from "@contracts/record.ts";
-import { DataFields, DataField } from "../../components/DataFields.tsx";
+import { DataFields, DataField, DataFieldGroup } from "../../components/DataFields.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { ChangeContext } from "./ChangeContext.tsx";
 
@@ -12,7 +12,7 @@ export function RecordDataFields({ record, body, occurredAt }: {
 }) {
   return <>
     <section className="flex min-w-0 flex-col gap-4">
-      {body ?? <DataFields><DataField label="본문">
+      {body ? <DataFieldGroup>{body}</DataFieldGroup> : <DataFields><DataField label="본문">
         {record.body ? <MarkdownContent text={record.body} /> : "—"}
       </DataField></DataFields>}
       <DataFields><DataField label="작성자">{record.created_by_name ?? "—"}</DataField></DataFields>

@@ -1,4 +1,4 @@
-import { DataFields } from "@/components/DataFields";
+import { DataFields, DataFieldGroup } from "@/components/DataFields";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { cn } from "../../lib/utils.ts";
@@ -410,7 +410,7 @@ export function EntityForm({
           <>
             {typeId && !canWrite && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
             {context}
-            <section className="flex-col grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+            <DataFieldGroup>
               {catalogError && (
                 <p className="text-sm text-destructive" role="alert">
                   자료 종류를 읽지 못했습니다.{" "}
@@ -648,7 +648,7 @@ export function EntityForm({
                   />
                 )
                 : typeId && !schemaError && <p role="status">속성 정의를 불러오는 중…</p>}
-            </section>
+            </DataFieldGroup>
             {(initial || archived) && (
               <section className="flex min-w-0 flex-col gap-5">
                 <ReadonlyTags scope="entity" ids={(archived ?? initial)!.tag_ids} />

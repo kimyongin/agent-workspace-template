@@ -2,9 +2,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "../../components/DateInput.tsx";
 import { Textarea } from "@/components/ui/textarea";
-import { FieldGroup } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { DataFields, DataField } from "@/components/DataFields";
+import { DataFields, DataField, DataFieldGroup } from "@/components/DataFields";
 import type { ReactNode } from "react";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -84,7 +83,7 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
           )}
     </Field>
   );
-  const Grid = draft ? FieldGroup : DataFields;
+  const Grid = draft ? DataFieldGroup : DataFields;
   return (
     <Grid>
       {draft ? field("제목", "title", "text", true) : pair("제목", <DetailTitle>{value.title}</DetailTitle>, true)}
@@ -166,9 +165,11 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
               : pair(taskLabels.starts_on, recurrence?.starts_on ?? "—")}
             {draft ? field(taskLabels.timezone, "timezone") : pair(taskLabels.timezone, task?.timezone ?? "—")}
             {freq === "monthly" && (
-              <p className="col-span-full text-sm text-muted-foreground">
+              draft ? <p className="text-sm text-muted-foreground">
                 해당 달에 없는 날짜는 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다.
-              </p>
+              </p> : <DataField label="반복 안내"><p className="text-sm text-muted-foreground">
+                해당 달에 없는 날짜는 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다.
+              </p></DataField>
             )}
           </>
         )}

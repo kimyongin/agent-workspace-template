@@ -1,3 +1,4 @@
+import { DataFieldGroup } from "@/components/DataFields";
 import { useTaskAccess } from "./task-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { Textarea } from "@/components/ui/textarea";
@@ -158,10 +159,10 @@ export function RecordFormModal(props: {
                 />
               )
               : (
-                <FieldGroup>
+                <DataFieldGroup>
                   {body}
                   {!props.systemRecord && occurredAt}
-                </FieldGroup>
+                </DataFieldGroup>
               )}
             {props.editing && <FieldGroup><ReadonlyTags scope="record" ids={props.record?.tag_ids ?? []} /></FieldGroup>}
             {props.details}

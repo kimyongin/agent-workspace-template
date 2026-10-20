@@ -1,5 +1,5 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { DataFields, DataField } from "@/components/DataFields";
+import { DataFields, DataField, DataFieldGroup } from "@/components/DataFields";
 import type { ReactNode } from "react";
 import { recordLabels, type RecordResult } from "@contracts/record.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -148,7 +148,7 @@ export function ChangeContext(
     <DataFields><DataField label={label}>{value}</DataField></DataFields>
   );
   const properties = (
-    <div className="flex min-w-0 flex-col gap-3">
+    <DataFieldGroup className="gap-3">
       {pair("종류", recordKindNames[record.record_kind] ?? "기록")}
       {change && pair("출처", change.source === "http" ? "웹" : "에이전트")}
       {occurredAt ??
@@ -168,7 +168,7 @@ export function ChangeContext(
           true,
         )}
       {change && pair("행동", changeActionNames[change.action])}
-    </div>
+    </DataFieldGroup>
   );
   if (compact) return properties;
   return (

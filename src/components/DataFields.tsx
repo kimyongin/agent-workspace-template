@@ -1,4 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
+import { FieldGroup } from "./ui/field.tsx";
 import { cn } from "../lib/utils.ts";
 
 /** A single reading axis that responds to its content area, including narrow nested panels. */
@@ -14,4 +15,12 @@ export function DataField({ label, children, className, ...props }: Omit<Compone
   children: ReactNode;
 }) {
   return <div {...props} className={cn("min-w-0", className)}><dt>{label}</dt><dd>{children}</dd></div>;
+}
+
+/** Editing keeps the reading axis while controls retain their own labels and errors. */
+export function DataFieldGroup({ className, ...props }: ComponentProps<typeof FieldGroup>) {
+  return <FieldGroup {...props} className={cn(
+    "@container/data-edit min-w-0 [&>[data-slot=field]]:grid [&>[data-slot=field]]:grid-cols-1 [&>[data-slot=field]]:items-start [&>[data-slot=field]]:gap-x-4 [&>[data-slot=field]]:gap-y-1 @min-[16rem]/data-edit:[&>[data-slot=field]]:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)] @min-[16rem]/data-edit:[&>[data-slot=field]>[data-slot=field-label]]:pt-3",
+    className,
+  )} />;
 }

@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { Badge } from "../components/ui/badge.tsx";
 import { cn } from "../lib/utils.ts";
 import { FieldGroup, FieldSet } from "../components/ui/field.tsx";
@@ -64,7 +65,7 @@ export function ModalSamples() {
         )}
       </Field>
       <div className="grid min-w-0 gap-4">
-        <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere min-w-0" aria-label="예시 상품 전체 정보">
+        <DataFields aria-label="예시 상품 전체 정보">
           <div><dt>상품명</dt><dd>{deleted ? "삭제된 예시 자료" : name}</dd></div>
           <div><dt>자료 번호</dt><dd>SAMPLE-001</dd></div>
           <div><dt>수량</dt><dd>{values.quantity}</dd></div>
@@ -74,7 +75,7 @@ export function ModalSamples() {
             {tags.length ? <span className="flex flex-wrap items-center gap-2">{sampleTags.filter(tag => tags.includes(tag.id)).map(tag => <Badge variant="secondary"  key={tag.id}>{tag.name}</Badge>)}</span> : "연결된 태그 없음"}
             <Button variant="ghost" type="button"  disabled={deleted} onClick={() => setTagDraft([...tags])}><LinkIcon data-icon="inline-start" />태그 연결</Button>
           </dd></div>
-        </dl>
+        </DataFields>
         {tagDraft !== null && <section aria-label="예시 자료 태그 연결" className="flex min-w-0 flex-col gap-5">
           <TagSelection label="자료 태그" tags={sampleTags} value={tagDraft} onChange={setTagDraft} />
           <div className="flex flex-wrap items-center gap-2"><Button variant="outline"  onClick={() => setTagDraft(null)}>취소</Button><Button variant="default"  onClick={() => { setTags([...tagDraft]); setTagDraft(null); setMessage("예시 태그 연결만 적용했습니다. 상품 편집과는 별도 작업입니다."); }}>연결 적용</Button></div>
@@ -119,7 +120,7 @@ export function ModalSamples() {
         open={deleting}
         busy={busy}
         title="예시 자료를 삭제할까요?"
-        message={<><dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div className="col-span-full"><dt>대상</dt><dd>{name}</dd></div></dl><p>예시 자료를 삭제합니다. 실제 앱의 자료에는 영향이 없습니다.</p></>}
+        message={<><DataFields><div className="col-span-full"><dt>대상</dt><dd>{name}</dd></div></DataFields><p>예시 자료를 삭제합니다. 실제 앱의 자료에는 영향이 없습니다.</p></>}
         danger
         confirmLabel="예시 자료 삭제"
         onCancel={() => {
@@ -225,11 +226,11 @@ function EditDialog(
                   />
                 )}
               </Field>
-              <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>자료 번호</dt><dd>SAMPLE-001</dd></div></dl>
+              <DataFields><div><dt>자료 번호</dt><dd>SAMPLE-001</dd></div></DataFields>
               <Field label="수량">{props => <Input {...props}  inputMode="decimal" value={draft.quantity} onChange={e => setDraft({ ...draft, quantity: e.target.value })} readOnly={uncertain} />}</Field>
               <Field label="판매 중">{props => <NativeSelect {...props}  value={String(draft.sale)} onChange={e => setDraft({ ...draft, sale: e.target.value === "true" })} disabled={uncertain}><NativeSelectOption value="false">아니요</NativeSelectOption><NativeSelectOption value="true">예</NativeSelectOption></NativeSelect>}</Field>
               <Field fullWidth label="메모">{props => <Textarea {...props}  rows={3} value={draft.memo} onChange={e => setDraft({ ...draft, memo: e.target.value })} readOnly={uncertain} />}</Field>
-              <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere col-span-full"><div><dt>태그</dt><dd>{tags.length ? <span className="flex flex-wrap items-center gap-2">{sampleTags.filter(tag => tags.includes(tag.id)).map(tag => <Badge variant="secondary" key={tag.id} >{tag.name}</Badge>)}</span> : "연결된 태그 없음"}</dd></div></dl>
+              <DataFields><div><dt>태그</dt><dd>{tags.length ? <span className="flex flex-wrap items-center gap-2">{sampleTags.filter(tag => tags.includes(tag.id)).map(tag => <Badge variant="secondary" key={tag.id} >{tag.name}</Badge>)}</span> : "연결된 태그 없음"}</dd></div></DataFields>
               <p className="text-sm text-muted-foreground">취소하면 같은 보기로 돌아갑니다. 변경한 입력은 폐기 확인을 거쳐 버립니다.</p>
             </FieldGroup></form>
     </ConfirmationSurface>
@@ -238,13 +239,13 @@ function EditDialog(
     <ConfirmationSurface open={stage === "review"} title="변경을 저장할까요?" busy={busy || uncertain} onCancel={() => setStage("edit")} closeButton
       footer={<><Button type="button" variant="outline" disabled={busy || uncertain} onClick={() => setStage("edit")}>취소</Button><Button type="button" disabled={busy} onClick={execute}>{busy ? "처리 중…" : uncertain ? "결과 확인" : "저장"}</Button></>}>
               <FieldGroup className="flex min-w-0 flex-col gap-5">
-                <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere min-w-0">
+                <DataFields>
                   {([["name", "상품명"], ["quantity", "수량"], ["sale", "판매 중"], ["memo", "메모"]] as const).map(([key, label]) => {
                     const after = snapshot.current && uncertain ? snapshot.current.values : draft;
                     const text = (value: string | boolean) => typeof value === "boolean" ? value ? "예" : "아니요" : value || "미입력";
                     return <div className={cn(key === "memo" ? "col-span-full" : undefined)} key={key}><dt>{label}</dt><dd>{text(initial[key])} → {text(after[key])}</dd></div>;
                   })}
-                </dl>
+                </DataFields>
                 <Field fullWidth label="기록 메모">
                   {(props) => (
                     <Textarea
