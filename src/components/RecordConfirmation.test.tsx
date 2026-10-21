@@ -18,11 +18,11 @@ afterEach(async () => {
   document.body.replaceChildren();
 });
 
-for (const edited of [false, true]) test(`pending automatic ID preserves ${edited ? "edited" : "server default"} record memo`, async () => {
+for (const pending of [false, true]) for (const edited of [false, true]) test(`pending ID=${pending} preserves ${edited ? "edited" : "server default"} record memo`, async () => {
   const execute = vi.fn<(key: () => string, memo: RecordMemo) => Promise<void>>(async () => {});
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("/records/prepare") ? {
     prepared_input: {}, change_note: "자료를 등록했습니다", change_tag_ids: [], missing_tag_ids: [],
-    settings_version: 1, pending_entity_id: true,
+    settings_version: 1, ...(pending ? { pending_entity_id: true } : {}),
   } : { items: [] }), { status: 200 })));
   function Confirmation() {
     useRecordConfirmation({ initial: "save", describe: () => ({
@@ -44,7 +44,7 @@ for (const edited of [false, true]) test(`pending automatic ID preserves ${edite
       </WorkspaceRouteContext.Provider>
     </AuthContext.Provider>,
   ));
-  expect(container.textContent).toContain("저장 후 발급되는 자료 번호로 기록 메모가 완성됩니다");
+  expect(container.textContent?.includes("저장 후 발급되는 자료 번호로 기록 메모가 완성됩니다")).toBe(pending);
   if (edited) await act(async () => {
     const input = container.querySelector("textarea")!;
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, "직접 입력한 이유");
@@ -52,5 +52,5 @@ for (const edited of [false, true]) test(`pending automatic ID preserves ${edite
   });
   await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "등록하고 저장")!.click());
   expect(execute).toHaveBeenCalledTimes(1);
-  expect(execute.mock.calls[0][1]).toEqual(edited ? { change_note: "직접 입력한 이유", change_tag_ids: [] } : { change_tag_ids: [] });
+  expect(execute.mock.calls[0][1]).toEqual(edited ? { change_note: "직접 입력한 이유", change_tag_ids: [] } : pending ? { change_tag_ids: [] } : { change_note: "자료를 등록했습니다", change_tag_ids: [] });
 });

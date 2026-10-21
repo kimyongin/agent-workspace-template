@@ -1,4 +1,5 @@
 import { badgeVariants } from "@/components/ui/badge";
+import { cn } from "../../lib/utils.ts";
 /** Display labels never participate in the persisted template grammar. */
 export type MemoVariable = { value: string; label: string };
 export type MemoPart = { text: string; variable?: MemoVariable };
@@ -45,7 +46,7 @@ export function memoFragment(memo: string, variables: MemoVariable[]): DocumentF
     if (!part.variable) fragment.append(document.createTextNode(part.text));
     else {
       const token = document.createElement("span");
-      token.className = badgeVariants({ variant: "secondary" });
+      token.className = cn(badgeVariants({ variant: "secondary" }), "h-auto max-w-full whitespace-pre-wrap [overflow-wrap:anywhere]");
       token.dataset.slot = "badge";
       token.dataset.variant = "secondary";
       token.contentEditable = "false";
