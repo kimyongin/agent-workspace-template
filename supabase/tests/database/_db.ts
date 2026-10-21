@@ -16,9 +16,13 @@ const dbPort = new URL(adminUrl).port;
 export const urls = {
   admin: adminUrl,
   direct: `postgresql://app_server:${password}@${host}:${dbPort}/postgres`,
-  pooler: `postgresql://app_server.pooler-dev:${password}@${host}:${
-    Deno.env.get("LOCAL_POOLER_PORT") ?? 55429
-  }/postgres`,
+  get pooler() {
+    const configured = Deno.env.get("LOCAL_POOLER_PORT");
+    if (!configured && dbPort !== "55422") {
+      throw new Error("LOCAL_POOLER_PORT must explicitly identify the pooler for a custom local DB");
+    }
+    return `postgresql://app_server.pooler-dev:${password}@${host}:${configured ?? 55429}/postgres`;
+  },
 };
 
 export function connect(url: string, opts: postgres.Options<Record<string, never>> = {}) {
