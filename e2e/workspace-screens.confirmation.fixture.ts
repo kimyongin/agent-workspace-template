@@ -128,9 +128,12 @@ for (const revoked of ["read", "none"] as const) {
       actorId: id(901), workspaceId: fixtureWorkspaceId, request_key: attempts[0].key,
       method: "POST", path: `/tasks/${id(2)}/stop`, status: "unknown",
     });
+    const requestWorkspace = async () => {
+      await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("button", { name: "공간 선택", exact: true }).click();
+      await page.getByRole("menuitem", { name: "테스트 공간", exact: true }).click();
+    };
     const frozenUrl = page.url();
-    await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("button", { name: "공간 선택", exact: true }).click();
-    await page.getByRole("menuitem", { name: "테스트 공간", exact: true }).click();
+    await requestWorkspace();
     await expect(page).toHaveURL(frozenUrl);
     access = revoked; membershipVersion++;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -156,7 +159,7 @@ for (const revoked of ["read", "none"] as const) {
     access = revoked; membershipVersion++;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(detail.getByRole("button", { name: "중단", exact: true })).toHaveCount(0);
-    await workspaceLink.click();
+    await requestWorkspace();
     await expect(page).toHaveURL(new URL("/workspaces", page.url()).href);
     await page.screenshot({ path: info.outputPath(`transition-${revoked}-exited.png`) });
     expect(await page.evaluate(key => sessionStorage.getItem(key), storageKey)).toBe(metadata);
