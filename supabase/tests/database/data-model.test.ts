@@ -142,6 +142,7 @@ dbTest(
       sample.relations = [];
       sample.entity_types[0].schema.properties = { prop_9: sample.entity_types[0].schema.properties.prop_1 };
       sample.entity_types[0].schema.required = ["prop_9"];
+      sample.entity_types[0].schema["x-title-template"] = "$prop_9$";
       const input = { mode: "copy" as const, document: JSON.stringify(sample) },
         review = await previewDataModel(deps, a.manager, input),
         actor = requestActor(a.manager),
@@ -152,6 +153,7 @@ dbTest(
       ]);
       assertEquals(one, two);
       assertEquals(review.mapping.properties.ingredient, { prop_9: "prop_1" });
+      assertEquals(review.items.find((item) => item.ref === "ingredient")?.schema?.["x-title-template"], "$prop_1$");
       const publishActor = requestActor(a.manager),
         [left, right] = await Promise.all([
           applyDataModel(deps, publishActor, one.id, { expected_version: one.version }),
@@ -161,6 +163,8 @@ dbTest(
       const before = await exportDataModel(deps, a.manager);
       assertEquals(before.entity_types.length, 1);
       assertEquals(before.entity_types[0].schema.required, ["prop_1"]);
+      assertEquals(before.entity_types[0].schema["x-title-template"], "$prop_1$");
+      await a.grantKind(a.manager, before.entity_types[0].schema["x-type-id"], "write");
       const changed = structuredClone(before), type = changed.entity_types[0];
       type.schema.properties.prop_99 = { type: "integer", "x-order": 30 };
       const update = { mode: "update" as const, document: JSON.stringify(changed) },
