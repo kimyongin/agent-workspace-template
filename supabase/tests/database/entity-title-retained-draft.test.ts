@@ -39,13 +39,13 @@ dbTest(
       };
       const added = {
         type: "string" as const,
-        "x-order": 20,
+        "x-order": 30,
         title: "이전 추가 이름",
         "x-representative": true,
         "x-show-in-list": true,
         "x-list-order": 1,
       };
-      legacy.properties = { prop_1: first, prop_2: added };
+      legacy.properties = { ...legacy.properties, prop_1: first, prop_3: added };
       legacy["x-version"] = 2;
       const rawEdits = [
         { op: "update_property", key: "prop_1", field: first, required: true },
@@ -58,11 +58,11 @@ dbTest(
           JSON.stringify({ sub: actor.userId, role: "authenticated" })
         },true),
           set_config('request.workspace_id',${fixture.workspaceId},true)`;
-        await tx`update app.entity_types set next_property_number=3 where workspace_id=${fixture.workspaceId} and id=${kind.id}`;
+        await tx`update app.entity_types set next_property_number=4 where workspace_id=${fixture.workspaceId} and id=${kind.id}`;
         await tx`insert into app.entity_schema_changes(workspace_id,type_id,id,source_type_version,source_schema_version,source_template_fingerprint,status,kind,edits,reservations,target,diff,fingerprint)
         values(${fixture.workspaceId},${kind.id},${oldId},1,1,${"a".repeat(64)},'draft','compatible',${
           tx.json(rawEdits)
-        },'{"title":"prop_2"}',${tx.json({ schema: legacy })},'[]',${fingerprint})`;
+        },'{"title":"prop_3"}',${tx.json({ schema: legacy })},'[]',${fingerprint})`;
       });
       schema.description = "전환 후 현재 정의";
       const input = { mode: "update", document: JSON.stringify(document) };
@@ -83,7 +83,7 @@ dbTest(
       const read = await getEntitySchemaChange(fixture.typeDeps, actor, kind.id, oldId);
       assertEquals(read.status, "stale");
       assertEquals(read.fingerprint, fingerprint);
-      assertEquals(read.target.schema["x-title-template"], "$prop_2$");
+      assertEquals(read.target.schema["x-title-template"], "$prop_3$");
       assertEquals(read.edits.map((edit) => edit.op), ["update_property", "add_property"]);
       for (const edit of read.edits) {
         if (edit.op !== "update_property" && edit.op !== "add_property") throw new Error("missing retained edit");
@@ -98,9 +98,9 @@ dbTest(
       });
       assertEquals(restarted.id === oldId, false);
       assertEquals(restarted.source_schema_version, 2);
-      assertEquals(restarted.reservations, { title: "prop_3" });
-      assertEquals(restarted.target.schema["x-title-template"], "$prop_3$");
-      assertEquals(restarted.target.schema.properties.prop_3.title, "이전 추가 이름");
+      assertEquals(restarted.reservations, { title: "prop_4" });
+      assertEquals(restarted.target.schema["x-title-template"], "$prop_4$");
+      assertEquals(restarted.target.schema.properties.prop_4.title, "이전 추가 이름");
       assertEquals(restarted.target.schema.properties.prop_1.minLength, first.minLength);
       assertEquals(await raw(), before);
       assertEquals((await getEntitySchemaChange(fixture.typeDeps, actor, kind.id, oldId)).status, "stale");
