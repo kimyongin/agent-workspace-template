@@ -12,21 +12,26 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
   try {
     const type = await client.call("create_entity_type", { label: unique("제목 템플릿 고객") });
     await workspace.grantKind(type.id);
+    const initial = await client.call("get_entity_schema", { type_id: type.id });
     const longPropertyLabel = "확장속성".repeat(19) + "이름값";
     const addition = await client.call("create_entity_schema_change", {
       type_id: type.id,
       expected_schema_version: type.schema_version,
       edits: [
-        { op: "add_property", client_ref: "region", field: { type: "string", title: "지역", "x-order": 20 } },
+        { op: "update_property", key: "prop_2", field: { type: "string", title: "지역", "x-order": 20 }, required: false },
         {
           op: "add_property",
           client_ref: "long_label",
           field: { type: "string", title: longPropertyLabel, "x-order": 30 },
         },
+        { op: "add_property", client_ref: "identifier", field: { ...initial.schema.properties.prop_2, "x-order": 40 }, required: true },
+        { op: "set_metadata", "x-identity-property": "new_identifier" },
       ],
     });
     await analyzeAndApply(client, type.id, addition.id, addition.version);
     const definition = await client.call("get_entity_schema", { type_id: type.id });
+    expect(definition.schema["x-identity-property"]).toBe("prop_4");
+    expect(definition.schema.properties.prop_2.type).toBe("string");
     const original = await client.call("create_entity", {
       entity_type_id: type.id,
       schema_version: definition.schema_version,
@@ -75,7 +80,7 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
 
     const current = await client.call("get_entity", { id: original.id });
     expect(current.title).toBe("초록상점 - 서울");
-    expect(current.properties).toEqual({ prop_1: "초록상점", prop_2: "서울" });
+    expect(current.properties).toEqual({ prop_1: "초록상점", prop_2: "서울", prop_4: original.properties.prop_4 });
     expect(current.version).toBe(original.version);
     expect(current.schema_version).toBe(original.schema_version);
     const found = await client.call("list_entities", {
