@@ -3,6 +3,7 @@ import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, unique, 
 import { analyzeAndApply, schemaAnalysisTick } from "./entity-schema-support.ts";
 import { closeDetail, detailDialog } from "./ui-actions.ts";
 import { disclosureContent } from "./table-actions.ts";
+import { chooseSetting } from "./settings-actions.ts";
 
 test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록·연결·상세에 같은 제목을 표시한다", async ({ page }, info) => {
   await devLogin(page);
@@ -29,6 +30,8 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
       entity_ids: [original.id],
     });
     expect(pastTask.entity_context[0].title).toBe("초록상점");
+    const pastRecords = await client.call("list_records", { entity_id: original.id, record_kind: "change" });
+    const pastRecord = await client.call("get_record", { id: pastRecords.items[0].id });
 
     await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}`));
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
@@ -41,7 +44,10 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
       definition.schema_version,
     );
 
-    await editor.fill("$prop_1$ - $prop_2$");
+    await editor.click();
+    await editor.press("End");
+    await editor.pressSequentially(" - ");
+    await chooseSetting(page, settings.getByLabel("제목에 넣을 속성", { exact: true }), "지역");
     await expect(editor).toHaveText("이름 - 지역");
     await page.screenshot({ path: info.outputPath("title-template-edit.png"), fullPage: true });
     await settings.getByRole("button", { name: "변경 검토", exact: true }).click();
@@ -76,7 +82,10 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
       entity_ids: [original.id],
     });
     expect(nextTask.entity_context[0].title).toBe("초록상점 - 서울");
-    expect((await client.call("get_task", { id: pastTask.id })).entity_context[0].title).toBe("초록상점");
+    expect((await client.call("get_task", { id: pastTask.id })).entity_context[0].title).toBe("초록상점 - 서울");
+    expect((await client.call("get_record", { id: pastRecord.id })).change_metadata).toEqual(
+      pastRecord.change_metadata,
+    );
 
     for (const view of ["테이블", "카드"]) {
       await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${type.id}`));
