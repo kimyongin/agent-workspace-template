@@ -4,6 +4,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as pause } from 'node:timers/promises';
+import { startProcessSamples } from './test-resources.mjs';
 import { runLocalChecks } from './local-runtime.mjs';
 
 const interruptedCodes = new Set([130, 143, 3221225786, -1073741510]);
@@ -19,9 +20,9 @@ export function realHostBindSource(source) {
     }
     source = `${bridge[1].toUpperCase()}:\\${bridge[2].replaceAll('/', '\\')}`;
   }
-  // macOS Docker Desktop exposes only this exact Users bridge for these checkouts.
+  // Docker Desktop exposes user checkouts and isolated temporary checkouts here.
   // Reject traversal/ambiguous components before resolving the real host directory.
-  if (process.platform === 'darwin' && source.startsWith('/host_mnt/Users/')) {
+  if (process.platform === 'darwin' && /^\/host_mnt\/(Users|private)\//.test(source)) {
     const hostSource = source.slice('/host_mnt'.length);
     if (hostSource.slice(1).split('/').some(part => !part || part === '.' || part === '..' || /[\\:\0]/.test(part))) {
       throw new Error('Invalid Docker Desktop host bind path');
@@ -47,11 +48,15 @@ export function acquireRuntimeLock(projectId, directory = tmpdir()) {
 }
 
 export async function runLeasedLocalChecks(config, options, adapter = createLocalRuntimeAdapter(config), directory) {
+  const leaseStarted = performance.now();
   const release = acquireRuntimeLock(`${config.projectId}:${config.apiUrl}`, directory);
+  const acquireMs = performance.now() - leaseStarted;
+  let releaseMs;
   let result, failure, failed = false;
   try { result = await runLocalChecks(adapter, { ...options, source: adapter.source }); }
   catch (error) { failed = true; failure = error; }
   finally {
+    const releaseStarted = performance.now();
     try { release(); }
     catch (error) {
       if (result) {
@@ -61,9 +66,10 @@ export async function runLeasedLocalChecks(config, options, adapter = createLoca
         failure = failed ? new AggregateError([failure, error], 'Local execution and lease cleanup failed') : error;
         failed = true;
       }
-    }
+    } finally { releaseMs = performance.now() - releaseStarted; }
   }
   if (failed) throw failure;
+  result.leaseTimings = { acquireMs, releaseMs };
   return result;
 }
 
@@ -81,10 +87,9 @@ export async function removeOwnedContainer(id, command) {
 }
 
 // External process/HTTP effects. No shell interpolation or project-name teardown.
-export function createLocalRuntimeAdapter(config) {
+export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
   const source = realpathSync('supabase/functions');
-  const npm = process.env.npm_execpath ?? join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
-  if (!existsSync(npm)) throw new Error('Run through npm run test:integration:local to resolve the npm CLI');
+  const npm = env.npm_execpath ?? join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
   const api = `${config.apiUrl}/functions/v1/api/tasks`;
   const containerName = `supabase_edge_runtime_${config.projectId}`;
   const log = join(tmpdir(), `workspace-functions-${process.pid}-${Date.now()}.log`);
@@ -107,7 +112,7 @@ export function createLocalRuntimeAdapter(config) {
   }
 
   function launch(file, args, stdio) {
-    const child = spawn(file, args, { shell: false, stdio, detached: process.platform !== 'win32' });
+    const child = spawn(file, args, { shell: false, stdio, env, detached: process.platform !== 'win32' });
     child.finished = new Promise(resolve => {
       child.once('error', () => { child.spawnFailed = true; resolve({ code: null, interrupted: false, spawnFailed: true }); });
       child.once('close', (code, signal) => resolve({ code, signal, interrupted: Boolean(signal) || interruptedCodes.has(code) }));
@@ -115,8 +120,9 @@ export function createLocalRuntimeAdapter(config) {
     return child;
   }
 
-  async function command(file, args, { signal, stdio = ['ignore', 'pipe', 'pipe'], timeoutMs = 15_000 } = {}) {
+  async function command(file, args, { signal, stdio = ['ignore', 'pipe', 'pipe'], timeoutMs = 15_000, resources = false } = {}) {
     const child = launch(file, args, stdio);
+    const finishResources = resources ? startProcessSamples(child.pid) : undefined;
     let output = '', oversized = false;
     child.stdout?.on('data', chunk => {
       if (oversized) return;
@@ -130,7 +136,7 @@ export function createLocalRuntimeAdapter(config) {
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
     if (timeoutMs) timer = setTimeout(abort, timeoutMs);
-    try { return { ...await Promise.race([child.finished, aborted]), output, oversized }; }
+    try { return { ...await Promise.race([child.finished, aborted]), output, oversized, resources: finishResources?.() }; }
     finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
 
@@ -140,9 +146,9 @@ export function createLocalRuntimeAdapter(config) {
     const ids = inventory.output.trim().split('\n').filter(line => line.trim().split(' ')[1] === containerName).map(line => line.trim().split(' ')[0]);
     if (!ids.length) return null;
     if (ids.length !== 1 || !/^[a-f0-9]{64}$/.test(ids[0])) throw new Error('Ambiguous local runtime identity');
-    const inspected = await command('docker', ['inspect', '--format', '[{{json .Id}},{{json .Created}},{{json .Mounts}},{{json .State.Running}},{{json .State.Status}}]', ids[0]]);
+    const inspected = await command('docker', ['inspect', '--format', '[{{json .Id}},{{json .Created}},{{json .Mounts}},{{json .State.Running}},{{json .State.Status}},{{json .State.OOMKilled}},{{json .State.ExitCode}}]', ids[0]]);
     if (inspected.code !== 0 || inspected.oversized) throw new Error('Cannot inspect local runtime identity');
-    const [id, created, mounts, running, status] = JSON.parse(inspected.output);
+    const [id, created, mounts, running, status, oomKilled, exitCode] = JSON.parse(inspected.output);
     if (id !== ids[0] || !Number.isFinite(Date.parse(created)) || !Array.isArray(mounts) || typeof running !== 'boolean' || typeof status !== 'string') throw new Error('Invalid local runtime metadata');
     // CLI bind destinations vary across hosts; compare the real host source, not a guessed destination.
     const functions = mounts.filter(m => {
@@ -154,7 +160,7 @@ export function createLocalRuntimeAdapter(config) {
     if (marker.code !== 0 || marker.oversized) throw new Error('Cannot inspect runtime ownership marker');
     const entries = marker.output.trim().split('\n').filter(Boolean);
     const ownershipToken = entries.length === 1 ? entries[0].trim().slice('WORKSPACE_RUNTIME_OWNER='.length) : null;
-    return { id, source: functions.length === 1 ? source : null, running, status, ownershipToken };
+    return { id, source: functions.length === 1 ? source : null, running, status, oomKilled, exitCode, ownershipToken };
   }
 
   async function observe(signal) {
@@ -168,11 +174,15 @@ export function createLocalRuntimeAdapter(config) {
     return { state: 'absent' };
   }
 
-  async function run(label, signal, extra = []) {
+  async function run(check, signal, extra = []) {
+    const label = typeof check === 'string' ? check : check.id;
+    const args = typeof check === 'string' ? [npm, 'run', '-s', scripts[check], ...extra]
+      : check.nodeArgs ?? (check.npmArgs ? [npm, ...check.npmArgs] : [npm, 'run', '-s', check.script, ...(check.args ?? [])]);
+    if (args[0] === npm && !existsSync(npm)) throw new Error('Run through npm to resolve its CLI');
     console.log(`\n▶ ${label}`);
-    const started = Date.now();
-    const result = await command(process.execPath, [npm, 'run', '-s', scripts[label], ...extra], { signal, stdio: 'inherit', timeoutMs: 0 });
-    return { code: result.code, signal: result.signal, interrupted: result.interrupted, stopFailed: result.stopFailed, seconds: Math.round((Date.now() - started) / 1000) };
+    const started = performance.now();
+    const result = await command(process.execPath, args, { signal, stdio: 'inherit', timeoutMs: 0, resources: true });
+    return { code: result.code, signal: result.signal, interrupted: result.interrupted, stopFailed: result.stopFailed, spawnFailed: result.spawnFailed, elapsedMs: performance.now() - started, resources: result.resources, seconds: Math.round((performance.now() - started) / 1000) };
   }
 
   return {
