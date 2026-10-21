@@ -232,7 +232,7 @@ for (
       );
       if (scenario === "late_insert_failure") {
         await db.unsafe(
-          `create function private.inject_failure() returns trigger language plpgsql as $$ begin if new.type_id='${later}'::uuid then raise exception 'injected_late_failure';end if;return new;end $$;create trigger zz_failure before insert on app.entity_schema_versions for each row execute function private.inject_failure()`,
+          `create function private.inject_failure() returns trigger language plpgsql as $$ begin if new.schema->>'x-type-id'='${later}' then raise exception 'injected_late_failure';end if;return new;end $$;create trigger zz_failure before insert on app.entity_schema_versions for each row execute function private.inject_failure()`,
         );
       }
       const oldVersions =
