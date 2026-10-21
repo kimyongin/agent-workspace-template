@@ -316,7 +316,9 @@ test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 
   ).toBeVisible();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
-  await expect(menu.getByRole("menuitem")).toHaveText(["기본", "자료", "태그", "기록"]);
+  await expect(menu.getByRole("menuitem")).toHaveText(["기본", "자료", "태그", "기록", "이 공간 관리", "공간 목록 · 새 공간"]);
+  await expect(menu.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveAttribute("href", fixtureWorkspacePath("/manage"));
+  await expect(menu.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
   await menu.getByRole("menuitem", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/issuers$/);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
@@ -376,7 +378,7 @@ test("settings menu supports directional keys and visibly identifies the current
   expect(await current.evaluate((node) => getComputedStyle(node).backgroundColor))
     .not.toBe(await first.evaluate((node) => getComputedStyle(node).backgroundColor));
   await current.press("End");
-  const last = menu.getByRole("menuitem", { name: "기록", exact: true });
+  const last = menu.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true });
   await expect(last).toBeFocused();
   await page.keyboard.press("Home");
   await expect(first).toBeFocused();
