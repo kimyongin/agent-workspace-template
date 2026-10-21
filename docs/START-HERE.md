@@ -7,6 +7,7 @@
 | 문맥 | 정본 |
 | --- | --- |
 | 제품 목표와 요구 | [PRD](product/concept.md) |
+| 설계 방향을 검토할 업무 사례 | [대표 사용 사례](product/design-use-cases.md) |
 | 앱 사용자 안내 | [앱을 사용하는 방법](product/using-app.md) |
 | 통합 기록 모델 | [설계와 전환](architecture/unified-record-model.md) · [ADR-0012](adr/0012-current-state-and-unified-records.md) |
 | 구조·기술·권한 결정 | [ADR](adr/README.md) |
