@@ -36,8 +36,6 @@ dbTest(
         entityCreate.parse({
           entity_type_id: kind.id,
           schema_version: 1,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "원본" },
         }),
       );

@@ -1,6 +1,10 @@
 import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
+import {
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { createEntity, getEntity, updateEntity } from "../../functions/_shared/core/entity/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
@@ -17,14 +21,13 @@ dbTest("same creation identity and stale version never repeat a business change"
     await other.grantKind(other.manager, foreignKind.id, "write");
     const schema = { entity_type_id: kind.id, schema_version: kind.schema_version };
     const foreignSchema = { entity_type_id: foreignKind.id, schema_version: foreignKind.schema_version };
+    const raw = crypto.randomUUID(), kindId = "00000000-0000-4000-8000-000000000001";
     const input = entityCreate.parse({
       ...schema,
-      source: "app",
-      external_id: crypto.randomUUID(),
-      properties: { prop_1: "원본" },
+      properties: { prop_1: "원본", prop_2: encodeIdentifierValue(kindId, raw) },
     });
     const created = await createEntity(deps, requestActor(f.manager), input);
-    assertEquals(created.id, `app:${input.entity_type_id}:${input.external_id}`);
+    assertEquals(created.id, encodeIdentifierReference(input.entity_type_id, kindId, raw));
     await assertRejects(() => createEntity(deps, requestActor(f.manager), input), AppError);
     const collision = await assertRejects(() => createEntity(deps, requestActor(f.manager), input), AppError);
     assertEquals(collision.code, "conflict");
@@ -33,11 +36,10 @@ dbTest("same creation identity and stale version never repeat a business change"
     const foreign = await createEntity(deps, requestActor(other.manager), {
       ...input,
       ...foreignSchema,
-      properties: { prop_1: "다른 소유자" },
+      properties: { prop_1: "다른 소유자", prop_2: input.properties.prop_2 },
     });
-    assertEquals(foreign.id, `app:${foreignSchema.entity_type_id}:${input.external_id}`);
-    assertEquals(foreign.external_id, created.external_id);
-    assertEquals(foreign.source, created.source);
+    assertEquals(foreign.id, encodeIdentifierReference(foreignSchema.entity_type_id, kindId, raw));
+    assertEquals(foreign.properties.prop_2, created.properties.prop_2);
     assertEquals((await getEntity(deps, other.manager, foreign.id)).properties.prop_1, "다른 소유자");
     assertEquals((await getEntity(deps, f.manager, created.id)).properties.prop_1, "원본");
     const patch = {

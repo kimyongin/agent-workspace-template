@@ -585,7 +585,7 @@ for (const outcome of ["success", "failed"] as const) {
       await expect(anchor).not.toBeFocused();
       release();
       if (outcome === "success") {
-        await expect(preview.getByRole("term").filter({ hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(target.external_id);
+        await expect(preview.getByRole("term").filter({ hasText: /^식별자 · 자료 식별자$/ }).locator("../dd")).toHaveText(target.identity_label);
         const quantity = preview.getByRole("term").filter({ hasText: /^수량$/ });
         await expect(quantity).toHaveCount(1);
         await expect(quantity.locator("..").getByRole("definition")).toHaveText("1,234");

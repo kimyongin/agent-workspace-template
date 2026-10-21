@@ -291,13 +291,8 @@ activityWorkspaceSuite(
     assertEquals(new Set(all).size, 101);
     assertEquals(all.sort(), entities.toSorted());
     const afterCreation = (await request<EntitySchemaResult>(token, w, "GET", `/entity-types/${typeId}/schema`)).body;
-    const { identity: initialIdentity, ...initialDefinition } = schema.body;
-    const { identity: referencedIdentity, ...unchangedDefinition } = afterCreation;
-    assertEquals(unchangedDefinition, initialDefinition);
-    assert(initialIdentity && referencedIdentity);
-    assertEquals(initialIdentity.sources.find((source) => source.code === "app")?.referenced, false);
-    assertEquals(referencedIdentity.sources.find((source) => source.code === "app")?.referenced, true);
-    assertEquals(referencedIdentity.version, initialIdentity.version);
+    // Registration reserves the value without rewriting the published definition or registry versions.
+    assertEquals(afterCreation, schema.body);
     const filtered = {
       entity_type_id: typeId,
       limit: 100,

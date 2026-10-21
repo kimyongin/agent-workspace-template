@@ -123,8 +123,6 @@ dbTest(
         requestActor(A),
         entityCreate.parse({
           ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "대상" },
         }),
       );
@@ -302,8 +300,6 @@ dbTest(
           requestActor(A),
           entityCreate.parse({
             ...schema,
-            source: "app",
-            external_id: crypto.randomUUID(),
             properties: { prop_1: "대상" },
           }),
         ),
