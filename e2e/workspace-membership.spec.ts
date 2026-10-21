@@ -470,3 +470,107 @@ test(
     }
   },
 );
+
+// A privileged setup adds only this test's membership to its freshly created
+// workspace. Login, capability reads, navigation and denial use the real app.
+test(
+  "a member without settings permission keeps account workspace entries and cannot manage the selected space",
+  async ({ page, browser, baseURL }, info) => {
+    const environment = isolatedEnvironment();
+    expect(info.config.workers).toBe(1);
+    expect(new URL(baseURL!).origin).toBe(environment.web);
+    const run = `entry-${info.project.name}-${randomUUID().slice(0, 8)}`;
+    const owned = ownedFixture(page, info, environment, run);
+    const sql = postgres(required(environment.values, "LOCAL_DB_URL"), { max: 1, onnotice: () => {} });
+    const alternate = await browser.newContext({
+      baseURL: environment.web,
+      viewport: page.viewportSize(),
+      ...(info.project.name === "mobile" ? { isMobile: true, hasTouch: true } : {}),
+    });
+    let workspaceId: string | undefined, memberId: string | undefined, memberSession: string | null = null;
+    try {
+      await page.goto("/login");
+      await page.getByLabel("이메일", { exact: false }).fill(required(environment.values, "DEV_USER_A_EMAIL"));
+      await page.getByLabel("비밀번호", { exact: false }).fill(required(environment.values, "DEV_USER_A_PASSWORD"));
+      await page.getByRole("button", { name: "이메일로 로그인", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "내 공간", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "새 공간 만들기", exact: true }).click();
+      const name = `관리 권한 없는 공간 ${run}`;
+      await page.getByRole("textbox", { name: "공간 이름", exact: true }).fill(name);
+      const created = page.waitForResponse((response) =>
+        response.url() === `${environment.api}/workspaces` && response.request().method() === "POST"
+      );
+      await page.getByRole("button", { name: "공간 만들기", exact: true }).click();
+      const response = await created;
+      expect(response.status()).toBe(201);
+      workspaceId = (await response.json()).workspace.id;
+      expect(workspaceId).toMatch(uuid);
+      await routeReady(page, new RegExp(`/w/${workspaceId}/manage$`), "공간 관리");
+      const [member] = await sql`select id from auth.users where email=${
+        required(environment.values, "DEV_USER_B_EMAIL")
+      }`;
+      memberId = member.id;
+      await sql`insert into private.workspace_members(workspace_id,user_id) values(${workspaceId!}::uuid,${memberId!}::uuid)`;
+      const reader = await alternate.newPage();
+      await reader.goto("/login");
+      await reader.getByLabel("이메일", { exact: false }).fill(required(environment.values, "DEV_USER_B_EMAIL"));
+      await reader.getByLabel("비밀번호", { exact: false }).fill(required(environment.values, "DEV_USER_B_PASSWORD"));
+      const login = reader.waitForResponse((response) =>
+        response.url().startsWith(`${environment.auth}/auth/v1/token`) && response.request().method() === "POST"
+      );
+      await reader.getByRole("button", { name: "이메일로 로그인", exact: true }).click();
+      const signedIn = await (await login).json();
+      memberSession = sessionId(signedIn.access_token);
+      expect(signedIn.user.id).toBe(memberId);
+      await reader.goto(`/w/${workspaceId}/settings`);
+      const section = reader.getByRole("region", { name: "워크스페이스", exact: true });
+      await expect(section).toContainText(name);
+      await expect(section.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveCount(0);
+      await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
+      await reader.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+      await expect(reader.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveCount(0);
+      await expect(reader.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
+      await reader.keyboard.press("Escape");
+      await reader.screenshot({
+        path: info.outputPath("actual-no-settings-workspace.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
+      const headers = { authorization: `Bearer ${signedIn.access_token}` };
+      const membership = await alternate.request.get(`${environment.api}/workspaces/${workspaceId}`, { headers });
+      expect(membership.status()).toBe(200);
+      expect((await membership.json()).can_manage).toBe(false);
+      const denied = await alternate.request.get(`${environment.api}/workspaces/${workspaceId}/members`, { headers });
+      expect(denied.status()).toBe(403);
+      await denied.dispose();
+      await section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true }).click();
+      await routeReady(reader, /\/workspaces$/, "내 공간");
+      await expect(reader.getByRole("table", { name: "공간 목록", exact: true }).getByText(name, { exact: true }))
+        .toBeVisible();
+      await expect(reader.getByRole("button", { name: "새 공간 만들기", exact: true })).toBeVisible();
+      await reader.goto("/settings");
+      await expect(
+        reader.getByRole("region", { name: "워크스페이스", exact: true }).getByRole("link", {
+          name: "공간 목록 · 새 공간",
+          exact: true,
+        }),
+      ).toBeVisible();
+      expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    } finally {
+      await alternate.close();
+      try {
+        if (
+          workspaceId && memberId
+        ) {
+          await sql`delete from private.workspace_members where workspace_id=${workspaceId}::uuid and user_id=${memberId}::uuid`;
+        }
+        if (
+          memberSession && memberId
+        ) await sql`delete from auth.sessions where id=${memberSession}::uuid and user_id=${memberId}::uuid`;
+      } finally {
+        await sql.end();
+        await owned.cleanup();
+      }
+    }
+  },
+);
