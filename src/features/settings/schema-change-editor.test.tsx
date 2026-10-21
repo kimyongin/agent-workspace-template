@@ -573,3 +573,21 @@ test("only an explicitly empty current schema can select another required identi
   await act(() => screen.editor().editIdentityProperty("prop_1"));
   expect(screen.editor().view.draft.schema["x-identity-property"]).toBe("prop_3");
 });
+
+test("missing or populated membership metadata never enables selection of an otherwise valid identifier", async () => {
+  vi.stubGlobal("fetch", async () => json({ items: [], next_before: null }));
+  const populated = structuredClone(definition);
+  populated.schema.properties.prop_3 = {
+    type: "string",
+    title: "다른 번호",
+    "x-order": 30,
+    "x-identifier": {
+      allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
+      default_kind_id: "00000000-0000-4000-8000-000000000001",
+    },
+  };
+  populated.schema.required.push("prop_3");
+  const screen = await openEditor(populated);
+  await act(() => screen.editor().editIdentityProperty("prop_3"));
+  expect(screen.editor().view.draft.schema["x-identity-property"]).toBe("prop_2");
+});

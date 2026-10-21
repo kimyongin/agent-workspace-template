@@ -203,7 +203,7 @@ CREATE OR REPLACE FUNCTION private.complete_entity_schema_analysis_batch(p_id uu
  SECURITY DEFINER
  SET search_path TO ''
 AS $function$
-declare v_a app.entity_schema_analyses%rowtype; v_c app.entity_schema_changes%rowtype; v_owner uuid; v_type_id uuid; v_result jsonb; v_n integer; v_bad integer; v_stale boolean;
+declare v_a app.entity_schema_analyses%rowtype; v_c app.entity_schema_changes%rowtype; v_owner uuid; v_type_id uuid; v_result jsonb; v_n integer; v_bad integer; v_stale boolean; v_field record; v_before jsonb; v_kind uuid; v_active boolean;
 begin
  select x.workspace_id,x.type_id into v_owner,v_type_id from app.entity_schema_analyses x where x.id=p_id;
  if v_owner is null or not private.authorize_schema_analysis(v_owner,p_id) then return false; end if;
@@ -218,6 +218,21 @@ begin
  if jsonb_typeof(p_results)<>'array' or jsonb_array_length(p_results)>50 then raise exception 'invalid analysis batch'; end if;
  for v_result in select value from jsonb_array_elements(p_results) loop
   if jsonb_typeof(v_result->'errors')<>'array' or jsonb_typeof(v_result->'after') not in ('object','null') or octet_length(v_result::text)>262144 then raise exception 'invalid analysis result'; end if;
+  select properties into v_before from private.entity_schema_analysis_rows where workspace_id=v_owner and analysis_id=p_id and entity_id=v_result->>'entity_id';
+  for v_field in select key,value from jsonb_each(v_c.target->'schema'->'properties') where value ? 'x-identifier' loop
+   if v_result->'after'->v_field.key is null or v_result->'after'->v_field.key='null'::jsonb
+    or v_result->'after'->v_field.key is not distinct from v_before->v_field.key then continue;end if;
+   v_active:=false;
+   begin
+    v_kind:=app.identifier_kind(v_result->'after'->>v_field.key);
+    select exists(select 1 from app.entity_identifier_rules r join app.entity_issuers i on i.workspace_id=r.workspace_id and i.code=r.source
+     where r.workspace_id=v_owner and r.id=v_kind and r.active and i.active
+      and v_field.value->'x-identifier'->'allowed_kind_ids' ? r.id::text) into v_active;
+   exception when check_violation then v_active:=false;end;
+   if not v_active and not exists(select 1 from jsonb_array_elements(v_result->'errors') e where e->>'path'='properties.'||v_field.key) then
+    v_result:=jsonb_set(v_result,'{errors}',v_result->'errors'||jsonb_build_array(jsonb_build_object('path','properties.'||v_field.key,'message','허용된 활성 식별자 종류를 선택하세요')));
+   end if;
+  end loop;
   update private.entity_schema_analysis_rows set processed=true,errors=v_result->'errors',after=v_result->'after',after_bytes=(v_result->>'after_bytes')::integer,changed=(v_result->>'changed')::boolean,removed=(v_result->>'removed')::integer,replacements=(v_result->>'replacements')::integer where workspace_id=v_owner and analysis_id=p_id and entity_id=v_result->>'entity_id' and not processed;
   if not found then raise exception 'unexpected analysis row'; end if;
  end loop;

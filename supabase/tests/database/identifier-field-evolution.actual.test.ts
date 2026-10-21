@@ -90,7 +90,6 @@ dbTest("a target-only identifier kind changing after empty analysis invalidates 
   }
 });
 
-import type postgres from "postgres";
 import * as entities from "../../functions/_shared/core/entity/application.ts";
 import * as migrations from "../../functions/_shared/core/entity-types/schema-migrations.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -452,6 +451,61 @@ dbTest(
           .schema["x-identity-property"],
         "prop_2",
       );
+    } finally {
+      await h.close();
+    }
+  },
+);
+
+dbTest(
+  "analysis preserves an unchanged stopped ordinary pair but rejects assigning a different stopped pair",
+  async () => {
+    const h = await evolutionHarness();
+    try {
+      await registry.createEntityIssuer(h.r, h.actor(), { code: "external", label: "외부" });
+      const kind = await registry.createIdentifierRule(h.r, h.actor(), "external", {
+        label: "번호",
+        meaning: "원본 번호",
+      });
+      await h.apply(
+        await changes.createEntitySchemaChange(h.d, h.actor(), h.type.id, {
+          expected_schema_version: 1,
+          edits: [{
+            op: "add_property",
+            client_ref: "external",
+            field: {
+              type: "string",
+              "x-order": 30,
+              "x-identifier": { allowed_kind_ids: [appKind, kind.id], default_kind_id: appKind },
+            },
+          }],
+        }),
+      );
+      const row = await entities.createEntity(h.e, h.actor(), {
+        entity_type_id: h.type.id,
+        schema_version: 2,
+        properties: { prop_1: "source", prop_3: `${kind.id}:001` },
+      });
+      await registry.updateIdentifierRule(h.r, h.actor(), kind.id, { active: false, expected_version: kind.version });
+      await h.apply(
+        await changes.createEntitySchemaChange(h.d, h.actor(), h.type.id, {
+          expected_schema_version: 2,
+          edits: [{ op: "set_metadata", description: "기존 중지값 유지" }],
+        }),
+      );
+      const change = await changes.createEntitySchemaChange(h.d, h.actor(), h.type.id, {
+        expected_schema_version: 3,
+        edits: [{ op: "set_metadata", description: "다른 중지값 할당 거절" }],
+        migration: { rules: [{ op: "map", key: "prop_3", mapping: { [`${kind.id}:001`]: `${kind.id}:002` } }] },
+      });
+      const analysis = await h.analyze(change);
+      assertEquals(analysis.change.analysis?.failed, 1);
+      assertEquals(analysis.change.executable, false);
+      const page = await changes.getEntitySchemaAnalysisRows(h.d, h.f.manager, h.type.id, change.id, {
+        analysis_id: analysis.accepted.analysis_id,
+      });
+      assertEquals(page.items[0].errors.some((error) => error.path === "properties.prop_3"), true);
+      assertEquals((await entities.getEntity(h.e, h.f.manager, row.id)).properties, row.properties);
     } finally {
       await h.close();
     }

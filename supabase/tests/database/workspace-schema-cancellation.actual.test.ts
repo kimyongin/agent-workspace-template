@@ -1,3 +1,4 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { connect, dbTest, urls } from "./_db.ts";
 import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
@@ -60,10 +61,10 @@ async function standalone(linkedTask = false) {
       edits: [{
         op: "add_property",
         client_ref: "quantity",
-        field: { type: "integer", "x-order": 20 },
+        field: { type: "integer", "x-order": 30 },
         required: true,
       }],
-      migration: { rules: [{ op: "fill", key: "prop_2", value: 7 }], overrides: [] },
+      migration: { rules: [{ op: "fill", key: "prop_3", value: 7 }], overrides: [] },
     });
     await changes.analyzeEntitySchemaChange(typeDeps, businessRequest(fixture.manager), kind.id, change.id, {
       expected_change_version: change.version,

@@ -1,3 +1,4 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { connect, dbTest, urls } from "./_db.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
@@ -98,15 +99,17 @@ async function linkedReferenceFixture(withTask: boolean) {
     const published = await exportDataModel(modelDeps, author);
     const entityIds: string[] = [];
     for (const kind of [own, peer]) {
-      const externalId = crypto.randomUUID(), id = `app:${kind.id}:${externalId}`;
+      const externalId = crypto.randomUUID(), id = `${kind.id}:${APP_IDENTIFIER_RULE_ID}:${externalId}`;
       entityIds.push(id);
       await runInWorkspace(
         sql,
         author,
         { mode: "business", requirements: [{ target_kind: "entity_type", target_id: kind.id, access: "write" }] },
         (tx) =>
-          tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-          values(${author.workspaceId},${id},'app',${externalId},${kind.id},1,'{"prop_1":"12"}')`,
+          tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+          values(${author.workspaceId},${id},${kind.id},1,${
+            tx.json({ prop_1: "12", prop_2: `${APP_IDENTIFIER_RULE_ID}:${externalId}` })
+          })`,
       );
     }
     // A real strict scoped link proves the graph boundary; no legacy owner is adopted.

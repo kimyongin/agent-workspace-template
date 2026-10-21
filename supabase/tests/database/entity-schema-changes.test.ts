@@ -1,3 +1,4 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
@@ -61,8 +62,7 @@ dbTest(
       const entity = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 1,
-        source: "app",
-        external_id: crypto.randomUUID(),
+
         properties: { prop_1: "旧資料" },
       });
       const prototype = await createEntitySchemaChange(d, requestActor(a.manager), other.id, {
@@ -70,16 +70,16 @@ dbTest(
         edits: [{
           op: "add_property",
           client_ref: "__proto__",
-          field: { "x-order": 20, type: "string" },
+          field: { "x-order": 30, type: "string" },
           required: false,
         }, {
           op: "add_property",
           client_ref: "constructor",
-          field: { "x-order": 30, type: "string" },
+          field: { "x-order": 40, type: "string" },
           required: false,
         }],
       });
-      assertEquals(Object.entries(prototype.reservations), [["__proto__", "prop_2"], ["constructor", "prop_3"]]);
+      assertEquals(Object.entries(prototype.reservations), [["__proto__", "prop_3"], ["constructor", "prop_4"]]);
       const labels: Record<string, string> = JSON.parse(
         '{"__proto__":"특수 코드","constructor":"생성 코드","toString":"문자 코드"}',
       );
@@ -88,7 +88,7 @@ dbTest(
         edits: [{
           op: "add_property",
           client_ref: "options",
-          field: { "x-order": 20, type: "string", oneOf: Object.keys(labels).map((value) => ({ const: value })) },
+          field: { "x-order": 30, type: "string", oneOf: Object.keys(labels).map((value) => ({ const: value })) },
           required: false,
         }],
       });
@@ -99,7 +99,7 @@ dbTest(
           op: "add_property",
           client_ref: "options",
           field: {
-            "x-order": 20,
+            "x-order": 30,
             type: "string",
             oneOf: Object.entries(labels).map(([value, title]) => ({ const: value, title })),
           },
@@ -122,13 +122,13 @@ dbTest(
         edits: [{
           op: "add_property",
           client_ref: "cost",
-          field: { "x-order": 20, type: "integer", title: "単価" },
+          field: { "x-order": 30, type: "integer", title: "単価" },
           required: false,
         }],
       };
       const actor = requestActor(a.manager);
       const change = await createEntitySchemaChange(d, actor, type.id, input);
-      assertEquals(change.reservations, { cost: "prop_2" });
+      assertEquals(change.reservations, { cost: "prop_3" });
       assertEquals(await createEntitySchemaChange(d, actor, type.id, input), change);
       assertEquals(
         (await assertRejects(async () =>
@@ -137,7 +137,7 @@ dbTest(
             edits: [{
               op: "add_property",
               client_ref: "cost",
-              field: { "x-order": 20, type: "string" },
+              field: { "x-order": 30, type: "string" },
               required: false,
             }],
           }), AppError)).code,
@@ -208,9 +208,9 @@ dbTest(
       );
       const next = await createEntitySchemaChange(d, requestActor(a.manager), type.id, {
         expected_schema_version: 2,
-        edits: [{ op: "add_property", client_ref: "next", field: { "x-order": 30, type: "string" }, required: false }],
+        edits: [{ op: "add_property", client_ref: "next", field: { "x-order": 40, type: "string" }, required: false }],
       });
-      assertEquals(next.reservations, { next: "prop_3" });
+      assertEquals(next.reservations, { next: "prop_4" });
       const analyzed = await analyzeEntitySchemaChange(d, requestActor(a.manager), type.id, next.id, {
         expected_change_version: 1,
       });
@@ -218,7 +218,7 @@ dbTest(
       await updateEntity(e, requestActor(a.manager), entity.id, {
         expected_version: entity.version,
         schema_version: 2,
-        properties: { prop_2: 0 },
+        properties: { prop_3: 0 },
       });
       assertEquals((await getEntitySchemaChange(d, a.manager, type.id, next.id)).status, "stale");
       assertEquals(
@@ -239,18 +239,18 @@ dbTest(
           required: true,
         }],
       });
-      assertEquals(reservationRemoved.reservations, { next: "prop_3" });
+      assertEquals(reservationRemoved.reservations, { next: "prop_4" });
       const reservedAfterDrop = await createEntitySchemaChange(d, requestActor(a.manager), type.id, {
         expected_schema_version: 2,
-        edits: [{ op: "add_property", client_ref: "after", field: { "x-order": 40, type: "string" }, required: false }],
+        edits: [{ op: "add_property", client_ref: "after", field: { "x-order": 50, type: "string" }, required: false }],
       });
-      assertEquals(reservedAfterDrop.reservations, { after: "prop_4" });
+      assertEquals(reservedAfterDrop.reservations, { after: "prop_5" });
       const narrowed = await createEntitySchemaChange(d, requestActor(a.manager), type.id, {
         expected_schema_version: 2,
         edits: [{
           op: "update_property",
-          key: "prop_2",
-          field: { "x-order": 20, type: "integer", minimum: 1 },
+          key: "prop_3",
+          field: { "x-order": 30, type: "integer", minimum: 1 },
           required: false,
         }],
       });
@@ -264,14 +264,14 @@ dbTest(
       await updateBusinessSettings(settings, requestActor(a.manager), {
         id: "record_templates",
         expected_version: 0,
-        value: { entity_types: { [type.id]: { update: { memo: "$엔터티.이후.prop_2$", tag_ids: [] } } } },
+        value: { entity_types: { [type.id]: { update: { memo: "$엔터티.이후.prop_3$", tag_ids: [] } } } },
       });
       for (const op of ["archive_property", "remove_property"]) {
         const error = await assertRejects(
           async () =>
             await createEntitySchemaChange(d, requestActor(a.manager), type.id, {
               expected_schema_version: 2,
-              edits: [{ op, key: "prop_2" }],
+              edits: [{ op, key: "prop_3" }],
             }),
           AppError,
         );
@@ -311,23 +311,23 @@ dbTest(
             edits: [{
               op: "add_property",
               client_ref: ref,
-              field: { "x-order": 20, type: "string", title: ref },
+              field: { "x-order": 30, type: "string", title: ref },
               required: false,
             }],
           })
         ),
       );
-      assertEquals(drafts.map((change) => Object.values(change.reservations)[0]).sort(), ["prop_2", "prop_3"]);
+      assertEquals(drafts.map((change) => Object.values(change.reservations)[0]).sort(), ["prop_3", "prop_4"]);
       const independent = await createEntitySchemaChange(d, requestActor(owner.manager), other.id, {
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
           client_ref: "independent",
-          field: { "x-order": 20, type: "string" },
+          field: { "x-order": 30, type: "string" },
           required: false,
         }],
       });
-      assertEquals(independent.reservations, { independent: "prop_2" });
+      assertEquals(independent.reservations, { independent: "prop_3" });
       const initial = await getEntitySchema(d, owner.manager, { type_id: type.id });
       const removed = await updateEntitySchemaChange(d, requestActor(owner.manager), type.id, drafts[0].id, {
         expected_schema_version: 1,
@@ -339,18 +339,18 @@ dbTest(
           required: true,
         }],
       });
-      assertEquals(Object.keys(removed.target.schema.properties), ["prop_1"]);
+      assertEquals(Object.keys(removed.target.schema.properties), ["prop_1", "prop_2"]);
       assertEquals(removed.reservations, drafts[0].reservations);
       const after = await createEntitySchemaChange(d, requestActor(owner.manager), type.id, {
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
           client_ref: "after-drop",
-          field: { "x-order": 20, type: "string" },
+          field: { "x-order": 30, type: "string" },
           required: false,
         }],
       });
-      assertEquals(after.reservations, { "after-drop": "prop_4" });
+      assertEquals(after.reservations, { "after-drop": "prop_5" });
       const entity = await createEntity(e, requestActor(owner.manager), {
         entity_type_id: type.id,
         schema_version: 1,
@@ -468,8 +468,8 @@ dbTest(
         analysis_id: accepted.analysis_id,
         failures_only: true,
       });
-      assertEquals(page.items[0].before, { prop_1: "001" });
-      assertEquals(page.items[0].after, { prop_1: "001" });
+      assertEquals(page.items[0].before, { ...entity.properties, prop_1: "001" });
+      assertEquals(page.items[0].after, { ...entity.properties, prop_1: "001" });
       await assertRejects(() =>
         getEntitySchemaAnalysisRows(d, b.manager, type.id, plan.id, { analysis_id: accepted.analysis_id })
       );
@@ -488,7 +488,7 @@ dbTest(
       assertEquals(result.executable, true);
       assertEquals(result.analysis?.changed, 1);
       assertEquals(result.analysis?.replacements, 1);
-      assertEquals((await getEntity(e, a.manager, entity.id)).properties, { prop_1: "001" });
+      assertEquals((await getEntity(e, a.manager, entity.id)).properties, { ...entity.properties, prop_1: "001" });
       assertEquals((await getEntitySchema(d, a.manager, { type_id: type.id })).schema_version, 1);
     } finally {
       await a.cleanup();
@@ -518,11 +518,11 @@ dbTest(
         edits: [{
           op: "add_property",
           client_ref: "quantity",
-          field: { "x-order": 20, type: ["string", "null"] },
+          field: { "x-order": 30, type: ["string", "null"] },
           required: false,
         }],
       });
-      assertEquals(add.reservations, { quantity: "prop_2" });
+      assertEquals(add.reservations, { quantity: "prop_3" });
       const accepted = await analyzeEntitySchemaChange(d, requestActor(a.manager), type.id, add.id, {
         expected_change_version: 1,
       });
@@ -534,7 +534,7 @@ dbTest(
       const valid = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 2,
-        properties: { prop_1: "valid", prop_2: "12" },
+        properties: { prop_1: "valid", prop_3: "12" },
       });
       const missing = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
@@ -544,17 +544,17 @@ dbTest(
       const leading = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 2,
-        properties: { prop_1: "identifier", prop_2: "001" },
+        properties: { prop_1: "identifier", prop_3: "001" },
       });
       const nullable = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 2,
-        properties: { prop_1: "null", prop_2: null },
+        properties: { prop_1: "null", prop_3: null },
       });
       const deleted = await createEntity(e, requestActor(a.manager), {
         entity_type_id: type.id,
         schema_version: 2,
-        properties: { prop_1: "deleted", prop_2: "7" },
+        properties: { prop_1: "deleted", prop_3: "7" },
       });
       await deleteEntity(e, requestActor(a.manager), deleted.id, deleted.version);
       const before = await Promise.all(
@@ -562,11 +562,11 @@ dbTest(
       );
       const input = {
         expected_schema_version: 2,
-        edits: [{ op: "update_property", key: "prop_2", field: { "x-order": 20, type: "integer" }, required: true }],
+        edits: [{ op: "update_property", key: "prop_3", field: { "x-order": 30, type: "integer" }, required: true }],
         migration: {
-          rules: [{ op: "convert", key: "prop_2", to: "integer" }, {
+          rules: [{ op: "convert", key: "prop_3", to: "integer" }, {
             op: "fill",
-            key: "prop_2",
+            key: "prop_3",
             value: 0,
             include_null: false,
           }],
@@ -596,23 +596,23 @@ dbTest(
       });
       assertEquals(page.items.length, 5);
       const rows = new Map(page.items.map((row) => [row.entity_id, row]));
-      assertEquals(rows.get(valid.id)?.after, { prop_1: "valid", prop_2: 12 });
-      assertEquals(rows.get(missing.id)?.before, { prop_1: "missing" });
-      assertEquals(rows.get(missing.id)?.after, { prop_1: "missing", prop_2: 0 });
-      assertEquals(rows.get(leading.id)?.after, { prop_1: "identifier", prop_2: "001" });
+      assertEquals(rows.get(valid.id)?.after, { ...valid.properties, prop_1: "valid", prop_3: 12 });
+      assertEquals(rows.get(missing.id)?.before, missing.properties);
+      assertEquals(rows.get(missing.id)?.after, { ...missing.properties, prop_1: "missing", prop_3: 0 });
+      assertEquals(rows.get(leading.id)?.after, { ...leading.properties, prop_1: "identifier", prop_3: "001" });
       assertEquals(rows.get(leading.id)!.errors.length > 0, true);
-      assertEquals(rows.get(nullable.id)?.after, { prop_1: "null", prop_2: null });
+      assertEquals(rows.get(nullable.id)?.after, { ...nullable.properties, prop_1: "null", prop_3: null });
       assertEquals(rows.get(nullable.id)!.errors.length > 0, true);
-      assertEquals(rows.get(deleted.id)?.after, { prop_1: "deleted", prop_2: 7 });
+      assertEquals(rows.get(deleted.id)?.after, { ...deleted.properties, prop_1: "deleted", prop_3: 7 });
       assertEquals(rows.get(deleted.id)?.errors, []);
       const fixed = await updateEntitySchemaChange(d, requestActor(a.manager), type.id, plan.id, {
         ...input,
         expected_change_version: 1,
         migration: {
           ...input.migration,
-          overrides: [{ entity_id: leading.id, key: "prop_2", value: 1 }, {
+          overrides: [{ entity_id: leading.id, key: "prop_3", value: 1 }, {
             entity_id: nullable.id,
-            key: "prop_2",
+            key: "prop_3",
             value: 0,
           }],
         },
@@ -642,10 +642,15 @@ dbTest(
         analysis_id: second.analysis_id,
       });
       assertEquals(fixedPage.items.find((row) => row.entity_id === leading.id)?.after, {
+        ...leading.properties,
         prop_1: "identifier",
-        prop_2: 1,
+        prop_3: 1,
       });
-      assertEquals(fixedPage.items.find((row) => row.entity_id === nullable.id)?.after, { prop_1: "null", prop_2: 0 });
+      assertEquals(fixedPage.items.find((row) => row.entity_id === nullable.id)?.after, {
+        ...nullable.properties,
+        prop_1: "null",
+        prop_3: 0,
+      });
       for (const source of before) {
         const current = await getEntity(e, a.manager, source.id);
         assertEquals([current.properties, current.version, current.schema_version, current.deleted_at], [
@@ -679,8 +684,7 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
     const entity = await createEntity(e, requestActor(a.manager), {
       entity_type_id: t.id,
       schema_version: 1,
-      source: "app",
-      external_id: crypto.randomUUID(),
+
       properties: { prop_1: "원본 유지" },
     });
     const change = await createEntitySchemaChange(d, requestActor(a.manager), t.id, {
@@ -731,7 +735,7 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
     }) as accepted`;
     assertEquals(late.accepted, false);
     assertEquals((await getEntitySchemaChange(d, a.manager, t.id, change.id)).status, "cancelled");
-    assertEquals((await getEntity(e, a.manager, entity.id)).properties, { prop_1: "원본 유지" });
+    assertEquals((await getEntity(e, a.manager, entity.id)).properties, { ...entity.properties, prop_1: "원본 유지" });
     assertEquals((await getEntityType(d, a.manager, t.id)).schema_version, 1);
     await assertRejects(
       () =>
@@ -773,10 +777,10 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
       edits: [{
         op: "add_property",
         client_ref: "confirmed",
-        field: { "x-order": 20, type: "boolean", title: "확인" },
+        field: { "x-order": 30, type: "boolean", title: "확인" },
         required: true,
       }],
-      migration: { rules: [{ op: "fill", key: "prop_2", value: false }], overrides: [] },
+      migration: { rules: [{ op: "fill", key: "prop_3", value: false }], overrides: [] },
     });
     await analyzeEntitySchemaChange(d, requestActor(a.manager), t.id, migrating.id, { expected_change_version: 1 });
     await consume(worker);
@@ -827,7 +831,7 @@ dbTest(
           edits: [{
             op: "add_property",
             client_ref: title,
-            field: { "x-order": version * 10 + 10, type: "integer", title },
+            field: { "x-order": version * 10 + 20, type: "integer", title },
             required: true,
           }],
         });
@@ -847,6 +851,7 @@ dbTest(
       assertEquals((await getEntitySchema(d, owner.manager, { type_id: type.id })).schema.required, [
         "prop_1",
         "prop_2",
+        "prop_3",
       ]);
       const second = await create(2, "추가 수량");
       const stale = await analyzeEntitySchemaChange(d, requestActor(owner.manager), type.id, second.id, {
@@ -855,9 +860,8 @@ dbTest(
       await createEntity(e, requestActor(owner.manager), {
         entity_type_id: type.id,
         schema_version: 2,
-        source: "app",
-        external_id: crypto.randomUUID(),
-        properties: { prop_1: "늦게 등록", prop_2: 0 },
+
+        properties: { prop_1: "늦게 등록", prop_3: 0 },
       });
       const error = await assertRejects(() =>
         applyEntitySchemaChange(d, requestActor(owner.manager), type.id, second.id, {
@@ -890,7 +894,7 @@ dbTest(
             op: "add_property",
             client_ref: "choice",
             field: {
-              "x-order": 20,
+              "x-order": 30,
               type: ["string", "null"],
               title: "상태",
               oneOf: [{ const: "ready", title: "판매 중" }, { const: null }],
@@ -910,24 +914,24 @@ dbTest(
           {
             op: "update_property",
             key: "prop_1",
-            field: { type: "string", title: "이름", minLength: 1, maxLength: 4096, "x-order": 30 },
+            field: { type: "string", title: "이름", minLength: 1, maxLength: 4096, "x-order": 40 },
             required: true,
           },
           { op: "set_metadata", "x-title-template": "$new_name$" },
         ],
         migration: { rules: [{ op: "fill", key: "new_name", value: "새 상품" }] },
       });
-      assertEquals(draft.target.schema["x-title-template"], "$prop_3$");
-      assertEquals(draft.target.schema.properties.prop_2.oneOf, [{ const: "ready", title: "판매 중" }, {
+      assertEquals(draft.target.schema["x-title-template"], "$prop_4$");
+      assertEquals(draft.target.schema.properties.prop_3.oneOf, [{ const: "ready", title: "판매 중" }, {
         const: null,
       }]);
       assertEquals(
         Object.entries(draft.target.schema.properties).sort((a, b) => a[1]["x-order"] - b[1]["x-order"]).map(([key]) =>
           key
         ),
-        ["prop_3", "prop_2", "prop_1"],
+        ["prop_4", "prop_2", "prop_3", "prop_1"],
       );
-      assertEquals(draft.migration.rules, [{ op: "fill", key: "prop_3", value: "새 상품", include_null: false }]);
+      assertEquals(draft.migration.rules, [{ op: "fill", key: "prop_4", value: "새 상품", include_null: false }]);
       const analysis = await analyzeEntitySchemaChange(d, requestActor(owner.manager), type.id, draft.id, {
         expected_change_version: draft.version,
       });

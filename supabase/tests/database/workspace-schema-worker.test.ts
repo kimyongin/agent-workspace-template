@@ -1,3 +1,4 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
 import * as migrations from "../../functions/_shared/core/entity-types/schema-migrations.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import * as settings from "../../functions/_shared/core/settings/application.ts";
@@ -102,13 +103,15 @@ dbTest("shared schema analysis captures the actual initiator and immutable works
         { target_kind: "entity_type", target_id: type.id, access: "write" },
       ],
     });
-    const externalId = crypto.randomUUID(), entityId = `app:${type.id}:${externalId}`;
+    const externalId = crypto.randomUUID(), entityId = `${type.id}:${APP_IDENTIFIER_RULE_ID}:${externalId}`;
     await runInWorkspace(sql, author, {
       mode: "business",
       requirements: [{ target_kind: "entity_type", target_id: type.id, access: "write" }],
     }, (tx) =>
-      tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-      values(${author.workspaceId},${entityId},'app',${externalId},${type.id},1,'{"prop_1":"A가 작성한 공유 원본"}')`);
+      tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+      values(${author.workspaceId},${entityId},${type.id},1,${
+        tx.json({ prop_1: "A가 작성한 공유 원본", prop_2: `${APP_IDENTIFIER_RULE_ID}:${externalId}` })
+      })`);
     const nextDraft = await changes.createEntitySchemaChange(typeDeps, key(executor), type.id, {
       expected_schema_version: 1,
       edits: [{ op: "set_metadata", description: "실제 공유 자료 분석" }],
@@ -124,7 +127,10 @@ dbTest("shared schema analysis captures the actual initiator and immutable works
         entity_id: r.entity_id,
         properties: r.properties,
       })),
-      [{ entity_id: entityId, properties: { prop_1: "A가 작성한 공유 원본" } }],
+      [{
+        entity_id: entityId,
+        properties: { prop_1: "A가 작성한 공유 원본", prop_2: `${APP_IDENTIFIER_RULE_ID}:${externalId}` },
+      }],
     );
     const convert = compileMigration(claimed.batch.target, claimed.batch.migration, claimed.batch.recovery_keys);
     const results = claimed.batch.rows.map((r: { entity_id: string; properties: Record<string, unknown> }) =>
@@ -221,7 +227,7 @@ async function twoKindPublicationFixture(injectLateFailure: boolean, expireGroup
     await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(b), invitation.invitation.id);
     const entities: string[] = [];
     for (const [index, kind] of kinds.entries()) {
-      const externalId = crypto.randomUUID(), id = `app:${kind.id}:${externalId}`;
+      const externalId = crypto.randomUUID(), id = `${kind.id}:${APP_IDENTIFIER_RULE_ID}:${externalId}`;
       entities.push(id);
       await runInWorkspace(
         sql,
@@ -231,9 +237,9 @@ async function twoKindPublicationFixture(injectLateFailure: boolean, expireGroup
           requirements: [{ target_kind: "entity_type", target_id: kind.id, access: "write" }],
         },
         (tx) =>
-          tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-        values(${author.workspaceId},${id},'app',${externalId},${kind.id},1,${
-            tx.json({ prop_1: String(12 + index) })
+          tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+        values(${author.workspaceId},${id},${kind.id},1,${
+            tx.json({ prop_1: String(12 + index), prop_2: `${APP_IDENTIFIER_RULE_ID}:${externalId}` })
           })`,
       );
     }
@@ -512,8 +518,8 @@ async function twoKindPublicationFixture(injectLateFailure: boolean, expireGroup
       const values =
         await tx`select id,properties,schema_version from app.entities where workspace_id=${executor.workspaceId} order by id`;
       assertEquals(values.map((r) => ({ properties: r.properties, schema_version: Number(r.schema_version) })), [
-        { properties: { prop_1: "X" }, schema_version: 2 },
-        { properties: { prop_1: "X" }, schema_version: 2 },
+        { properties: { prop_1: "X", prop_2: values[0].id.slice(37) }, schema_version: 2 },
+        { properties: { prop_1: "X", prop_2: values[1].id.slice(37) }, schema_version: 2 },
       ]);
       const records =
         await tx`select id,version,workspace_id,owner_id,entity_id,entity_ids,entity_context,task_id,created_by from app.records where workspace_id=${executor.workspaceId}`;
@@ -637,13 +643,15 @@ async function retryOrRestoreFixture(
       grants,
     });
     await workspaces.acceptWorkspaceInvitation(workspaceDeps, key(b), invitation.invitation.id);
-    const externalId = crypto.randomUUID(), entityId = `app:${kind.id}:${externalId}`;
+    const externalId = crypto.randomUUID(), entityId = `${kind.id}:${APP_IDENTIFIER_RULE_ID}:${externalId}`;
     await runInWorkspace(sql, author, {
       mode: "business",
       requirements: [{ target_kind: "entity_type", target_id: kind.id, access: "write" }],
     }, (tx) =>
-      tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-      values(${author.workspaceId},${entityId},'app',${externalId},${kind.id},1,'{"prop_1":"12"}')`);
+      tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+      values(${author.workspaceId},${entityId},${kind.id},1,${
+        tx.json({ prop_1: "12", prop_2: `${APP_IDENTIFIER_RULE_ID}:${externalId}` })
+      })`);
     if (scenario === "recovery") {
       type Change = Awaited<ReturnType<typeof changes.createEntitySchemaChange>>;
       const analyze = async (change: Change, actor: Actor) => {
@@ -751,7 +759,7 @@ async function retryOrRestoreFixture(
       assertEquals(
         (await admin`select properties,schema_version from app.entities where workspace_id=${workspaceId} and id=${entityId}`)
           .map((r) => ({ properties: r.properties, schema_version: Number(r.schema_version) })),
-        [{ properties: { prop_1: "12" }, schema_version: 3 }],
+        [{ properties: { prop_1: "12", prop_2: `${APP_IDENTIFIER_RULE_ID}:${externalId}` }, schema_version: 3 }],
       );
       assertEquals(
         (await admin`select initiated_by,source_expires_at from app.entity_schema_migrations where workspace_id=${workspaceId} and id=${first.job_id}`)[
