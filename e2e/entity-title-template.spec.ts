@@ -141,7 +141,10 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
       expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
         .toBe(true);
-      await page.screenshot({ path: info.outputPath("title-template-long-variable-320-zoom200.png"), fullPage: true });
+      await editor.scrollIntoViewIfNeeded();
+      await expect(editor).toBeInViewport();
+      await page.screenshot({ path: info.outputPath("title-template-long-variable-320-zoom200.png"), fullPage: false });
+      await editor.screenshot({ path: info.outputPath("title-template-long-variable-320-zoom200-editor.png") });
     } finally {
       await page.evaluate((value) => {
         document.documentElement.style.zoom = value;
