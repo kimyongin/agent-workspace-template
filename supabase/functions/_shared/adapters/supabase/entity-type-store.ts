@@ -150,6 +150,8 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     const current = row.current_type;
     return {
       ...schemaRow(row),
+      identity_change_allowed:
+        !(await this.tx`select exists(select 1 from app.entities where entity_type_id=${id}) as present`)[0].present,
       identifier_kinds:
         (await this.tx`select app.entity_identifier_kinds(${id}::uuid,${
           Number(row.schema_version)

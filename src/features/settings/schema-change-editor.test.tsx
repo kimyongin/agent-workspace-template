@@ -551,3 +551,25 @@ test("published selected identity stays required, active and present while its l
   );
   expect(screen.editor().view.draft.schema.properties[selected].title).toBe("상품 번호");
 });
+
+test("only an explicitly empty current schema can select another required identifier in its schema draft", async () => {
+  vi.stubGlobal("fetch", async () => json({ items: [], next_before: null }));
+  const empty = { ...structuredClone(definition), identity_change_allowed: true };
+  empty.schema.properties.prop_3 = {
+    type: "string",
+    title: "다른 번호",
+    "x-order": 30,
+    "x-identifier": {
+      allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
+      default_kind_id: "00000000-0000-4000-8000-000000000001",
+    },
+  };
+  empty.schema.required.push("prop_3");
+  const screen = await openEditor(empty);
+  await act(() => screen.editor().editIdentityProperty("prop_3"));
+  expect(screen.editor().view.draft.schema["x-identity-property"]).toBe("prop_3");
+  await act(() => screen.editor().editFlag("prop_2", "required", false));
+  expect(screen.editor().view.draft.schema.required).not.toContain("prop_2");
+  await act(() => screen.editor().editIdentityProperty("prop_1"));
+  expect(screen.editor().view.draft.schema["x-identity-property"]).toBe("prop_3");
+});

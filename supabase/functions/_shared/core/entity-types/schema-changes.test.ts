@@ -29,6 +29,8 @@ async function fixture() {
     type: { id: typeId, version: 1, schema_version: 1, archived: false, schema_write_locked: false },
     definition: initialEntityDefinition("이름"),
     previous: null,
+    has_entities: false,
+    identifier_usage: {},
   };
   let saved: EntitySchemaChange | null = null;
   let next = 3;
@@ -288,4 +290,85 @@ Deno.test("public schema change saves and reopens a composed title with same-req
   });
   assertEquals(reopened.target.schema["x-title-template"], "$prop_1$ - $prop_3$");
   assertEquals(reopened.version, created.version);
+});
+
+Deno.test("public schema drafts protect selected identity and used kinds after tombstoned membership", async () => {
+  const f = await fixture();
+  f.context.has_entities = true;
+  f.context.identifier_usage = { prop_2: ["00000000-0000-4000-8000-000000000001"] };
+  const replacement = {
+    type: "string",
+    title: "새 번호",
+    "x-order": 30,
+    "x-identifier": {
+      allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
+      default_kind_id: "00000000-0000-4000-8000-000000000001",
+    },
+  };
+  const error = await assertRejects(() =>
+    createEntitySchemaChange(f.deps, actor, typeId, {
+      expected_schema_version: 1,
+      edits: [{ op: "add_property", client_ref: "identity", field: replacement, required: true }, {
+        op: "set_metadata",
+        "x-identity-property": "new_identity",
+      }],
+    })
+  );
+  assertEquals((error as { code: string }).code, "invalid_input");
+  f.context.has_entities = false;
+  f.context.identifier_usage = {};
+  const empty = await createEntitySchemaChange(f.deps, actor, typeId, {
+    expected_schema_version: 1,
+    edits: [{ op: "add_property", client_ref: "identity", field: replacement, required: true }, {
+      op: "set_metadata",
+      "x-identity-property": "new_identity",
+    }],
+  });
+  assertEquals(empty.target.schema["x-identity-property"], "prop_3");
+});
+
+Deno.test("public drafts reject removing a tombstoned used kind but allow adding kinds and changing labels or default", async () => {
+  const f = await fixture(),
+    first = "00000000-0000-4000-8000-000000000001",
+    second = "00000000-0000-4000-8000-000000000002";
+  f.context.has_entities = true;
+  f.context.identifier_usage = { prop_2: [first], prop_3: [second] };
+  const field = {
+    type: "string" as const,
+    title: "외부 번호",
+    "x-order": 30,
+    "x-identifier": { allowed_kind_ids: [first, second], default_kind_id: first },
+  };
+  f.context.definition.schema.properties.prop_3 = field;
+  const error = await assertRejects(() =>
+    createEntitySchemaChange(f.deps, actor, typeId, {
+      expected_schema_version: 1,
+      edits: [{
+        op: "update_property",
+        key: "prop_3",
+        field: { ...field, "x-identifier": { allowed_kind_ids: [first], default_kind_id: first } },
+        required: false,
+      }],
+    })
+  );
+  assertEquals((error as { code: string }).code, "invalid_input");
+  const safe = await createEntitySchemaChange(f.deps, actor, typeId, {
+    expected_schema_version: 1,
+    edits: [{
+      op: "update_property",
+      key: "prop_3",
+      field: {
+        ...field,
+        title: "새 이름",
+        description: "새 설명",
+        "x-identifier": {
+          allowed_kind_ids: [first, second, "00000000-0000-4000-8000-000000000003"],
+          default_kind_id: second,
+        },
+      },
+      required: false,
+    }],
+  });
+  assertEquals(safe.change_kind, "compatible");
+  assertEquals(safe.target.schema["x-identity-property"], "prop_2");
 });

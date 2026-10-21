@@ -98,6 +98,10 @@ export class SqlActorStore {
 
 /** DB 오류를 업무 오류로 바꾼다. 내부 SQL·메시지는 밖으로 내보내지 않는다. */
 export function translate(e: unknown): unknown {
+  if (e && typeof e === "object" && "message" in e && e.message === "identifier_registry_stale") {
+    return new AppError("schema_plan_stale", "식별자 종류가 변경되었습니다. 새 영향 분석을 준비하세요");
+  }
+
   if (e instanceof AppError) return e;
   const code = (e as { code?: string }).code ?? "";
   if (code === "42501" && (e as { message?: string }).message === "request_owner_missing") {
