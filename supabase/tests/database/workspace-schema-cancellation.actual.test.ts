@@ -1,4 +1,3 @@
-import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { connect, dbTest, urls } from "./_db.ts";
 import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";

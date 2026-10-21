@@ -940,7 +940,7 @@ test(
     await selected.selectOption("prop_3");
     await expect(selected).toHaveValue("prop_3");
     await expect(field.getByText("자료 식별자", { exact: true })).toBeVisible();
-    await expect(field.getByRole("checkbox", { name: "필수 입력", exact: true })).toBeDisabled();
+    await expect(field.getByLabel("필수 입력", { exact: true })).toBeDisabled();
     await expect(page.getByText("변경 1개 · 검토 후 자료에 적용됩니다.", { exact: true })).toBeVisible();
     const requests: unknown[] = [];
     await page.route(`**/api/entity-types/${typeId}/schema-changes`, async (route) => {
@@ -953,6 +953,8 @@ test(
     });
     await page.getByRole("button", { name: "변경 검토", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("자료가 추가되었습니다");
+    await expect(page.getByRole("alert")).toBeInViewport();
+    await expect(page.getByRole("alert")).toBeFocused();
     await expect(selected).toHaveValue("prop_3");
     expect(requests).toEqual([
       expect.objectContaining({

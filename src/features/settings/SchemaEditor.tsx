@@ -220,6 +220,15 @@ export function SchemaEditor(
     restartedFrom,
     planSyncNeeded,
   } = editor.view;
+  const errorNotice = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!error || fieldError) return;
+    const frame = requestAnimationFrame(() => {
+      errorNotice.current?.scrollIntoView({ block: "nearest" });
+      errorNotice.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [error, fieldError]);
   const {
     editField,
     editNumeric,
@@ -332,7 +341,7 @@ export function SchemaEditor(
         />
       )}
       {error && (
-        <Alert variant="destructive" role="alert" className="text-sm text-destructive">
+        <Alert ref={errorNotice} tabIndex={-1} variant="destructive" role="alert" className="text-sm text-destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}

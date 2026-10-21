@@ -1,4 +1,3 @@
-import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
