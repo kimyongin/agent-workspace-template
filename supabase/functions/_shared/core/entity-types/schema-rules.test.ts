@@ -9,7 +9,12 @@ Deno.test("public definition validation rejects nested features and invalid titl
   assertThrows(() => validateEntityDefinition({ ...definition, display: { representative: "prop_2" } }));
   assertThrows(() => validateEntityDefinition({ schema: { ...definition.schema, "x-title-template": "$prop_2$" } }));
   for (const field of [{ format: "date" as const }, { oneOf: ["a", "b"].map((value) => ({ const: value })) }]) {
-    assertEquals(validateEntityDefinition({ schema: { ...definition.schema, properties: { prop_1: { ...definition.schema.properties.prop_1, ...field } } } }).schema["x-title-template"], "$prop_1$");
+    assertEquals(
+      validateEntityDefinition({
+        schema: { ...definition.schema, properties: { prop_1: { ...definition.schema.properties.prop_1, ...field } } },
+      }).schema["x-title-template"],
+      "$prop_1$",
+    );
   }
 });
 Deno.test("properties validate calendar dates, safe precision, missing/null and creation defaults", () => {

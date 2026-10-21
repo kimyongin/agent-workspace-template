@@ -12,8 +12,13 @@ Deno.test("current title definitions require a template and reject retired prope
     Object.assign(old.schema.properties.prop_1, { [flag]: flag === "x-list-order" ? 10 : true });
     assertThrows(() => validateEntityDefinition(old));
   }
-  const numeric = { ...definition.schema, required: [], "x-title-template": "$prop_2$", properties: {
-    prop_2: { type: "integer" as const, "x-order": 20 },
-  } };
+  const numeric = {
+    ...definition.schema,
+    required: [],
+    "x-title-template": "$prop_2$",
+    properties: {
+      prop_2: { type: "integer" as const, "x-order": 20 },
+    },
+  };
   assertEquals(validateEntityDefinition({ schema: numeric }).schema["x-title-template"], "$prop_2$");
 });

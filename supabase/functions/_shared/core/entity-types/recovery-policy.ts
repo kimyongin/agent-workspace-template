@@ -67,7 +67,9 @@ export function recoveryTarget(context: RecoveryContext): SchemaDefinition {
   const target = {
     schema: {
       ...structuredClone(context.current.schema),
-      properties: normalizeStoredEntityDefinition(context.source, context.evidence.type.id, context.source.schema["x-version"]).schema.properties,
+      properties:
+        normalizeStoredEntityDefinition(context.source, context.evidence.type.id, context.source.schema["x-version"])
+          .schema.properties,
       required: [...context.source.schema.required],
     },
   };
@@ -88,9 +90,13 @@ export function recoveryTarget(context: RecoveryContext): SchemaDefinition {
     }
   }
   if (entityTitleTemplateIssues(target.schema["x-title-template"], target.schema).length) {
-    throw invalidInput("현재 제목 템플릿의 속성이 복구안에 없습니다. 제목 템플릿을 먼저 수정하고 복구안을 다시 만드세요", [{
-      path: "schema.x-title-template", message: "복구 후에도 사용할 수 있는 속성으로 제목 템플릿을 설정하세요",
-    }]);
+    throw invalidInput(
+      "현재 제목 템플릿의 속성이 복구안에 없습니다. 제목 템플릿을 먼저 수정하고 복구안을 다시 만드세요",
+      [{
+        path: "schema.x-title-template",
+        message: "복구 후에도 사용할 수 있는 속성으로 제목 템플릿을 설정하세요",
+      }],
+    );
   }
   validateEntityDefinition(target);
   publicationDefinition(target, context.evidence.type.id, context.evidence.type.schema_version + 1);

@@ -29,7 +29,9 @@ function changeRow(r: postgres.Row): ModelChange & { plan: ModelPlan } {
         ...item,
         ...Object.fromEntries((["schema", "current_schema"] as const).flatMap((key) => {
           const schema = item[key];
-          return schema ? [[key, normalizeStoredEntityDefinition({ schema }, schema["x-type-id"], schema["x-version"]).schema]] : [];
+          return schema
+            ? [[key, normalizeStoredEntityDefinition({ schema }, schema["x-type-id"], schema["x-version"]).schema]]
+            : [];
         })),
       })),
     },

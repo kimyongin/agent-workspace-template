@@ -6,11 +6,15 @@ import { retainedSchemaRequestInputs } from "./retained-request-input.ts";
 
 /** A read-only candidate lookup cannot authorize an old input to execute a new write. */
 export async function findRetainedSchemaRequest<T>(
-  d: EntityTypeDeps, actor: Actor, operation: string, target: unknown, raw: unknown,
+  d: EntityTypeDeps,
+  actor: Actor,
+  operation: string,
+  target: unknown,
+  raw: unknown,
 ): Promise<{ found: boolean; result?: T; mismatch?: AppError }> {
   const inputs = retainedSchemaRequestInputs(operation, raw);
   if (!inputs.length) return { found: false };
-  return d.uow.run(actor, async (store) => {
+  return await d.uow.run(actor, async (store) => {
     let mismatch: AppError | undefined;
     for (const input of inputs) {
       const identity = await requestIdentity(actor, operation, target, input);
@@ -29,7 +33,11 @@ export async function findRetainedSchemaRequest<T>(
 }
 /** Retired inputs can reproduce only an exact already successful receipt. */
 export async function replayRetainedSchemaRequest<T>(
-  d: EntityTypeDeps, actor: Actor, operation: string, target: unknown, raw: unknown,
+  d: EntityTypeDeps,
+  actor: Actor,
+  operation: string,
+  target: unknown,
+  raw: unknown,
 ): Promise<T> {
   const receipt = await findRetainedSchemaRequest<T>(d, actor, operation, target, raw);
   if (receipt.mismatch && !receipt.found) throw receipt.mismatch;

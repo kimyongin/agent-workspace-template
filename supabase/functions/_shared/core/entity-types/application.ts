@@ -73,7 +73,13 @@ function writing(d: EntityTypeDeps): EntityTypeDeps["uow"] {
   return { run: (actor, fn) => d.uow.run(actor, fn, settingsWrite) };
 }
 export async function createEntityType(d: EntityTypeDeps, actor: Actor, raw: unknown) {
-  const retained = await findRetainedSchemaRequest<EntityType>({ uow: writing(d) }, actor, "entity-type.create", null, raw);
+  const retained = await findRetainedSchemaRequest<EntityType>(
+    { uow: writing(d) },
+    actor,
+    "entity-type.create",
+    null,
+    raw,
+  );
   if (retained.found) return retained.result as EntityType;
   if (retained.mismatch && !entityTypeCreate.safeParse(raw).success) throw retained.mismatch;
   const input = parse(entityTypeCreate, raw);

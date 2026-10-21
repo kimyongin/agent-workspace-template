@@ -73,9 +73,7 @@ const guards = [
   "analysis:queued",
   "analysis:running",
   "change:analyzing",
-  ...["queued", "preparing", "ready_to_commit", "committing"].map((s) =>
-    `migration:${s}`
-  ),
+  ...["queued", "preparing", "ready_to_commit", "committing"].map((s) => `migration:${s}`),
   ...["analyzing", "queued", "preparing", "ready_to_commit", "committing"].map((
     s,
   ) => `model:${s}`),
@@ -156,9 +154,7 @@ for (
                     ) => [
                       key,
                       Object.fromEntries(
-                        Object.entries(field).filter(([name]) =>
-                          name !== "x-representative"
-                        ),
+                        Object.entries(field).filter(([name]) => name !== "x-representative"),
                       ),
                     ]),
                   ),
@@ -237,8 +233,7 @@ for (
       }
       const oldVersions =
         await db`select * from app.entity_schema_versions order by workspace_id nulls last,type_id,schema_version`;
-      const oldTypes =
-        await db`select * from app.entity_types order by workspace_id nulls last,id`;
+      const oldTypes = await db`select * from app.entity_types order by workspace_id nulls last,id`;
       const snapshots = await Promise.all(
         tables.map((table) =>
           db.unsafe(`select * from ${table} order by id`).catch(async () =>
@@ -300,9 +295,7 @@ for (
           for (const r of fresh) {
             assertEquals(
               r.schema["x-title-template"],
-              r.type_id === later && scenario === "populated"
-                ? "$prop_1$ / $prop_2$"
-                : "$prop_2$",
+              r.type_id === later && scenario === "populated" ? "$prop_1$ / $prop_2$" : "$prop_2$",
             );
             const fields = r.schema.properties;
             for (
@@ -330,9 +323,7 @@ for (
             ].title,
             "資料",
           );
-          await assertRejects(() =>
-            db`update app.entity_schema_versions set schema=schema`
-          );
+          await assertRejects(() => db`update app.entity_schema_versions set schema=schema`);
           await db`select set_config('request.workspace_id',${workspace},false)`;
           for (
             const bad of [oldSchema(), {
@@ -355,9 +346,7 @@ for (
       }
       for (const [index, table] of tables.entries()) {
         const rows = await db.unsafe(`select * from ${table} order by id`)
-          .catch(async () =>
-            await db.unsafe(`select * from ${table} order by request_key`)
-          );
+          .catch(async () => await db.unsafe(`select * from ${table} order by request_key`));
         assertEquals(rows, snapshots[index]);
       }
     } finally {

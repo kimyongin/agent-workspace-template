@@ -201,7 +201,6 @@ Deno.test("public change reserves new fields while presentation travels with eac
           type: "string",
           "x-order": 20,
 
-
           title: "상태",
           oneOf: [{ const: "available", title: "판매 중" }],
         },
@@ -212,8 +211,6 @@ Deno.test("public change reserves new fields while presentation travels with eac
         field: {
           type: "string",
           "x-order": 5,
-
-
 
           title: "상품명",
           minLength: 1,

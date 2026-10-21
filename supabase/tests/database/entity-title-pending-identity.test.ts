@@ -14,10 +14,7 @@ import {
 } from "../../functions/_shared/core/data-model/application.ts";
 import { prepareBusinessRecord } from "../../functions/_shared/core/settings/application.ts";
 import { connect, dbTest, urls } from "./_db.ts";
-import {
-  businessRequest,
-  businessWorkspaceFixture,
-} from "./_workspace-business.ts";
+import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
 const admin = connect(urls.admin, { max: 1 });
 const user = connect(urls.pooler, { max: 1, prepare: false });
 
@@ -43,9 +40,7 @@ dbTest(
       ]);
       const actor = fixture.manager;
       const document = await exportDataModel(model, actor);
-      const type = document.entity_types.find((i) =>
-        i.schema["x-type-id"] === kind.id
-      )!;
+      const type = document.entity_types.find((i) => i.schema["x-type-id"] === kind.id)!;
       type.schema.properties.prop_2 = {
         type: "string",
         "x-order": 20,

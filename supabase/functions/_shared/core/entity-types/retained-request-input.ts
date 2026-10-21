@@ -1,4 +1,8 @@
-import { retainedTitleTypeCreate, schemaChangeCreate as retainedTitleChangeCreate, schemaChangeUpdate as retainedTitleChangeUpdate } from "./retained-title-input.ts";
+import {
+  retainedTitleTypeCreate,
+  schemaChangeCreate as retainedTitleChangeCreate,
+  schemaChangeUpdate as retainedTitleChangeUpdate,
+} from "./retained-title-input.ts";
 import { entityReferenceId } from "../../contracts/entity-identity.ts";
 import { optionLabelDictionary, ownStringDictionary } from "../../contracts/option-labels.ts";
 import { z } from "zod";

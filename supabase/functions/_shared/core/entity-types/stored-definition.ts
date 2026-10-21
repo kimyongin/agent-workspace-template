@@ -20,10 +20,16 @@ export function normalizeStoredEntityDefinition(
   schema["x-type-id"] ??= typeId;
   schema["x-version"] ??= version;
   const display = input.display;
-  const retained = schema.properties as Record<string, EntityField & {
-    "x-representative"?: boolean; "x-show-in-list"?: boolean; "x-list-order"?: number;
-  }>;
-  const representative = display?.representative ?? Object.keys(retained).find((key) => retained[key]["x-representative"]);
+  const retained = schema.properties as Record<
+    string,
+    EntityField & {
+      "x-representative"?: boolean;
+      "x-show-in-list"?: boolean;
+      "x-list-order"?: number;
+    }
+  >;
+  const representative = display?.representative ??
+    Object.keys(retained).find((key) => retained[key]["x-representative"]);
   schema["x-title-template"] ??= representative ? `$${representative}$` : "";
   if (display) {
     for (const [key, field] of Object.entries(schema.properties)) {

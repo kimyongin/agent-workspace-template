@@ -112,9 +112,10 @@ export const schemaChangeList = z.strictObject({
   before: z.string().uuid().optional(),
 });
 
-const safeText = (v: string) => !v.includes("\u0000") && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(v);
+const safeText = (v: string) =>
+  !v.includes("\u0000") && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(v);
 export const retainedTitleTypeCreate = z.strictObject({
- label: z.string().trim().min(1).max(80).refine(safeText),
- icon_id: z.enum(["box","leaf","package","book","tool","star"]).default("box"),
- representative_label: z.string().trim().min(1).max(80).refine(safeText).default("이름"),
+  label: z.string().trim().min(1).max(80).refine(safeText),
+  icon_id: z.enum(["box", "leaf", "package", "book", "tool", "star"]).default("box"),
+  representative_label: z.string().trim().min(1).max(80).refine(safeText).default("이름"),
 });

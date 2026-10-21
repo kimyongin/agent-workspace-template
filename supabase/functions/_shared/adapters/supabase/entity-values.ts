@@ -79,6 +79,5 @@ export function entityPresentationRow(row: Record<string, unknown>, properties: 
     },
     current_schema_version: Number(row.current_schema_version ?? row.schema_version),
     title: renderEntityTitle(row.schema as EntitySchema, properties, String(row.external_id ?? row.id ?? "")),
-
   };
 }
