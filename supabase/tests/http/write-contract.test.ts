@@ -58,8 +58,6 @@ activityWorkspaceSuite(
         );
         const entity = (await scopedHttp(token, workspaceA, "POST", "/entities", {
           ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "retired-route-proof" },
         })).body;
         const taskBefore = (await scopedHttp(token, workspaceA, "GET", `/tasks/${task.id}`))

@@ -4,7 +4,8 @@ import { chooseSetting } from "./settings-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { executionDialog, saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
-import { entity, fixtureIdentity, fixtureSchema, fixtureType, id, stamp } from "./support/workspace-data.ts";
+import { entity, fixtureSchema, fixtureType, id, stamp } from "./support/workspace-data.ts";
+import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { openTabFilters } from "./ui-actions.ts";
 import { disclosureContent } from "./table-actions.ts";
 const second = { ...fixtureType, id: id(901), label: "다른 자료" };
@@ -19,7 +20,7 @@ test.beforeEach(async ({ page, baseURL }) => {
     if (url.pathname.startsWith("/api/entity-types/")) {
       const selected = url.pathname.includes(second.id) ? second : fixtureType;
       if (url.pathname.endsWith("/identity")) {
-        return route.fulfill({ json: fixtureIdentity(selected.id) });
+        return route.fulfill({ status: 404, json: { code: "not_found", message: "퇴역 경로" } });
       }
       if (url.pathname.endsWith("/schemas")) {
         return route.fulfill({
@@ -57,6 +58,7 @@ test.beforeEach(async ({ page, baseURL }) => {
     if (url.pathname.endsWith("/links") && route.request().method() === "GET") {
       return route.fulfill({ json: { items: [], next_cursor: null } });
     }
+    if (url.pathname === "/api/entities/lookup") return route.fulfill({ json: null });
     if (url.pathname.startsWith("/api/entities")) {
       return route.fulfill({
         json: url.pathname === "/api/entities" ? { items: [entity()], next_cursor: null } : entity(),
@@ -120,32 +122,15 @@ test("typed list uses composed titles and expanded key-values with AND filters, 
   expect(url.searchParams.get("tag_id")).toBe("tag");
 });
 test("manual deleted lookup opens restore confirmation without submitting archived properties", async ({ page }) => {
+  const kindId = id(333), raw = "001:한글/😀", pair = encodeIdentifierValue(kindId, raw);
+  const schema = structuredClone(fixtureSchema), selected = schema.schema["x-identity-property"]!;
+  schema.schema.properties[selected]["x-identifier"] = { allowed_kind_ids: [kindId], default_kind_id: kindId };
+  schema.identifier_kinds = [{ id: kindId, source: "crm", source_label: "고객", label: "고객 번호", generation: "direct", active: true, version: 1, source_version: 1 }];
   const archived = {
-    ...entity(),
-    source: "crm",
-    source_label: "고객",
-    id: `crm:${fixtureType.id}:${entity().external_id}`,
-    deleted_at: stamp,
-    tag_ids: [id(700)],
-    properties: { prop_1: "보존 이름", prop_2: 0, prop_3: null, prop_4: "b" },
+    ...entity(), identity_label: `고객 · 고객 번호 · ${raw}`,
+    id: encodeIdentifierReference(fixtureType.id, kindId, raw), deleted_at: stamp, tag_ids: [id(700)],
+    properties: { prop_1: "보존 이름", prop_2: 0, prop_3: null, prop_4: "b", [selected]: pair },
   };
-  await page.route("**/api/entity-types/*/identity", (route) =>
-    route.fulfill({
-      json: {
-        ...fixtureIdentity(),
-        default_source: "crm",
-        sources: [{
-          code: "crm",
-          rule_id: fixtureType.id,
-          active: true,
-          referenced: false,
-          source_label: "고객",
-          rule_label: "고객 번호",
-          generation: "direct",
-        }],
-      },
-    }));
-  const schema = structuredClone(fixtureSchema);
   schema.schema.properties.prop_4.deprecated = true;
   await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: schema }));
   await page.route("**/api/entities/*", (route) => route.fulfill({ json: archived }));
@@ -167,11 +152,12 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
   await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await form.getByLabel("제목", { exact: false }).fill("임시 입력");
-  await form.getByLabel("번호", { exact: true }).fill(archived.external_id);
+  await form.getByRole("textbox", { name: /^식별자/ }).fill(raw);
   await form.getByRole("button", { name: "저장", exact: true }).click();
   await expect(executionDialog(page)).toBeVisible();
   await expect.poll(() => inputs.length).toBe(1);
-  expect(inputs[0].properties).toEqual({ prop_1: "보존 이름", prop_2: 0, prop_3: null });
+  expect(inputs[0].properties).toEqual({ prop_1: "보존 이름", prop_2: 0, prop_3: null, [selected]: pair });
+  expect(inputs[0]).not.toHaveProperty("generate_identifiers");
   expect(inputs[0].expected_version).toBe(1);
   expect(inputs[0]).not.toHaveProperty("tag_ids");
 });
