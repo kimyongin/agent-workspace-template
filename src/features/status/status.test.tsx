@@ -129,8 +129,9 @@ it("혼합 색인 문제는 종류를 구분하고 현재 공간의 원문으로
   </WorkspaceRouteContext.Provider></MemoryRouter>);
   expect(html).toContain('href="/w/current-workspace/records/20261010-G123ABCD"');
   expect(html).toContain('href="/w/current-workspace/entities/app%3A00000000-0000-4000-8000-000000000001%3A20261010-G123ABCD"');
-  expect(html).toContain("기록 원문");
-  expect(html).toContain("자료 원문");
+  expect(html).not.toContain("기록 원문");
+  expect(html).not.toContain("자료 원문");
+  expect(html.match(/aria-label="같은 제목 상세"/g)).toHaveLength(2);
   expect(html).toContain('id="problems-record-20261010-G123ABCD"');
   expect(html).toContain('id="problems-entity-app:00000000-0000-4000-8000-000000000001:20261010-G123ABCD"');
 });

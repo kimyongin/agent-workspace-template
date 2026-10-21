@@ -19,7 +19,7 @@ import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { WorkspaceContext } from "../details/workspace-context.ts";
 import { readApiKey } from "./read-api-key.ts";
-import { Link } from "../../lib/workspace-router.tsx";
+import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
 
 
 export function IndexingIssues({ count, disabled = false }: { count: number; disabled?: boolean }) {
@@ -163,12 +163,11 @@ export function IndexingIssueRows({ items, expanded, id, onToggle }: {
                     <BusinessDisclosureCell><Button variant="ghost" size="icon" type="button" aria-label={`${isOpen ? "접기" : "열기"}: ${title}`} aria-controls={panel} aria-expanded={isOpen} onClick={toggleIssue}>
                       {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
                     </Button></BusinessDisclosureCell>
-                    <BusinessCell index={0}><Badge variant="outline">{label}</Badge><h3><Button variant="link" type="button" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere" aria-label={`${title} ${indexingReasonLabels[issue.reason]}`} aria-controls={panel} aria-expanded={isOpen} onClick={toggleIssue}>{title}</Button></h3></BusinessCell>
+                    <BusinessCell index={0}><Badge variant="outline">{label}</Badge><h3><Button asChild variant="link" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"><Link to={issue.path} aria-label={`${title} 상세`}>{title}</Link></Button></h3></BusinessCell>
                     <BusinessCell index={1}><Badge variant="secondary" className="h-auto max-w-full whitespace-normal wrap-anywhere">{indexingReasonLabels[issue.reason]}</Badge></BusinessCell>
                   </BusinessRow>
                   <BusinessDetails hidden={!isOpen} id={panel}>
                     <p>{indexingReasonExplanations[issue.reason]}</p>
-                    <Button asChild variant="outline"><Link to={issue.path}>{label} 원문</Link></Button>
                     {issue.chunks.unknown > 0 && (
                       <Alert>
                         <AlertDescription>

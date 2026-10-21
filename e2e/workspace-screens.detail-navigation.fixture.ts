@@ -33,15 +33,15 @@ for (
 
 for (const [kind, title] of [["entities", "자료"], ["tasks", "할 일"], ["records", "기록"]] as const) {
   for (const exit of ["cancel", "close", "escape", "direct", "back"] as const) {
-    test(`#203 ${kind} ${exit}: 상세 버튼은 보기·편집은 모드 전환·한 dialog`, async ({ page }) => {
+    test(`#203 ${kind} ${exit}: 제목 링크는 보기·편집은 모드 전환·한 dialog`, async ({ page }) => {
       const state = await fixtures(page);
       await go(page, `/${kind}?pages=1`);
       const row = businessRows(page.getByRole("region", { name: / 목록$/ }).getByRole("table")).first();
       const preview = await disclosureContent(page, row.getByRole("button", { name: title, exact: true }));
       await row.getByRole("button", { name: title, exact: true }).click();
       await expect(row.getByRole("link", { name: title + " 편집", exact: true })).toHaveCount(0);
-      await expect(preview.getByRole("link", { name: title + " 상세", exact: true })).toHaveText("상세");
-      await preview.getByRole("link", { name: title + " 상세", exact: true }).click();
+      await expect(row.getByRole("link", { name: title + " 상세", exact: true })).toHaveText(title);
+      await row.getByRole("link", { name: title + " 상세", exact: true }).click();
       await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
       expect(new URL(page.url()).searchParams.has("edit")).toBe(false);
       await form(page).evaluate((el) => el.dataset.sameDialog = "yes");
