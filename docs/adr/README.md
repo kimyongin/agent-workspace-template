@@ -26,13 +26,13 @@
 
 | [0020](0020-typed-entity-schema.md) | 자료 종류별 JSON Schema와 불변 게시 버전 | 채택; 정의·버전 분리는 ADR-0023로 대체 |
 
-| [0021](0021-type-scoped-immutable-identity.md) | 종류 범위의 불변 자료 식별자와 재사용 발급처 | 채택 |
+| [0021](0021-type-scoped-immutable-identity.md) | 종류 범위의 불변 자료 식별자와 재사용 발급처 | 항목 정책·참조 키는 ADR-0027로 대체 |
 
 | [0022](0022-remove-user-principles.md) | 판단 기준은 자료로 관리하고 사용자 원칙 기능 제거 | 채택 |
 
 | [0023](0023-single-schema-document.md) | 자료 종류·속성·표시의 단일 JSON Schema 정본 | 채택, 구현은 #468 |
 
-| [0024](0024-entity-relations-and-data-model.md) | 역할이 있는 자료 관계와 전체 자료 모델 교환 | 채택, 구현은 #482 |
+| [0024](0024-entity-relations-and-data-model.md) | 역할이 있는 자료 관계와 전체 자료 모델 교환 | 채택, 종류별 식별 설정 교환은 ADR-0027로 대체 |
 
 | [0026](0026-workspace-membership-and-inherited-record-access.md) | 워크스페이스 참여와 연결 대상에 따른 기록 권한 | 설계 채택, 구현은 [#511](https://github.com/kimyongin/agent-workspace-template/issues/511) |
 
