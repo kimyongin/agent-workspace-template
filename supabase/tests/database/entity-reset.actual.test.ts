@@ -242,7 +242,7 @@ dbTest(
       });
       const modelDeps = { uow: new SqlDataModelUnitOfWork(sql) };
       const document = await exportDataModel(modelDeps, f.manager);
-    document.entity_types.find((t) => t.schema["x-type-id"] === emptyType.id)!.schema.description = firstEntity;
+      document.entity_types.find((t) => t.schema["x-type-id"] === emptyType.id)!.schema.description = firstEntity;
       document.relations = [];
       const input = { mode: "update" as const, document: JSON.stringify(document) };
       const preview = await previewDataModel(modelDeps, f.manager, input);
