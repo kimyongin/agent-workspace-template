@@ -39,7 +39,7 @@ function draftFingerprint(value: unknown): string {
         Object.entries(item)
           .filter(([name, value]) =>
             value !== undefined &&
-            !(value === false && ["deprecated", "readOnly", "x-representative", "x-show-in-list", "x-search-text"].includes(name))
+            !(value === false && ["deprecated", "readOnly", "x-search-text"].includes(name))
           )
           .sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => [name, normalize(value, name)]),
       );
@@ -290,7 +290,7 @@ export function useSchemaChangeEditor(
   ) => {
     setNumericDrafts((values) => ({ ...values, [key + ":" + name]: raw }));
   };
-  const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) =>
+  const flag = (key: string, name: "required" | "archived", value: boolean) =>
     setDraft((d) => {
       if (name === "required") {
         return {
@@ -315,7 +315,7 @@ export function useSchemaChangeEditor(
             ...d.schema.properties,
             [key]: {
               ...d.schema.properties[key],
-              [name === "archived" ? "deprecated" : "x-show-in-list"]: value,
+              deprecated: value,
               ...(name === "archived" && value ? { "x-search-text": false } : {}),
             },
           },
@@ -623,16 +623,15 @@ export function useSchemaChangeEditor(
       return values;
     });
   };
-  const editFlag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) => {
+  const editFlag = (key: string, name: "required" | "archived", value: boolean) => {
     if (editable() && !plan?.recovery) flag(key, name, value);
   };
   const setFieldInactive = (key: string, value: boolean) => {
     if (
-      !editable() || plan?.recovery || key === schemaPresentation(draft).representative
+      !editable() || plan?.recovery
     ) return;
     if (value) {
       flag(key, "required", false);
-      flag(key, "list_columns", false);
     }
     flag(key, "archived", value);
   };
@@ -654,20 +653,6 @@ export function useSchemaChangeEditor(
       },
     }));
   };
-  const chooseRepresentative = (key: string) => {
-    if (editable() && !plan?.recovery) {
-      setDraft((d) => ({
-        ...d,
-        schema: {
-          ...d.schema,
-          properties: Object.fromEntries(
-            Object.entries(d.schema.properties)
-              .map(([name, field]) => [name, { ...field, "x-representative": name === key }]),
-          ),
-        },
-      }));
-    }
-  };
   const removeField = (key: string) => {
     if (!editable() || plan?.recovery) return;
     if (definition.schema.properties[key] && draft.schema.properties[key]) {
@@ -688,8 +673,6 @@ export function useSchemaChangeEditor(
     setDraft(d => {
       const order = fieldOrder.filter(name => name === key || d.schema.properties[name]);
       const restored = structuredClone(removed.field);
-      // Restoring a formerly representative field must preserve the current name selection.
-      if (restored["x-representative"]) restored["x-representative"] = false;
       const properties = { ...d.schema.properties, [key]: restored };
       return { ...d, schema: { ...d.schema,
         properties: Object.fromEntries(order.map(name => [name, { ...properties[name], "x-order": (fieldOrder.indexOf(name) + 1) * 10 }])),
@@ -926,7 +909,6 @@ export function useSchemaChangeEditor(
     editFlag,
     setFieldInactive,
     editOptionLabel,
-    chooseRepresentative,
     removeField,
     restoreField,
     addField,

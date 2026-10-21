@@ -1,4 +1,4 @@
-import { replayRetainedSchemaRequest } from "./retained-requests.ts";
+import { findRetainedSchemaRequest, replayRetainedSchemaRequest } from "./retained-requests.ts";
 import type { SchemaMigrationStore } from "./schema-migrations.ts";
 import type { SchemaChangeStore } from "./schema-changes.ts";
 import {
@@ -72,7 +72,16 @@ const settingsWrite: WorkspaceEntry = {
 function writing(d: EntityTypeDeps): EntityTypeDeps["uow"] {
   return { run: (actor, fn) => d.uow.run(actor, fn, settingsWrite) };
 }
-export function createEntityType(d: EntityTypeDeps, actor: Actor, raw: unknown) {
+export async function createEntityType(d: EntityTypeDeps, actor: Actor, raw: unknown) {
+  const retained = await findRetainedSchemaRequest<EntityType>(
+    { uow: writing(d) },
+    actor,
+    "entity-type.create",
+    null,
+    raw,
+  );
+  if (retained.found) return retained.result as EntityType;
+  if (retained.mismatch && !entityTypeCreate.safeParse(raw).success) throw retained.mismatch;
   const input = parse(entityTypeCreate, raw);
   return runWrite(
     writing(d),
@@ -80,7 +89,7 @@ export function createEntityType(d: EntityTypeDeps, actor: Actor, raw: unknown) 
     "entity-type.create",
     null,
     input,
-    (store) => store.create(input, initialEntityDefinition(input.representative_label)),
+    (store) => store.create(input, initialEntityDefinition(input.initial_property_label)),
   );
 }
 export function updateEntityType(d: EntityTypeDeps, actor: Actor, id: string, raw: unknown) {

@@ -16,6 +16,7 @@ const schema: EntitySchemaResult = {
   constraints: entitySchemaLimits,
   policy: entitySchemaPolicy,
   schema: {
+ "x-title-template": "$prop_1$",
     $schema: "https://json-schema.org/draft/2020-12/schema",
     "x-type-id": "00000000-0000-4000-8000-000000000001",
     "x-version": 1,
@@ -30,8 +31,8 @@ const schema: EntitySchemaResult = {
         title: "이름",
         minLength: 1,
         "x-order": 10,
-        "x-representative": true,
-        "x-show-in-list": true,
+
+
       },
       prop_2: { type: "string", title: "분류", "x-order": 20 },
     },

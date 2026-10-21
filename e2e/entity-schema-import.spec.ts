@@ -96,7 +96,7 @@ test("JSON file export→edited import→normal publication→web create/read→
     const type = await mcp.call("create_entity_type", {
       label: unique("JSON 왕복 자료"),
       icon_id: "leaf",
-      representative_label: "상품명",
+      initial_property_label: "상품명",
     });
     await workspace.grantKind(type.id);
     await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}`));
@@ -112,7 +112,7 @@ test("JSON file export→edited import→normal publication→web create/read→
       type: ["string", "null"],
       title: "판매 상태",
       "x-order": 20,
-      "x-show-in-list": true,
+
       oneOf: [{ const: "ready", title: "판매 중" }, {
         const: "closed",
         title: "판매 종료",
@@ -126,7 +126,7 @@ test("JSON file export→edited import→normal publication→web create/read→
       type: ["number", "null"],
       title: "수량",
       "x-order": 30,
-      "x-show-in-list": true,
+
       default: 0,
       minimum: 0,
       multipleOf: 0.1,

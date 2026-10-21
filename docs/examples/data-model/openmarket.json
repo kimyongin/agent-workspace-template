@@ -21,35 +21,31 @@
             "title": "상품명",
             "maxLength": 4096,
             "x-order": 10,
-            "x-show-in-list": true,
-            "minLength": 1,
-            "x-representative": true
+            "minLength": 1
           },
           "prop_2": {
             "type": "string",
             "title": "브랜드",
             "maxLength": 4096,
-            "x-order": 20,
-            "x-show-in-list": true
+            "x-order": 20
           },
           "prop_3": {
             "type": "string",
             "title": "상품 설명",
             "maxLength": 4096,
-            "x-order": 30,
-            "x-show-in-list": true
+            "x-order": 30
           },
           "prop_4": {
             "type": "string",
             "title": "배송 예정일",
             "format": "date",
-            "x-order": 40,
-            "x-show-in-list": true
+            "x-order": 40
           }
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,
@@ -81,35 +77,31 @@
             "title": "SKU 이름",
             "maxLength": 4096,
             "x-order": 10,
-            "x-show-in-list": true,
-            "minLength": 1,
-            "x-representative": true
+            "minLength": 1
           },
           "prop_2": {
             "type": "string",
             "title": "옵션",
             "maxLength": 4096,
-            "x-order": 20,
-            "x-show-in-list": true
+            "x-order": 20
           },
           "prop_3": {
             "type": "integer",
             "title": "기준 판매가",
             "minimum": 0,
-            "x-order": 30,
-            "x-show-in-list": true
+            "x-order": 30
           },
           "prop_4": {
             "type": "integer",
             "title": "재고",
             "minimum": 0,
-            "x-order": 40,
-            "x-show-in-list": true
+            "x-order": 40
           }
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,
@@ -146,9 +138,7 @@
             "title": "판매옵션명",
             "maxLength": 4096,
             "x-order": 10,
-            "x-show-in-list": true,
-            "minLength": 1,
-            "x-representative": true
+            "minLength": 1
           },
           "prop_2": {
             "type": "string",
@@ -163,36 +153,31 @@
                 "title": "옥션"
               }
             ],
-            "x-order": 20,
-            "x-show-in-list": true
+            "x-order": 20
           },
           "prop_3": {
             "type": "string",
             "title": "판매계정",
             "maxLength": 4096,
-            "x-order": 30,
-            "x-show-in-list": true
+            "x-order": 30
           },
           "prop_4": {
             "type": "string",
             "title": "마켓 상품번호",
             "maxLength": 4096,
-            "x-order": 40,
-            "x-show-in-list": true
+            "x-order": 40
           },
           "prop_5": {
             "type": "string",
             "title": "마켓 옵션번호",
             "maxLength": 4096,
-            "x-order": 50,
-            "x-show-in-list": true
+            "x-order": 50
           },
           "prop_6": {
             "type": "integer",
             "title": "판매가",
             "minimum": 0,
-            "x-order": 60,
-            "x-show-in-list": true
+            "x-order": 60
           },
           "prop_7": {
             "type": "string",
@@ -211,13 +196,13 @@
                 "title": "판매 중지"
               }
             ],
-            "x-order": 70,
-            "x-show-in-list": true
+            "x-order": 70
           }
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,
@@ -249,9 +234,7 @@
             "title": "고객 이름",
             "maxLength": 4096,
             "x-order": 10,
-            "x-show-in-list": true,
-            "minLength": 1,
-            "x-representative": true
+            "minLength": 1
           },
           "prop_2": {
             "type": "string",
@@ -266,20 +249,19 @@
                 "title": "옥션"
               }
             ],
-            "x-order": 20,
-            "x-show-in-list": true
+            "x-order": 20
           },
           "prop_3": {
             "type": "string",
             "title": "마켓 고객번호",
             "maxLength": 4096,
-            "x-order": 30,
-            "x-show-in-list": true
+            "x-order": 30
           }
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,
@@ -311,9 +293,7 @@
             "title": "주문명",
             "maxLength": 4096,
             "x-order": 10,
-            "x-show-in-list": true,
-            "minLength": 1,
-            "x-representative": true
+            "minLength": 1
           },
           "prop_2": {
             "type": "string",
@@ -328,15 +308,13 @@
                 "title": "옥션"
               }
             ],
-            "x-order": 20,
-            "x-show-in-list": true
+            "x-order": 20
           },
           "prop_3": {
             "type": "string",
             "title": "마켓 주문번호",
             "maxLength": 4096,
-            "x-order": 30,
-            "x-show-in-list": true
+            "x-order": 30
           },
           "prop_4": {
             "type": "string",
@@ -359,13 +337,13 @@
                 "title": "취소"
               }
             ],
-            "x-order": 40,
-            "x-show-in-list": true
+            "x-order": 40
           }
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,
@@ -397,35 +375,31 @@
             "title": "주문품목명",
             "maxLength": 4096,
             "x-order": 10,
-            "x-show-in-list": true,
-            "minLength": 1,
-            "x-representative": true
+            "minLength": 1
           },
           "prop_2": {
             "type": "integer",
             "title": "수량",
             "minimum": 1,
-            "x-order": 20,
-            "x-show-in-list": true
+            "x-order": 20
           },
           "prop_3": {
             "type": "integer",
             "title": "단가",
             "minimum": 0,
-            "x-order": 30,
-            "x-show-in-list": true
+            "x-order": 30
           },
           "prop_4": {
             "type": "string",
             "title": "마켓 주문행번호",
             "maxLength": 4096,
-            "x-order": 40,
-            "x-show-in-list": true
+            "x-order": 40
           }
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,
@@ -457,16 +431,13 @@
             "title": "문의 제목",
             "maxLength": 4096,
             "x-order": 10,
-            "x-show-in-list": true,
-            "minLength": 1,
-            "x-representative": true
+            "minLength": 1
           },
           "prop_2": {
             "type": "string",
             "title": "문의 내용",
             "maxLength": 4096,
-            "x-order": 20,
-            "x-show-in-list": true
+            "x-order": 20
           },
           "prop_3": {
             "type": "string",
@@ -485,20 +456,19 @@
                 "title": "답변 완료"
               }
             ],
-            "x-order": 30,
-            "x-show-in-list": true
+            "x-order": 30
           },
           "prop_4": {
             "type": "string",
             "title": "답변 초안",
             "maxLength": 4096,
-            "x-order": 40,
-            "x-show-in-list": true
+            "x-order": 40
           }
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,

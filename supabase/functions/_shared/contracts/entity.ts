@@ -70,7 +70,6 @@ export const entitySummary = z.object({
   schema_version: schemaVersion,
   current_schema_version: schemaVersion,
   title: z.string(),
-  display_properties: entityProperties,
   version: z.number().int(),
   created_at: isoDateTime,
   updated_at: isoDateTime,

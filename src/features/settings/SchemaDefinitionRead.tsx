@@ -35,9 +35,7 @@ export function SchemaDefinitionRead(
           values.push(["선택 항목", fieldChoices(field)!.map(optionLabel).join(", ")]);
         }
         values.push(
-          ["자료 이름으로 사용", key === schemaPresentation(definition).representative ? "사용" : "사용 안 함"],
           ["필수 입력", definition.schema.required.includes(key) ? "예" : "아니요"],
-          ["목록에 표시", schemaPresentation(definition).list_columns.includes(key) ? "예" : "아니요"],
           ["읽기 전용", field.readOnly ? "예" : "아니요"],
           ["검색에 사용", field["x-search-text"] ? "예" : "아니요"],
         );

@@ -20,9 +20,6 @@ export const entityFieldInput = z.strictObject({
   examples: z.array(z.union([z.string(), z.number().finite(), z.boolean(), z.null()])).max(128).optional(),
   multipleOf: z.number().positive().finite().optional(),
   "x-order": z.number().int().positive(),
-  "x-list-order": z.number().int().positive().optional(),
-  "x-representative": z.boolean().optional(),
-  "x-show-in-list": z.boolean().optional(),
   "x-search-text": z.boolean().optional(),
   default: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]).optional(),
 });

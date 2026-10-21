@@ -17,7 +17,7 @@ import {
   validateEntityProperties,
 } from "../../functions/_shared/core/entity-types/schema-rules.ts";
 
-Deno.test("valid near-64 KiB properties and schema retain every value through GET/default20/max100 HTTP and registered MCP replies, with bounded resumable cursors", async () => {
+Deno.test("near-64 KiB detail values survive HTTP and MCP while title-only default20/max100 summaries remain bounded with resumable cursors", async () => {
   const actor = { userId: crypto.randomUUID() }, typeId = crypto.randomUUID();
   const definition = initialEntityDefinition("이름");
   for (let n = 2; n <= 21; n++) {
@@ -27,7 +27,7 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
       description: "뜻".repeat(1000),
     };
   }
-  for (let n = 1; n <= 7; n++) definition.schema.properties[`prop_${n}`]["x-show-in-list"] = true;
+
   validateEntityDefinition(definition);
   const properties: Record<string, string> = {
     prop_1: "대표",
@@ -65,7 +65,7 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     current_schema_version: 1,
     title: "대표",
     properties,
-    display_properties: properties,
+
     tag_ids: [],
     version: 1,
     deleted_at: null,
@@ -123,9 +123,10 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     assertEquals(response.status, 200);
     const body = await response.json();
     assertEquals(body.items.length, limit ?? 20);
-    assert(bytes(body) > 1048576);
+    assert(bytes(body) < 1048576);
     assert(body.next_cursor.length < 24576);
-    assertEquals(body.items.at(-1).display_properties, properties);
+    assertEquals(body.items.at(-1).title, "대표");
+    assertEquals("display_properties" in body.items.at(-1), false);
     const next = await app.request(
       `/entities?entity_type_id=${typeId}&limit=${limit ?? 20}&cursor=${encodeURIComponent(body.next_cursor)}`,
     );
@@ -165,8 +166,9 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     next_cursor: string;
   };
   assertEquals(defaultPage.items.length, 20);
-  assertEquals(defaultPage.items[19].display_properties, properties);
-  assert(bytes(defaultReply) > 1048576);
+  assertEquals(defaultPage.items[19].title, "대표");
+  assertEquals("display_properties" in defaultPage.items[19], false);
+  assert(bytes(defaultReply) < 1048576);
   assert(defaultPage.next_cursor.length < 24576);
   const query = {
     entity_type_id: typeId,
@@ -179,9 +181,10 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     next_cursor: string;
   };
   assertEquals(page.items.length, 100);
-  assertEquals(page.items[99].display_properties, properties);
+  assertEquals(page.items[99].title, "대표");
+  assertEquals("display_properties" in page.items[99], false);
   assertEquals(JSON.parse(result.content[0].text), result.structuredContent);
-  assert(bytes(result) > 12 * 1024 * 1024);
+  assert(bytes(result) < 1048576);
   assert(page.next_cursor.length < 24576);
   const next = await registered.get("list_entities")!({
     ...query,

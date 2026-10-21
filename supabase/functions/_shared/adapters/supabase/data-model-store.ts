@@ -1,4 +1,5 @@
 import type postgres from "postgres";
+import { normalizeStoredEntityDefinition } from "../../core/entity-types/stored-definition.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 import {
@@ -16,12 +17,26 @@ import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./wor
 import type { WorkspaceEntry, WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import { decodeCursor, paginate, scopeOf } from "../../core/shared/operations.ts";
 import { z } from "zod";
-function changeRow(r: postgres.Row): ModelChange & { plan: ModelPlan } {
+function changeRow(r: postgres.Row, fullReview = false): ModelChange & { plan: ModelPlan } {
   return {
     id: r.id,
     version: Number(r.version),
     status: r.status,
-    review: r.plan.review,
+    // Review is a read projection; the raw plan below still owns its approval fingerprint.
+    review: fullReview
+      ? {
+        ...r.plan.review,
+        items: r.plan.review.items.map((item: ModelChange["review"]["items"][number]) => ({
+          ...item,
+          ...Object.fromEntries((["schema", "current_schema"] as const).flatMap((key) => {
+            const schema = item[key];
+            return schema
+              ? [[key, normalizeStoredEntityDefinition({ schema }, schema["x-type-id"], schema["x-version"]).schema]]
+              : [];
+          })),
+        })),
+      }
+      : r.plan.review,
     plan: r.plan,
     result: r.result,
     created_at: r.created_at.toISOString(),
@@ -187,7 +202,7 @@ export class SqlDataModelStore implements DataModelStore {
       .tx`select * from app.data_model_changes where workspace_id=${this.workspaceId} and id=${id}::uuid ${
       lock ? this.tx`for update` : this.tx``
     }`;
-    return r ? changeRow(r) : null;
+    return r ? changeRow(r, true) : null;
   }
   async list(limit: number, cursor?: string) {
     const scope = await scopeOf(this.actor, { workspace_id: this.workspaceId, list: "data-model-changes" });

@@ -1456,20 +1456,12 @@ test("review: readonly entity representative keeps the full-width emphasized val
   const surface = panel(page);
   const heading = surface.getByRole("heading", { name: "등심", exact: true });
   await expect(heading).toBeVisible();
-  const readValue = (await heading.locator("..").boundingBox())!;
-  const readFont = await heading.evaluate((el) => getComputedStyle(el).fontSize);
   await surface.getByRole("button", { name: "편집", exact: true }).click();
-  await expect(heading).toBeVisible();
-  const editValue = (await heading.locator("..").boundingBox())!;
-  expect(editValue.x).toBeCloseTo(readValue.x, 0);
-  expect(editValue.width).toBeCloseTo(readValue.width, 0);
-  expect(await heading.evaluate((el) => getComputedStyle(el).fontSize)).toBe(readFont);
+  const nameKey = surface.getByRole("term").filter({ hasText: /^제목 · 읽기 전용$/ });
+  await expect(nameKey.locator("..").getByRole("definition")).toHaveText("등심");
   await expect(surface.getByRole("textbox", { name: /^제목/ })).toHaveCount(0);
-  const nameKey = surface.locator("dt:visible", { hasText: /^제목/ }).first();
-  const source = surface.locator("dt:visible", { hasText: /^번호 출처$/ });
-  const nameBox = (await nameKey.boundingBox())!;
-  expect((await source.boundingBox())!.y).toBeGreaterThan(nameBox.y + nameBox.height);
-  await page.screenshot({ path: info.outputPath("readonly-representative-wide.png") });
+  await expect(surface.getByRole("term").filter({ hasText: /^제목 미리보기$/ }).locator("..").getByRole("definition")).toHaveText("등심");
+  await page.screenshot({ path: info.outputPath("readonly-property-wide.png") });
   expect(state.writes).toEqual([]);
 });
 

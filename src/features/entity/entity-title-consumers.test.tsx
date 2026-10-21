@@ -33,7 +33,7 @@ test("entity details keep all title-participating attributes as ordinary key-val
     current_schema_version: 1,
     title: "초록상점 - 서울",
     properties: { prop_1: "초록상점", prop_2: "서울" },
-    display_properties: {},
+
     id: "fixture-entity",
     source: "app",
     external_id: "고객-1",

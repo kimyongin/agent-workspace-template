@@ -455,9 +455,6 @@ export function SchemaEditor(
                                     fieldInputPolicy({
                                       type: value === "date" || value === "select" ? "string" : value as "string",
                                       "x-order": f["x-order"],
-                                      "x-list-order": f["x-list-order"],
-                                      "x-representative": f["x-representative"],
-                                      "x-show-in-list": f["x-show-in-list"],
                                       ...(value === "string" ? { "x-search-text": f["x-search-text"] } : {}),
                                       deprecated: f.deprecated,
                                       readOnly: f.readOnly,
@@ -469,7 +466,6 @@ export function SchemaEditor(
                                         : value === "select"
                                         ? { oneOf: [{ const: "option_1", title: "선택 항목 1" }] }
                                         : {}),
-                                      ...(key === schemaPresentation(draft).representative ? { minLength: 1 } : {}),
                                     }, draft.schema.required.includes(key)),
                                   );
                                 }}
@@ -792,7 +788,6 @@ export function SchemaEditor(
                               <div className="flex flex-wrap items-center justify-end gap-2">
                                 <Button variant="ghost"
                                   type="button"
-                                  disabled={key === schemaPresentation(draft).representative}
                                   onClick={() =>
                                     editor.setFieldInactive(
                                       key,
@@ -804,17 +799,11 @@ export function SchemaEditor(
                                 <Button variant="destructive"
 
                                   type="button"
-                                  disabled={key === schemaPresentation(draft).representative}
                                   onClick={() => setDeleteKey(key)}
                                 >
                                   <Trash2Icon data-icon="inline-start" />항목 삭제
                                 </Button>
                               </div>
-                              {key === schemaPresentation(draft).representative && (
-                                <p className="text-sm text-muted-foreground">
-                                  다른 항목을 자료 이름으로 선택한 뒤 사용 중지하거나 삭제하세요.
-                                </p>
-                              )}
                             </FieldGroup>
                           </CollapsibleContent></Collapsible>
                         </FieldSet>

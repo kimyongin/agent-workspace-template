@@ -2,17 +2,18 @@ import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import { assertEquals, assertThrows } from "@std/assert";
 import { validateEntityDefinition, validateEntityProperties } from "./schema-rules.ts";
 import { initialEntityDefinition } from "../../contracts/entity-type.ts";
-Deno.test("public definition validation rejects nested features and invalid representative references", () => {
+Deno.test("public definition validation rejects nested features and invalid title references", () => {
   const definition = initialEntityDefinition("이름");
   assertEquals(validateEntityDefinition(definition).schema.required, ["prop_1"]);
   assertThrows(() => validateEntityDefinition({ ...definition, schema: { ...definition.schema, allOf: [] } }));
   assertThrows(() => validateEntityDefinition({ ...definition, display: { representative: "prop_2" } }));
+  assertThrows(() => validateEntityDefinition({ schema: { ...definition.schema, "x-title-template": "$prop_2$" } }));
   for (const field of [{ format: "date" as const }, { oneOf: ["a", "b"].map((value) => ({ const: value })) }]) {
-    assertThrows(() =>
+    assertEquals(
       validateEntityDefinition({
-        ...definition,
         schema: { ...definition.schema, properties: { prop_1: { ...definition.schema.properties.prop_1, ...field } } },
-      })
+      }).schema["x-title-template"],
+      "$prop_1$",
     );
   }
 });
@@ -35,9 +36,10 @@ Deno.test("properties validate calendar dates, safe precision, missing/null and 
 
   assertThrows(() => validateEntityProperties(definition, { prop_1: "자료", prop_3: 0.0000001 }));
 });
-Deno.test("representative is not whitespace and public field errors use dot paths", () => {
+Deno.test("ordinary minLength and type errors use public dot paths", () => {
   const definition = initialEntityDefinition("이름");
-  const blank = assertThrows(() => validateEntityProperties(definition, { prop_1: "   " }));
+  const blank = assertThrows(() => validateEntityProperties(definition, { prop_1: "" }));
+  assertEquals(validateEntityProperties(definition, { prop_1: "   " }).prop_1, "   ");
   assertEquals((blank as { fields?: { path: string }[] }).fields?.[0].path, "properties.prop_1");
   const wrong = assertThrows(() => validateEntityProperties(definition, { prop_1: 12 }));
   assertEquals((wrong as { fields?: { path: string }[] }).fields?.[0].path, "properties.prop_1");

@@ -22,12 +22,12 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
   try {
     const type = await mcp.call("create_entity_type", {
       label: unique("조회 자료"),
-      representative_label: "품명",
+      initial_property_label: "품명",
     });
     await workspace.grantKind(type.id);
     const other = await mcp.call("create_entity_type", {
       label: unique("별도 자료"),
-      representative_label: "이름",
+      initial_property_label: "이름",
     });
     await workspace.grantKind(other.id);
     const additions = [
@@ -70,7 +70,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       expected_change_version: change.version,
       edits: additions.map((edit) => ({
         ...edit,
-        field: { ...edit.field, "x-show-in-list": edit.client_ref !== "day" },
+        field: { ...edit.field},
       })),
     });
     await analyzeAndApply(mcp, type.id, change.id, change.version);
@@ -120,7 +120,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
         `/entities?entity_type_id=${type.id}&view=table`,
       ),
     );
-    await expect(page.getByRole("columnheader", { name: "수량", exact: true }))
+    await expect(page.getByRole("columnheader", { name: "제목", exact: true }))
       .toBeVisible();
     await openTabFilters(page);
     await page.getByRole("button", { name: "속성 조건 추가", exact: true })
@@ -201,7 +201,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       ),
     );
     await expect(
-      page.getByRole("columnheader", { name: "현재 수량", exact: true }),
+      page.getByRole("columnheader", { name: "제목", exact: true }),
     ).toBeVisible();
     const historical = await mcp.call("get_record", { id: record.id }),
       priorTask = await mcp.call("get_task", { id: task.id });

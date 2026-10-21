@@ -284,7 +284,7 @@ export function EntityForm({
   const previewTitle = (() => {
     if (!definition) return label;
     try {
-      return renderEntityTitle(definition.schema, propertyValues(definition, effectiveProperties), external || initial?.external_id || label);
+      return renderEntityTitle(definition.schema, propertyValues(definition, effectiveProperties), external || initial?.external_id || "");
     } catch {
       return label;
     }
@@ -405,11 +405,6 @@ export function EntityForm({
             if (old !== undefined && properties[key] === undefined) {errors[`properties.${key}`] =
                 "기존 값을 지우려면 값 없음으로 변경하세요. 미입력은 기존 값을 유지합니다.";}
           }
-          if (!String(effectiveProperties[schemaPresentation(definition).representative] ?? "").trim()) {
-            errors[
-              `properties.${schemaPresentation(definition).representative}`
-            ] = "이름은 공백만 입력할 수 없습니다";
-          }
           const parsed = entityCreate.safeParse(fields);
           return Object.keys(errors).length ? errors : parsed.success ? null : fieldErrors(parsed.error.issues);
         }}
@@ -525,18 +520,7 @@ export function EntityForm({
                   자료 번호 설정 다시 조회
                 </Button>
               )}
-              {definition && <DataFields><div><dt>제목 미리보기</dt><dd>{previewTitle}</dd></div></DataFields>}
-              {definition && (
-                <PropertyFields
-                  disabled={frozen || !canWrite}
-                  part="representative"
-                  definition={definition}
-                  values={effectiveProperties}
-                  initialValues={initial && !archived ? baseline.current.properties : undefined}
-                  errors={errors}
-                  onChange={changeProperties}
-                />
-              )}
+              {definition && <DataFields><div><dt>제목 미리보기</dt><dd>{previewTitle || "저장 후 발급되는 자료 번호"}</dd></div></DataFields>}
               {(initial || archived)
                 ? (
                   <DataFields>
@@ -666,7 +650,6 @@ export function EntityForm({
                 ? (
                   <PropertyFields
                   disabled={frozen || !canWrite}
-                    part="remaining"
                     definition={definition}
                     values={effectiveProperties}
                   initialValues={initial && !archived ? baseline.current.properties : undefined}
