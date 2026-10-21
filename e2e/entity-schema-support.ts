@@ -2,6 +2,8 @@ import { expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { env, ownedFixtureSeed, workspacePath } from "./support.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 type FixtureClient = { workspaceId?: string; call(name: string, input: Record<string, unknown>): Promise<any> };
 type FixtureWorkspace = { id: string; grantKind(typeId: string): Promise<void> };
 /** Explicit actual internal worker consumption; callers own serial local API tests. */
@@ -58,8 +60,8 @@ export function scalarFixtureType(mcp: FixtureClient, workspace: FixtureWorkspac
         expected_schema_version: type.schema_version,
         edits: [
           {
-            op: "add_property",
-            client_ref: "quantity",
+            op: "update_property",
+            key: "prop_2",
             field: { "x-order": 20, type: ["integer", "null"], title: "수량", default: 0 },
             required: false,
           },
@@ -81,6 +83,18 @@ export function scalarFixtureType(mcp: FixtureClient, workspace: FixtureWorkspac
             },
             required: false,
           },
+          {
+            op: "add_property",
+            client_ref: "identifier",
+            field: {
+              "x-order": 50,
+              type: "string",
+              title: "자료 번호",
+              "x-identifier": { allowed_kind_ids: [APP_IDENTIFIER_RULE_ID], default_kind_id: APP_IDENTIFIER_RULE_ID },
+            },
+            required: true,
+          },
+          { op: "set_metadata", "x-identity-property": "new_identifier" },
         ],
       });
       await analyzeAndApply(mcp, type.id, change.id, change.version);
@@ -104,6 +118,21 @@ export async function createFixtureEntity(
     properties,
   });
 }
+/** Publish the selected field's allowed kinds through the public definition workflow. */
+export async function configureFixtureIdentifier(mcp: FixtureClient, typeId: string, kindId: string) {
+  const current = await mcp.call("get_entity_schema", { type_id: typeId });
+  const key = current.schema["x-identity-property"];
+  const change = await mcp.call("create_entity_schema_change", {
+    type_id: typeId,
+    expected_schema_version: current.schema_version,
+    edits: [{ op: "update_property", key, required: true, field: {
+      ...current.schema.properties[key],
+      "x-identifier": { allowed_kind_ids: [kindId], default_kind_id: kindId },
+    } }],
+  });
+  await analyzeAndApply(mcp, typeId, change.id, change.version);
+  return mcp.call("get_entity_schema", { type_id: typeId });
+}
 export function fixtureEntityList(workspaceId: string, typeId: string, keyword = "", category?: string, sort = false) {
   const params = new URLSearchParams({ entity_type_id: typeId });
   if (keyword) params.set("keyword", keyword);
@@ -122,23 +151,21 @@ export async function seedFixtureEntities(
   const prefix = "fixture_" + crypto.randomUUID();
   const rows = values.map((properties, index) => ({
     workspace_id: workspace.id,
-    id: `app:${type.id}:${prefix}_${index}`,
-    source: "app",
-    external_id: `${prefix}_${index}`,
+    id: encodeIdentifierReference(type.id, APP_IDENTIFIER_RULE_ID, `${prefix}_${index}`),
     entity_type_id: type.id,
     schema_version: type.schema_version,
-    properties: { prop_2: 0, prop_3: null, prop_4: "a", ...properties },
+    properties: { prop_2: 0, prop_3: null, prop_4: "a", prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, `${prefix}_${index}`), ...properties },
   }));
   await ownedFixtureSeed(workspace.id, [{target_kind:"entity_type",target_id:type.id,access:"write"}], async (tx) => {
       const owned = await tx`select id from app.entity_types where id=${type.id} and workspace_id=${workspace.id}`;
       expect(owned).toHaveLength(1);
       if (rows.length) {
         const inserted =
-          await tx`insert into app.entities (workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-          select workspace_id,id,source,external_id,entity_type_id,schema_version,properties
+          await tx`insert into app.entities (workspace_id,id,entity_type_id,schema_version,properties)
+          select workspace_id,id,entity_type_id,schema_version,properties
           from jsonb_to_recordset(${
             tx.json(rows)
-          }) as fixture(workspace_id uuid,id text,source text,external_id text,entity_type_id uuid,schema_version integer,properties jsonb)
+          }) as fixture(workspace_id uuid,id text,entity_type_id uuid,schema_version integer,properties jsonb)
           returning id`;
         expect(inserted).toHaveLength(rows.length);
       }

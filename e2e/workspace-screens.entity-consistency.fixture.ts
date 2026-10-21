@@ -169,12 +169,12 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const schema = structuredClone(fixtureSchema);
     schema.schema.properties.prop_4.readOnly = true;
     schema.schema.properties.prop_6 = {
-      "x-order": 50,
+      "x-order": 60,
       type: "boolean",
       title: "판매 중지 여부를 포함한 아주 긴 항목 이름",
       deprecated: true,
     };
-    schema.schema.properties.prop_6 = { "x-order": 60, type: "string", title: "미입력 항목" };
+    schema.schema.properties.prop_7 = { "x-order": 70, type: "string", title: "미입력 항목" };
     state.rows.entities[0].properties.prop_6 = false;
     state.rows.entities[0].properties.prop_1 = "이름과 번호를 포함하는 아주 긴 자료 이름".repeat(5);
     state.rows.entities[0].title = state.rows.entities[0].properties.prop_1;
@@ -183,8 +183,8 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
     const detail = form(page);
     if (width === 1440) {
-      const source = detail.locator("dt", { hasText: /^번호 출처$/ });
-      const number = detail.locator("dt", { hasText: /^자료 식별자$/ });
+      const source = detail.locator("dt", { hasText: /^수량$/ });
+      const number = detail.locator("dt", { hasText: /^식별자 · 자료 식별자$/ });
       await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x))
         .toBeLessThan(2);
       for (const key of [source, number]) {
@@ -196,9 +196,9 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await expect(detail.locator("dd", { hasText: /^미입력$/ })).toBeVisible();
     const primary = detail.getByRole("term").filter({ hasText: /^제목$/ }).first().locator("xpath=ancestor::section[1]");
     const read = await primary.getByRole("term").allTextContents();
-    expect(read).toHaveLength(9);
-    const labels = read.map(label => label.replace(/ · (읽기 전용|보관)/g, "").trim());
-    expect(labels).toEqual(expect.arrayContaining(["제목", "번호 출처", "자료 번호", "수량", "날짜", "분류", "미입력 항목", "태그"]));
+    expect(read).toHaveLength(8);
+    const labels = read.map(label => label.replace(/ · (읽기 전용|보관|자료 식별자)/g, "").trim());
+    expect(labels).toEqual(expect.arrayContaining(["제목", "식별자", "수량", "날짜", "분류", "판매 중지 여부를 포함한 아주 긴 항목 이름", "미입력 항목", "태그"]));
     if ([390, 1440].includes(width)) await page.screenshot({ path: info.outputPath("view-pairs.png") });
     await detail.getByRole("button", { name: "편집", exact: true }).click();
     await expect(detail.getByRole("textbox", { name: /^제목/ })).toBeEditable();

@@ -1,3 +1,5 @@
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 import { entity as makeEntity, fixtureSchema, fixtureType } from "./support/workspace-data.ts";
@@ -277,15 +279,16 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
     const externalId = crypto.randomUUID();
     const item = {
       ...makeEntity(1, { prop_1: keyword ?? "계속되는 목록" }),
-      id: `app:${created.id}:${externalId}`,
+      id: encodeIdentifierReference(created.id, APP_IDENTIFIER_RULE_ID, externalId),
       entity_type_id: created.id,
       type: visibleType,
-      external_id: externalId,
+      identity_label: `앱 · 자동 발급 · ${externalId}`,
+      properties: { ...makeEntity(1).properties, prop_1: keyword ?? "계속되는 목록", prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, externalId) },
     };
     await route.fulfill({ json: { items: [item], next_cursor: keyword ? null : "more" } }).catch(() => {});
   });
   await page.goto(
-    workspacePath(workspace.id, `/entities?pages=1#entity-${encodeURIComponent(`app:${created.id}:${crypto.randomUUID()}`)}`),
+    workspacePath(workspace.id, `/entities?pages=1#entity-${encodeURIComponent(encodeIdentifierReference(created.id, APP_IDENTIFIER_RULE_ID, crypto.randomUUID()))}`),
   );
   await expect(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true })).toBeFocused();
   expect(requests).toBe(2);

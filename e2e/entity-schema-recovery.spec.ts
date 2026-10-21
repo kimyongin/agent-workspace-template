@@ -1,3 +1,4 @@
+import { entityIdentityLabel } from "../supabase/functions/_shared/contracts/entity-identity.ts";
 import { businessRows } from "./table-actions.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
@@ -51,10 +52,10 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
       edits: [{
         op: "add_property",
         client_ref: "count",
-        field: { "x-order": 20, type: "integer", title: "수량" },
+        field: { "x-order": 30, type: "integer", title: "수량" },
         required: true,
       }],
-      migration: { rules: [{ op: "fill", key: "prop_2", value: 7 }], overrides: [] },
+      migration: { rules: [{ op: "fill", key: "prop_3", value: 7 }], overrides: [] },
     });
     await mcp.call("analyze_entity_schema_change", {
       type_id: type.id,
@@ -79,7 +80,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_migration", { job_id: started.job_id })).status;
     }, { timeout: 30_000 }).toBe("succeeded");
-    expect((await mcp.call("get_entity", { id: entity.id })).properties).toEqual({ prop_1: "001 원본", prop_2: 7 });
+    expect((await mcp.call("get_entity", { id: entity.id })).properties).toEqual({ ...entity.properties, prop_3: 7 });
     const currentType = await mcp.call("get_entity_type", { type_id: type.id }), label = unique("현재 복구 자료");
     await mcp.call("update_entity_type", {
       type_id: type.id,
@@ -111,14 +112,14 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     await expect(page.getByRole("link", { name: "원본 작업 확인", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "변경 초안 저장", exact: true })).toHaveCount(0);
     // Creating a recovery plan must not execute or restore values.
-    expect((await mcp.call("get_entity", { id: entity.id })).properties.prop_2).toBe(7);
+    expect((await mcp.call("get_entity", { id: entity.id })).properties.prop_3).toBe(7);
     await page.getByRole("button", { name: "변경 검토", exact: true }).click();
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: recovery.id })).executable;
     }, { timeout: 30_000 }).toBe(true);
     const row = businessRows(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true })).filter({
-      has: page.getByRole("cell", { name: `${entity.title} · ${entity.source} · ${entity.external_id}`, exact: true }),
+      has: page.getByRole("cell", { name: `${entity.title} · ${entityIdentityLabel({ id: entity.id })}`, exact: true }),
     });
     await expect(row.getByText("변경", { exact: true })).toBeVisible();
     await expect(row).toBeVisible();
@@ -130,8 +131,8 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
       change_id: recovery.id,
       analysis_id: recoveryReady.analysis.id,
     });
-    expect(preview.items[0].before).toEqual({ prop_1: "001 원본", prop_2: 7 });
-    expect(preview.items[0].after).toEqual({ prop_1: "001 원본" });
+    expect(preview.items[0].before).toEqual({ ...entity.properties, prop_3: 7 });
+    expect(preview.items[0].after).toEqual(entity.properties);
     const accepted = await mcp.call("start_entity_schema_migration", {
       type_id: type.id,
       change_id: recovery.id,
@@ -150,7 +151,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("term").filter({ hasText: "새 입력 항목 버전" }).locator("..").getByRole("definition")).toHaveText(String(expectedRecoverySchemaVersion));
     const restored = await mcp.call("get_entity", { id: entity.id });
-    expect(restored.properties).toEqual({ prop_1: "001 원본" });
+    expect(restored.properties).toEqual(entity.properties);
     expect(restored.entity_type_id).toBe(type.id);
     expect(restored.schema_version).toBe(expectedRecoverySchemaVersion);
     expect(await mcp.call("get_entity", { id: peer.id })).toEqual(peerBefore);

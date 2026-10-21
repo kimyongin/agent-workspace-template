@@ -1,7 +1,9 @@
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { openProfileMenu } from "./ui-actions.ts";
 import { baseWorkspace, detailDialog, executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
-import { fixtureIdentity, fixtureSchema, fixtureType } from "./support/workspace-data.ts";
+import { fixtureSchema, fixtureType } from "./support/workspace-data.ts";
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import { entityKey } from "./support/workspace-data.ts";
 import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.ts";
@@ -804,14 +806,14 @@ test("desktop: ordinary edits preserve the immutable identity, retained tab and 
   const state = await fixture(page), oldId = entityKey(1);
   await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(oldId)}`));
   await panel(page).getByRole("button", {name:"편집",exact:true}).click();
-  await expect(panel(page).locator("dt:visible", { hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(id(1));
+  await expect(panel(page).locator("dt:visible", { hasText: /^식별자 · 자료 식별자$/ }).locator("../dd")).toHaveText(`앱 · 자동 발급 · ${id(1)}`);
   await expect(panel(page).getByRole("textbox", { name: /^(번호|자료 번호)$/ })).toHaveCount(0);
   await panel(page).getByLabel("제목",{exact:false}).fill("등심 수정");
   await saveOnce(page,panel(page));
   await expect(page).toHaveURL(new RegExp(encodeURIComponent(oldId)));
   await expect(page.getByRole("tab",{name:"등심 수정",exact:true})).toHaveCount(1);
   expect(state.rows.entities[0].id).toBe(oldId);
-  expect(state.rows.entities[0].external_id).toBe(id(1));
+  expect(state.rows.entities[0].properties.prop_5).toBe(encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, id(1)));
   expect(state.errors).toEqual([]);
 });
 
@@ -819,22 +821,26 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await fixture(page);
   let releaseSettings!: () => void;
   const ready = new Promise<void>(resolve => {releaseSettings=resolve;});
-  await page.route("**/api/entity-types/*/identity", async route => {
+  await page.route("**/api/entity-types/*/schema", async route => {
     await ready;
-    const config = fixtureIdentity();
-    await route.fulfill({json:{...config,label:"자료 번호",default_source:"crm",sources:[{...config.sources[0],code:"crm",source_label:"고객",generation:"direct"}]}});
+    const schema = structuredClone(fixtureSchema);
+    const kindId = id(701);
+    schema.schema.properties.prop_5.title = "자료 번호";
+    schema.schema.properties.prop_5["x-identifier"] = { allowed_kind_ids: [kindId], default_kind_id: kindId };
+    schema.identifier_kinds = [{ id: kindId, source: "crm", source_label: "고객", label: "원본 번호", active: true, generation: "direct", version: 1, source_version: 1 }];
+    await route.fulfill({ json: schema });
   });
   await page.goto(fixtureWorkspacePath("/entities?entity_type_id=00000000-0000-4000-8000-000000000900"));
   await page.getByRole("button", {name:"검사 자료 추가",exact:true}).click();
   const form = page.getByRole("dialog", {name:"검사 자료 추가",exact:true});
-  await expect(form.getByRole("textbox", { name: "번호", exact: true })).toBeDisabled();
-  if (entered) await form.getByLabel("제목").fill("설정 도착 전 입력");
+  await expect(form.getByRole("textbox", { name: "자료 번호", exact: true })).toHaveCount(0);
   releaseSettings();
-  await expect(form.getByLabel("자료 번호")).toBeEnabled();
-  await expect(form.getByLabel("자료 번호")).toHaveValue("");
-  await expect(form.getByText("고객", {exact:true})).toBeVisible();
+  await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+  await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toHaveValue("");
+  await expect(form.getByRole("combobox", { name: "자료 번호 종류", exact: true })).toHaveValue(id(701));
+  if (entered) await form.getByLabel("제목").fill("정의 도착 후 입력");
   await expect(form.getByRole("combobox", {name:"번호 출처",exact:true})).toHaveCount(0);
-  if (entered) await expect(form.getByLabel("제목")).toHaveValue("설정 도착 전 입력");
+  if (entered) await expect(form.getByLabel("제목")).toHaveValue("정의 도착 후 입력");
   await form.getByRole("button", {name:"취소",exact:true}).click();
   const discard = page.getByRole("alertdialog", {name:"변경을 버릴까요?",exact:true});
   if (entered) {
@@ -857,8 +863,8 @@ test("desktop: closing a search detail restores the originating result and reloa
 
 test("desktop: entity list focus round trips a Unicode and percent identity through its encoded hash",async({page})=>{
   const state=await fixture(page);await page.setViewportSize({width:1440,height:900});
-  const external="고객 / # ? % : 7",canonical=`crm:${id(900)}:${external}`;
-  Object.assign(state.rows.entities[0],{id:canonical,source:"crm",external_id:external,source_label:"고객 관리"});
+  const external="고객 / # ? % : 7",canonical=encodeIdentifierReference(id(900), id(701), external);
+  Object.assign(state.rows.entities[0],{id:canonical,identity_label:`고객 관리 · 원본 번호 · ${external}`,properties:{...state.rows.entities[0].properties,prop_5:encodeIdentifierValue(id(701),external)}});
   await page.goto(fixtureWorkspacePath("/entities"));await openEntity(page);
   await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();
   const target=baseWorkspace(page).getByRole("link",{name:"등심 상세",exact:true});
@@ -1242,8 +1248,8 @@ test("desktop: entity pairs follow resized panel width and keep the same edit ax
   await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
   const separator = page.getByRole("separator", { name: "상세 패널 너비 조절" });
   const detail = panel(page);
-  const source = detail.locator("dt:visible", { hasText: /^번호 출처$/ });
-  const number = detail.locator("dt:visible", { hasText: /^자료 번호$/ });
+  const source = detail.locator("dt:visible", { hasText: /^수량$/ });
+  const number = detail.locator("dt:visible", { hasText: /^식별자 · 자료 식별자$/ });
   await separator.press("End");
   await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeLessThan(1);
   await page.screenshot({ path: info.outputPath("entity-narrow-panel.png") });
@@ -1252,11 +1258,11 @@ test("desktop: entity pairs follow resized panel width and keep the same edit ax
   const sourceValue = source.locator("+ dd"), numberValue = number.locator("+ dd");
   expect((await sourceValue.boundingBox())!.x).toBeGreaterThan((await source.boundingBox())!.x + (await source.boundingBox())!.width);
   expect((await sourceValue.boundingBox())!.x).toBeCloseTo((await numberValue.boundingBox())!.x, 0);
-  const before = (await source.boundingBox())!.x;
+  const before = (await number.boundingBox())!.x;
   await page.screenshot({ path: info.outputPath("entity-wide-panel.png") });
   await detail.getByRole("button", { name: "편집", exact: true }).click();
   await expect(detail.getByRole("textbox", { name: /^제목/ })).toBeEditable();
-  expect((await source.boundingBox())!.x).toBeCloseTo(before, 0);
+  expect((await number.boundingBox())!.x).toBeCloseTo(before, 0);
   await expect(detail.getByRole("region", { name: "할 일 (1개)" })).toContainText("등심 구매하기");
   await expect(detail.getByRole("button", { name: "할 일 작성" })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("entity-wide-panel-edit.png") });

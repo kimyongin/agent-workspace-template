@@ -2,11 +2,12 @@ import { chooseSetting } from "./settings-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, unique, workspacePath, requiredEnv } from "./support.ts";
-import { entityId, entityPath } from "../supabase/functions/_shared/contracts/entity-identity.ts";
-import { analyzeAndApply } from "./entity-schema-support.ts";
+import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
+import { analyzeAndApply, schemaAnalysisTick } from "./entity-schema-support.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 
 let fixtureSource: string;
+let fixtureRule: string;
 let fixtureType: { id: string; label: string } | undefined;
 let workspace: Awaited<ReturnType<typeof ownedWorkspace>>;
 test.beforeEach(async ({ page }) => {
@@ -19,16 +20,15 @@ test.beforeEach(async ({ page }) => {
     fixtureSource = `test_${crypto.randomUUID().replaceAll("-", "").slice(0, 24)}`;
     await mcp.call("create_entity_issuer", { code: fixtureSource, label: "시험 마켓" });
     const rule = await mcp.call("create_entity_identifier_rule", { source: fixtureSource, label: "상품 번호", meaning: "시험 상품 번호" });
-    await mcp.call("update_entity_type_identity", {
-      type_id: fixtureType!.id, label: "자료 번호", default_source: fixtureSource, expected_version: 1,
-      sources: [{ code: fixtureSource, rule_id: rule.id, active: true }],
-    });
+    fixtureRule = rule.id;
     const change = await mcp.call("create_entity_schema_change", {
       type_id: fixtureType!.id, expected_schema_version: 1,
       edits: [
-        { op: "add_property", client_ref: "count", field: { "x-order": 20, type: ["integer", "null"], title: "개수", default: 0 }, required: false },
+        { op: "update_property", key: "prop_2", field: { "x-order": 20, type: ["integer", "null"], title: "개수", default: 0 }, required: false },
         { op: "add_property", client_ref: "date", field: { "x-order": 30, type: ["string", "null"], format: "date", title: "날짜" }, required: false },
         { op: "add_property", client_ref: "category", field: { "x-order": 40, type: "string", oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }], title: "구분", default: "a" }, required: false },
+        { op: "add_property", client_ref: "identifier", field: { type: "string", title: "자료 번호", "x-order": 50, "x-identifier": { allowed_kind_ids: [fixtureRule], default_kind_id: fixtureRule } }, required: true },
+        { op: "set_metadata", "x-identity-property": "new_identifier" },
       ],
     });
     await analyzeAndApply(mcp, fixtureType!.id, change.id, change.version);
@@ -61,11 +61,9 @@ test("manual tuple registration restores stored properties and links while ident
       },
     });
     const target = await api("POST", "/entities", {
-      source: fixtureSource,
-      external_id,
       entity_type_id: fixtureType!.id,
       schema_version: 2,
-      properties: { prop_1: name, prop_2: 0, prop_4: "c" },
+      properties: { prop_1: name, prop_2: 0, prop_4: "c", prop_5: encodeIdentifierValue(fixtureRule, external_id) },
     });
     entityId = target.id;
     const task = await api("POST", "/tasks", {
@@ -83,7 +81,7 @@ test("manual tuple registration restores stored properties and links while ident
     const settingsReady = new Promise<void>((resolve) => {
       releaseSettings = resolve;
     });
-    await page.route(`**/entity-types/${fixtureType!.id}/identity`, async (route) => {
+    await page.route(`**/entity-types/${fixtureType!.id}/schema`, async (route) => {
       if (route.request().method() !== "GET") return route.continue();
       await settingsReady;
       await route.continue();
@@ -93,14 +91,14 @@ test("manual tuple registration restores stored properties and links while ident
       name: `${fixtureType!.label} 추가`,
       exact: true,
     });
-    await expect(form.getByLabel("번호", { exact: true })).toBeDisabled();
+    await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toHaveCount(0);
     await expect(
       form.getByRole("button", { name: "기존 대상 확인", exact: true }),
     ).toHaveCount(0);
     releaseSettings();
-    await expect(form.getByLabel("자료 번호")).toBeEnabled();
+    await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
     await expect(form.getByRole("button", { name: "기존 대상 확인", exact: true })).toHaveCount(0);
-    await form.getByLabel("자료 번호").fill(external_id);
+    await form.getByRole("textbox", { name: /^자료 번호/ }).fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true })
       .click();
     const restore = page.getByRole("dialog", {
@@ -138,14 +136,14 @@ test("manual tuple registration restores stored properties and links while ident
       name: `${fixtureType!.label} 편집`,
       exact: true,
     });
-    await expect(rekey.locator("dt:visible", { hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(external_id);
+    await expect(rekey.locator("dt:visible", { hasText: /^자료 번호 · 자료 식별자$/ }).locator("../dd")).toHaveText(`시험 마켓 · 상품 번호 · ${external_id}`);
     await expect(rekey.getByRole("textbox", { name: "자료 번호", exact: true })).toHaveCount(0);
     await rekey.getByLabel("이름", { exact: false }).fill(name + " 수정");
     await saveOnce(page, rekey);
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(target.id)));
     expect((await api("GET", `/tasks/${task.id}`)).entity_ids).toEqual([target.id]);
-    expect((await api("GET", `/entities/${encodeURIComponent(target.id)}`)).external_id).toBe(external_id);
-    const rejected = await workspace.fetch("PATCH", `/entities/${encodeURIComponent(target.id)}`, { external_id: "새 번호", expected_version: 4 });
+    expect((await api("GET", `/entities/${encodeURIComponent(target.id)}`)).properties.prop_5).toBe(encodeIdentifierValue(fixtureRule, external_id));
+    const rejected = await workspace.fetch("PATCH", `/entities/${encodeURIComponent(target.id)}`, { schema_version: 2, properties: { prop_5: encodeIdentifierValue(fixtureRule, "새 번호") }, expected_version: 4 });
     expect(rejected.status()).toBe(400);
     await expect(page.getByText(name + " 수정", { exact: true }).first()).toBeVisible();
     await page.reload();
@@ -198,25 +196,43 @@ test("manual tuple registration restores stored properties and links while ident
   }
 });
 
-test("kind identity settings retries a failed read and saves a label without changing stored identity", async ({ page }) => {
-  await page.goto(workspacePath(workspace.id, "/tasks"));
-  let fail = true;
-  await page.route(`**/entity-types/${fixtureType!.id}/identity`, async (route) => {
-    if (route.request().method() === "GET" && fail) return route.abort("failed");
-    await route.continue();
-  });
-  await page.goto(workspacePath(workspace.id, `/settings/entity-types/${fixtureType!.id}`));
-  const section = page.getByRole("region", { name: "자료 번호", exact: true });
-  await section.getByRole("button", { name: /^자료 번호/ }).click();
-  await expect(section.getByRole("alert")).toBeVisible();
-  fail = false;
-  await section.getByRole("button", { name: "자료 번호 설정 다시 조회", exact: true }).click();
-  await section.getByLabel("이름", { exact: false }).fill("상품 번호");
-  await section.getByRole("button", { name: "자료 번호 저장", exact: true }).click();
-  await expect(section.getByRole("status")).toHaveText("자료 번호 설정을 저장했습니다.");
-  await page.reload();
-  await section.getByRole("button", { name: /^자료 번호/ }).click();
-  await expect(section.getByLabel("이름", { exact: false })).toHaveValue("상품 번호");
+test("identifier field retries a failed schema read and publishes a label without changing stored identity", async ({ page }) => {
+  const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
+  try {
+    const original = await mcp.call("create_entity", { entity_type_id: fixtureType!.id, schema_version: 2,
+      properties: { prop_1: "이름 변경 보호", prop_5: encodeIdentifierValue(fixtureRule, "000:원본") } });
+    let fail = true;
+    await page.route(`**/entity-types/${fixtureType!.id}/schema`, async route => {
+      if (route.request().method() === "GET" && fail) return route.abort("failed");
+      await route.continue();
+    });
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${fixtureType!.id}`));
+    await expect(page.getByRole("alert")).toBeVisible();
+    fail = false;
+    await page.getByRole("button", { name: "조회 다시 시도", exact: true }).click();
+    const section = page.getByRole("region", { name: "입력 항목", exact: true });
+    await section.getByRole("button", { name: "입력 항목", exact: true }).click();
+    await section.getByRole("button", { name: "자료 번호 항목 펼치기", exact: true }).click();
+    await page.getByRole("region", { name: "자료 번호 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true }).fill("상품 번호");
+    await section.getByRole("button", { name: "변경 검토", exact: true }).click();
+    let planId = "";
+    await expect.poll(async () => {
+      const plans = await mcp.call("list_entity_schema_changes", { type_id: fixtureType!.id });
+      planId = plans.items.find((item: { status: string }) => item.status !== "applied" && item.status !== "cancelled")?.id ?? "";
+      if (!planId) return false;
+      await schemaAnalysisTick();
+      return (await mcp.call("get_entity_schema_change", { type_id: fixtureType!.id, change_id: planId })).status === "ready";
+    }, { timeout: 30000 }).toBe(true);
+    await section.getByRole("button", { name: "변경 적용", exact: true }).click();
+    await expect.poll(async () => (await mcp.call("get_entity_schema", { type_id: fixtureType!.id })).schema_version).toBe(3);
+    await page.reload();
+    await section.getByRole("button", { name: "입력 항목", exact: true }).click();
+    await section.getByRole("button", { name: "상품 번호 항목 펼치기", exact: true }).click();
+    await expect(page.getByRole("region", { name: "상품 번호 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true })).toHaveValue("상품 번호");
+    const retained = await mcp.call("get_entity", { id: original.id });
+    expect(retained.id).toBe(original.id);
+    expect(retained.properties.prop_5).toBe(original.properties.prop_5);
+  } finally { await mcp.close(); }
 });
 
 test("late archived lookup preserves newer identity and same-identity property edits", async ({ page }) => {
@@ -228,14 +244,14 @@ test("late archived lookup preserves newer identity and same-identity property e
       name: `${fixtureType!.label} 추가`,
       exact: true,
     });
-  await expect(form().getByLabel("자료 번호")).toBeEnabled();
-  await expect(form().getByText("시험 마켓", { exact: true })).toBeVisible();
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+  await expect(form().getByRole("combobox", { name: "자료 번호 종류", exact: true }).locator("option:checked")).toHaveText("시험 마켓 · 상품 번호");
   await expect(form().getByRole("combobox", { name: "번호 출처", exact: false })).toHaveCount(0);
-  const source = fixtureSource;
+
   const identity = unique("지연 자료 번호");
   const held: (() => Promise<void>)[] = [];
   let lookupNumber = 0;
-  const lookupUrl = `${requiredEnv("VITE_API_URL")}${entityPath(entityId(source, fixtureType!.id, identity))}`;
+  const lookupUrl = `${requiredEnv("VITE_API_URL")}/entities/lookup?${new URLSearchParams({ entity_type_id: fixtureType!.id, identifier: encodeIdentifierValue(fixtureRule, identity) })}`;
   await page.route(lookupUrl, async (route) => {
     if (route.request().method() !== "GET") return route.continue();
     const number = ++lookupNumber;
@@ -254,9 +270,8 @@ test("late archived lookup preserves newer identity and same-identity property e
     await gate;
     await route.fulfill({
       json: {
-        id: `${source}:${fixtureType!.id}:${identity}`,
-        source,
-        external_id: identity,
+        id: encodeIdentifierReference(fixtureType!.id, fixtureRule, identity),
+        identity_label: `시험 마켓 · 상품 번호 · ${identity}`,
         entity_type_id: fixtureType!.id,
         type: {
           id: fixtureType!.id,
@@ -272,9 +287,9 @@ test("late archived lookup preserves newer identity and same-identity property e
           prop_2: 0,
           prop_3: null,
           prop_4: "a",
+          prop_5: encodeIdentifierValue(fixtureRule, identity),
         },
 
-        source_label: source,
         tasks: { count: 0, items: [] },
         records: { count: 0, items: [] },
         tag_ids: [],
@@ -303,17 +318,17 @@ test("late archived lookup preserves newer identity and same-identity property e
       new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     );
   };
-  await form().getByLabel("자료 번호").fill(identity);
+  await form().getByRole("textbox", { name: /^자료 번호/ }).fill(identity);
   await start();
-  await form().getByLabel("자료 번호").fill("다른 자료 번호");
+  await form().getByRole("textbox", { name: /^자료 번호/ }).fill("다른 자료 번호");
   await form().getByLabel("이름", { exact: false }).fill("새 입력");
   await settle();
-  await expect(form().getByLabel("자료 번호")).toHaveValue("다른 자료 번호");
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toHaveValue("다른 자료 번호");
   await expect(form().getByLabel("이름", { exact: false })).toHaveValue(
     "새 입력",
   );
 
-  await form().getByLabel("자료 번호").fill(identity);
+  await form().getByRole("textbox", { name: /^자료 번호/ }).fill(identity);
   await start();
   await form().getByLabel("이름", { exact: false }).fill(
     "같은 자료 번호에서 수정",
@@ -343,8 +358,8 @@ test("late archived lookup preserves newer identity and same-identity property e
       .click();
   }
   await beginTabAction(page, `${fixtureType!.label} 추가`);
-  await expect(form().getByLabel("자료 번호")).toBeEnabled();
-  await form().getByLabel("자료 번호").fill(identity);
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+  await form().getByRole("textbox", { name: /^자료 번호/ }).fill(identity);
   await start();
   await form().getByRole("button", { name: "취소", exact: true }).click();
   if (await discard.isVisible()) {
@@ -352,10 +367,10 @@ test("late archived lookup preserves newer identity and same-identity property e
       .click();
   }
   await beginTabAction(page, `${fixtureType!.label} 추가`);
-  await expect(form().getByLabel("자료 번호")).toBeEnabled();
-  const newIdentity = await form().getByLabel("자료 번호").inputValue();
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+  const newIdentity = await form().getByRole("textbox", { name: /^자료 번호/ }).inputValue();
   await settle();
-  await expect(form().getByLabel("자료 번호")).toHaveValue(newIdentity);
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toHaveValue(newIdentity);
   await expect(form().getByLabel("이름", { exact: false })).toHaveValue("");
 });
 
@@ -367,12 +382,12 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
     name: `${fixtureType!.label} 추가`,
     exact: true,
   });
-  await expect(form.getByLabel("자료 번호")).toBeEnabled();
-  await expect(form.getByText("시험 마켓", { exact: true })).toBeVisible();
+  await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+  await expect(form.getByRole("combobox", { name: "자료 번호 종류", exact: true }).locator("option:checked")).toHaveText("시험 마켓 · 상품 번호");
   await expect(form.getByRole("combobox", { name: "번호 출처", exact: false })).toHaveCount(0);
-  const source = fixtureSource;
+
   const identity = unique("확인 중 조회"), title = unique("지킬 입력");
-  await form.getByLabel("자료 번호").fill(identity);
+  await form.getByRole("textbox", { name: /^자료 번호/ }).fill(identity);
   await form.getByLabel("이름", { exact: false }).fill(title);
   let release!: () => void, delivered!: () => void, reads = 0;
   const gate = new Promise<void>((resolve) => {
@@ -381,16 +396,15 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
   const done = new Promise<void>((resolve) => {
     delivered = resolve;
   });
-  await page.route("**/entities/*", async (route) => {
+  await page.route("**/entities/lookup?**", async (route) => {
     if (route.request().method() !== "GET" || ++reads !== 1) {
       return route.continue();
     }
     await gate;
     await route.fulfill({
       json: {
-        id: `${source}:${fixtureType!.id}:${identity}`,
-        source,
-        external_id: identity,
+        id: encodeIdentifierReference(fixtureType!.id, fixtureRule, identity),
+        identity_label: `시험 마켓 · 상품 번호 · ${identity}`,
         entity_type_id: fixtureType!.id,
         type: {
           id: fixtureType!.id,
@@ -406,9 +420,9 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
           prop_2: 0,
           prop_3: null,
           prop_4: "a",
+          prop_5: encodeIdentifierValue(fixtureRule, identity),
         },
 
-        source_label: source,
         tasks: { count: 0, items: [] },
         records: { count: 0, items: [] },
         tag_ids: [],
@@ -420,7 +434,7 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
     });
     delivered();
   });
-  const started = page.waitForRequest((value) => value.method() === "GET" && value.url().includes("/entities/"));
+  const started = page.waitForRequest((value) => value.method() === "GET" && value.url().includes("/entities/lookup?"));
   await form.getByRole("button", { name: "기존 대상 확인", exact: true })
     .click();
   await started;
@@ -435,9 +449,7 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
     .locator("..").getByRole("definition");
   expect(defaults.prepared_input).toMatchObject({
     entity_type_id: fixtureType!.id,
-    source,
-    external_id: identity,
-    properties: { prop_1: title },
+    properties: { prop_1: title, prop_5: encodeIdentifierValue(fixtureRule, identity) },
   });
   await expect(target).toHaveText(title);
   await expect(confirmation.getByLabel("기록 메모", { exact: true }))
@@ -479,21 +491,24 @@ test("seven settings workspaces retain real API selections and stay within the v
       ["자료", "/settings/materials"],
       ["태그", "/settings/tags"],
       ["기록", "/settings/records"],
+      ["이 공간 관리", "/manage"],
+      ["공간 목록 · 새 공간", "/workspaces"],
     ] as const;
-    await expect(menu.getByRole("menuitem")).toHaveCount(4);
+    await expect(menu.getByRole("menuitem")).toHaveCount(6);
     await expect(menu.getByRole("menuitem")).toHaveText(destinations.map(([label]) => label));
     for (const [label, href] of destinations) {
-      await expect(menu.getByRole("menuitem", { name: label, exact: true })).toHaveAttribute("href", workspacePath(workspace.id, href));
+      await expect(menu.getByRole("menuitem", { name: label, exact: true })).toHaveAttribute("href", href === "/workspaces" ? href : workspacePath(workspace.id, href));
     }
     await page.keyboard.press("Escape");
     await expect(menu).not.toBeVisible();
     await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toBeFocused();
     if (path === `/settings/entity-types/${fixtureType!.id}`) {
-      const identity = page.getByRole("region", { name: "자료 번호", exact: true });
-      const disclosure = identity.getByRole("heading", { level: 2 }).getByRole("button", { name: /^자료 번호/ });
-      if (await disclosure.getAttribute("aria-expanded") !== "true") await disclosure.click();
-      await expect(identity.getByLabel("이름", { exact: false })).toHaveValue("자료 번호");
-      await expect(identity.getByRole("radio", { name: "시험 마켓 기본 번호 출처", exact: true })).toBeChecked();
+      const inputs = page.getByRole("region", { name: "입력 항목", exact: true });
+      await inputs.getByRole("button", { name: "입력 항목", exact: true }).click();
+      await inputs.getByRole("button", { name: "자료 번호 항목 펼치기", exact: true }).click();
+      const selected = page.getByRole("region", { name: "자료 번호 입력 항목", exact: true });
+      await expect(selected.getByLabel("항목 이름", { exact: true })).toHaveValue("자료 번호");
+      await expect(selected.getByLabel("기본 식별자 종류", { exact: true })).toHaveValue(fixtureRule);
       await expect(page.getByRole("region", { name: "기록 자동 완성", exact: true })).toHaveCount(0);
     }
     if (title === "기록 설정") {
