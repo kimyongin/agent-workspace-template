@@ -5,7 +5,6 @@ import { taskLabels, type TaskResult } from "@contracts/task.ts";
 import type { RecordResult } from "@contracts/record.ts";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { TagNames } from "../tags/TagPicker.tsx";
-import { useLayoutEffect } from "react";
 import { StatusBadge } from "../activity/shared.tsx";
 import { ChangeContext } from "../activity/ChangeContext.tsx";
 
@@ -17,19 +16,15 @@ export function previewKind(path: string): PreviewKind | undefined {
 }
 /** Domain read adapters own content; disclosure and request lifetimes do not know its fields. */
 export function PreviewContents(
-  { kind, item, main, onTagsReady, onPropertiesReady, onRepresentativeLabel, shownTitle }: {
+  { kind, item, main, onTagsReady, onPropertiesReady, shownTitle }: {
     kind: PreviewKind;
     item: Preview;
     main: boolean;
     onTagsReady: (ready: boolean) => void;
     onPropertiesReady: (ready: boolean) => void;
-    onRepresentativeLabel?: (label: string) => void;
     shownTitle?: string;
   },
 ) {
-  useLayoutEffect(() => {
-    if (main && kind === "entities") onPropertiesReady(true);
-  }, [kind, main, onPropertiesReady]);
   const tags = (scope: "entity" | "task" | "record", ids: string[]) => (
     <DataFields className="col-span-full">
       <div>
@@ -45,16 +40,13 @@ export function PreviewContents(
     const entity = item as EntityDetail;
     return (
       <>
-        {!main && (
-          <EntityProperties
-            entity={entity}
-            selection="list"
-            omitRepresentative={entity.title === shownTitle}
-            onReadyChange={onPropertiesReady}
-            onRepresentativeLabel={onRepresentativeLabel}
-          />
-        )}
+        <EntityProperties
+          entity={entity}
+          activeOnly
+          onReadyChange={onPropertiesReady}
+        />
         <DataFields>
+          {!main && entity.title !== shownTitle && <div className="col-span-full"><dt>현재 제목</dt><dd>{entity.title}</dd></div>}
           <div>
             <dt>자료 종류</dt>
             <dd>{entity.type.label}</dd>

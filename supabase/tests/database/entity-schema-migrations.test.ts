@@ -84,6 +84,7 @@ async function analyze(
   a: Actor,
   typeId: string,
   worker: postgres.Sql,
+  titleTemplate?: string,
 ) {
   const change = await createEntitySchemaChange(d, requestActor(a), typeId, {
     expected_schema_version: 1,
@@ -92,12 +93,11 @@ async function analyze(
       client_ref: "count",
       field: {
         "x-order": 20,
-        "x-show-in-list": true,
         type: "integer",
         title: "수량",
       },
       required: true,
-    }],
+    }, ...(titleTemplate ? [{ op: "set_metadata" as const, "x-title-template": titleTemplate }] : [])],
     migration: {
       rules: [{ op: "fill", key: "prop_2", value: 7 }],
       overrides: [],
@@ -685,7 +685,7 @@ dbTest(
           schema_version: 1,
           properties: { prop_1: "old" },
         }),
-        plan = await analyze(d, a.actor, type.id, worker),
+        plan = await analyze(d, a.actor, type.id, worker, "$prop_1$ / $new_count$"),
         job = await startEntitySchemaMigration(
           d,
           requestActor(a.actor),
@@ -696,8 +696,9 @@ dbTest(
       await stage(worker, await claim(worker));
       const final = await claim(worker);
       const old = await getEntity(e, a.actor, entity.id);
-      const observations: Array<{ schema: number; value: unknown }> = [{
+      const observations: Array<{ schema: number; title: string; value?: unknown }> = [{
         schema: old.current_schema_version,
+        title: old.title,
         value: old.properties.prop_2,
       }];
       reader = (async () => {
@@ -705,6 +706,7 @@ dbTest(
           const row = await getEntity(e, a.actor, entity.id);
           observations.push({
             schema: row.current_schema_version,
+            title: row.title,
             value: row.properties.prop_2,
           });
           if (stopReader) break;
@@ -716,7 +718,7 @@ dbTest(
           for (const r of list.items) {
             observations.push({
               schema: r.current_schema_version,
-              value: r.display_properties.prop_2,
+              title: r.title,
             });
           }
         }
@@ -728,7 +730,9 @@ dbTest(
       if (readerFailure) throw readerFailure;
       for (const o of observations) {
         assert(
-          o.schema === 1 ? o.value === undefined : o.schema === 2 && o.value === 7,
+          o.schema === 1
+            ? o.title === "old" && o.value === undefined
+            : o.schema === 2 && o.title === "old / 7" && (o.value === undefined || o.value === 7),
         );
       }
       const after = await getEntity(e, a.actor, entity.id);

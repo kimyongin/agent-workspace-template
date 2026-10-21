@@ -1,3 +1,4 @@
+import { renderEntityTitle } from "../../supabase/functions/_shared/contracts/entity-title-template.ts";
 import { taskComplete } from "../../supabase/functions/_shared/contracts/task.ts";
 import { occurrenceRecordCreate, recordUpdate } from "../../supabase/functions/_shared/contracts/record.ts";
 import { fixtureWorkspaceId } from "./workspace-scope.ts";
@@ -292,8 +293,8 @@ export async function installWorkspaceApi(
           source,
           external_id,
           id: entityId(source, String(body.entity_type_id ?? fixtureType.id), external_id),
-          title: (body.properties as Record<string, unknown>)?.prop_1 ?? saved.title,
-          display_properties: body.properties ?? saved.display_properties,
+          title: renderEntityTitle(fixtureSchema.schema, saved.properties as Record<string, unknown>, external_id),
+
         });
       }
       storage[kind].unshift(saved);
@@ -305,8 +306,8 @@ export async function installWorkspaceApi(
     Object.assign(found, body, { version: found.version + 1 });
     if (kind === "entities" && body.properties) {
       found.properties = { ...(previousProperties as object), ...(body.properties as object) };
-      found.title = (found.properties as Record<string, unknown>).prop_1;
-      found.display_properties = { prop_1: found.title, prop_2: (found.properties as Record<string, unknown>).prop_2 };
+      found.title = renderEntityTitle(fixtureSchema.schema, found.properties as Record<string, unknown>, String(found.external_id));
+
     }
     if (kind === "tasks" && body.entity_ids) {
       found.entity_context = (body.entity_ids as string[]).map((id) => ({

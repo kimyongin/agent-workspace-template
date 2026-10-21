@@ -19,7 +19,6 @@ Deno.test("Typed entity usecase validates the final patch, uses defaults only at
   const typeId = crypto.randomUUID();
   const definition = initialEntityDefinition("이름");
   definition.schema.properties.prop_2 = { "x-order": 20, type: ["integer", "null"], default: 7 };
-
   const state: { row: EntityValues | null } = { row: null };
   const store = {
     executeRequest: (_: unknown, run: () => unknown) => run(),
@@ -44,7 +43,7 @@ Deno.test("Typed entity usecase validates the final patch, uses defaults only at
           updated_at: "2026-10-12T00:00:00Z",
           current_schema_version: 1,
           title: String(i.properties.prop_1),
-          display_properties: { prop_1: i.properties.prop_1 },
+
           version: 1,
           deleted_at: null,
         },

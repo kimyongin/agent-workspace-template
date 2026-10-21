@@ -280,8 +280,8 @@ test("preview width changes keep the same live draft and dialog", async ({ page 
 test("invalid closed fields expand and focus; move controls retain the expanded row", async ({ page }) => {
   await page.goto(direct);
   const workspace = page.locator("#workspace");
-  await expect(workspace.getByRole("table", { name: "입력 항목 예시", exact: true }).getByRole("row").filter({ has: page.getByRole("button", { name: "상품명 텍스트 · 필수 · 자료 이름", exact: true }) })).toBeVisible();
-  await workspace.getByRole("button", { name: "상품명 텍스트 · 필수 · 자료 이름", exact: true }).focus();
+  await expect(workspace.getByRole("table", { name: "입력 항목 예시", exact: true }).getByRole("row").filter({ has: page.getByRole("button", { name: "상품명 텍스트 · 필수", exact: true }) })).toBeVisible();
+  await workspace.getByRole("button", { name: "상품명 텍스트 · 필수", exact: true }).focus();
   await page.keyboard.press("Enter");
   const row = workspace.locator("#sample-prop_1-body");
   await expect(row.getByRole("textbox", { name: "항목 이름" })).toBeFocused();

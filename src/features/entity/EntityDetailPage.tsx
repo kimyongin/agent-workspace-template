@@ -1,3 +1,4 @@
+import { DataFields } from "../../components/DataFields.tsx";
 import { WorkspacePermissionNotice } from "../workspaces/WorkspacePermissionNotice.tsx";
 import { useTaskAccess } from "../activity/task-access.ts";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
@@ -25,7 +26,7 @@ import type { EntityDetail } from "@contracts/entity.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { Notice } from "../../components/Field.tsx";
-import { DetailSurface } from "../../components/Modal.tsx";
+import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
 import { ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyTask, TaskFormModal } from "../activity/forms.tsx";
@@ -208,21 +209,18 @@ export function EntityDetailPage() {
         {entity && (
           <div ref={readRoot} className="flex min-w-0 flex-col gap-6">
             <section className="flex flex-col gap-4 min-w-0">
-              <EntityProperties
-                entity={entity}
-                identity={
-                  <>
-                    <div>
-                      <dt>번호 출처</dt>
-                      <dd>{entity.source_label}</dd>
-                    </div>
-                    <div>
-                      <dt>자료 번호</dt>
-                      <dd className="wrap-anywhere tabular-nums">{entity.external_id}</dd>
-                    </div>
-                  </>
-                }
-              />
+              <DetailTitle>{entity.title}</DetailTitle>
+              <DataFields>
+                <div>
+                  <dt>번호 출처</dt>
+                  <dd>{entity.source_label}</dd>
+                </div>
+                <div>
+                  <dt>자료 번호</dt>
+                  <dd className="wrap-anywhere tabular-nums">{entity.external_id}</dd>
+                </div>
+              </DataFields>
+              <EntityProperties entity={entity} />
               <TagConnections
                 onDraftClosed={detail.editClosed}
                 scope="entity"

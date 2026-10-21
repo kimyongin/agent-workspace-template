@@ -14,7 +14,7 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     const type = await mcp.call("create_entity_type", {
       label: unique("시험 자료"),
       icon_id: "leaf",
-      representative_label: "이름",
+      initial_property_label: "이름",
     });
     await workspace.grantKind(type.id);
     typeId = type.id;
@@ -33,9 +33,6 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     });
     ["prop_1", "prop_2", "prop_3", "prop_4", "prop_5", "prop_6"].forEach((key, index) => {
       definition.schema.properties[key]["x-order"] = (index + 1) * 10;
-    });
-    Object.entries(definition.schema.properties).forEach(([key, field]) => {
-      field["x-show-in-list"] = ["prop_1"].includes(key);
     });
     const change = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
@@ -56,7 +53,8 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     });
     entityId = created.id;
     const listed = await mcp.call("list_entities", { entity_type_id: typeId });
-    expect(listed.items[0].display_properties).not.toHaveProperty("prop_3");
+    expect(listed.items[0]).not.toHaveProperty("properties");
+    expect(listed.items[0]).not.toHaveProperty("display_properties");
     await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(entityId!)}`));
     await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
     await expect(page.getByText("확인 날짜", { exact: true })).toBeVisible();

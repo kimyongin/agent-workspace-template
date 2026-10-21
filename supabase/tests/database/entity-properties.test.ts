@@ -80,14 +80,15 @@ dbTest(
       const summary =
         (await listEntities(entities, owner.manager, { entity_type_id: first.id, limit: 20, sort: "updated_at" }))
           .items[0];
-      assertEquals(summary.display_properties, { prop_1: "재료" });
+      assertEquals(summary.title, "재료");
+      assertEquals("display_properties" in summary, false);
       assertEquals("properties" in summary, false);
       assertEquals(
         (await assertRejects(() => getEntity(entities, other.manager, saved.id), AppError)).code,
         "not_found",
       );
       const invalidPatches: EntityProperties[] = [
-        { prop_1: "  " },
+        { prop_1: "" },
         { prop_2: 1.5 },
         { prop_2: Number.MAX_SAFE_INTEGER + 1 },
         { prop_3: 0.0000001 },

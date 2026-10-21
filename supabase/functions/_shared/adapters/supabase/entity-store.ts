@@ -151,8 +151,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async list(q: EntityQuery, after?: EntityKeyset, typeIds?: string[]) {
     const tx = this.tx;
     const definition = q.entity_type_id ? await this.definition(q.entity_type_id) : null;
-    const title =
-      tx`entities.properties->>(select key from jsonb_each(v.schema->'properties') where value->>'x-representative'='true' limit 1)`;
+    const title = tx`app.entity_title(v.schema,entities.properties,entities.external_id)`;
     const scalar = (key: string) => {
       const field = definition!.schema.properties[key], kind = fieldKind(field);
       const json = tx`entities.properties->${key}::text`, value = tx`entities.properties->>${key}::text`;

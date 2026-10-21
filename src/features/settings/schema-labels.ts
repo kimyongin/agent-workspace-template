@@ -1,3 +1,4 @@
+import { memoDocument } from "./template-memo-document.ts";
 import { fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { EntityField } from "@contracts/entity-type.ts";
@@ -60,20 +61,16 @@ export function schemaDiffLabel(path: string, target: SchemaDefinition, source: 
     maximum: "최대값",
     oneOf: "선택 항목",
     "x-order": "입력 순서",
-    "x-list-order": "목록 순서",
-    "x-representative": "자료 이름",
-    "x-show-in-list": "목록 표시",
     "x-search-text": "검색에 사용",
     "x-icon": "아이콘",
+    "x-title-template": "제목 템플릿",
     deprecated: "사용 중지",
     readOnly: "읽기 전용",
     examples: "입력 예시",
     multipleOf: "배수",
     default: "생성 기본값",
-    representative: "대표 입력 항목",
     order: "순서",
     archived: "보관",
-    list_columns: "목록 표시",
     option_labels: "선택 이름",
     description: "설명",
     format: "형식",
@@ -100,6 +97,10 @@ export function schemaValueLabel(value: unknown, definition?: SchemaDefinition):
 
 /** Review values use the input labels rather than schema storage spellings. */
 export function schemaDiffValueLabel(path: string, value: unknown, definition: SchemaDefinition): string {
+  if (path.endsWith("x-title-template") && typeof value === "string") {
+    return memoDocument(value, Object.entries(definition.schema.properties).map(([key, field]) => ({ value: key, label: field.title || key })))
+      .map((part) => part.variable ? `$${part.variable.label}$` : part.text).join("");
+  }
   if (path.endsWith(".required") && typeof value === "boolean") return value ? "필수" : "선택";
   if (path.endsWith(".type") && (typeof value === "string" || Array.isArray(value))) {
     return fieldTypeLabel({ type: value as EntityField["type"], "x-order": 1 });

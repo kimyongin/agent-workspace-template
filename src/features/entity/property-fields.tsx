@@ -1,5 +1,4 @@
 import { DataFields } from "../../components/DataFields.tsx";
-import { cn } from "../../lib/utils.ts";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Input } from "../../components/ui/input.tsx";
 import { DateInput } from "../../components/DateInput.tsx";
@@ -9,7 +8,6 @@ import { codePointLength, isoDate } from "@contracts/common.ts";
 import { entityNumberDraft } from "@contracts/entity-number.ts";
 import type { EntityField, EntitySchemaVersion } from "@contracts/entity-type.ts";
 import type { EntityProperties } from "@contracts/entity.ts";
-import { DetailTitle } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
 export type PropertyDraft = Record<string, string | boolean | null>;
 export function fieldType(field: EntityField | undefined) {
@@ -33,14 +31,6 @@ export function propertyValues(
   const result: EntityProperties = {}, errors: Record<string, string> = {};
   for (const [key, value] of Object.entries(values)) {
     const kind = fieldType(definition.schema.properties[key]);
-    if (
-      schemaPresentation(definition).representative === key &&
-      (value === null || value === "" ||
-        typeof value === "string" && !value.trim())
-    ) {
-      errors[`properties.${key}`] = "필수 항목을 입력하세요";
-      continue;
-    }
     try {
       const field = definition.schema.properties[key];
       const parsed = value !== null && (kind === "integer" || kind === "number")
@@ -93,9 +83,8 @@ export function displayedProperty(field: EntityField, value: unknown, labels: Re
   return String(value);
 }
 export function PropertyFields(
-  { definition, values, initialValues, onChange, errors, disabled = false, part = "all" }: {
+  { definition, values, initialValues, onChange, errors, disabled = false }: {
     disabled?: boolean;
-    part?: "all" | "representative" | "remaining";
     definition: Pick<EntitySchemaVersion, "schema">;
     values: PropertyDraft;
     initialValues?: PropertyDraft;
@@ -111,12 +100,7 @@ export function PropertyFields(
   };
   return (
     <>
-      {[
-        schemaPresentation(definition).representative,
-        ...schemaPresentation(definition).order.filter((key) => key !== schemaPresentation(definition).representative),
-      ].filter((key) =>
-        part === "all" || (part === "representative") === (key === schemaPresentation(definition).representative)
-      ).map((key) => {
+      {schemaPresentation(definition).order.map((key) => {
         const field = definition.schema.properties[key],
           value = values[key],
           nullable = Array.isArray(field.type) && field.type.includes("null") &&
@@ -131,13 +115,7 @@ export function PropertyFields(
                   {field.title ?? key} <span className="text-sm text-muted-foreground">· {archived ? "보관" : "읽기 전용"}</span>
                 </dt>
                 <dd>
-                  {key === schemaPresentation(definition).representative
-                    ? (
-                      <DetailTitle>
-                        {displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}
-                      </DetailTitle>
-                    )
-                    : displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}
+                  {displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}
                 </dd>
               </div>
             </DataFields>
@@ -145,8 +123,6 @@ export function PropertyFields(
         }
         return (
           <Field
-            fullWidth={key === schemaPresentation(definition).representative}
-            className={cn(key === schemaPresentation(definition).representative ? "col-span-full" : undefined)}
             key={key}
             label={field.title ?? key}
             changed={initialValues !== undefined && initialValues[key] !== value}

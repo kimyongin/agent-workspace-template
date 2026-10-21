@@ -2,7 +2,6 @@ import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 import { BusinessTable, BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
-import { RadioGroup } from "@/components/ui/radio-group";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -23,7 +22,7 @@ import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
 import { fieldTypeLabel, schemaChangeLabels, schemaDiffValueLabel } from "./schema-labels.ts";
 import { SchemaSearchTextSetting } from "./SchemaSearchTextSetting.tsx";
-import { SchemaRepresentativeSetting } from "./SchemaRepresentativeSetting.tsx";
+import { SchemaTitleTemplateSetting } from "./SchemaTitleTemplateSetting.tsx";
 import {
   migrationActive,
   migrationLabels,
@@ -343,7 +342,7 @@ export function SchemaEditor(
               className="min-w-0"
               disabled={inputsDisabled}
             >
-              <RadioGroup value={schemaPresentation(draft).representative} onValueChange={editor.chooseRepresentative} aria-label="자료 이름으로 사용할 항목">
+              <SchemaTitleTemplateSetting draft={draft} saved={definition} disabled={inputsDisabled || Boolean(plan?.recovery)} readOnly={!canWrite} onChange={editor.editTitleTemplate} />
               <CollectionList view="table" label="입력 항목 목록" columns={["입력 항목", "설정", "순서"]}>
                 {fieldOrder.map((key) => {
                   const removed = removedFields.find(field => field.key === key);
@@ -372,9 +371,6 @@ export function SchemaEditor(
                     <span className="flex max-w-full flex-wrap items-center gap-1 text-sm text-muted-foreground">
                       {!expanded && <span>{fieldTypeLabel(f)}</span>}
                       {draft.schema.required.includes(key) && <Badge variant="secondary">필수</Badge>}
-                      {key === schemaPresentation(draft).representative && (
-                        <Badge variant="secondary">자료 이름</Badge>
-                      )}
                       {schemaPresentation(draft).archived.includes(key) && (
                         <Badge variant="secondary">사용 중지</Badge>
                       )}
@@ -459,9 +455,6 @@ export function SchemaEditor(
                                     fieldInputPolicy({
                                       type: value === "date" || value === "select" ? "string" : value as "string",
                                       "x-order": f["x-order"],
-                                      "x-list-order": f["x-list-order"],
-                                      "x-representative": f["x-representative"],
-                                      "x-show-in-list": f["x-show-in-list"],
                                       ...(value === "string" ? { "x-search-text": f["x-search-text"] } : {}),
                                       deprecated: f.deprecated,
                                       readOnly: f.readOnly,
@@ -473,7 +466,6 @@ export function SchemaEditor(
                                         : value === "select"
                                         ? { oneOf: [{ const: "option_1", title: "선택 항목 1" }] }
                                         : {}),
-                                      ...(key === schemaPresentation(draft).representative ? { minLength: 1 } : {}),
                                     }, draft.schema.required.includes(key)),
                                   );
                                 }}
@@ -561,11 +553,6 @@ export function SchemaEditor(
                             disabled={Boolean(plan?.recovery)}
                             onChange={(field) => editField(key, field)}
                           />
-                          <SchemaRepresentativeSetting
-                            draft={draft}
-                            propertyKey={key}
-                            disabled={Boolean(plan?.recovery)}
-                          />
                           <Collapsible
                             className="min-w-0 col-span-full"
                             open={advancedFields.includes(key)}
@@ -586,21 +573,6 @@ export function SchemaEditor(
                                   onCheckedChange={(checked) => editFlag(key, "required", checked === true)}
                                 />{" "}
                                 필수 입력
-                              </FieldLabel>
-                              <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
-                                <Checkbox
-
-                                  aria-label={`${f.title || "새 항목"} 목록에 표시`}
-                                  checked={schemaPresentation(draft).list_columns.includes(key)}
-                                  disabled={schemaPresentation(draft).archived.includes(key)}
-                                  onCheckedChange={(checked) =>
-                                    editFlag(
-                                      key,
-                                      "list_columns",
-                                      checked === true,
-                                    )}
-                                />{" "}
-                                목록에 표시
                               </FieldLabel>
 
                               <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
@@ -816,7 +788,6 @@ export function SchemaEditor(
                               <div className="flex flex-wrap items-center justify-end gap-2">
                                 <Button variant="ghost"
                                   type="button"
-                                  disabled={key === schemaPresentation(draft).representative}
                                   onClick={() =>
                                     editor.setFieldInactive(
                                       key,
@@ -828,17 +799,11 @@ export function SchemaEditor(
                                 <Button variant="destructive"
 
                                   type="button"
-                                  disabled={key === schemaPresentation(draft).representative}
                                   onClick={() => setDeleteKey(key)}
                                 >
                                   <Trash2Icon data-icon="inline-start" />항목 삭제
                                 </Button>
                               </div>
-                              {key === schemaPresentation(draft).representative && (
-                                <p className="text-sm text-muted-foreground">
-                                  다른 항목을 자료 이름으로 선택한 뒤 사용 중지하거나 삭제하세요.
-                                </p>
-                              )}
                             </FieldGroup>
                           </CollapsibleContent></Collapsible>
                         </FieldSet>
@@ -847,7 +812,7 @@ export function SchemaEditor(
                   );
                 })}
               </CollectionList>
-              </RadioGroup>
+
             </FieldSet>
             <p className="text-sm text-muted-foreground">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
             {plan && !["applied", "cancelled"].includes(plan.status) && !actions.review.visible && (

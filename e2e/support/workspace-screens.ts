@@ -43,7 +43,6 @@ export async function fixtures(
   };
   if (options.long) {
     rows.entities[0].properties.prop_1 = rows.entities[0].title = "긴제목".repeat(25);
-    rows.entities[0].display_properties.prop_1 = rows.entities[0].title;
     for (const row of [...rows.tasks, ...rows.records]) {
       row.body = "긴 본문\n\n".repeat(150);
       if ("title" in row) row.title = "긴제목".repeat(32);

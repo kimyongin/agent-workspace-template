@@ -56,7 +56,7 @@ const safeText = (v: string) =>
 export const entityTypeCreate = z.strictObject({
   label: z.string().trim().min(1).max(80).refine(safeText, "텍스트에 저장할 수 없는 문자가 있습니다"),
   icon_id: entityTypeIcon.default("box"),
-  representative_label: z.string().trim().min(1).max(80).refine(safeText, "텍스트에 저장할 수 없는 문자가 있습니다")
+  initial_property_label: z.string().trim().min(1).max(80).refine(safeText, "텍스트에 저장할 수 없는 문자가 있습니다")
     .default("이름"),
 });
 export const entityTypeUpdate = z.strictObject({
@@ -94,9 +94,6 @@ export type EntityField = {
   examples?: Array<string | number | boolean | null>;
   multipleOf?: number;
   "x-order": number;
-  "x-list-order"?: number;
-  "x-representative"?: boolean;
-  "x-show-in-list"?: boolean;
   "x-search-text"?: boolean;
   default?: string | number | boolean | null;
 };
@@ -109,6 +106,7 @@ export type EntitySchema = {
   $schema: typeof ENTITY_SCHEMA_DIALECT;
   "x-type-id": string;
   "x-version": number;
+  "x-title-template": string;
   /** Absent only on retained historical documents that never captured this metadata. */
   title?: string;
   description?: string;
@@ -162,6 +160,7 @@ export function initialEntityDefinition(
       $schema: ENTITY_SCHEMA_DIALECT,
       "x-type-id": metadata.id ?? "00000000-0000-4000-8000-000000000001",
       "x-version": 1,
+      "x-title-template": "$prop_1$",
       title: metadata.title ?? label,
       "x-icon": metadata.icon ?? "box",
       deprecated: false,
@@ -174,8 +173,6 @@ export function initialEntityDefinition(
           minLength: 1,
           maxLength: 4096,
           "x-order": 10,
-          "x-representative": true,
-          "x-show-in-list": true,
         },
       },
       required: ["prop_1"],
@@ -232,13 +229,7 @@ export function entitySchemaPresentation(schema: EntitySchema) {
   const keys = Object.keys(schema.properties);
   const order = [...keys].sort((a, b) => schema.properties[a]["x-order"] - schema.properties[b]["x-order"]);
   return {
-    representative: keys.find((k) => schema.properties[k]["x-representative"]) ?? "",
     order,
-    list_columns: keys.filter((k) => schema.properties[k]["x-show-in-list"] && !schema.properties[k].deprecated)
-      .sort((a, b) =>
-        (schema.properties[a]["x-list-order"] ?? schema.properties[a]["x-order"]) -
-        (schema.properties[b]["x-list-order"] ?? schema.properties[b]["x-order"])
-      ),
     archived: keys.filter((k) => schema.properties[k].deprecated),
     option_labels: Object.fromEntries(
       keys.filter((k) => schema.properties[k].oneOf).map(

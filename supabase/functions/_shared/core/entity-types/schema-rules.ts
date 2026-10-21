@@ -1,3 +1,4 @@
+import { entityTitleTemplateIssues } from "../../contracts/entity-title-template.ts";
 import { entityFieldInput } from "../../contracts/entity-schema-change.ts";
 import { Ajv2020 } from "ajv/2020";
 import addFormats from "ajv-formats";
@@ -42,6 +43,7 @@ const definition = z.strictObject({
     $schema: z.literal(ENTITY_SCHEMA_DIALECT),
     "x-type-id": z.string().uuid(),
     "x-version": z.number().int().positive().max(2147483647),
+    "x-title-template": z.string(),
     title: z.string().trim().min(1).max(80),
     description: z.string().max(1000).optional(),
     "x-icon": entityTypeIcon,
@@ -58,13 +60,11 @@ function validator() {
   (addFormats as unknown as (a: Ajv2020, options: { mode: string }) => void)(ajv, { mode: "full" });
   for (
     const keyword of [
+      "x-title-template",
       "x-type-id",
       "x-version",
       "x-icon",
       "x-order",
-      "x-list-order",
-      "x-representative",
-      "x-show-in-list",
       "x-search-text",
     ]
   ) ajv.addKeyword({ keyword });
@@ -153,6 +153,10 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
     }
   };
   inspectText(parsed.data, "definition");
+  if (schema["x-title-template"] !== undefined) {
+    const issues = entityTitleTemplateIssues(schema["x-title-template"], schema);
+    if (issues.length) fail("schema.x-title-template", issues.map((issue) => issue.reason).join(" · "));
+  }
   const keys = Object.keys(schema.properties);
   if (!keys.length || keys.length > limits.fields) fail("schema.properties", "속성은 1~64개입니다");
   for (const [key, f] of Object.entries(schema.properties)) {
@@ -203,7 +207,6 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
     const [name, refs] of Object.entries({
       required: schema.required,
       order: display.order,
-      list_columns: display.list_columns,
       archived: display.archived,
     })
   ) {
@@ -212,24 +215,8 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
     }
   }
   if (display.order.length !== keys.length) fail("schema.properties", "모든 속성의 순서가 필요합니다");
-  const rep = schema.properties[display.representative];
-  if (
-    !rep || rep.type !== "string" || rep.format !== undefined || rep.oneOf !== undefined ||
-    !schema.required.includes(display.representative) ||
-    display.archived.includes(display.representative) || (rep.minLength ?? 0) < 1
-  ) fail("schema.properties", "대표 속성은 활성 필수 텍스트이며 빈 문자열을 허용하지 않습니다");
-  if (display.list_columns.some((k) => display.archived.includes(k))) {
-    fail("schema.properties", "보관 속성은 목록에서 제외하세요");
-  }
   if (new Set(Object.values(schema.properties).map((f) => f["x-order"])).size !== keys.length) {
     fail("schema.properties", "입력 순서는 중복될 수 없습니다");
-  }
-  const visible = Object.values(schema.properties).filter((f) => f["x-show-in-list"] && !f.deprecated).map((f) =>
-    f["x-list-order"] ?? f["x-order"]
-  );
-  if (new Set(visible).size !== visible.length) fail("schema.properties", "표시할 목록 순서는 중복될 수 없습니다");
-  if (Object.values(schema.properties).filter((f) => f["x-representative"]).length !== 1) {
-    fail("schema.properties", "대표 속성은 하나여야 합니다");
   }
   let validate;
   try {
@@ -245,10 +232,6 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
       }
       if (!check(f.default)) fail(`schema.properties.${key}.default`, "기본값이 속성 제약을 만족하지 않습니다");
     }
-  }
-  const representativeDefault = schema.properties[display.representative].default;
-  if (typeof representativeDefault === "string" && !representativeDefault.trim()) {
-    fail(`schema.properties.${display.representative}.default`, "대표 이름은 공백만 입력할 수 없습니다");
   }
   void validate;
   return parsed.data as Pick<EntitySchemaVersion, "schema">;
@@ -296,10 +279,6 @@ export function compileEntityProperties(raw: unknown) {
           message: propertyErrorMessage(e.keyword, e.params),
         })),
       );
-    }
-    const representative = result[display.representative];
-    if (typeof representative === "string" && !representative.trim()) {
-      fail(`properties.${display.representative}`, "대표 이름은 공백만 입력할 수 없습니다");
     }
     for (const [key, value] of Object.entries(result)) {
       numeric(schema.properties[key], value, `properties.${key}`);

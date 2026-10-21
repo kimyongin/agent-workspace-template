@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { createEntityType } from "./application.ts";
 import type { EntityTypeStore } from "./application.ts";
-Deno.test("explicit type creation starts with required representative prop_1", async () => {
+Deno.test("explicit type creation starts with an ordinary required initial name and title template", async () => {
   let definition: unknown;
   const store = {
     executeRequest: (_r: unknown, fn: () => Promise<unknown>) => fn(),
@@ -27,7 +27,7 @@ Deno.test("type metadata SQL-unsafe input fails at the public usecase before tra
     },
   };
   for (
-    const input of [{ label: "bad\u0000" }, { label: "name", representative_label: "bad\u0000" }, {
+    const input of [{ label: "bad\u0000" }, { label: "name", initial_property_label: "bad\u0000" }, {
       label: "bad\uD800",
     }]
   ) {

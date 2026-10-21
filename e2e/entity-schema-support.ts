@@ -50,7 +50,7 @@ export function scalarFixtureType(mcp: FixtureClient, workspace: FixtureWorkspac
       const type = await mcp.call("create_entity_type", {
         label: "검사 자료 " + crypto.randomUUID().slice(0, 8),
         icon_id: "box",
-        representative_label: "제목",
+        initial_property_label: "제목",
       });
       await workspace.grantKind(type.id);
       const change = await mcp.call("create_entity_schema_change", {

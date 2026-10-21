@@ -4,6 +4,7 @@ import { useApi } from "../../lib/api-context.tsx";
 import { EyeIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
+import { displayedProperty } from "./property-fields.tsx";
 import { PageHeading } from "../../components/PageHeading.tsx";
 import {
   changeEntityListQuery,
@@ -14,7 +15,7 @@ import {
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
-import { displayedProperty, fieldType } from "./property-fields.tsx";
+
 import { TypedEntityFilters, validatePropertyFilters } from "./TypedEntityFilters.tsx";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
 import { useEntityTypes } from "./useEntityTypes.ts";
@@ -469,26 +470,7 @@ export function EntitiesPage() {
             <CollectionList
               view={view === "calendar" ? "table" : view}
               label={`${label} 목록`}
-              numericColumns={displaySchema
-                ? schemaPresentation(displaySchema).list_columns.filter((key) =>
-                  key !== schemaPresentation(displaySchema).representative
-                )
-                  .flatMap((key, index) =>
-                    ["integer", "number"].includes(fieldType(displaySchema.schema.properties[key]) ?? "")
-                      ? [index + 1]
-                      : []
-                  )
-                : []}
-              columns={displaySchema
-                ? [
-                  displaySchema.schema.properties[schemaPresentation(displaySchema).representative].title ??
-                    "자료 이름",
-                  ...schemaPresentation(displaySchema).list_columns.filter((key) =>
-                    key !== schemaPresentation(displaySchema).representative
-                  )
-                    .map((key) => displaySchema.schema.properties[key].title ?? key),
-                ]
-                : ["자료 이름", "자료 종류"]}
+              columns={displaySchema ? ["제목"] : ["제목", "자료 종류"]}
             >
               {visibleRows.map((e) => (
                 <CollectionItem className="min-w-0" key={e.id}>
@@ -496,22 +478,9 @@ export function EntitiesPage() {
                     kind="entities"
                     id={e.id}
                     title={e.title}
-                    cells={displaySchema
-                      ? schemaPresentation(displaySchema).list_columns.filter((key) =>
-                        key !== schemaPresentation(displaySchema).representative
-                      ).map(
-                        (key) =>
-                          displayedProperty(
-                            displaySchema.schema.properties[key],
-                            e.display_properties[key],
-                            schemaPresentation(displaySchema).option_labels[key],
-                          ),
-                      )
-                      : [
-                        <span key="type">
-                          <EntityTypeIcon id={e.type.icon_id} /> {e.type.label}
-                        </span>,
-                      ]}
+                    cells={displaySchema ? [] : [
+                      <span key="type"><EntityTypeIcon id={e.type.icon_id} /> {e.type.label}</span>,
+                    ]}
                   />
                 </CollectionItem>
               ))}

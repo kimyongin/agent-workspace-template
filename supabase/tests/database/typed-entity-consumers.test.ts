@@ -37,9 +37,9 @@ function seedInWorkspace<T>(actor: WorkspaceActor, run: (tx: postgres.Transactio
 async function typeFixture(actor: WorkspaceActor, label: string, numeric = true) {
   const definition = initialEntityDefinition("이름");
   Object.assign(definition.schema.properties, {
-    prop_2: { "x-order": 20, "x-show-in-list": true, type: numeric ? ["number", "null"] : "string", title: "값" },
+    prop_2: { "x-order": 20, type: numeric ? ["number", "null"] : "string", title: "값" },
     prop_3: { "x-order": 30, type: ["string", "null"], format: "date", title: "날짜" },
-    prop_4: { "x-order": 40, "x-show-in-list": true, type: ["boolean", "null"], title: "승인" },
+    prop_4: { "x-order": 40, type: ["boolean", "null"], title: "승인" },
     prop_5: { "x-order": 50, deprecated: true, type: "string", title: "옛 메모" },
   });
   return await seedInWorkspace(actor, async (tx) => {
@@ -288,8 +288,8 @@ dbTest("typed list scale: 2000 rows use the actual bounded joined query plan", a
     );
     const elapsed = performance.now() - started;
     assertEquals(page.items.length, 100);
-    assertEquals(page.items[0].display_properties.prop_2, 1000);
-    assertEquals(page.items.at(-1)!.display_properties.prop_2, 1099);
+    assertEquals(page.items[0].title, "자료 1000");
+    assertEquals(page.items.at(-1)!.title, "자료 1099");
     assert(page.next_cursor);
     const captured = observed as { query: string; parameters: postgres.ParameterOrJSON<never>[] } | null;
     assert(captured);

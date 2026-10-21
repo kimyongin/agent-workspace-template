@@ -39,7 +39,8 @@
               "type",
               "additionalProperties",
               "properties",
-              "required"
+              "required",
+              "x-title-template"
             ],
             "properties": {
               "$schema": {
@@ -209,17 +210,6 @@
                       "exclusiveMinimum": 0,
                       "maximum": 9007199254740991
                     },
-                    "x-list-order": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "x-representative": {
-                      "type": "boolean"
-                    },
-                    "x-show-in-list": {
-                      "type": "boolean"
-                    },
                     "default": {
                       "type": [
                         "string",
@@ -243,6 +233,10 @@
                   "pattern": "^prop_[1-9][0-9]*$"
                 },
                 "uniqueItems": true
+              },
+              "x-title-template": {
+                "type": "string",
+                "maxLength": 4096
               }
             },
             "additionalProperties": false

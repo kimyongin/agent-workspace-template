@@ -64,7 +64,7 @@ function memory() {
         type,
         current_schema_version: 1,
         title: String(input.properties.prop_1),
-        display_properties: { prop_1: input.properties.prop_1 },
+
         deleted_at: null,
         version: 1,
         created_at: "2026-10-04T00:00:00.000Z",
