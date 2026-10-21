@@ -13,7 +13,6 @@ import {
   issuerCreate,
   issuerUpdate,
   registryDelete,
-  typeIdentityUpdate,
 } from "../../functions/_shared/contracts/entity-issuer.ts";
 import {
   schemaMigrationAction,
@@ -30,6 +29,8 @@ import {
   schemaChangeUpdate,
 } from "../../functions/_shared/contracts/entity-schema-change.ts";
 import { requestKey } from "../../functions/_shared/contracts/request.ts";
+import { entityLookup, entityRestore } from "../../functions/_shared/contracts/entity.ts";
+import { entityReferenceId } from "../../functions/_shared/contracts/entity-identity.ts";
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
@@ -627,8 +628,8 @@ Deno.test({
         "list_entity_identifier_rules",
         "create_entity_identifier_rule",
         "update_entity_identifier_rule",
-        "get_entity_type_identity",
-        "update_entity_type_identity",
+        "lookup_entity_identifier",
+        "restore_entity",
         "delete_entity",
         "get_entity",
         "list_entities",
@@ -1150,11 +1151,9 @@ Deno.test({
               rule_id: z.string().uuid(),
               request_key: requestKey,
             }),
-            get_entity_type_identity: z.strictObject({
-              type_id: z.string().uuid(),
-            }),
-            update_entity_type_identity: typeIdentityUpdate.safeExtend({
-              type_id: z.string().uuid(),
+            lookup_entity_identifier: entityLookup,
+            restore_entity: entityRestore.extend({
+              id: entityReferenceId,
               request_key: requestKey,
             }),
             list_entity_type_icons: z.strictObject({}),
