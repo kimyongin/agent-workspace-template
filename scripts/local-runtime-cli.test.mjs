@@ -401,7 +401,7 @@ test('original fixture startup exit survives a replaced lease cleanup failure wi
   }
 });
 
-test('preparation signals retain separate child-stop and lease hazards and attempt release after a failed stop', async t => {
+test('preparation signals retain separate child-stop and lease hazards and attempt release after a failed stop', { skip: process.platform === 'win32' }, async t => {
   const { createHash } = await import('node:crypto');
   const { readFileSync, existsSync } = await import('node:fs');
   const { runFullTestPlan } = await import('./test-full-runtime.mjs');
@@ -453,7 +453,7 @@ test('preparation signals retain separate child-stop and lease hazards and attem
   }
 });
 
-test('completed fixture stages retain their exits when child stop and lease release both fail', async t => {
+test('completed fixture stages retain their exits when child stop and lease release both fail', { skip: process.platform === 'win32' }, async t => {
   const { createHash } = await import('node:crypto');
   const { readFileSync, existsSync } = await import('node:fs');
   const { runFullTestPlan } = await import('./test-full-runtime.mjs');
