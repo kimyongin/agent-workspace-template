@@ -38,6 +38,7 @@ test("정의한 관계만 표시하고 실제 101개 작성 연결을 더 보기
         previous_other_id: null,
         expected_previous_version: null,
         entity: {
+          action: "create",
           entity_type_id: type.id,
           schema_version: 1,
           properties: { prop_1: `구성 ${String(n + 1).padStart(3, "0")}` },

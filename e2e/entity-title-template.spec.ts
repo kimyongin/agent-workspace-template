@@ -135,17 +135,41 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
         document.documentElement.style.zoom = "2";
       });
       await expect(editor).toBeVisible();
-      const bounds = await editor.evaluate((element) => {
-        const box = element.getBoundingClientRect();
-        return { left: box.left, right: box.right, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth };
+      await expect.poll(() => editor.evaluate(async (element, label) => {
+        const sample = () => new Promise<{
+          editor: number[]; chip: number[] | null; text: string | null; editorFits: boolean; pageFits: boolean;
+        }>((resolve) => requestAnimationFrame(() => {
+          const token = [...element.querySelectorAll<HTMLElement>("[aria-label]")]
+            .find((node) => node.getAttribute("aria-label") === `변수: ${label}`);
+          const box = element.getBoundingClientRect(), chip = token?.getBoundingClientRect();
+          resolve({
+            editor: [box.left, box.right, box.top, box.bottom],
+            chip: chip ? [chip.left, chip.right, chip.top, chip.bottom] : null,
+            text: token?.textContent ?? null,
+            editorFits: element.scrollWidth <= element.clientWidth,
+            pageFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          });
+        }));
+        const first = await sample(), second = await sample(), frames = [first, second];
+        const stable = first.chip !== null && second.chip !== null &&
+          [...first.editor, ...first.chip].every((value, index) =>
+            Math.abs(value - [...second.editor, ...second.chip!][index]) <= 0.01
+          );
+        return {
+          stable,
+          chipPresent: frames.every((frame) => frame.chip !== null),
+          fullText: first.text === second.text ? second.text : null,
+          leftContained: frames.every((frame) => frame.chip !== null && frame.chip[0] >= frame.editor[0] - 1),
+          rightContained: frames.every((frame) => frame.chip !== null && frame.chip[1] <= frame.editor[1] + 1),
+          editorFits: frames.every((frame) => frame.editorFits),
+          pageFits: frames.every((frame) => frame.pageFits),
+          first,
+          second,
+        };
+      }, longPropertyLabel)).toMatchObject({
+        stable: true, chipPresent: true, fullText: longPropertyLabel,
+        leftContained: true, rightContained: true, editorFits: true, pageFits: true,
       });
-      const chip = await longChip.boundingBox();
-      expect(chip).not.toBeNull();
-      expect(chip!.x).toBeGreaterThanOrEqual(bounds.left - 1);
-      expect(chip!.x + chip!.width).toBeLessThanOrEqual(bounds.right + 1);
-      expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
-        .toBe(true);
       await editor.scrollIntoViewIfNeeded();
       await expect(editor).toBeInViewport();
       await page.screenshot({ path: info.outputPath("title-template-long-variable-320-zoom200.png"), fullPage: false });
