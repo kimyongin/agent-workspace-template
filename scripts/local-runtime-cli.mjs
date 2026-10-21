@@ -81,9 +81,9 @@ export async function removeOwnedContainer(id, command) {
 }
 
 // External process/HTTP effects. No shell interpolation or project-name teardown.
-export function createLocalRuntimeAdapter(config) {
+export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
   const source = realpathSync('supabase/functions');
-  const npm = process.env.npm_execpath ?? join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
+  const npm = env.npm_execpath ?? join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
   if (!existsSync(npm)) throw new Error('Run through npm run test:integration:local to resolve the npm CLI');
   const api = `${config.apiUrl}/functions/v1/api/tasks`;
   const containerName = `supabase_edge_runtime_${config.projectId}`;
@@ -107,7 +107,7 @@ export function createLocalRuntimeAdapter(config) {
   }
 
   function launch(file, args, stdio) {
-    const child = spawn(file, args, { shell: false, stdio, detached: process.platform !== 'win32' });
+    const child = spawn(file, args, { shell: false, stdio, env, detached: process.platform !== 'win32' });
     child.finished = new Promise(resolve => {
       child.once('error', () => { child.spawnFailed = true; resolve({ code: null, interrupted: false, spawnFailed: true }); });
       child.once('close', (code, signal) => resolve({ code, signal, interrupted: Boolean(signal) || interruptedCodes.has(code) }));
@@ -168,11 +168,14 @@ export function createLocalRuntimeAdapter(config) {
     return { state: 'absent' };
   }
 
-  async function run(label, signal, extra = []) {
+  async function run(check, signal, extra = []) {
+    const label = typeof check === 'string' ? check : check.id;
+    const args = typeof check === 'string' ? [npm, 'run', '-s', scripts[check], ...extra]
+      : check.nodeArgs ?? (check.npmArgs ? [npm, ...check.npmArgs] : [npm, 'run', '-s', check.script, ...(check.args ?? [])]);
     console.log(`\n▶ ${label}`);
     const started = Date.now();
-    const result = await command(process.execPath, [npm, 'run', '-s', scripts[label], ...extra], { signal, stdio: 'inherit', timeoutMs: 0 });
-    return { code: result.code, signal: result.signal, interrupted: result.interrupted, stopFailed: result.stopFailed, seconds: Math.round((Date.now() - started) / 1000) };
+    const result = await command(process.execPath, args, { signal, stdio: 'inherit', timeoutMs: 0 });
+    return { code: result.code, signal: result.signal, interrupted: result.interrupted, stopFailed: result.stopFailed, spawnFailed: result.spawnFailed, seconds: Math.round((Date.now() - started) / 1000) };
   }
 
   return {
