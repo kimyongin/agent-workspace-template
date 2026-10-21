@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "test:web": "vitest run",
     "test:adapters:fast": "deno test --config supabase/functions/deno.json supabase/tests/fast",
+    "test:full": "node scripts/test-full.mjs",
     "test:fast": "npm run test:core && npm run test:adapters:fast && npm run test:web",
     "check:docs": "node scripts/check-docs.mjs && node --test \"scripts/*.test.mjs\"",
     "check:deno": "deno check --config supabase/functions/deno.json supabase/functions supabase/tests && deno lint --config supabase/functions/deno.json supabase/functions supabase/tests && deno fmt --check --config supabase/functions/deno.json supabase/functions supabase/tests",

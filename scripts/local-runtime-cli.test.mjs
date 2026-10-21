@@ -224,3 +224,36 @@ test('a container already removed by its owning CLI needs no further teardown', 
   await removeOwnedContainer('owned-id', async (_, args) => { calls.push(args); return { code: 0, output: '' }; });
   assert.equal(calls.length, 1);
 });
+
+test('planned subprocess sends the exact actual config and retains its original exit', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'planned-command-'));
+  const npm = join(directory, 'npm.mjs'), output = join(directory, 'args.json');
+  const priorNpm = process.env.npm_execpath;
+  try {
+    writeFileSync(npm, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(output)}, JSON.stringify(process.argv.slice(2))); process.exitCode = 17;`);
+    process.env.npm_execpath = npm;
+    const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' });
+    const result = await adapter.run({ id: 'actual', script: 'test:e2e', args: ['--', '--config', '/isolated/config.ts'] });
+    assert.equal(result.code, 17);
+    assert.deepEqual(JSON.parse((await import('node:fs')).readFileSync(output, 'utf8')), ['run', '-s', 'test:e2e', '--', '--config', '/isolated/config.ts']);
+  } finally {
+    if (priorNpm === undefined) delete process.env.npm_execpath; else process.env.npm_execpath = priorNpm;
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test('explicit runtime command uses its single env file and scoped child environment', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'planned-env-'));
+  const npm = join(directory, 'npm.mjs'), output = join(directory, 'args.json');
+  try {
+    writeFileSync(npm, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(output)}, JSON.stringify({args:process.argv.slice(2),api:process.env.VITE_SUPABASE_URL}));`);
+    const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' }, {
+      env: { ...process.env, npm_execpath: npm, VITE_SUPABASE_URL: 'http://127.0.0.1:62121' },
+    });
+    const result = await adapter.run({ id: 'db', npmArgs: ['exec', '--', 'deno', 'test', '--env-file=/isolated/env', 'supabase/tests/database'] });
+    assert.equal(result.code, 0);
+    assert.deepEqual(JSON.parse((await import('node:fs')).readFileSync(output, 'utf8')), {
+      args: ['exec', '--', 'deno', 'test', '--env-file=/isolated/env', 'supabase/tests/database'], api: 'http://127.0.0.1:62121',
+    });
+  } finally { rmSync(directory, { recursive: true }); }
+});

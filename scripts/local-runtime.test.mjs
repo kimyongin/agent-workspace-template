@@ -197,3 +197,40 @@ test('an earlier owned proof cannot authorize a ready snapshot with a replaced m
     assert.equal(result.exitCode,1);assert.deepEqual(adapter.events,['prepare','start','stop-child']);
   }
 });
+
+test('planned runtime stages retain identifiers and actual config at the external command boundary', async () => {
+  const adapter = external();
+  const stage = { id: 'actual', script: 'test:e2e', args: ['--', '--config', '/isolated/config.ts'] };
+  const result = await runLocalChecks(adapter, { checks: [stage] });
+  assert.deepEqual(adapter.events, [stage]);
+  assert.equal(result.results[0].label, 'actual');
+  assert.equal(result.results[0].code, 0);
+});
+
+test('a runtime lost after a test failure stops later checks while retaining the original failure', async () => {
+  const adapter = external([{ state: 'ready' }, { state: 'failed' }]);
+  adapter.run = async label => { adapter.events.push(label); return { code: 19 }; };
+  const result = await runLocalChecks(adapter, { checks: ['DB', 'HTTP'] });
+  assert.deepEqual(adapter.events, ['DB']);
+  assert.equal(result.results[0].code, 19);
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.errors[0].phase, 'execution');
+});
+
+test('setup child cleanup failure is not treated as permission to launch a runtime', async () => {
+  const adapter = external([{ state: 'absent' }]);
+  adapter.prepare = async () => ({ code: 0, stopFailed: true });
+  adapter.start = async () => { adapter.events.push('start'); throw new Error('Unexpected runtime launch'); };
+  const result = await runLocalChecks(adapter, { checks: ['DB'] });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.results[0].stopFailed, true);
+  assert.deepEqual(adapter.events, []);
+});
+
+test('an explicit reuse-only runtime never prepares or launches when absent', async () => {
+  const adapter = external([{ state: 'absent' }]);
+  const result = await runLocalChecks(adapter, { checks: ['DB'], borrowedOnly: true });
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(adapter.events, []);
+  assert.match(result.errors[0].error.message, /already be running/);
+});
