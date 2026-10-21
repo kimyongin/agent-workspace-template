@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { acquireRuntimeLock, createLocalRuntimeAdapter, realHostBindSource, removeOwnedContainer, runLeasedLocalChecks } from './local-runtime-cli.mjs';
-import { mkdtempSync, rmdirSync, readdirSync, writeFileSync, unlinkSync, realpathSync, chmodSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmdirSync, readdirSync, writeFileSync, unlinkSync, realpathSync, chmodSync, rmSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -286,4 +286,213 @@ test('stage resource measurement reports sampled process-tree RSS units and fail
     if (result.resources.samples.length) assert.ok(result.resources.maxSampledRssKiB > 0);
     else { assert.equal(result.resources.maxSampledRssKiB, null); assert.ok(result.resources.failures > 0); }
   } finally { rmSync(directory, { recursive: true }); }
+});
+
+test('owned fixture handoff is scoped to checks, rejects a second owner and cleans the exact child', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fixture-handoff-'));
+  const npm = join(directory, 'npm.mjs'), output = join(directory, 'handoff.json');
+  const { readFileSync } = await import('node:fs');
+  const previousDirectory = process.cwd();
+  mkdirSync(join(directory, 'supabase/functions'), { recursive: true });
+  mkdirSync(join(directory, 'scripts'));
+  writeFileSync(join(directory, 'scripts/fixture-web-server.mjs'), `process.send({ready:'settings-model',pid:process.pid}); setInterval(() => {}, 1000);`);
+  process.chdir(directory);
+  let server;
+  const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' }, {
+    env: { ...process.env, npm_execpath: npm },
+  });
+  try {
+    writeFileSync(npm, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(output)}, JSON.stringify({group:process.env.WORKSPACE_FIXTURE_WEB_SERVER_GROUP,pid:process.env.WORKSPACE_FIXTURE_WEB_SERVER_PID})); process.exitCode=19;`);
+    server = await adapter.startFixtureWebServer();
+    await assert.rejects(adapter.startFixtureWebServer(), { code: 'EEXIST' });
+    const result = await adapter.run({ id: 'fixture', script: 'test:e2e' }, undefined, { fixtureServer: server });
+    assert.equal(result.code, 19);
+    assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), { group: 'settings-model', pid: String(server.child.pid) });
+    const resources = await adapter.stopFixtureWebServer(server);
+    assert.equal(adapter.childRunning(server.child), false);
+    assert.equal(resources.unit, 'KiB');
+    await assert.rejects(adapter.run({ id: 'fixture' }, undefined, { fixtureServer: server }), /exited before/);
+    server = undefined;
+    await adapter.run({ id: 'ordinary', script: 'test:core' });
+    assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), {});
+    const controller = new AbortController(); controller.abort('SIGTERM');
+    await assert.rejects(adapter.startFixtureWebServer(controller.signal), /interrupted/);
+    server = await adapter.startFixtureWebServer();
+  } finally {
+    if (server) await adapter.stopFixtureWebServer(server);
+    process.chdir(previousDirectory);
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test('fixture startup rejection releases its lease and leaves an unrelated HTTP server untouched', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fixture-start-failure-'));
+  const previousDirectory = process.cwd();
+  const existing = createServer((_request, response) => response.end('existing owner'));
+  mkdirSync(join(directory, 'supabase/functions'), { recursive: true });
+  mkdirSync(join(directory, 'scripts'));
+  writeFileSync(join(directory, 'scripts/fixture-web-server.mjs'), 'process.exit(7);');
+  process.chdir(directory);
+  const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' });
+  await new Promise(resolve => existing.listen(0, '127.0.0.1', resolve));
+  try {
+    await assert.rejects(adapter.startFixtureWebServer(), error => /failed to start/.test(error.message) && error.code === 7);
+    assert.equal(await (await fetch(`http://127.0.0.1:${existing.address().port}`)).text(), 'existing owner');
+    await assert.rejects(adapter.startFixtureWebServer(), /failed to start/);
+  } finally {
+    await new Promise(resolve => existing.close(resolve));
+    process.chdir(previousDirectory);
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test('fixture preparation interruption stops its newly launched child and preserves a later clean acquisition', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fixture-start-interruption-'));
+  const previousDirectory = process.cwd();
+  const marker = join(directory, 'child.pid');
+  const { readFileSync, existsSync } = await import('node:fs');
+  mkdirSync(join(directory, 'supabase/functions'), { recursive: true });
+  mkdirSync(join(directory, 'scripts'));
+  writeFileSync(join(directory, 'scripts/fixture-web-server.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, String(process.pid)); setInterval(() => {}, 1000);`);
+  process.chdir(directory);
+  const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' });
+  const controller = new AbortController();
+  try {
+    const started = adapter.startFixtureWebServer(controller.signal);
+    const rejected = assert.rejects(started, /interrupted/);
+    for (let attempt = 0; attempt < 100 && !existsSync(marker); attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(existsSync(marker), 'fixture child must launch before interruption');
+    const pid = Number(readFileSync(marker, 'utf8'));
+    controller.abort('SIGINT');
+    await rejected;
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    const release = acquireRuntimeLock('fixture-web:127.0.0.1:56883'); release();
+  } finally {
+    controller.abort('SIGINT');
+    process.chdir(previousDirectory);
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test('original fixture startup exit survives a replaced lease cleanup failure without deleting its replacement', async () => {
+  const { createHash } = await import('node:crypto');
+  const { readFileSync, existsSync } = await import('node:fs');
+  const lease = join(tmpdir(), `workspace-runtime-${createHash('sha256').update('fixture-web:127.0.0.1:56883').digest('hex')}.lock`);
+  const directory = mkdtempSync(join(tmpdir(), 'fixture-combined-failure-'));
+  const previousDirectory = process.cwd();
+  mkdirSync(join(directory, 'supabase/functions'), { recursive: true });
+  mkdirSync(join(directory, 'scripts'));
+  writeFileSync(join(directory, 'scripts/fixture-web-server.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(lease)}, 'replacement-test-owner'); process.exit(7);`);
+  process.chdir(directory);
+  try {
+    const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' });
+    await assert.rejects(adapter.startFixtureWebServer(), error => {
+      assert.equal(error.code, 7);
+      assert.deepEqual(error.fixtureCleanupErrors.map(item => item.phase), ['fixture-web-lease-cleanup']);
+      assert.equal(error.fixtureCleanup.child, 'stopped');
+      assert.equal(error.fixtureCleanup.lease, 'failed');
+      return true;
+    });
+    assert.equal(readFileSync(lease, 'utf8'), 'replacement-test-owner');
+  } finally {
+    process.chdir(previousDirectory);
+    if (existsSync(lease) && readFileSync(lease, 'utf8') === 'replacement-test-owner') unlinkSync(lease);
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test('preparation signals retain separate child-stop and lease hazards and attempt release after a failed stop', { skip: process.platform === 'win32' }, async t => {
+  const { createHash } = await import('node:crypto');
+  const { readFileSync, existsSync } = await import('node:fs');
+  const { runFullTestPlan } = await import('./test-full-runtime.mjs');
+  const lease = join(tmpdir(), `workspace-runtime-${createHash('sha256').update('fixture-web:127.0.0.1:56883').digest('hex')}.lock`);
+  for (const reason of ['SIGINT', 'SIGTERM']) for (const failure of ['stop', 'lease', 'both']) {
+    const directory = mkdtempSync(join(tmpdir(), 'fixture-signal-hazards-'));
+    const previousDirectory = process.cwd(), marker = join(directory, 'child.pid');
+    const controller = new AbortController(), originalKill = process.kill.bind(process);
+    const stopFails = failure !== 'lease', leaseFails = failure !== 'stop';
+    let pid, killMock;
+    mkdirSync(join(directory, 'supabase/functions'), { recursive: true });
+    mkdirSync(join(directory, 'scripts'));
+    writeFileSync(join(directory, 'scripts/fixture-web-server.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, String(process.pid)); setInterval(() => {}, 1000);`);
+    process.chdir(directory);
+    try {
+      const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' });
+      const execution = runFullTestPlan({ stages: [
+        { id: 'issuer', fixtureWebGroup: 'settings-model' }, { id: 'model', fixtureWebGroup: 'settings-model' },
+      ] }, {}, adapter, { signal: controller.signal });
+      for (let attempt = 0; attempt < 100 && !existsSync(marker); attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+      assert.ok(existsSync(marker), 'owned child must exist before injecting OS cleanup failures');
+      pid = Number(readFileSync(marker, 'utf8'));
+      killMock = t.mock.method(process, 'kill', (target, signal) => {
+        if (stopFails && target === -pid && signal === 'SIGKILL') throw Object.assign(new Error('test OS stop refusal'), { code: 'EPERM' });
+        return originalKill(target, signal);
+      });
+      if (leaseFails) writeFileSync(lease, 'replacement-test-owner');
+      controller.abort(reason);
+      const result = await execution;
+      assert.equal(result.exitCode, reason === 'SIGTERM' ? 143 : 130);
+      const metric = result.fixtureWebMetrics[0];
+      assert.equal(metric.preparationFailure.code, null);
+      assert.equal(metric.preparationFailure.signal, reason);
+      assert.equal(metric.preparationFailure.interrupted, true);
+      assert.deepEqual(result.errors.map(item => item.phase), ['fixture-web-preparation',
+        ...(stopFails ? ['fixture-web-child-cleanup'] : []), ...(leaseFails ? ['fixture-web-lease-cleanup'] : [])]);
+      assert.equal(metric.cleanup.child, stopFails ? 'failed' : 'stopped');
+      assert.equal(metric.cleanup.lease, leaseFails ? 'failed' : 'released');
+      assert.ok(result.results.every(item => item.skipped && item.reason === 'interrupted'));
+      if (stopFails) assert.equal(originalKill(pid, 0), true, 'failed stop must not claim a cleaned child');
+      if (leaseFails) assert.equal(readFileSync(lease, 'utf8'), 'replacement-test-owner');
+      else { assert.equal(existsSync(lease), false); acquireRuntimeLock('fixture-web:127.0.0.1:56883')(); }
+    } finally {
+      killMock?.mock.restore(); controller.abort(reason);
+      if (pid) { try { originalKill(-pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
+      if (existsSync(lease) && readFileSync(lease, 'utf8') === 'replacement-test-owner') unlinkSync(lease);
+      process.chdir(previousDirectory); rmSync(directory, { recursive: true });
+    }
+  }
+});
+
+test('completed fixture stages retain their exits when child stop and lease release both fail', { skip: process.platform === 'win32' }, async t => {
+  const { createHash } = await import('node:crypto');
+  const { readFileSync, existsSync } = await import('node:fs');
+  const { runFullTestPlan } = await import('./test-full-runtime.mjs');
+  const lease = join(tmpdir(), `workspace-runtime-${createHash('sha256').update('fixture-web:127.0.0.1:56883').digest('hex')}.lock`);
+  const directory = mkdtempSync(join(tmpdir(), 'fixture-checks-cleanup-hazards-'));
+  const previousDirectory = process.cwd(), marker = join(directory, 'child.pid'), checksMayFinish = join(directory, 'finish');
+  const originalKill = process.kill.bind(process);
+  let pid, killMock;
+  mkdirSync(join(directory, 'supabase/functions'), { recursive: true });
+  mkdirSync(join(directory, 'scripts'));
+  writeFileSync(join(directory, 'scripts/fixture-web-server.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, String(process.pid)); process.send({ready:'settings-model',pid:process.pid}); setInterval(() => {}, 1000);`);
+  const checks = join(directory, 'checks.mjs');
+  writeFileSync(checks, `import { existsSync } from 'node:fs'; while (!existsSync(${JSON.stringify(checksMayFinish)})) await new Promise(resolve => setTimeout(resolve,10)); process.exit(23);`);
+  process.chdir(directory);
+  try {
+    const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' });
+    const execution = runFullTestPlan({ stages: [
+      { id: 'issuer', fixtureWebGroup: 'settings-model', nodeArgs: [checks] },
+      { id: 'model', fixtureWebGroup: 'settings-model', nodeArgs: [checks] },
+    ] }, {}, adapter);
+    for (let attempt = 0; attempt < 100 && !existsSync(marker); attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(existsSync(marker)); pid = Number(readFileSync(marker, 'utf8'));
+    killMock = t.mock.method(process, 'kill', (target, signal) => {
+      if (target === -pid && signal === 'SIGKILL') throw Object.assign(new Error('test OS stop refusal'), { code: 'EPERM' });
+      return originalKill(target, signal);
+    });
+    writeFileSync(lease, 'replacement-test-owner'); writeFileSync(checksMayFinish, 'yes');
+    const result = await execution;
+    assert.equal(result.exitCode, 1);
+    assert.deepEqual(result.results.map(item => item.code), [23, 23]);
+    assert.deepEqual(result.errors.map(item => item.phase), ['fixture-web-child-cleanup', 'fixture-web-lease-cleanup']);
+    assert.equal(result.fixtureWebMetrics[0].cleanup.child, 'failed');
+    assert.equal(result.fixtureWebMetrics[0].cleanup.lease, 'failed');
+    assert.equal(originalKill(pid, 0), true);
+    assert.equal(readFileSync(lease, 'utf8'), 'replacement-test-owner');
+  } finally {
+    killMock?.mock.restore();
+    if (pid) { try { originalKill(-pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
+    if (existsSync(lease) && readFileSync(lease, 'utf8') === 'replacement-test-owner') unlinkSync(lease);
+    process.chdir(previousDirectory); rmSync(directory, { recursive: true });
+  }
 });

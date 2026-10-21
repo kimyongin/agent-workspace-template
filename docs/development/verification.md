@@ -125,6 +125,60 @@ worker override가 없으면 설정이 소유하는 수를 관찰하지 못했�
 
 보고서 저장 실패는 원래 결과를 stderr에 안전한 구조로 남긴다. 원래 실패·중단 종료 코드는 보존하며 검사가 성공했어도 보고서를 저장하지 못하면 최종 실패로 끝난다. 실제 API와 격리 브라우저의 기준 실행은 같은 revision·검사 범위·worker·캐시 조건·환경에서 순차 수행한다. 미준비 실제 API나 이미 알려진 MCP 503, 자원 중단과 모의 실행기 검사를 전체 실제 green 또는 성능 개선률로 합산하지 않는다. #546·#547·#548 최적화의 기준은 해당 시나리오를 실제로 실행한 보고서와 브라우저 증거다.
 
+### 호환 모의 화면의 웹 서버 공유 (#547)
+
+`test:full`과 `test:e2e:all`은 아래 대상 중 두 개 이상을 선택하면 `settings-model` 그룹으로 모아 웹 서버를 한 번 준비하고 설정별 Playwright 프로세스를 순차 실행한다. 전체 계획에서는 자료 모델 설정이 다른 두 대상 바로 뒤로 이동하며, 각 설정 ID·결과·산출물은 유지된다. 한 설정만 선택하거나 기존 `test:e2e -- --config ... [파일]` 명령을 쓰면 원래 설정의 독립 웹 서버 준비를 유지한다.
+
+| 비교 항목 | 자료 기본 문구 (`material-templates`) | 발급처 설정 (`issuer-settings`) | 전체 자료 모델 (`data-model`) |
+| --- | --- | --- | --- |
+| 앱 / 모의 API·Auth | 모두 `127.0.0.1:56883` / `127.0.0.1:56884`, `/api` | 같음 | 같음 |
+| 앱 환경 | 공개 `fixture-public-key`, `VITE_DEV_LOGIN=true` | 같음 | 같음 |
+| 요청·저장 상태 | 매 테스트 `page.route`·`addInitScript`; Auth 토큰과 변경 응답은 해당 context에만 존재 | 테스트별 설정 함수의 발급처·번호·receipt Map·쓰기 목록 | 매 테스트 route/Auth; 각 테스트의 모델 변경 응답 |
+| 브라우저 격리 | Playwright 기본 새 context/page·localStorage; 공유 storageState 없음 | 같음 | 같음 |
+| 프로젝트 | Desktop Chrome / Pixel 7, mobile 320×568 | 같음 | desktop만 1440×1000, mobile은 같음 |
+| 기존 실행 정책 | fullyParallel=true, workers=2 | fullyParallel=false, workers=1 | fullyParallel=true, workers=2 |
+| 독립 서버 명령 | npm dev, 기존 cwd 유지 | npm dev, 기존 cwd 유지 | 명시 repo cwd + 직접 Vite 명령 유지 |
+| 산출물 | `e2e/test-results/material-templates` | `e2e/test-results/issuer-settings` | `e2e/test-results/data-model` |
+
+주소 일치 외에도 각 fixture의 모든 요청 route와 Auth 초기화, 테스트별 변경 상태를 대조했다. 같은 앱 origin만 실제 웹 서버로 보내며, 모의 API 경로는 route가 응답하고 그 밖의 외부 요청은 abort한다. 브라우저 context나 모의 저장 상태를 서버에 옮기지 않는다. 실제 API, 운영 build·하위 경로, 다른 포트/환경의 나머지 설정은 그룹 밖에 둔다. worker 수나 프로젝트를 통합 설정으로 덮어쓰지 않는다.
+
+공유 실행기는 고정된 개발 서버를 정확한 자식 프로세스로 만들고, strict port listen 및 HTTP 준비 후 해당 자식의 IPC 응답으로 준비 완료를 확인한다. 모르는 서버를 채택하는 `reuseExistingServer`는 사용하지 않는다. 포트용 배타 lease를 얻은 실행만 시작하며, 실패·중단·정리에서도 그 실행의 프로세스 그룹과 lease만 다룬다. 살아 있는 소유 자식의 PID를 해당 세 설정의 검사 프로세스에만 전달하고 그 범위에서 Playwright의 별도 서버 시작을 생략한다. 이 내부 handoff 환경변수를 단독 명령에 직접 설정하지 않는다.
+
+구조화 보고서의 `fixtureWebMetrics`는 그룹 준비(프로세스 생성부터 HTTP/IPC 준비까지), 검사, 정리, 전체 시간을 기록한다. 준비 종료 코드·신호·중단/timeout 여부는 `preparationFailure`로 보존하며, 준비 실패와 겹친 자식·표본·lease 정리 오류는 각각 별도 phase로 남긴다. 자식 stop이 실패해도 표본 정리와 정확한 lease 해제를 시도한다. `cleanup`의 실패 상태를 정리 완료로 바꾸거나 소유권이 바뀐 lease를 지우지 않는다. 설정별 시간은 공유 Vite 준비/정리를 제외한다. 그룹 RSS는 runner와 소유 Vite 및 현재 순차 Playwright 자손을 같은 시점에 합한 KiB 표본이며 설정별 자식 RSS와 범위가 다르므로 최대값을 합산하지 않는다. 공유 페이지 중복, 표본 사이 peak, Docker/VM·재부모화 한계는 위 기준과 같다.
+
+2026-10-22 독점 브라우저 시간에 main `3e82f99f`와 서버 공유 적용 `1adeefb9`를 순차 비교했다. 앱 `src`·공유 contracts·세 fixture 시나리오의 Git object가 동일하며, 파일/검사 이름/프로젝트 목록 118건도 정확히 일치한다. 둘 다 같은 순서(기본 문구→발급처→모델)·workers=1·warm으로 117건 통과, 의도된 mobile 폭 전환 제외 1건, 실패/재시도 0건이었다.
+
+| 같은 검사 범위의 관측값 | 변경 전 `3e82f99f` | 변경 후 `1adeefb9` |
+| --- | --- | --- |
+| 소유 웹 서버 준비 횟수 | 3 | 1 |
+| 전체 runner 명령 경과 시간 | 257.527초 | 256.247초 |
+| 같은 외부 관찰기의 runner+Vite+Playwright 자손 RSS 표본 최대 | 2,142,544 KiB | 2,117,440 KiB |
+| RSS 표본 수 / 수집 실패 | 258 / 0 | 256 / 0 |
+| 서버 준비 관측 | Playwright DEBUG의 spawn 시작→HTTP 준비 완료 수신 간격 합계 1,631.324ms | lease·표본 시작·spawn·HTTP/IPC 준비를 포함한 그룹 준비 148.476ms |
+
+한 번의 전후 쌍이므로 작은 전체 시간·RSS 차이를 일반적인 개선률이나 메모리 감소 보장으로 해석하지 않는다. 준비 관측 경계도 전후가 조금 다르므로 준비 시간의 백분율을 계산하지 않는다. 전체 runner 시간은 각 실행의 실제 서버 준비·수집·검사·정리를 포함한다. 같은 설치본의 CoW 의존성 복사, 별도 목록 수집, 공통 Geist font HTTP 200 사전 확인은 시간 범위 밖이다. warm은 기존 파일/Vite 캐시를 지우지 않았다는 뜻이며, Vite 프로세스와 브라우저/context는 새로 만든다. 공유 서버 안에서만 모듈을 유지한다. 외부 관찰기는 양쪽에 동일한 구현·root PID 범위를 적용했고, Docker/VM 메모리는 측정하지 않았다. 실제 API·운영 build/하위 경로·다른 21개 설정·cold 조건의 성능은 이 쌍으로 판단하지 않는다.
+
+같은 검증 시간에 실제 strict port 충돌은 기존 HTTP 서버를 보존한 채 거절했고, 두 번째 소유자 거절·정확한 자식 정리·포트 해제도 확인했다. 기존 단독 설정+파일+desktop 선택 1건은 별도 서버로 통과했다. 최초 측정 도구는 npm CLI 경로 누락으로 검사 전 실패했으며, 외부 도구만 수정하고 원시 실패 근거를 별도 보존했다. 이 환경 수정은 제품 성능 개선에 포함하지 않는다. 원시 계획/수집 목록/보고서/로그/RSS 표본/완료 화면 산출물과 상세 경계는 [#547 실행 근거](https://github.com/kimyongin/agent-workspace-template/issues/547)에 기록한다. 기존 #544의 `422bb0cd` 측정이나 다른 프로토콜로 전환한 #546 검사 목록과 합산하지 않는다.
+
+### 식별자 설정 화면의 선택적 병렬 실행
+
+`e2e/issuer-settings.config.ts`는 기본 worker 1개를 유지한다. 이 격리 화면만 `WORKSPACE_ISSUER_FIXTURE_WORKERS=2 npm run test:e2e -- --config e2e/issuer-settings.config.ts`로 늘릴 수 있다. 허용 값은 1·2·3이며 빈 값이나 그 밖의 값은 실행 전에 거절한다. 전체 실행에서도 이 환경 변수는 식별자 설정 화면에만 적용된다. Playwright의 명시 `--workers=1`이 환경 변수보다 우선하며 실제 API 설정의 worker 수는 바꾸지 않는다. 자동 자원 감지나 스케줄러는 추가하지 않는다.
+
+각 사례는 독립 browser context와 메모리 API fixture·registry·receipt를 사용한다. 공유 파일 쓰기와 실제 업무 API 호출은 없으며 화면 캡처는 사례·프로젝트별 `outputPath`에 저장한다. Vite 정적 자원만 공유한다. `fullyParallel: false`를 유지하므로 현재 두 프로젝트의 파일이 병렬 실행되는 범위다. worker 3개는 허용하지만 현재 구성의 추가 속도 이점을 확인한 값은 아니다. 다른 화면 설정과 실제 API 검사의 격리를 검증한 것으로 확대 해석하지 않는다.
+
+2026-10-22의 고정 소스 `f2768f912de57284d09ed0dabb32ce98f3226dd9`에서 같은 42개 사례를 worker 1→2→2→1 순서로 실행했다. 각 실행은 모두 42개 통과했고 재시도·제외·timeout 변경이 없었다. 기존 캐시를 보존한 warm 조건, 명령마다 새 Vite/browser, 순차 단독 실행이었다. 자식 트리 RSS는 1초 간격 표본이며 Docker VM과 순간 peak를 포함하지 않는다.
+
+| 순서 | worker | 전체 실행 시간 | 최대 표본 RSS |
+| --- | --- | --- | --- |
+| 1 | 1 | 95.87초 | 1,538,464 KiB |
+| 2 | 2 | 51.12초 | 2,245,568 KiB |
+| 3 | 2 | 51.10초 | 2,392,928 KiB |
+| 4 | 1 | 96.87초 | 1,588,688 KiB |
+
+호스트는 macOS·메모리 16 GiB였으며 Docker 설정은 8 GiB/10 CPU였다. 표본 수집 실패는 없었다. 호스트 free 메모리의 최솟값은 약 75–95 MB였지만 macOS reclaimable 메모리를 포함한 사용 가능 용량과 다르다. 별도 `memory_pressure`의 free percentage는 44–50%였다. 이 환경에서 시간 감소와 메모리 증가를 함께 확인했으므로 기본값은 유지하고 여유가 있는 실행에서만 2개를 선택한다. 사례·공유 상태·환경이 바뀌면 같은 범위와 조건으로 다시 비교한다.
+
+원본 로그·Playwright 결과·자원 보고서는 `/private/tmp/workspace-546-comparison-20261022/corrected/`에 보존했다. 앞선 실행은 메뉴 개수에 대한 오래된 기대값 때문에 38개 통과·4개 실패했으며 별도 상위 디렉터리에 남겼다. 그 실패 시간을 개선 비교에 사용하지 않았다. 이후 기본값·선택 값·명시 override·잘못된 값 거절과 동일 사례 발견은 공개 Playwright CLI의 `--list` 경계에서 검사한다. 발견 검사는 실제 브라우저 실행 증거를 대신하지 않는다.
+
 ## 웹·E2E 코드의 국소 포맷팅
 
 웹 TS/TSX와 브라우저 검사는 package.json·lockfile에 고정된 Deno formatter를 사용한다. `--no-config --line-width 120`으로 서버 설정·사용자 설정의 자동 탐색과 구분하고, 기본 2칸 들여쓰기·큰따옴표·세미콜론 스타일을 따른다. formatter는 한 import 안의 이름 순서를 정렬하고 필요한 제어문 중괄호도 배치한다. 별도 formatter 의존성이나 저장소 전체 재포맷을 추가할 필요는 없다.

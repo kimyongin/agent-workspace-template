@@ -1,3 +1,4 @@
+import { ownedFixtureWebServer } from "./support/fixture-web-server.ts";
 import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
@@ -9,7 +10,7 @@ export default defineConfig({
     use: { ...devices["Pixel 7"], viewport: { width: 320, height: 568 } },
   }],
   outputDir: "test-results/material-templates",
-  webServer: {
+  webServer: ownedFixtureWebServer({
     command: "npm run dev -- --host 127.0.0.1 --port 56883 --strictPort",
     url: "http://127.0.0.1:56883",
     reuseExistingServer: false,
@@ -19,6 +20,6 @@ export default defineConfig({
       VITE_API_URL: "http://127.0.0.1:56884/api",
       VITE_DEV_LOGIN: "true",
     },
-  },
+  }),
   use: { baseURL: "http://127.0.0.1:56883", trace: "retain-on-failure" },
 });
