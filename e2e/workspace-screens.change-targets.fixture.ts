@@ -339,7 +339,7 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
   try {
     await go(page, "/records");
     await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("첫 대상");
-    await page.locator("[data-list-anchor]").first().click();
+    await businessRows(page.getByRole("region", { name: "기록 목록", exact: true }).getByRole("table")).first().getByRole("button", { name: "기록", exact: true }).click();
     await expect(page.getByRole("region", { name: "기록 목록", exact: true })).toContainText("첫 대상");
     expect(reads).toBe(0);
     await expect(page.getByRole("region", { name: "기록 목록", exact: true })).not.toContainText("삭제된 대상");

@@ -58,7 +58,7 @@ test("할 일 상세 뒤로 가기는 외부 추가와 원래 행 초점을 복�
   await expect(page).toHaveURL(/\/tasks\?/);
   expect(new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/tasks"));
   await expect(businessRows(baseWorkspace(page).getByRole("region", { name: "할 일 목록", exact: true }).getByRole("table"))).toHaveCount(2);
-  await expect(baseWorkspace(page).getByRole("button", { name: "할 일", exact: true })).toBeFocused();
+  await expect(baseWorkspace(page).getByRole("link", { name: "할 일 상세", exact: true })).toBeFocused();
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });

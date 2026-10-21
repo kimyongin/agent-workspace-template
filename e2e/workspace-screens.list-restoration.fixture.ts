@@ -134,6 +134,7 @@ test("#203 긴 펼침 GET 뒤에 목록 scroll·초점을 복원", async ({ page
   const toggle = page.getByRole("button", { name: "할 일", exact: true });
   await toggle.click();
   await expect(page.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
+  await expect(await disclosureContent(page, toggle)).toContainText("긴 본문 문단");
   await toggle.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + scrollY - 20));
   const scroll = await page.evaluate(() => scrollY);
   expect(scroll).toBeGreaterThan(100);
