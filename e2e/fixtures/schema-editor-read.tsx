@@ -15,7 +15,7 @@ const type: EntityType = {
   icon_id: "leaf",
   archived: false,
   schema_version: 1,
-  next_property_number: 2,
+  next_property_number: 3,
   created_at: "2026-10-12T00:00:00Z",
   updated_at: "2026-10-12T00:00:00Z",
 };
@@ -26,6 +26,10 @@ const definition = {
   created_at: type.created_at,
 };
 if (new URLSearchParams(location.search).has("display-example")) {
+  definition.schema.properties.prop_4 = { ...definition.schema.properties.prop_2, "x-order": 40 };
+  definition.schema["x-identity-property"] = "prop_4";
+  definition.schema.required = ["prop_1", "prop_4"];
+  type.next_property_number = 5;
   definition.schema.properties.prop_1.title = "재료명";
   Object.assign(definition.schema.properties, {
     prop_2: { "x-order": 20, type: "number", title: "수량" },
@@ -47,13 +51,17 @@ function EmptyInputsFixture() {
     prop_4: "a",
     prop_5: "이전 값",
     prop_6: "a",
+    prop_7: "00000000-0000-4000-8000-000000000001:existing",
   });
   const fields = {
     ...definition,
     schema: {
       ...definition.schema,
+      "x-identity-property": "prop_7",
+      required: ["prop_1", "prop_7"],
       properties: {
         ...definition.schema.properties,
+        prop_7: { ...initialEntityDefinition("이름").schema.properties.prop_2, "x-order": 70 },
         prop_2: { "x-order": 20, type: ["number", "null"] as ("number" | "null")[], title: "숫자 입력" },
         prop_3: { "x-order": 30, type: ["boolean", "null"] as ("boolean" | "null")[], title: "참거짓 입력" },
         prop_4: {
