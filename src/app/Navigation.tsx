@@ -17,7 +17,6 @@ import { ProfileIcon } from "../features/settings/profile.tsx";
 import { accountPreferences, profileName } from "../features/settings/account-preferences.ts";
 import { navigationSection } from "./navigation-section.ts";
 import { workspaceBase } from "../features/details/workspace-context.ts";
-import appIcon from "./app-icon.svg";
 
 import type { EntityDetail } from "@contracts/entity.ts";
 import { defaultNavigationRefs, entityTypeLocation, navigationEntryCurrent, resolveNavigationRefs, visibleNavigationEntries } from "./type-navigation.ts";
@@ -81,7 +80,7 @@ export function Navigation({ brand }: { brand: string }) {
   const renderLink = (entry: (typeof entries)[number]) => <SidebarMenuItem key={entry.key}><SidebarMenuButton asChild isActive={isCurrent(entry)} className="min-h-[max(2.75rem,44px)]"><Link to={entry.to} aria-current={isCurrent(entry) ? "page" : undefined}><EntityTypeIcon id={entry.icon} /><span>{entry.label}</span></Link></SidebarMenuButton></SidebarMenuItem>;
   const destinations = [{ to: "/status", label: "상태", icon: ChartNoAxesCombinedIcon }, { to: "/settings", label: "설정", icon: SettingsIcon }, { to: "/guide", label: "사용 가이드", icon: BookOpenIcon }, { to: "/logout", label: "로그아웃", icon: LogOutIcon }];
   const menu = <>
-    <SidebarHeader><WorkspaceSwitcher />{isMobile && <Button variant="ghost" size="icon" aria-label="메뉴 닫기" className="self-end" onClick={() => setOpenMobile(false)}><XIcon /></Button>}<SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild className="min-h-12"><Link to="/workspaces"><img className="size-6 shrink-0" src={appIcon} alt="" /><span>{brand}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarHeader>
+    <SidebarHeader><WorkspaceSwitcher brand={brand} />{isMobile && <Button variant="ghost" size="icon" aria-label="메뉴 닫기" className="self-end" onClick={() => setOpenMobile(false)}><XIcon /></Button>}</SidebarHeader>
     <SidebarContent className={isMobile ? "flex-none overflow-visible" : undefined}>{workspaceId && <>
       {!!entries.length && <SidebarGroup><SidebarGroupLabel>바로가기</SidebarGroupLabel><SidebarMenu>{entries.map(renderLink)}</SidebarMenu></SidebarGroup>}
       <SidebarGroup><SidebarGroupLabel>업무</SidebarGroupLabel><SidebarMenu>{builtin.filter(entry => !entries.some(pinned => pinned.key === entry.key)).map(renderLink)}</SidebarMenu></SidebarGroup>
