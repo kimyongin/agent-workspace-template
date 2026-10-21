@@ -11,8 +11,6 @@ const keys: Record<string, string[]> = {
   "app.entity_schema_versions": ["workspace_id", "type_id", "schema_version"],
   "app.entity_issuers": ["workspace_id", "code"],
   "app.entity_identifier_rules": ["workspace_id", "id"],
-  "app.entity_type_identity": ["workspace_id", "type_id"],
-  "app.entity_type_identity_sources": ["workspace_id", "type_id", "code"],
   "app.entity_relation_definitions": ["workspace_id", "id"],
   "app.entity_relation_links": ["workspace_id", "definition_id", "left_entity_id", "right_entity_id"],
   "app.data_model_changes": ["workspace_id", "id"],
@@ -25,6 +23,12 @@ const keys: Record<string, string[]> = {
 };
 
 dbTest("entity model stores require their workspace identity as a real primary key", async () => {
+  assertEquals(
+    (await admin`select to_regclass('app.entity_type_identity') as identity,to_regclass('app.entity_type_identity_sources') as sources`)[
+      0
+    ],
+    { identity: null, sources: null },
+  );
   for (const [table, expected] of Object.entries(keys)) {
     const columns = await admin<{ attname: string; attnotnull: boolean }[]>`
       select a.attname,a.attnotnull from pg_constraint c
@@ -76,8 +80,10 @@ dbTest(
         where workspace_id=${fixture.workspaceId} and type_id=${kind.id} and schema_version=1`;
         await tx`insert into app.entity_issuers(workspace_id,code,label,system)
         values(${other.workspaceId},'app','앱',true)`;
-        await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-        values(${other.workspaceId},${created.id},${created.source},${created.external_id},${kind.id},1,'{"prop_1":"둘째 공간의 자료"}')`;
+        await tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+        values(${other.workspaceId},${created.id},${kind.id},1,${
+          tx.json({ ...created.properties, prop_1: "둘째 공간의 자료" })
+        })`;
       });
       await fixture.grantKind(other.manager, kind.id, "read");
       assertEquals((await entities.getEntity(deps, fixture.manager, created.id)).title, "첫 공간의 자료");
@@ -86,8 +92,8 @@ dbTest(
       try {
         await admin.begin(async (tx) => {
           await tx`set local session_replication_role='replica'`;
-          await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-          values(${other.workspaceId},${created.id},${created.source},${created.external_id},${kind.id},1,'{}')`;
+          await tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+          values(${other.workspaceId},${created.id},${kind.id},1,${tx.json(created.properties)})`;
         });
       } catch (error) {
         code = (error as { code?: string }).code;
