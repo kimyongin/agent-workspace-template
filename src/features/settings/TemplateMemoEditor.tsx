@@ -1,3 +1,4 @@
+import { cn } from "../../lib/utils.ts";
 import { InputGroup } from "@/components/ui/input-group";
 
 import { type Ref, type RefObject, createContext, useContext, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
@@ -9,7 +10,9 @@ export const MemoHistoryBoundaryContext = createContext<RefObject<HTMLElement | 
 export type TemplateMemoHandle = { insert: (variable: string) => void; focus: () => void };
 
 /** One native editable surface: plain text plus noneditable, canonically bound variable chips. */
-export function TemplateMemoEditor({ value, variables, onChange, readOnly, disabled, editorRef, ...field }: {
+export function TemplateMemoEditor({ value, variables, onChange, readOnly, disabled, editorRef, label = "메모 템플릿", compact = false, ...field }: {
+  label?: string;
+  compact?: boolean;
   value: string;
   variables: MemoVariable[];
   onChange: (value: string) => void;
@@ -141,9 +144,9 @@ export function TemplateMemoEditor({ value, variables, onChange, readOnly, disab
       {...field}
       ref={element}
       data-slot="input-group-control"
-      className="min-h-32 w-full min-w-0 whitespace-pre-wrap px-3 py-2 outline-none [overflow-wrap:anywhere]"
+      className={cn("w-full min-w-0 whitespace-pre-wrap px-3 py-2 outline-none [overflow-wrap:anywhere]", compact ? "min-h-11" : "min-h-32")}
       role="textbox"
-      aria-label="메모 템플릿"
+      aria-label={label}
       aria-multiline="true"
       aria-readonly={readOnly || undefined}
       aria-disabled={disabled || undefined}

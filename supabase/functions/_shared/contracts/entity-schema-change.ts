@@ -52,6 +52,10 @@ export const entitySchemaEdit = z.discriminatedUnion("op", [
     op: z.literal("set_metadata"),
     title: z.string().trim().min(1).max(80).optional(),
     description: z.string().max(1000).nullable().optional(),
+    "x-title-template": z.string().refine(
+      (value) => Array.from(value).length <= 4096,
+      "제목 템플릿은 4096자 이하입니다",
+    ).optional(),
     "x-icon": z.enum(["box", "leaf", "package", "book", "tool", "star"]).optional(),
     deprecated: z.boolean().optional(),
   }),

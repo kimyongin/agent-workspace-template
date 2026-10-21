@@ -10,10 +10,12 @@ import { displayedProperty } from "./property-fields.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { DetailTitle } from "../../components/Modal.tsx";
 export function EntityProperties(
-  { entity, identity, onReadyChange, selection = "all", omitRepresentative = false, onRepresentativeLabel }: {
+  { entity, identity, onReadyChange, selection = "all", activeOnly = false, emphasizeRepresentative = true, omitRepresentative = false, onRepresentativeLabel }: {
     entity: EntityValues;
     identity?: ReactNode;
     selection?: "all" | "list";
+    activeOnly?: boolean;
+    emphasizeRepresentative?: boolean;
     omitRepresentative?: boolean;
     onRepresentativeLabel?: (label: string) => void;
     onReadyChange?: (ready: boolean) => void;
@@ -78,7 +80,7 @@ export function EntityProperties(
           ...schemaPresentation(definition).order.filter((key) =>
             key !== schemaPresentation(definition).representative
           ),
-        ]).filter((key) => !omitRepresentative || key !== schemaPresentation(definition).representative).map((
+        ]).filter((key) => !activeOnly || !definition.schema.properties[key].deprecated).filter((key) => !omitRepresentative || key !== schemaPresentation(definition).representative).map((
           key,
           index,
         ) => (
@@ -93,7 +95,7 @@ export function EntityProperties(
                   : ""}
               </dt>
               <dd>
-                {selection === "all" && key === schemaPresentation(definition).representative
+                {emphasizeRepresentative && selection === "all" && key === schemaPresentation(definition).representative
                   ? (
                     <DetailTitle>
                       {displayedProperty(

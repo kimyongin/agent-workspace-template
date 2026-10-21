@@ -1,10 +1,11 @@
+import { effectiveEntityTitleTemplate } from "@contracts/entity-title-template.ts";
 import { DataFields } from "@/components/DataFields";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { entityTypeIcons } from "@contracts/entity-type.ts";
 import { fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { SchemaDefinition } from "@contracts/entity-schema-change.ts";
-import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
+import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel, schemaDiffValueLabel } from "./schema-labels.ts";
 
 /** Definition values, never material values or the mutable editor draft. */
 export function SchemaDefinitionRead(
@@ -92,6 +93,7 @@ export function SchemaDefinitionRead(
         입력 항목 <span className="text-sm text-muted-foreground">읽기 전용</span>
       </h3>
       <DataFields>
+        <div><dt>제목 템플릿</dt><dd>{schemaDiffValueLabel("x-title-template", effectiveEntityTitleTemplate(definition.schema), definition)}</dd></div>
         <div>
           <dt>종류 이름</dt>
           <dd>{definition.schema.title ?? "당시 이름 기록 없음"}</dd>

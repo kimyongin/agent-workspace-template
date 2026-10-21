@@ -1,3 +1,4 @@
+import { memoDocument } from "./template-memo-document.ts";
 import { fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { EntityField } from "@contracts/entity-type.ts";
@@ -65,6 +66,7 @@ export function schemaDiffLabel(path: string, target: SchemaDefinition, source: 
     "x-show-in-list": "목록 표시",
     "x-search-text": "검색에 사용",
     "x-icon": "아이콘",
+    "x-title-template": "제목 템플릿",
     deprecated: "사용 중지",
     readOnly: "읽기 전용",
     examples: "입력 예시",
@@ -100,6 +102,10 @@ export function schemaValueLabel(value: unknown, definition?: SchemaDefinition):
 
 /** Review values use the input labels rather than schema storage spellings. */
 export function schemaDiffValueLabel(path: string, value: unknown, definition: SchemaDefinition): string {
+  if (path.endsWith("x-title-template") && typeof value === "string") {
+    return memoDocument(value, Object.entries(definition.schema.properties).map(([key, field]) => ({ value: key, label: field.title || key })))
+      .map((part) => part.variable ? `$${part.variable.label}$` : part.text).join("");
+  }
   if (path.endsWith(".required") && typeof value === "boolean") return value ? "필수" : "선택";
   if (path.endsWith(".type") && (typeof value === "string" || Array.isArray(value))) {
     return fieldTypeLabel({ type: value as EntityField["type"], "x-order": 1 });

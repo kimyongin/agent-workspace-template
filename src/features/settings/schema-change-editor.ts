@@ -1,3 +1,4 @@
+import { effectiveEntityTitleTemplate, entityTitleTemplateIssues } from "@contracts/entity-title-template.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -195,6 +196,9 @@ export function useSchemaChangeEditor(
         next.schema.required = [...next.schema.required.filter((value) => value !== key), ...(local ? [key] : [])];
       }
     }
+    if (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(saved.schema)) {
+      next.schema["x-title-template"] = effectiveEntityTitleTemplate(draft.schema);
+    }
     const migrationEdited =
       draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] });
     setPlan(null);
@@ -320,6 +324,9 @@ export function useSchemaChangeEditor(
     });
   const edits = (draft: SchemaDefinition): SchemaEdit[] => {
     const result: SchemaEdit[] = [];
+    if (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(definition.schema)) {
+      result.push({ op: "set_metadata", "x-title-template": effectiveEntityTitleTemplate(draft.schema) });
+    }
     for (const [key, field] of Object.entries(draft.schema.properties)) {
       const required = draft.schema.required.includes(key);
       if (refs[key]) {
@@ -337,6 +344,11 @@ export function useSchemaChangeEditor(
     return result;
   };
   const validateFields = () => {
+    const titleIssues = entityTitleTemplateIssues(effectiveEntityTitleTemplate(draft.schema), draft.schema);
+    if (titleIssues.length) {
+      setError(titleIssues.map((issue) => issue.reason).join(" · "));
+      return false;
+    }
     for (const key of schemaPresentation(draft).order) {
       let condition: string | undefined;
       try {
@@ -818,6 +830,7 @@ export function useSchemaChangeEditor(
   const fieldOrder = [...schemaPresentation(draft).order];
   for (const removed of [...removedFields].sort((a, b) => a.index - b.index)) fieldOrder.splice(Math.min(removed.index, fieldOrder.length), 0, removed.key);
   const changeCount = changedFields.length +
+    (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(saved.schema) ? 1 : 0) +
     Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
     (draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
   const startMigration = async () => {
@@ -903,6 +916,9 @@ export function useSchemaChangeEditor(
       planSyncNeeded,
       migrationEdited:
         draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }),
+    },
+    editTitleTemplate: (value: string) => {
+      if (editable() && !plan?.recovery) setDraft((draft) => ({ ...draft, schema: { ...draft.schema, "x-title-template": value } }));
     },
     editField,
     editNumeric,
