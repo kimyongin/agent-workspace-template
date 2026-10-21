@@ -857,7 +857,11 @@ test("entity edit preserves draft and tags while identity settings are delayed b
       properties: { prop_1: "保持する下書き" },
     });
     expect(writes[0]).not.toHaveProperty("tag_ids");
-    await expect(detailDialog(page).getByText("保持する下書き", { exact: true })).toBeVisible();
+    const viewer = detailDialog(page);
+    await expect(viewer.getByRole("heading", { name: "保持する下書き", exact: true })).toBeVisible();
+    const nameProperty = viewer.getByRole("term").filter({ hasText: /^이름$/ });
+    await expect(nameProperty).toHaveCount(1);
+    await expect(nameProperty.locator("..").getByRole("definition")).toHaveText("保持する下書き");
     const connections = detailDialog(page).getByRole("region", { name: "태그 연결", exact: true });
     const assigned = connections.getByLabel("태그", { exact: true });
     await expect(assigned).toBeVisible();
