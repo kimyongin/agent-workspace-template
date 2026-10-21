@@ -1,5 +1,5 @@
 import { DataFields } from "./DataFields.tsx";
-import { type ReactNode, useId } from "react";
+import { type ReactNode, type ReactElement, useId } from "react";
 import { DetailLink, useDetailViewState } from "../lib/detail-exploration.tsx";
 import { CollectionHeading, type ItemView, RelatedCollectionView, useItemLayout } from "./Collection.tsx";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "./ui/empty.tsx";
@@ -103,11 +103,12 @@ export function useRelatedExpansion() {
 }
 
 export function RelatedItem(
-  { id, to, title, titleLabel, metadata, summary, titleBadge, restoreKey, action, disclosure, cells = [] }: {
+  { id, to, title, titleLabel, titleLink, metadata, summary, titleBadge, restoreKey, action, disclosure, cells = [] }: {
     id?: string;
     to?: string;
     title: string;
     titleLabel?: string;
+    titleLink?: ReactElement;
     metadata?: ReactNode;
     summary?: ReactNode;
     titleBadge?: ReactNode;
@@ -121,17 +122,15 @@ export function RelatedItem(
   const layout = useItemLayout(), table = layout?.view === "table";
   const label = titleLabel ?? (layout?.columns[0] !== "내용" ? layout?.columns[0] : undefined) ??
     (to?.startsWith("/records/") ? "본문 대표 문구" : to?.startsWith("/tasks/") ? "제목" : "자료 이름");
-  const titleButton = <Button data-list-anchor={id ? "" : undefined} id={heading} type="button" variant="link" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
-    aria-expanded={disclosure?.expanded} aria-controls={disclosure ? panel : undefined} onClick={table ? disclosure?.toggle : undefined}>{title}</Button>;
-  const titleContent = disclosure ? (table ? titleButton : <CollapsibleTrigger asChild>{titleButton}</CollapsibleTrigger>)
-    : to ? <Button asChild variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"><DetailLink data-list-anchor={id ? "" : undefined} id={heading} to={to} aria-label={title} restoreKey={restoreKey}>{title}</DetailLink></Button>
-    : <span id={heading} className="font-medium wrap-anywhere">{title}</span>;
+  const link = titleLink ?? (to ? <DetailLink to={to} aria-label={`${title} 상세`} restoreKey={restoreKey}>{title}</DetailLink> : undefined);
+  const titleContent = link
+    ? <Button asChild data-list-anchor={id ? "" : undefined} id={heading} variant="link" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere">{link}</Button>
+    : <span id={heading} tabIndex={id ? -1 : undefined} className="font-medium wrap-anywhere">{title}</span>;
   const Icon = disclosure?.expanded ? ChevronDownIcon : ChevronRightIcon;
-  const toggle = disclosure && <Button type="button" variant="ghost" size="icon" aria-label={`${title} ${disclosure.expanded ? "접기" : "열기"}`}
-    title={disclosure.expanded ? "접기" : "열기"} aria-expanded={disclosure.expanded} aria-controls={panel} onClick={table ? disclosure.toggle : undefined}><Icon /></Button>;
-  const actions = (action || disclosure) && <ItemActions className="max-w-full shrink-0 flex-wrap">
-    {(!disclosure || disclosure.expanded) && action}
-    {table ? toggle : toggle && <CollapsibleTrigger asChild>{toggle}</CollapsibleTrigger>}
+  const toggle = disclosure && <Button type="button" variant="ghost" size="icon" aria-label={title} aria-description="미리보기 펼침·접기"
+    title={disclosure.expanded ? "미리보기 접기" : "미리보기 펼치기"} aria-expanded={disclosure.expanded} aria-controls={panel} onClick={table ? disclosure.toggle : undefined}><Icon /></Button>;
+  const actions = action && (!disclosure || disclosure.expanded) && <ItemActions className="max-w-full shrink-0 flex-wrap">
+    {action}
   </ItemActions>;
   const metadataContent = metadata && (!disclosure || disclosure.expanded) && <div className="min-w-0 text-sm text-muted-foreground">{metadata}</div>;
   const previewContent = disclosure?.expanded && disclosure.content;
@@ -147,8 +146,9 @@ export function RelatedItem(
     </BusinessDetails>}
   </>;
   const item = <Item variant="outline" className="@container min-w-0 flex-col flex-nowrap items-stretch">
-    <ItemHeader className="flex-wrap items-start">{titleData}{actions}</ItemHeader>
+    <ItemHeader className="flex-nowrap items-start gap-3">{toggle && <CollapsibleTrigger asChild>{toggle}</CollapsibleTrigger>}{titleData}</ItemHeader>
     <ItemContent className="min-w-0">
+      {actions}
       {cells.length > 0 && <DataFields>
         {(layout?.columns.slice(1) ?? cells.map(() => "값")).map((column, index) => <div key={column} className="min-w-0"><dt>{column}</dt><dd className="wrap-anywhere">{cells[index] ?? "—"}</dd></div>)}
       </DataFields>}

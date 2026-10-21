@@ -263,11 +263,11 @@ test("restored preview waits for its read and settles even when tag lookup fails
   expect(new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/records"));
   expect(new URL(page.url()).searchParams.get("open")).toBe(`/records/${row.id}`);
   await held.started;
-  const title = page.getByRole("button", { name: row.body, exact: true });
+  const title = page.getByRole("link", { name: `${row.body} 상세`, exact: true });
   await expect(title).not.toBeFocused();
   held.release(); await held.finished;
   await expect(title).toBeFocused();
-  await expect(title).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: row.body, exact: true })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByText("태그 이름 조회 실패", { exact: true })).toBeVisible();
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
@@ -452,7 +452,7 @@ test("card title labels and wrapped values remain ordered and readable", async (
     await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&view=cards`));
     await page.getByRole("radio", { name: "카드", exact: true }).click();
     for (const item of [short, long]) {
-      const title = page.getByRole("button", { name: item.title, exact: true });
+      const title = page.getByRole("link", { name: `${item.title} 상세`, exact: true });
       const row = page.getByRole("listitem").filter({ has: title });
       await expect(title).toBeVisible();
       const key = row.getByRole("term").first();
@@ -521,9 +521,9 @@ test("business tables: legacy list URLs keep context and disclosure columns stay
   await expect(collection.getByRole("radio", { name: "리스트", exact: true })).toHaveCount(0);
   expect(new URL(page.url()).searchParams.get("keyword")).toBe("김민수");
   const table = collection.getByRole("table", { name: "전체 자료 목록", exact: true });
-  const title = table.getByRole("button", { name: entity.title, exact: true });
+  const title = table.getByRole("link", { name: `${entity.title} 상세`, exact: true });
   const row = table.getByRole("row").filter({ has: page.getByRole("button", { name: entity.title, exact: true }) });
-  const toggle = row.getByRole("button", { name: /^김민수 (열기|접기)$/ });
+  const toggle = row.getByRole("button", { name: entity.title, exact: true });
   const before = await row.evaluate(el => [...el.querySelectorAll("td")].map(cell => {const r=cell.getBoundingClientRect();return {x:r.x,width:r.width};}));
   await toggle.press("Enter");
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -547,12 +547,12 @@ test("business tables: selected values reflow without horizontal scrolling at wi
   state.rows.entities[0].display_properties = { prop_1: entity.title, prop_2: 240000, prop_3: "2026-10-08", prop_4: "a", prop_5: false };
   await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   const table = page.getByRole("table", { name: "검사 자료 목록", exact: true });
-  const title = table.getByRole("button", { name: entity.title, exact: true });
+  const title = table.getByRole("link", { name: `${entity.title} 상세`, exact: true });
   const row = table.getByRole("row").filter({ has: page.getByRole("button", { name: entity.title, exact: true }) });
   await expect(row.getByText("240,000", { exact: true })).toBeVisible();
   await expect(row.getByText("거짓", { exact: true })).toBeVisible();
   await expect(row.getByText("2026-10-08", { exact: true })).toBeVisible();
-  const toggle = row.getByRole("button", { name: /^김민수 (열기|접기)$/ });
+  const toggle = row.getByRole("button", { name: entity.title, exact: true });
   await toggle.focus();
   for (const [width, scale] of [[1440, 100], [390, 100], [320, 100], [390, 200]]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -610,4 +610,88 @@ test("business tables: many selected columns keep dates readable and never omit 
   for(let n=2;n<=15;n++)await expect(row.getByText(projected[`prop_${n}`],{exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+});
+
+for (const width of [390, 1440]) for (const view of ["테이블", "카드"]) for (const [kind, label, title] of [
+  ["entities", "전체 자료", entity.title], ["tasks", "할 일", task.title], ["records", "기록", record.body],
+] as const) test(`제목 직접 상세 ${kind} ${view} ${width}px: 펼침과 독립·복귀·겹치지 않는 터치 영역`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 950 });
+  const state = await fixture(page);
+  await page.goto(fixtureWorkspacePath(`/${kind}`));
+  const list = page.getByRole("region", { name: `${label} 목록`, exact: true });
+  await list.getByRole("radio", { name: view, exact: true }).click();
+  const link = list.getByRole("link", { name: `${title} 상세`, exact: true });
+  const arrow = list.getByRole("button", { name: title, exact: true });
+  await expect(list.getByRole("radio", { name: view, exact: true })).toHaveAttribute("aria-checked", "true");
+  await expect(link).toBeVisible();
+  await expect(arrow).toBeVisible();
+  await expect(link).toHaveText(title);
+  await expect(arrow).toHaveAttribute("aria-expanded", "false");
+  const detailReads = () => state.reads.filter(url => new URL(url).pathname === `/api/${kind}/${encodeURIComponent(kind === "entities" ? entity.id : kind === "tasks" ? task.id : record.id)}`).length;
+  expect(detailReads()).toBe(0);
+  const [a, b] = await Promise.all([arrow.boundingBox(), link.boundingBox()]);
+  expect(a).not.toBeNull(); expect(b).not.toBeNull();
+  expect(a!.width).toBeGreaterThanOrEqual(44); expect(a!.height).toBeGreaterThanOrEqual(44);
+  expect(b!.width).toBeGreaterThanOrEqual(44); expect(b!.height).toBeGreaterThanOrEqual(44);
+  expect(a!.x + a!.width <= b!.x || b!.x + b!.width <= a!.x || a!.y + a!.height <= b!.y || b!.y + b!.height <= a!.y).toBe(true);
+  await link.click();
+  await expect(page.getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  await closeDetail(page, title);
+  await expect(arrow).toHaveAttribute("aria-expanded", "false");
+  await expect(link).toBeFocused();
+  await arrow.press("Space");
+  await expect(arrow).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(list.getByRole("link", { name: `${title} 상세`, exact: true })).toHaveCount(1);
+  await page.screenshot({ path: info.outputPath(`title-${kind}-${view}-${width}.png`), fullPage: true });
+  await link.press("Enter");
+  await closeDetail(page, title);
+  await expect(arrow).toHaveAttribute("aria-expanded", "true");
+  await expect(link).toBeFocused();
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+
+for (const status of [403, 404]) test(`확인된 접근 불가 ${status}: 접어도 제목 링크를 되살리지 않고 재조회 성공 후 복구`, async ({ page }) => {
+  const state = await fixture(page);
+  let denied = true;
+  await page.route(`**/api/entities/${encodeURIComponent(entity.id)}`, route => denied
+    ? route.fulfill({ status, json: { code: status === 404 ? "not_found" : "forbidden", message: "접근할 수 없습니다." } })
+    : route.fallback());
+  await page.goto(fixtureWorkspacePath("/entities"));
+  const list = page.getByRole("region", { name: "전체 자료 목록", exact: true });
+  const title = list.getByRole("link", { name: `${entity.title} 상세`, exact: true });
+  const arrow = list.getByRole("button", { name: entity.title, exact: true });
+  await expect(title).toBeVisible();
+  await arrow.click();
+  await expect(list.getByText(status === 404 ? "삭제된 대상 또는 접근할 수 없는 대상입니다." : "내용을 불러오지 못했습니다.", { exact: true })).toBeVisible();
+  await expect(title).toHaveCount(0);
+  await arrow.click();
+  await expect(arrow).toHaveAttribute("aria-expanded", "false");
+  await expect(title).toHaveCount(0);
+  denied = false;
+  await arrow.click();
+  await expect(title).toBeVisible();
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+
+test("320px·200% 관계 카드: 화살표·제목·해제는 겹치지 않고 가로로 넘치지 않는다", async ({ page }, info) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 320, height: 1000 });
+  await page.goto(fixtureWorkspacePath(`/entities/${entity.id}`));
+  const related = page.getByRole("region", { name: "할 일 (1개)", exact: true });
+  await related.getByRole("radio", { name: "카드", exact: true }).click();
+  await related.getByRole("button", { name: task.title, exact: true }).click();
+  const link = related.getByRole("link", { name: `${task.title} 상세`, exact: true });
+  const unlink = related.getByRole("button", { name: `${task.title} 해제`, exact: true });
+  await expect(unlink).toBeVisible();
+  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  await expect(link).toBeVisible(); await expect(unlink).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  const [titleBox, actionBox] = await Promise.all([link.boundingBox(), unlink.boundingBox()]);
+  expect(titleBox).not.toBeNull(); expect(actionBox).not.toBeNull();
+  expect(actionBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height);
+  await page.screenshot({ path: info.outputPath("related-card-320-200.png"), fullPage: true });
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });

@@ -522,7 +522,7 @@ for (const side of ["tasks", "entities"] as const) {
     await form(page).getByRole("searchbox", { name: `${label} 제목 검색` }).fill("후보");
     await form(page).getByRole("button", { name: "검색 결과 더 보기" }).click();
     const candidate = form(page).getByRole("group", { name: `${label} 검색 결과` }).getByRole("link", {
-      name: "후보 둘째",
+      name: "후보 둘째 상세",
       exact: true,
     });
     await candidate.click();

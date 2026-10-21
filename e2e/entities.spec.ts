@@ -203,7 +203,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await expect(page.getByRole("button", { name: `${marker} 00`, exact: true }))
       .toBeVisible();
     await page.getByRole("button", { name: "더 보기", exact: true }).click();
-    const last = page.getByRole("button", { name: `${marker} 20`, exact: true });
+    const last = page.getByRole("link", { name: `${marker} 20 상세`, exact: true });
     await expect(last).toBeVisible();
     const before = page.url();
     await openListDetail(page, `${marker} 20`);
@@ -225,7 +225,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     const concurrent = await createFixtureEntity(mcp, workspace, { prop_1: `${marker} 새 항목`, prop_2: 0, prop_4: "c" });
     ids.push(concurrent.id);
     await closeDetail(page, `${marker} 19`);
-    await expect(page.getByRole("button", { name: `${marker} 19`, exact: true })).toBeFocused();
+    await expect(page.getByRole("link", { name: `${marker} 19 상세`, exact: true })).toBeFocused();
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
     const reloaded = page.waitForRequest((request) =>
@@ -319,7 +319,7 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
       ),
     );
     await page.goto(fixtureEntityList(workspace.id, (await scalarFixtureType(mcp, workspace)).id, marker, undefined, true));
-    const anchor = page.getByRole("button", { name: `${marker} 19`, exact: true });
+    const anchor = page.getByRole("link", { name: `${marker} 19 상세`, exact: true });
     await openListDetail(page, `${marker} 19`);
     ids.push((await createFixtureEntity(mcp, workspace, { prop_1: `${marker} 동시 추가`, prop_2: 0 })).id);
     await closeDetail(page, `${marker} 19`);

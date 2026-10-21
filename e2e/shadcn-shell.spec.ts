@@ -49,7 +49,7 @@ test("shell desktop: closing a detail returns long-list scrolling and append own
   state.rows.entities.unshift(entity(9999, { prop_1: "외부 추가 자료" }));
   state.listPages("entities", [state.rows.entities.slice(0, 20), state.rows.entities.slice(20, 40), state.rows.entities.slice(40, 60), state.rows.entities.slice(60)]);
   await closeDetail(page, "스크롤 자료 19");
-  const anchor = main.getByRole("button", { name: "스크롤 자료 19", exact: true });
+  const anchor = main.getByRole("link", { name: "스크롤 자료 19 상세", exact: true });
   await expect(anchor).toBeFocused();
   await expect(main.locator("[data-list-anchor]")).toHaveCount(40);
   const more = main.getByRole("button", { name: "더 보기", exact: true });

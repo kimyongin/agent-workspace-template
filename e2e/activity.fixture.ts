@@ -99,7 +99,7 @@ test("옛 반대 목록 anchor는 같은 기록 ID와 초점으로 명시 변환
   await page.goto("/e2e/fixtures/activity.html?route="+encodeURIComponent(`/tasks?tasks_pages=4&records_pages=1#activity-records-${id(9)}`));
   await expect(page).toHaveURL(new RegExp(`/records\\?pages=1&legacy_activity=1#activity-records-${id(9)}$`));
   await expect(page.getByText(/기록 탭으로 이동했습니다/)).toBeVisible();
-  await expect(page.getByRole("button",{name:"기록 9",exact:true})).toBeFocused();
+  await expect(page.getByRole("link",{name:"기록 9 상세",exact:true})).toBeFocused();
   expect(reads).toEqual(["/api/records"]);expect(writes).toEqual([]);
 });
 
@@ -151,7 +151,7 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   await saveOnce(page, page);
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("button",{name:"정정 기록",exact:true})).toBeFocused();
+  await expect(page.getByRole("link",{name:"정정 기록 상세",exact:true})).toBeFocused();
   await openListDetail(page,"정정 기록");
   const body = detailDialog(page).getByRole("term").filter({hasText:/^본문$/}).locator("../dd");
   await expect(body).toHaveCount(1);
@@ -275,7 +275,7 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     await openTabFilters(page);await expect(page.getByText("태그 이름을 불러오는 중…",{exact:true})).toBeVisible();
     await expect(row).toHaveCount(0);
     release();
-    await row.click();
+    await page.getByRole("button", { name: "기록 20", exact: true }).click();
     await expect(page.locator('[aria-label="태그"]').last()).toHaveText(name);
     if (name.length === 30) {
       const tag = page.locator('[aria-label="태그"]').last();

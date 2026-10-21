@@ -134,7 +134,7 @@ for (const width of [390, 1440]) {
     expect(titleBox.y).toBeGreaterThanOrEqual(searchBox.y + searchBox.height);
     expect(titleBox.x).toBeGreaterThanOrEqual(12);
     expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(width - 12);
-    await expect(bottom.getByRole("link", { name: "자료 상세", exact: true })).toHaveCount(0);
+    await expect(bottom.getByRole("link", { name: "자료 상세", exact: true })).toHaveText("자료");
     await openListEditor(page, "자료");
     await expect(form(page).getByLabel("제목", { exact: false })).toHaveValue("자료");
     await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toHaveCount(0);
@@ -177,7 +177,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         toggle = row.getByRole("button", { name: title, exact: true });
       await expect(toggle).toBeVisible();
       await page.evaluate(() => document.fonts.ready.then(() => {}));
-      await expect(row.getByRole("link")).toHaveCount(0);
+      await expect(row.getByRole("link", { name: title + " 상세", exact: true })).toHaveText(title);
       const preview = await disclosureContent(page, toggle);
       await expect(preview).toBeHidden();
       const closed = (await row.boundingBox())!;
@@ -185,7 +185,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await toggle.focus();
       await toggle.press("Enter");
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
-      await expect(preview.getByRole("link", { name: title + " 상세", exact: true })).toBeVisible();
+      await expect(row.getByRole("link", { name: title + " 상세", exact: true })).toBeVisible();
       await settleSurface(row);
       const opened = (await row.boundingBox())!;
       const openedTitle = (await toggle.boundingBox())!;
@@ -196,8 +196,8 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       if (kind === "records") {
         await expect(preview.locator(".markdown")).toContainText("원문 마지막 부분");
       }
-      const controls = row.getByRole("button").or(preview.getByRole("link"));
-      expect(await controls.count()).toBeGreaterThanOrEqual(3);
+      const controls = row.getByRole("button").or(row.getByRole("link"));
+      expect(await controls.count()).toBe(2);
       for (const icon of await controls.all()) {
         const box = (await icon.boundingBox())!;
         expect(box.width).toBeGreaterThanOrEqual(44);
@@ -205,16 +205,16 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: info.outputPath(`${kind}-${width}.png`) });
-      await row.getByRole("button", { name: title + " 접기", exact: true }).click();
+      await row.getByRole("button", { name: title, exact: true }).click();
       await expect(toggle).toHaveAttribute("aria-expanded", "false");
     }
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
     const row = businessRows(form(page).getByRole("region", { name: "할 일 (1개)" }).getByRole("table"));
-    const preview = await disclosureContent(page, row.getByRole("button", { name: "할 일 열기", exact: true }));
-    await expect(preview.getByRole("link", { name: "할 일 상세", exact: true })).toHaveCount(0);
+    const preview = await disclosureContent(page, row.getByRole("button", { name: "할 일", exact: true }));
+    await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
     await expect(preview.getByRole("button", { name: "할 일 해제", exact: true })).toHaveCount(0);
-    await row.getByRole("button", { name: "할 일 열기", exact: true }).click();
-    await expect(preview.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
+    await row.getByRole("button", { name: "할 일", exact: true }).click();
+    await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
     await expect(preview.getByRole("button", { name: "할 일 해제", exact: true })).toBeVisible();
     const actions = row.getByRole("button").or(preview.getByRole("button")).or(preview.getByRole("link"));
     expect(await actions.count()).toBeGreaterThan(0);
@@ -223,10 +223,10 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       const box = (await action.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
     }
-    await row.getByRole("button", { name: "할 일 접기", exact: true }).click();
-    await expect(preview.getByRole("link", { name: "할 일 상세", exact: true })).toHaveCount(0);
+    await row.getByRole("button", { name: "할 일", exact: true }).click();
+    await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
     await expect(preview.getByRole("button", { name: "할 일 해제", exact: true })).toHaveCount(0);
-    await row.getByRole("button", { name: "할 일 열기", exact: true }).click();
+    await row.getByRole("button", { name: "할 일", exact: true }).click();
     await page.screenshot({ path: info.outputPath(`modal-${width}.png`) });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(state.writes).toHaveLength(0);

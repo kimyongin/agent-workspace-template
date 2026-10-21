@@ -192,8 +192,8 @@ test("색인 문제 표는 지연 조회·실패 재시도·페이지·좁은 �
   await page.getByRole("button", { name: "다시 시도", exact: true }).click();
   const table = page.getByRole("table", { name: "색인 문제 항목", exact: true });
   await expect(table).toBeVisible();
-  await expect(table.getByRole("button", { name: /^문제\d/ })).toHaveCount(5);
-  const trigger = table.getByRole("button", { name: /^문제0/ });
+  await expect(table.getByRole("link", { name: /^문제\d/ })).toHaveCount(5);
+  const trigger = table.getByRole("button", { name: /^(열기|접기): 문제0/ });
   await trigger.press("Enter");
   await expect(table).toContainText("실패나 성공으로 확정할 수 없습니다");
   for (const width of [320, 390, 1440]) {
@@ -205,9 +205,9 @@ test("색인 문제 표는 지연 조회·실패 재시도·페이지·좁은 �
   await table.scrollIntoViewIfNeeded();
   await page.screenshot({ path: info.outputPath("indexing-issues-table.png"), fullPage: true });
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  await expect(table.getByRole("button", { name: /^문제\d/ })).toHaveCount(1);
+  await expect(table.getByRole("link", { name: /^문제\d/ })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "다음", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "이전", exact: true }).click();
-  await expect(table.getByRole("button", { name: /^문제\d/ })).toHaveCount(5);
+  await expect(table.getByRole("link", { name: /^문제\d/ })).toHaveCount(5);
   expect(requests).toHaveLength(4);
 });

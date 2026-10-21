@@ -1,5 +1,4 @@
 import { Button } from "../../components/ui/button.tsx";
-import { EyeIcon } from "lucide-react";
 import { shiftScroll } from "../../lib/surface-dom.ts";
 import {
   type ComponentProps,
@@ -45,6 +44,11 @@ export function RelatedPreviewItem(
   const error = cause
     ? cause instanceof ApiError && cause.status === 404 && cause.code === "not_found" ? "missing" : "failed"
     : null;
+  const [unavailablePath, setUnavailablePath] = useState<string>();
+  useLayoutEffect(() => {
+    if (error) setUnavailablePath(path);
+    else if (item) setUnavailablePath(previous => previous === path ? undefined : previous);
+  }, [path, error, item]);
   const enabled = !surface?.editor.current;
   useExpansionRegistration(kind ? path : undefined, enabled);
   const expanded = enabled && !!path && !!selection?.value.includes(path);
@@ -95,8 +99,13 @@ export function RelatedPreviewItem(
       shiftScroll(target, shift);
     });
   };
-  const viewable = !!item && !error;
-  const viewProps = { title: "상세", "aria-label": `${props.title} 상세` };
+  // A title opens the current detail directly; preview reads remain lazy.
+  // A known unavailable target or a historical fallback stays non-navigable.
+  const titleLink = !fallback && !error && unavailablePath !== path
+    ? list
+      ? <Link {...list.link()} aria-label={`${props.title} 상세`}>{props.title}</Link>
+      : <DetailLink to={path} aria-label={`${props.title} 상세`} restoreKey={`view-related-${path}`}>{props.title}</DetailLink>
+    : undefined;
   return (
     <RelatedItem
       {...props}
@@ -106,22 +115,8 @@ export function RelatedPreviewItem(
           representativeLabel ?? (kind === "records" ? "본문 대표 문구" : kind === "tasks" ? "제목" : "자료 이름")
         }`)}
       to={undefined}
-      action={
-        <>
-          {props.action}
-          {viewable && (list
-            ? (
-              <Button asChild variant="ghost"><Link {...list.link()} {...viewProps}>
-                <><EyeIcon data-icon="inline-start" />상세</>
-              </Link></Button>
-            )
-            : (
-              <Button asChild variant="ghost"><DetailLink {...viewProps} to={path} restoreKey={`view-related-${path}`}>
-                <><EyeIcon data-icon="inline-start" />상세</>
-              </DetailLink></Button>
-            ))}
-        </>
-      }
+      titleLink={titleLink}
+      action={props.action}
       disclosure={{
         expanded,
         toggle,
