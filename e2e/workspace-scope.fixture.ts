@@ -89,6 +89,25 @@ test("workspace selection has one entry and settings owns management for the sel
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveAttribute("href", `/w/${b}/manage`);
   await expect(page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
+  await page.keyboard.press("Escape");
+  if (info.project.name === "desktop") {
+    for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`settings-entry-${width}.png`), fullPage: true });
+      await openMainNavigation(page);
+      const trigger = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("button", { name: "공간 선택", exact: true });
+      await trigger.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("menuitem", { name: "공간 B", exact: true })).toHaveAttribute("aria-current", "page");
+      await page.screenshot({ path: info.outputPath(`selection-entry-${width}.png`), fullPage: true });
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+      const sheet = page.getByRole("dialog", { name: "주 메뉴", exact: true });
+      if (await sheet.isVisible()) await page.keyboard.press("Escape");
+    }
+  }
 });
 
 test("account space entry remains available without a space or settings permission", async ({ page }) => {
