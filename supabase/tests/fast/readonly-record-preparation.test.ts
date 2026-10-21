@@ -40,10 +40,11 @@ function fixture(
   };
   let row: EntityValues | null = null;
   const events: ChangeInput[] = [];
+  let issued = 0;
   const store = {
     executeRequest: <T>(_request: unknown, run: () => Promise<T>) => run(),
     definition: () => Promise.resolve(storedDefinition),
-    issueDataId: () => Promise.resolve("001"),
+    issueDataId: () => Promise.resolve(String(++issued).padStart(3, "0")),
     get: (id: string) => Promise.resolve(row?.id === id ? row : null),
     insert: (input: Parameters<EntityStore["insert"]>[0]) => {
       row = {
@@ -116,7 +117,7 @@ function fixture(
         }),
     },
   };
-  return { typeId, actor, deps, settings, events, definition };
+  return { typeId, actor, deps, settings, events, definition, issued: () => issued };
 }
 
 Deno.test("record preparation renders the same composed entity title from effective defaulted properties", async () => {
@@ -240,3 +241,57 @@ for (const action of ["update", "restore"] as const) {
     assertEquals(error.fields?.[0].path, "properties.prop_3");
   });
 }
+
+Deno.test("memo preparation previews every explicit generated field without issuing or submitting placeholders", async () => {
+  const f = fixture(false, "$엔터티.이후.prop_3$");
+  const kind = "00000000-0000-4000-8000-000000000001";
+  f.definition.schema.properties.prop_3 = {
+    type: "string",
+    title: "보조 번호",
+    "x-order": 30,
+    "x-identifier": { allowed_kind_ids: [kind], default_kind_id: kind },
+  };
+  f.definition.schema.properties.prop_5 = {
+    type: ["string", "null"],
+    title: "선택 번호",
+    "x-order": 50,
+    "x-identifier": { allowed_kind_ids: [kind], default_kind_id: kind },
+  };
+  f.definition.schema.required.push("prop_3");
+  const input = {
+    entity_type_id: f.typeId,
+    schema_version: 1,
+    properties: { prop_1: "새 자료" },
+    generate_identifiers: { prop_2: kind, prop_3: kind },
+  };
+  const prepared = await prepareBusinessRecord(f.settings, f.actor, { model: "entity", action: "create", input });
+  assertEquals(f.issued(), 0);
+  assertEquals(prepared.pending_entity_id, true);
+  assertEquals(prepared.change_note.includes("자동 발급"), true);
+  assertEquals(prepared.prepared_input.generate_identifiers, input.generate_identifiers);
+  assertEquals(prepared.prepared_input.properties, { prop_1: "새 자료", prop_4: "editable" });
+  const created = await createEntity(f.deps, requestActor(f.actor), entityCreate.parse(prepared.prepared_input));
+  assertEquals(f.issued(), 2);
+  assertEquals(created.properties.prop_3, kind + ":002");
+  assertEquals(Object.hasOwn(created.properties, "prop_5"), false);
+  const updatedPreview = await prepareBusinessRecord(f.settings, f.actor, {
+    model: "entity",
+    action: "update",
+    target_id: created.id,
+    expected_version: created.version,
+    input: { schema_version: 1, generate_identifiers: { prop_3: kind } },
+  });
+  assertEquals(f.issued(), 2);
+  assertEquals(updatedPreview.pending_entity_id, true);
+  assertEquals(updatedPreview.change_note.includes("자동 발급"), true);
+  assertEquals(updatedPreview.prepared_input.generate_identifiers, { prop_3: kind });
+  assertEquals(updatedPreview.prepared_input.properties, undefined);
+  const changed = await updateEntity(
+    f.deps,
+    requestActor(f.actor),
+    created.id,
+    entityUpdate.parse(updatedPreview.prepared_input),
+  );
+  assertEquals(changed.properties.prop_3, kind + ":003");
+  assertEquals(changed.properties.prop_2, created.properties.prop_2);
+});

@@ -120,3 +120,28 @@ test("explicit incompatible definition retirement selects exact versions, endpoi
   const unsafe = structuredClone(m); unsafe.scopes[0].retire_definitions = [{ type_id: compatible, expected_schema_version: 1, schema_versions: [1] }];
   assert.ok(planEntityReset(unsafe, data).blockers.some((b) => b.reason === "compatible_definition_retirement_forbidden"));
 });
+
+test("approved NULL-era registry victims alone are excluded from preservation while scoped lookalikes remain fenced", () => {
+  const legacyIssuer = { workspace_id: null, owner_id: actor, code: "legacy", label: "retire" };
+  const legacyRule = { workspace_id: null, owner_id: actor, id: type, source: "legacy", label: "retire" };
+  const scopedIssuer = { ...legacyIssuer, workspace_id: workspace, label: "preserve issuer" };
+  const scopedRule = { ...legacyRule, workspace_id: workspace, label: "preserve rule" };
+  const approved = { ...manifest, legacy_rows: [
+    { table: "app.entity_issuers", key: { owner_id: actor, code: "legacy" } },
+    { table: "app.entity_identifier_rules", key: { owner_id: actor, id: type } },
+  ] };
+  const before = { ...inventory, "app.entity_issuers": [legacyIssuer, scopedIssuer], "app.entity_identifier_rules": [legacyRule, scopedRule] };
+  const after = { ...inventory, "app.entity_issuers": [scopedIssuer], "app.entity_identifier_rules": [scopedRule] };
+  const plan = planEntityReset(approved, before);
+  assert.deepEqual(plan.blockers, []);
+  assert.equal(plan.counts["app.entity_issuers"], 1);
+  assert.equal(plan.counts["app.entity_identifier_rules"], 1);
+  assert.equal(plan.preservation_digest, planEntityReset(approved, after).preservation_digest);
+  for (const table of ["app.entity_issuers", "app.entity_identifier_rules"]) {
+    const changed = structuredClone(after); changed[table][0].label = "concurrent change";
+    assert.notEqual(plan.preservation_digest, planEntityReset(approved, changed).preservation_digest);
+    const unapproved = { ...before, [table]: [...before[table], { ...before[table][0], owner_id: "00000000-0000-4000-8000-000000000099" }] };
+    const mutated = structuredClone(unapproved); mutated[table][2].label = "unapproved legacy change";
+    assert.notEqual(planEntityReset(approved, unapproved).preservation_digest, planEntityReset(approved, mutated).preservation_digest);
+  }
+});

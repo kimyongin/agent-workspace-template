@@ -236,7 +236,13 @@ export function planEntityReset(manifest, inventory) {
   selection["legacy_record_captures"] = rows(inventory, "app.records").filter((row) => row.workspace_id === null && !selection["app.records"].includes(row)
     && legacyEntities.some((e) => row.owner_id === e.owner_id && capturesEntity(row, new Set([e.id]))));
   for (const t of Object.keys(selection)) selection[t].sort((a, b) => canonical(a).localeCompare(canonical(b)));
-  const preserved = Object.fromEntries(["__store", "__catalog", ...preservedTables, "app.entity_issuers", "app.entity_identifier_rules"].map((t) => [t, [...rows(inventory, t)].sort((a, b) => canonical(a).localeCompare(canonical(b)))]));
+  const registryTables = ["app.entity_issuers", "app.entity_identifier_rules"];
+  const preserved = Object.fromEntries(["__store", "__catalog", ...preservedTables, ...registryTables].map((table) => [table,
+    rows(inventory, table).filter((row) => !(registryTables.includes(table) && row.workspace_id === null
+      && selection[table].includes(row) && (manifest.legacy_rows ?? []).some((entry) => entry.table === table
+        && legacyKeys[table].every((key) => row[key] === entry.key[key]))))
+      .sort((a, b) => canonical(a).localeCompare(canonical(b))),
+  ]));
   // Include all scoped data, not just victims: removal of a record must never
   // invalidate an unrelated task's result anchor or a new FK added unnoticed.
   const snapshot = Object.fromEntries(Object.entries(inventory).map(([t, rs]) => [t, rs.filter((r) => t.startsWith("pgmq.")

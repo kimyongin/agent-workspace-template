@@ -1,4 +1,5 @@
 import { effectiveEntityTitleTemplate } from "@contracts/entity-title-template.ts";
+import { decodeIdentifierValue } from "@contracts/entity-identifiers.ts";
 import { DataFields } from "@/components/DataFields";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { entityTypeIcons } from "@contracts/entity-type.ts";
@@ -11,6 +12,21 @@ import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel, schemaDiffValueLab
 export function SchemaDefinitionRead(
   { definition, identifierKinds = [] }: { definition: SchemaDefinition; identifierKinds?: ReadonlyArray<{ id: string; label: string }> },
 ) {
+  const kindLabel = (id: string) => {
+    const kind = identifierKinds.find((kind) => kind.id === id);
+    if (!kind) return id;
+    return identifierKinds.filter((candidate) => candidate.label === kind.label).length > 1
+      ? `${kind.label} (${id})`
+      : kind.label;
+  };
+  const identifierDefaultLabel = (value: string) => {
+    try {
+      const pair = decodeIdentifierValue(value);
+      return `${kindLabel(pair.kind_id)} · ${pair.raw}`;
+    } catch {
+      return schemaValueLabel(value);
+    }
+  };
   const keys = [
     ...new Set([
       ...schemaPresentation(definition).order,
@@ -32,13 +48,6 @@ export function SchemaDefinitionRead(
           ["데이터 타입", fieldTypeLabel(field)],
         ];
         if (field["x-identifier"]) {
-          const kindLabel = (id: string) => {
-            const kind = identifierKinds.find((kind) => kind.id === id);
-            if (!kind) return id;
-            return identifierKinds.filter((candidate) => candidate.label === kind.label).length > 1
-              ? `${kind.label} (${id.slice(0, 8)})`
-              : kind.label;
-          };
           values.push(
             ["자료 식별자", definition.schema["x-identity-property"] === key ? "예" : "아니요"],
             ["허용 식별자 종류", field["x-identifier"].allowed_kind_ids.map(kindLabel).join(", ")],
@@ -91,6 +100,8 @@ export function SchemaDefinitionRead(
             "생성 기본값",
             field.default === null
               ? optionLabel(null)
+              : typeof field.default === "string" && field["x-identifier"]
+              ? identifierDefaultLabel(field.default)
               : typeof field.default === "string" && fieldChoices(field)
               ? optionLabel(field.default)
               : schemaValueLabel(field.default),
