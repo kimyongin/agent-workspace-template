@@ -1,6 +1,17 @@
 // One local run owns observation, acquisition and teardown; external effects live in the CLI adapter.
 export async function runLocalChecks(adapter, { checks, source, signal, borrowedOnly = false, timeoutMs = 120_000 }) {
-  const results = [], errors = [];
+  const results = [], errors = [], runtimeObservations = [];
+  const started = performance.now();
+  let checksStarted, cleanupStarted;
+  const observe = async signal => {
+    let state;
+    try { state = await adapter.observe(signal); }
+    catch (error) { runtimeObservations.push({ elapsedMs: performance.now() - started, state: 'observation-failed' }); throw error; }
+    runtimeObservations.push({ elapsedMs: performance.now() - started, state: state.state,
+      container: state.container ? { id: state.container.id, running: state.container.running, status: state.container.status, oomKilled: state.container.oomKilled, exitCode: state.container.exitCode } : null,
+      runnerFunctionsBindMatched: typeof source === 'string' && typeof state.container?.source === 'string' ? state.container.source === source : null });
+    return state;
+  };
   let runtime = 'borrowed', child, ownedContainer;
   const interrupted = () => {
     if (signal?.aborted) throw new Error('Local run interrupted');
@@ -31,12 +42,12 @@ export async function runLocalChecks(adapter, { checks, source, signal, borrowed
         throw new Error('Local runtime did not become ready');
       }
       await adapter.pause(signal);
-      state = await adapter.observe(signal);
+      state = await observe(signal);
     }
   };
   try {
     interrupted();
-    let state = await adapter.observe(signal);
+    let state = await observe(signal);
     if (state.state === 'absent') {
       if (borrowedOnly) throw new Error('Explicit runtime must already be running; setup and launch are disabled');
       const prepared = await adapter.prepare(signal);
@@ -44,17 +55,18 @@ export async function runLocalChecks(adapter, { checks, source, signal, borrowed
       interrupted();
       if (prepared.code !== 0 || prepared.stopFailed || prepared.interrupted) throw new Error('Local preparation failed');
       // Setup may reveal an independently started runtime. Never spawn over it.
-      state = await adapter.observe(signal);
+      state = await observe(signal);
       if (state.state === 'absent') {
         child = await adapter.start(signal);
         runtime = 'owned';
-        state = await adapter.observe(signal);
+        state = await observe(signal);
         // Absence immediately after our spawn is a startup observation, not permission to respawn.
         if (state.state === 'absent') state = { ...state, state: 'starting' };
       }
     }
     await ready(state);
     if (child && !ownedContainer) throw new Error('New runtime ownership could not be confirmed');
+    checksStarted = performance.now();
     for (const check of checks) {
       const label = typeof check === 'string' ? check : check.id;
       interrupted();
@@ -63,7 +75,7 @@ export async function runLocalChecks(adapter, { checks, source, signal, borrowed
       if (result.interrupted || signal?.aborted) break;
       if (result.stopFailed || result.code === null) throw new Error('Check subprocess execution or cleanup failed');
       interrupted();
-      const current = await adapter.observe(signal);
+      const current = await observe(signal);
       capture(current);
       if (current.state !== 'ready' || child && (!adapter.childRunning(child)
         || current.container?.id !== ownedContainer?.id
@@ -73,10 +85,11 @@ export async function runLocalChecks(adapter, { checks, source, signal, borrowed
   } catch (error) {
     errors.push({ phase: 'execution', error });
   } finally {
+    cleanupStarted = performance.now();
     if (child || ownedContainer) {
       // Stop only our child, and only the exact nonce-proven, source-bound container ID.
       let current;
-      try { current = await adapter.observe(); capture(current); }
+      try { current = await observe(); capture(current); }
       catch (error) { errors.push({ phase: 'ownership', error }); }
       try { if (child) await adapter.stopChild(child); }
       catch (error) { errors.push({ phase: 'child-cleanup', error }); }
@@ -89,5 +102,9 @@ export async function runLocalChecks(adapter, { checks, source, signal, borrowed
     }
   }
   const stopped = signal?.aborted || results.some(r => r.interrupted);
-  return { runtime, results, errors, exitCode: stopped ? (signal?.reason === 'SIGTERM' ? 143 : 130) : errors.length || results.some(r => r.code !== 0) ? 1 : 0 };
+  const ended = performance.now();
+  const timings = { preparationMs: (checksStarted ?? cleanupStarted) - started,
+    checksMs: checksStarted === undefined ? 0 : cleanupStarted - checksStarted,
+    cleanupMs: ended - cleanupStarted, totalMs: ended - started };
+  return { runtime, results, errors, timings, runtimeObservations, exitCode: stopped ? (signal?.reason === 'SIGTERM' ? 143 : 130) : errors.length || results.some(r => r.code !== 0) ? 1 : 0 };
 }

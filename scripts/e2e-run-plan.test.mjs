@@ -120,7 +120,7 @@ test('plan-only and invalid CLI options never invoke subprocesses or runtime ser
     const result = spawnSync(process.execPath, ['scripts/test-full.mjs', '--plan'], { env, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(JSON.parse(result.stdout).stages.length, 34);
-    for (const args of [['--unknown'], ['--actual-config', '/absent/config.ts'], ['--only', 'missing']]) {
+    for (const args of [['--unknown'], ['--actual-config', '/absent/config.ts'], ['--only', 'missing'], ['--only', 'actual,fixtures', '--workers', '2']]) {
       const invalid = spawnSync(process.execPath, ['scripts/test-full.mjs', ...args], { env, encoding: 'utf8' });
       assert.equal(invalid.status, 1);
     }
@@ -194,5 +194,75 @@ test('isolated environment preflight rejects mismatched API and DB before any ru
     }
     writeFileSync(env, raw);
     assert.throws(() => readTestRunEnvironment(plan, { WORKSPACE_E2E_CONFIG: '/other/config.toml' }));
+  } finally { rmSync(directory, { recursive: true }); }
+});
+
+test('structured reports retain original results on report failure, including interruption and cleanup failure', async () => {
+  const { saveTestReport } = await import('./test-report.mjs');
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const directory = mkdtempSync(join(tmpdir(), 'test-report-'));
+  try {
+    for (const code of [0, 1, 130, 143]) {
+      const result = { exitCode: code, results: [{ label: 'actual', code: code === 1 ? 17 : code, stopFailed: code === 143 }], errors: [{ phase: 'cleanup', error: new Error('private-placeholder') }] };
+      const good = saveTestReport(result, { command: 'npm run test:full', execution: 'actual' }, join(directory, `run-${code}.json`));
+      assert.equal(good.exitCode, code);
+      const saved = readFileSync(good.reportFile, 'utf8');
+      assert.equal(saved.includes('private-placeholder'), false);
+      assert.equal(JSON.parse(saved).result.results[0].code, result.results[0].code);
+      const failed = saveTestReport(result, {}, directory);
+      assert.equal(failed.exitCode, code === 0 ? 1 : code);
+      assert.equal(failed.results, result.results);
+      assert.equal(failed.errors, result.errors);
+      assert.equal(failed.reportError, true);
+      assert.ok(failed.unsavedReport.result.results.length);
+    }
+  } finally { rmSync(directory, { recursive: true }); }
+});
+
+test('measurement options retain explicit worker and cache scope without adding execution results to a plan', async () => {
+  const { fullTestPlan } = await import('./test-run-plan.mjs');
+  const plan = fullTestPlan(['--plan', '--only', 'fixtures', '--workers', '1', '--cache-state', 'warm', '--report', '/private/tmp/test-544-report.json']);
+  assert.equal(plan.workers, 1);
+  assert.equal(plan.cacheState, 'warm');
+  assert.ok(plan.stages.every(stage => stage.args.slice(-2).join(' ') === '--workers 1'));
+  assert.equal(plan.results, undefined);
+  assert.equal(plan.elapsedMs, undefined);
+  for (const args of [['--workers', '0'], ['--cache-state', 'maybe'], ['--report', 'relative.json']]) assert.throws(() => fullTestPlan(args));
+});
+
+test('actual API browser scope refuses parallel worker overrides before runtime acquisition while fixtures retain them', async () => {
+  const { fullTestPlan } = await import('./test-run-plan.mjs');
+  for (const args of [['--workers', '2'], ['--only', 'actual', '--workers', '3'], ['--plan', '--only', 'actual,fixtures', '--workers', '2']]) {
+    assert.throws(() => fullTestPlan(args), /one worker/);
+  }
+  const actual = fullTestPlan(['--only', 'actual', '--workers', '1']);
+  assert.deepEqual(actual.stages[0].args.slice(-2), ['--workers', '1']);
+  const fixtures = fullTestPlan(['--only', 'fixtures', '--workers', '3']);
+  assert.ok(fixtures.stages.every(stage => stage.args.slice(-2).join(' ') === '--workers 3'));
+});
+
+test('actual reports identify runner revision and leave borrowed service revision unverified even with a matching bind', async () => {
+  const { runLocalChecks } = await import('./local-runtime.mjs');
+  const { reportMetadata, saveTestReport } = await import('./test-report.mjs');
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const directory = mkdtempSync(join(tmpdir(), 'service-provenance-'));
+  try {
+    for (const source of ['/runner/functions', '/another/functions']) {
+      const adapter = { now: Date.now, observe: async () => ({ state: 'ready', container: { id: 'borrowed', source } }), run: async () => ({ code: 0 }) };
+      const result = await runLocalChecks(adapter, { checks: ['HTTP'], source: '/runner/functions' });
+      assert.equal(result.exitCode, 0);
+      const saved = saveTestReport(result, reportMetadata('npm run test:integration:local', { stages: [{ id: 'http', runtime: true }] }), join(directory, source.includes('another') ? 'other.json' : 'same.json'));
+      const report = JSON.parse(readFileSync(saved.reportFile, 'utf8'));
+      assert.match(report.metadata.runnerRevision, /^[0-9a-f]{40}$/);
+      assert.equal(report.metadata.revision, undefined);
+      assert.equal(report.metadata.serviceSource.revision, null);
+      assert.equal(report.metadata.serviceSource.verification, 'unverified');
+      assert.match(report.metadata.serviceSource.warning, /not verified/);
+      assert.equal(report.result.runtimeObservations[0].runnerFunctionsBindMatched, source === '/runner/functions');
+    }
   } finally { rmSync(directory, { recursive: true }); }
 });
