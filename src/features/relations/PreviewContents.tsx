@@ -16,13 +16,12 @@ export function previewKind(path: string): PreviewKind | undefined {
 }
 /** Domain read adapters own content; disclosure and request lifetimes do not know its fields. */
 export function PreviewContents(
-  { kind, item, main, onTagsReady, onPropertiesReady, onRepresentativeLabel, shownTitle }: {
+  { kind, item, main, onTagsReady, onPropertiesReady, shownTitle }: {
     kind: PreviewKind;
     item: Preview;
     main: boolean;
     onTagsReady: (ready: boolean) => void;
     onPropertiesReady: (ready: boolean) => void;
-    onRepresentativeLabel?: (label: string) => void;
     shownTitle?: string;
   },
 ) {
@@ -43,13 +42,11 @@ export function PreviewContents(
       <>
         <EntityProperties
           entity={entity}
-          selection="all"
           activeOnly
-          emphasizeRepresentative={false}
           onReadyChange={onPropertiesReady}
-          onRepresentativeLabel={onRepresentativeLabel}
         />
         <DataFields>
+          {!main && entity.title !== shownTitle && <div className="col-span-full"><dt>현재 제목</dt><dd>{entity.title}</dd></div>}
           <div>
             <dt>자료 종류</dt>
             <dd>{entity.type.label}</dd>

@@ -33,7 +33,6 @@ export function RelatedPreviewItem(
   },
 ) {
   const readiness = useContext(ListPreviewReadiness);
-  const [representativeLabel, setRepresentativeLabel] = useState<string>();
   const selection = useRelatedExpansion(),
     surface = useContext(SurfaceContext),
     button = useRef<HTMLElement | null>(null);
@@ -112,7 +111,7 @@ export function RelatedPreviewItem(
       titleLabel={props.titleLabel ?? (list && kind === "entities"
         ? undefined
         : `${!list && item && "title" in item && item.title !== props.title ? "당시 " : ""}${
-          representativeLabel ?? (kind === "records" ? "본문 대표 문구" : kind === "tasks" ? "제목" : "자료 이름")
+          kind === "records" ? "본문 대표 문구" : "제목"
         }`)}
       to={undefined}
       titleLink={titleLink}
@@ -143,7 +142,6 @@ export function RelatedPreviewItem(
                   main={!!list}
                   onTagsReady={onTagsReady}
                   onPropertiesReady={onPropertiesReady}
-                  onRepresentativeLabel={setRepresentativeLabel}
                 />
               </>
             )}
