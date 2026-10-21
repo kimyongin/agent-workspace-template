@@ -63,6 +63,101 @@ async function choose(page: Page, name: string) {
   await page.getByRole("button", { name: "공간 선택", exact: true }).click();
   await page.getByRole("menuitem", { name, exact: true }).click();
 }
+test("workspace landing can return from management to settings through the profile menu", async ({ page }) => {
+  await fixture(page);
+  await page.route(`**/api/workspaces/${a}`, (route) =>
+    route.fulfill({
+      json: {
+        workspace: { id: a, name: "공간 A", deleted_at: null },
+        membership_version: 1,
+        can_manage: true,
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      },
+    }));
+  await page.goto(`/w/${a}`);
+  await expect(page.getByRole("heading", { name: "공간 관리", exact: true })).toBeVisible();
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("button", {
+    name: "내 프로필",
+    exact: true,
+  }).click();
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/w/${a}/settings$`));
+  await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible({ timeout: 5000 });
+  const section = page.getByRole("region", { name: "워크스페이스", exact: true });
+  await expect(section.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveAttribute(
+    "href",
+    `/w/${a}/manage`,
+  );
+});
+
+test("workspace selection has one entry and settings owns management for the selected space", async ({ page }, info) => {
+  await fixture(page);
+  await page.goto(`/w/${a}/settings`);
+  await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("workspace-settings-entry.png"), fullPage: true, animations: "disabled" });
+  await openMainNavigation(page);
+  const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  const switcher = navigation.getByRole("button", { name: "공간 선택", exact: true });
+  await expect(switcher).toHaveCount(1);
+  await expect(switcher).toContainText("공간 A");
+  await switcher.click();
+  await page.screenshot({ path: info.outputPath("workspace-selection-menu.png"), fullPage: true, animations: "disabled" });
+  await expect(page.getByRole("menuitem", { name: "공간 A", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveCount(0);
+  await expect(navigation.getByRole("link", { name: "워크스페이스", exact: true })).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "공간 B", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/w/${b}/tasks$`));
+  await page.goto(`/w/${b}/settings`);
+  const section = page.getByRole("region", { name: "워크스페이스", exact: true });
+  await expect(section).toContainText("현재 공간 · 공간 B");
+  await expect(section.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveAttribute("href", `/w/${b}/manage`);
+  await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
+  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveAttribute("href", `/w/${b}/manage`);
+  await expect(page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
+  await page.keyboard.press("Escape");
+  if (info.project.name === "desktop") {
+    for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`settings-entry-${width}.png`), fullPage: true, animations: "disabled" });
+      await openMainNavigation(page);
+      const trigger = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("button", { name: "공간 선택", exact: true });
+      await trigger.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("menuitem", { name: "공간 B", exact: true })).toHaveAttribute("aria-current", "page");
+      await page.screenshot({ path: info.outputPath(`selection-entry-${width}.png`), fullPage: true, animations: "disabled" });
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+      const sheet = page.getByRole("dialog", { name: "주 메뉴", exact: true });
+      if (await sheet.isVisible()) await page.keyboard.press("Escape");
+    }
+  }
+});
+
+test("account space entry remains available without a space or settings permission", async ({ page }) => {
+  const api = await fixture(page);
+  await page.route(`**/api/workspaces/${a}`, route => route.fulfill({ json: {
+    workspace: { id: a, name: "공간 A", deleted_at: null }, membership_version: 1, can_manage: false,
+    grants: [{ target_kind: "tasks", target_id: "*", access: "read" }],
+  } }));
+  await page.goto(`/w/${a}/settings`);
+  const section = page.getByRole("region", { name: "워크스페이스", exact: true });
+  await expect(section.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveCount(0);
+  await section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true }).click();
+  await expect(page).toHaveURL(/\/workspaces$/);
+  delete api.workspaces[a]; delete api.workspaces[b];
+  await page.goto("/settings");
+  await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
+  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
+  await page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true }).click();
+  await expect(page.getByRole("button", { name: "새 공간 만들기", exact: true })).toBeVisible();
+});
+
 test("same-origin tabs keep independent route spaces and business headers", async ({ page, context }) => {
   const first = await fixture(page),
     other = await context.newPage(),
