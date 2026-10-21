@@ -37,8 +37,6 @@ dbTest(
         requestActor(actor),
         entityCreate.parse({
           ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "공동 대상 1" },
         }),
       );
@@ -47,8 +45,6 @@ dbTest(
         requestActor(actor),
         entityCreate.parse({
           ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "공동 대상 2" },
         }),
       );
@@ -93,7 +89,7 @@ dbTest(
               kind: "once",
               title: "없는 대상",
               entity_ids: [
-                `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`,
+                `00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`,
               ],
             },
           }),
@@ -127,8 +123,6 @@ dbTest(
         requestActor(actor),
         entityCreate.parse({
           ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "삭제 전 첫 대상" },
         }),
       );
@@ -137,8 +131,6 @@ dbTest(
         requestActor(actor),
         entityCreate.parse({
           ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "삭제 전 둘째 대상" },
         }),
       );
@@ -310,8 +302,6 @@ dbTest(
         requestActor(actor),
         entityCreate.parse({
           ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "당시 대상" },
         }),
       );

@@ -46,6 +46,7 @@ export function EntityProperties(
   if (failed) {
     return (
       <>
+        <DataFields><div><dt>자료 식별자</dt><dd>{entity.identity_label}</dd></div></DataFields>
         <Notice kind="error">속성 정의를 불러오지 못했습니다.</Notice>
         <Button variant="outline" onClick={() => setRetry((n) => n + 1)}>속성 정의 다시 조회</Button>
       </>

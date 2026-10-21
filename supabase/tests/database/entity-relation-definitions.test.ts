@@ -129,8 +129,6 @@ dbTest("in-use definition rejects kind changes, one shrink and deletion while ar
         await createEntity(entities, requestActor(a.actor), {
           entity_type_id: type.id,
           schema_version: 1,
-          source: "app",
-          identity_version: 1,
           properties: { prop_1: title },
         }),
       );

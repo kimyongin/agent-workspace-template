@@ -21,8 +21,6 @@ activityWorkspaceSuite(
     const created = await scopedHttp(A, workspace, "POST", "/entities", {
       entity_type_id: fixture.schema.entity_type_id,
       schema_version: fixture.schema.schema_version,
-      source: "app",
-      external_id: crypto.randomUUID(),
       properties: { prop_1: "현재 공개 범위 자료" },
     });
     assertEquals(created.status, 201);

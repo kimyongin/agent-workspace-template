@@ -1,3 +1,11 @@
+import { configureIdentifierField } from "./_entity.ts";
+import { encodeIdentifierValue } from "../../functions/_shared/contracts/entity-identifiers.ts";
+import { getEntitySchema } from "../../functions/_shared/core/entity-types/application.ts";
+import {
+  analyzeEntitySchemaChange,
+  applyEntitySchemaChange,
+  createEntitySchemaChange,
+} from "../../functions/_shared/core/entity-types/schema-changes.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { createEntity, deleteEntity, getEntity } from "../../functions/_shared/core/entity/application.ts";
 import { assertEquals, assertRejects } from "@std/assert";
@@ -13,11 +21,9 @@ import { createEntityType, getEntityType } from "../../functions/_shared/core/en
 import {
   createEntityIssuer,
   createIdentifierRule,
-  getEntityTypeIdentity,
   listEntityIssuers,
   listIdentifierRules,
   updateEntityIssuer,
-  updateEntityTypeIdentity,
   updateIdentifierRule,
 } from "../../functions/_shared/core/entity-issuers/application.ts";
 import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
@@ -29,110 +35,110 @@ function asSettings<T>(sql: postgres.Sql, actor: WorkspaceActor, fn: (tx: postgr
   }, fn);
 }
 dbTest(
-  "issuer registry: type defaults, rule reuse, workspace boundaries, disable and concurrent settings",
+  "issuer registry: field defaults, rule reuse, workspace boundaries, disable and concurrent settings",
   async () => {
     const admin = connect(urls.admin), sql = connect(urls.direct, { max: 3 });
     const a = await businessWorkspaceFixture(admin, sql), b = await businessWorkspaceFixture(admin, sql);
     const d = { uow: new SqlEntityIssuerUnitOfWork(sql) }, types = { uow: new SqlEntityTypeUnitOfWork(sql) };
     try {
-      const product = await createEntityType(types, requestActor(a.manager), { label: "상품" }),
-        order = await createEntityType(types, requestActor(a.manager), { label: "주문" });
+      const product = await createEntityType(types, requestActor(a.manager), { label: "상품" });
+      const order = await createEntityType(types, requestActor(a.manager), { label: "주문" });
       await a.grantKind(a.manager, product.id, "write");
       await a.grantKind(a.manager, order.id, "write");
-      const initial = await getEntityTypeIdentity(d, a.manager, product.id);
-      assertEquals(initial, {
-        type_id: product.id,
-        label: "번호",
-        default_source: "app",
-        version: 1,
-        sources: [{
-          code: "app",
-          rule_id: APP_IDENTIFIER_RULE_ID,
-          active: true,
-          referenced: false,
-          source_label: "앱",
-          rule_label: "자동 발급",
-          generation: "automatic",
-        }],
+      const initial = await getEntitySchema(types, a.manager, { type_id: product.id });
+      assertEquals(initial.schema.properties.prop_2["x-identifier"], {
+        allowed_kind_ids: [APP_IDENTIFIER_RULE_ID],
+        default_kind_id: APP_IDENTIFIER_RULE_ID,
       });
-      assertEquals((await getEntityType(types, a.manager, product.id)).identity, initial);
+      assertEquals(initial.identifier_kinds?.map((kind) => [kind.id, kind.source_label, kind.label, kind.generation]), [
+        [APP_IDENTIFIER_RULE_ID, "앱", "자동 발급", "automatic"],
+      ]);
+      assertEquals("identity" in await getEntityType(types, a.manager, product.id), false);
       const source = await createEntityIssuer(d, requestActor(a.manager), { code: "coupang", label: "쿠팡" });
-      const rule = await createIdentifierRule(d, requestActor(a.manager), "coupang", {
+      const rule = await createIdentifierRule(d, requestActor(a.manager), source.code, {
         label: "상품 ID",
         meaning: "쿠팡의 상품 한 등록 건",
       });
       assertEquals(rule.generation, "direct");
-      const sources = [...initial.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })), {
-        code: "coupang",
-        rule_id: rule.id,
-        active: true,
-      }];
-      const payload = { label: "상품 번호", default_source: "coupang", sources, expected_version: 1 };
-      const writer = requestActor(a.manager), saved = await updateEntityTypeIdentity(d, writer, product.id, payload);
-      assertEquals(await updateEntityTypeIdentity(d, writer, product.id, payload), saved);
-      await updateEntityTypeIdentity(d, requestActor(a.manager), order.id, { ...payload, label: "주문 번호" });
-      assertEquals((await listIdentifierRules(d, a.manager, "coupang")).items.map((r) => r.id), [rule.id]);
+      const settings = { allowed_kind_ids: [APP_IDENTIFIER_RULE_ID, rule.id], default_kind_id: rule.id };
+      await configureIdentifierField(sql, a.manager, product.id, settings);
+      await configureIdentifierField(sql, a.manager, order.id, settings);
+      assertEquals((await listIdentifierRules(d, a.manager, source.code)).items.map((rule) => rule.id), [rule.id]);
       assertEquals((await listEntityIssuers(d, b.manager)).items, []);
       assertEquals(
-        (await assertRejects(() => getEntityTypeIdentity(d, b.manager, product.id), AppError)).code,
+        (await assertRejects(() => getEntitySchema(types, b.manager, { type_id: product.id }), AppError)).code,
         "not_found",
       );
-      await assertRejects(() =>
-        asSettings(sql, b.manager, async (tx) => {
-          await tx`insert into app.entity_type_identity_sources(workspace_id,type_id,code,rule_id) values(${b.workspaceId},${product.id},'coupang',${rule.id})`;
-        })
-      );
-      assertEquals(
-        (await assertRejects(() => updateEntityTypeIdentity(d, requestActor(a.manager), product.id, payload), AppError))
-          .code,
-        "settings_changed",
-      );
+      await assertRejects(() => configureIdentifierField(sql, b.manager, product.id, settings), AppError);
+      // Definition edits now own identity settings and their one optimistic version.
+      const current = await getEntitySchema(types, a.manager, { type_id: product.id });
+      const payload = {
+        expected_schema_version: current.schema_version,
+        edits: [{
+          op: "update_property" as const,
+          key: "prop_2",
+          required: true,
+          field: { ...current.schema.properties.prop_2, title: "상품 번호" },
+        }],
+      };
+      const writer = requestActor(a.manager);
+      const draft = await createEntitySchemaChange(types, writer, product.id, payload);
+      assertEquals(await createEntitySchemaChange(types, writer, product.id, payload), draft);
+      const review = await analyzeEntitySchemaChange(types, requestActor(a.manager), product.id, draft.id, {
+        expected_change_version: draft.version,
+      });
       const races = await Promise.allSettled(
-        ["상품 번호 A", "상품 번호 B"].map((label) =>
-          updateEntityTypeIdentity(d, requestActor(a.manager), product.id, { ...payload, label, expected_version: 2 })
+        [1, 2].map(() =>
+          applyEntitySchemaChange(types, requestActor(a.manager), product.id, draft.id, {
+            expected_change_version: draft.version,
+            analysis_id: review.analysis_id,
+          })
         ),
       );
-      assertEquals(races.filter((r) => r.status === "fulfilled").length, 1);
+      assertEquals(
+        races.filter((result) => result.status === "fulfilled").length,
+        1,
+      );
       assertEquals(
         (await assertRejects(
-          () =>
-            updateEntityIssuer(d, requestActor(a.manager), "coupang", {
-              expected_version: source.version,
-              active: false,
-            }),
+          () => createEntitySchemaChange(types, requestActor(a.manager), product.id, payload),
           AppError,
         )).code,
-        "invalid_input",
+        "schema_changed",
       );
-      assertEquals(
-        (await assertRejects(
-          () => updateIdentifierRule(d, requestActor(a.manager), rule.id, { expected_version: 1, active: false }),
-          AppError,
-        ))
-          .code,
-        "invalid_input",
+      await assertRejects(() =>
+        updateEntityIssuer(d, requestActor(a.manager), source.code, {
+          expected_version: source.version,
+          active: false,
+        }), AppError);
+      await assertRejects(
+        () => updateIdentifierRule(d, requestActor(a.manager), rule.id, { expected_version: 1, active: false }),
+        AppError,
       );
-      const latest = await getEntityTypeIdentity(d, a.manager, product.id);
-      for (const [id, expected_version] of [[product.id, latest.version], [order.id, 2]] as const) {
-        await updateEntityTypeIdentity(d, requestActor(a.manager), id, {
-          ...payload,
-          default_source: "app",
-          sources: sources.map((s) => ({ ...s, active: s.code === "app" })),
-          expected_version,
-        });
+      for (const id of [product.id, order.id]) {
+        await configureIdentifierField(sql, a.manager, id, { ...settings, default_kind_id: APP_IDENTIFIER_RULE_ID });
       }
-      const beforeDisable = await getEntityTypeIdentity(d, a.manager, product.id);
-      await updateIdentifierRule(d, requestActor(a.manager), rule.id, { expected_version: 1, active: false });
-      assertEquals((await getEntityTypeIdentity(d, a.manager, product.id)).version, beforeDisable.version + 1);
+      const before = await getEntitySchema(types, a.manager, { type_id: product.id });
+      const stopRequest = requestActor(a.manager);
+      const stopped = await updateIdentifierRule(d, stopRequest, rule.id, { expected_version: 1, active: false });
       assertEquals(
-        (await getEntityTypeIdentity(d, a.manager, product.id)).sources.find((s) => s.code === "coupang")?.active,
+        await updateIdentifierRule(d, stopRequest, rule.id, { expected_version: 1, active: false }),
+        stopped,
+      );
+      const after = await getEntitySchema(types, a.manager, { type_id: product.id });
+      assertEquals(after.schema, before.schema, "registry stop never rewrites the published field definition");
+      assertEquals(
+        after.identifier_kinds?.find((kind) => kind.id === rule.id)?.active,
         false,
       );
-      await updateEntityIssuer(d, requestActor(a.manager), "coupang", {
+      await updateEntityIssuer(d, requestActor(a.manager), source.code, {
         expected_version: source.version,
         active: false,
       });
-      assertEquals((await listEntityIssuers(d, a.manager)).items.find((s) => s.code === "coupang")?.active, false);
+      assertEquals(
+        (await listEntityIssuers(d, a.manager)).items.find((source) => source.code === "coupang")?.active,
+        false,
+      );
     } finally {
       await a.cleanup();
       await b.cleanup();
@@ -142,8 +148,7 @@ dbTest(
   },
 );
 
-// Requires the integrated #428 entity creation contract; do not run against the old owner-wide settings contract.
-dbTest("issuer registry: deleted entities retain rule meaning and type-source mapping references", async () => {
+dbTest("issuer registry: deleted entities retain kind meaning and selected field references", async () => {
   const admin = connect(urls.admin), sql = connect(urls.direct);
   const a = await businessWorkspaceFixture(admin, sql);
   const d = { uow: new SqlEntityIssuerUnitOfWork(sql) },
@@ -161,86 +166,41 @@ dbTest("issuer registry: deleted entities retain rule meaning and type-source ma
       label: "판매자 번호",
       meaning: "판매자 상품 번호",
     });
-    const sources = [{ code: "app", rule_id: APP_IDENTIFIER_RULE_ID, active: true }, {
-      code: "coupang",
-      rule_id: rule.id,
-      active: true,
-    }];
-    const identity = await updateEntityTypeIdentity(d, requestActor(a.manager), type.id, {
-      label: "상품 번호",
-      default_source: "app",
-      expected_version: 1,
-      sources,
+    const settings = { allowed_kind_ids: [APP_IDENTIFIER_RULE_ID, rule.id], default_kind_id: APP_IDENTIFIER_RULE_ID };
+    const configured = await configureIdentifierField(sql, a.manager, type.id, settings);
+    const entity = await createEntity(entities, requestActor(a.manager), {
+      ...configured.schema,
+      properties: { prop_1: "운동화", prop_2: encodeIdentifierValue(rule.id, "00123") },
     });
-    const registration = {
-      entity_type_id: type.id,
-      schema_version: 1,
-      source: "coupang",
-      external_id: "00123",
-      identity_version: identity.version,
-      properties: { prop_1: "운동화" },
-    };
-    const entity = await createEntity(entities, requestActor(a.manager), registration);
     await deleteEntity(entities, requestActor(a.manager), entity.id, entity.version);
-    assertEquals(
-      (await assertRejects(
+    for (
+      const operation of [
         () => deleteIdentifierRule(d, requestActor(a.manager), rule.id, { expected_version: 1 }),
-        AppError,
-      )).code,
-      "invalid_input",
-    );
-    assertEquals(
-      (await assertRejects(
         () => deleteEntityIssuer(d, requestActor(a.manager), "coupang", { expected_version: 1 }),
-        AppError,
-      )).code,
-      "invalid_input",
-    );
-    assertEquals(
-      (await assertRejects(
         () =>
           updateIdentifierRule(d, requestActor(a.manager), rule.id, { meaning: "다른 번호 의미", expected_version: 1 }),
+      ]
+    ) assertEquals((await assertRejects(operation, AppError)).code, "invalid_input");
+    // Replacing/removing a retained kind from its selected field cannot reinterpret tombstones.
+    for (const allowed_kind_ids of [[APP_IDENTIFIER_RULE_ID, alternative.id], [APP_IDENTIFIER_RULE_ID]]) {
+      await assertRejects(
+        () => configureIdentifierField(sql, a.manager, type.id, { ...settings, allowed_kind_ids }),
         AppError,
-      )).code,
-      "invalid_input",
-    );
+      );
+    }
+    await updateIdentifierRule(d, requestActor(a.manager), rule.id, { expected_version: 1, active: false });
     assertEquals(
-      (await assertRejects(() =>
-        updateEntityTypeIdentity(d, requestActor(a.manager), type.id, {
-          label: "상품 번호",
-          default_source: "app",
-          expected_version: identity.version,
-          sources: [sources[0], { ...sources[1], rule_id: alternative.id }],
-        }), AppError)).code,
-      "invalid_input",
+      (await getEntitySchema(types, a.manager, { type_id: type.id })).identifier_kinds?.find((kind) =>
+        kind.id === rule.id
+      )?.active,
+      false,
     );
-    assertEquals(
-      (await assertRejects(() =>
-        updateEntityTypeIdentity(d, requestActor(a.manager), type.id, {
-          label: "상품 번호",
-          default_source: "app",
-          expected_version: identity.version,
-          sources: [sources[0]],
-        }), AppError)).code,
-      "invalid_input",
-    );
-    const disabled = await updateEntityTypeIdentity(d, requestActor(a.manager), type.id, {
-      label: "상품 번호",
-      default_source: "app",
-      expected_version: identity.version,
-      sources: sources.map((s) => ({ ...s, active: s.code === "app" })),
-    });
-    assertEquals(disabled.sources.find((s) => s.code === "coupang")?.active, false);
-    await updateIdentifierRule(d, requestActor(a.manager), rule.id, { label: "외부 상품 번호", expected_version: 1 });
+    await updateIdentifierRule(d, requestActor(a.manager), rule.id, { label: "외부 상품 번호", expected_version: 2 });
     await assertRejects(() =>
-      asSettings(sql, a.manager, async (tx) => {
-        await tx`update app.entity_identifier_rules set meaning='우회' where id=${rule.id}`;
-      })
+      asSettings(sql, a.manager, (tx) => tx`update app.entity_identifier_rules set meaning='우회' where id=${rule.id}`)
     );
     await assertRejects(() =>
-      asSettings(sql, a.manager, async (tx) => {
-        await tx`delete from app.entity_type_identity_sources where type_id=${type.id} and code='coupang'`;
-      })
+      asSettings(sql, a.manager, (tx) => tx`delete from app.entity_identifier_rules where id=${rule.id}`)
     );
   } finally {
     await a.cleanup();
@@ -271,30 +231,18 @@ dbTest(
         label: "상품 번호",
         meaning: "마켓 상품 번호",
       });
-      const identity = await getEntityTypeIdentity(issuers, own.manager, type.id);
-      await updateEntityTypeIdentity(issuers, requestActor(own.manager), type.id, {
-        label: "상품 번호",
-        default_source: "market",
-        expected_version: identity.version,
-        sources: [...identity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })), {
-          code: "market",
-          rule_id: rule.id,
-          active: true,
-        }],
+      const configured = await configureIdentifierField(sql, own.manager, type.id, {
+        allowed_kind_ids: [APP_IDENTIFIER_RULE_ID, rule.id],
+        default_kind_id: rule.id,
       });
       const entity = await createEntity(entities, requestActor(own.manager), {
-        entity_type_id: type.id,
-        schema_version: 1,
-        source: "market",
-        external_id: "001A:B",
-        properties: { prop_1: "상품" },
+        ...configured.schema,
+        properties: { prop_1: "상품", prop_2: encodeIdentifierValue(rule.id, "001A:B") },
       });
       await deleteEntity(entities, requestActor(own.manager), entity.id, entity.version);
       const tables = [
         "entity_issuers",
         "entity_identifier_rules",
-        "entity_type_identity",
-        "entity_type_identity_sources",
         "entity_types",
         "entities",
         "records",
@@ -370,16 +318,9 @@ dbTest("unused issuer cleanup preserves system, all linked kinds, workspace isol
       )).code,
       "invalid_input",
     );
-    const identity = await getEntityTypeIdentity(d, a.manager, type.id);
-    await updateEntityTypeIdentity(d, requestActor(a.manager), type.id, {
-      label: identity.label,
-      default_source: "app",
-      expected_version: identity.version,
-      sources: [...identity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })), {
-        code: source.code,
-        rule_id: rule.id,
-        active: false,
-      }],
+    await configureIdentifierField(sql, a.manager, type.id, {
+      allowed_kind_ids: [APP_IDENTIFIER_RULE_ID, rule.id],
+      default_kind_id: APP_IDENTIFIER_RULE_ID,
     });
     assertEquals(
       (await assertRejects(
@@ -391,28 +332,37 @@ dbTest("unused issuer cleanup preserves system, all linked kinds, workspace isol
     await assertRejects(() =>
       asSettings(sql, a.manager, (tx) => tx`delete from app.entity_identifier_rules where id=${rule.id}::uuid`)
     );
-    const linked = await getEntityTypeIdentity(d, a.manager, type.id);
-    await updateEntityTypeIdentity(d, requestActor(a.manager), type.id, {
-      label: linked.label,
-      default_source: "app",
-      expected_version: linked.version,
-      sources: linked.sources.filter((s) => s.code === "app").map(({ code, rule_id, active }) => ({
-        code,
-        rule_id,
-        active,
-      })),
+    await configureIdentifierField(sql, a.manager, type.id, {
+      allowed_kind_ids: [APP_IDENTIFIER_RULE_ID],
+      default_kind_id: APP_IDENTIFIER_RULE_ID,
+    });
+    // Historical definitions retain the original kind meaning even after the current field unlinks it.
+    assertEquals(
+      (await assertRejects(
+        () => deleteIdentifierRule(d, requestActor(a.manager), rule.id, { expected_version: 1 }),
+        AppError,
+      )).code,
+      "invalid_input",
+    );
+    const unusedSource = await createEntityIssuer(d, requestActor(a.manager), {
+      code: "never_linked",
+      label: "미사용",
+    });
+    const unusedRule = await createIdentifierRule(d, requestActor(a.manager), unusedSource.code, {
+      label: "미사용 번호",
+      meaning: "미사용 번호",
     });
     const writer = requestActor(a.manager);
-    assertEquals(await deleteIdentifierRule(d, writer, rule.id, { expected_version: 1 }), { deleted: true });
-    assertEquals(await deleteIdentifierRule(d, writer, rule.id, { expected_version: 1 }), { deleted: true });
-    assertEquals(await deleteEntityIssuer(d, requestActor(a.manager), source.code, { expected_version: 1 }), {
+    assertEquals(await deleteIdentifierRule(d, writer, unusedRule.id, { expected_version: 1 }), { deleted: true });
+    assertEquals(await deleteIdentifierRule(d, writer, unusedRule.id, { expected_version: 1 }), { deleted: true });
+    assertEquals(await deleteEntityIssuer(d, requestActor(a.manager), unusedSource.code, { expected_version: 1 }), {
       deleted: true,
     });
     await asSettings(sql, a.manager, async (tx) => {
       assertEquals((await tx`delete from app.entity_issuers where code='app' returning code`).length, 0);
       assertEquals((await tx`delete from app.entity_identifier_rules where source='app' returning id`).length, 0);
     });
-    assertEquals((await listEntityIssuers(d, a.manager)).items.map((i) => i.code), ["app"]);
+    assertEquals((await listEntityIssuers(d, a.manager)).items.map((i) => i.code), ["app", "unused"]);
   } finally {
     await a.cleanup();
     await b.cleanup();
