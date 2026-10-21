@@ -4,16 +4,21 @@ import { fixtures, form, go, linkedFixture } from "./support/workspace-screens.t
 import { entityKey, fixtureIdentity, fixtureSchema, id, stamp } from "./support/workspace-data.ts";
 
 for (const width of [390, 1440]) {
-  test(`entity title is shown once with readable properties at ${width}`, async ({ page }) => {
+  test(`computed entity title and ordinary properties remain readable at ${width}`, async ({ page }) => {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
-    const properties = form(page).getByRole("term").filter({ hasText: /^제목$/ }).first().locator("xpath=ancestor::section[1]");
-    await expect(properties.getByText("자료", { exact: true })).toHaveCount(1);
+    const titleProperty = form(page).getByRole("term").filter({ hasText: /^제목$/ });
+    await expect(titleProperty).toHaveCount(1);
+    const properties = titleProperty.locator("xpath=ancestor::section[1]");
+    const heading = properties.getByRole("heading", { name: "자료", exact: true });
+    await expect(heading).toHaveCount(1);
+    await expect(heading).toBeVisible();
+    await expect(titleProperty.locator("..").getByRole("definition")).toHaveText("자료");
     await expect(properties.locator("dt", { hasText: "제목" })).toHaveCount(1);
     await expect(properties.locator("dt", { hasText: "자료 종류" })).toHaveCount(0);
-    expect(await properties.getByRole("heading", { name: "자료", exact: true }).evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
-    await expect(properties.getByRole("heading", { name: "자료", exact: true })).toHaveCSS("font-weight", "600");
+    expect(await heading.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    await expect(heading).toHaveCSS("font-weight", "600");
     await expect(properties.locator("dd", { hasText: /^0$/ })).toHaveCount(1);
     expect(state.writes).toHaveLength(0);
   });
