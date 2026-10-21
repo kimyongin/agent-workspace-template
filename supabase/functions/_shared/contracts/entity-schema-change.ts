@@ -20,9 +20,6 @@ export const entityFieldInput = z.strictObject({
   examples: z.array(z.union([z.string(), z.number().finite(), z.boolean(), z.null()])).max(128).optional(),
   multipleOf: z.number().positive().finite().optional(),
   "x-order": z.number().int().positive(),
-  "x-list-order": z.number().int().positive().optional(),
-  "x-representative": z.boolean().optional(),
-  "x-show-in-list": z.boolean().optional(),
   "x-search-text": z.boolean().optional(),
   default: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]).optional(),
 });
@@ -52,6 +49,10 @@ export const entitySchemaEdit = z.discriminatedUnion("op", [
     op: z.literal("set_metadata"),
     title: z.string().trim().min(1).max(80).optional(),
     description: z.string().max(1000).nullable().optional(),
+    "x-title-template": z.string().refine(
+      (value) => Array.from(value).length <= 4096,
+      "제목 템플릿은 4096자 이하입니다",
+    ).optional(),
     "x-icon": z.enum(["box", "leaf", "package", "book", "tool", "star"]).optional(),
     deprecated: z.boolean().optional(),
   }),

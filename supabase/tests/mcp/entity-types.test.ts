@@ -12,7 +12,7 @@ activityWorkspaceSuite(
       (await scopedHttp(a, w, "GET", "/entity-type-icons")).body,
     );
     const key = crypto.randomUUID(),
-      input = { label: "隔離 test " + key, icon_id: "leaf", representative_label: "名前" };
+      input = { label: "隔離 test " + key, icon_id: "leaf", initial_property_label: "名前" };
     const created = await scopedHttp(a, w, "POST", "/entity-types", input, key);
     assertEquals(created.status, 201);
     const type = created.body;

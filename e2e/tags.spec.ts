@@ -260,7 +260,7 @@ test("#370 MCP 태그 생성·정정 뒤 유지한 웹 목록과 상세가 최�
     const type = await mcp.call("create_entity_type", {
       label: unique("태그 갱신 자료"),
       icon_id: "box",
-      representative_label: "제목",
+      initial_property_label: "제목",
     });
     await workspace.grantKind(type.id);
     await page.goto(fixtureEntityList(workspace.id, type.id));

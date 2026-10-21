@@ -1,4 +1,5 @@
 import { receiptChange, SqlDataModelStore } from "./data-model-store.ts";
+import { normalizeStoredEntityDefinition } from "../../core/entity-types/stored-definition.ts";
 import { effectiveEntityTemplates } from "../../contracts/record-template.ts";
 import { SqlSchemaMigrationStore } from "./schema-migration-store.ts";
 import { canonical, definitionFingerprint, schemaDefinitionDiff } from "../../core/entity-types/evolution.ts";
@@ -37,7 +38,11 @@ export class SqlDataModelGroupStore extends SqlDataModelStore {
       rows.map(async (r) => ({
         type_ref: String(r.type_ref),
         change: await store.getChange(r.type_id, r.change_id),
-        source: { schema: plan.source.entity_types.find((t) => t.schema["x-type-id"] === r.type_id)!.schema },
+        source: normalizeStoredEntityDefinition(
+          { schema: plan.source.entity_types.find((t) => t.schema["x-type-id"] === r.type_id)!.schema },
+          r.type_id,
+          Number(plan.source.entity_types.find((t) => t.schema["x-type-id"] === r.type_id)!.schema["x-version"]),
+        ),
         job: r.job_id ? await store.getMigration(r.job_id) : null,
       })),
     );

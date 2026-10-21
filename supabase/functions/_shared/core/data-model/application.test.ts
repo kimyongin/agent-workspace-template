@@ -274,3 +274,15 @@ Deno.test("whole model exchange retains selected text annotations on stable prop
   assertEquals(second.target.entity_types[0].schema.properties.prop_1.title, "새 이름");
   assertEquals(second.review.mapping.properties[imported.entity_types[0].ref].prop_1, "prop_1");
 });
+
+Deno.test("model copy remaps composed title variables with property keys while preserving literals", async () => {
+  const d = example();
+  const schema = d.entity_types[0].schema;
+  schema.properties = { prop_7: schema.properties.prop_1, prop_9: { type: "number", "x-order": 20 } };
+  schema.required = ["prop_7"];
+  schema["x-title-template"] = "$prop_9$ / ${prop_7$} $$";
+  const r = await previewDataModel(deps, actor, { mode: "copy", document: JSON.stringify(d) });
+  const copied = r.items.find((i) => i.ref === "ingredient")!.schema!;
+  assertEquals(copied["x-title-template"], "$prop_2$ / $prop_1$ $$");
+  assertEquals(Object.keys(copied.properties), ["prop_1", "prop_2"]);
+});

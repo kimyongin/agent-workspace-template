@@ -19,7 +19,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "list_entities",
       description:
-        "내 자료 목록. entity_type_id로 자료 종류를 선택한다. keyword는 대표 이름·발급처·식별자 부분 일치. sort는 updated_at 내림차순 또는 title 오름차순. Summary는 display_properties만 포함하며 편집 전 get_entity로 전체 properties를 읽는다. 커서는 같은 조건에만 사용.",
+        "내 자료 목록. entity_type_id로 자료 종류를 선택한다. keyword는 현재 템플릿 제목·발급처·식별자 부분 일치. sort는 updated_at 내림차순 또는 title 오름차순. 목록은 계산된 title을 포함하며 편집 전 get_entity로 전체 properties를 읽는다. 커서는 같은 조건에만 사용.",
       input: entityListQuery,
       readOnly: true,
       handler: (i, a) => entity.listEntities(d, a, parse(entityListQuery, i)),

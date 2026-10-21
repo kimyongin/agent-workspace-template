@@ -4,11 +4,11 @@
 
 ## 제한된 편집
 
-`POST /entity-types/:type_id/schema-changes`는 `expected_schema_version`, `edits`를 받는다. `PATCH .../:change_id`는 추가로 `expected_change_version`을 받는다. 편집은 `add_property(client_ref, field, required)`, `update_property(key, field, required)`, `archive_property(key)`, `restore_property(key)`, `remove_property(key)`, `set_metadata(title, description, x-icon, deprecated)`를 받는다. 필드 정의는 지원하는 평평한 JSON Schema 집합이며 키 변경·다른 종류로 이동·코드·URL 실행은 허용하지 않는다. 전체 문서 가져오기는 아래 미리보기·준비 경계에서 같은 제한 편집으로 해석한다.
+`POST /entity-types/:type_id/schema-changes`는 `expected_schema_version`, `edits`를 받는다. `PATCH .../:change_id`는 추가로 `expected_change_version`을 받는다. 편집은 `add_property(client_ref, field, required)`, `update_property(key, field, required)`, `archive_property(key)`, `restore_property(key)`, `remove_property(key)`, `set_metadata(title, description, x-title-template, x-icon, deprecated)`를 받는다. 필드 정의는 지원하는 평평한 JSON Schema 집합이며 키 변경·다른 종류로 이동·코드·URL 실행은 허용하지 않는다. 전체 문서 가져오기는 아래 미리보기·준비 경계에서 같은 제한 편집으로 해석한다.
 
 추가 속성의 키는 종류 행을 잠근 트랜잭션에서 서버가 영구 예약한다. 다른 종류는 같은 prop_n을 사용할 수 있다. 초안에서 추가를 빼도 예약 번호를 회수하지 않는다. 같은 요청 키와 같은 입력은 원래 예약을 반환하며 다른 입력은 충돌한다. 같은 내용의 PATCH는 변경 버전을 올리지 않는다. 실제 변경은 분석 참조를 무효화한다.
 
-보관은 정의와 저장값을 유지한다. 필수 속성을 보관하려면 같은 최종 정의에서 필수를 직접 해제해야 한다. 대표 이름은 항상 활성·필수·nullable이 아닌 일반 텍스트이며 공백만인 이름을 허용하지 않는다. 임시 편집 순서가 아니라 최종 정의를 검사한다. 선택 코드의 null은 nullable 타입과 oneOf의 const 양쪽에서 허용해야 입력할 수 있다. 날짜는 0001~9999년의 실제 Gregorian 날짜다.
+보관은 정의와 저장값을 유지한다. 필수 속성을 보관하려면 같은 최종 정의에서 필수를 직접 해제해야 한다. 제목 템플릿은 활성 속성만 참조하며 필수 여부·타입·nullable은 각 속성의 일반 제약을 따른다. 별도 대표 속성 제약은 두지 않는다. 임시 편집 순서가 아니라 최종 정의를 검사한다. 선택 코드의 null은 nullable 타입과 oneOf의 const 양쪽에서 허용해야 입력할 수 있다. 날짜는 0001~9999년의 실제 Gregorian 날짜다.
 
 ## 단일 정의 문서와 전체 모델 가져오기
 
@@ -16,7 +16,7 @@
 
 ## 정확한 정책과 분석
 
-초안은 해석된 target, 예약, fingerprint와 필드별 before/after·분류·이유·다음 행동을 반환한다. 라벨·설명·표시 순서·선택 속성 추가·필수 해제·제약 확대·선택 코드 추가는 호환 가능하다. 필수화·타입 변환·제약 축소·코드 제거·영구 삭제는 migration_required로 분류한다. 다만 복구안이 아니고 정확한 성공 분석의 전체 대상이 0개면 값 변환 작업 없이 정의만 게시할 수 있다. 정수→숫자는 이전 정수 범위가 제품 숫자 범위 ±10억 안에 있을 때만 호환 가능하다. 대표 이름 불변 조건이 일반 정책보다 우선한다.
+초안은 해석된 target, 예약, fingerprint와 필드별 before/after·분류·이유·다음 행동을 반환한다. 라벨·설명·표시 순서·선택 속성 추가·필수 해제·제약 확대·선택 코드 추가는 호환 가능하다. 필수화·타입 변환·제약 축소·코드 제거·영구 삭제는 migration_required로 분류한다. 다만 복구안이 아니고 정확한 성공 분석의 전체 대상이 0개면 값 변환 작업 없이 정의만 게시할 수 있다. 정수→숫자는 이전 정수 범위가 제품 숫자 범위 ±10억 안에 있을 때만 호환 가능하다. 제목에 사용한 속성의 보관·제거는 같은 최종 정의에서 제목 참조도 함께 수정해야 한다.
 
 `POST .../:change_id/analyze`는 `expected_change_version`과 요청 키를 받아 202로 `type_id/change_id/change_version/analysis_id/status: queued`를 반환한다. 정의·초안·기록 템플릿 버전과 삭제 상태를 포함한 전체 자료 집합·버전·값을 고정하여 durable 분석을 접수한다. 최대 2000개·8 MiB다. 대상이 0개인 일반 변경은 같은 잠금·트랜잭션에서 성공 분석과 ready를 기록한다. 202의 queued는 접수 응답이므로 완료 여부는 GET 정본을 확인한다. 나머지 내부 작업자는 50개씩 정의/값 validator를 한 번 컴파일하여 모든 결과를 검증한다. 분석은 제한된 변환 규칙을 적용한 별도 결과를 저장하며 활성 자료 값·정의를 바꾸지 않는다. 생성 기본값은 기존 자료에 채우지 않는다. 분석 상태는 queued/running/succeeded/failed, 변경 상태와 분석 상태는 별개다. succeeded의 failed 수가 양수면 실행할 수 없다.
 
@@ -26,9 +26,9 @@
 
 `POST .../:change_id/apply`는 `expected_change_version`, `analysis_id`, 요청 키를 받는다. 최신 성공 분석·실패 0·동일 소스와 membership·compatible 또는 복구가 아닌 정확한 대상 0개 여부를 같은 종류 잠금 아래 검사한다. 새 불변 정의를 삽입하고 종류의 현재 스키마 포인터를 원자적으로 올린다. 이름·아이콘·설명·보관 상태도 같은 문서의 새 게시 버전이며 별도 metadata 버전은 없다. 기존 자료의 저장값·저장 schema_version·데이터 version·과거 기록은 바꾸지 않는다. 이전 입력 폼은 schema_changed로 초안을 유지한다.
 
-목록/상세/새 연결 capture의 현재 라벨·대표 이름·표시 순서·목록 컬럼·보관 표시는 현재 정의를 사용한다. 저장 schema_version은 마지막 저장 정의의 이력으로 유지한다. 과거 기록의 당시 제목/본문은 다시 쓰지 않는다.
+목록·상세·검색·선택·연결은 현재 제목 템플릿을 계산한다. 펼친 속성의 순서·보관 표시는 현재 정의를 사용하고 제목에 사용한 속성도 키–값에 표시한다. 저장 schema_version은 마지막 저장 정의의 이력으로 유지한다. 과거 기록의 당시 제목/본문은 다시 쓰지 않는다.
 
-MCP는 `create/get/list/update/analyze/apply/discard_entity_schema_change`를 제공한다. create/update/analyze/apply/discard는 모두 request_key가 필요한 명시 쓰기다. 웹은 발급 전 추가 속성의 대표/목록/순서/선택 라벨도 같은 초안에서 편집한다. field의 x-order·x-representative·x-show-in-list·x-list-order·deprecated와 oneOf의 const/title로 표시 설정을 표현한다. migration.rules/overrides의 key는 같은 edits에 포함한 add_property의 `new_<client_ref>`를 참조할 수 있다. 서버가 이를 예약한 prop_n으로 해석한 target·migration만 저장하며, 추가가 없는 참조는 거절한다. 전송 결과가 불명확하면 동일 요청을 재확인하고, 완료 후 조회 실패는 게시 실패와 구분한다.
+MCP는 `create/get/list/update/analyze/apply/discard_entity_schema_change`를 제공한다. create/update/analyze/apply/discard는 모두 request_key가 필요한 명시 쓰기다. 웹은 제목 템플릿·발급 전 추가 속성의 순서·선택 라벨을 같은 초안에서 편집한다. 루트의 필수 x-title-template, field의 x-order·deprecated와 oneOf의 const/title로 표시 설정을 표현한다. migration.rules/overrides의 key는 같은 edits에 포함한 add_property의 `new_<client_ref>`를 참조할 수 있다. 서버가 이를 예약한 prop_n으로 해석한 target·migration만 저장하며, 추가가 없는 참조는 거절한다. 전송 결과가 불명확하면 동일 요청을 재확인하고, 완료 후 조회 실패는 게시 실패와 구분한다.
 
 자료 종류별 effective 기록 템플릿의 속성 참조가 target에서 존재하고 활성인지 검사한다. create/update/analyze/apply는 설정 잠금 아래 해당 타입의 effective 템플릿 SHA256을 비교한다. 다른 타입·할 일 템플릿 변경만으로 무관한 변경안을 stale로 만들지 않는다.
 
@@ -70,7 +70,7 @@ create/PATCH는 `migration: {rules, overrides}`를 받는다. fingerprint에는 
 
 `record_templates.entity_types[type_id][action]`은 해당 종류의 메모·기본 기록 태그를 저장한다. 종류에 설정하지 않은 행동 또는 null 메모는 고정 기본 문구를 사용한다. 기본 기록 태그는 메모와 독립적이다. 공통 entity 템플릿 설정은 지원하지 않는다. 새 속성 변수 `$엔터티.이후.prop_n$`는 선택한 종류의 활성 키에 결속한다. 설정 UI의 변수 선택과 메모 내부 토큰은 속성 라벨로 표시하고 토큰의 정본 값에는 고정 키를 유지한다. 표시 이름이 같거나 바뀌어도 연결 키를 역추측하지 않으며 API·MCP·저장 문법은 바꾸지 않는다. 명시 메모가 템플릿보다 우선하며 0/false/빈 문자열/null을 누락으로 자동 변환하지 않는다. 설정 섹션 version은 기존 독립 저장 계약을 유지한다.
 
-할 일의 선택적 참고 자료 문맥에는 당시 대표 제목·종류 ID/이름/아이콘·현재 schema_version을 보존하며 자료 종류의 현재 읽기 권한으로 표시한다. trusted 이전 문맥과 과거 본문은 이후 이름/속성 변경에도 다시 쓰지 않는다. 보관 타입에는 새 선택을 추가하지 않으며 기존 선택은 유지한다. 기록은 같은 워크스페이스의 자료 하나 또는 할 일 하나에 고정 소속되며 할 일의 참고 자료 문맥을 상속하지 않는다([ADR-0026](../adr/0026-workspace-membership-and-inherited-record-access.md)). 삭제 식별자를 처음 확인하여 복원할 때는 보관값·현재 버전을 확인하고 활성 속성을 준비하며 보관 속성은 생략하여 서버가 원래 값을 보존하게 한다. 태그는 내용 입력으로 제출하지 않고 기존 연결을 유지하며 별도 연결 명령으로 관리한다. 생성 후 자료 종류는 변경하지 않는다.
+할 일의 선택적 참고 자료 문맥에는 새 연결 당시의 제목·종류 정보·schema_version을 저장한다. 현재 읽기 DTO는 현재 읽기 권한이 있는 자료의 제목·종류·정의 버전을 계산하여 표시한다. 원래 저장한 문맥과 확정된 과거 기록 본문은 이름·속성 변경 뒤에도 다시 쓰지 않는다. 보관 타입에는 새 선택을 추가하지 않으며 기존 선택은 유지한다. 기록은 같은 워크스페이스의 자료 하나 또는 할 일 하나에 고정 소속되며 할 일의 참고 자료 문맥을 상속하지 않는다([ADR-0026](../adr/0026-workspace-membership-and-inherited-record-access.md)). 삭제 식별자를 처음 확인하여 복원할 때는 보관값·현재 버전을 확인하고 활성 속성을 준비하며 보관 속성은 생략하여 서버가 원래 값을 보존하게 한다. 태그는 내용 입력으로 제출하지 않고 기존 연결을 유지하며 별도 연결 명령으로 관리한다. 생성 후 자료 종류는 변경하지 않는다.
 
 
 ## durable 값 변환 작업
@@ -85,9 +85,9 @@ create/PATCH는 `migration: {rules, overrides}`를 받는다. fingerprint에는 
 
 전용 토큰이 없거나 틀리면 worker는 DB 연결 전에 거부한다. app_worker는 테이블 권한 없이 claim/stage/fail/commit RPC만 실행한다. claim은 최대 50행·원본+대상 512 KiB, preparation은 최대 50행·직렬화 결과 512 KiB·2초로 제한한다. lease는 90초이며 각 claim은 fence를 올린다. stage/fail/finalize 모두 살아 있는 같은 fence/lease만 받아 이전 worker를 막는다. lease 만료나 DB timeout은 failed 확정이 아니며 다음 worker가 같은 작업을 조정한다. statement timeout 15초와 lock timeout 5초를 유지한다.
 
-원본/대상·정의·effective 템플릿·관계/선택 baseline·기록 준비 자료 합계는 8 MiB, 전체 대상은 삭제 상태 포함 최대 2000개다. 값과 대표 이름은 공통 변환 validator로 다시 확인하고 변경 행의 메모/기록 태그·입력 해시는 일반 쓰기와 같은 공통 규칙으로 준비한다. 최종 단일 RPC 트랜잭션이 현재 pointer·모든 대상 properties/schema/data version·불변 정의·필요한 새 변경 기록과 색인 의도·성공 result·복구 baseline을 bulk SQL로 함께 확정한다. 엔터티 ID/종류와 pair 매핑, 과거 본문/캡처는 유지한다. 중간 rollback은 어느 적용 효과도 남기지 않는다. joined GET과 type FOR SHARE 목록은 전체 이전 또는 전체 새 epoch를 읽는다.
+원본/대상·정의·effective 템플릿·관계/선택 baseline·기록 준비 자료 합계는 8 MiB, 전체 대상은 삭제 상태 포함 최대 2000개다. 값의 일반 제약과 제목 템플릿 참조는 공통 validator로 다시 확인하고 변경 행의 메모/기록 태그·입력 해시는 일반 쓰기와 같은 공통 규칙으로 준비한다. 최종 단일 RPC 트랜잭션이 현재 pointer·모든 대상 properties/schema/data version·불변 정의·필요한 새 변경 기록과 색인 의도·성공 result·복구 baseline을 bulk SQL로 함께 확정한다. 엔터티 ID/종류와 pair 매핑, 과거 본문/캡처는 유지한다. 중간 rollback은 어느 적용 효과도 남기지 않는다. joined GET과 type FOR SHARE 목록은 전체 이전 또는 전체 새 epoch를 읽는다.
 
-성공 원본·원본 정의·source/committed membership와 pair/현재 할 일의 참고 자료 및 기록의 불변 단일 부모 구조는 성공 시점부터 30일간 해당 공간 범위에 보존한다. 실패 작업의 재시도 원본은 접수 시점부터 30일간 보존하며 만료 뒤 새 분석이 필요하다. task/record 본문 version이나 다른 종류 peer 속성 version을 복구 충돌로 저장하지 않는다. worker는 만료된 terminal 자료를 제한된 묶음으로 제거하며 만료된 원본 분석 페이지는 migration_source_expired/410이다. 성공 결과와 계획/작업 참조는 남는다. `POST /entity-schema-migrations/:job_id/recovery-changes` / `create_entity_schema_recovery`는 `expected_job_version`, 현재 `expected_schema_version`, 요청 키로 **새 draft만** 생성한다(HTTP 201). 서버가 보관한 같은 의미의 원래 prop_n과 원본 값만 사용하며 키 예약 번호를 회수하지 않는다. 현재 title/description/x-icon/deprecated와 menu ref, 기존 관계, 과거 본문/context는 유지한다. 현재 schema에서 나중에 추가한 속성은 유지하고 현재 템플릿 참조를 검사한다. recovery 출처·기한은 변경안에 표시한다. 원본 자료는 분석 행에 복사하여 정상 analyze/rows/start/jobs/cancel/retry 흐름으로 검증·미리보기·실행한다. 복구 초안의 임의 schema/값 편집은 지원하지 않으며 수동 보완은 현재 자료의 새 변경과 분석으로 준비한다.
+성공 원본·원본 정의·source/committed membership와 pair/현재 할 일의 참고 자료 및 기록의 불변 단일 부모 구조는 성공 시점부터 30일간 해당 공간 범위에 보존한다. 실패 작업의 재시도 원본은 접수 시점부터 30일간 보존하며 만료 뒤 새 분석이 필요하다. task/record 본문 version이나 다른 종류 peer 속성 version을 복구 충돌로 저장하지 않는다. worker는 만료된 terminal 자료를 제한된 묶음으로 제거하며 만료된 원본 분석 페이지는 migration_source_expired/410이다. 성공 결과와 계획/작업 참조는 남는다. `POST /entity-schema-migrations/:job_id/recovery-changes` / `create_entity_schema_recovery`는 `expected_job_version`, 현재 `expected_schema_version`, 요청 키로 **새 draft만** 생성한다(HTTP 201). 서버가 보관한 같은 의미의 원래 prop_n과 원본 값만 사용하며 키 예약 번호를 회수하지 않는다. 현재 title/description/x-title-template/x-icon/deprecated와 menu ref, 기존 관계, 과거 본문/context는 유지한다. 현재 schema에서 나중에 추가한 속성은 유지하고 현재 템플릿 참조를 검사한다. recovery 출처·기한은 변경안에 표시한다. 원본 자료는 분석 행에 복사하여 정상 analyze/rows/start/jobs/cancel/retry 흐름으로 검증·미리보기·실행한다. 복구 초안의 임의 schema/값 편집은 지원하지 않으며 수동 보완은 현재 자료의 새 변경과 분석으로 준비한다.
 
 job 상태/목록의 `recovery.status`는 available/expired/unavailable/conflict와 safe reason, 현재 schema version을 반환한다. GET은 정리를 실행하지 않는다. 기간이 지난 원본은 물리 자료가 남아 있어도 `migration_source_expired`/410이다. 원본이나 확정 baseline이 없는 경우 unavailable이다. 완료 시점의 committed membership·pair·할 일 참고 연결·기록 고정 부모 baseline을 생성→분석→start에서 다시 검사하고 최종 commit은 정상 source membership·references gate를 다시 검사한다. 값/tag/생성/삭제/복원/식별/연결/선택 변경은 최대 20개 자료 이유와 연결 이유를 반환해 자동 덮어쓰기를 거부한다. 본문만 수정하거나 다른 종류 peer의 속성/schema를 바꾸는 경우는 원본 복구 대상에 넣지 않는다. 현재 schema가 달라진 경우 현재 버전으로 **새 복구안과 새 분석**을 요청해야 한다.
 

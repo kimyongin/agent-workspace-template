@@ -142,11 +142,39 @@ Deno.test("bounded value recovery preserves the current archived root and newer 
 
 Deno.test("recovery retains later fields when their annotation orders collide with a restored field", async () => {
   const c = context(), run = usecase(c);
-  c.source.schema.properties.prop_2 = { type: "integer", "x-order": 20, "x-show-in-list": true };
-  c.current.schema.properties.prop_3 = { type: "string", "x-order": 20, "x-show-in-list": true };
+  c.source.schema.properties.prop_2 = { type: "integer", "x-order": 20 };
+  c.current.schema.properties.prop_3 = { type: "string", "x-order": 20 };
   c.committed_target = initialEntityDefinition("이름");
   await run.create();
   assertEquals(run.saved[0].target.schema.properties.prop_2["x-order"], 20);
   assertEquals(run.saved[0].target.schema.properties.prop_3["x-order"], 30);
-  assertEquals(run.saved[0].target.schema.properties.prop_3["x-show-in-list"], true);
+  assertEquals(run.saved[0].target.schema["x-title-template"], c.current.schema["x-title-template"]);
+});
+
+Deno.test("recovery preserves the current composed title and decodes legacy source properties without changing retained evidence", async () => {
+  const c = context(), run = usecase(c);
+  c.current.schema.properties.prop_3.deprecated = false;
+  c.current.schema["x-title-template"] = "$prop_3$ / $prop_1$";
+  delete (c.source.schema as Record<string, unknown>)["x-title-template"];
+  Object.assign(c.source.schema.properties.prop_1, {
+    "x-representative": true,
+    "x-show-in-list": true,
+    "x-list-order": 1,
+  });
+  const raw = structuredClone(c.source);
+  await run.create();
+  assertEquals(run.saved[0].target.schema["x-title-template"], "$prop_3$ / $prop_1$");
+  assertEquals(run.saved[0].target.schema.properties.prop_1, initialEntityDefinition("이름").schema.properties.prop_1);
+  assertEquals(c.source, raw);
+});
+
+Deno.test("recovery rejects a current title reference absent from restored properties before saving a proposal", async () => {
+  const c = context(), run = usecase(c);
+  c.current.schema.properties.prop_2 = { type: "string", "x-order": 20, title: "변환 후 항목" };
+  c.committed_target.schema.properties.prop_2 = c.current.schema.properties.prop_2;
+  c.current.schema["x-title-template"] = "$prop_2$";
+  const error = await assertRejects(run.create);
+  assertEquals((error as { code: string }).code, "invalid_input");
+  assertEquals((error as { fields: { path: string }[] }).fields[0].path, "schema.x-title-template");
+  assertEquals(run.saved, []);
 });

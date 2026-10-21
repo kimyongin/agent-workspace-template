@@ -15,7 +15,7 @@ type Page = { items: EntitySummary[]; next_cursor: string | null };
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 
 activityWorkspaceSuite(
-  "large typed pages actual HTTP/OAuth SDK preserve schema and near-64KiB properties default20/max100 and long cursors",
+  "large typed detail values survive HTTP/OAuth SDK while title-only default20/max100 summaries stay bounded",
   async ({ A: token, B: foreign, workspaceA: w, workspaceB: otherW, clientA: client }) => {
     assert(client);
     const run = crypto.randomUUID(), entities: string[] = [];
@@ -76,7 +76,7 @@ activityWorkspaceSuite(
       { id: string; schema_version: number }
     >(token, w, "POST", "/entity-types", {
       label: `large351 ${run}`,
-      representative_label: "이름",
+      initial_property_label: "이름",
       icon_id: "leaf",
     }, key());
     assertEquals(created.status, 201);
@@ -93,7 +93,6 @@ activityWorkspaceSuite(
             field: {
               type: "string",
               "x-order": (n + 2) * 10,
-              "x-show-in-list": n < 6,
               description: "뜻".repeat(n === 21 ? 100 : 1000),
             },
             required: false,
@@ -242,7 +241,8 @@ activityWorkspaceSuite(
     const assertPage = (page: Page, count: number) => {
       assertEquals(page.items.length, count);
       for (const item of page.items) {
-        assertEquals(item.display_properties, properties);
+        assertEquals(item.title, properties.prop_1);
+        assertEquals("display_properties" in item, false);
         assertEquals("properties" in item, false);
         assertEquals(item.entity_type_id, typeId);
       }
@@ -255,9 +255,8 @@ activityWorkspaceSuite(
       assertPage(mcp.body, limit ?? 20);
       assertEquals(mcp.body, http.body);
       assertEquals((await httpPage(query, true)).body, http.body);
-      assert(http.bytes > 1048576);
-      assert(mcp.bytes > 1048576);
-      if (limit === 100) assert(mcp.bytes > 12 * 1024 * 1024);
+      assert(http.bytes < 1048576);
+      assert(mcp.bytes < 1048576);
       evidence[`http_${limit ?? 20}_bytes`] = http.bytes;
       evidence[`sdk_${limit ?? 20}_bytes`] = mcp.bytes;
     }

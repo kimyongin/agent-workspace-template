@@ -83,6 +83,7 @@ it("신규 종류 검토는 실제 속성과 번호 설정 및 파일과 현재 
           kind: "new",
           diff: [],
           schema: {
+ "x-title-template": "$prop_1$",
             $schema: "https://json-schema.org/draft/2020-12/schema",
             type: "object",
             "x-type-id": "10000000-0000-4000-8000-000000000001",
@@ -94,7 +95,7 @@ it("신규 종류 검토는 실제 속성과 번호 설정 및 파일과 현재 
                 type: "string",
                 title: "판매상품명",
                 "x-order": 1,
-                "x-representative": true,
+
                 default: "기본상품",
               },
             },

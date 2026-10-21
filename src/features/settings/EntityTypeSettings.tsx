@@ -66,7 +66,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   useEffect(() => {
     definitions.selectJob(selectedJob);
   }, [definitions, selectedJob]);
-  const [representative, setRepresentative] = useState("이름");
+  const [initialPropertyLabel, setInitialPropertyLabel] = useState("이름");
   const [jobState, setJobState] = useState({ dirty: false, busy: false, uncertain: false, error: false });
   const jobStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain?: boolean; error?: boolean }) =>
@@ -113,7 +113,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       mounted.current = false;
     };
   }, []);
-  const dirty = type_id ? basicDirty : label !== "" || icon !== "box" || representative !== "이름";
+  const dirty = type_id ? basicDirty : label !== "" || icon !== "box" || initialPropertyLabel !== "이름";
   const protectedDraft = dirty || busy || uncertain || identityState.dirty || identityState.uncertain ||
     identityState.busy ||
     schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
@@ -191,7 +191,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     const current = {
       method: type_id ? "PATCH" : "POST",
       path: type_id ? `/entity-types/${type_id}` : "/entity-types",
-      input: type_id ? definitions.basicSaveInput() : { label, icon_id: icon, representative_label: representative },
+      input: type_id ? definitions.basicSaveInput() : { label, icon_id: icon, initial_property_label: initialPropertyLabel },
     };
     try {
       const saved = await attempt.run(() =>
@@ -209,7 +209,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         definitions.acceptBasicSave(saved);
       } else {
         definitions.cancelBasics();
-        setRepresentative("이름");
+        setInitialPropertyLabel("이름");
       }
       setMessage("자료 종류를 저장했습니다.");
       if (type_id) {
@@ -244,7 +244,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     setError("");
     setMessage("");
     definitions.cancelBasics();
-    setRepresentative("이름");
+    setInitialPropertyLabel("이름");
   };
 
   // The router may expose destination params while the previous editor is still mounted.
@@ -380,15 +380,15 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 </ToggleGroup>
               </FieldSet>
               {!type_id && (
-                <Field label="대표 입력 항목 이름">
+                <Field label="첫 항목 이름">
                   {(props) => (
                     <Input
                       {...props}
 
                       required
                       maxLength={80}
-                      value={representative}
-                      onChange={(e) => setRepresentative(e.target.value)}
+                      value={initialPropertyLabel}
+                      onChange={(e) => setInitialPropertyLabel(e.target.value)}
                     />
                   )}
                 </Field>

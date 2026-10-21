@@ -1,15 +1,10 @@
 import { ownedWorkspace, workspacePath } from "./support.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { expect } from "@playwright/test";
-import {
-  devLogin,
-  mcpClient,
-  mcpTokenViaConsent,
-  test,
-  unique,
-} from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 import { analyzeAndApply } from "./entity-schema-support.ts";
 import { openTabFilters } from "./ui-actions.ts";
+import type { EntityContext } from "../supabase/functions/_shared/contracts/entity-links.ts";
 test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를 사용하며 과거 사실을 보존한다", async ({ page }) => {
   await devLogin(page);
   const workspace = await ownedWorkspace(page);
@@ -22,12 +17,12 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
   try {
     const type = await mcp.call("create_entity_type", {
       label: unique("조회 자료"),
-      representative_label: "품명",
+      initial_property_label: "품명",
     });
     await workspace.grantKind(type.id);
     const other = await mcp.call("create_entity_type", {
       label: unique("별도 자료"),
-      representative_label: "이름",
+      initial_property_label: "이름",
     });
     await workspace.grantKind(other.id);
     const additions = [
@@ -70,7 +65,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       expected_change_version: change.version,
       edits: additions.map((edit) => ({
         ...edit,
-        field: { ...edit.field, "x-show-in-list": edit.client_ref !== "day" },
+        field: { ...edit.field },
       })),
     });
     await analyzeAndApply(mcp, type.id, change.id, change.version);
@@ -110,9 +105,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       body: "過去の本文",
     });
     expect(
-      task.entity_context.find((context: { id: string }) =>
-        context.id === first.id
-      ).type.label,
+      task.entity_context.find((context: { id: string }) => context.id === first.id).type.label,
     ).toBe(type.label);
     await page.goto(
       workspacePath(
@@ -120,7 +113,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
         `/entities?entity_type_id=${type.id}&view=table`,
       ),
     );
-    await expect(page.getByRole("columnheader", { name: "수량", exact: true }))
+    await expect(page.getByRole("columnheader", { name: "제목", exact: true }))
       .toBeVisible();
     await openTabFilters(page);
     await page.getByRole("button", { name: "속성 조건 추가", exact: true })
@@ -173,9 +166,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       record_kind: "change",
     });
     expect(
-      logs.items.some((value: { body: string }) =>
-        value.body === "値 0 / false"
-      ),
+      logs.items.some((value: { body: string }) => value.body === "値 0 / false"),
     ).toBe(true);
     const current = await mcp.call("get_entity_type", { type_id: type.id }),
       schema = await mcp.call("get_entity_schema", { type_id: type.id });
@@ -201,7 +192,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       ),
     );
     await expect(
-      page.getByRole("columnheader", { name: "현재 수량", exact: true }),
+      page.getByRole("columnheader", { name: "제목", exact: true }),
     ).toBeVisible();
     const historical = await mcp.call("get_record", { id: record.id }),
       priorTask = await mcp.call("get_task", { id: task.id });
@@ -210,7 +201,13 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
     expect(historical.entity_id).toBeNull();
     expect(historical).not.toHaveProperty("entity_context");
     expect(historical).not.toHaveProperty("entity_ids");
-    expect(priorTask.entity_context).toEqual(task.entity_context);
+    // Current references use the current definition; capture time/source/identity stay exact.
+    expect(priorTask.entity_context).toEqual(
+      task.entity_context.map((capture: EntityContext) =>
+        capture.type?.id === type.id ? { ...capture, schema_version: 3 } : capture
+      ),
+    );
+    expect(task.entity_context.find((capture: EntityContext) => capture.id === first.id).schema_version).toBe(2);
     expect((await mcp.call("get_entity", { id: separate.id })).schema_version)
       .toBe(1);
   } finally {

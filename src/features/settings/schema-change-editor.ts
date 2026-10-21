@@ -1,3 +1,4 @@
+import { effectiveEntityTitleTemplate, entityTitleTemplateIssues, remapEntityTitleTemplate } from "@contracts/entity-title-template.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -38,7 +39,7 @@ function draftFingerprint(value: unknown): string {
         Object.entries(item)
           .filter(([name, value]) =>
             value !== undefined &&
-            !(value === false && ["deprecated", "readOnly", "x-representative", "x-show-in-list", "x-search-text"].includes(name))
+            !(value === false && ["deprecated", "readOnly", "x-search-text"].includes(name))
           )
           .sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => [name, normalize(value, name)]),
       );
@@ -195,6 +196,9 @@ export function useSchemaChangeEditor(
         next.schema.required = [...next.schema.required.filter((value) => value !== key), ...(local ? [key] : [])];
       }
     }
+    if (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(saved.schema)) {
+      next.schema["x-title-template"] = effectiveEntityTitleTemplate(draft.schema);
+    }
     const migrationEdited =
       draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] });
     setPlan(null);
@@ -286,7 +290,7 @@ export function useSchemaChangeEditor(
   ) => {
     setNumericDrafts((values) => ({ ...values, [key + ":" + name]: raw }));
   };
-  const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) =>
+  const flag = (key: string, name: "required" | "archived", value: boolean) =>
     setDraft((d) => {
       if (name === "required") {
         return {
@@ -311,7 +315,7 @@ export function useSchemaChangeEditor(
             ...d.schema.properties,
             [key]: {
               ...d.schema.properties[key],
-              [name === "archived" ? "deprecated" : "x-show-in-list"]: value,
+              deprecated: value,
               ...(name === "archived" && value ? { "x-search-text": false } : {}),
             },
           },
@@ -320,6 +324,12 @@ export function useSchemaChangeEditor(
     });
   const edits = (draft: SchemaDefinition): SchemaEdit[] => {
     const result: SchemaEdit[] = [];
+    if (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(definition.schema)) {
+      result.push({ op: "set_metadata", "x-title-template": remapEntityTitleTemplate(
+        effectiveEntityTitleTemplate(draft.schema),
+        (key) => refs[key] ? `new_${refs[key]}` : key,
+      ) });
+    }
     for (const [key, field] of Object.entries(draft.schema.properties)) {
       const required = draft.schema.required.includes(key);
       if (refs[key]) {
@@ -337,6 +347,11 @@ export function useSchemaChangeEditor(
     return result;
   };
   const validateFields = () => {
+    const titleIssues = entityTitleTemplateIssues(effectiveEntityTitleTemplate(draft.schema), draft.schema);
+    if (titleIssues.length) {
+      setError(titleIssues.map((issue) => issue.reason).join(" · "));
+      return false;
+    }
     for (const key of schemaPresentation(draft).order) {
       let condition: string | undefined;
       try {
@@ -611,16 +626,15 @@ export function useSchemaChangeEditor(
       return values;
     });
   };
-  const editFlag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) => {
+  const editFlag = (key: string, name: "required" | "archived", value: boolean) => {
     if (editable() && !plan?.recovery) flag(key, name, value);
   };
   const setFieldInactive = (key: string, value: boolean) => {
     if (
-      !editable() || plan?.recovery || key === schemaPresentation(draft).representative
+      !editable() || plan?.recovery
     ) return;
     if (value) {
       flag(key, "required", false);
-      flag(key, "list_columns", false);
     }
     flag(key, "archived", value);
   };
@@ -642,20 +656,6 @@ export function useSchemaChangeEditor(
       },
     }));
   };
-  const chooseRepresentative = (key: string) => {
-    if (editable() && !plan?.recovery) {
-      setDraft((d) => ({
-        ...d,
-        schema: {
-          ...d.schema,
-          properties: Object.fromEntries(
-            Object.entries(d.schema.properties)
-              .map(([name, field]) => [name, { ...field, "x-representative": name === key }]),
-          ),
-        },
-      }));
-    }
-  };
   const removeField = (key: string) => {
     if (!editable() || plan?.recovery) return;
     if (definition.schema.properties[key] && draft.schema.properties[key]) {
@@ -676,8 +676,6 @@ export function useSchemaChangeEditor(
     setDraft(d => {
       const order = fieldOrder.filter(name => name === key || d.schema.properties[name]);
       const restored = structuredClone(removed.field);
-      // Restoring a formerly representative field must preserve the current name selection.
-      if (restored["x-representative"]) restored["x-representative"] = false;
       const properties = { ...d.schema.properties, [key]: restored };
       return { ...d, schema: { ...d.schema,
         properties: Object.fromEntries(order.map(name => [name, { ...properties[name], "x-order": (fieldOrder.indexOf(name) + 1) * 10 }])),
@@ -818,6 +816,7 @@ export function useSchemaChangeEditor(
   const fieldOrder = [...schemaPresentation(draft).order];
   for (const removed of [...removedFields].sort((a, b) => a.index - b.index)) fieldOrder.splice(Math.min(removed.index, fieldOrder.length), 0, removed.key);
   const changeCount = changedFields.length +
+    (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(saved.schema) ? 1 : 0) +
     Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
     (draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
   const startMigration = async () => {
@@ -904,13 +903,15 @@ export function useSchemaChangeEditor(
       migrationEdited:
         draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }),
     },
+    editTitleTemplate: (value: string) => {
+      if (editable() && !plan?.recovery) setDraft((draft) => ({ ...draft, schema: { ...draft.schema, "x-title-template": value } }));
+    },
     editField,
     editNumeric,
     removeNumericInput,
     editFlag,
     setFieldInactive,
     editOptionLabel,
-    chooseRepresentative,
     removeField,
     restoreField,
     addField,

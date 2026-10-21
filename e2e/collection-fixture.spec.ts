@@ -1,3 +1,4 @@
+import { disclosureContent } from "./table-actions.ts";
 import type { RecordResult } from "../supabase/functions/_shared/contracts/record.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { openMainNavigation } from "./ui-actions.ts";
@@ -376,14 +377,14 @@ for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read 
   expect(state.writes).toEqual([]);
 });
 
-test("selected entity fields stay identical in every layout and expansion without repeating its name", async ({page}, info) => {
+test("entity titles stay consistent and all expanded attributes retain their keys", async ({page}, info) => {
   const state=await fixture(page);
   const schema=structuredClone(fixtureSchema);
   schema.schema.properties.prop_1.title="품명";
-  schema.schema.properties.prop_2["x-show-in-list"]=true;
-  schema.schema.properties.prop_3["x-show-in-list"]=false;
-  schema.schema.properties.prop_4={type:"boolean",title:"검사", "x-order":40,"x-show-in-list":true};
-  const selected={...entity,properties:{prop_1:"선택 자료",prop_2:0,prop_3:"숨긴 날짜",prop_4:false},display_properties:{prop_1:"선택 자료",prop_2:0,prop_4:false},title:"선택 자료"};
+
+
+  schema.schema.properties.prop_4={type:"boolean",title:"검사", "x-order":40};
+  const selected={...entity,properties:{prop_1:"선택 자료",prop_2:0,prop_3:"숨긴 날짜",prop_4:false},title:"선택 자료"};
   state.rows.entities.splice(0,state.rows.entities.length,selected);
   Object.assign(state.rows.tasks[0], {
     entity_ids: [selected.id],
@@ -400,9 +401,9 @@ test("selected entity fields stay identical in every layout and expansion withou
       : collection.getByRole("listitem").first();
     await expect(row).toHaveCount(1);
     await expect(row.getByRole("button",{name:selected.title,exact:true})).toBeVisible();
-    if(view !== "테이블")await expect(row.getByText("품명",{exact:true})).toBeVisible();
-    await expect(row.getByText("0",{exact:true})).toBeVisible();
-    await expect(row.getByText("거짓",{exact:true})).toBeVisible();
+    if(view !== "테이블")await expect(row.getByText("제목",{exact:true})).toBeVisible();
+    await expect(row.getByText("0",{exact:true})).toHaveCount(0);
+    await expect(row.getByText("거짓",{exact:true})).toHaveCount(0);
     const toggle = row.getByRole("button", { name: selected.title, exact: true });
     await toggle.click();
     const panelId = await toggle.getAttribute("aria-controls");
@@ -411,8 +412,8 @@ test("selected entity fields stay identical in every layout and expansion withou
     await expect(preview).toBeVisible();
     const expanded = view === "테이블" ? row.or(preview) : row;
     await expect(expanded.getByRole("link",{name:`${selected.title} 상세`,exact:true})).toBeVisible();
-    await expect(expanded.getByText("숨긴 날짜",{exact:true})).toHaveCount(0);
-    await expect(expanded.getByText(selected.title,{exact:true})).toHaveCount(1);
+    await expect(preview.getByText("숨긴 날짜",{exact:true})).toBeVisible();
+    await expect(preview.getByRole("term").filter({ hasText: /^품명$/ }).locator("..").getByRole("definition")).toHaveText(selected.title);
     await expect(expanded.getByText("0",{exact:true})).toHaveCount(1);
     await page.screenshot({path:info.outputPath(`selected-${view}.png`),fullPage:true});
     await row.getByRole("button",{name:selected.title,exact:true}).click();
@@ -424,13 +425,9 @@ test("selected entity fields stay identical in every layout and expansion withou
     const toggle = related.getByRole("button", { name: selected.title, exact: true });
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    // visual-spec.md:45: table headers are keys; card entries carry their own labels.
-    if (view === "테이블") {
-      await expect(related.getByRole("columnheader", { name: "자료 이름", exact: true })).toHaveText("자료 이름");
-      await expect(related.getByText("품명", { exact: true })).toHaveCount(0);
-    } else await expect(related.getByText("품명", { exact: true })).toBeVisible();
-    await expect(related.getByText(selected.title, { exact: true })).toHaveCount(1);
-    await expect(related.getByText("숨긴 날짜", { exact: true })).toHaveCount(0);
+    const preview = await disclosureContent(page, toggle);
+    await expect(preview.getByRole("term").filter({ hasText: /^품명$/ }).locator("..").getByRole("definition")).toHaveText(selected.title);
+    await expect(preview.getByText("숨긴 날짜", { exact: true })).toBeVisible();
     await expect(related.getByText("0", { exact: true })).toBeVisible();
     await expect(related.getByText("0", { exact: true })).toHaveCount(1);
     await expect(related.getByText("거짓", { exact: true })).toBeVisible();
@@ -538,21 +535,23 @@ test("business tables: legacy list URLs keep context and disclosure columns stay
 });
 
 
-test("business tables: selected values reflow without horizontal scrolling at width and scale changes", async ({ page }, info) => {
+test("business tables: expanded attribute values reflow without horizontal scrolling at width and scale changes", async ({ page }, info) => {
   const state = await fixture(page);
   const schema = structuredClone(fixtureSchema);
-  for (const key of ["prop_2", "prop_3", "prop_4"]) schema.schema.properties[key]["x-show-in-list"] = true;
-  schema.schema.properties.prop_5 = { type: "boolean", title: "확인 상태를 나타내는 긴 라벨", "x-order": 50, "x-show-in-list": true };
+
+  schema.schema.properties.prop_5 = { type: "boolean", title: "확인 상태를 나타내는 긴 라벨", "x-order": 50};
   await page.route("**/api/entity-types/*/schema**", route => route.fulfill({ json: schema }));
-  state.rows.entities[0].display_properties = { prop_1: entity.title, prop_2: 240000, prop_3: "2026-10-08", prop_4: "a", prop_5: false };
+  Object.assign(state.rows.entities[0].properties, { prop_2: 240000, prop_3: "2026-10-08", prop_5: false });
   await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   const table = page.getByRole("table", { name: "검사 자료 목록", exact: true });
   const title = table.getByRole("link", { name: `${entity.title} 상세`, exact: true });
   const row = table.getByRole("row").filter({ has: page.getByRole("button", { name: entity.title, exact: true }) });
-  await expect(row.getByText("240,000", { exact: true })).toBeVisible();
-  await expect(row.getByText("거짓", { exact: true })).toBeVisible();
-  await expect(row.getByText("2026-10-08", { exact: true })).toBeVisible();
   const toggle = row.getByRole("button", { name: entity.title, exact: true });
+  await toggle.click();
+  const preview = await disclosureContent(page, toggle);
+  await expect(preview.getByText("240,000", { exact: true })).toBeVisible();
+  await expect(preview.getByText("거짓", { exact: true })).toBeVisible();
+  await expect(preview.getByText("2026-10-08", { exact: true })).toBeVisible();
   await toggle.focus();
   for (const [width, scale] of [[1440, 100], [390, 100], [320, 100], [390, 200]]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -560,16 +559,14 @@ test("business tables: selected values reflow without horizontal scrolling at wi
     await expect(toggle).toBeFocused();await expect(title).toBeVisible();
     await expect.poll(() => table.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-    if (width < 1440) {
-      const axes = await row.evaluate(el => [...el.querySelectorAll("td")].slice(2).map(cell => ({label:cell.querySelector("span")!.getBoundingClientRect().x,value:cell.querySelector("div")!.getBoundingClientRect().x})));
-      expect(axes.every(axis => Math.abs(axis.label - axes[0].label) < 1)).toBe(true);
-      expect(axes.every(axis => Math.abs(axis.value - axes[0].value) < 1)).toBe(true);
-      await expect(row.getByText("확인 상태를 나타내는 긴 라벨", { exact: true })).toBeVisible();
-    }
+    await expect(preview.getByRole("term").filter({ hasText: /^확인 상태를 나타내는 긴 라벨$/ })).toBeVisible();
+    expect(await preview.evaluate(el => [...el.querySelectorAll("dt,dd")].every(cell => {
+      const box=cell.getBoundingClientRect(); return box.x >= 0 && box.right <= innerWidth + 1;
+    }))).toBe(true);
     await table.scrollIntoViewIfNeeded();
     await page.screenshot({ path: info.outputPath(`business-values-${width}-font${scale}.png`) });
   }
-  expect(state.reads.filter(url => new URL(url).pathname === "/api/entities/" + encodeURIComponent(entity.id))).toHaveLength(0);
+  expect(state.reads.filter(url => new URL(url).pathname === "/api/entities/" + encodeURIComponent(entity.id))).toHaveLength(1);
   expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
 });
 
@@ -592,22 +589,26 @@ test("business tables: search results retain snippets and return context at narr
 });
 
 
-test("business tables: many selected columns keep dates readable and never omit values", async ({ page }) => {
+test("business tables: many expanded attributes keep dates readable and never omit values", async ({ page }) => {
   const state = await fixture(page);
   const schema = structuredClone(fixtureSchema);
   const projected: Record<string, string> = { prop_1: entity.title };
   for (let n=2;n<=15;n++) {
-    schema.schema.properties[`prop_${n}`] = { type:"string",format:"date",title:`날짜 ${n}`,"x-order":n*10,"x-show-in-list":true };
+    schema.schema.properties[`prop_${n}`] = { type:"string",format:"date",title:`날짜 ${n}`,"x-order":n*10};
     projected[`prop_${n}`] = `2026-10-${String(n).padStart(2,"0")}`;
   }
-  state.rows.entities[0].display_properties = projected;
+
+  state.rows.entities[0].properties = projected;
   await page.route("**/api/entity-types/*/schema**", route=>route.fulfill({json:schema}));
   await page.setViewportSize({width:1440,height:1000});await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   const row = page.getByRole("row").filter({has:page.getByRole("button",{name:entity.title,exact:true})});
-  await expect(row.getByRole("cell")).toHaveCount(16);
-  const date = row.getByText("2026-10-02",{exact:true});await expect(date).toBeVisible();
+  await expect(row.getByRole("cell")).toHaveCount(2);
+  const toggle = row.getByRole("button", {name:entity.title,exact:true});
+  await toggle.click();
+  const preview = await disclosureContent(page, toggle);
+  const date = preview.getByText("2026-10-02",{exact:true});await expect(date).toBeVisible();
   expect(await date.evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return range.getClientRects().length;})).toBe(1);
-  for(let n=2;n<=15;n++)await expect(row.getByText(projected[`prop_${n}`],{exact:true})).toBeVisible();
+  for(let n=2;n<=15;n++)await expect(preview.getByText(projected[`prop_${n}`],{exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
 });

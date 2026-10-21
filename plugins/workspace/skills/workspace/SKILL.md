@@ -30,7 +30,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 ## 검색이 불완전할 때
 
-자료의 대표 이름·종류·태그로 직접 찾을 때는 `list_entities`의 `entity_type_id`·대표 이름 `keyword`·태그로 찾는다. 현재 목록은 `updated_at` 또는 `title` 정렬을 제공하며 속성 조건의 지원 여부는 도구의 실제 입력 계약에서 확인한다. 특정 대상의 할 일·기록에는 `entity_id` 범위를 사용한다. 태그나 검색 방법을 지정받지 않아도 요청의 핵심 이름·조건으로 탐색한다.
+자료의 현재 제목·종류·태그로 직접 찾을 때는 `list_entities`의 `entity_type_id`·제목 `keyword`·태그로 찾는다. 현재 목록은 `updated_at` 또는 `title` 정렬을 제공하며 속성 조건의 지원 여부는 도구의 실제 입력 계약에서 확인한다. 특정 대상의 할 일·기록에는 `entity_id` 범위를 사용한다. 태그나 검색 방법을 지정받지 않아도 요청의 핵심 이름·조건으로 탐색한다.
 
 `search`는 현재 공간과 현재 읽기 권한에 속하는 자료·할 일·기록을 찾는다. 자료는 게시된 종류 정의에서 `x-search-text:true`로 선택한 텍스트 항목의 현재 값·라벨을, 기록은 당시 본문을 의미 검색하며 같은 원본의 구간 결과를 하나로 합친다. 할 일은 제목·본문 키워드로 검색한다. 선택하지 않은 자료 속성은 해당 목록·원문에서 확인한다. 검색 설정 변경은 요청받은 경우에만 종류 정의의 변경 절차로 수행한다. 결과의 `kind`·`path`로 원본을 구분하고 `get_entity`·`get_record`·`get_task`로 현재 원문을 읽는다. 표시 title·snippet·구간 위치는 파생 검색값이며 전체 원문을 대신하지 않는다. 처음 후보를 찾지 못하면 이름·동의어·기간·필터를 조정하고 필요한 다음 페이지를 확인한다. 공간·계정·조건을 바꾸면 처음부터 검색하고 이전 cursor를 재사용하지 않는다.
 
@@ -87,7 +87,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 ## 제공 도구
 
-자료 작성 전에 `list_entity_types`로 활성 종류를 선택하고 `get_entity_schema`로 현재 `schema_version`과 `schema` 문서를 읽는다. 루트의 `x-type-id`·`x-version`·`title`·`x-icon`·`deprecated`가 종류 정의이며, `prop_n`마다 타입·루트 required·기본값·oneOf의 const/title·deprecated/readOnly와 x-order/x-representative/x-show-in-list를 확인한다. 선택적 x-list-order는 목록 순서이며 없으면 x-order를 따른다. 값과 라벨을 별도 사전에서 추측하지 않는다. 생성은 `entity_type_id`·`schema_version`·`properties`를 제출하며 기본값은 새 생성에서만 적용된다. 목록의 `display_properties`는 일부 표시값이므로 편집 전 `get_entity`의 전체 `properties`와 저장된 `schema_version`을 읽고 현재 정의와 대조한다. 부분 수정의 생략한 키는 유지되고 명시한 `null`은 정의가 허용할 때만 저장된다. 생성 후 종류는 불변이며 삭제된 자료도 원래 종류와 현재 정의·데이터 버전으로 복원한다.
+자료 작성 전에 `list_entity_types`로 활성 종류를 선택하고 `get_entity_schema`로 현재 `schema_version`과 `schema` 문서를 읽는다. 루트의 `x-type-id`·`x-version`·`title`·`x-icon`·`deprecated`가 종류 정의이고 `x-title-template`이 현재 자료 제목을 정의한다. `prop_n`마다 타입·루트 required·기본값·oneOf의 const/title·deprecated/readOnly와 x-order를 확인한다. 제목 변수는 고정 prop_n 키를 참조하므로 속성 라벨이 바뀌어도 유지된다. 값과 라벨을 별도 사전에서 추측하지 않는다. 생성은 `entity_type_id`·`schema_version`·`properties`를 제출하며 기본값은 새 생성에서만 적용된다. 목록은 제목과 종류의 요약이므로 편집 전 `get_entity`의 전체 `properties`와 저장된 `schema_version`을 읽고 현재 정의와 대조한다. 부분 수정의 생략한 키는 유지되고 명시한 `null`은 정의가 허용할 때만 저장된다. 생성 후 종류는 불변이며 삭제된 자료도 원래 종류와 현재 정의·데이터 버전으로 복원한다.
 
 표준 default는 새 생성에만 적용하며 examples는 안내값이다. readOnly 속성에 사용자 값을 새로 지정하거나 바꾸지 않는다. deprecated 속성의 기존 값은 보존하고 새 입력에서 제외한다. 과거 정의에서 종류 메타데이터가 없으면 당시 이름·아이콘·보관 상태를 현재 값으로 추정하지 않는다.
 
@@ -95,7 +95,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 
 
-자료 종류의 속성 변경 요청은 현재 종류·스키마 버전을 확인하고 `create_entity_schema_change`로 제한된 edits와 추가 속성의 client_ref를 저장한다. 속성의 x-order·x-representative·x-show-in-list·deprecated와 oneOf의 const/title을 field에 직접 지정한다. 루트 메타데이터 변경은 실제 도구 계약의 set_metadata를 사용한다. 변환 규칙/행 보완의 key는 같은 edits의 추가 속성을 new_<client_ref>로 참조할 수 있으며 저장된 정의는 서버가 예약한 prop_n을 사용한다. 별도 set_display나 enum/라벨 사전을 전달하지 않는다. 서버가 예약한 prop_n과 필드별 차이를 검토한다. 수정은 `update_entity_schema_change`의 expected_change_version에 결속한다. 생성·수정·분석·게시에는 모두 request_key를 사용한다.
+자료 종류의 속성 변경 요청은 현재 종류·스키마 버전을 확인하고 `create_entity_schema_change`로 제한된 edits와 추가 속성의 client_ref를 저장한다. 속성의 x-order·deprecated와 oneOf의 const/title을 field에 직접 지정한다. 제목 템플릿은 set_metadata의 x-title-template에 `$prop_n$ - $prop_m$`처럼 지정하며 일반 문자와 `$$` 달러 이스케이프를 조합할 수 있다. 참조 속성은 존재하는 활성 항목이어야 한다. 루트 메타데이터 변경은 실제 도구 계약의 set_metadata를 사용한다. 변환 규칙/행 보완의 key는 같은 edits의 추가 속성을 new_<client_ref>로 참조할 수 있으며 저장된 정의는 서버가 예약한 prop_n을 사용한다. 별도 set_display나 enum/라벨 사전을 전달하지 않는다. 서버가 예약한 prop_n과 필드별 차이를 검토한다. 수정은 `update_entity_schema_change`의 expected_change_version에 결속한다. 생성·수정·분석·게시에는 모두 request_key를 사용한다.
 
 `analyze_entity_schema_change`의 analysis_id와 queued는 접수 결과다. `get_entity_schema_change`로 분석 상태·대상/성공/실패/변경 건수·freshness를 확인한다. 완료한 현재 analysis_id로 `list_entity_schema_analysis_rows`를 호출해 before/after·필드 오류를 읽고 next_after로 이어 조회한다. 페이지는 기본 20개·최대 100개·512 KiB이며, after=null은 after_bytes와 크기 오류를 확인한다. queued/running/failed를 빈 성공 결과로 해석하지 않는다. stale이면 원본·정의 변경을 검토하고 최신 변경안/분석을 준비한다. 목록은 `list_entity_schema_changes`로 조회한다.
 

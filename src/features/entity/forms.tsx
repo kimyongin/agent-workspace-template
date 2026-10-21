@@ -1,3 +1,4 @@
+import { renderEntityTitle } from "@contracts/entity-title-template.ts";
 import { DataFields, DataFieldGroup } from "@/components/DataFields";
 import { ChangedValue } from "../../components/ChangedValue.tsx";
 import type { ConfirmationValue } from "../../components/RecordConfirmation.tsx";
@@ -280,6 +281,14 @@ export function EntityForm({
       return [{ label: field.title ?? key, value: <ChangedValue before={displayedProperty(field, initial.properties[key], labels)} after={displayedProperty(field, next[key], labels)}/> }];
     });
   };
+  const previewTitle = (() => {
+    if (!definition) return label;
+    try {
+      return renderEntityTitle(definition.schema, propertyValues(definition, effectiveProperties), external || initial?.external_id || "");
+    } catch {
+      return label;
+    }
+  })();
   return (
     <>
       <FormModal
@@ -292,9 +301,7 @@ export function EntityForm({
         submitDisabled={!canWrite || !!typeId &&
           (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
-          target: definition
-            ? String(effectiveProperties[schemaPresentation(definition).representative] ?? label)
-            : label,
+          target: previewTitle,
           action: archived ? "복원" : initial ? "수정" : "등록",
           message: context,
           data: changes(),
@@ -397,11 +404,6 @@ export function EntityForm({
           ) {
             if (old !== undefined && properties[key] === undefined) {errors[`properties.${key}`] =
                 "기존 값을 지우려면 값 없음으로 변경하세요. 미입력은 기존 값을 유지합니다.";}
-          }
-          if (!String(effectiveProperties[schemaPresentation(definition).representative] ?? "").trim()) {
-            errors[
-              `properties.${schemaPresentation(definition).representative}`
-            ] = "이름은 공백만 입력할 수 없습니다";
           }
           const parsed = entityCreate.safeParse(fields);
           return Object.keys(errors).length ? errors : parsed.success ? null : fieldErrors(parsed.error.issues);
@@ -518,17 +520,7 @@ export function EntityForm({
                   자료 번호 설정 다시 조회
                 </Button>
               )}
-              {definition && (
-                <PropertyFields
-                  disabled={frozen || !canWrite}
-                  part="representative"
-                  definition={definition}
-                  values={effectiveProperties}
-                  initialValues={initial && !archived ? baseline.current.properties : undefined}
-                  errors={errors}
-                  onChange={changeProperties}
-                />
-              )}
+              {definition && <DataFields><div><dt>제목 미리보기</dt><dd>{previewTitle || "저장 후 발급되는 자료 번호"}</dd></div></DataFields>}
               {(initial || archived)
                 ? (
                   <DataFields>
@@ -658,7 +650,6 @@ export function EntityForm({
                 ? (
                   <PropertyFields
                   disabled={frozen || !canWrite}
-                    part="remaining"
                     definition={definition}
                     values={effectiveProperties}
                   initialValues={initial && !archived ? baseline.current.properties : undefined}

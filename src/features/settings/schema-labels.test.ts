@@ -50,3 +50,9 @@ it("default diff resolves null through its field branch without colliding with s
   expect(schemaDiffValueLabel("properties.prop_2.default", "null", definition)).toBe("문자 코드");
   expect(schemaDiffValueLabel("properties.prop_2.oneOf", [null, "null"], definition)).toBe("미정, 문자 코드");
 });
+
+it("title template review shows mutable property labels while preserving literal separators", () => {
+  const definition = initialEntityDefinition("고객명");
+  definition.schema.properties.prop_2 = { type: "string", "x-order": 20, title: "지역" };
+  expect(schemaDiffValueLabel("x-title-template", "$prop_1$ - $prop_2$", definition)).toBe("$고객명$ - $지역$");
+});

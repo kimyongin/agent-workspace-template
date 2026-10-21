@@ -34,7 +34,9 @@ function schemaRow(row: postgres.Row): EntitySchemaVersion {
   return {
     type_id: row.type_id,
     schema_version: Number(row.schema_version),
-    schema: normalizeStoredEntityDefinition({ schema: row.schema }, row.type_id, Number(row.schema_version)).schema,
+    schema: Number(row.schema_version) === Number(row.current_type.schema_version)
+      ? row.schema
+      : normalizeStoredEntityDefinition({ schema: row.schema }, row.type_id, Number(row.schema_version)).schema,
     ...(row.schema.title === undefined || row.schema["x-icon"] === undefined || row.schema.deprecated === undefined
       ? { metadata_missing: true }
       : {}),

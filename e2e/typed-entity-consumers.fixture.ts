@@ -6,6 +6,7 @@ import { executionDialog, saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entity, fixtureIdentity, fixtureSchema, fixtureType, id, stamp } from "./support/workspace-data.ts";
 import { openTabFilters } from "./ui-actions.ts";
+import { disclosureContent } from "./table-actions.ts";
 const second = { ...fixtureType, id: id(901), label: "다른 자료" };
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
@@ -83,10 +84,21 @@ test.beforeEach(async ({ page, baseURL }) => {
     )
   );
 });
-test("typed list exposes current columns and AND filters, type switch clears only property conditions", async ({ page }) => {
+test("typed list uses composed titles and expanded key-values with AND filters, type switch clears only property conditions", async ({ page }) => {
   await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}&keyword=資料&tag_id=tag&view=table`));
   await expect(page.getByRole("heading", { name: "검사 자료", level: 1 })).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "수량" })).toBeVisible();
+  const table = page.getByRole("table", { name: "검사 자료 목록", exact: true });
+  await expect(table.getByRole("columnheader", { name: "제목", exact: true })).toBeVisible();
+  await expect(table.getByRole("columnheader", { name: "수량", exact: true })).toHaveCount(0);
+  const toggle = table.getByRole("button", { name: entity().title, exact: true });
+  await toggle.click();
+  const preview = await disclosureContent(page, toggle);
+  for (const [label, value] of [["제목", "자료"], ["수량", "0"]]) {
+    const property = preview.getByRole("term").filter({ hasText: new RegExp(`^${label}$`) });
+    await expect(property).toHaveCount(1);
+    await expect(property.locator("..").getByRole("definition")).toHaveText(value);
+  }
+  await toggle.click();
   await openTabFilters(page);
   await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
   await page.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_2");
@@ -219,7 +231,7 @@ test("entity numeric draft rejects precision loss before preparing a record and 
 });
 
 test(
-  "read-only representative default is visible and permits creation without a user value",
+  "read-only initial name default is visible and permits creation without a user value",
   async ({ page }, testInfo) => {
     const definition = structuredClone(fixtureSchema);
     Object.assign(definition.schema.properties.prop_1, { readOnly: true, default: "Auto" });
@@ -249,7 +261,7 @@ test(
     const title = form.getByRole("term").filter({ hasText: /^제목 · 읽기 전용$/ });
     await expect(title).toBeVisible();
     await expect(title.locator("..").getByRole("definition")).toHaveText("Auto");
-    await form.screenshot({ path: testInfo.outputPath("readonly-representative-default.png") });
+    await form.screenshot({ path: testInfo.outputPath("readonly-name-property-default.png") });
     await form.getByRole("button", { name: "저장", exact: true }).click();
     await expect.poll(() => preparedInputs.length).toBe(1);
     expect(preparedInputs[0].properties).not.toHaveProperty("prop_1");

@@ -2,7 +2,6 @@ import { DataFields } from "@/components/DataFields";
 import { Badge } from "../components/ui/badge.tsx";
 import { FieldLabel } from "../components/ui/field.tsx";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "../components/ui/collapsible.tsx";
-import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group.tsx";
 import { ArrowUpIcon, ArrowDownIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react";
 import { BusinessTable, BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "../components/BusinessTable.tsx";
 import { FieldSet, FieldLegend } from "../components/ui/field.tsx";
@@ -20,20 +19,20 @@ import { Field } from "../components/Field.tsx";
 import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSection.tsx";
 
 import { SchemaDefinitionRead } from "../features/settings/SchemaDefinitionRead.tsx";
-import { ENTITY_SCHEMA_DIALECT, type EntityField } from "@contracts/entity-type.ts";
+import { ENTITY_SCHEMA_DIALECT, type EntityField, type EntitySchemaVersion } from "@contracts/entity-type.ts";
+import { SchemaTitleTemplateSetting } from "../features/settings/SchemaTitleTemplateSetting.tsx";
+import { entityTitleTemplateIssues } from "@contracts/entity-title-template.ts";
 
 type Property = {
   id: string;
   label: string;
   type: "text" | "number";
   required: boolean;
-  listed: boolean;
-  representative: boolean;
   maxLength: string;
 };
 const initialFields: Property[] = [
-  { id: "prop_1", label: "상품명", type: "text", required: true, listed: true, representative: true, maxLength: "80" },
-  { id: "prop_2", label: "수량", type: "number", required: false, listed: true, representative: false, maxLength: "" },
+  { id: "prop_1", label: "상품명", type: "text", required: true, maxLength: "80" },
+  { id: "prop_2", label: "수량", type: "number", required: false, maxLength: "" },
 ];
 type Plan = {
   id: number;
@@ -41,6 +40,8 @@ type Plan = {
   status: "reviewed" | "applied" | "discarded";
   before: Property[];
   after: Property[];
+  beforeTitle: string;
+  afterTitle: string;
 };
 const equal = (left: Property[], right: Property[]) => JSON.stringify(left) === JSON.stringify(right);
 
@@ -97,7 +98,7 @@ function PropertyList(
     onChange(next);
   };
   return (
-    <RadioGroup ref={root} name="sample-representative" aria-label="자료 이름 항목" value={fields.find(field => field.representative)?.id ?? ""} onValueChange={id => onChange(fields.map(field => ({ ...field, representative: field.id === id })))}>
+    <div ref={root} className="min-w-0">
       <CollectionList label="입력 항목 예시" columns={["입력 항목", "설정", "순서"]}>
         {fields.map((field, index) => {
           const saved = current.find(value => value.id === field.id);
@@ -111,7 +112,6 @@ function PropertyList(
               {[
                 field.type === "text" ? "텍스트" : "숫자",
                 field.required ? "필수" : null,
-                field.representative ? "자료 이름" : null,
               ].filter(Boolean).join(" · ")}
             </span>
           );
@@ -128,7 +128,7 @@ function PropertyList(
                 <BusinessCell index={0}>
                   <h3 className="min-w-0 wrap-anywhere">
                     <Button variant="link" type="button" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
-                      aria-label={`${field.label || "새 항목"} ${[field.type === "text" ? "텍스트" : "숫자", field.required ? "필수" : null, field.representative ? "자료 이름" : null].filter(Boolean).join(" · ")}`}
+                      aria-label={`${field.label || "새 항목"} ${[field.type === "text" ? "텍스트" : "숫자", field.required ? "필수" : null].filter(Boolean).join(" · ")}`}
                       aria-expanded={open} aria-controls={bodyId} onClick={() => {
                         toggle(field.id);
                         requestAnimationFrame(() => root.current?.querySelector<HTMLInputElement>(`#${bodyId} input`)?.focus({ preventScroll: true }));
@@ -174,12 +174,6 @@ function PropertyList(
                       </NativeSelect>
                     )}
                   </Field>
-                  <div className="flex min-w-0 flex-col gap-3">
-                    <FieldLabel className="min-h-11 w-full flex-wrap items-center gap-3">
-                      <RadioGroupItem value={field.id} aria-label={`${field.label || "새 항목"} 자료 이름으로 사용`} disabled={field.type !== "text" || !field.required} />
-                      <span>자료 이름으로 사용</span>
-                    </FieldLabel>
-                  </div>
                   <Collapsible open={advanced.includes(field.id)} onOpenChange={next => setAdvanced(prior => next ? [...prior, field.id] : prior.filter(id => id !== field.id))} className="flex min-w-0 flex-col gap-4">
                     <CollapsibleTrigger asChild><Button type="button" variant="ghost">추가 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount hidden={!advanced.includes(field.id)}>
                     <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
@@ -189,13 +183,6 @@ function PropertyList(
                           checked={field.required}
                           onCheckedChange={(checked) => edit(field.id, { required: (checked === true) })}
                         />필수 입력
-                      </FieldLabel>
-                      <FieldLabel className="min-h-11 w-full flex-wrap items-center gap-3">
-                        <Checkbox
-
-                          checked={field.listed}
-                          onCheckedChange={(checked) => edit(field.id, { listed: (checked === true) })}
-                        />목록에 표시
                       </FieldLabel>
                       {field.type === "text" && (
                         <Field label="최대 길이" error={errors[`${field.id}.maxLength`]}>
@@ -226,40 +213,38 @@ function PropertyList(
           );
         })}
       </CollectionList>
-    </RadioGroup>
+    </div>
   );
 }
 
-function PropertyDefinition({ fields }: { fields: Property[] }) {
+function propertyDefinition(fields: Property[], titleTemplate: string): Pick<EntitySchemaVersion, "schema"> {
   const properties: Record<string, EntityField> = Object.fromEntries(fields.map((field, index) => [field.id, {
     "x-order": (index + 1) * 10,
-    "x-representative": field.representative,
-    "x-show-in-list": field.listed,
     title: field.label,
     type: field.type === "text" ? "string" : "number",
     ...(field.type === "text" && field.maxLength ? { maxLength: Number(field.maxLength) } : {}),
   }]));
-  return (
-    <SchemaDefinitionRead
-      definition={{
-        schema: {
-          $schema: ENTITY_SCHEMA_DIALECT,
-          "x-type-id": "sample",
-          "x-version": 1,
-          title: "자료",
-          "x-icon": "box",
-          type: "object",
-          additionalProperties: false,
-          properties,
-          required: fields.filter((field) => field.required).map((field) => field.id),
-        },
-      }}
-    />
-  );
+  return { schema: {
+    $schema: ENTITY_SCHEMA_DIALECT,
+    "x-type-id": "00000000-0000-4000-8000-000000000001",
+    "x-version": 1,
+    title: "자료",
+    "x-icon": "box",
+    "x-title-template": titleTemplate,
+    type: "object" as const,
+    additionalProperties: false as const,
+    properties,
+    required: fields.filter((field) => field.required).map((field) => field.id),
+  } };
 }
+function PropertyDefinition({ fields, titleTemplate }: { fields: Property[]; titleTemplate: string }) {
+  return <SchemaDefinitionRead definition={propertyDefinition(fields, titleTemplate)} />;
+}
+
 
 function changes(plan: Plan) {
   const result: string[] = [];
+  if (plan.beforeTitle !== plan.afterTitle) result.push("제목 템플릿 변경");
   for (const field of plan.after) {
     const prior = plan.before.find((value) => value.id === field.id);
     if (!prior) {
@@ -275,7 +260,6 @@ function changes(plan: Plan) {
     if (prior.required !== field.required) {
       result.push(`${field.label} · 필수 입력 ${field.required ? "사용" : "해제"}`);
     }
-    if (prior.listed !== field.listed) result.push(`${field.label} · 목록 표시 ${field.listed ? "사용" : "해제"}`);
     if (prior.maxLength !== field.maxLength) {
       result.push(`${field.label} · 최대 길이 ${prior.maxLength || "제한 없음"} → ${field.maxLength || "제한 없음"}`);
     }
@@ -294,6 +278,9 @@ export function MaterialWorkspaceSample() {
   const [draft, setDraft] = useState(
     initialFields.map((field) => field.id === "prop_2" ? { ...field, label: "재고 수량" } : field),
   );
+  const [titleTemplate, setTitleTemplate] = useState("$prop_1$");
+  const [currentTitle, setCurrentTitle] = useState("$prop_1$");
+  const dirty = !equal(current, draft) || titleTemplate !== currentTitle;
   const [version, setVersion] = useState(1);
   const [history, setHistory] = useState<Plan[]>([{
     id: 1,
@@ -301,6 +288,8 @@ export function MaterialWorkspaceSample() {
     status: "applied",
     before: [],
     after: initialFields,
+    beforeTitle: "$prop_1$",
+    afterTitle: "$prop_1$",
   }]);
   const nextField = useRef(3), nextPlan = useRef(2);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -321,8 +310,6 @@ export function MaterialWorkspaceSample() {
       label: "새 항목",
       type: "text",
       required: false,
-      listed: false,
-      representative: false,
       maxLength: "",
     }]);
   };
@@ -335,12 +322,14 @@ export function MaterialWorkspaceSample() {
         (!Number.isInteger(Number(field.maxLength)) || Number(field.maxLength) < 1)
       ) invalid[`${field.id}.maxLength`] = "최대 길이는 1 이상의 정수로 입력하세요.";
     }
+    const titleIssues = entityTitleTemplateIssues(titleTemplate, propertyDefinition(draft, titleTemplate).schema);
+    if (titleIssues.length) { setMessage(titleIssues.map(issue => issue.reason).join(" · ")); return; }
     setErrors(invalid);
     if (Object.keys(invalid).length) {
       setMessage("항목 이름과 최대 길이를 확인하세요.");
       return;
     }
-    if (equal(current, draft)) {
+    if (!dirty) {
       setMessage("바뀐 항목이 없습니다. 입력 항목을 수정해보세요.");
       return;
     }
@@ -350,6 +339,8 @@ export function MaterialWorkspaceSample() {
       status,
       before: structuredClone(current),
       after: structuredClone(draft),
+      beforeTitle: currentTitle,
+      afterTitle: titleTemplate,
     };
     return plan;
   };
@@ -374,6 +365,7 @@ export function MaterialWorkspaceSample() {
     if (!plan) return;
     setHistory(prior => [plan, ...prior]);
     setCurrent(structuredClone(plan.after));
+    setCurrentTitle(plan.afterTitle);
     setVersion(plan.version);
     setMessage(`예시 버전 ${plan.version}을 적용했습니다.`);
   };
@@ -392,6 +384,7 @@ export function MaterialWorkspaceSample() {
     );
     if (kind === "apply") {
       setCurrent(structuredClone(plan.after));
+      setCurrentTitle(plan.afterTitle);
       setVersion(plan.version);
     }
     setMessage(
@@ -439,9 +432,10 @@ export function MaterialWorkspaceSample() {
         initialOpen
         open={propertiesOpen}
         onOpenChange={setPropertiesOpen}
-        state={{ dirty: !equal(current, draft), busy: false }}
+        state={{ dirty, busy: false }}
         action={<Button variant="ghost" type="button" onClick={addField}><PlusIcon data-icon="inline-start" />항목 추가</Button>}
       >
+        <SchemaTitleTemplateSetting draft={propertyDefinition(draft, titleTemplate)} saved={propertyDefinition(current, currentTitle)} disabled={false} readOnly={false} onChange={setTitleTemplate} />
         <PropertyList
           fields={draft}
           current={current}
@@ -453,9 +447,9 @@ export function MaterialWorkspaceSample() {
         />
         <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" type="button"  onClick={() => setDraft(structuredClone(current))}>변경 취소</Button>
+            <Button variant="outline" type="button"  onClick={() => { setDraft(structuredClone(current)); setTitleTemplate(currentTitle); }}>변경 취소</Button>
             <Button variant="ghost" type="button" onClick={review}>변경 검토</Button>
-            <Button variant="default" type="button" disabled={equal(current, draft)} onClick={applyDraft}>변경 적용</Button>
+            <Button variant="default" type="button" disabled={!dirty} onClick={applyDraft}>변경 적용</Button>
           </div>
         </div>
       </MaterialSettingsSection>
@@ -542,7 +536,7 @@ export function MaterialWorkspaceSample() {
                   <BusinessCell index={2}>버전 {plan.version} · {plan.status === "applied" ? "적용됨" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</BusinessCell>
                 </BusinessRow>
                   <BusinessDetails id={id} hidden={!open}>
-                    <PropertyDefinition fields={plan.after} />
+                    <PropertyDefinition fields={plan.after} titleTemplate={plan.afterTitle} />
                     <div className="min-w-0">
                       <h4 className="text-base font-semibold">변경 결과</h4>
                       <DataFields><div><dt>버전</dt><dd>{plan.version - 1} → {plan.version} · {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</dd></div></DataFields>

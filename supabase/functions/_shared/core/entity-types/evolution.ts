@@ -1,3 +1,4 @@
+import { remapEntityTitleTemplate } from "../../contracts/entity-title-template.ts";
 import type { SchemaDefinition, SchemaDiff, SchemaEdit } from "../../contracts/entity-schema-change.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { exactMultipleOf, validateEntityDefinition } from "./schema-rules.ts";
@@ -40,6 +41,12 @@ export function resolveSchemaEdits(
     if (edit.op === "set_metadata") {
       const { op: _op, ...metadata } = edit;
       Object.assign(target.schema, metadata);
+      if (metadata["x-title-template"] !== undefined) {
+        target.schema["x-title-template"] = remapEntityTitleTemplate(
+          metadata["x-title-template"],
+          (key) => resolvePropertyReference(key, edits, reservations),
+        );
+      }
       if (metadata.description === null) delete target.schema.description;
       continue;
     }
@@ -47,7 +54,6 @@ export function resolveSchemaEdits(
       if (!source.schema.properties[edit.key]) throw invalidInput("현재 정의에 없는 속성은 보관할 수 없습니다");
       target.schema.properties[edit.key].deprecated = edit.op === "archive_property";
       if (edit.op === "archive_property") {
-        target.schema.properties[edit.key]["x-show-in-list"] = false;
         target.schema.properties[edit.key]["x-search-text"] = false;
       }
       continue;
@@ -80,7 +86,6 @@ export function resolveSchemaEdits(
     if (edit.op === "archive_property" || edit.op === "restore_property") {
       target.schema.properties[edit.key].deprecated = edit.op === "archive_property";
       if (edit.op === "archive_property") {
-        target.schema.properties[edit.key]["x-show-in-list"] = false;
         target.schema.properties[edit.key]["x-search-text"] = false;
       }
     }
@@ -122,11 +127,11 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
       continue;
     }
     for (const name of new Set([...Object.keys(a), ...Object.keys(b)])) {
-      const booleans = ["deprecated", "readOnly", "x-representative", "x-show-in-list", "x-search-text"];
+      const booleans = ["deprecated", "readOnly", "x-search-text"];
       const old = (a as unknown as Record<string, unknown>)[name] ??
-          (booleans.includes(name) ? false : name === "x-list-order" ? a["x-order"] : undefined),
+          (booleans.includes(name) ? false : undefined),
         next = (b as unknown as Record<string, unknown>)[name] ??
-          (booleans.includes(name) ? false : name === "x-list-order" ? b["x-order"] : undefined);
+          (booleans.includes(name) ? false : undefined);
       let migration = false;
       let reason = "표시 또는 생성 기본값 변경";
       if (name === "type") {
@@ -173,7 +178,7 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
       "필수 입력 변경",
     );
   }
-  for (const key of ["title", "description", "x-icon", "deprecated"] as const) {
+  for (const key of ["title", "description", "x-icon", "deprecated", "x-title-template"] as const) {
     add(
       key,
       source.schema[key] ?? (key === "deprecated" ? false : undefined),

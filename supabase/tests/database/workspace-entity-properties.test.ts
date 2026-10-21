@@ -23,7 +23,6 @@ dbTest(
         type: ["number", "null"],
         title: "수량",
         "x-order": 20,
-        "x-show-in-list": true,
       };
       const input = { mode: "update", document: JSON.stringify(document) };
       const preview = await model.previewDataModel(models, f.manager, input);

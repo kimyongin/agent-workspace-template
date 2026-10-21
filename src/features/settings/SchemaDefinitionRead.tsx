@@ -1,10 +1,11 @@
+import { effectiveEntityTitleTemplate } from "@contracts/entity-title-template.ts";
 import { DataFields } from "@/components/DataFields";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { entityTypeIcons } from "@contracts/entity-type.ts";
 import { fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { SchemaDefinition } from "@contracts/entity-schema-change.ts";
-import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
+import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel, schemaDiffValueLabel } from "./schema-labels.ts";
 
 /** Definition values, never material values or the mutable editor draft. */
 export function SchemaDefinitionRead(
@@ -34,9 +35,7 @@ export function SchemaDefinitionRead(
           values.push(["선택 항목", fieldChoices(field)!.map(optionLabel).join(", ")]);
         }
         values.push(
-          ["자료 이름으로 사용", key === schemaPresentation(definition).representative ? "사용" : "사용 안 함"],
           ["필수 입력", definition.schema.required.includes(key) ? "예" : "아니요"],
-          ["목록에 표시", schemaPresentation(definition).list_columns.includes(key) ? "예" : "아니요"],
           ["읽기 전용", field.readOnly ? "예" : "아니요"],
           ["검색에 사용", field["x-search-text"] ? "예" : "아니요"],
         );
@@ -92,6 +91,7 @@ export function SchemaDefinitionRead(
         입력 항목 <span className="text-sm text-muted-foreground">읽기 전용</span>
       </h3>
       <DataFields>
+        <div><dt>제목 템플릿</dt><dd>{schemaDiffValueLabel("x-title-template", effectiveEntityTitleTemplate(definition.schema), definition)}</dd></div>
         <div>
           <dt>종류 이름</dt>
           <dd>{definition.schema.title ?? "당시 이름 기록 없음"}</dd>

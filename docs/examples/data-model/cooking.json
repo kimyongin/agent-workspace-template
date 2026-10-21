@@ -21,8 +21,7 @@
             "title": "이름",
             "minLength": 1,
             "maxLength": 4096,
-            "x-order": 10,
-            "x-representative": true
+            "x-order": 10
           },
           "prop_2": {
             "type": "string",
@@ -32,7 +31,8 @@
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,
@@ -64,8 +64,7 @@
             "title": "이름",
             "minLength": 1,
             "maxLength": 4096,
-            "x-order": 10,
-            "x-representative": true
+            "x-order": 10
           },
           "prop_2": {
             "type": "integer",
@@ -75,7 +74,8 @@
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,
@@ -107,8 +107,7 @@
             "title": "이름",
             "minLength": 1,
             "maxLength": 4096,
-            "x-order": 10,
-            "x-representative": true
+            "x-order": 10
           },
           "prop_2": {
             "type": "number",
@@ -118,7 +117,8 @@
         },
         "required": [
           "prop_1"
-        ]
+        ],
+        "x-title-template": "$prop_1$"
       },
       "identity": {
         "version": 1,
