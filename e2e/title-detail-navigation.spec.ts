@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
 import { test, devLogin, ownedWorkspace, workspacePath, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { createFixtureEntity } from "./entity-schema-support.ts";
-import { closeDetail, detailDialog, disclosureContent } from "./ui-actions.ts";
+import { closeDetail, detailDialog } from "./ui-actions.ts";
+import { disclosureContent } from "./table-actions.ts";
 
 test("실제 API: 자료·할 일·기록 제목 직접 상세와 독립 미리보기·관련 복귀", async ({ page }, info) => {
   await devLogin(page);
