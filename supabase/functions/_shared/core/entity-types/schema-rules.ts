@@ -89,6 +89,7 @@ function validateIdentifierDefinition(schema: EntitySchemaVersion["schema"]) {
     !schema.required.includes(identity) || selected.default !== undefined
   ) fail("schema.x-identity-property", "자료 식별자는 기본값 없는 필수 식별자 항목 하나로 지정하세요");
   for (const [key, field] of fields) {
+    identifier(field, field.default, `schema.properties.${key}.default`);
     if (
       typeOf(field) !== "string" || field.format || field.oneOf || field.minLength !== undefined ||
       field.maxLength !== undefined

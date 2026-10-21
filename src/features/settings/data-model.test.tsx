@@ -91,6 +91,7 @@ it("신규 종류 검토는 실제 속성과 번호 설정 및 파일과 현재 
             additionalProperties: false,
             title: "상품",
             properties: {
+              prop_3: { type: "string", title: "판매자상품번호", "x-order": 30, "x-identifier": { allowed_kind_ids: ["target-rule"], default_kind_id: "target-rule" } },
               prop_2: {
                 type: "string",
                 title: "판매상품명",
@@ -99,15 +100,11 @@ it("신규 종류 검토는 실제 속성과 번호 설정 및 파일과 현재 
                 default: "기본상품",
               },
             },
-            required: ["prop_2"],
+            required: ["prop_2", "prop_3"],
+            "x-identity-property": "prop_3",
           },
-          identity: {
-            version: 1,
-            label: "판매자상품번호",
-            default_source: "coupang",
-            sources: [{ code: "coupang", rule_id: "target-rule", active: false }],
-          },
-        }],
+
+        }, { ref: "rule:target-rule", label: "판매 번호", kind: "new", diff: [] }],
       }}
     />,
   );
@@ -119,6 +116,7 @@ it("신규 종류 검토는 실제 속성과 번호 설정 및 파일과 현재 
   expect(html).toContain("판매상품명");
   expect(html).toContain("기본상품");
   expect(html).toContain("판매자상품번호");
-  expect(html).toContain("coupang");
-  expect(html).toContain("중지");
+  expect(html).toContain("허용 식별자 종류");
+  expect(html).toContain("기본 식별자 종류");
+  expect(html).toContain("판매 번호");
 });

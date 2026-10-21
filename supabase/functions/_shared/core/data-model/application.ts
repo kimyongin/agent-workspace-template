@@ -16,13 +16,14 @@ import { type RequestStore, runWrite } from "../shared/request.ts";
 import { AppError, invalidInput, notFound } from "../shared/errors.ts";
 import { parseSchemaDocument } from "../entity-types/schema-import-json.ts";
 import { canonical, definitionFingerprint, schemaDefinitionDiff } from "../entity-types/evolution.ts";
+import { assertIdentifierEvolution } from "../entity-types/identifier-evolution.ts";
 import { validateEntityDefinition } from "../entity-types/schema-rules.ts";
-import { APP_IDENTIFIER_RULE_ID, typeIdentityUpdate } from "../../contracts/entity-issuer.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../../contracts/entity-issuer.ts";
 export type ModelSnapshot = {
   document: DataModelDocument;
   types: Record<string, { next_property_number: number; count: number; locked: boolean }>;
   rule_usage?: Record<string, boolean>;
-  identity_usage?: Record<string, Record<string, string>>;
+  identifier_usage?: Record<string, Record<string, string[]>>;
   relation_usage?: Record<string, { links: number; left_many: boolean; right_many: boolean }>;
 };
 export type ModelPlan = {
@@ -76,7 +77,6 @@ export function parseModel(raw: string): DataModelDocument {
   unique(d.identity_definitions.rules.map((t) => t.id), "identity_definitions.rules.id");
   unique(d.identity_definitions.issuers.map((t) => t.code), "identity_definitions.issuers.code");
   for (const [n, t] of d.entity_types.entries()) {
-    t.identity.sources.sort((a, b) => a.code.localeCompare(b.code));
     try {
       t.schema = validateEntityDefinition({ schema: t.schema }).schema;
     } catch (e) {
@@ -88,25 +88,26 @@ export function parseModel(raw: string): DataModelDocument {
     if (!t.schema.title || !t.schema["x-icon"]) {
       throw invalidInput("자료 이름과 아이콘을 포함한 완전한 정의가 필요합니다");
     }
-    if (
-      !typeIdentityUpdate.safeParse({ ...t.identity, version: undefined, expected_version: t.identity.version }).success
-    ) {
-      const { version, ...identity } = t.identity;
-      if (!typeIdentityUpdate.safeParse({ ...identity, expected_version: version }).success) {
-        throw invalidInput("자료 식별자 기본 선택과 중복 발급처를 확인하세요");
+    for (const [key, field] of Object.entries(t.schema.properties)) {
+      const settings = field["x-identifier"];
+      if (!settings) continue;
+      for (const id of settings.allowed_kind_ids) {
+        if (!d.identity_definitions.rules.some((r) => r.id === id)) {
+          throw invalidInput("식별자 종류 참조를 찾을 수 없습니다", [{
+            path: `entity_types.${n}.schema.properties.${key}.x-identifier.allowed_kind_ids`,
+            message: id,
+          }]);
+        }
       }
-    }
-    for (const s of t.identity.sources) {
-      const rule = d.identity_definitions.rules.find((r) => r.id === s.rule_id && r.source === s.code),
-        issuer = d.identity_definitions.issuers.find((i) => i.code === s.code);
-      if (!rule || !issuer) {
-        throw invalidInput("식별자 참조를 찾을 수 없습니다", [{
-          path: `entity_types.${n}.identity.sources`,
-          message: s.code,
-        }]);
-      }
-      if (s.code === t.identity.default_source && (!s.active || !rule.active || !issuer.active)) {
-        throw invalidInput("기본 발급처는 활성 상태여야 합니다");
+      const fixed = typeof field.default === "string" ? field.default.slice(0, 36) : undefined;
+      for (const id of [settings.default_kind_id, fixed].filter(Boolean)) {
+        const kind = d.identity_definitions.rules.find((r) => r.id === id);
+        if (!kind?.active || !d.identity_definitions.issuers.some((i) => i.code === kind.source && i.active)) {
+          throw invalidInput("기본 식별자 종류는 활성 상태여야 합니다", [{
+            path: `entity_types.${n}.schema.properties.${key}`,
+            message: "활성 종류를 선택하세요",
+          }]);
+        }
       }
     }
   }
@@ -162,6 +163,7 @@ export async function resolveModel(
   document: DataModelDocument,
   mode: "update" | "copy",
   namespace: string,
+  inspectionOnly = false,
 ): Promise<ModelPlan> {
   const source = snapshot.document,
     baseline = await definitionFingerprint(snapshot),
@@ -205,7 +207,17 @@ export async function resolveModel(
       : await mappedId(mode === "update" ? updateSeed : seed, "rule:" + r.id);
     r.id = mapping.rules[r.id];
   }
-  for (const t of target.entity_types) for (const s of t.identity.sources) s.rule_id = mapping.rules[s.rule_id];
+  for (const t of target.entity_types) {
+    for (const field of Object.values(t.schema.properties)) {
+      const settings = field["x-identifier"];
+      if (!settings) continue;
+      settings.allowed_kind_ids = settings.allowed_kind_ids.map((id) => mapping.rules[id]);
+      if (settings.default_kind_id) settings.default_kind_id = mapping.rules[settings.default_kind_id];
+      if (typeof field.default === "string") {
+        field.default = mapping.rules[field.default.slice(0, 36)] + field.default.slice(36);
+      }
+    }
+  }
   for (const t of target.entity_types) {
     const updateId = await mappedId(updateSeed, "type:" + t.schema["x-type-id"]);
     const old = mode === "update"
@@ -220,7 +232,7 @@ export async function resolveModel(
     for (const k of keys) {
       if (old && Object.hasOwn(old.schema.properties, k)) props[k] = k;
       else {
-        if (old && Number(k.slice(5)) < next) {
+        if (!inspectionOnly && old && Number(k.slice(5)) < next) {
           throw invalidInput("이미 발급·제거한 속성 키를 재사용할 수 없습니다", [{
             path: `entity_types.${t.ref}.schema.properties.${k}`,
             message: "원본 종류의 최신 속성 키를 사용하세요",
@@ -237,39 +249,33 @@ export async function resolveModel(
       "x-version": old ? old.schema["x-version"] + 1 : 1,
       properties: Object.fromEntries(keys.map((k) => [props[k], t.schema.properties[k]])),
       required: t.schema.required.map((k) => props[k]),
+      "x-identity-property": props[t.schema["x-identity-property"]!],
       "x-title-template": remapEntityTitleTemplate(t.schema["x-title-template"], (key) => props[key]),
     };
     validateEntityDefinition({ schema: t.schema });
     const diff = old ? schemaDefinitionDiff({ schema: old.schema }, { schema: t.schema }) : [];
-    const identityChanged = !!old && canonical(withoutVersion(old.identity)) !== canonical(withoutVersion(t.identity));
-    const immutableIdentityConflict = !!old &&
-      Object.entries(snapshot.identity_usage?.[old.schema["x-type-id"]] ?? {}).some(([code, ruleId]) =>
-        !t.identity.sources.some((s) => s.code === code && s.rule_id === ruleId)
-      );
-    const kind = immutableIdentityConflict
+    let identityConflict: string | undefined;
+    if (old) {
+      try {
+        assertIdentifierEvolution({ schema: old.schema }, { schema: t.schema }, {
+          has_entities: snapshot.types[old.schema["x-type-id"]].count > 0,
+          identifier_usage: snapshot.identifier_usage?.[old.schema["x-type-id"]] ?? {},
+        });
+      } catch (error) {
+        if (!(error instanceof AppError)) throw error;
+        identityConflict = error.message;
+      }
+    }
+    const kind = identityConflict
       ? "conflict"
       : !old
       ? "new"
       : diff.some((d) => d.kind === "migration_required") && snapshot.types[old.schema["x-type-id"]].count > 0
       ? "migration_required"
-      : diff.length || identityChanged
+      : diff.length
       ? "compatible"
       : "unchanged";
     if (old && !diff.length) t.schema["x-version"] = old.schema["x-version"];
-    if (identityChanged) {
-      diff.push({
-        path: "식별자 설정",
-        before: old!.identity.label + " · 기본 " + old!.identity.default_source + " · " +
-          old!.identity.sources.map((x) => `${x.code} / ${x.rule_id} / ${x.active ? "사용" : "중지"}`).join(", "),
-        after: t.identity.label + " · 기본 " + t.identity.default_source + " · " +
-          t.identity.sources.map((x) => `${x.code} / ${x.rule_id} / ${x.active ? "사용" : "중지"}`).join(", "),
-        before_present: true,
-        after_present: true,
-        kind: "compatible",
-        reason: "자료 번호 설정 변경",
-        next_action: "전체 모델과 함께 적용",
-      });
-    }
     items.push({
       ref: t.ref,
       label: t.schema.title!,
@@ -284,11 +290,7 @@ export async function resolveModel(
       target_schema_version: t.schema["x-version"],
       schema: t.schema,
       current_schema: old?.schema,
-      identity: t.identity,
-      current_identity: old?.identity,
-      message: immutableIdentityConflict
-        ? "이미 자료 번호를 발급한 경로는 제거하거나 다른 번호 정의로 바꿀 수 없습니다"
-        : undefined,
+      message: identityConflict,
     });
   }
   for (const r of target.relations) {

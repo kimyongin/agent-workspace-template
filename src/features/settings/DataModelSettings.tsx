@@ -137,6 +137,7 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
           <ReviewRow
             key={item.ref}
             item={item}
+            identifierKinds={review.items.filter((kind) => kind.ref.startsWith("rule:")).map((kind) => ({ id: kind.ref.slice(5), label: kind.label }))}
             confirmed={!!removeKeys[item.ref]}
             onConfirmRemoval={onConfirmRemoval}
             disabled={disabled}
@@ -151,7 +152,8 @@ export function DataModelReview({ review, removeKeys = {}, onConfirmRemoval, dis
     </section>
   );
 }
-function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
+function ReviewRow({ item, confirmed, onConfirmRemoval, disabled, identifierKinds }: {
+  identifierKinds: ReadonlyArray<{ id: string; label: string }>;
   item: ModelReview["items"][number];
   confirmed: boolean;
   onConfirmRemoval?: (ref: string, confirmed: boolean) => void;
@@ -184,52 +186,14 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled }: {
           </div>
         </DataFields>
       )}
-      {item.schema && <SchemaDefinitionRead definition={{ schema: item.schema }} />}
-      {item.identity && (
-        <section aria-label="번호 설정 검토">
-          <h3 className="text-base font-semibold">번호 설정</h3>
-          <DataFields>
-            <div>
-              <dt>번호 이름</dt>
-              <dd>{item.identity.label}</dd>
-            </div>
-            <div>
-              <dt>기본 번호 출처</dt>
-              <dd>{item.identity.default_source}</dd>
-            </div>
-
-          </DataFields>
-          <BusinessTable label="가져올 번호 출처 목록" columns={["번호 출처", "번호 종류", "사용"]} disclosureColumn={false}>
-            {item.identity.sources.map(source => <BusinessRow key={source.code}>
-              <BusinessCell index={0}>{source.code}</BusinessCell>
-              <BusinessCell index={1}>{source.rule_id}</BusinessCell>
-              <BusinessCell index={2}>{source.active ? "사용" : "중지"}</BusinessCell>
-            </BusinessRow>)}
-          </BusinessTable>
-          {item.current_identity && (
-            <Collapsible>
-              <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">현재 번호 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
-              <DataFields>
-                <div>
-                  <dt>번호 이름</dt>
-                  <dd>{item.current_identity.label}</dd>
-                </div>
-                <div>
-                  <dt>기본 번호 출처</dt>
-                  <dd>{item.current_identity.default_source}</dd>
-                </div>
-
-              </DataFields>
-              <BusinessTable label="현재 번호 출처 목록" columns={["번호 출처", "번호 종류", "사용"]} disclosureColumn={false}>
-                {item.current_identity.sources.map(source => <BusinessRow key={source.code}>
-                  <BusinessCell index={0}>{source.code}</BusinessCell>
-                  <BusinessCell index={1}>{source.rule_id}</BusinessCell>
-                  <BusinessCell index={2}>{source.active ? "사용" : "중지"}</BusinessCell>
-                </BusinessRow>)}
-              </BusinessTable>
-            </CollapsibleContent></Collapsible>
-          )}
-        </section>
+      {item.schema && <SchemaDefinitionRead definition={{ schema: item.schema }} identifierKinds={identifierKinds} />}
+      {item.current_schema && (
+        <Collapsible>
+          <CollapsibleTrigger asChild><Button type="button" variant="ghost">현재 입력 항목 정의</Button></CollapsibleTrigger>
+          <CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+            <SchemaDefinitionRead definition={{ schema: item.current_schema }} identifierKinds={identifierKinds} />
+          </CollapsibleContent>
+        </Collapsible>
       )}
       {(item.source_schema_version !== undefined || item.current_schema_version !== undefined) && (
         <DataFields>

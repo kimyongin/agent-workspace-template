@@ -27,24 +27,25 @@
             "type": "string",
             "title": "단위",
             "x-order": 20
+          },
+          "prop_3": {
+            "type": "string",
+            "title": "자료 번호",
+            "x-order": 30,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001"
+              ],
+              "default_kind_id": "00000000-0000-4000-8000-000000000001"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_3"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "자료 번호",
-        "default_source": "app",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_3"
       }
     },
     {
@@ -70,24 +71,25 @@
             "type": "integer",
             "title": "조리 시간",
             "x-order": 20
+          },
+          "prop_3": {
+            "type": "string",
+            "title": "자료 번호",
+            "x-order": 30,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001"
+              ],
+              "default_kind_id": "00000000-0000-4000-8000-000000000001"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_3"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "자료 번호",
-        "default_source": "app",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_3"
       }
     },
     {
@@ -113,24 +115,25 @@
             "type": "number",
             "title": "수량",
             "x-order": 20
+          },
+          "prop_3": {
+            "type": "string",
+            "title": "자료 번호",
+            "x-order": 30,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001"
+              ],
+              "default_kind_id": "00000000-0000-4000-8000-000000000001"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_3"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "자료 번호",
-        "default_source": "app",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_3"
       }
     }
   ],
