@@ -48,6 +48,7 @@ async function typeFixture(actor: WorkspaceActor, label: string, numeric = true)
     prop_6: { "x-order": 60, deprecated: true, type: "string", title: "옛 메모" },
   });
   return await seedInWorkspace(actor, async (tx) => {
+    await new SqlEntityIssuerStore(tx, actor).initializeRegistry();
     const [type] =
       await tx`insert into app.entity_types(workspace_id,next_property_number) values(${actor.workspaceId},7) returning id`;
     definition.schema["x-type-id"] = String(type.id);
@@ -55,7 +56,6 @@ async function typeFixture(actor: WorkspaceActor, label: string, numeric = true)
     await tx`insert into app.entity_schema_versions(workspace_id,schema) values(${actor.workspaceId},${
       tx.json(definition.schema as never)
     })`;
-    await new SqlEntityIssuerStore(tx, actor).initializeRegistry();
     return { id: String(type.id), definition };
   });
 }
