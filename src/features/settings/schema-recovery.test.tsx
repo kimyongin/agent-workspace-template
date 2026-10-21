@@ -123,15 +123,15 @@ it("복구 충돌 목록은 자료 번호를 안전한 상세 링크로 제공�
     <MemoryRouter>
       <RecoveryConflictList
         conflicts={[
-          { path: "entities.crm:00000000-0000-4000-8000-000000000001:VIP/a.b", message: "완료 후 값이 변경되었습니다" },
+          { path: "entities.00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002:VIP/a.b", message: "완료 후 값이 변경되었습니다" },
           { path: "references", message: "할 일의 선택이 변경되었습니다" },
           { path: "entities.removed", message: "자료 구성이 변경되었습니다" },
         ]}
       />
     </MemoryRouter>,
   );
-  expect(html).toContain('href="/entities/crm%3A00000000-0000-4000-8000-000000000001%3AVIP%2Fa.b"');
-  expect(html).toContain(">crm · VIP/a.b</a>");
+  expect(html).toContain('href="/entities/00000000-0000-4000-8000-000000000001%3A00000000-0000-4000-8000-000000000002%3AVIP%2Fa.b"');
+  expect(html).toContain(">00000000 · VIP/a.b</a>");
   const selection = html.split(/<tr\b/).find(row => row.includes(">연결·선택</div>"));
   expect(selection).toContain(">할 일의 선택이 변경되었습니다</div>");
   expect(html).not.toContain('href="/entities/removed"');
@@ -139,12 +139,12 @@ it("복구 충돌 목록은 자료 번호를 안전한 상세 링크로 제공�
 
 it("속성 변경·종류 보관 오류도 입력을 보존하고 필드별 충돌 사유를 함께 안내한다", () => {
   const fields = [{
-    path: "entities.app:00000000-0000-4000-8000-000000000001:one",
+    path: "entities.00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:one",
     message: "완료 후 자료가 수정되었습니다",
   }];
   const changed = recoveryErrorMessage(new ApiError(409, "schema_changed", "현재 속성 변경", fields));
   expect(changed).toContain("입력은 유지");
-  expect(changed).toContain("app · one: 완료 후 자료가 수정되었습니다");
+  expect(changed).toContain("00000000 · one: 완료 후 자료가 수정되었습니다");
   expect(changed).toContain("새 변경안을 분석");
   expect(recoveryErrorMessage(new ApiError(409, "entity_type_archived", "보관 상태"))).toContain(
     "자료 종류를 먼저 복원",

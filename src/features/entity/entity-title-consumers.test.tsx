@@ -20,8 +20,8 @@ afterEach(async () => {
 
 test("entity details keep all title-participating attributes as ordinary key-value fields in configured order", async () => {
   const definition = initialEntityDefinition("고객명");
-  definition.schema.properties.prop_2 = { type: "string", title: "지역", "x-order": 5 };
-  definition.schema["x-title-template"] = "$prop_1$ - $prop_2$";
+  definition.schema.properties.prop_3 = { type: "string", title: "지역", "x-order": 5 };
+  definition.schema["x-title-template"] = "$prop_1$ - $prop_3$";
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(definition), { status: 200 })));
   const session = { user: { id: "fixture-user" }, access_token: "fixture-token" } as Session;
   const readSession = async () => ({ data: { session } });
@@ -32,12 +32,10 @@ test("entity details keep all title-participating attributes as ordinary key-val
     entity_type_id: "fixture-type",
     current_schema_version: 1,
     title: "초록상점 - 서울",
-    properties: { prop_1: "초록상점", prop_2: "서울" },
+    properties: { prop_1: "초록상점", prop_2: "00000000-0000-4000-8000-000000000001:고객-1", prop_3: "서울" },
 
     id: "fixture-entity",
-    source: "app",
-    external_id: "고객-1",
-    source_label: "앱",
+    identity_label: "앱 · 고객-1",
     deleted_at: null,
     type: { id: "fixture-type", label: "고객", icon_id: "box", archived: false },
     schema_version: 1,
@@ -65,7 +63,7 @@ test("entity details keep all title-participating attributes as ordinary key-val
       </AuthContext.Provider>,
     );
   });
-  expect([...container.querySelectorAll("dt")].map((item) => item.textContent)).toEqual(["지역", "고객명"]);
-  expect([...container.querySelectorAll("dd")].map((item) => item.textContent)).toEqual(["서울", "초록상점"]);
+  expect([...container.querySelectorAll("dt")].map((item) => item.textContent)).toEqual(["지역", "고객명", "식별자 · 자료 식별자"]);
+  expect([...container.querySelectorAll("dd")].map((item) => item.textContent)).toEqual(["서울", "초록상점", "고객-1"]);
   expect(container.querySelector("h2,h3")).toBeNull();
 });

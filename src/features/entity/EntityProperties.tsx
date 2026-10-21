@@ -60,7 +60,9 @@ export function EntityProperties(
         <div key={key}>
           <dt>
             {definition.schema.properties[key].title ?? key}
-            {schemaPresentation(definition).archived.includes(key)
+            {definition.schema["x-identity-property"] === key
+              ? " · 자료 식별자"
+              : schemaPresentation(definition).archived.includes(key)
               ? " · 보관"
               : definition.schema.properties[key].readOnly
               ? " · 읽기 전용"
@@ -71,6 +73,7 @@ export function EntityProperties(
               definition.schema.properties[key],
               entity.properties[key],
               schemaPresentation(definition).option_labels[key],
+              definition.identifier_kinds,
             )}
           </dd>
         </div>

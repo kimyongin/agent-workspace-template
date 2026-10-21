@@ -45,7 +45,7 @@ describe("list return paths",()=>{
     }
   });
   it("restores namespaced entity anchors including exact Unicode, separators and percent text",()=>{
-    for(const id of ["app:00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001","crm:00000000-0000-4000-8000-000000000001:고객 / # ? % : 7","app:00000000-0000-4000-8000-000000000001:%3A"]){
+    for(const id of ["00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001","00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002:고객 / # ? % : 7","00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:%3A"]){
       const returned=new URL(listDetailVisit("entities",{pathname:"/entities",search:"?pages=2",hash:""},id,42).back,"https://activity.invalid");
       expect(anchorId("entities",returned.hash)).toBe(id);
       expect(decodeURIComponent(returned.hash.slice(1))).toBe(listAnchor("entities",id));
@@ -62,9 +62,9 @@ it("entity return paths keep long filter fragments and restore the old entity fo
   const raw=JSON.stringify([{key:"prop_2",operator:"eq",value:"한".repeat(4096)}]);
   const params=new URLSearchParams({entity_type_id:"00000000-0000-4000-8000-000000000001",pages:"2"});
   const hash=`#${new URLSearchParams({property_filters:raw,entity_type_id:params.get("entity_type_id")!})}`;
-  const visit=listDetailVisit("entities",{pathname:"/entities",search:params.toString(),hash},"app:00000000-0000-4000-8000-000000000001:one",42);
+  const visit=listDetailVisit("entities",{pathname:"/entities",search:params.toString(),hash},"00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:one",42);
   const back=new URL(visit.back,"https://fixture.invalid");
-  expect(back.search.length).toBeLessThan(2048);expect(anchorId("entities",back.hash)).toBe("app:00000000-0000-4000-8000-000000000001:one");
+  expect(back.search.length).toBeLessThan(2048);expect(anchorId("entities",back.hash)).toBe("00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:one");
   expect(new URLSearchParams(back.hash.slice(1)).get("property_filters")).toBe(raw);
   expect(visit.origin).toEqual({pathname:"/entities",search:back.search,hash:back.hash});
   const detail=new URL(visit.to,"https://fixture.invalid");
@@ -74,9 +74,9 @@ it("entity return paths keep long filter fragments and restore the old entity fo
 });
 
 it("a row visit preserves duplicate invalid filters rather than broadening its return list",()=>{
-  const visit=listDetailVisit("entities",{pathname:"/entities",search:"?entity_type_id=00000000-0000-4000-8000-000000000001&property_filters=%5B%5D&property_filters=bad",hash:""},"app:00000000-0000-4000-8000-000000000001:one",42.4);
+  const visit=listDetailVisit("entities",{pathname:"/entities",search:"?entity_type_id=00000000-0000-4000-8000-000000000001&property_filters=%5B%5D&property_filters=bad",hash:""},"00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:one",42.4);
   const returned=new URL(visit.back,"https://fixture.invalid");
   expect(returned.searchParams.getAll("property_filters")).toEqual(["[]","bad"]);
   expect(returned.searchParams.get("scroll")).toBe("42");
-  expect(returned.hash).toBe("#entity-app%3A00000000-0000-4000-8000-000000000001%3Aone");
+  expect(returned.hash).toBe("#entity-00000000-0000-4000-8000-000000000001%3A00000000-0000-4000-8000-000000000001%3Aone");
 });
