@@ -3,12 +3,10 @@ import { businessMeta } from "./change.ts";
 import { recordResult } from "./record.ts";
 import { codePointLength, expectedVersion, id, isoDateTime, page, pageInput, text } from "./common.ts";
 import {
-  entityExternalId,
-  entityNumberInput,
   entityReferenceId,
-  entitySourceCode,
   entityTypeKey,
 } from "./entity-identity.ts";
+import { identifierKindId, identifierValue } from "./entity-identifiers.ts";
 import { propertyKey } from "./entity-type.ts";
 export const entityProperties = z.record(
   propertyKey,
@@ -19,15 +17,13 @@ export const entityCreate = z.strictObject({
   entity_type_id: entityTypeKey,
   schema_version: schemaVersion,
   properties: entityProperties,
-  identity_version: z.number().int().nonnegative().optional(),
-  source: entitySourceCode.optional(),
-  external_id: entityNumberInput.optional(),
-  expected_version: expectedVersion.optional(),
+  generate_identifiers: z.record(propertyKey, identifierKindId).optional(),
   ...businessMeta,
 });
 export const entityUpdate = z.strictObject({
   schema_version: schemaVersion,
   properties: entityProperties.optional(),
+  generate_identifiers: z.record(propertyKey, identifierKindId).optional(),
   ...businessMeta,
   expected_version: expectedVersion,
 }).refine(
@@ -35,6 +31,14 @@ export const entityUpdate = z.strictObject({
     Object.keys(v).some((k) => !["schema_version", "expected_version", "change_note", "change_tag_ids"].includes(k)),
   { message: "바꿀 필드가 없습니다" },
 );
+export const entityRestore = z.strictObject({
+  schema_version: schemaVersion,
+  expected_version: expectedVersion,
+  properties: entityProperties.optional(),
+  ...businessMeta,
+});
+export const entityLookup = z.strictObject({ entity_type_id: entityTypeKey, identifier: identifierValue });
+export type EntityRestore = z.infer<typeof entityRestore>;
 export const entityPropertyFilter = z.union([
   z.strictObject({
     key: propertyKey,
@@ -49,7 +53,6 @@ export const entityPropertyFilter = z.union([
 ]);
 export const entityPropertySort = z.strictObject({ key: propertyKey, direction: z.enum(["asc", "desc"]) });
 export const entityListQuery = z.strictObject({
-  source: entitySourceCode.optional(),
   entity_type_id: z.string().uuid().optional(),
   tag_id: id.optional(),
   ...pageInput,
@@ -61,9 +64,6 @@ export const entityListQuery = z.strictObject({
 export const entitySummary = z.object({
   tag_ids: z.array(id),
   id: entityReferenceId,
-  source: entitySourceCode,
-  external_id: entityExternalId,
-  source_label: z.string(),
   deleted_at: isoDateTime.nullable(),
   entity_type_id: z.string().uuid(),
   type: z.object({ id: z.string().uuid(), label: z.string(), icon_id: z.string(), archived: z.boolean() }),

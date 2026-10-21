@@ -35,14 +35,8 @@ export function splitEntityId(value: string) {
     external_id: value.slice(second + 1),
   });
 }
-export const entityReferenceId = z.string().refine((v) => {
-  try {
-    const tuple = splitEntityId(v);
-    return entityId(tuple.source, tuple.entity_type_id, tuple.external_id) === v;
-  } catch {
-    return false;
-  }
-}, { message: "발급처:자료 종류:번호 조합이어야 합니다" });
+export { identifierReference as entityReferenceId } from "./entity-identifiers.ts";
+import { identifierReference as entityReferenceId } from "./entity-identifiers.ts";
 export const entityReferenceIds = z.array(entityReferenceId).max(100).refine(
   (ids) => new Set(ids).size === ids.length,
   {
