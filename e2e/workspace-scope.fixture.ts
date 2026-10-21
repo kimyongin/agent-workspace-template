@@ -63,6 +63,34 @@ async function choose(page: Page, name: string) {
   await page.getByRole("button", { name: "공간 선택", exact: true }).click();
   await page.getByRole("menuitem", { name, exact: true }).click();
 }
+test("workspace landing can return from management to settings through the profile menu", async ({ page }) => {
+  await fixture(page);
+  await page.route(`**/api/workspaces/${a}`, (route) =>
+    route.fulfill({
+      json: {
+        workspace: { id: a, name: "공간 A", deleted_at: null },
+        membership_version: 1,
+        can_manage: true,
+        grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      },
+    }));
+  await page.goto(`/w/${a}`);
+  await expect(page.getByRole("heading", { name: "공간 관리", exact: true })).toBeVisible();
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("button", {
+    name: "내 프로필",
+    exact: true,
+  }).click();
+  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/w/${a}/settings$`));
+  await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible({ timeout: 5000 });
+  const section = page.getByRole("region", { name: "워크스페이스", exact: true });
+  await expect(section.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveAttribute(
+    "href",
+    `/w/${a}/manage`,
+  );
+});
+
 test("workspace selection has one entry and settings owns management for the selected space", async ({ page }, info) => {
   await fixture(page);
   await page.goto(`/w/${a}/settings`);
