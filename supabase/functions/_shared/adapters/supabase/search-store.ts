@@ -23,7 +23,7 @@ class SqlSearchStore implements SearchStore {
     },version::bigint,null::jsonb
       from app.records where workspace_id=app.current_workspace_id()
       union all select entities.workspace_id,'entity',entities.id,
-      coalesce(entities.properties->>(select key from jsonb_each(v.schema->'properties') where value->'x-representative'='true'::jsonb limit 1),entities.external_id),
+      app.entity_title(v.schema,entities.properties,entities.external_id),
       projection.input->>'body',entities.updated_at,null::text,array[entities.id],null::text,null::text,${
       tagIdsColumn(tx, "entity")
     },entities.version::bigint,projection.input->'fields'

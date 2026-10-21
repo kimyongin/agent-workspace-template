@@ -1,5 +1,5 @@
 import { tagConnectionSelection } from "../../contracts/tag-connection.ts";
-import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
+import { renderEntityTitle } from "../../contracts/entity-title-template.ts";
 import type { EntityTypeIdentity } from "../../contracts/entity-issuer.ts";
 import { assertImmutableType } from "../entity/application.ts";
 import type { RequestStore } from "../shared/request.ts";
@@ -198,7 +198,11 @@ export function prepareBusinessRecord(
       content = {
         ...content,
         properties,
-        title: String(properties[entitySchemaPresentation(definition.schema).representative]),
+        title: renderEntityTitle(
+          definition.schema,
+          properties,
+          String(content.external_id ?? before?.external_id ?? ""),
+        ),
         property_labels: Object.fromEntries(
           Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
         ),

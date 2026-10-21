@@ -1,4 +1,4 @@
-import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
+import { renderEntityTitle } from "../../contracts/entity-title-template.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { compileMigration } from "./conversions.ts";
 import { effectiveEntityTemplateFingerprint } from "./template-references.ts";
@@ -56,10 +56,10 @@ export function migrationRecordRenderer(
       entity_type_id: batch.type_id,
       properties,
       tag_ids: row.tag_ids,
-      title: String(properties[entitySchemaPresentation(definition.schema).representative]),
+      title: renderEntityTitle(definition.schema, properties, row.external_id),
       property_labels: definition === batch.source_definition ? beforeLabels : afterLabels,
     });
-    const title = String(row.after[entitySchemaPresentation(batch.target.schema).representative]);
+    const title = renderEntityTitle(batch.target.schema, row.after, row.external_id);
     const context = [{
       id: row.entity_id,
       title,

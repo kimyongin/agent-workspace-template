@@ -15,7 +15,10 @@ import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { identityFixture } from "../_entity-identity.ts";
 import { requestActor } from "../_request.ts";
 
-function fixture(readonlyRepresentative = false) {
+function fixture(
+  readonlyRepresentative = false,
+  memo = "$엔터티.이후.prop_1$/$엔터티.이후.prop_2$/$엔터티.이후.prop_3$",
+) {
   const typeId = crypto.randomUUID(), actor = { userId: crypto.randomUUID() };
   const definition = initialEntityDefinition("이름", { id: typeId, title: "자료", icon: "box" });
   if (readonlyRepresentative) Object.assign(definition.schema.properties.prop_1, { readOnly: true, default: "Auto" });
@@ -84,7 +87,7 @@ function fixture(readonlyRepresentative = false) {
                   entity_types: {
                     [typeId]: Object.fromEntries(
                       ["create", "update", "restore"].map((action) => [action, {
-                        memo: "$엔터티.이후.prop_1$/$엔터티.이후.prop_2$/$엔터티.이후.prop_3$",
+                        memo,
                         tag_ids: [],
                       }]),
                     ),
@@ -109,6 +112,18 @@ function fixture(readonlyRepresentative = false) {
   };
   return { typeId, actor, deps, settings, events, definition };
 }
+
+Deno.test("record preparation renders the same composed entity title from effective defaulted properties", async () => {
+  const f = fixture(false, "$엔터티.이후.제목$");
+  f.definition.schema["x-title-template"] = "$prop_1$ - $prop_3$";
+  const prepared = await prepareBusinessRecord(f.settings, f.actor, {
+    model: "entity",
+    action: "create",
+    input: { entity_type_id: f.typeId, schema_version: 1, external_id: "001", properties: { prop_1: "초록상점" } },
+  });
+  assertEquals(prepared.change_note, "초록상점 - editable");
+  assertEquals(prepared.prepared_input.properties, { prop_1: "초록상점", prop_3: "editable" });
+});
 
 Deno.test("record preparation → create keeps readonly defaults in memo/server values and returns writable input", async () => {
   const f = fixture();
