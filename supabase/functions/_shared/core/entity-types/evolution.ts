@@ -41,6 +41,13 @@ export function resolveSchemaEdits(
     if (edit.op === "set_metadata") {
       const { op: _op, ...metadata } = edit;
       Object.assign(target.schema, metadata);
+      if (metadata["x-identity-property"] !== undefined) {
+        target.schema["x-identity-property"] = resolvePropertyReference(
+          metadata["x-identity-property"],
+          edits,
+          reservations,
+        );
+      }
       if (metadata["x-title-template"] !== undefined) {
         target.schema["x-title-template"] = remapEntityTitleTemplate(
           metadata["x-title-template"],
@@ -178,7 +185,9 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
       "필수 입력 변경",
     );
   }
-  for (const key of ["title", "description", "x-icon", "deprecated", "x-title-template"] as const) {
+  for (
+    const key of ["title", "description", "x-icon", "deprecated", "x-title-template", "x-identity-property"] as const
+  ) {
     add(
       key,
       source.schema[key] ?? (key === "deprecated" ? false : undefined),
