@@ -511,3 +511,22 @@ dbTest(
     }
   },
 );
+
+dbTest("schema selection metadata never treats hidden or tombstoned rows as an editable empty type", async () => {
+  const h = await evolutionHarness();
+  try {
+    await h.f.grant(h.f.member, [{ target_kind: "settings", target_id: "*", access: "read" }]);
+    assertEquals((await getEntitySchema(h.d, h.f.member, { type_id: h.type.id })).identity_change_allowed, false);
+    assertEquals((await getEntitySchema(h.d, h.f.manager, { type_id: h.type.id })).identity_change_allowed, true);
+    const row = await entities.createEntity(h.e, h.actor(), {
+      entity_type_id: h.type.id,
+      schema_version: 1,
+      properties: { prop_1: "보관 대상" },
+    });
+    await entities.deleteEntity(h.e, h.actor(), row.id, row.version);
+    assertEquals((await getEntitySchema(h.d, h.f.manager, { type_id: h.type.id })).identity_change_allowed, false);
+    assertEquals((await getEntitySchema(h.d, h.f.member, { type_id: h.type.id })).identity_change_allowed, false);
+  } finally {
+    await h.close();
+  }
+});
