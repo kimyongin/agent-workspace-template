@@ -4,7 +4,7 @@ import { fixtures, form, go } from "./support/workspace-screens.ts";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
 import { openDialogs, saveOnce } from "./ui-actions.ts";
 
-const marketEntity = (n: number, _source: string, label: string) => ({
+const marketEntity = (n: number, label: string) => ({
   ...entity(n, { prop_1: "같은 상품" }),
   identity_label: `${label} · 상품 번호 · 000Ab-${n}`,
   properties: { ...entity(n).properties, prop_1: "같은 상품", prop_5: encodeIdentifierValue(id(n + 700), `000Ab-${n}`) },
@@ -38,7 +38,7 @@ for (const width of [320, 1440]) {
     `relation choices ${width}px: excluded pages explain emptiness and selected rows keep the human identity`,
     async ({ page }, info) => {
       const state = await fixtures(page);
-      const first = marketEntity(21, "coupang", "쿠팡"), second = marketEntity(22, "naver", "네이버");
+      const first = marketEntity(21, "쿠팡"), second = marketEntity(22, "네이버");
       // The adapter keeps the same rows object; replace its contents, not the storage property.
       state.rows.entities.splice(0, state.rows.entities.length, first, second);
       state.listPages("entities", [[first], [second]]);
@@ -70,7 +70,7 @@ for (const width of [320, 1440]) {
 
   test(`known relation ${width}px: metadata failure keeps the captured name and unsaved note through retry`, async ({ page }) => {
     const state = await fixtures(page);
-    const item = marketEntity(21, "coupang", "쿠팡");
+    const item = marketEntity(21, "쿠팡");
     state.rows.entities.splice(0, state.rows.entities.length, item);
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(item.id)}`);
