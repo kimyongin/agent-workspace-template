@@ -84,6 +84,7 @@ for (
   const scenario of [
     "empty",
     "populated",
+    "size_boundary",
     "invalid_representative",
     "invalid_template",
     "size_limit",
