@@ -86,10 +86,12 @@ async function identifierProperties(
     commands[selected] = settings.default_kind_id;
   }
   for (const [key, kindId] of Object.entries(commands)) {
-    const field = definition.schema.properties[key]?.["x-identifier"];
+    const property = definition.schema.properties[key];
+    const field = property?.["x-identifier"];
     const kind = kinds.find((k) => k.id === kindId);
     if (
-      (!creation && key === selected) || properties[key] !== undefined || !field?.allowed_kind_ids.includes(kindId) ||
+      (!creation && key === selected) || property?.readOnly || property?.deprecated || properties[key] !== undefined ||
+      !field?.allowed_kind_ids.includes(kindId) ||
       !kind?.active || kind.generation !== "automatic"
     ) {
       throw invalidInput("자동 발급 요청을 확인하세요", [{
@@ -159,7 +161,7 @@ export function lookupEntity(d: EntityDeps, a: Actor, typeId: string, identifier
   return d.uow.run(a, (s) => s.get(id), { access: "read", typeId });
 }
 export function restoreEntity(d: EntityDeps, a: Actor, id: string, i: EntityRestore) {
-  return runWrite(entityWork(d, { access: "write", entityId: id }), a, "entity.restore", id, i, async (s) => {
+  return runWrite(entityWork(d, { access: "write", entityId: id }), a, "entity.restore", id, i, (s) => {
     return restoreEntityInTransaction(s, id, i);
   });
 }

@@ -2,8 +2,7 @@ import type { ChangeInput } from "./changes.ts";
 import { changed } from "./changes.ts";
 const actions = { create: "등록", update: "수정", delete: "삭제", restore: "복원", stop: "중단", resume: "재개" };
 const labels: Record<string, string> = {
-  source: "발급처",
-  external_id: "식별자",
+  identity_label: "식별자",
   title: "제목",
   body: "본문",
   status: "상태",
@@ -34,7 +33,7 @@ export function changedFieldNames(input: ChangeInput): string[] {
   return [
     ...properties,
     ...Object.entries(input.after).filter(([key, value]) =>
-      !["properties", "property_labels", "entity_type_id", "schema_version"].includes(key) &&
+      !["properties", "property_labels", "entity_type_id", "schema_version", "identity_label"].includes(key) &&
       !(input.target_kind === "entity" && key === "title") &&
       changed({ [key]: before[key as keyof typeof before] }, { [key]: value })
     ).map(([key]) => labels[key] ?? key),

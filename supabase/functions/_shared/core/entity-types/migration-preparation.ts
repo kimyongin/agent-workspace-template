@@ -50,6 +50,7 @@ export function migrationRecordRenderer(
   const beforeLabels = labels(batch.source_definition), afterLabels = labels(batch.target);
   return (row: MigrationWorkerBatch["rows"][number]) => {
     const facts = (properties: typeof row.properties, definition: SchemaDefinition): ChangeFacts => ({
+      identity_label: decodeIdentifierReference(row.entity_id).raw,
       entity_type_id: batch.type_id,
       properties,
       tag_ids: row.tag_ids,

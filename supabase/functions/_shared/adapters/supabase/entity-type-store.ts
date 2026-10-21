@@ -47,7 +47,7 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
   private get workspaceId(): string {
     return requireWorkspaceActor(this.actor).workspaceId;
   }
-  private async hydrate(row: postgres.Row): Promise<EntityType> {
+  private hydrate(row: postgres.Row): EntityType {
     return {
       ...typeRow(row),
     };

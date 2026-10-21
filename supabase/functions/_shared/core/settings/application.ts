@@ -174,6 +174,9 @@ export function prepareBusinessRecord(
       content = {
         ...content,
         properties,
+        identity_label: selected && typeof properties[selected] === "string"
+          ? decodeIdentifierValue(String(properties[selected])).raw
+          : "",
         title: renderEntityTitle(
           definition.schema,
           properties,
@@ -223,7 +226,7 @@ export function prepareBusinessRecord(
       await store.recordTags(ids),
     );
     const pendingEntityId = input.model === "entity" && input.action === "create" &&
-      !content.external_id && content.title === "";
+      !content.identity_label && content.title === "";
     return {
       ...result,
       prepared_input,

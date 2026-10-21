@@ -1,3 +1,4 @@
+import { decodeIdentifierReference } from "../../contracts/entity-identifiers.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 import type postgres from "postgres";
@@ -107,6 +108,7 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     if (!row) return null;
     const facts = model === "entity"
       ? {
+        identity_label: decodeIdentifierReference(String(row.id)).raw,
         entity_type_id: row.entity_type_id,
         schema_version: Number(row.schema_version),
         properties: row.properties,

@@ -13,7 +13,7 @@ export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
     {
       name: "get_business_settings",
       description:
-        "사용자 업무 설정과 설정 ID별 versions 조회. id(record_templates)를 선택하면 해당 settings·versions만 반환하며 생략하면 전체 조회. 자료 식별자 설정은 get_entity_type_identity로 조회한다. 화면·프로필 설정과 별도 저장된다.",
+        "사용자 업무 설정과 설정 ID별 versions 조회. id(record_templates)를 선택하면 해당 settings·versions만 반환하며 생략하면 전체 조회. 자료 식별자 항목과 종류 메타데이터는 get_entity_schema로 조회한다. 화면·프로필 설정과 별도 저장된다.",
       input: businessSettingsRead,
       readOnly: true,
       handler: (i, a) => getBusinessSettings(deps, a, i),
