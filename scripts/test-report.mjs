@@ -8,8 +8,8 @@ export function reportMetadata(command, plan = {}) {
   const dirty = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' });
   return {
     command, options: { actualConfig: plan.stages?.find(stage => stage.id === 'actual')?.config ?? null, runtimeConfig: plan.runtimeConfig ?? null, envFile: plan.envFile ?? null },
-    revision: revision.status === 0 ? revision.stdout.trim() : null,
-    trackedChanges: dirty.status === 0 ? Boolean(dirty.stdout.trim()) : null,
+    runnerRevision: revision.status === 0 ? revision.stdout.trim() : null,
+    runnerTrackedChanges: dirty.status === 0 ? Boolean(dirty.stdout.trim()) : null,
     scopes: plan.stages?.map(({ id, config, runtime }) => ({ id, config, runtime: Boolean(runtime) })) ?? null,
     workers: plan.workers ?? null, workerSource: plan.workers ? 'explicit browser override' : 'configuration-defined; not observed',
     cacheState: plan.cacheState ?? 'unspecified',
@@ -40,7 +40,16 @@ export function externalReportPath(file, cwd = process.cwd()) {
 }
 
 export function saveTestReport(result, metadata, file) {
-  const report = { schemaVersion: 1, recordedAt: new Date().toISOString(), metadata,
+  const actualLabels = new Set(['DB', 'HTTP', 'MCP', 'E2E', 'db', 'http', 'mcp', 'actual']);
+  const usesService = metadata.scopes?.some(stage => stage.runtime || stage.id === 'actual')
+    || result.runtime || result.runtimeMetrics?.length || result.results?.some(stage => actualLabels.has(stage.label));
+  // A matching bind/nonce proves identity and ownership, not the immutable source revision.
+  // Caller environment declarations are not promoted to verified service provenance.
+  const serviceSource = usesService ? {
+    revision: null, verification: 'unverified',
+    warning: 'Service source revision is not verified. Runner revision describes only the runner checkout; a matching functions bind/container identity does not establish backend revision. Do not assume a same-source performance comparison.',
+  } : { revision: null, verification: 'not-applicable', reason: 'No actual backend scope selected' };
+  const report = { schemaVersion: 2, recordedAt: new Date().toISOString(), metadata: { ...metadata, serviceSource },
     result: { ...result, results: result.results?.map(item => ({ ...item, status: item.skipped ? 'skipped' : item.interrupted ? 'interrupted' : item.code === 0 && !item.stopFailed ? 'passed' : 'failed' })), errors: result.errors?.map(({ phase }) => ({ phase })) },
     hostFreeBytesAfter: freemem() };
   try {

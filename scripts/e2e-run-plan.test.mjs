@@ -242,3 +242,27 @@ test('actual API browser scope refuses parallel worker overrides before runtime 
   const fixtures = fullTestPlan(['--only', 'fixtures', '--workers', '3']);
   assert.ok(fixtures.stages.every(stage => stage.args.slice(-2).join(' ') === '--workers 3'));
 });
+
+test('actual reports identify runner revision and leave borrowed service revision unverified even with a matching bind', async () => {
+  const { runLocalChecks } = await import('./local-runtime.mjs');
+  const { reportMetadata, saveTestReport } = await import('./test-report.mjs');
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const directory = mkdtempSync(join(tmpdir(), 'service-provenance-'));
+  try {
+    for (const source of ['/runner/functions', '/another/functions']) {
+      const adapter = { now: Date.now, observe: async () => ({ state: 'ready', container: { id: 'borrowed', source } }), run: async () => ({ code: 0 }) };
+      const result = await runLocalChecks(adapter, { checks: ['HTTP'], source: '/runner/functions' });
+      assert.equal(result.exitCode, 0);
+      const saved = saveTestReport(result, reportMetadata('npm run test:integration:local', { stages: [{ id: 'http', runtime: true }] }), join(directory, source.includes('another') ? 'other.json' : 'same.json'));
+      const report = JSON.parse(readFileSync(saved.reportFile, 'utf8'));
+      assert.match(report.metadata.runnerRevision, /^[0-9a-f]{40}$/);
+      assert.equal(report.metadata.revision, undefined);
+      assert.equal(report.metadata.serviceSource.revision, null);
+      assert.equal(report.metadata.serviceSource.verification, 'unverified');
+      assert.match(report.metadata.serviceSource.warning, /not verified/);
+      assert.equal(report.result.runtimeObservations[0].runnerFunctionsBindMatched, source === '/runner/functions');
+    }
+  } finally { rmSync(directory, { recursive: true }); }
+});

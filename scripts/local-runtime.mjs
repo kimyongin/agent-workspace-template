@@ -8,7 +8,8 @@ export async function runLocalChecks(adapter, { checks, source, signal, borrowed
     try { state = await adapter.observe(signal); }
     catch (error) { runtimeObservations.push({ elapsedMs: performance.now() - started, state: 'observation-failed' }); throw error; }
     runtimeObservations.push({ elapsedMs: performance.now() - started, state: state.state,
-      container: state.container ? { id: state.container.id, running: state.container.running, status: state.container.status, oomKilled: state.container.oomKilled, exitCode: state.container.exitCode } : null });
+      container: state.container ? { id: state.container.id, running: state.container.running, status: state.container.status, oomKilled: state.container.oomKilled, exitCode: state.container.exitCode } : null,
+      runnerFunctionsBindMatched: typeof source === 'string' && typeof state.container?.source === 'string' ? state.container.source === source : null });
     return state;
   };
   let runtime = 'borrowed', child, ownedContainer;
