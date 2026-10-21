@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { acquireRuntimeLock, createLocalRuntimeAdapter, realHostBindSource, removeOwnedContainer, runLeasedLocalChecks } from './local-runtime-cli.mjs';
-import { mkdtempSync, rmdirSync, readdirSync, writeFileSync, unlinkSync, realpathSync, chmodSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmdirSync, readdirSync, writeFileSync, unlinkSync, realpathSync, chmodSync, rmSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -286,4 +286,62 @@ test('stage resource measurement reports sampled process-tree RSS units and fail
     if (result.resources.samples.length) assert.ok(result.resources.maxSampledRssKiB > 0);
     else { assert.equal(result.resources.maxSampledRssKiB, null); assert.ok(result.resources.failures > 0); }
   } finally { rmSync(directory, { recursive: true }); }
+});
+
+test('owned fixture handoff is scoped to checks, rejects a second owner and cleans the exact child', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fixture-handoff-'));
+  const npm = join(directory, 'npm.mjs'), output = join(directory, 'handoff.json');
+  const { readFileSync } = await import('node:fs');
+  const previousDirectory = process.cwd();
+  mkdirSync(join(directory, 'supabase/functions'), { recursive: true });
+  mkdirSync(join(directory, 'scripts'));
+  writeFileSync(join(directory, 'scripts/fixture-web-server.mjs'), `process.send({ready:'settings-model',pid:process.pid}); setInterval(() => {}, 1000);`);
+  process.chdir(directory);
+  let server;
+  const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' }, {
+    env: { ...process.env, npm_execpath: npm },
+  });
+  try {
+    writeFileSync(npm, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(output)}, JSON.stringify({group:process.env.WORKSPACE_FIXTURE_WEB_SERVER_GROUP,pid:process.env.WORKSPACE_FIXTURE_WEB_SERVER_PID})); process.exitCode=19;`);
+    server = await adapter.startFixtureWebServer();
+    await assert.rejects(adapter.startFixtureWebServer(), { code: 'EEXIST' });
+    const result = await adapter.run({ id: 'fixture', script: 'test:e2e' }, undefined, { fixtureServer: server });
+    assert.equal(result.code, 19);
+    assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), { group: 'settings-model', pid: String(server.child.pid) });
+    const resources = await adapter.stopFixtureWebServer(server);
+    assert.equal(adapter.childRunning(server.child), false);
+    assert.equal(resources.unit, 'KiB');
+    await assert.rejects(adapter.run({ id: 'fixture' }, undefined, { fixtureServer: server }), /exited before/);
+    server = undefined;
+    await adapter.run({ id: 'ordinary', script: 'test:core' });
+    assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), {});
+    const controller = new AbortController(); controller.abort('SIGTERM');
+    await assert.rejects(adapter.startFixtureWebServer(controller.signal), /interrupted/);
+    server = await adapter.startFixtureWebServer();
+  } finally {
+    if (server) await adapter.stopFixtureWebServer(server);
+    process.chdir(previousDirectory);
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test('fixture startup rejection releases its lease and leaves an unrelated HTTP server untouched', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fixture-start-failure-'));
+  const previousDirectory = process.cwd();
+  const existing = createServer((_request, response) => response.end('existing owner'));
+  mkdirSync(join(directory, 'supabase/functions'), { recursive: true });
+  mkdirSync(join(directory, 'scripts'));
+  writeFileSync(join(directory, 'scripts/fixture-web-server.mjs'), 'process.exit(7);');
+  process.chdir(directory);
+  const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' });
+  await new Promise(resolve => existing.listen(0, '127.0.0.1', resolve));
+  try {
+    await assert.rejects(adapter.startFixtureWebServer(), /failed to start/);
+    assert.equal(await (await fetch(`http://127.0.0.1:${existing.address().port}`)).text(), 'existing owner');
+    await assert.rejects(adapter.startFixtureWebServer(), /failed to start/);
+  } finally {
+    await new Promise(resolve => existing.close(resolve));
+    process.chdir(previousDirectory);
+    rmSync(directory, { recursive: true });
+  }
 });

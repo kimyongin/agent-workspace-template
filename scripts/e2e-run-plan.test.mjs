@@ -1,3 +1,4 @@
+import { groupFixtureStages } from './fixture-web-runtime.mjs';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { e2eRunPlan, fixtureConfigs } from "./e2e-run-plan.mjs";
@@ -44,7 +45,7 @@ test("full plan includes every test boundary once without nesting overlapping bu
   assert.deepEqual(plan.stages.slice(0, 10).map(stage => stage.id), [
     'core', 'adapters', 'web', 'scripts', 'embedding', 'guards', 'db', 'http', 'mcp', 'actual',
   ]);
-  assert.deepEqual(plan.stages.slice(10).map(stage => stage.config), fixtureConfigs);
+  assert.deepEqual(plan.stages.slice(10).map(stage => stage.config), groupFixtureStages(fixtureConfigs.map(config => ({ config }))).map(stage => stage.config));
   assert.equal(new Set(plan.stages.map(stage => stage.id)).size, plan.stages.length);
   assert.equal(plan.stages.filter(stage => stage.script === 'test:core').length, 1);
   assert.equal(plan.stages.filter(stage => stage.id === 'actual').length, 1);
@@ -58,7 +59,7 @@ test('full plan validates selection and passes actual override only to actual E2
   const plan = fullTestPlan(['--plan', '--only', 'actual,fixtures', '--actual-config', actual]);
   assert.equal(plan.planOnly, true);
   assert.deepEqual(plan.stages[0].args, ['--', '--config', actual]);
-  assert.deepEqual(plan.stages.slice(1).map(stage => stage.config), fixtureConfigs);
+  assert.deepEqual(plan.stages.slice(1).map(stage => stage.config), groupFixtureStages(fixtureConfigs.map(config => ({ config }))).map(stage => stage.config));
   for (const args of [['--only'], ['--only', ''], ['--only', 'core,unknown'], ['--only', 'core,core'], ['--plan', '--plan'], ['--actual-config', 'relative.ts']]) {
     assert.throws(() => fullTestPlan(args), args.join(' '));
   }
@@ -70,6 +71,7 @@ test('full execution uses one runtime lease, continues independent test failures
   const calls = [];
   const adapter = {
     source: '/unused', now: Date.now,
+    startFixtureWebServer: async () => ({}), stopFixtureWebServer: async () => {},
     observe: async () => { calls.push('observe'); return { state: 'ready' }; },
     run: async stage => { calls.push(stage.id); return { code: stage.id === 'core' ? 9 : 0 }; },
   };
@@ -77,7 +79,7 @@ test('full execution uses one runtime lease, continues independent test failures
     { projectId: `plan-test-${process.pid}`, apiUrl: 'http://127.0.0.1:1' }, adapter);
   assert.equal(result.exitCode, 1);
   assert.equal(result.results.find(stage => stage.label === 'core').code, 9);
-  assert.deepEqual(calls.filter(call => call !== 'observe'), ['core', 'db', 'http', 'mcp', 'actual', ...fixtureConfigs.map(config => `fixture:${config}`)]);
+  assert.deepEqual(calls.filter(call => call !== 'observe'), ['core', 'db', 'http', 'mcp', 'actual', ...groupFixtureStages(fixtureConfigs.map(config => ({ config }))).map(({ config }) => `fixture:${config}`)]);
   assert.equal(result.results.filter(stage => stage.label === 'actual').length, 1);
   assert.ok(result.results.every(stage => !stage.skipped));
 });
@@ -265,4 +267,74 @@ test('actual reports identify runner revision and leave borrowed service revisio
       assert.equal(report.result.runtimeObservations[0].runnerFunctionsBindMatched, source === '/runner/functions');
     }
   } finally { rmSync(directory, { recursive: true }); }
+});
+
+test('compatible fixture group prepares once and keeps original per-scope results after a test failure', async () => {
+  const { runFullTestPlan } = await import('./test-full-runtime.mjs');
+  const { groupFixtureStages } = await import('./fixture-web-runtime.mjs');
+  const calls = [], owned = {};
+  const plan = { stages: groupFixtureStages([
+    { id: 'templates', config: 'e2e/material-templates.config.ts' },
+    { id: 'other', config: 'e2e/relation-settings.config.ts' },
+    { id: 'issuer', config: 'e2e/issuer-settings.config.ts' },
+    { id: 'model', config: 'e2e/data-model.config.ts' },
+  ]) };
+  const adapter = {
+    startFixtureWebServer: async () => { calls.push('start'); return owned; },
+    stopFixtureWebServer: async handle => { assert.equal(handle, owned); calls.push('stop'); },
+    run: async (stage, signal, options) => {
+      if (stage.id !== 'other') assert.equal(options.fixtureServer, owned);
+      else assert.equal(options, undefined);
+      calls.push(stage.id); return { code: stage.id === 'issuer' ? 17 : 0 };
+    },
+  };
+  const result = await runFullTestPlan(plan, {}, adapter);
+  assert.deepEqual(calls, ['start', 'templates', 'issuer', 'model', 'stop', 'other']);
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.results.find(item => item.label === 'issuer').code, 17);
+  assert.equal(result.fixtureWebMetrics.length, 1);
+  assert.ok(result.fixtureWebMetrics[0].timings.preparationMs >= 0);
+});
+
+test('shared fixture startup, interruption and cleanup failures preserve ownership and original outcomes', async () => {
+  const { runFullTestPlan } = await import('./test-full-runtime.mjs');
+  const { groupFixtureStages } = await import('./fixture-web-runtime.mjs');
+  for (const failure of ['startup', 'SIGINT', 'SIGTERM', 'cleanup', 'lost']) {
+    const controller = new AbortController(), calls = [], owned = {};
+    const stages = groupFixtureStages([
+      { id: 'issuer', config: 'e2e/issuer-settings.config.ts' },
+      { id: 'model', config: 'e2e/data-model.config.ts' },
+      { id: 'outside' },
+    ]);
+    const result = await runFullTestPlan({ stages }, {}, {
+      startFixtureWebServer: async () => { calls.push('start'); if (failure === 'startup') throw Error('occupied'); return owned; },
+      stopFixtureWebServer: async handle => {
+        assert.equal(handle, owned); calls.push('stop'); if (failure === 'cleanup') throw Error('stop failed');
+      },
+      run: async stage => {
+        calls.push(stage.id);
+        if (failure.startsWith('SIG')) controller.abort(failure);
+        return { code: failure === 'lost' ? null : 23 };
+      },
+    }, { signal: controller.signal });
+    assert.equal(result.exitCode, failure === 'SIGINT' ? 130 : failure === 'SIGTERM' ? 143 : 1);
+    assert.equal(calls.filter(call => call === 'stop').length, failure === 'startup' ? 0 : 1);
+    assert.ok(!calls.includes('outside'));
+    assert.equal(result.results.find(item => item.label === 'outside').skipped, true);
+    if (failure !== 'startup') assert.equal(result.results[0].code, failure === 'lost' ? null : 23);
+    assert.equal(result.results.length, 3);
+  }
+});
+
+test('full selection groups only compatible scopes once and leaves standalone selection unchanged', async () => {
+  const { fullTestPlan } = await import('./test-run-plan.mjs');
+  const plan = fullTestPlan(['--only', 'fixtures']);
+  const grouped = plan.stages.filter(stage => stage.fixtureWebGroup);
+  assert.deepEqual(grouped.map(stage => stage.config), [
+    'e2e/material-templates.config.ts', 'e2e/issuer-settings.config.ts', 'e2e/data-model.config.ts',
+  ]);
+  assert.equal(new Set(plan.stages.map(stage => stage.config)).size, 24);
+  const first = plan.stages.indexOf(grouped[0]);
+  assert.deepEqual(plan.stages.slice(first, first + 3), grouped);
+  assert.equal(fullTestPlan(['--only', 'fixture:e2e/issuer-settings.config.ts']).stages[0].fixtureWebGroup, undefined);
 });

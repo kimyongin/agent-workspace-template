@@ -125,6 +125,29 @@ worker override가 없으면 설정이 소유하는 수를 관찰하지 못했�
 
 보고서 저장 실패는 원래 결과를 stderr에 안전한 구조로 남긴다. 원래 실패·중단 종료 코드는 보존하며 검사가 성공했어도 보고서를 저장하지 못하면 최종 실패로 끝난다. 실제 API와 격리 브라우저의 기준 실행은 같은 revision·검사 범위·worker·캐시 조건·환경에서 순차 수행한다. 미준비 실제 API나 이미 알려진 MCP 503, 자원 중단과 모의 실행기 검사를 전체 실제 green 또는 성능 개선률로 합산하지 않는다. #546·#547·#548 최적화의 기준은 해당 시나리오를 실제로 실행한 보고서와 브라우저 증거다.
 
+### 호환 모의 화면의 웹 서버 공유 (#547)
+
+`test:full`과 `test:e2e:all`은 아래 대상 중 두 개 이상을 선택하면 `settings-model` 그룹으로 모아 웹 서버를 한 번 준비하고 설정별 Playwright 프로세스를 순차 실행한다. 전체 계획에서는 자료 모델 설정이 다른 두 대상 바로 뒤로 이동하며, 각 설정 ID·결과·산출물은 유지된다. 한 설정만 선택하거나 기존 `test:e2e -- --config ... [파일]` 명령을 쓰면 원래 설정의 독립 웹 서버 준비를 유지한다.
+
+| 비교 항목 | 자료 기본 문구 (`material-templates`) | 발급처 설정 (`issuer-settings`) | 전체 자료 모델 (`data-model`) |
+| --- | --- | --- | --- |
+| 앱 / 모의 API·Auth | 모두 `127.0.0.1:56883` / `127.0.0.1:56884`, `/api` | 같음 | 같음 |
+| 앱 환경 | 공개 `fixture-public-key`, `VITE_DEV_LOGIN=true` | 같음 | 같음 |
+| 요청·저장 상태 | 매 테스트 `page.route`·`addInitScript`; Auth 토큰과 변경 응답은 해당 context에만 존재 | 테스트별 설정 함수의 발급처·번호·receipt Map·쓰기 목록 | 매 테스트 route/Auth; 각 테스트의 모델 변경 응답 |
+| 브라우저 격리 | Playwright 기본 새 context/page·localStorage; 공유 storageState 없음 | 같음 | 같음 |
+| 프로젝트 | Desktop Chrome / Pixel 7, mobile 320×568 | 같음 | desktop만 1440×1000, mobile은 같음 |
+| 기존 실행 정책 | fullyParallel=true, workers=2 | fullyParallel=false, workers=1 | fullyParallel=true, workers=2 |
+| 독립 서버 명령 | npm dev, 기존 cwd 유지 | npm dev, 기존 cwd 유지 | 명시 repo cwd + 직접 Vite 명령 유지 |
+| 산출물 | `e2e/test-results/material-templates` | `e2e/test-results/issuer-settings` | `e2e/test-results/data-model` |
+
+주소 일치 외에도 각 fixture의 모든 요청 route와 Auth 초기화, 테스트별 변경 상태를 대조했다. 같은 앱 origin만 실제 웹 서버로 보내며, 모의 API 경로는 route가 응답하고 그 밖의 외부 요청은 abort한다. 브라우저 context나 모의 저장 상태를 서버에 옮기지 않는다. 실제 API, 운영 build·하위 경로, 다른 포트/환경의 나머지 설정은 그룹 밖에 둔다. worker 수나 프로젝트를 통합 설정으로 덮어쓰지 않는다.
+
+공유 실행기는 고정된 개발 서버를 정확한 자식 프로세스로 만들고, strict port listen 및 HTTP 준비 후 해당 자식의 IPC 응답으로 준비 완료를 확인한다. 모르는 서버를 채택하는 `reuseExistingServer`는 사용하지 않는다. 포트용 배타 lease를 얻은 실행만 시작하며, 실패·중단·정리에서도 그 실행의 프로세스 그룹과 lease만 다룬다. 살아 있는 소유 자식의 PID를 해당 세 설정의 검사 프로세스에만 전달하고 그 범위에서 Playwright의 별도 서버 시작을 생략한다. 이 내부 handoff 환경변수를 단독 명령에 직접 설정하지 않는다.
+
+구조화 보고서의 `fixtureWebMetrics`는 그룹 준비(프로세스 생성부터 HTTP/IPC 준비까지), 검사, 정리, 전체 시간을 기록한다. 설정별 시간은 공유 Vite 준비/정리를 제외한다. 그룹 RSS는 runner와 소유 Vite 및 현재 순차 Playwright 자손을 같은 시점에 합한 KiB 표본이며 설정별 자식 RSS와 범위가 다르므로 최대값을 합산하지 않는다. 공유 페이지 중복, 표본 사이 peak, Docker/VM·재부모화 한계는 위 기준과 같다.
+
+전후 비교는 제품/fixture가 동일한 main `3e82f99f`의 독립 checkout과 그 위에 서버 공유만 적용한 고정 revision을 사용한다. 같은 세 설정·workers=1·warm 조건의 실제 수집 목록과 실행·전체 process tree 표본을 대조할 예정이며, 아직 성능 개선이나 브라우저 통과 근거로 취급하지 않는다. 기존 #544의 `422bb0cd` 측정은 이 비교의 같은 revision 기준선을 대신하지 않는다.
+
 ## 웹·E2E 코드의 국소 포맷팅
 
 웹 TS/TSX와 브라우저 검사는 package.json·lockfile에 고정된 Deno formatter를 사용한다. `--no-config --line-width 120`으로 서버 설정·사용자 설정의 자동 탐색과 구분하고, 기본 2칸 들여쓰기·큰따옴표·세미콜론 스타일을 따른다. formatter는 한 import 안의 이름 순서를 정렬하고 필요한 제어문 중괄호도 배치한다. 별도 formatter 의존성이나 저장소 전체 재포맷을 추가할 필요는 없다.

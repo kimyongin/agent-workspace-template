@@ -1,3 +1,4 @@
+import { groupFixtureStages } from './fixture-web-runtime.mjs';
 import { externalReportPath } from './test-report.mjs';
 import { e2eRunPlan, fixtureConfigs } from "./e2e-run-plan.mjs";
 
@@ -65,7 +66,7 @@ export function fullTestPlan(args) {
   }
   return {
     planOnly, runtimeConfig, envFile, workers, cacheState, reportFile, borrowedOnly: Boolean(runtimeConfig),
-    stages: selected,
+    stages: groupFixtureStages(selected),
     excluded: [
       'static checks/build (separate check:docs, check:boundaries, check:deno, build)',
       'actual CLI/provider trials and RUN_PINECONE_E2E=1 (explicit opt-in; see experiments/README.md)',
