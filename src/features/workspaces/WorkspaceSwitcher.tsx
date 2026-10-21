@@ -14,11 +14,11 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu.tsx";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-export function WorkspaceSwitcher() {
+import appIcon from "../../app/app-icon.svg";
+export function WorkspaceSwitcher({ brand }: { brand: string }) {
   const api = useApi(),
     { workspaceId } = useRequestScope(),
     location = useLocation();
@@ -48,16 +48,17 @@ export function WorkspaceSwitcher() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton aria-label="공간 선택" className="min-h-12">
+              <img className="size-6 shrink-0" src={appIcon} alt="" />
               <span className="min-w-0 flex-1 truncate">
                 {items.find((item) => item.id === workspaceId)?.name ??
-                  "공간 선택"}
+                  brand}
               </span>
               <ChevronsUpDownIcon />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuLabel>내 공간</DropdownMenuLabel>
             <DropdownMenuGroup>
+              <DropdownMenuLabel>내 공간</DropdownMenuLabel>
               {items.map((item) => (
                 <DropdownMenuItem key={item.id} asChild>
                   <Link
@@ -74,19 +75,6 @@ export function WorkspaceSwitcher() {
                   onSelect={() => setRevision((value) => value + 1)}
                 >
                   목록 다시 불러오기
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem asChild>
-                <Link to="/workspaces">공간 목록 · 새 공간</Link>
-              </DropdownMenuItem>
-              {workspaceId && (
-                <DropdownMenuItem asChild>
-                  <Link to={workspacePath(workspaceId, "/manage")}>
-                    이 공간 관리
-                  </Link>
                 </DropdownMenuItem>
               )}
             </DropdownMenuGroup>

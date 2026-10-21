@@ -27,6 +27,7 @@ import {
   profileName,
 } from "./account-preferences.ts";
 import { useDisplayScalePreview } from "./display-scale.tsx";
+import { WorkspaceSettingsSection } from "./WorkspaceSettingsSection.tsx";
 
 const preferenceSections = {
   profile: { title: "프로필", keys: ["icon", "nickname"] },
@@ -232,7 +233,7 @@ function AccountSettings() {
         description="프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다."
         id="settings-title"
       />
-
+      <WorkspaceSettingsSection />
       {(["profile", "date", "display"] as const).map((section) => (
         <Card role="region" aria-labelledby={`settings-${section}`} key={section}>
           <CardHeader><CardTitle><h2 id={`settings-${section}`}>{preferenceSections[section].title}</h2></CardTitle></CardHeader>

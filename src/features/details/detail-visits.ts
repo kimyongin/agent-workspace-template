@@ -51,7 +51,7 @@ export function createDetailVisits(initial: Location, navigate: (path: string, o
     reset(next: Location) {
       location = next;
       pendingVisit = null;
-      publish({ tabs: [], active: null, routeTransfer: null });
+      publish({ tabs: [], active: null, base: next, routeTransfer: null });
     },
     setVisible(visible: boolean) { if (visible !== state.visible) publish({ visible }); },
     saved() { publish({ revision: state.revision + 1 }); },

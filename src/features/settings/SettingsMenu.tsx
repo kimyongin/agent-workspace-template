@@ -5,12 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "../../lib/workspace-router.tsx";
 import { MenuIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { settingsCategories } from "./SettingsNavigation.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { settingsCategories, workspaceSettingsDestinations } from "./SettingsNavigation.tsx";
+import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 
 export function SettingsMenu() {
   const workspaceId = useWorkspaceId();
   const { canRead } = useSettingsAccess();
+  const capability = useWorkspaceCapabilities();
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const location = useLocation();
@@ -37,6 +39,11 @@ export function SettingsMenu() {
             }
           }}>{label}</Link>
         </DropdownMenuItem>)}
+      </DropdownMenuGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuGroup>
+        {workspaceSettingsDestinations(workspaceId, capability?.can_manage ?? false).map(({ to, label }) =>
+          <DropdownMenuItem key={to} asChild><Link to={to}>{label}</Link></DropdownMenuItem>)}
       </DropdownMenuGroup>
     </DropdownMenuContent>
   </DropdownMenu>;
