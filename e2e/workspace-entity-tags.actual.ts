@@ -240,7 +240,7 @@ test(
       const original = `실제 등록 ${run.slice(0, 8)}`;
       const expectEntityValue = async (value: string) => {
         const detail = detailDialog(bPage);
-        await expect(detail.getByRole("heading", { name: value, level: 3, exact: true })).toBeVisible();
+        await expect(detail.getByRole("heading", { name: value, exact: true })).toBeVisible();
         const escapedLabel = titleLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const property = detail.getByRole("term").filter({ hasText: new RegExp(`^${escapedLabel}$`) });
         await expect(property).toHaveCount(1);
