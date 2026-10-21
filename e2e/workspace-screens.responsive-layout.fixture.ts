@@ -1,5 +1,5 @@
 import { businessRows, disclosureContent } from "./table-actions.ts";
-import { listHeader } from "./ui-actions.ts";
+import { executionDialog, listHeader } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListEditor, openTabFilters } from "./ui-actions.ts";
@@ -12,6 +12,21 @@ import { compatibleEdit, fixtures, form, go, linkedFixture } from "./support/wor
 async function settleSurface(surface: Locator) {
   await expect.poll(() => surface.evaluate(element => element.getAnimations({ subtree: true })
     .filter(animation => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
+}
+
+async function expectShellGeometry(surface: Locator, width: number) {
+  await settleSurface(surface);
+  const dimensions = await surface.evaluate((d) => {
+    const r = d.getBoundingClientRect();
+    return { width: r.width, height: r.height, x: r.x, y: r.y, right: r.right, bottom: r.bottom, rootFont: parseFloat(getComputedStyle(document.documentElement).fontSize), scroll: document.documentElement.scrollWidth, viewportHeight: innerHeight };
+  });
+  expect(dimensions.scroll).toBeLessThanOrEqual(width);
+  expect(dimensions.width).toBeLessThanOrEqual(Math.min(width, 48 * dimensions.rootFont));
+  expect(dimensions.height).toBeLessThanOrEqual(dimensions.viewportHeight);
+  expect(dimensions.x).toBeGreaterThanOrEqual(0);
+  expect(dimensions.y).toBeGreaterThanOrEqual(0);
+  expect(dimensions.right).toBeLessThanOrEqual(width);
+  expect(dimensions.bottom).toBeLessThanOrEqual(dimensions.viewportHeight);
 }
 
 for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
@@ -264,42 +279,84 @@ test("#203 320px·200% 펼친 연결 조작과 메인 목록이 넘치지 않음
   expect(state.writes).toHaveLength(0);
 });
 
-for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+for (const width of [390, 1440]) {
   test(`shell ${width}px: 긴 제목·본문 스크롤·키보드·단일 surface`, async ({ page }, info) => {
     const state = await fixtures(page, { long: true });
     await page.setViewportSize({ width, height: 800 });
     await go(page, `/tasks/${id(2)}`);
     await expect(form(page)).toBeVisible();
-    await settleSurface(form(page));
-    const dimensions = await form(page).evaluate((d) => {
-      const r = d.getBoundingClientRect();
-      return { width: r.width, height: r.height, x: r.x, y: r.y, right: r.right, bottom: r.bottom, rootFont: parseFloat(getComputedStyle(document.documentElement).fontSize), scroll: document.documentElement.scrollWidth, viewport: innerWidth, viewportHeight: innerHeight };
-    });
-    expect(dimensions.scroll).toBeLessThanOrEqual(width);
-    expect(dimensions.width).toBeLessThanOrEqual(Math.min(width, 48 * dimensions.rootFont));
-    expect(dimensions.height).toBeLessThanOrEqual(dimensions.viewportHeight);
-    expect(dimensions.x).toBeGreaterThanOrEqual(0);
-    expect(dimensions.y).toBeGreaterThanOrEqual(0);
-    expect(dimensions.right).toBeLessThanOrEqual(width);
-    expect(dimensions.bottom).toBeLessThanOrEqual(dimensions.viewportHeight);
+    await expectShellGeometry(form(page), width);
     await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => {
       el.scrollTop = el.scrollHeight;
     });
-    await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
     await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
     await form(page).locator("[role=\"region\"][aria-label=\"상세 내용\"]").evaluate((el) => {
       el.scrollTop = 0;
     });
     await compatibleEdit(page);
-    await expect(form(page)).toHaveCount(1);
+    await expect(page.getByRole("dialog").filter({ visible: true })).toHaveCount(1);
     await fillChangeMemo(page, form(page), "길이 검수");
+    await settleSurface(executionDialog(page));
     await page.keyboard.press("Tab");
     await page.screenshot({ path: info.outputPath(`surface-${width}.png`) });
     await discardEditor(page);
     await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
+    expect(state.writes).toHaveLength(0);
     expect(state.errors).toEqual([]);
   });
 }
+
+test("shell resize: 경계 폭에서 읽기 기하·편집 초안·확인 메모를 보존한다", async ({ page }, info) => {
+  const state = await fixtures(page, { long: true });
+  await page.setViewportSize({ width: 320, height: 800 });
+  await go(page, `/tasks/${id(2)}`);
+  await expect(form(page)).toBeVisible();
+
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expectShellGeometry(form(page), width);
+    const body = form(page).getByRole("region", { name: "상세 내용", exact: true });
+    const scrolled = await body.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+      return { top: el.scrollTop, height: el.scrollHeight, viewport: el.clientHeight };
+    });
+    expect(scrolled.height).toBeGreaterThan(scrolled.viewport);
+    expect(scrolled.top).toBeGreaterThan(0);
+    await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
+    await body.evaluate((el) => { el.scrollTop = 0; });
+  }
+
+  await compatibleEdit(page);
+  const title = form(page).getByRole("textbox", { name: /^제목/ });
+  const originalTitle = await title.inputValue();
+  const draft = `${originalTitle} 보존`;
+  await title.fill(draft);
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expectShellGeometry(form(page), width);
+    await expect(page.getByRole("dialog").filter({ visible: true })).toHaveCount(1);
+    await expect(title).toHaveValue(draft);
+    await expect(title).toBeFocused();
+  }
+
+  // The draft has survived resizing; restore the original confirmation content.
+  await title.fill(originalTitle);
+  await fillChangeMemo(page, form(page), "길이 검수");
+  const memo = executionDialog(page).getByLabel("기록 메모", { exact: true });
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    await settleSurface(executionDialog(page));
+    await expect(memo).toHaveValue("길이 검수");
+    // Representative keyboard flows retain their own confirmation captures.
+    if (width !== 390 && width !== 1440) {
+      await page.screenshot({ path: info.outputPath(`surface-${width}.png`) });
+    }
+  }
+  await discardEditor(page);
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
+  expect(state.writes).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
 
 test("200% reflow·축소 visual viewport·한 글자 제목", async ({ page }, info) => {
   const state = await fixtures(page);
