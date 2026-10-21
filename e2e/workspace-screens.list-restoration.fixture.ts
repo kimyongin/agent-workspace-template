@@ -1,4 +1,4 @@
-import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { listHeader } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
@@ -586,7 +586,9 @@ for (const outcome of ["success", "failed"] as const) {
       release();
       if (outcome === "success") {
         await expect(preview.getByRole("term").filter({ hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(target.external_id);
-        await expect(await valueCell(toggle.locator("xpath=ancestor::tr[1]"), "수량")).toHaveText("수량1,234");
+        const quantity = preview.getByRole("term").filter({ hasText: /^수량$/ });
+        await expect(quantity).toHaveCount(1);
+        await expect(quantity.locator("..").getByRole("definition")).toHaveText("1,234");
       } else {
         await expect(preview.getByRole("alert")).toHaveText("내용을 불러오지 못했습니다.");
         await expect(preview.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
