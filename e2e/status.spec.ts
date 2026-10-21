@@ -198,9 +198,9 @@ test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이
   await page.keyboard.press("Enter");
   await expect(page.getByRole("alert")).toContainText("색인 문제를 조회하지 못했습니다");
   await page.getByRole("button", { name: "다시 시도" }).click();
-  await expect(page.getByRole("button", { name: /^(문제\d|새 조회의 문제)/ })).toHaveCount(5);
+  await expect(page.getByRole("link", { name: /^(문제\d|새 조회의 문제)/ })).toHaveCount(5);
   await expect(page.getByRole("button", { name: "이전", exact: true })).toBeDisabled();
-  const detail = page.getByRole("button", { name: /^문제0 / }).first();
+  const detail = page.getByRole("button", { name: /^열기: 문제0 / }).first();
   await detail.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByText("실패나 성공으로 확정할 수 없습니다", { exact: false }).first()).toBeVisible();
@@ -214,10 +214,10 @@ test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이
       .first(),
   ).toHaveText("1/2 완료");
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^(문제\d|새 조회의 문제)/ })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: /^(문제\d|새 조회의 문제)/ })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "다음", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "이전", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^(문제\d|새 조회의 문제)/ })).toHaveCount(5);
+  await expect(page.getByRole("link", { name: /^(문제\d|새 조회의 문제)/ })).toHaveCount(5);
   const size = await page.getByRole("button", { name: "다음", exact: true }).boundingBox();
   expect(size!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

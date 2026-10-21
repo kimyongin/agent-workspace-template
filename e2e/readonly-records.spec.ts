@@ -147,7 +147,7 @@ test(
         detailDialog(page).getByRole("heading", { name: "기록", exact: true }),
       ).toBeVisible();
       await closeDetail(page, title);
-      await expect(page.getByRole("button", { name: title, exact: true }))
+      await expect(page.getByRole("link", { name: `${title} 상세`, exact: true }))
         .toBeFocused();
       const after = await snapshot();
       expect(writes).toEqual([]);
