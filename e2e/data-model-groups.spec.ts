@@ -3,7 +3,7 @@ import { expect } from "@playwright/test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import { readFileSync } from "node:fs";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv , ownedWorkspace, workspacePath} from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv , ownedRuntime, ownedWorkspace, workspacePath} from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 import type { DataModelDocument } from "../supabase/functions/_shared/contracts/data-model.ts";
 
@@ -96,6 +96,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
     await expect(tasksLink).toHaveAttribute("href", workspacePath(workspace.id, "/tasks"));
     await tasksLink.click();
     await expect(page).toHaveURL(/\/tasks(?:[?#]|$)/);
+    ownedRuntime();
     const origin = new URL(requiredEnv("VITE_SUPABASE_URL"));
     expect(["127.0.0.1", "localhost"]).toContain(origin.hostname);
     expect(origin.protocol).toBe("http:");
@@ -103,6 +104,7 @@ test("전체 모델 두 종류 변환: 웹 규칙·접수→페이지 이탈→�
       new URL("../scripts/entity-schema-worker-local.mjs", import.meta.url).pathname,
       "--interval-ms=100",
       "--timeout-ms=10000",
+      `--env-file=${process.env.WORKSPACE_E2E_ENV_FILE!}`,
       ...(process.env.ENTITY_SCHEMA_WORKER_CONFIG ? [`--config=${process.env.ENTITY_SCHEMA_WORKER_CONFIG}`] : []),
     ], { cwd: new URL("..", import.meta.url).pathname, env: process.env, stdio: "ignore" });
     await expect.poll(async () => {

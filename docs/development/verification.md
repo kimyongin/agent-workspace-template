@@ -29,7 +29,7 @@ npm run worker:entity-schema:local
 
 첫 명령은 인증된 `{ "check_configuration": true }` 구성 확인만 수행하고 종료하며 작업을 claim하지 않는다. 두 번째 명령은 설정된 로컬 origin의 `/functions/v1/entity-schema-worker`에 `{ "limit": 1 }`을 보낸다. `supabase/config.toml`의 API 주소를 읽고 `.env.local`의 `VITE_SUPABASE_URL`·`VITE_API_URL`이 정확히 같은 origin/경로인지 확인한다. 기본 포트를 따로 가정하지 않는다. 원격 주소·자격증명이 붙은 주소·redirect를 거부하고 서버 전용 토큰만 사용한다.
 
-`--config=/absolute/path/config.toml`은 별도 격리 로컬 설정을 명시할 때 사용한다. 생략하면 추적된 supabase/config.toml을 읽는다. 어느 설정에서도 loopback HTTP와 .env.local의 정확한 API origin 일치를 검사한다. 실제 브라우저 값 변환 검사는 `ENTITY_SCHEMA_WORKER_CONFIG`에 격리 설정 경로를 지정하면 opt-in child runner에 같은 인자를 전달한다. 추적된 설정을 테스트용 포트로 수정하지 않는다.
+`--config=/absolute/path/config.toml`은 별도 격리 로컬 설정을 명시할 때 사용한다. 생략하면 추적된 supabase/config.toml을 읽는다. `--env-file=/absolute/path/.env.local`은 그 설정에 대응하는 환경 파일을 선택하며 생략하면 checkout의 `.env.local`을 읽는다. 어느 설정에서도 loopback HTTP와 선택한 환경 파일의 정확한 API origin·처리 토큰을 검사한다. 실제 브라우저 값 변환 검사는 `ENTITY_SCHEMA_WORKER_CONFIG`의 격리 설정과 소유권 검증을 통과한 `WORKSPACE_E2E_ENV_FILE`을 opt-in child runner에 함께 전달한다. 추적된 설정을 테스트용 포트로 수정하지 않는다.
 
 응답 완료 후 기본 2000ms를 기다려 다음 호출을 하므로 요청이 겹치지 않는다. `--interval-ms=1000`·`--timeout-ms=30000`은 각각 100~60000ms 정수만 허용한다. `--once`는 한 번만 소비한다. HTTP 비성공·연결 실패·요청 시간 초과에는 실행기를 종료하고 작업 상태를 다시 확인한다. 네트워크 관찰 실패만으로 작업을 failed/cancelled로 만들지 않는다. Ctrl+C/SIGINT는 130, SIGTERM은 143으로 요청·대기를 취소해 끝낸다. 소비 중단은 접수된 작업 삭제가 아니며 재실행 시 영속 상태/lease에 따라 이어간다. 로그에는 HTTP 상태만 출력하고 응답 본문·토큰·변환 원문·stage는 출력하지 않는다.
 

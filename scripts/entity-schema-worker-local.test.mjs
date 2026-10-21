@@ -213,8 +213,10 @@ test("runner cancels interval waiting without another invocation and rejects unb
 
 test("CLI explicit isolated config preserves tracked defaults and exact matching-origin validation", async (t) => {
   let requests = 0;
-  const config = await fixture(t, (_, response) => {
+  const authorizations = [];
+  const config = await fixture(t, (request, response) => {
     requests++;
+    authorizations.push(request.headers.authorization);
     response.end("private-response");
   });
   const directory = mkdtempSync(join(tmpdir(), "schema-worker-config-"));
@@ -261,4 +263,31 @@ test("CLI explicit isolated config preserves tracked defaults and exact matching
   const duplicate = await run([`--config=${external}`, `--config=${external}`]);
   assert.equal(duplicate.code, 1);
   assert.equal(requests, 1);
+  const selectedEnv = join(directory, "selected runtime.env");
+  const selectedToken = "selected-worker-test-token-abcdefghijklmnopqrstuvwxyz";
+  writeFileSync(selectedEnv, Object.entries({ ...config.environment, PROCESSING_TOKEN: selectedToken })
+    .map(([key, value]) => `${key}=${value}`).join("\n"));
+  writeFileSync(join(directory, ".env.local"), "VITE_SUPABASE_URL=http://127.0.0.1:65534\n");
+  const noSelection = await run([`--config=${external}`]);
+  assert.equal(noSelection.code, 1);
+  assert.equal(requests, 1);
+  const selected = await run([`--config=${external}`, `--env-file=${selectedEnv}`]);
+  assert.equal(selected.code, 0, selected.output);
+  assert.equal(requests, 2);
+  assert.equal(authorizations.at(-1), `Bearer ${selectedToken}`);
+  assert.equal(selected.output.trim(), "스키마 worker HTTP 200");
+  assert(!selected.output.includes(selectedToken));
+  assert(!selected.output.includes("private-response"));
+  for (const args of [
+    [`--env-file=${selectedEnv}`, `--env-file=${selectedEnv}`],
+    ["--env-file="],
+    ["--env-file=bad\npath"],
+    [`--env-file=${join(directory, "missing.env")}`],
+    [`--env-file=${join(directory, ".env.local")}`],
+  ]) {
+    const rejected = await run([`--config=${external}`, ...args]);
+    // Node may reject its own malformed --env-file option before the script starts.
+    assert(rejected.code > 0, rejected.output);
+    assert.equal(requests, 2);
+  }
 });

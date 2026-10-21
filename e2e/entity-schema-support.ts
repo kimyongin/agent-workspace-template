@@ -1,15 +1,13 @@
 import { expect } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { parseEnv } from "node:util";
-import { env, ownedFixtureSeed, workspacePath } from "./support.ts";
+import { env, ownedFixtureSeed, ownedRuntime, requiredEnv, workspacePath } from "./support.ts";
 import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 type FixtureClient = { workspaceId?: string; call(name: string, input: Record<string, unknown>): Promise<any> };
 type FixtureWorkspace = { id: string; grantKind(typeId: string): Promise<void> };
 /** Explicit actual internal worker consumption; callers own serial local API tests. */
 export async function schemaAnalysisTick() {
-  const token = parseEnv(readFileSync(new URL("../supabase/functions/.env", import.meta.url), "utf8")).PROCESSING_TOKEN;
-  if (!token) throw new Error("local schema worker token missing");
+  ownedRuntime();
+  const token = requiredEnv("PROCESSING_TOKEN");
   const response = await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/entity-schema-worker`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
