@@ -448,8 +448,8 @@ async function twoKindPublicationFixture(injectLateFailure: boolean, expireGroup
               }))
               .sort((l, r) => String(l.properties.prop_1).localeCompare(String(r.properties.prop_1))),
             [
-              { properties: { prop_1: "12" }, schema_version: 1, version: 1 },
-              { properties: { prop_1: "13" }, schema_version: 1, version: 1 },
+              { properties: { prop_1: "12", prop_2: entities[0].slice(37) }, schema_version: 1, version: 1 },
+              { properties: { prop_1: "13", prop_2: entities[1].slice(37) }, schema_version: 1, version: 1 },
             ],
           );
           assertEquals((await admin`select id from app.records where workspace_id=${workspaceId}`).map((r) => r.id), [
@@ -902,7 +902,7 @@ async function retryOrRestoreFixture(
       const errorsInput = { analysis_id: analysis.batch.id, failures_only: true };
       const failedRows = await changes.getEntitySchemaAnalysisRows(typeDeps, executor, kind.id, changeId, errorsInput);
       assertEquals(failedRows.items.length, 1);
-      assertEquals(failedRows.items[0].before, { prop_1: "12" });
+      assertEquals(failedRows.items[0].before, { prop_1: "12", prop_2: entityId.slice(37) });
       assertEquals(failedRows.items[0].errors.length > 0, true);
       await workspaces.updateWorkspaceMember(workspaceDeps, key(a), workspaceId, b.userId, {
         expected_version: 1,
@@ -960,7 +960,7 @@ async function retryOrRestoreFixture(
       assertEquals(
         (await admin`select properties from app.entities where workspace_id=${workspaceId} and id=${entityId}`)[0]
           .properties,
-        { prop_1: "X" },
+        { prop_1: "X", prop_2: entityId.slice(37) },
       );
       assertEquals(
         Number(

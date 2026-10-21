@@ -23,8 +23,6 @@ function row(id: string) {
           diff: [{ path: "large" }],
           schema: { properties: { prop_1: { title: "원문" } } },
           current_schema: {},
-          identity: { sources: [] },
-          current_identity: { sources: [] },
         }],
       },
     },
@@ -38,7 +36,7 @@ Deno.test("model history uses a scoped cursor and summary payload rather than fu
   const first = await store(historyPage()).list(1);
   assertEquals(first.items[0].review.items[0].schema, undefined);
   assertEquals(first.items[0].review.items[0].current_schema, undefined);
-  assertEquals(first.items[0].review.items[0].identity, undefined);
+  assertEquals(Object.hasOwn(first.items[0].review.items[0], "identity"), false);
   assertEquals(first.items[0].review.items[0].diff, []);
   await assertRejects(() => store([], b).list(1, first.next_cursor!), Error, "cursor");
   await assertRejects(

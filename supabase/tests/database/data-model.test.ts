@@ -87,8 +87,14 @@ dbTest("whole model aborts a late identity reference without publishing earlier 
     const changed = structuredClone(original);
     changed.entity_types[0].schema.description = "실패하면 게시되면 안 되는 변경";
     const target = changed.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
-    target.identity.default_source = "app";
-    target.identity.sources = target.identity.sources.filter((source) => source.code !== "seller");
+    const selected = sku.schema["x-identity-property"]!;
+    const sellerId = original.identity_definitions.rules.find((r) =>
+      r.source === "seller" && sku.schema.properties[selected]["x-identifier"]!.allowed_kind_ids.includes(r.id)
+    )!.id;
+    target.schema.properties[selected]["x-identifier"] = {
+      allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
+      default_kind_id: "00000000-0000-4000-8000-000000000001",
+    };
     const input = { mode: "update" as const, document: JSON.stringify(changed) };
     const review = await previewDataModel(deps, a.manager, input);
     assertEquals(review.can_apply, true);
@@ -101,23 +107,27 @@ dbTest("whole model aborts a late identity reference without publishing earlier 
     await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.manager), {
       entity_type_id: sku.schema["x-type-id"],
       schema_version: 1,
-      source: "seller",
-      external_id: "sku-1",
-      properties: { prop_1: "등록 SKU" },
+      properties: { prop_1: "등록 SKU", [selected]: `${sellerId}:sku-1` },
     });
     const removal = await previewDataModel(deps, a.manager, input);
     assertEquals(removal.can_apply, false);
-    assertEquals(removal.items.find((item) => item.ref === target.ref)?.kind, "conflict");
+    assertEquals(
+      removal.items.find((item) =>
+        item.ref === target.ref
+      )?.kind,
+      "conflict",
+    );
     const replacement = structuredClone(original);
     const replacementType = replacement.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
-    const oldSource = replacementType.identity.sources.find((source) => source.code === "seller")!;
+    const oldSource = replacementType.schema.properties[selected]["x-identifier"]!;
     const newRule = {
-      ...replacement.identity_definitions.rules.find((rule) => rule.id === oldSource.rule_id)!,
+      ...replacement.identity_definitions.rules.find((rule) => rule.id === sellerId)!,
       id: crypto.randomUUID(),
       label: "새 판매자 번호",
     };
     replacement.identity_definitions.rules.push(newRule);
-    oldSource.rule_id = newRule.id;
+    oldSource.allowed_kind_ids = oldSource.allowed_kind_ids.map((id) => id === sellerId ? newRule.id : id);
+    oldSource.default_kind_id = newRule.id;
     const rebound = await previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(replacement) });
     assertEquals(rebound.can_apply, false);
     assertEquals(rebound.items.find((item) => item.ref === target.ref)?.kind, "conflict");
@@ -140,8 +150,12 @@ dbTest(
       const sample = JSON.parse(await Deno.readTextFile("docs/examples/data-model/cooking.json")) as DataModelDocument;
       sample.entity_types = sample.entity_types.slice(0, 1);
       sample.relations = [];
-      sample.entity_types[0].schema.properties = { prop_9: sample.entity_types[0].schema.properties.prop_1 };
-      sample.entity_types[0].schema.required = ["prop_9"];
+      sample.entity_types[0].schema.properties = {
+        prop_9: sample.entity_types[0].schema.properties.prop_1,
+        prop_10: sample.entity_types[0].schema.properties[sample.entity_types[0].schema["x-identity-property"]!],
+      };
+      sample.entity_types[0].schema["x-identity-property"] = "prop_10";
+      sample.entity_types[0].schema.required = ["prop_9", "prop_10"];
       sample.entity_types[0].schema["x-title-template"] = "$prop_9$";
       const input = { mode: "copy" as const, document: JSON.stringify(sample) },
         review = await previewDataModel(deps, a.manager, input),
@@ -152,7 +166,7 @@ dbTest(
         prepareDataModel(deps, actor, prepared),
       ]);
       assertEquals(one, two);
-      assertEquals(review.mapping.properties.ingredient, { prop_9: "prop_1" });
+      assertEquals(review.mapping.properties.ingredient, { prop_9: "prop_1", prop_10: "prop_2" });
       assertEquals(review.items.find((item) => item.ref === "ingredient")?.schema?.["x-title-template"], "$prop_1$");
       const publishActor = requestActor(a.manager),
         [left, right] = await Promise.all([
@@ -162,11 +176,11 @@ dbTest(
       assertEquals(left, right);
       const before = await exportDataModel(deps, a.manager);
       assertEquals(before.entity_types.length, 1);
-      assertEquals(before.entity_types[0].schema.required, ["prop_1"]);
+      assertEquals(before.entity_types[0].schema.required, ["prop_1", "prop_2"]);
       assertEquals(before.entity_types[0].schema["x-title-template"], "$prop_1$");
       await a.grantKind(a.manager, before.entity_types[0].schema["x-type-id"], "write");
       const changed = structuredClone(before), type = changed.entity_types[0];
-      type.schema.properties.prop_99 = { type: "integer", "x-order": 30 };
+      type.schema.properties.prop_99 = { type: "integer", "x-order": 40 };
       const update = { mode: "update" as const, document: JSON.stringify(changed) },
         p = await previewDataModel(deps, a.manager, update),
         c = await prepareDataModel(deps, requestActor(a.manager), { ...update, preview_fingerprint: p.fingerprint });
@@ -179,7 +193,7 @@ dbTest(
           edits: [{
             op: "add_property",
             client_ref: "reserve",
-            field: { type: "integer", "x-order": 40 },
+            field: { type: "integer", "x-order": 50 },
             required: false,
           }],
         },
@@ -189,7 +203,7 @@ dbTest(
       const fresh = await previewDataModel(deps, a.manager, update);
       assertEquals(fresh.mapping.properties[type.ref].prop_99, "prop_99");
       const reused = structuredClone(before);
-      reused.entity_types[0].schema.properties.prop_2 = { type: "integer", "x-order": 30 };
+      reused.entity_types[0].schema.properties.prop_3 = { type: "integer", "x-order": 40 };
       await assertRejects(() =>
         previewDataModel(deps, a.manager, { mode: "update", document: JSON.stringify(reused) })
       );
@@ -273,6 +287,7 @@ dbTest("whole model keeps the existing exact 256 KiB kind definition boundary an
     sample.relations = [];
     const schema = sample.entity_types[0].schema;
     for (let n = 2; n <= 64; n++) {
+      if (schema["x-identity-property"] === `prop_${n}`) continue;
       schema.properties[`prop_${n}`] = {
         type: "string",
         "x-order": n * 10,
@@ -306,12 +321,20 @@ dbTest(
       const sample = JSON.parse(
         await Deno.readTextFile("docs/examples/data-model/openmarket.json"),
       ) as DataModelDocument;
-      for (const t of sample.entity_types) t.identity.default_source = "app";
+      for (const t of sample.entity_types) {
+        t.schema.properties[t.schema["x-identity-property"]!]["x-identifier"]!.default_kind_id =
+          "00000000-0000-4000-8000-000000000001";
+      }
       sample.identity_definitions.issuers.find((i) => i.code === "seller")!.active = false;
       await install(a.manager, sample);
       const exported = await exportDataModel(deps, a.manager),
         sku = exported.entity_types.find((t) => t.schema.title === "판매 SKU")!;
-      assertEquals(sku.identity.sources.find((s) => s.code === "seller")?.active, true);
+      const selected = sku.schema["x-identity-property"]!;
+      const sellerKinds = (d: DataModelDocument, t: DataModelDocument["entity_types"][number]) =>
+        d.identity_definitions.rules.filter((r) =>
+          r.source === "seller" && t.schema.properties[selected]["x-identifier"]!.allowed_kind_ids.includes(r.id)
+        );
+      assertEquals(sellerKinds(exported, sku).length, 1);
       const copied = await install(a.manager, exported);
       const copiedSku = copied.review.mapping.types[sku.ref];
       const identities = { uow: new SqlEntityIssuerUnitOfWork(sql) };
@@ -326,23 +349,17 @@ dbTest(
       await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.manager), {
         entity_type_id: copiedSku,
         schema_version: 1,
-        source: "seller",
-        external_id: "reactivated-sku",
-        properties: { prop_1: "다시 활성화된 SKU" },
+        properties: { prop_1: "다시 활성화된 SKU", [selected]: `${sellerKinds(all, copyType)[0].id}:reactivated-sku` },
       });
-      const rule = all.identity_definitions.rules.find((r) =>
-        r.id === copyType.identity.sources.find((s) => s.code === "seller")!.rule_id
-      )!;
+      const rule = all.identity_definitions.rules.find((r) => r.id === sellerKinds(all, copyType)[0].id)!;
       await updateIdentifierRule(identities, requestActor(a.manager), rule.id, {
         active: false,
         expected_version: rule.version,
       });
       const suspended = await exportDataModel(deps, a.manager);
       assertEquals(
-        suspended.entity_types.find((t) => t.schema["x-type-id"] === copiedSku)!.identity.sources.find((s) =>
-          s.code === "seller"
-        )?.active,
-        true,
+        sellerKinds(suspended, suspended.entity_types.find((t) => t.schema["x-type-id"] === copiedSku)!).length,
+        1,
       );
       const noop = await install(a.manager, suspended, "update");
       assertEquals(noop.applied.result?.changed, false);
@@ -396,7 +413,7 @@ dbTest("model history scopes cursors to workspace and existing anchors and retur
     const page = await listDataModelChanges(deps, a.manager, { limit: 1 });
     assertEquals(typeof page.next_cursor, "string");
     assertEquals(page.items[0].review.items[0].schema, undefined);
-    assertEquals(page.items[0].review.items[0].identity, undefined);
+    assertEquals(Object.hasOwn(page.items[0].review.items[0], "identity"), false);
     await assertRejects(() => listDataModelChanges(deps, b.manager, { limit: 1, cursor: page.next_cursor! }));
     const second = await listDataModelChanges(deps, a.manager, { limit: 1, cursor: page.next_cursor! });
     assertEquals(second.items.length, 1);

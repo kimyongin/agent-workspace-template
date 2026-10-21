@@ -438,6 +438,8 @@ test("신규 종류의 실제 정의와 번호 및 원본 대응을 검토한다
     "x-type-id": "10000000-0000-4000-8000-000000000001",
     "x-version": 1,
   };
+  schema.properties.prop_2.title = "판매자상품번호";
+  schema.properties.prop_2["x-identifier"] = { allowed_kind_ids: ["30000000-0000-4000-8000-000000000001"], default_kind_id: "30000000-0000-4000-8000-000000000001" };
   const detailed: ModelReview = {
     ...review,
     mapping: {
@@ -450,12 +452,7 @@ test("신규 종류의 실제 정의와 번호 및 원본 대응을 검토한다
       ...review.items[0],
       source_type_id: "40000000-0000-4000-8000-000000000001",
       schema,
-      identity: {
-        version: 1,
-        label: "판매자상품번호",
-        default_source: "seller",
-        sources: [{ code: "seller", rule_id: "30000000-0000-4000-8000-000000000001", active: false }],
-      },
+
     }],
   };
   await page.route("**/api/data-model/preview", (route) => route.fulfill({ json: detailed }));
@@ -520,21 +517,23 @@ test("모델 검토의 번호 출처와 설정 차이는 읽기 전용 표로 �
   before.schema.properties.prop_1.maxLength = 20;
   const after = structuredClone(before);
   after.schema.properties.prop_1.maxLength = 40;
+  before.schema.properties.prop_3 = { type: "string", title: "기존 판매 번호", "x-order": 30, deprecated: true, "x-identifier": { allowed_kind_ids: ["20000000-0000-4000-8000-000000000001"], default_kind_id: "20000000-0000-4000-8000-000000000001" } };
+  after.schema.properties.prop_3 = { type: "string", title: "판매 번호", "x-order": 30, "x-identifier": { allowed_kind_ids: ["30000000-0000-4000-8000-000000000001"], default_kind_id: "30000000-0000-4000-8000-000000000001" } };
   const detailed: ModelReview = { ...review, items: [{ ref: "order", label: "주문", kind: "compatible", schema: after.schema, current_schema: before.schema,
     diff: [{ path: "properties.prop_1.maxLength", kind: "compatible", before_present: true, before: 20, after_present: true, after: 40, reason: "제한 완화", next_action: "keep" }],
-    identity: { version: 2, label: "판매 번호", default_source: "seller", sources: [{ code: "seller", rule_id: "판매 규칙", active: true }] },
-    current_identity: { version: 1, label: "기존 판매 번호", default_source: "seller", sources: [{ code: "seller", rule_id: "기존 판매 규칙", active: false }] },
-  }] };
+
+  }, { ref: "rule:30000000-0000-4000-8000-000000000001", label: "판매 규칙", kind: "new", diff: [] }, { ref: "rule:20000000-0000-4000-8000-000000000001", label: "기존 판매 규칙", kind: "unchanged", diff: [] }] };
   await page.route("**/api/data-model/preview", route => route.fulfill({ json: detailed }));
   await page.goto(fixtureWorkspacePath("/settings/data-model"));
   await page.getByRole("textbox", { name: "설정 파일 내용" }).fill("검토할 모델");
   await page.getByRole("button", { name: "가져올 내용 검토", exact: true }).click();
   await page.getByRole("button", { name: "주문 수정", exact: true }).click();
-  const sources = page.getByRole("table", { name: "가져올 번호 출처 목록", exact: true });
-  await expect(sources.getByRole("row").filter({ hasText: "판매 규칙" })).toContainText("사용");
-  await page.getByRole("button", { name: "현재 번호 설정", exact: true }).click();
-  await expect(page.getByRole("table", { name: "현재 번호 출처 목록", exact: true })).toContainText("기존 판매 규칙");
-  await expect(page.getByRole("table", { name: "현재 번호 출처 목록", exact: true })).toContainText("중지");
+  const sources = page.getByRole("table", { name: "입력 항목 정의 목록", exact: true }).first();
+  await expect(sources.getByRole("row", { name: "판매 번호 정의", exact: true })).toContainText("판매 규칙");
+  await page.getByRole("button", { name: "현재 입력 항목 정의", exact: true }).click();
+  const previous = page.getByRole("table", { name: "입력 항목 정의 목록", exact: true }).nth(1);
+  await expect(previous.getByRole("row", { name: "기존 판매 번호 정의", exact: true })).toContainText("기존 판매 규칙");
+  await expect(previous.getByRole("row", { name: "기존 판매 번호 정의", exact: true })).toContainText("사용 중지");
   const differences = page.getByRole("table", { name: "모델 변경값 목록", exact: true });
   await expect(differences).toContainText("20 → 40");
   await expect(differences.locator("input,select,textarea")).toHaveCount(0);

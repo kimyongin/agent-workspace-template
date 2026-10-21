@@ -3,7 +3,7 @@ import type { EntitySchemaMigration } from "./entity-schema-migration.ts";
 import { z } from "zod";
 import type { EntitySchema } from "./entity-type.ts";
 import type { SchemaDiff } from "./entity-schema-change.ts";
-import { issuerCode, typeIdentityUpdate } from "./entity-issuer.ts";
+import { issuerCode } from "./entity-issuer.ts";
 import { relationEnd } from "./entity-relation.ts";
 const version = z.number().int().positive();
 export const modelIssuer = z.strictObject({
@@ -20,12 +20,6 @@ export const modelRule = z.strictObject({
   meaning: z.string().min(1).max(500),
   generation: z.enum(["automatic", "direct"]),
   active: z.boolean(),
-  version,
-});
-export const modelIdentity = z.strictObject({
-  label: typeIdentityUpdate.shape.label,
-  default_source: typeIdentityUpdate.shape.default_source,
-  sources: typeIdentityUpdate.shape.sources,
   version,
 });
 export const modelRelation = z.strictObject({
@@ -46,7 +40,6 @@ export const dataModelDocument = z.strictObject({
     z.strictObject({
       ref: z.string().min(1),
       schema: z.custom<EntitySchema>((v) => !!v && typeof v === "object" && !Array.isArray(v)),
-      identity: modelIdentity,
     }),
   ).max(64),
   relations: z.array(modelRelation),
@@ -73,8 +66,6 @@ export type ModelItem = {
   message?: string;
   schema?: EntitySchema;
   current_schema?: EntitySchema;
-  identity?: DataModelDocument["entity_types"][number]["identity"];
-  current_identity?: DataModelDocument["entity_types"][number]["identity"];
   relation_impact?: { links: number; left_many: boolean; right_many: boolean };
 };
 export type ModelReview = {

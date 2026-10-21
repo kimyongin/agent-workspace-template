@@ -9,7 +9,7 @@ import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel, schemaDiffValueLab
 
 /** Definition values, never material values or the mutable editor draft. */
 export function SchemaDefinitionRead(
-  { definition }: { definition: SchemaDefinition },
+  { definition, identifierKinds = [] }: { definition: SchemaDefinition; identifierKinds?: ReadonlyArray<{ id: string; label: string }> },
 ) {
   const keys = [
     ...new Set([
@@ -31,6 +31,14 @@ export function SchemaDefinitionRead(
           ["항목 이름", field.title || "이름 없는 항목"],
           ["데이터 타입", fieldTypeLabel(field)],
         ];
+        if (field["x-identifier"]) {
+          const kindLabel = (id: string) => identifierKinds.find((kind) => kind.id === id)?.label ?? id;
+          values.push(
+            ["자료 식별자", definition.schema["x-identity-property"] === key ? "예" : "아니요"],
+            ["허용 식별자 종류", field["x-identifier"].allowed_kind_ids.map(kindLabel).join(", ")],
+            ["기본 식별자 종류", kindLabel(field["x-identifier"].default_kind_id)],
+          );
+        }
         if (fieldChoices(field)) {
           values.push(["선택 항목", fieldChoices(field)!.map(optionLabel).join(", ")]);
         }

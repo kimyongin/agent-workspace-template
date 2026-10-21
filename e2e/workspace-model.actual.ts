@@ -567,7 +567,7 @@ test(
         expected_version: 1,
         grants,
       });
-      const external = randomUUID(), entityId = `app:${kind.id}:${external}`;
+      const external = randomUUID(), entityId = `${kind.id}:00000000-0000-4000-8000-000000000001:${external}`;
       manifest.entity_ids.push(entityId);
       persist();
       workerStep({

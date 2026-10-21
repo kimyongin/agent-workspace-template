@@ -40,24 +40,25 @@
             "title": "배송 예정일",
             "format": "date",
             "x-order": 40
+          },
+          "prop_5": {
+            "type": "string",
+            "title": "자료 번호",
+            "x-order": 50,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001"
+              ],
+              "default_kind_id": "00000000-0000-4000-8000-000000000001"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_5"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "자료 번호",
-        "default_source": "app",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_5"
       }
     },
     {
@@ -96,29 +97,26 @@
             "title": "재고",
             "minimum": 0,
             "x-order": 40
+          },
+          "prop_5": {
+            "type": "string",
+            "title": "SKU 코드",
+            "x-order": 50,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001",
+                "30000000-0000-4000-8000-000000000002"
+              ],
+              "default_kind_id": "30000000-0000-4000-8000-000000000002"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_5"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "SKU 코드",
-        "default_source": "seller",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          },
-          {
-            "code": "seller",
-            "rule_id": "30000000-0000-4000-8000-000000000002",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_5"
       }
     },
     {
@@ -197,24 +195,25 @@
               }
             ],
             "x-order": 70
+          },
+          "prop_8": {
+            "type": "string",
+            "title": "자료 번호",
+            "x-order": 80,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001"
+              ],
+              "default_kind_id": "00000000-0000-4000-8000-000000000001"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_8"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "자료 번호",
-        "default_source": "app",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_8"
       }
     },
     {
@@ -256,24 +255,25 @@
             "title": "마켓 고객번호",
             "maxLength": 4096,
             "x-order": 30
+          },
+          "prop_4": {
+            "type": "string",
+            "title": "자료 번호",
+            "x-order": 40,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001"
+              ],
+              "default_kind_id": "00000000-0000-4000-8000-000000000001"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_4"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "자료 번호",
-        "default_source": "app",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_4"
       }
     },
     {
@@ -338,24 +338,25 @@
               }
             ],
             "x-order": 40
+          },
+          "prop_5": {
+            "type": "string",
+            "title": "자료 번호",
+            "x-order": 50,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001"
+              ],
+              "default_kind_id": "00000000-0000-4000-8000-000000000001"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_5"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "자료 번호",
-        "default_source": "app",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_5"
       }
     },
     {
@@ -394,24 +395,25 @@
             "title": "마켓 주문행번호",
             "maxLength": 4096,
             "x-order": 40
+          },
+          "prop_5": {
+            "type": "string",
+            "title": "자료 번호",
+            "x-order": 50,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001"
+              ],
+              "default_kind_id": "00000000-0000-4000-8000-000000000001"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_5"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "자료 번호",
-        "default_source": "app",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_5"
       }
     },
     {
@@ -463,24 +465,25 @@
             "title": "답변 초안",
             "maxLength": 4096,
             "x-order": 40
+          },
+          "prop_5": {
+            "type": "string",
+            "title": "자료 번호",
+            "x-order": 50,
+            "x-identifier": {
+              "allowed_kind_ids": [
+                "00000000-0000-4000-8000-000000000001"
+              ],
+              "default_kind_id": "00000000-0000-4000-8000-000000000001"
+            }
           }
         },
         "required": [
-          "prop_1"
+          "prop_1",
+          "prop_5"
         ],
-        "x-title-template": "$prop_1$"
-      },
-      "identity": {
-        "version": 1,
-        "label": "자료 번호",
-        "default_source": "app",
-        "sources": [
-          {
-            "code": "app",
-            "rule_id": "00000000-0000-4000-8000-000000000001",
-            "active": true
-          }
-        ]
+        "x-title-template": "$prop_1$",
+        "x-identity-property": "prop_5"
       }
     }
   ],

@@ -19,21 +19,6 @@ export const identifierRuleUpdate = z.strictObject({
   active: z.boolean().optional(),
   expected_version: expectedVersion,
 });
-export const typeIdentityUpdate = z.strictObject({
-  label,
-  default_source: issuerCode,
-  expected_version: expectedVersion,
-  sources: z.array(z.strictObject({ code: issuerCode, rule_id: z.string().uuid(), active: z.boolean() })).min(1).max(
-    64,
-  ),
-}).superRefine((v, ctx) => {
-  if (new Set(v.sources.map((s) => s.code)).size !== v.sources.length) {
-    ctx.addIssue({ code: "custom", path: ["sources"], message: "발급처는 한 번만 연결할 수 있습니다" });
-  }
-  if (!v.sources.some((s) => s.code === v.default_source && s.active)) {
-    ctx.addIssue({ code: "custom", path: ["default_source"], message: "활성 발급처를 선택하세요" });
-  }
-});
 export interface EntityIssuer {
   code: string;
   label: string;
@@ -50,22 +35,6 @@ export interface IdentifierRule {
   active: boolean;
   version: number;
 }
-export interface EntityTypeIdentity {
-  type_id: string;
-  label: string;
-  default_source: string;
-  version: number;
-  sources: {
-    code: string;
-    rule_id: string;
-    active: boolean;
-    referenced: boolean;
-    source_label: string;
-    rule_label: string;
-    generation: "automatic" | "direct";
-  }[];
-}
-
 /** Policy field paths carry the affected owner-scoped type, never another owner's labels. */
 export const identifierDefaultFieldPath = "default_fields.";
 export interface IdentifierDefaultField {

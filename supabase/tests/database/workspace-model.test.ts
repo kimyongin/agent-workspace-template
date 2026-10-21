@@ -1,3 +1,7 @@
+import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
+import { createEntity } from "../../functions/_shared/core/entity/application.ts";
+import { configureIdentifierField } from "./_entity.ts";
+import * as schemaChanges from "../../functions/_shared/core/entity-types/schema-changes.ts";
 import {
   applyDataModel,
   exportDataModel,
@@ -272,14 +276,15 @@ dbTest(
           ],
         });
       }
-      const externalId = crypto.randomUUID(), entityId = `app:${left.id}:${externalId}`;
+      const externalId = crypto.randomUUID(),
+        entityId = `${left.id}:00000000-0000-4000-8000-000000000001:${externalId}`;
       await runInWorkspace(sql, first, {
         mode: "business",
         requirements: [{ target_kind: "entity_type", target_id: left.id, access: "write" }],
       }, async (tx) => {
-        await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-          values(${owned[0]}::uuid,${entityId},'app',${externalId},${left.id}::uuid,1,${
-          tx.json({ prop_1: "공유 값" })
+        await tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+          values(${owned[0]}::uuid,${entityId},${left.id}::uuid,1,${
+          tx.json({ prop_1: "공유 값", prop_2: `00000000-0000-4000-8000-000000000001:${externalId}` })
         })`;
       });
       const sharedValuesReview = await previewDataModel(modelDeps, reader, dataInput);
@@ -429,68 +434,29 @@ dbTest(
         label: "번호",
         meaning: "원래 의미",
       });
-      const originalIdentity = await issuers.getEntityTypeIdentity(issuerDeps, manager, kind.id);
-      const configuredIdentity = await issuers.updateEntityTypeIdentity(issuerDeps, key(manager), kind.id, {
-        expected_version: originalIdentity.version,
-        label: "외부 번호",
-        default_source: "app",
-        sources: [...originalIdentity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })), {
-          code: "custom",
-          rule_id: customRule.id,
-          active: true,
-        }],
-      });
       const renamedRule = await issuers.updateIdentifierRule(issuerDeps, key(manager), customRule.id, {
         expected_version: customRule.version,
         label: "번호 이름 변경",
       });
-      await runInWorkspace(sql, manager, {
-        mode: "business",
-        requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
-      }, async (tx) => {
-        const directMeaning = await assertRejects(() =>
-          tx.savepoint((attempt) =>
-            attempt`update app.entity_identifier_rules set meaning='SQL 우회',version=version+1
-            where workspace_id=${owned[0]}::uuid and id=${customRule.id}::uuid`
-          )
-        );
-        assertEquals((directMeaning as { code?: string }).code, "42501");
-        assertEquals((directMeaning as Error).message, "workspace_denied");
-        const directRemoval = await assertRejects(() =>
-          tx.savepoint((attempt) =>
-            attempt`delete from app.entity_type_identity_sources
-            where workspace_id=${owned[0]}::uuid and type_id=${kind.id}::uuid and code='custom'`
-          )
-        );
-        assertEquals((directRemoval as { code?: string }).code, "42501");
-        assertEquals((directRemoval as Error).message, "workspace_denied");
-      });
-      const deniedMeaning = await assertRejects(() =>
-        issuers.updateIdentifierRule(
-          issuerDeps,
-          key(manager),
-          customRule.id,
-          { expected_version: renamedRule.version, meaning: "변경된 의미" },
-        ), AppError);
-      assertEquals(deniedMeaning.code, "forbidden");
-      const currentIdentity = await issuers.getEntityTypeIdentity(issuerDeps, manager, kind.id);
-      const deniedRemoval = await assertRejects(() =>
-        issuers.updateEntityTypeIdentity(
-          issuerDeps,
-          key(manager),
-          kind.id,
-          {
-            expected_version: currentIdentity.version,
-            label: configuredIdentity.label,
-            default_source: "app",
-            sources: currentIdentity.sources.filter((s) => s.code !== "custom").map(({ code, rule_id, active }) => ({
-              code,
-              rule_id,
-              active,
-            })),
-          },
-        ), AppError);
-      assertEquals(deniedRemoval.code, "forbidden");
+      const edit = {
+        expected_schema_version: 1,
+        edits: [{ op: "set_metadata", description: "권한 검사" }],
+        migration: {
+          rules: [],
+          overrides: [{
+            entity_id: `${kind.id}:00000000-0000-4000-8000-000000000001:permission`,
+            key: "prop_1",
+            value: "권한 검사",
+          }],
+        },
+      };
+      assertEquals(
+        (await assertRejects(
+          () => schemaChanges.createEntitySchemaChange(typeDeps, key(manager), kind.id, edit),
+          AppError,
+        )).code,
+        "forbidden",
+      );
       await workspaces.updateWorkspaceMember(workspaceDeps, key(a), owned[0], b.userId, {
         expected_version: 1,
         grants: [{ target_kind: "settings", target_id: "*", access: "write" }, {
@@ -499,21 +465,52 @@ dbTest(
           access: "write",
         }],
       });
+      await configureIdentifierField(sql, manager, kind.id, {
+        allowed_kind_ids: ["00000000-0000-4000-8000-000000000001", customRule.id],
+        default_kind_id: "00000000-0000-4000-8000-000000000001",
+      });
+      const deniedMeaning = await assertRejects(
+        () =>
+          issuers.updateIdentifierRule(issuerDeps, key(manager), customRule.id, {
+            expected_version: renamedRule.version,
+            meaning: "참조한 의미 변경",
+          }),
+        AppError,
+      );
+      assertEquals(deniedMeaning.code, "invalid_input");
+      await runInWorkspace(sql, manager, {
+        mode: "business",
+        requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+      }, async (tx) => {
+        const directMeaning = await assertRejects(() =>
+          tx.savepoint((attempt) =>
+            attempt`update app.entity_identifier_rules set meaning='SQL 우회',version=version+1 where workspace_id=${
+              owned[0]
+            }::uuid and id=${customRule.id}::uuid`
+          )
+        );
+        assertEquals((directMeaning as { code?: string }).code, "23514");
+      });
+      const row = await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, key(manager), {
+        entity_type_id: kind.id,
+        schema_version: 2,
+        properties: { prop_1: "원본" },
+      });
       const meaningRequest = key(manager),
         meaningInput = {
-          expected_version: renamedRule.version,
-          meaning: "변경된 의미",
+          expected_schema_version: 2,
+          edits: [{ op: "set_metadata", description: "권한 있는 검토" }],
+          migration: { rules: [], overrides: [{ entity_id: row.id, key: "prop_1", value: "권한 있는 값" }] },
         };
-      const changedRule = await issuers.updateIdentifierRule(issuerDeps, meaningRequest, customRule.id, meaningInput);
-      assertEquals(changedRule.meaning, meaningInput.meaning);
+      const change = await schemaChanges.createEntitySchemaChange(typeDeps, meaningRequest, kind.id, meaningInput);
+      assertEquals(change.status, "draft");
       const meaningIdentity = await requestIdentity(
         meaningRequest,
-        "identifier-rule.update",
-        customRule.id,
+        "entity-schema-change.create",
+        kind.id,
         meaningInput,
       );
-      const [meaningReceipt] = await admin`select footprint from private.workspace_request_results
-        where workspace_id=${
+      const [meaningReceipt] = await admin`select footprint from private.workspace_request_results where workspace_id=${
         owned[0]
       }::uuid and executor_id=${b.userId}::uuid and request_key=${meaningIdentity.key}::uuid`;
       assertEquals(meaningReceipt.footprint, [
@@ -525,13 +522,10 @@ dbTest(
         grants: [{ target_kind: "settings", target_id: "*", access: "write" }],
       });
       assertEquals(
-        (await assertRejects(() =>
-          issuers.updateIdentifierRule(
-            issuerDeps,
-            meaningRequest,
-            customRule.id,
-            meaningInput,
-          ), AppError)).code,
+        (await assertRejects(
+          () => schemaChanges.createEntitySchemaChange(typeDeps, meaningRequest, kind.id, meaningInput),
+          AppError,
+        )).code,
         "forbidden",
       );
       assertEquals(
