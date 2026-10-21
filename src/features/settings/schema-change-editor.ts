@@ -1,4 +1,4 @@
-import { effectiveEntityTitleTemplate, entityTitleTemplateIssues } from "@contracts/entity-title-template.ts";
+import { effectiveEntityTitleTemplate, entityTitleTemplateIssues, remapEntityTitleTemplate } from "@contracts/entity-title-template.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -325,7 +325,10 @@ export function useSchemaChangeEditor(
   const edits = (draft: SchemaDefinition): SchemaEdit[] => {
     const result: SchemaEdit[] = [];
     if (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(definition.schema)) {
-      result.push({ op: "set_metadata", "x-title-template": effectiveEntityTitleTemplate(draft.schema) });
+      result.push({ op: "set_metadata", "x-title-template": remapEntityTitleTemplate(
+        effectiveEntityTitleTemplate(draft.schema),
+        (key) => refs[key] ? `new_${refs[key]}` : key,
+      ) });
     }
     for (const [key, field] of Object.entries(draft.schema.properties)) {
       const required = draft.schema.required.includes(key);

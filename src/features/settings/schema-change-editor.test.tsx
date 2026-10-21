@@ -12,6 +12,7 @@ import { AuthContext } from "../auth/auth-context.ts";
 import { WorkspaceRouteContext } from "../../lib/workspace-route.tsx";
 import { WorkspaceCapabilitiesContext } from "../workspaces/workspace-context.tsx";
 import { useSchemaChangeEditor, type EditState } from "./schema-change-editor.ts";
+import { renderEntityTitle } from "@contracts/entity-title-template.ts";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const type = { id: "kind", label: "재료", schema_version: 2 } as EntityType;
@@ -282,4 +283,43 @@ test("저장된 삭제의 복원과 전체 취소는 현재 제목 템플릿과 
   await act(() => screen.editor().restoreField("prop_1"));
   expect(screen.editor().view.draft.schema.properties.prop_1.title).toBe("이름");
   expect(screen.editor().view.draft.schema["x-title-template"]).toBe("$prop_2$");
+});
+
+test("과거 예약 속성의 제목 템플릿은 취소 후 새 검토에서도 client_ref로 전송하고 새 발급 키를 반영한다", async () => {
+  const target = structuredClone(definition);
+  target.schema.properties.prop_2 = { type: "string", title: "지역", "x-order": 20 };
+  target.schema["x-title-template"] = "$prop_1$ / ${prop_2$} $$";
+  const retained = { ...plan, status: "stale" as const, source_schema_version: 1,
+    reservations: { region: "prop_2" }, target, analysis: null, executable: false };
+  const freshTarget = structuredClone(target);
+  freshTarget.schema.properties.prop_3 = freshTarget.schema.properties.prop_2;
+  delete freshTarget.schema.properties.prop_2;
+  freshTarget.schema["x-title-template"] = "$prop_1$ / $prop_3$ $$";
+  const restarted = { ...retained, id: "restarted", status: "draft" as const, source_schema_version: 2,
+    reservations: { region: "prop_3" }, target: freshTarget };
+  const submissions: { method: string; path: string; input: Record<string, unknown> }[] = [];
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    if (url.endsWith("/analyze")) return json({ analysis_id: "new-analysis" });
+    if (init.method === "POST") {
+      submissions.push({ method: init.method, path: url, input: JSON.parse(String(init.body)) });
+      return json(restarted);
+    }
+    return json(url.endsWith("/change") ? retained : url.endsWith("/restarted") ? restarted : { items: [] });
+  });
+  const screen = await openEditor();
+  expect(screen.editor().actions.history?.kind).toBe("restart");
+  await act(() => screen.editor().editTitleTemplate("취소할 제목"));
+  await act(() => screen.editor().cancelEditing());
+  expect(screen.editor().view.draft.schema["x-title-template"]).toBe(target.schema["x-title-template"]);
+  await act(async () => { await screen.editor().actions.history?.run?.(); });
+  expect(submissions).toEqual([{ method: "POST", path: expect.stringMatching(/\/entity-types\/kind\/schema-changes$/), input: {
+    expected_schema_version: 2,
+    edits: [{ op: "set_metadata", "x-title-template": "$prop_1$ / $new_region$ $$" },
+      { op: "add_property", client_ref: "region", field: target.schema.properties.prop_2, required: false }],
+    migration: { rules: [], overrides: [] },
+  } }]);
+  expect(screen.editor().view.draft.schema["x-title-template"]).toBe("$prop_1$ / $prop_3$ $$");
+  expect(screen.editor().view.draft.schema.properties.prop_2).toBeUndefined();
+  expect(screen.editor().view.draft.schema.properties.prop_3.title).toBe("지역");
+  expect(renderEntityTitle(screen.editor().view.draft.schema, { prop_1: "상점", prop_3: "서울" }, "번호")).toBe("상점 / 서울 $");
 });
