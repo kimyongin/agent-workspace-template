@@ -24,7 +24,12 @@ dbTest("type foundation: explicit creation, workspace isolation, immutable versi
     assertEquals(await createEntityType(d, actor, { label: "재료", icon_id: "leaf" }), first);
     const second = await createEntityType(d, requestActor(a.manager), { label: "상품" });
     const definition = await getEntitySchema(d, a.manager, { type_id: first.id });
-    assertEquals(definition.schema.required, ["prop_1"]);
+    assertEquals(definition.schema.required, ["prop_1", "prop_2"]);
+    assertEquals(definition.schema["x-identity-property"], "prop_2");
+    assertEquals(definition.schema.properties.prop_2["x-identifier"], {
+      allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
+      default_kind_id: "00000000-0000-4000-8000-000000000001",
+    });
     assertEquals(definition.schema["x-title-template"], "$prop_1$");
     assertEquals("x-representative" in definition.schema.properties.prop_1, false);
     assertEquals((await getEntitySchema(d, a.manager, { type_id: second.id })).schema_version, 1);
