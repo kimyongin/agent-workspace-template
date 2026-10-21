@@ -159,7 +159,7 @@ dbTest(
       const updated = await updateEntitySchemaChange(d, requestActor(a.manager), type.id, change.id, {
         ...input,
         expected_change_version: 1,
-        edits: [{ ...input.edits[0], field: { ...input.edits[0].field, "x-show-in-list": true } }, {
+        edits: [{ ...input.edits[0], field: { ...input.edits[0].field } }, {
           op: "update_property",
           key: "prop_1",
           field: { ...initial.schema.properties.prop_1, title: "商品名" },
@@ -444,8 +444,6 @@ dbTest(
           key: "prop_1",
           field: {
             "x-order": 10,
-            "x-representative": true,
-            "x-show-in-list": true,
             type: "string",
             minLength: 1,
             maxLength: 2,
@@ -692,8 +690,6 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
         key: "prop_1",
         field: {
           "x-order": 10,
-          "x-representative": true,
-          "x-show-in-list": true,
           type: "string",
           title: "새 이름",
           minLength: 1,
@@ -752,8 +748,6 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
         key: "prop_1",
         field: {
           "x-order": 10,
-          "x-representative": true,
-          "x-show-in-list": true,
           type: "string",
           title: "적용 이름",
           minLength: 1,
@@ -882,7 +876,7 @@ dbTest(
 );
 
 dbTest(
-  "first schema review persists new field order, labels, representative and conversion references together",
+  "first schema review persists new field order, labels, title template and conversion references together",
   async () => {
     const admin = connect(urls.admin), sql = connect(urls.direct, { max: 1 });
     const owner = await businessWorkspaceFixture(admin, sql), d = { uow: new SqlEntityTypeUnitOfWork(sql) };
@@ -897,8 +891,6 @@ dbTest(
             client_ref: "choice",
             field: {
               "x-order": 20,
-              "x-list-order": 10,
-              "x-show-in-list": true,
               type: ["string", "null"],
               title: "상태",
               oneOf: [{ const: "ready", title: "판매 중" }, { const: null }],
@@ -909,9 +901,6 @@ dbTest(
             client_ref: "name",
             field: {
               "x-order": 10,
-              "x-list-order": 20,
-              "x-representative": true,
-              "x-show-in-list": true,
               type: "string",
               title: "상품명",
               minLength: 1,
@@ -924,10 +913,11 @@ dbTest(
             field: { type: "string", title: "이름", minLength: 1, maxLength: 4096, "x-order": 30 },
             required: true,
           },
+          { op: "set_metadata", "x-title-template": "$new_name$" },
         ],
         migration: { rules: [{ op: "fill", key: "new_name", value: "새 상품" }] },
       });
-      assertEquals(draft.target.schema.properties.prop_3["x-representative"], true);
+      assertEquals(draft.target.schema["x-title-template"], "$prop_3$");
       assertEquals(draft.target.schema.properties.prop_2.oneOf, [{ const: "ready", title: "판매 중" }, {
         const: null,
       }]);

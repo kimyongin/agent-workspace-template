@@ -112,7 +112,7 @@ export function useRecordConfirmation(options: {
       const result = await api<PreparedRecordMemo>("POST", "/records/prepare", request);
       if (run !== preparationRun.current) return;
       description.onPrepared?.(result);
-      setPendingEntityId("pending_entity_id" in result && result.pending_entity_id === true);
+      setPendingEntityId(result.pending_entity_id === true);
       if (!touched.current.note) setNote(result.change_note);
       if (!touched.current.tags) setTags(result.change_tag_ids);
       preparationReady.current = true;

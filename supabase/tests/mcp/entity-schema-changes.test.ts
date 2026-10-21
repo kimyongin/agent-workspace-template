@@ -10,7 +10,7 @@ activityWorkspaceSuite(
       edits: [{
         op: "add_property",
         client_ref: "count",
-        field: { type: "integer", title: "수량", "x-order": 20, "x-show-in-list": true },
+        field: { type: "integer", title: "수량", "x-order": 20 },
         required: false,
       }],
     };

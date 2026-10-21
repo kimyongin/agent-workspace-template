@@ -43,7 +43,7 @@ function fixture(
         ...input,
         type: storedDefinition.type,
         title: String(input.properties.prop_1),
-        display_properties: input.properties,
+
         current_schema_version: 1,
         source_label: input.source,
         tag_ids: [],
