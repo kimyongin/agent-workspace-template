@@ -23,6 +23,10 @@ dbTest(
     try {
       const kind = await fixture.createKind("전환 전 초안");
       const actor = fixture.manager;
+      await fixture.grant(actor, [
+        { target_kind: "settings", target_id: "*", access: "write" },
+        { target_kind: "entity_type", target_id: kind.id, access: "write" },
+      ]);
       const document = await exportDataModel(model, actor);
       const schema = document.entity_types.find((t) => t.schema["x-type-id"] === kind.id)!.schema;
       const legacy = structuredClone(schema);
@@ -50,7 +54,10 @@ dbTest(
       const oldId = crypto.randomUUID(), fingerprint = "b".repeat(64);
       // Exact retained envelope setup is separate from the public read/restart assertions.
       await admin.begin(async (tx) => {
-        await tx`select set_config('request.workspace_id',${fixture.workspaceId},true)`;
+        await tx`select set_config('request.jwt.claims',${
+          JSON.stringify({ sub: actor.userId, role: "authenticated" })
+        },true),
+          set_config('request.workspace_id',${fixture.workspaceId},true)`;
         await tx`update app.entity_types set next_property_number=3 where workspace_id=${fixture.workspaceId} and id=${kind.id}`;
         await tx`insert into app.entity_schema_changes(workspace_id,type_id,id,source_type_version,source_schema_version,source_template_fingerprint,status,kind,edits,reservations,target,diff,fingerprint)
         values(${fixture.workspaceId},${kind.id},${oldId},1,1,${"a".repeat(64)},'draft','compatible',${
