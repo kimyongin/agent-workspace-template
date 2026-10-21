@@ -21,7 +21,6 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import * as registry from "../../functions/_shared/core/entity-issuers/application.ts";
-import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import { entityCreate, entityListQuery, type EntityUpdate } from "../../functions/_shared/contracts/entity.ts";
 import { taskComplete, taskCreate, taskUpdate } from "../../functions/_shared/contracts/task.ts";
 import * as entities from "../../functions/_shared/core/entity/application.ts";

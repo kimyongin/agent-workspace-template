@@ -1,6 +1,5 @@
 import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
 import {
-  encodeIdentifierReference,
   encodeIdentifierValue,
 } from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { assert, assertEquals } from "@std/assert";

@@ -6,7 +6,6 @@ import {
 import { getEntitySchema } from "../../functions/_shared/core/entity-types/application.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import * as registry from "../../functions/_shared/core/entity-issuers/application.ts";
-import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
