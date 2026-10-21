@@ -272,8 +272,8 @@ function taskChanges(initial: TaskDraft, draft: TaskDraft): ConfirmationValue[] 
     { key: "title", label: "제목" }, { key: "body", label: "본문" },
     ...(draft.kind === "once" ? [{ key: "due_on" as const, label: taskLabels.due_on }] : [
       { key: "freq" as const, label: taskLabels.recurrence, show: (value: TaskDraft) => taskLabels[value.freq] },
-      ...(draft.freq === "weekly" ? [{ key: "weekdays" as const, label: taskLabels.weekdays, show: (value: TaskDraft) => value.freq === "weekly" ? [...value.weekdays].sort().map(n => ["월", "화", "수", "목", "금", "토", "일"][n - 1]).join("·") : "해당 없음" }] : []),
-      ...(draft.freq === "monthly" ? [{ key: "month_days" as const, label: taskLabels.month_days, show: (value: TaskDraft) => value.freq === "monthly" ? value.month_days : "해당 없음" }] : []),
+      ...(beforeInput.freq === "weekly" || afterInput.freq === "weekly" ? [{ key: "weekdays" as const, label: taskLabels.weekdays, show: (value: TaskDraft) => value.freq === "weekly" ? [...value.weekdays].sort().map(n => ["월", "화", "수", "목", "금", "토", "일"][n - 1]).join("·") : "해당 없음" }] : []),
+      ...(beforeInput.freq === "monthly" || afterInput.freq === "monthly" ? [{ key: "month_days" as const, label: taskLabels.month_days, show: (value: TaskDraft) => value.freq === "monthly" ? value.month_days : "해당 없음" }] : []),
       { key: "starts_on" as const, label: taskLabels.starts_on }, { key: "timezone" as const, label: taskLabels.timezone },
     ]),
   ];

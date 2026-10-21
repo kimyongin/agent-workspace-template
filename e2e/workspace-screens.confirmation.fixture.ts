@@ -253,6 +253,34 @@ test("수정 확인은 정규화된 실제 변경만 표시하고 본문 줄바�
   expect(state.writes).toHaveLength(0);
 });
 
+for (const from of ["weekly", "monthly"] as const) {
+  test(`반복 종류 ${from} 전환은 사라지는 규칙과 새 규칙을 함께 확인한다`, async ({ page }) => {
+    const state = await fixtures(page);
+    Object.assign(state.rows.tasks[0], {
+      kind: "recurring", status: "active", timezone: "Asia/Seoul",
+      recurrence: from === "weekly"
+        ? { freq: "weekly", weekdays: [1, 3], starts_on: "2026-10-04" }
+        : { freq: "monthly", month_days: [15], starts_on: "2026-10-04" },
+    });
+    await go(page, `/tasks/${id(2)}?edit=1&edit_from=view`);
+    await form(page).getByRole("radio", { name: from === "weekly" ? "매월" : "매주", exact: true }).click();
+    if (from === "weekly") await form(page).getByLabel("날짜", { exact: true }).fill("15, 15");
+    else {
+      await form(page).getByRole("button", { name: "월", exact: true }).click();
+      await form(page).getByRole("button", { name: "수", exact: true }).click();
+    }
+    await form(page).getByRole("button", { name: "저장", exact: true }).click();
+    await expect(form(page).getByLabel("기록 메모")).toBeVisible();
+    const change = (label: string) => form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: new RegExp(`^${label}$`) }) }).locator("dd");
+    await expect(change("요일")).toContainText(from === "weekly" ? "변경 전: 월·수" : "변경 전: 해당 없음");
+    await expect(change("요일")).toContainText(from === "weekly" ? "변경 후: 해당 없음" : "변경 후: 월·수");
+    await expect(change("날짜")).toContainText(from === "weekly" ? "변경 전: 해당 없음" : "변경 전: 15");
+    await expect(change("날짜")).toContainText(from === "weekly" ? "변경 후: 15" : "변경 후: 해당 없음");
+    await expect(form(page).locator("dt").filter({ hasText: /^(제목|본문|시작일|시간대)$/ })).toHaveCount(0);
+    expect(state.writes).toHaveLength(0);
+  });
+}
+
 test("#181 응답 유실은 확인 입력을 고정하고 같은 ID/version·메모·태그로 재시도", async ({ page }) => {
   const state = await fixtures(page, { failWrite: "unknown" });
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}?edit=1&edit_from=view`);
