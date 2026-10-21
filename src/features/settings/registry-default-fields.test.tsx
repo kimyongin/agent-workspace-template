@@ -35,7 +35,15 @@ test("a refused registry stop preserves its draft and links every affected field
   try {
     await act(() =>
       root.render(
-        <AuthContext.Provider value={{ session, loading: false, savePreferences: async () => {} }}>
+        <AuthContext.Provider
+          value={{
+            session,
+            loading: false,
+            savePreferences: async () => {
+              throw Error("unused");
+            },
+          }}
+        >
           <ApiSessionContext.Provider value={async () => ({ data: { session } })}>
             <WorkspaceRouteContext.Provider value="space">
               <WorkspaceCapabilitiesContext.Provider
