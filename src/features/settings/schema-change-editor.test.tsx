@@ -266,10 +266,10 @@ test("연속 삭제와 역순 복원은 전체 행 순서와 각 항목의 편�
 
 test("저장된 삭제의 복원과 전체 취소는 현재 대표 항목과 저장 기준을 유지한다", async () => {
   const source = structuredClone(definition);
-  source.schema.properties.prop_2 = { type: "string", title: "새 이름", "x-order": 20, "x-representative": true, minLength: 1 };
-  source.schema.properties.prop_1["x-representative"] = false;
+  source.schema.properties.prop_2 = { type: "string", title: "새 이름", "x-order": 20, "x-representative": false, minLength: 1 };
   source.schema.required.push("prop_2");
   const target = structuredClone(source);
+  target.schema.properties.prop_2["x-representative"] = true;
   delete target.schema.properties.prop_1;
   target.schema.required = target.schema.required.filter(key => key !== "prop_1");
   vi.stubGlobal("fetch", async (url: string) => json(url.endsWith("/change") ? { ...plan, status: "draft", target } : { items: [] }));

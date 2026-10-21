@@ -238,6 +238,16 @@ test("수정 확인은 정규화된 실제 변경만 표시하고 본문 줄바�
   await expect(body).toContainText("첫 줄\n둘째 줄");
   await expect(body.locator("p").first()).toHaveCSS("white-space", "pre-wrap");
   await expect(body.locator("p").last()).toHaveText("변경 후: 첫 줄 둘째 줄");
+  for (const width of [390, 768, 1440, 320]) {
+    await page.setViewportSize({ width, height: width < 640 ? 844 : 1000 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    const dialog = executionDialog(page);
+    const bounds = (await dialog.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1);
+    expect(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    await expect(body.locator("p").last()).toHaveText("변경 후: 첫 줄 둘째 줄");
+  }
   expect(state.writes).toHaveLength(0);
 });
 
