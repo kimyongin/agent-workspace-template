@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { Fragment } from "react";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { BusinessTable, BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "../components/BusinessTable.tsx";
@@ -81,6 +82,17 @@ export function IssuerSettingsSample(
             )}
             onToggle={() => setSelected(selected === index ? null : index)}
           >
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-medium">번호 종류 ({source.numbers.length}개)</h3>
+              {!source.system && (
+                <Button variant="ghost" type="button"
+                  disabled={!!numberEdit}
+                  onClick={() => setEditing({ source: index })}
+                ><PlusIcon data-icon="inline-start" />
+                  번호 종류 추가
+                </Button>
+              )}
+            </div>
             {source.numbers.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
             <BusinessTable label="번호 종류 예시" columns={["번호 종류 이름", "입력 방식", "사용"]} disclosureColumn={!source.system}>
               {source.numbers.map((number, numberIndex) => {
@@ -134,16 +146,6 @@ export function IssuerSettingsSample(
                 );
               })}
             </BusinessTable>
-            {!source.system && (
-              <div>
-                <Button variant="ghost" type="button"
-                  disabled={!!numberEdit}
-                  onClick={() => setEditing({ source: index })}
-                ><PlusIcon data-icon="inline-start" />
-                  번호 종류 추가
-                </Button>
-              </div>
-            )}
           </IssuerRow>
         ))}
       </CollectionList>
@@ -213,7 +215,7 @@ function SampleCreation({ source, created, initialLabel, onClose, onSave }: {
                 if (label.trim()) onSave(label.trim());
               }}
             ><FieldGroup>
-              {source && <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>번호 출처</dt><dd>{source}</dd></div></dl>}
+              {source && <DataFields><div><dt>번호 출처</dt><dd>{source}</dd></div></DataFields>}
               {created && (
                 <p className="text-sm text-muted-foreground" role="status">
                   번호 출처를 저장했습니다.
@@ -282,7 +284,7 @@ function SampleNumberEditor(
             />
           )}
         </Field>
-        <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>입력 방식</dt><dd>직접 입력</dd></div></dl>
+        <DataFields><div><dt>입력 방식</dt><dd>직접 입력</dd></div></DataFields>
         <FieldLabel className="min-h-11 w-full flex-wrap items-center gap-3">
           <Checkbox
 
@@ -293,11 +295,11 @@ function SampleNumberEditor(
         </FieldLabel>
         <p className="text-sm text-muted-foreground">사용을 중지해도 기존 자료의 번호는 유지됩니다.</p>
       </FieldSet>
-      <div className="flex min-w-0 flex-col gap-4-actions">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
         <Button variant="destructive" type="button"  onClick={() => setConfirm("delete")}>
           번호 종류 삭제
         </Button>
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline"
             type="button"
             onClick={() => dirty ? setConfirm("discard") : onClose()}
@@ -314,7 +316,7 @@ function SampleNumberEditor(
       <ConfirmDialog
         open={!!confirm}
         title={confirm === "delete" ? "번호 종류를 삭제할까요?" : "변경을 버릴까요?"}
-        message={confirm === "delete" ? <><dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>대상</dt><dd>{number.label}</dd></div></dl><p>예시 번호 종류를 삭제합니다.</p></> : "저장하지 않은 내용이 사라집니다."}
+        message={confirm === "delete" ? <><DataFields><div><dt>대상</dt><dd>{number.label}</dd></div></DataFields><p>예시 번호 종류를 삭제합니다.</p></> : "저장하지 않은 내용이 사라집니다."}
         confirmLabel={confirm === "delete" ? "삭제" : "변경 버리기"}
         danger={confirm === "delete"}
         onCancel={() => setConfirm(null)}

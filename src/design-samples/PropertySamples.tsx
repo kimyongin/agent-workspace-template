@@ -1,3 +1,5 @@
+import { DataFields } from "@/components/DataFields";
+import { Badge } from "../components/ui/badge.tsx";
 import { FieldLabel } from "../components/ui/field.tsx";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "../components/ui/collapsible.tsx";
 import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group.tsx";
@@ -48,8 +50,9 @@ function OrderIcon({ direction }: { direction: "up" | "down" }) {
 }
 
 function PropertyList(
-  { fields, onChange, errors }: {
+  { fields, current, onChange, errors }: {
     fields: Property[];
+    current: Property[];
     onChange: (fields: Property[]) => void;
     errors: Record<string, string>;
   },
@@ -97,6 +100,9 @@ function PropertyList(
     <RadioGroup ref={root} name="sample-representative" aria-label="자료 이름 항목" value={fields.find(field => field.representative)?.id ?? ""} onValueChange={id => onChange(fields.map(field => ({ ...field, representative: field.id === id })))}>
       <CollectionList label="입력 항목 예시" columns={["입력 항목", "설정", "순서"]}>
         {fields.map((field, index) => {
+          const saved = current.find(value => value.id === field.id);
+          const status = !saved ? "추가 예정" : current.findIndex(value => value.id === field.id) !== index ||
+              JSON.stringify(saved) !== JSON.stringify(field) ? "수정 중" : null;
           const open = expanded.includes(field.id);
           const bodyId = `sample-${field.id}-body`;
           const labelError = errors[`${field.id}.label`];
@@ -128,6 +134,7 @@ function PropertyList(
                         requestAnimationFrame(() => root.current?.querySelector<HTMLInputElement>(`#${bodyId} input`)?.focus({ preventScroll: true }));
                       }}>{field.label || "새 항목"}</Button>
                   </h3>
+                  {status && <Badge variant="secondary">{status}</Badge>}
                 </BusinessCell>
                 <BusinessCell index={1}>{summary}</BusinessCell>
                 <BusinessCell index={2}>                  <div className="flex items-center gap-1">
@@ -297,16 +304,29 @@ export function MaterialWorkspaceSample() {
   }]);
   const nextField = useRef(3), nextPlan = useRef(2);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [advanced, setAdvanced] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<number[]>([]);
   const [action, setAction] = useState<{ kind: "apply" | "discard"; plan: Plan } | null>(null);
-  const [message, setMessage] = useState("예: ‘수량’을 ‘재고 수량’으로 바꾼 초안입니다. 변경 검토를 눌러보세요.");
+  const [message, setMessage] = useState("예: ‘수량’을 ‘재고 수량’으로 바꾼 초안입니다. 편집한 자리에서 변경을 적용하세요.");
   const [template, setTemplate] = useState("$대상$ $액션$");
   const [savedTemplate, setSavedTemplate] = useState(template);
   const templateInput = useRef<TemplateMemoHandle>(null);
   const [typeName, setTypeName] = useState("상품"), [savedTypeName, setSavedTypeName] = useState("상품");
-  const review = () => {
+  const addField = () => {
+    setPropertiesOpen(true);
+    setDraft([...draft, {
+      id: `prop_${nextField.current++}`,
+      label: "새 항목",
+      type: "text",
+      required: false,
+      listed: false,
+      representative: false,
+      maxLength: "",
+    }]);
+  };
+  const preparePlan = (status: Plan["status"]) => {
     const invalid: Record<string, string> = {};
     for (const field of draft) {
       if (!field.label.trim()) invalid[`${field.id}.label`] = "항목 이름을 입력하세요.";
@@ -327,14 +347,35 @@ export function MaterialWorkspaceSample() {
     const plan: Plan = {
       id: nextPlan.current++,
       version: version + 1,
-      status: "reviewed",
+      status,
       before: structuredClone(current),
       after: structuredClone(draft),
     };
+    return plan;
+  };
+  const review = () => {
+    const plan = preparePlan("reviewed");
+    if (!plan) return;
     setHistory((prior) => [plan, ...prior]);
     setExpanded((prior) => [...prior, plan.id]);
     setHistoryOpen(true);
     setMessage("변경 이력에 검토할 변경안을 추가했습니다. 입력을 더 수정해도 이 변경안은 유지됩니다.");
+  };
+  const applyDraft = () => {
+    if (current.some(before => {
+      const after = draft.find(field => field.id === before.id);
+      return !after || after.type !== before.type || (!before.required && after.required) ||
+        (after.maxLength !== "" && (before.maxLength === "" || Number(after.maxLength) < Number(before.maxLength)));
+    })) {
+      review();
+      return;
+    }
+    const plan = preparePlan("applied");
+    if (!plan) return;
+    setHistory(prior => [plan, ...prior]);
+    setCurrent(structuredClone(plan.after));
+    setVersion(plan.version);
+    setMessage(`예시 버전 ${plan.version}을 적용했습니다.`);
   };
   const execute = () => {
     if (!action) return;
@@ -396,42 +437,32 @@ export function MaterialWorkspaceSample() {
         title="입력 항목"
         summary={`${draft.length}개 항목`}
         initialOpen
+        open={propertiesOpen}
+        onOpenChange={setPropertiesOpen}
         state={{ dirty: !equal(current, draft), busy: false }}
+        action={<Button variant="ghost" type="button" onClick={addField}><PlusIcon data-icon="inline-start" />항목 추가</Button>}
       >
         <PropertyList
           fields={draft}
+          current={current}
           errors={errors}
           onChange={(fields) => {
             setDraft(fields);
             setErrors({});
           }}
         />
-        <div>
-          <Button variant="ghost" type="button"
-            onClick={() =>
-              setDraft([...draft, {
-                id: `prop_${nextField.current++}`,
-                label: "새 항목",
-                type: "text",
-                required: false,
-                listed: false,
-                representative: false,
-                maxLength: "",
-              }])}
-          ><PlusIcon data-icon="inline-start" />
-            항목 추가
-          </Button>
-        </div>
         <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" type="button"  onClick={() => setDraft(structuredClone(current))}>변경 취소</Button>
-            <Button variant="default" type="button"  onClick={review}>변경 검토</Button>
+            <Button variant="ghost" type="button" onClick={review}>변경 검토</Button>
+            <Button variant="default" type="button" disabled={equal(current, draft)} onClick={applyDraft}>변경 적용</Button>
           </div>
         </div>
       </MaterialSettingsSection>
       <MaterialSettingsSection
         title="기록 자동 완성"
         summary="종류별 문구"
+        collapsible={false}
         state={{ dirty: template !== savedTemplate, busy: false }}
       >
         <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
@@ -514,7 +545,7 @@ export function MaterialWorkspaceSample() {
                     <PropertyDefinition fields={plan.after} />
                     <div className="min-w-0">
                       <h4 className="text-base font-semibold">변경 결과</h4>
-                      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>버전</dt><dd>{plan.version - 1} → {plan.version} · {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</dd></div></dl>
+                      <DataFields><div><dt>버전</dt><dd>{plan.version - 1} → {plan.version} · {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}</dd></div></DataFields>
                       <BusinessTable label="변경 결과 예시" columns={["변경"]} disclosureColumn={false}>{changes(plan).map((change, index) => <BusinessRow key={index}><BusinessCell index={0}>{change}</BusinessCell></BusinessRow>)}</BusinessTable>
                       <p className="text-sm text-muted-foreground">
                         {plan.status === "applied"
@@ -554,7 +585,7 @@ export function MaterialWorkspaceSample() {
         title={action?.kind === "discard" ? "변경안을 폐기할까요?" : "변경안을 적용할까요?"}
         message={action?.kind === "discard"
           ? "이 변경안을 더 이상 적용하지 않습니다. 입력 초안과 현재 버전은 유지됩니다."
-          : <><dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dd]:min-w-0 min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>버전</dt><dd>{action?.plan.version}</dd></div></dl><p>예시 입력 항목을 적용합니다.</p></>}
+          : <><DataFields><div><dt>버전</dt><dd>{action?.plan.version}</dd></div></DataFields><p>예시 입력 항목을 적용합니다.</p></>}
         danger={action?.kind === "discard"}
         confirmLabel={action?.kind === "discard" ? "변경안 폐기" : "변경 적용"}
         onCancel={() => setAction(null)}

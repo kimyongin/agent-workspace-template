@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { RotateCcwIcon } from "lucide-react";
@@ -80,21 +81,21 @@ export function SchemaVersionRead(
             <h3 className="text-base font-semibold">변경 결과</h3>
             {version === 1
               ? (
-                <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+                <DataFields>
                   <div>
                     <dt>버전</dt>
                     <dd>1 · 최초 생성</dd>
                   </div>
-                </dl>
+                </DataFields>
               )
               : (
                 <>
-                  <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+                  <DataFields>
                     <div>
                       <dt>버전</dt>
                       <dd>{version - 1} → {version} · 적용 완료</dd>
                     </div>
-                  </dl>
+                  </DataFields>
                   {value.source && (
                     <SchemaVersionDiff
                       before={value.source}

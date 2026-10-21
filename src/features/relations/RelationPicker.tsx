@@ -3,14 +3,13 @@ import { CollectionItem, CollectionList } from "../../components/Collection.tsx"
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { RotateCcwIcon, UnlinkIcon } from "lucide-react";
-import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import type { EntityContext } from "@contracts/entity-links.ts";
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { EntitySummary } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
-import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedEmpty, RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 
 import { type Candidate, RelationSearch, RelationSearchAction } from "./RelationSearch.tsx";
 
@@ -95,7 +94,7 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
       <RelatedSection
         views={false}
         title={label}
-        count={shown.length}
+        count={shown.length === value.length ? shown.length : undefined}
         action={
           <RelationSearchAction
             kind={kind}
@@ -124,7 +123,8 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
             />
           )}
         </div>
-        <CollectionList disclosureColumn={false} view="table" label={`선택한 ${label}`} columns={kind === "entity" ? ["자료 이름", "자료 종류", "자료 식별", "선택"] : ["제목", "선택"]}>
+        {!value.length && <RelatedEmpty title={kind === "entity" ? "연결된 자료가 없습니다." : "연결된 할 일이 없습니다."} description={!disabled ? "연결로 기존 항목을 선택하세요." : undefined} />}
+        {shown.length > 0 && <CollectionList disclosureColumn={false} view="table" label={`선택한 ${label}`} columns={kind === "entity" ? ["자료 이름", "자료 종류", "자료 식별", "선택"] : ["제목", "선택"]}>
           {shown.map((id) => {
             const remove = <Button variant="ghost" type="button" disabled={disabled} data-selection={id}
               aria-label={`${names.get(id) ?? label} 해제`} onClick={() => { if (disabled || !readable(id)) return; nextFocus.current = ""; onChange(value.filter(value => value !== id)); }}>
@@ -136,10 +136,10 @@ export function RelationPicker({ kind, value, context = [], onChange, error, dis
               {failed.has(id) && <p>조회 상태: 정보 확인 필요</p>}
             </>;
             return <CollectionItem key={id}><RelatedItem title={names.get(id) ?? label}
-              cells={kind === "entity" ? [types.get(id) ? <span><EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label}</span> : "—", identity, remove] : [remove]}
+              cells={kind === "entity" ? [types.get(id) ? types.get(id)!.label : "—", identity, remove] : [remove]}
             /></CollectionItem>;
           })}
-        </CollectionList>
+        </CollectionList>}
       </RelatedSection>
     </FieldGroup>
   );

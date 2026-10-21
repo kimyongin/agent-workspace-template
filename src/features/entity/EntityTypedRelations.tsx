@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -11,7 +12,7 @@ import { entityPath } from "@contracts/entity-identity.ts";
 import { query } from "../../lib/api.ts";
 import { DetailLink, useDetailViewState } from "../../lib/detail-exploration.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
-import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedEmpty, RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
 
 import { Notice } from "../../components/Field.tsx";
@@ -233,7 +234,7 @@ export function EntityRelationSection(
         <RelatedSection
           title={def.ends[side].label + (def.archived ? " · 보관" : "")}
           views={!single && !readOnly}
-          count={single ? undefined : state.page?.items.length}
+          count={state.page?.items.length}
           hasMore={!single && !!state.page?.next_cursor}
           action={
             <div className="flex flex-wrap items-center gap-2">
@@ -278,29 +279,22 @@ export function EntityRelationSection(
             </Notice>
           )}
           {state.busy && !state.page && <p role="status">불러오는 중…</p>}
+          {state.page && !state.page.items.length && !state.page.next_cursor && !state.busy && !state.error && <RelatedEmpty description={active ? onCreate ? "작성하거나 연결해 자료를 추가하세요." : "연결로 기존 자료를 선택하세요." : undefined} />}
           {single
             ? (
-              <p className="flex min-w-0 flex-col gap-3">
-                {current
-                  ? (
-                    <>
-                      {readOnly
-                        ? <span>{current.title}</span>
-                        : <DetailLink to={entityPath(current.id)}>{current.title}</DetailLink>}
-                      <span className="text-sm text-muted-foreground">
-                        {current.deleted_at ? " · 삭제됨" : ""}
-                        {current.type.archived ? " · 보관됨" : ""}
-                      </span>
-                    </>
-                  )
-                  : state.page
-                  ? "연결된 자료가 없습니다."
-                  : null}
-              </p>
+              current ? <p className="flex min-w-0 flex-col gap-3">
+                {readOnly
+                  ? <span>{current.title}</span>
+                  : <DetailLink to={entityPath(current.id)}>{current.title}</DetailLink>}
+                {(current.deleted_at || current.type.archived) && <span className="text-sm text-muted-foreground">
+                  {current.deleted_at ? "삭제됨" : ""}
+                  {current.type.archived ? " · 보관됨" : ""}
+                </span>}
+              </p> : null
             )
             : (
               <>
-                <CollectionList columns={["자료 이름"]}>
+                {!!state.page?.items.length && <CollectionList columns={["자료 이름"]}>
                   {state.page?.items.map((item) => (
                     <CollectionItem key={item.id}>
                       {readOnly
@@ -308,11 +302,11 @@ export function EntityRelationSection(
                           <RelatedItem
                             title={item.title}
                             metadata={
-                              <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:wrap-anywhere">
+                              <DataFields>
                                 <div><dt>자료 종류</dt><dd>{item.type.label}</dd></div>
                                 {item.deleted_at && <div><dt>상태</dt><dd>삭제됨</dd></div>}
                                 {item.type.archived && <div><dt>종류 상태</dt><dd>보관됨</dd></div>}
-                              </dl>
+                              </DataFields>
                             }
                           />
                         )
@@ -320,7 +314,7 @@ export function EntityRelationSection(
                           <RelatedPreviewItem
                             title={item.title}
                             to={entityPath(item.id)}
-                            metadata={item.type.archived ? <dl className="min-w-0 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:wrap-anywhere"><div><dt>종류 상태</dt><dd>보관됨</dd></div></dl> : undefined}
+                            metadata={item.type.archived ? <DataFields><div><dt>종류 상태</dt><dd>보관됨</dd></div></DataFields> : undefined}
                             action={canWrite ?
                               <Button variant="ghost" type="button"
 
@@ -335,7 +329,7 @@ export function EntityRelationSection(
                         )}
                     </CollectionItem>
                   ))}
-                </CollectionList>
+                </CollectionList>}
                 {state.page?.next_cursor && (
                   <Button variant="ghost" type="button" disabled={state.busy} onClick={() => void session.more()}>더 보기</Button>
                 )}

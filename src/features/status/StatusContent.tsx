@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useId, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
@@ -197,7 +198,7 @@ function DailyChart({ title, days, series, stacked = false, initialDate, onSelec
 
 function Summary({ total, values }: { total: number; values: [string, number][] }) {
   return (
-    <dl className="flex flex-wrap gap-x-6 gap-y-3 tabular-nums">
+    <DataFields className="tabular-nums">
       <div>
         <dt className="text-sm text-muted-foreground">합계</dt>
         <dd className="text-2xl font-semibold">{total.toLocaleString("ko-KR")}개</dd>
@@ -208,7 +209,7 @@ function Summary({ total, values }: { total: number; values: [string, number][] 
           <dd className="text-lg font-medium">{value.toLocaleString("ko-KR")}</dd>
         </div>
       ))}
-    </dl>
+    </DataFields>
   );
 }
 export function StatusContent({ data, children, selectedDates = {}, onDateSelect }: {
@@ -324,7 +325,7 @@ function IndexingCard({ label, indexing, daily, series, timezone, days, chartTit
             <Alert role="status">
               <AlertTitle>색인 준비 갱신이 지연되고 있습니다.</AlertTitle>
               <AlertDescription>
-                <dl className="flex flex-wrap gap-x-6 gap-y-2">
+                <DataFields>
                   <div>
                     <dt>갱신 지연 기준</dt>
                     <dd>{indexing.waiting.threshold_minutes}분</dd>
@@ -346,7 +347,7 @@ function IndexingCard({ label, indexing, daily, series, timezone, days, chartTit
                       ({timezone})
                     </dd>
                   </div>
-                </dl>
+                </DataFields>
                 <p>
                   준비 상태 갱신이 오래 지연되고 있습니다. 처리 실패로 확정된 상태는 아닙니다. 새로고침 후에도 계속되면
                   관리자에게 색인 서비스 점검을 요청하세요.

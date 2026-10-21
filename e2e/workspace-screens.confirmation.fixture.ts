@@ -186,12 +186,19 @@ for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"
     const state = await fixtures(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1&edit_from=view`);
+    await expect(form(page).locator('[data-changed="true"]')).toHaveCount(0);
     await form(page).getByRole("textbox", { name: `${label} (필수)`, exact: true }).fill("변경 초안");
+    await expect(form(page).locator('[data-changed="true"]')).toHaveCount(1);
+    await expect(form(page).getByRole("textbox", { name: `${label} (필수)`, exact: true })).toHaveAccessibleDescription("저장하지 않은 변경이 있습니다.");
     await expect(form(page).getByLabel("기록 메모")).toHaveCount(0);
     await form(page).getByRole("button", { name: kind === "tasks" ? "저장" : "저장", exact: true }).click();
     await expect(form(page).getByLabel("기록 메모")).toHaveValue("변경 초안 수정");
     await expect(form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^대상$/ }) }).locator("dd")).toHaveText("변경 초안");
     await expect(form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^작업$/ }) }).locator("dd")).toHaveText("수정");
+    const changedTitle = form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^제목$/ }) });
+    await expect(changedTitle).toContainText("변경 전:");
+    await expect(changedTitle).toContainText("변경 후: 변경 초안");
+    await expect(form(page).locator("dt").filter({ hasText: /^본문$/ })).toHaveCount(0);
     await expect(openDialogs(page)).toHaveCount(2);
     expect(state.writes).toHaveLength(0);
     const box = (await form(page).boundingBox())!;
@@ -214,6 +221,101 @@ for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"
   });
 }
 
+test("수정 확인은 정규화된 실제 변경만 표시하고 본문 줄바꿈을 보존한다", async ({ page }) => {
+  const state = await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  Object.assign(state.rows.tasks[0], {
+    title: "월별 점검", body: "첫 줄\n둘째 줄", kind: "recurring", status: "active", timezone: "Asia/Seoul",
+    recurrence: { freq: "monthly", month_days: [1, 2], starts_on: "2026-10-04" },
+  });
+  await goApp(page, `/tasks/${id(2)}?edit=1&edit_from=view`);
+  await form(page).getByLabel("제목", { exact: false }).fill("  월별 점검  ");
+  await form(page).getByLabel("날짜", { exact: true }).fill("2, 1, 1");
+  await form(page).getByLabel("본문", { exact: true }).fill("첫 줄 둘째 줄");
+  await form(page).getByRole("button", { name: "저장", exact: true }).click();
+  await expect(form(page).getByLabel("기록 메모")).toBeVisible();
+  await expect(form(page).locator("dt").filter({ hasText: /^(제목|날짜)$/ })).toHaveCount(0);
+  const body = form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: /^본문$/ }) }).locator("dd");
+  await expect(body).toContainText("첫 줄\n둘째 줄");
+  await expect(body.locator("p").first()).toHaveCSS("white-space", "pre-wrap");
+  await expect(body.locator("p").last()).toHaveText("변경 후: 첫 줄 둘째 줄");
+  for (const width of [390, 768, 1440, 320]) {
+    await page.setViewportSize({ width, height: width < 640 ? 844 : 1000 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    const dialog = executionDialog(page);
+    const bounds = (await dialog.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1);
+    expect(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    await expect(body.locator("p").last()).toHaveText("변경 후: 첫 줄 둘째 줄");
+  }
+  expect(state.writes).toHaveLength(0);
+});
+
+for (const from of ["weekly", "monthly"] as const) {
+  test(`반복 종류 ${from} 전환은 사라지는 규칙과 새 규칙을 함께 확인한다`, async ({ page }) => {
+    const state = await fixtures(page);
+    Object.assign(state.rows.tasks[0], {
+      kind: "recurring", status: "active", timezone: "Asia/Seoul",
+      recurrence: from === "weekly"
+        ? { freq: "weekly", weekdays: [1, 3], starts_on: "2026-10-04" }
+        : { freq: "monthly", month_days: [15], starts_on: "2026-10-04" },
+    });
+    await go(page, `/tasks/${id(2)}?edit=1&edit_from=view`);
+    await form(page).getByRole("radio", { name: from === "weekly" ? "매월" : "매주", exact: true }).click();
+    if (from === "weekly") await form(page).getByLabel("날짜", { exact: true }).fill("15, 15");
+    else {
+      await form(page).getByRole("button", { name: "월", exact: true }).click();
+      await form(page).getByRole("button", { name: "수", exact: true }).click();
+    }
+    await form(page).getByRole("button", { name: "저장", exact: true }).click();
+    await expect(form(page).getByLabel("기록 메모")).toBeVisible();
+    const change = (label: string) => form(page).locator("dl > div").filter({ has: page.locator("dt").filter({ hasText: new RegExp(`^${label}$`) }) }).locator("dd");
+    await expect(change("요일")).toContainText(from === "weekly" ? "변경 전: 월·수" : "변경 전: 해당 없음");
+    await expect(change("요일")).toContainText(from === "weekly" ? "변경 후: 해당 없음" : "변경 후: 월·수");
+    await expect(change("날짜")).toContainText(from === "weekly" ? "변경 전: 해당 없음" : "변경 전: 15");
+    await expect(change("날짜")).toContainText(from === "weekly" ? "변경 후: 15" : "변경 후: 해당 없음");
+    await expect(form(page).locator("dt").filter({ hasText: /^(제목|본문|시작일|시간대)$/ })).toHaveCount(0);
+    expect(state.writes).toHaveLength(0);
+  });
+}
+
+test("진행 중 저장의 화면 폭 전환을 유실 결과로 표시하지 않는다", async ({ page }, info) => {
+  const state = await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  let release: (() => void) | undefined;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let submitted = false;
+  await page.route(`**/api/tasks/${id(2)}/complete`, async route => {
+    submitted = true;
+    const result = { ...record(40), ...route.request().postDataJSON(), task_id: id(2), record_kind: "result" };
+    await held;
+    state.rows.records.push(result);
+    Object.assign(state.rows.tasks[0], {
+      status: "done", version: state.rows.tasks[0].version + 1,
+      result_record: { id: result.id, body: result.body },
+    });
+    await route.fulfill({ json: state.rows.tasks[0] });
+  });
+  await goApp(page, `/tasks/${id(2)}`);
+  await form(page).getByRole("button", { name: "완료하고 기록", exact: true }).click();
+  await form(page).getByLabel("본문", { exact: false }).fill("확인한 결과");
+  await form(page).getByRole("button", { name: "완료하고 기록 저장", exact: true }).click();
+  await expect.poll(() => submitted).toBe(true);
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(form(page).getByLabel("본문", { exact: false })).toBeDisabled();
+    await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("pending-save-resize-390.png") });
+  } finally { release!(); }
+  await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  await expect(form(page)).toContainText("완료하고 결과 기록을 저장했습니다.");
+  await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("confirmed-save-resize-390.png") });
+});
+
 test("#181 응답 유실은 확인 입력을 고정하고 같은 ID/version·메모·태그로 재시도", async ({ page }) => {
   const state = await fixtures(page, { failWrite: "unknown" });
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}?edit=1&edit_from=view`);
@@ -233,6 +335,7 @@ test("#181 수행 결과는 바로 저장하고 삭제 확인에 새 변경 메�
   const state = await fixtures(page);
   await go(page, `/records/${id(3)}?edit=1&edit_from=view`);
   await form(page).getByLabel("본문", { exact: false }).fill("직접 기록 정정");
+  await expect(form(page).locator('[data-changed="true"]')).toHaveCount(1);
   await form(page).getByRole("button", { name: "저장", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(1);
   expect(state.writes[0].body.change_note).toBeUndefined();

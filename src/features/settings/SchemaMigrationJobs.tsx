@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { RotateCcwIcon } from "lucide-react";
@@ -318,7 +319,7 @@ export function SchemaMigrationJob(
       )}
       {job && (
         <>
-          <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3" role="status">
+          <DataFields role="status">
             <div>
               <dt>상태</dt>
               <dd>{migrationLabels[job.status]}</dd>
@@ -327,7 +328,7 @@ export function SchemaMigrationJob(
               <dt>준비한 자료</dt>
               <dd>{job.processed}/{job.total}개 준비</dd>
             </div>
-          </dl>
+          </DataFields>
           {migrationActive(job) && (
             <Progress aria-label="값 변환 진행률" value={job.processed / Math.max(job.total, 1) * 100} aria-valuetext={`${job.processed}/${job.total}개`} />
           )}
@@ -339,7 +340,7 @@ export function SchemaMigrationJob(
           )}
           {job.status === "committing" && <p>최종 적용 중입니다. 취소 대신 확정 결과를 확인하세요.</p>}
           {job.result && (
-            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+            <DataFields>
               <div>
                 <dt>새 입력 항목 버전</dt>
                 <dd>{job.result.schema_version}</dd>
@@ -352,17 +353,17 @@ export function SchemaMigrationJob(
                 <dt>값 변경</dt>
                 <dd>{job.result.changed}개 값 변경</dd>
               </div>
-            </dl>
+            </DataFields>
           )}
           {job.status !== "succeeded" && job.source_expires_at && (
-            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+            <DataFields>
               <div>
                 <dt>원본 보존 만료</dt>
                 <dd>
                   <time dateTime={job.source_expires_at}>{new Date(job.source_expires_at).toLocaleString()}</time>
                 </dd>
               </div>
-            </dl>
+            </DataFields>
           )}
           {job.status === "failed" && (
             <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>

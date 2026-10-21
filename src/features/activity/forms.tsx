@@ -1,3 +1,6 @@
+import { DataFieldGroup } from "@/components/DataFields";
+import { ChangedValue } from "../../components/ChangedValue.tsx";
+import type { ConfirmationValue } from "../../components/RecordConfirmation.tsx";
 import { useTaskAccess } from "./task-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { Textarea } from "@/components/ui/textarea";
@@ -120,7 +123,7 @@ export function RecordFormModal(props: {
     >
       {(errors, frozen) => {
         const body = (
-          <Field fullWidth label="본문" required error={errors.body}>
+          <Field fullWidth label="본문" required error={errors.body} changed={!!props.editing && draft.body !== initial.body}>
             {(p) => (
               <Textarea
                 {...p}
@@ -133,7 +136,7 @@ export function RecordFormModal(props: {
           </Field>
         );
         const occurredAt = (
-          <Field label={recordLabels.occurred_at} error={errors.occurred_at}>
+          <Field label={recordLabels.occurred_at} error={errors.occurred_at} changed={!!props.editing && JSON.stringify(draft.occurred_at) !== JSON.stringify(initial.occurred_at)}>
             {(p) => (
               <DateTimeInput
                 {...p}
@@ -158,10 +161,10 @@ export function RecordFormModal(props: {
                 />
               )
               : (
-                <FieldGroup>
+                <DataFieldGroup>
                   {body}
                   {!props.systemRecord && occurredAt}
-                </FieldGroup>
+                </DataFieldGroup>
               )}
             {props.editing && <FieldGroup><ReadonlyTags scope="record" ids={props.record?.tag_ids ?? []} /></FieldGroup>}
             {props.details}
@@ -250,6 +253,36 @@ function taskInput(draft: TaskDraft, mode: "create" | "edit"): Record<string, un
   return mode === "create" ? { ...input, kind: draft.kind, entity_ids: draft.entity_ids ?? [] } : input;
 }
 
+function taskChanges(initial: TaskDraft, draft: TaskDraft): ConfirmationValue[] {
+  const normalize = (value: TaskDraft): TaskDraft | null => {
+    const result = taskCreate.safeParse(taskInput(value, "create"));
+    if (!result.success) return null;
+    const saved = result.data;
+    return saved.kind === "once" ? { ...value, ...saved, due_on: saved.due_on ?? "" } : {
+      ...value, ...saved,
+      freq: saved.recurrence.freq,
+      weekdays: saved.recurrence.freq === "weekly" ? saved.recurrence.weekdays : [],
+      month_days: saved.recurrence.freq === "monthly" ? saved.recurrence.month_days.join(", ") : "",
+      starts_on: saved.recurrence.starts_on,
+    };
+  };
+  const beforeInput = normalize(initial), afterInput = normalize(draft);
+  if (!beforeInput || !afterInput) return [];
+  const fields: { key: keyof TaskDraft; label: string; show?: (value: TaskDraft) => string }[] = [
+    { key: "title", label: "제목" }, { key: "body", label: "본문" },
+    ...(draft.kind === "once" ? [{ key: "due_on" as const, label: taskLabels.due_on }] : [
+      { key: "freq" as const, label: taskLabels.recurrence, show: (value: TaskDraft) => taskLabels[value.freq] },
+      ...(beforeInput.freq === "weekly" || afterInput.freq === "weekly" ? [{ key: "weekdays" as const, label: taskLabels.weekdays, show: (value: TaskDraft) => value.freq === "weekly" ? [...value.weekdays].sort().map(n => ["월", "화", "수", "목", "금", "토", "일"][n - 1]).join("·") : "해당 없음" }] : []),
+      ...(beforeInput.freq === "monthly" || afterInput.freq === "monthly" ? [{ key: "month_days" as const, label: taskLabels.month_days, show: (value: TaskDraft) => value.freq === "monthly" ? value.month_days : "해당 없음" }] : []),
+      { key: "starts_on" as const, label: taskLabels.starts_on }, { key: "timezone" as const, label: taskLabels.timezone },
+    ]),
+  ];
+  return fields.flatMap(({ key, label, show = value => String(value[key] ?? "") }) => {
+    const before = show(beforeInput), after = show(afterInput);
+    return before === after ? [] : [{ label, value: <ChangedValue before={before} after={after}/> }];
+  });
+}
+
 export function TaskFormModal(
   props: {
     open: boolean;
@@ -284,7 +317,7 @@ export function TaskFormModal(
         ? "내용과 일정을 정하고, 관련 자료를 선택합니다."
         : "할 일의 내용과 일정을 수정합니다."}
       title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
-      mutation={{ target: draft.title, action: props.mode === "create" ? "등록" : "수정" }}
+      mutation={{ target: draft.title, action: props.mode === "create" ? "등록" : "수정", data: props.mode === "edit" ? taskChanges(initial, draft) : undefined }}
       preparation={() => ({
         model: "task",
         action: props.mode === "create" ? "create" : "update",
@@ -355,6 +388,7 @@ export function TaskFormModal(
             <TaskDataFields
               task={props.mode === "edit" ? props.target : undefined}
               draft={draft}
+              initialDraft={props.mode === "edit" ? initial : undefined}
               set={set}
               errors={errors}
               disabled={frozen}

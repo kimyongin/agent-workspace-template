@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -333,7 +334,7 @@ export function IssuerRegistryEditor(
             )}
           </Field>
           {target.kind === "rule" && baseline && (
-            <dl className="grid min-w-0 gap-3 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+            <DataFields>
               <div><dt>번호의 의미</dt><dd>{target.rule?.meaning}</dd></div>
               <div>
                 <dt>입력 방식</dt>
@@ -341,7 +342,7 @@ export function IssuerRegistryEditor(
                   {target.rule?.generation === "automatic" ? "자동 생성" : "직접 입력"}
                 </dd>
               </div>
-            </dl>
+            </DataFields>
           )}
           {baseline && (
             <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
@@ -366,7 +367,7 @@ export function IssuerRegistryEditor(
         open={confirmDelete}
         danger
         title={target.kind === "issuer" ? "번호 출처를 삭제할까요?" : "번호 종류를 삭제할까요?"}
-        message={<><dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3"><div className="col-span-full"><dt>대상</dt><dd>{baseline?.label ?? "항목"}</dd></div></dl><p>영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.</p></>}
+        message={<><DataFields><div className="col-span-full"><dt>대상</dt><dd>{baseline?.label ?? "항목"}</dd></div></DataFields><p>영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.</p></>}
         confirmLabel="삭제"
         busy={busy}
         onConfirm={() => void remove()}
@@ -389,7 +390,7 @@ export function IssuerRegistryEditor(
         {content}
         <div className="flex flex-wrap items-center justify-between gap-3">
           {deleteAction}
-          <div>{footer(onClose)}</div>
+          <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">{footer(onClose)}</div>
         </div>
       </section>
     );

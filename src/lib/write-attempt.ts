@@ -203,6 +203,8 @@ export function hasUnresolvedWrites(
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
       if (!key?.startsWith(prefix)) continue;
+      // A live attempt owns its pending result and retry UI; this notice is for lost owners.
+      if (attempts.has(key.slice(prefix.length))) continue;
       if (!scope) return true;
       try {
         const value = JSON.parse(storage.getItem(key) ?? "null");

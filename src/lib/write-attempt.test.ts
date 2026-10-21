@@ -1,5 +1,5 @@
-import { expect, it } from "vitest";
-import { WriteAttempt } from "./write-attempt.ts";
+import { afterEach, expect, it, vi } from "vitest";
+import { hasUnresolvedWrites, WriteAttempt } from "./write-attempt.ts";
 import { ApiError } from "./api-error.ts";
 
 it("delivers the original confirmed result after response loss, then returns the next intent's result", async () => {
@@ -98,4 +98,66 @@ it("an explicit new intent after cancel preserves unknown metadata and never run
   expect(newKey).not.toBe(oldKey);
   expect(oldCalls).toBe(1);
   expect([...entries.values()].map(v=>JSON.parse(v).request_key)).toEqual([oldKey]);
+});
+
+
+afterEach(() => vi.unstubAllGlobals());
+function advisoryStorage() {
+  const entries = new Map<string, string>();
+  const storage = {
+    get length() { return entries.size; },
+    key: (index: number) => [...entries.keys()][index] ?? null,
+    getItem: (key: string) => entries.get(key) ?? null,
+    setItem: (key: string, value: string) => { entries.set(key, value); },
+    removeItem: (key: string) => { entries.delete(key); },
+  };
+  vi.stubGlobal("sessionStorage", storage);
+  return storage;
+}
+const advisoryScope = { actorId: "actor-a", workspaceId: "workspace-a" };
+const advisoryRequest = { ...advisoryScope, method: "PATCH", path: "/tasks/task-a", body: "private body" };
+
+it("a live pending save is not a lost-result advisory when a responsive surface mounts", async () => {
+  const storage = advisoryStorage(), attempt = new WriteAttempt(storage);
+  let complete!: () => void;
+  const pending = attempt.run(async () => {
+    attempt.freeze(advisoryRequest);
+    await new Promise<void>(resolve => { complete = resolve; });
+  });
+  try {
+    expect(storage.length).toBe(1);
+    expect(hasUnresolvedWrites(advisoryScope)).toBe(false);
+  } finally { complete(); await pending; }
+  expect(storage.length).toBe(0);
+  expect(hasUnresolvedWrites(advisoryScope)).toBe(false);
+});
+
+it("an abandoned pending save remains scoped guidance until its result is confirmed", async () => {
+  const storage = advisoryStorage(), attempt = new WriteAttempt(storage);
+  let complete!: () => void;
+  const pending = attempt.run(async () => {
+    attempt.freeze(advisoryRequest);
+    await new Promise<void>(resolve => { complete = resolve; });
+  });
+  attempt.abandon();
+  try {
+    expect(hasUnresolvedWrites(advisoryScope)).toBe(true);
+    expect(hasUnresolvedWrites({ ...advisoryScope, actorId: "actor-b" })).toBe(false);
+    expect(hasUnresolvedWrites({ ...advisoryScope, workspaceId: "workspace-b" })).toBe(false);
+  } finally { complete(); await pending; }
+  expect(hasUnresolvedWrites(advisoryScope)).toBe(false);
+});
+
+it("an unknown save retains its original retry owner and warns after that owner is lost", async () => {
+  const storage = advisoryStorage(), attempt = new WriteAttempt(storage);
+  await expect(attempt.run(async () => {
+    attempt.freeze(advisoryRequest);
+    throw new ApiError(0, "network", "lost");
+  })).rejects.toThrow("lost");
+  expect(hasUnresolvedWrites(advisoryScope)).toBe(false);
+  attempt.abandon();
+  expect(hasUnresolvedWrites(advisoryScope)).toBe(true);
+  const retained = JSON.parse(storage.getItem(storage.key(0)!)!);
+  expect(retained.status).toBe("unknown");
+  expect(retained).not.toHaveProperty("body");
 });

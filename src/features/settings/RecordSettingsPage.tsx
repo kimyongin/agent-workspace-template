@@ -59,5 +59,5 @@ function TargetEditor({ target, report }: { target: Target; report: (id: string,
     window.addEventListener("workspace:record-settings-changed", refresh);
     return () => { window.removeEventListener("workspace:tags-changed", refresh); window.removeEventListener("workspace:record-settings-changed", refresh); resource.dispose(); };
   }, [resource]);
-  return <MaterialSettingsSection title="기록 자동 완성" state={state} initialOpen><RecordTemplateSettings materialResource={resource} materialTypeId={target.typeId} selectedModel={target.model} onStateChange={onStateChange} /></MaterialSettingsSection>;
+  return <MaterialSettingsSection title="기록 자동 완성" state={state} collapsible={false}><RecordTemplateSettings materialResource={resource} materialTypeId={target.typeId} selectedModel={target.model} onStateChange={onStateChange} /></MaterialSettingsSection>;
 }

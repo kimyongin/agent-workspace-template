@@ -180,7 +180,11 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       const source = detail.locator("dt", { hasText: /^번호 출처$/ });
       const number = detail.locator("dt", { hasText: /^자료 번호$/ });
       await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x))
-        .toBeGreaterThan(200);
+        .toBeLessThan(2);
+      for (const key of [source, number]) {
+        const value = key.locator("..").locator("dd");
+        expect((await value.boundingBox())!.x).toBeGreaterThan((await key.boundingBox())!.x);
+      }
     }
     await expect(detail.locator("dt", { hasText: /^미입력 항목$/ })).toBeVisible();
     await expect(detail.locator("dd", { hasText: /^미입력$/ })).toBeVisible();

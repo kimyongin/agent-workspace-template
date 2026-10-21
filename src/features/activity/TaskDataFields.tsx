@@ -2,9 +2,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "../../components/DateInput.tsx";
 import { Textarea } from "@/components/ui/textarea";
-import { FieldGroup } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { cn } from "@/lib/utils";
+import { DataFields, DataField, DataFieldGroup } from "@/components/DataFields";
 import type { ReactNode } from "react";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -19,9 +18,10 @@ import type { TaskDraft } from "./forms.tsx";
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 /** One field sequence for saved tasks and drafts; immutable context remains selectable text. */
-export function TaskDataFields({ task, draft, set, errors = {}, disabled = false }: {
+export function TaskDataFields({ task, draft, initialDraft, set, errors = {}, disabled = false }: {
   task?: TaskResult;
   draft?: TaskDraft;
+  initialDraft?: TaskDraft;
   set?: (
     patch: Partial<TaskDraft> | ((draft: TaskDraft) => Partial<TaskDraft>),
   ) => void;
@@ -32,11 +32,9 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
   const value = draft ?? task!;
   const recurrence = task?.recurrence;
   const freq = draft?.freq ?? recurrence?.freq;
-  const pair = (label: string, content: ReactNode, full = false) => (
-    <dl className={cn("flex min-w-0 flex-col gap-1", full && "col-span-full")}>
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 wrap-anywhere">{content}</dd>
-    </dl>
+  const pair = (label: string, content: ReactNode) => (
+    draft ? <DataFields className="col-span-full"><DataField label={label}>{content}</DataField></DataFields>
+      : <DataField label={label}>{content}</DataField>
   );
   const field = (
     label: string,
@@ -47,6 +45,7 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
     <Field
       fullWidth={full}
       label={label}
+      changed={!!initialDraft && initialDraft[key] !== draft![key]}
       required={key === "title" || key === "starts_on" || key === "timezone"}
       error={errors[key]}
     >
@@ -86,14 +85,13 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
           )}
     </Field>
   );
-  const Grid = draft ? FieldGroup : "div";
+  const Grid = draft ? DataFieldGroup : DataFields;
   return (
-    <Grid className={draft ? undefined : "@container grid min-w-0 gap-4 @min-[36rem]:grid-cols-2"}>
-      {draft ? field("제목", "title", "text", true) : pair("제목", <DetailTitle>{value.title}</DetailTitle>, true)}
+    <Grid>
+      {draft ? field("제목", "title", "text", true) : pair("제목", <DetailTitle>{value.title}</DetailTitle>)}
       {draft ? field("본문", "body", "text", true) : pair(
         "본문",
         value.body ? <MarkdownContent text={value.body} /> : "—",
-        true,
       )}
       {task && pair(taskLabels.status, task.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : <StatusBadge status={task.status} />)}
       {task && pair("작성자", task.created_by_name ?? "알 수 없음")}
@@ -105,10 +103,10 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
           <>
             {draft
               ? (
-                <Field label={taskLabels.recurrence}>
+                <Field label={taskLabels.recurrence} changed={!!initialDraft && initialDraft.freq !== draft.freq}>
                   {(p) => (
                     <ToggleGroup
-                      id={p.id}
+                      {...p}
                       type="single"
                       variant="outline"
                       value={freq}
@@ -127,7 +125,7 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
               : pair(taskLabels.recurrence, freq ? taskLabels[freq] : "—")}
             {freq === "weekly" && (draft
               ? (
-                <Field label={taskLabels.weekdays} error={errors.weekdays}>
+                <Field label={taskLabels.weekdays} error={errors.weekdays} changed={!!initialDraft && JSON.stringify([...initialDraft.weekdays].sort()) !== JSON.stringify([...draft.weekdays].sort())}>
                   {(p) => (
                     <ToggleGroup
                       id={p.id}
@@ -168,9 +166,11 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
               : pair(taskLabels.starts_on, recurrence?.starts_on ?? "—")}
             {draft ? field(taskLabels.timezone, "timezone") : pair(taskLabels.timezone, task?.timezone ?? "—")}
             {freq === "monthly" && (
-              <p className="col-span-full text-sm text-muted-foreground">
+              draft ? <p className="text-sm text-muted-foreground">
                 해당 달에 없는 날짜는 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다.
-              </p>
+              </p> : <DataField label="반복 안내"><p className="text-sm text-muted-foreground">
+                해당 달에 없는 날짜는 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다.
+              </p></DataField>
             )}
           </>
         )}

@@ -130,7 +130,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
         </div>
       </ResizablePanel>
       {desktop && shown && <ResizableHandle elementRef={handleElement} aria-label="상세 패널 너비 조절" className="w-2 shrink-0" onPointerDownCapture={() => { rememberResize.current = true; }} onKeyDownCapture={() => { rememberResize.current = true; }} onDoubleClick={() => { detailRatio.current = 46; detailPanel.current?.resize("46%"); }} />}
-      <ResizablePanel id="detail" panelRef={detailPanel} minSize={desktop && shown ? minimums.detail : 0} maxSize={desktop && shown ? "70%" : 0} defaultSize={desktop && shown ? "46%" : 0} onResize={size => { if (rememberResize.current && desktop && shown && size.asPercentage > 0) detailRatio.current = size.asPercentage; }} className="min-w-0">
+      {/* A confirmation retains the editor while its panel collapses; keep absolute helper text inside that panel. */}
+      <ResizablePanel id="detail" panelRef={detailPanel} minSize={desktop && shown ? minimums.detail : 0} maxSize={desktop && shown ? "70%" : 0} defaultSize={desktop && shown ? "46%" : 0} onResize={size => { if (rememberResize.current && desktop && shown && size.asPercentage > 0) detailRatio.current = size.asPercentage; }} className="min-w-0" style={!desktop || !shown ? { overflow: "hidden", position: "relative" } : undefined}>
         <aside className="flex h-full min-h-0 min-w-0 flex-col border-l bg-card" id="workspace-details" hidden={!shown} aria-label="상세 작업 영역">
           {/* The visit model activates clicks and keys; pointer-down activation would change the URL before a drag. */}
           <Tabs value={active ?? ""} activationMode="manual" className="h-full min-h-0 gap-0">

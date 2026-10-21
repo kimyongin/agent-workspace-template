@@ -4,6 +4,24 @@ import { cn } from "../lib/utils.ts";
 
 // Container breakpoints grow with the number of visible columns, including nested tables.
 const layouts = {
+  compact: {
+    table: "@max-[36rem]/business:block",
+    colgroup: "@max-[36rem]/business:hidden",
+    header: "@max-[36rem]/business:sr-only",
+    body: "@max-[36rem]/business:block",
+    row: "@max-[36rem]/business:grid",
+    withGutter: "@max-[36rem]/business:grid-cols-[3.5rem_minmax(0,1fr)]",
+    withoutGutter: "@max-[36rem]/business:grid-cols-1",
+    text: "@max-[36rem]/business:text-left",
+    first: "@max-[36rem]/business:col-start-1",
+    second: "@max-[36rem]/business:col-start-2",
+    title: "@max-[36rem]/business:row-start-1",
+    property: "@max-[36rem]/business:grid @max-[36rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[36rem]/business:gap-x-3",
+    label: "@max-[36rem]/business:block",
+    disclosure: "@max-[36rem]/business:col-start-1 @max-[36rem]/business:row-start-1",
+    details: "@max-[36rem]/business:pl-2",
+    nested: "@max-[36rem]/business:-ml-16",
+  },
   regular: {
     table: "@max-[64rem]/business:block",
     colgroup: "@max-[64rem]/business:hidden",
@@ -20,7 +38,7 @@ const layouts = {
     label: "@max-[64rem]/business:block",
     disclosure: "@max-[64rem]/business:col-start-1 @max-[64rem]/business:row-start-1",
     details: "@max-[64rem]/business:pl-2",
-    nested: "@max-[64rem]/business:-ml-[calc(4rem+1px)]",
+    nested: "@max-[64rem]/business:-ml-16",
   },
   wide: {
     table: "@max-[128rem]/business:block",
@@ -38,7 +56,7 @@ const layouts = {
     label: "@max-[128rem]/business:block",
     disclosure: "@max-[128rem]/business:col-start-1 @max-[128rem]/business:row-start-1",
     details: "@max-[128rem]/business:pl-2",
-    nested: "@max-[128rem]/business:-ml-[calc(4rem+1px)]",
+    nested: "@max-[128rem]/business:-ml-16",
   },
   many: {
     table: "@max-[192rem]/business:block",
@@ -56,7 +74,7 @@ const layouts = {
     label: "@max-[192rem]/business:block",
     disclosure: "@max-[192rem]/business:col-start-1 @max-[192rem]/business:row-start-1",
     details: "@max-[192rem]/business:pl-2",
-    nested: "@max-[192rem]/business:-ml-[calc(4rem+1px)]",
+    nested: "@max-[192rem]/business:-ml-16",
   },
   extensive: {
     table: "@max-[512rem]/business:block",
@@ -74,12 +92,12 @@ const layouts = {
     label: "@max-[512rem]/business:block",
     disclosure: "@max-[512rem]/business:col-start-1 @max-[512rem]/business:row-start-1",
     details: "@max-[512rem]/business:pl-2",
-    nested: "@max-[512rem]/business:-ml-[calc(4rem+1px)]",
+    nested: "@max-[512rem]/business:-ml-16",
   },
 };
 type TableLayout = typeof layouts.regular;
 
-// Nested disclosures reuse the 3.5rem gutter, 0.5rem cell inset, and 1px border.
+// Nested disclosures reuse the 3.5rem gutter and 0.5rem cell inset.
 // Repeated indentation would otherwise narrow editors at each level.
 const DetailsGutter = createContext(false);
 const TableColumns = createContext<{ columns: string[]; numeric: number[]; heading: string; disclosureColumn: boolean; style: TableLayout } | null>(null);
@@ -95,11 +113,11 @@ export function BusinessTable({ columns, numericColumns = [], label, children, d
   const heading = useId();
   const parent = useContext(TableColumns);
   const sharesGutter = useContext(DetailsGutter) && disclosureColumn;
-  const style = columns.length <= 7 ? layouts.regular : columns.length <= 12 ? layouts.wide : columns.length <= 20 ? layouts.many : layouts.extensive;
+  const style = columns.length <= 3 ? layouts.compact : columns.length <= 7 ? layouts.regular : columns.length <= 12 ? layouts.wide : columns.length <= 20 ? layouts.many : layouts.extensive;
   return (
     <TableColumns.Provider value={{ columns, numeric: numericColumns, heading, disclosureColumn, style }}>
       <DetailsGutter.Provider value={false}>
-        <div className={cn("@container/business min-w-0 rounded-lg border [&>[data-slot=table-container]]:overflow-visible", sharesGutter && parent?.style.nested)}>
+        <div className={cn("@container/business min-w-0 [&>[data-slot=table-container]]:overflow-visible", sharesGutter && parent?.style.nested)}>
           <Table role="table" aria-label={label} className={cn("table-fixed", style.table)}>
             <colgroup className={style.colgroup}>
               {disclosureColumn && <col className="w-14" />}
@@ -127,7 +145,7 @@ export function BusinessRow({ children, className, ...props }: React.ComponentPr
   const layout = useContext(TableColumns);
   const gutter = layout?.disclosureColumn ?? true;
   const style = layout?.style ?? layouts.regular;
-  return <TableRow {...props} role="row" className={cn(style.row, gutter ? style.withGutter : style.withoutGutter, className)}>{children}</TableRow>;
+  return <TableRow {...props} role="row" className={cn(style.row, gutter ? style.withGutter : style.withoutGutter, "data-[expanded=true]:border-b-0", className)}>{children}</TableRow>;
 }
 
 export function BusinessCell({ index, children, className, ...props }: React.ComponentProps<typeof TableCell> & { index: number }) {
@@ -139,7 +157,7 @@ export function BusinessCell({ index, children, className, ...props }: React.Com
       className={cn("min-w-0 whitespace-normal wrap-anywhere", numeric && "text-right tabular-nums", style.text, layout?.disclosureColumn === false ? style.first : style.second, index === 0
         ? style.title
         : cn(style.property, "@max-[16rem]/business:grid-cols-1 @max-[16rem]/business:gap-y-1"), className)}>
-      {index > 0 && <span aria-hidden="true" className={cn("hidden text-muted-foreground", style.label)}>{layout?.columns[index]}</span>}
+      {index > 0 && <span aria-hidden="true" className={cn("hidden text-xs text-muted-foreground", style.label)}>{layout?.columns[index]}</span>}
       <div className="min-w-0 wrap-anywhere">{children}</div>
     </TableCell>
   );

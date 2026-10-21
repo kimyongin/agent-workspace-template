@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { isCivilDateInput } from "../../lib/civil-date-input.ts";
 import { BusinessTable, BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
@@ -163,18 +164,16 @@ export function SchemaEditor(
     onFieldKeysChanged,
     onInvalidField,
     onReviewed: () => {
-      setPropertiesOpen(false);
-      setHistoryOpen(true);
-      setReviewOpen(true);
-      requestAnimationFrame(() => {
-        reviewHeading.current?.scrollIntoView({ block: "start" });
-        reviewHeading.current?.focus();
-      });
+      setPropertiesOpen(true);
+      // Keep ordinary schema edits in place; impact details remain available in history.
+      requestAnimationFrame(() => propertiesHeading.current?.focus({ preventScroll: true }));
     },
   });
   const {
     draft,
-    changedFields,
+    fieldStates,
+    removedFields,
+    fieldOrder,
     changeCount,
     unsupportedNumericInputs,
     plan,
@@ -201,11 +200,13 @@ export function SchemaEditor(
     loadPlan,
   } = editor;
   useEffect(() => {
-    if (plan?.id) {
+    const explicitlySelected = new URLSearchParams(location.search).get("change_id") === plan?.id;
+    const needsImpactReview = plan?.change_kind === "migration_required" || !!plan?.recovery || (plan?.analysis?.failed ?? 0) > 0;
+    if (plan?.id && (explicitlySelected || needsImpactReview)) {
       setHistoryOpen(true);
       setReviewOpen(true);
     }
-  }, [plan?.id]);
+  }, [plan?.id, plan?.change_kind, plan?.recovery, plan?.analysis?.failed, location.search]);
   useEffect(() => {
     if (historyInitiallyOpen) setHistoryOpen(true);
   }, [historyInitiallyOpen]);
@@ -272,6 +273,7 @@ export function SchemaEditor(
       openEditing();
     });
   };
+  const draftOrder = schemaPresentation(draft).order;
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -288,8 +290,8 @@ export function SchemaEditor(
               ref={propertiesHeading}
               tabIndex={-1}
             >
-              <Button variant="outline"
-                className="h-auto min-h-[max(2.75rem,44px)] w-full justify-between whitespace-normal text-left"
+              <Button variant="ghost"
+                className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 whitespace-normal text-left"
                 type="button"
                 aria-expanded={propertiesOpen}
                 aria-label="입력 항목"
@@ -301,6 +303,7 @@ export function SchemaEditor(
                   else setPropertiesOpen(!propertiesOpen);
                 }}
               >
+                {propertiesOpen ? <ChevronDownIcon data-icon="inline-start" /> : <ChevronRightIcon data-icon="inline-start" />}
                 <span>입력 항목</span>
                 <span className="text-sm text-muted-foreground">
                   {busy
@@ -313,6 +316,21 @@ export function SchemaEditor(
                 </span>
               </Button>
             </h2>
+            <div className="flex max-w-full flex-wrap items-center gap-2">
+              <Button variant="ghost"
+
+                type="button"
+                disabled={inputsDisabled ||
+                  Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
+                onClick={() => {
+                  setPropertiesOpen(true);
+                  const key = editor.addField();
+                  if (key) setOpenFields((keys) => [...keys, key]);
+                }}
+              ><PlusIcon data-icon="inline-start" />
+                항목 추가
+              </Button>
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">
             상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다.
@@ -327,7 +345,22 @@ export function SchemaEditor(
             >
               <RadioGroup value={schemaPresentation(draft).representative} onValueChange={editor.chooseRepresentative} aria-label="자료 이름으로 사용할 항목">
               <CollectionList view="table" label="입력 항목 목록" columns={["입력 항목", "설정", "순서"]}>
-                {schemaPresentation(draft).order.map((key, index) => {
+                {fieldOrder.map((key) => {
+                  const removed = removedFields.find(field => field.key === key);
+                  if (removed) return <CollectionItem key={`removed-${key}`}>
+                    <BusinessRow aria-label={`${removed.field.title || key} 삭제 예정 입력 항목`}>
+                      <BusinessDisclosureCell />
+                      <BusinessCell index={0}><span className="wrap-anywhere">{removed.field.title || key}</span></BusinessCell>
+                      <BusinessCell index={1}><Badge variant="destructive">삭제 예정</Badge></BusinessCell>
+                      <BusinessCell index={2}><Button variant="outline" type="button" disabled={Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
+                        aria-label={`${removed.field.title || key} 삭제 취소`} onClick={() => {
+                          editor.restoreField(key);
+                          setOpenFields(keys => [...keys, key]);
+                          requestAnimationFrame(() => fieldElements.current[key]?.body?.querySelector<HTMLInputElement>('input[data-schema-setting="title"]')?.focus());
+                        }}>삭제 취소</Button></BusinessCell>
+                    </BusinessRow>
+                  </CollectionItem>;
+                  const index = draftOrder.indexOf(key);
                   const f = draft.schema.properties[key],
                     scalar = fieldType(f) ?? "string";
                   const toggleField = () =>
@@ -345,7 +378,7 @@ export function SchemaEditor(
                       {schemaPresentation(draft).archived.includes(key) && (
                         <Badge variant="secondary">사용 중지</Badge>
                       )}
-                      {changedFields.includes(key) && <Badge variant="secondary">변경됨</Badge>}
+                      {fieldStates[key] && <Badge>{fieldStates[key]}</Badge>}
                       {fieldError === key && (
                         <span className="text-sm text-destructive">
                           오류
@@ -816,22 +849,28 @@ export function SchemaEditor(
               </CollectionList>
               </RadioGroup>
             </FieldSet>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="ghost"
-
-                type="button"
-                disabled={inputsDisabled ||
-                  Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
-                onClick={() => {
-                  setPropertiesOpen(true);
-                  const key = editor.addField();
-                  if (key) setOpenFields((keys) => [...keys, key]);
-                }}
-              ><PlusIcon data-icon="inline-start" />
-                항목 추가
-              </Button>
-            </div>
             <p className="text-sm text-muted-foreground">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
+            {plan && !["applied", "cancelled"].includes(plan.status) && !actions.review.visible && (
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3" aria-label="입력 항목 적용 상태">
+                <p className="text-sm text-muted-foreground" role="status">
+                  {plan.analysis?.status === "queued" || plan.analysis?.status === "running"
+                    ? "기존 자료에 미치는 영향을 확인하고 있습니다."
+                    : plan.analysis?.status === "succeeded" && !plan.analysis.failed
+                    ? "기존 자료 확인 완료 · 적용할 수 있습니다."
+                    : "적용 전에 기존 자료에 미치는 영향을 확인하세요."}
+                </p>
+                <div className="flex max-w-full flex-wrap items-center gap-2">
+                  {actions.conversionVisible || plan.analysis?.failed || plan.analysis?.status === "failed" || plan.status === "stale"
+                    ? <Button variant="outline" type="button" disabled={busy || uncertain} onClick={() => {
+                      setHistoryOpen(true); setReviewOpen(true);
+                      requestAnimationFrame(() => { reviewHeading.current?.scrollIntoView({ block: "start" }); reviewHeading.current?.focus(); });
+                    }}>영향·보완 내용 확인</Button>
+                    : primaryAction && <Button variant="default" type="button" disabled={primaryAction.disabled} onClick={() => void primaryAction.run?.()}>
+                      {primaryAction.label ?? actionLabels[primaryAction.kind]}
+                    </Button>}
+                </div>
+              </div>
+            )}
             {actions.review.visible && (
               <div className="flex flex-col gap-3 pt-4">
                 {(dirty || plan && plan.status !== "applied") && (
@@ -1285,7 +1324,7 @@ export function SchemaEditor(
       <ConfirmDialog
         open={deleteKey !== null}
         title="항목을 삭제할까요?"
-        message={<><dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3"><div className="col-span-full"><dt>항목 이름</dt><dd>{deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"}</dd></div></dl><p>삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제 자료는 변경되지 않습니다.</p></>}
+        message={<><DataFields><div className="col-span-full"><dt>항목 이름</dt><dd>{deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"}</dd></div></DataFields><p>삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제 자료는 변경되지 않습니다.</p></>}
         confirmLabel="삭제 변경안 만들기"
         danger
         confirmDisabled={busy || uncertain || disabled || readBusy}

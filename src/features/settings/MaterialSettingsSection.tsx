@@ -8,11 +8,13 @@ import { type ReactNode, useEffect, useId, useState } from "react";
 export type MaterialSectionState = { dirty: boolean; busy: boolean; uncertain?: boolean; error?: boolean };
 /** Collapsing a section hides its content without disposing an editor or its draft. */
 export function MaterialSettingsSection(
-  { title, description, summary, state, initialOpen = false, open: controlledOpen, onOpenChange, children }: {
+  { title, description, summary, state, action, collapsible = true, initialOpen = false, open: controlledOpen, onOpenChange, children }: {
     title: string;
     description?: string;
     summary?: string;
     state?: MaterialSectionState;
+    action?: ReactNode;
+    collapsible?: boolean;
     initialOpen?: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
@@ -26,17 +28,31 @@ export function MaterialSettingsSection(
     if (initialOpen) setOpen(true);
   }, [initialOpen]);
   const status = state?.busy ? "저장 중…" : state?.uncertain ? "결과 확인 필요" : state?.error ? "오류 · 미저장" : state?.dirty ? "미저장" : summary;
-  return <Collapsible open={open} onOpenChange={value => { setOpen(value); onOpenChange?.(value); }} asChild>
+  if (!collapsible) return <section aria-label={title} className="@container/material-section">
+    <Card>
+      <CardHeader className="@max-[16rem]/material-section:px-2">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <CardTitle><h2>{title}</h2></CardTitle>
+          {status && <Badge variant={state?.error ? "destructive" : "secondary"}>{status}</Badge>}
+          {action}
+        </div>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent className="@max-[16rem]/material-section:px-2">{children}</CardContent>
+    </Card>
+  </section>;
+  const heading = <CardTitle className={action ? "min-w-0 flex-1" : undefined}><h2>
+    <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-between whitespace-normal text-left" aria-controls={id}>
+      <span className="min-w-0 [overflow-wrap:anywhere]">{title}</span>
+      {status && <Badge variant={state?.error ? "destructive" : "secondary"}>{status}</Badge>}
+      <ChevronDownIcon data-icon="inline-end" className="transition-transform group-data-[state=open]/collapsible:rotate-180" />
+    </Button></CollapsibleTrigger>
+  </h2></CardTitle>;
+  return <Collapsible className="group/collapsible" open={open} onOpenChange={value => { setOpen(value); onOpenChange?.(value); }} asChild>
     <section aria-label={title} className="@container/material-section">
       <Card>
         <CardHeader className="@max-[16rem]/material-section:px-0.5">
-          <CardTitle><h2>
-            <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-between whitespace-normal text-left" aria-controls={id}>
-              <span className="min-w-0 [overflow-wrap:anywhere]">{title}</span>
-              {status && <Badge variant={state?.error ? "destructive" : "secondary"}>{status}</Badge>}
-              <ChevronDownIcon data-icon="inline-end" />
-            </Button></CollapsibleTrigger>
-          </h2></CardTitle>
+          {action ? <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">{heading}{action}</div> : heading}
           {description && <CardDescription>{description}</CardDescription>}
         </CardHeader>
         <CollapsibleContent forceMount hidden={!open} id={id}>

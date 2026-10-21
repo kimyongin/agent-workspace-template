@@ -1,3 +1,4 @@
+import { DataFields } from "@/components/DataFields";
 import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -45,17 +46,17 @@ export function SchemaChangeRead(
     <section className="min-w-0" aria-label="변환 작업의 변경 내용">
       <SchemaDefinitionRead definition={change.target} />
       <h3 className="text-base font-semibold">변경 결과</h3>
-      <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+      <DataFields>
         <div>
           <dt>버전</dt>
           <dd>{change.source_schema_version} → {change.source_schema_version + 1}</dd>
         </div>
-      </dl>
+      </DataFields>
       <SchemaChangeDiff change={change} definition={definition} />
       {change.analysis && (
         <Collapsible>
           <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">검토 결과</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
-          <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+          <DataFields>
             <div>
               <dt>확인한 자료</dt>
               <dd>{change.analysis.processed}/{change.analysis.total}개</dd>
@@ -64,8 +65,8 @@ export function SchemaChangeRead(
               <dt>문제</dt>
               <dd>{change.analysis.failed}개</dd>
             </div>
-          </dl>
-          <dl className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] gap-3">
+          </DataFields>
+          <DataFields>
             <div>
               <dt>변경</dt>
               <dd>{change.analysis.changed}개</dd>
@@ -82,7 +83,7 @@ export function SchemaChangeRead(
               <dt>값 보완</dt>
               <dd>{change.analysis.replacements}개</dd>
             </div>
-          </dl>
+          </DataFields>
           {change.analysis.failure_reason && <p className="text-sm text-destructive">{change.analysis.failure_reason}</p>}
           <SchemaAnalysisErrors change={change} definition={definition} />
         </CollapsibleContent></Collapsible>

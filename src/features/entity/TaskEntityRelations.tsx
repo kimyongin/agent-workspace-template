@@ -14,7 +14,7 @@ import type { EntityDetail } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Notice } from "../../components/Field.tsx";
-import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedEmpty, RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { query } from "../../lib/api.ts";
 import { type Candidate, RelationSearch, RelationSearchAction } from "../relations/RelationSearch.tsx";
@@ -181,16 +181,18 @@ export function TaskEntityRelations(
   const { canRead } = useTaskAccess();
   const canReadType = useEntityReadAccess();
   const readable = task.entity_context.filter(item => canRead && item.type && canReadType(item.type.id));
+  const hasUnreadableLinks = task.entity_ids.length > 0 && !readable.length;
   task = { ...task, entity_ids: task.entity_ids.filter(id => readable.some(item => item.id === id)), entity_context: readable };
-  if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={task.entity_ids.length}>
-    <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <CollectionItem key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></CollectionItem>)}</CollectionList>
+  if (!canRead) return null;
+  if (readOnly) return <RelatedSection views={false} title="연결된 자료" count={hasUnreadableLinks ? undefined : task.entity_ids.length}>
+    {hasUnreadableLinks ? <p className="text-sm text-muted-foreground">연결된 자료를 조회할 수 없습니다.</p> : !task.entity_ids.length ? <RelatedEmpty /> : <CollectionList columns={["자료 이름"]}>{task.entity_ids.map(id => <CollectionItem key={id}><RelatedItem title={task.entity_context.find(item => item.id === id)?.title ?? "자료"}/></CollectionItem>)}</CollectionList>}
   </RelatedSection>;
   return (
     <RelationControls key={task.id} task={task} onSaved={onSaved}>
       {({ search, button, unlink }) => (
-        <RelatedSection title="연결된 자료" count={task.entity_ids.length} action={button}>
+        <RelatedSection title="연결된 자료" count={hasUnreadableLinks ? undefined : task.entity_ids.length} action={button}>
           {search}
-          <CollectionList columns={["자료 이름"]}>
+          {hasUnreadableLinks ? <p className="text-sm text-muted-foreground">연결된 자료를 조회할 수 없습니다.</p> : !task.entity_ids.length ? <RelatedEmpty description={button ? "연결로 기존 자료를 선택하세요." : undefined} /> : <CollectionList columns={["자료 이름"]}>
             {task.entity_ids.map((id) => {
               const item = {
                 id,
@@ -207,7 +209,7 @@ export function TaskEntityRelations(
                 </CollectionItem>
               );
             })}
-          </CollectionList>
+          </CollectionList>}
         </RelatedSection>
       )}
     </RelationControls>
@@ -255,10 +257,12 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
   const { canRead, canWrite } = useTaskAccess();
   const canReadType = useEntityReadAccess();
   const visible = canRead && canReadType(entity.entity_type_id);
+  if (!visible) return null;
   const contents = (search?: ReactNode, action?: ReactNode, unlink?: (item: Candidate) => ReactNode) => (
     <RelatedSection title="할 일" count={canRead ? entity.tasks.count : 0} views={!readOnly} action={action}>
       {search}
-      <CollectionList columns={["제목"]}>
+      {!read.loading && !read.failed && entity.tasks.count === 0 && <RelatedEmpty title="연결된 할 일이 없습니다." description={!readOnly && canWrite ? onCreate ? "작성하거나 연결해 할 일을 추가하세요." : "연결로 기존 할 일을 선택하세요." : undefined} />}
+      {read.items.length > 0 && <CollectionList columns={["제목"]}>
         {(canRead ? read.items : []).map((item) => (
           <CollectionItem key={item.id}>
             {readOnly
@@ -266,7 +270,7 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
               : <RelatedPreviewItem to={`/tasks/${item.id}`} title={item.title} action={unlink?.(item)} />}
           </CollectionItem>
         ))}
-      </CollectionList>
+      </CollectionList>}
       {read.failed && <Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
       {read.canReadMore && (
         <Button variant="ghost" type="button" disabled={read.loading} onClick={read.more}>
@@ -289,7 +293,7 @@ export function EntityTaskRelations({ entity, read, readOnly = false, onCreate, 
         contents(
           search,
           <div className="flex flex-wrap items-center gap-2">
-            {visible && canWrite && <Button variant="ghost" type="button" aria-label="할 일 작성" onClick={onCreate}><PlusIcon data-icon="inline-start" />작성</Button>}
+            {visible && canWrite && onCreate && <Button variant="ghost" type="button" aria-label="할 일 작성" onClick={onCreate}><PlusIcon data-icon="inline-start" />작성</Button>}
             {button}
           </div>,
           unlink,

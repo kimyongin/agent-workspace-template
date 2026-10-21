@@ -104,6 +104,7 @@ export function useSchemaChangeEditor(
   const latestPlan = useRef(plan);
   latestPlan.current = plan;
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
+  const deletedDrafts = useRef<Record<string, { field: EntityField; required: boolean; index: number }>>({});
   const [migration, setMigration] = useState<MigrationPlan>({ rules: [], overrides: [] });
   const [acceptedAnalysis, setAcceptedAnalysis] = useState<string | null>(null);
   const [restartedFrom, setRestartedFrom] = useState<string | null>(null);
@@ -128,6 +129,7 @@ export function useSchemaChangeEditor(
     planRead.current = { epoch: planRead.current.epoch + 1, controller: null };
   };
   const applyPlan = (value: EntitySchemaChange | null) => {
+    deletedDrafts.current = {};
     const target = value?.target ?? latestDefinition.current;
     onFieldKeysChanged(
       Object.fromEntries(Object.entries(value?.reservations ?? {}).map(([ref, key]) => [`new_${ref}`, key])),
@@ -656,6 +658,9 @@ export function useSchemaChangeEditor(
   };
   const removeField = (key: string) => {
     if (!editable() || plan?.recovery) return;
+    if (definition.schema.properties[key] && draft.schema.properties[key]) {
+      deletedDrafts.current[key] = { field: structuredClone(draft.schema.properties[key]), required: draft.schema.required.includes(key), index: fieldOrder.indexOf(key) };
+    }
     setDraft((d) => {
       const properties = { ...d.schema.properties };
       delete properties[key];
@@ -664,6 +669,22 @@ export function useSchemaChangeEditor(
         schema: { ...d.schema, properties, required: d.schema.required.filter((k) => k !== key) },
       };
     });
+  };
+  const restoreField = (key: string) => {
+    if (!editable() || plan?.recovery || !definition.schema.properties[key] || draft.schema.properties[key] || Object.keys(draft.schema.properties).length >= 64) return;
+    const removed = deletedDrafts.current[key] ?? { field: definition.schema.properties[key], required: definition.schema.required.includes(key), index: schemaPresentation(definition).order.indexOf(key) };
+    setDraft(d => {
+      const order = fieldOrder.filter(name => name === key || d.schema.properties[name]);
+      const restored = structuredClone(removed.field);
+      // Restoring a formerly representative field must preserve the current name selection.
+      if (restored["x-representative"]) restored["x-representative"] = false;
+      const properties = { ...d.schema.properties, [key]: restored };
+      return { ...d, schema: { ...d.schema,
+        properties: Object.fromEntries(order.map(name => [name, { ...properties[name], "x-order": (fieldOrder.indexOf(name) + 1) * 10 }])),
+        required: removed.required ? [...d.schema.required, key] : d.schema.required,
+      } };
+    });
+    delete deletedDrafts.current[key];
   };
   const addField = () => {
     if (!editable() || plan?.recovery || Object.keys(draft.schema.properties).length >= 64) return;
@@ -687,6 +708,7 @@ export function useSchemaChangeEditor(
   };
   const cancelEditing = () => {
     if (busy || uncertain || plan?.recovery) return;
+    deletedDrafts.current = {};
     setDraft(clone(saved));
     setNumericDrafts({});
     setMigration(plan?.migration ?? { rules: [], overrides: [] });
@@ -784,6 +806,17 @@ export function useSchemaChangeEditor(
     draft.schema.required.includes(key) !== saved.schema.required.includes(key) ||
     Object.keys(numericDrafts).some((address) => address.startsWith(key + ":"))
   );
+  // Saving/analyzing a plan does not publish it. Keep pending state separate from dirty tracking.
+  const pending = !plan || !["applied", "cancelled", "stale"].includes(plan.status);
+  const fieldStates = Object.fromEntries(schemaPresentation(draft).order.map(key => [key,
+    pending && !definition.schema.properties[key] ? "추가 예정" :
+    pending && (draftFingerprint(draft.schema.properties[key]) !== draftFingerprint(definition.schema.properties[key]) ||
+      draft.schema.required.includes(key) !== definition.schema.required.includes(key)) ? "수정 예정" :
+    changedFields.includes(key) ? "수정 중" : null,
+  ]));
+  const removedFields = pending ? schemaPresentation(definition).order.filter(key => !draft.schema.properties[key]).map(key => ({ key, field: deletedDrafts.current[key]?.field ?? definition.schema.properties[key], index: deletedDrafts.current[key]?.index ?? schemaPresentation(definition).order.indexOf(key) })) : [];
+  const fieldOrder = [...schemaPresentation(draft).order];
+  for (const removed of [...removedFields].sort((a, b) => a.index - b.index)) fieldOrder.splice(Math.min(removed.index, fieldOrder.length), 0, removed.key);
   const changeCount = changedFields.length +
     Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
     (draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
@@ -843,6 +876,9 @@ export function useSchemaChangeEditor(
     view: {
       draft,
       changedFields,
+      fieldStates,
+      removedFields,
+      fieldOrder,
       changeCount,
       unsupportedNumericInputs: Object.entries(numericDrafts).filter(([address]) => {
         const [key, name] = address.split(":");
@@ -876,6 +912,7 @@ export function useSchemaChangeEditor(
     editOptionLabel,
     chooseRepresentative,
     removeField,
+    restoreField,
     addField,
     cancelEditing,
     editMigration,
