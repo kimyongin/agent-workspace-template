@@ -1,22 +1,33 @@
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
-import { fixtureIdentity } from "./support/workspace-data.ts";
+import { fixtureSchema } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
 import { entityDetail, entitySummary } from "../supabase/functions/_shared/contracts/entity.ts";
-import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
+import { type EntityType, initialEntityDefinition as baseDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import { closeDetail } from "./ui-actions.ts";
+// Keep ordinary prop_2..4 semantics separate from the selected identifier.
+function initialEntityDefinition(label: string, metadata: Parameters<typeof baseDefinition>[1] = {}) {
+  const definition = baseDefinition(label, { id: materials.id, title: materials.label, icon: materials.icon_id, ...metadata });
+  definition.schema.properties.prop_5 = { ...definition.schema.properties.prop_2, "x-order": 50 };
+  delete definition.schema.properties.prop_2;
+  definition.schema["x-identity-property"] = "prop_5";
+  definition.schema.required = ["prop_1", "prop_5"];
+  return definition;
+}
 const type = (n: number, label: string, archived = false): EntityType => ({
   id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
   label,
   archived,
   icon_id: "leaf",
   schema_version: 1,
-  next_property_number: 2,
+  next_property_number: 6,
   created_at: `2026-10-${String(n).padStart(2, "0")}T00:00:00Z`,
   updated_at: "2026-10-12T00:00:00Z",
 });
@@ -44,15 +55,13 @@ test.beforeEach(async ({ page, baseURL }) => {
       url.pathname.startsWith(`/api/entity-types/${value.id}`)
     );
     if (selected) {
-      if (url.pathname.endsWith("/identity")) {
-        return route.fulfill({ json: fixtureIdentity(selected.id) });
-      }
+
       if (url.pathname.endsWith("/schemas") || url.pathname.endsWith("/schema-changes")) {
         return route.fulfill({ json: { items: [], next_before: null } });
       }
       return route.fulfill({
         json: url.pathname.endsWith("/schema")
-          ? { type: selected, type_id: selected.id, schema_version: 1, ...initialEntityDefinition("이름") }
+          ? { identifier_kinds: fixtureSchema.identifier_kinds, type: selected, type_id: selected.id, schema_version: 1, ...initialEntityDefinition("이름", { id: selected.id, title: selected.label, icon: selected.icon_id }) }
           : selected,
       });
     }
@@ -375,7 +384,7 @@ test("a late old type list cannot replace current rows", async ({ page }) => {
     if (id === materials.id) { started(); await hold; }
     const kind = id === materials.id ? materials : products;
     const item = entitySummary.parse({
-      id: `app:${kind.id}:result`, source: "app", external_id: "result", source_label: "앱", deleted_at: null,
+      id: `${kind.id}:${APP_IDENTIFIER_RULE_ID}:result`, identity_label: "앱 · 자동 발급 · result", deleted_at: null,
       entity_type_id: kind.id, type: kind, schema_version: 1, current_schema_version: 1,
       title: kind.label + " 결과",  tag_ids: [],
       version: 1, created_at: kind.created_at, updated_at: kind.updated_at,
@@ -438,16 +447,13 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
       started = resolve;
     });
   const entity = {
-    id: `app:${materials.id}:created`,
-    source: "app",
-    external_id: "created",
-    source_label: "앱",
+    id: `${materials.id}:${APP_IDENTIFIER_RULE_ID}:created`, identity_label: "앱 · 자동 발급 · created",
     deleted_at: null,
     entity_type_id: materials.id,
     type: materials,
     schema_version: 1,
     current_schema_version: 1,
-    properties: { prop_1: "새 재료" },
+    properties: { prop_1: "새 재료" , prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "created") },
 
     title: "새 재료",
     tag_ids: [],
@@ -543,16 +549,13 @@ test("type selection remains scoped while a returned list catalog is loading", a
       started = resolve;
     });
   const entity = {
-    id: `app:${materials.id}:returned`,
-    source: "app",
-    external_id: "returned",
-    source_label: "앱",
+    id: `${materials.id}:${APP_IDENTIFIER_RULE_ID}:returned`, identity_label: "앱 · 자동 발급 · returned",
     deleted_at: null,
     entity_type_id: materials.id,
     type: materials,
     schema_version: 1,
     current_schema_version: 1,
-    properties: { prop_1: "복귀 자료" },
+    properties: { prop_1: "복귀 자료" , prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "returned") },
 
     title: "복귀 자료",
     tag_ids: [],
@@ -602,7 +605,7 @@ test("definition history reads beyond the first hundred versions and opens the i
   const readVersions: number[] = [];
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname.endsWith("/schema-changes") || url.pathname.endsWith("/identity")) return route.fallback();
+    if (url.pathname.endsWith("/schema-changes")) return route.fallback();
     if (url.pathname.endsWith("/schemas")) {
       const before = url.searchParams.get("before");
       cursors.push(before);
@@ -622,7 +625,7 @@ test("definition history reads beyond the first hundred versions and opens the i
       const schema_version = Number(url.searchParams.get("schema_version") ?? 101);
       readVersions.push(schema_version);
       return route.fulfill({
-        json: {
+        json: { identifier_kinds: fixtureSchema.identifier_kinds,
           type_id: materials.id,
           schema_version,
           created_at: materials.created_at,
@@ -663,7 +666,7 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
     `**/api/entity-types/${materials.id}/schema`,
     (route) =>
       route.fulfill({
-        json: {
+        json: { identifier_kinds: fixtureSchema.identifier_kinds,
           ...definition,
           type: materials,
           type_id: materials.id,
@@ -746,7 +749,7 @@ test("conversion literals preserve unsafe drafts and removed properties permit e
   expect(writes).toBe(0);
 });
 
-test("entity edit preserves draft and tags while identity settings are delayed before preparation", async ({ page }) => {
+test("entity edit preserves draft and tags while schema metadata refresh is delayed before preparation", async ({ page }) => {
   let release!: () => void, arrived!: () => void;
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -755,15 +758,12 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     arrived = resolve;
   });
   const entity = {
-    id: `app:${materials.id}:ready`,
-    source: "app",
-    external_id: "ready",
+    id: `${materials.id}:${APP_IDENTIFIER_RULE_ID}:ready`, identity_label: "앱 · 자동 발급 · ready",
     entity_type_id: materials.id,
     schema_version: 1,
-    properties: { prop_1: "元の名前" },
+    properties: { prop_1: "元の名前" , prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "ready") },
     title: "元の名前",
     type: materials,
-    source_label: "앱",
     current_schema_version: 1,
 
     tasks: { items: [], count: 0 },
@@ -777,7 +777,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
   entityDetail.parse(entity);
   const preparations: Record<string, any>[] = [], writes: Record<string, any>[] = [];
   await page.route(
-    `**/api/entities/${encodeURIComponent(`app:${materials.id}:ready`)}`,
+    `**/api/entities/${encodeURIComponent(`${materials.id}:${APP_IDENTIFIER_RULE_ID}:ready`)}`,
     async (route) => {
       if (route.request().method() === "PATCH") {
         const input = route.request().postDataJSON();
@@ -805,29 +805,34 @@ test("entity edit preserves draft and tags while identity settings are delayed b
         },
       }),
   );
-  await page.route(
-    `**/api/entity-types/${materials.id}/identity`,
-    async (route) => {
-      arrived();
-      await held;
-      return route.fallback();
-    },
-  );
+  let refreshing = false;
+  await page.route("**/api/entity-types{,?**}", route => route.fulfill({ json: {
+    items: [{ ...materials, schema_version: 2 }, products, retired], next_cursor: null,
+  } }));
+  await page.route(`**/api/entity-types/${materials.id}/schema{,?**}`, async route => {
+    if (refreshing) { arrived(); await held; }
+    return route.fallback();
+  });
   try {
     await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entity.id)}`));
     await page.getByRole("button", { name: "편집", exact: true }).click();
     const form = page.getByRole("dialog", { name: "재료 편집", exact: true });
-    await reading;
     const name = form.getByRole("textbox", { name: "이름 (필수)", exact: true });
     await name.fill("保持する下書き");
+    refreshing = true;
+    await form.getByRole("button", { name: "속성 정의 다시 조회", exact: true }).click();
+    await reading;
     await expect(form.getByLabel("태그", { exact: true }).filter({ visible: true })).toHaveText("保留タグ");
     await expect(form.getByRole("button", { name: "태그 선택", exact: true })).toHaveCount(0);
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
-    await expect(form.getByRole("status").filter({ hasText: "자료 종류·자료 번호 설정을 읽는 중…" })).toBeVisible();
+    await expect(form.getByRole("button", { name: "현재 정의 확인 중…", exact: true })).toBeDisabled();
     await name.press("Enter");
     expect(preparations).toEqual([]);
     expect(writes).toEqual([]);
     release();
+    await expect(form.getByRole("region", { name: "현재 속성 정의 검토", exact: true })).toBeVisible();
+    await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+    await form.getByRole("button", { name: "확인한 정의로 편집", exact: true }).click();
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
     await expect(name).toHaveValue("保持する下書き");
     await expect(form.getByLabel("태그", { exact: true }).filter({ visible: true })).toHaveText("保留タグ");
@@ -873,20 +878,17 @@ test("entity edit preserves draft and tags while identity settings are delayed b
   }
 });
 
-test("immutable entity edit exposes identity catalog read failure and preserves the draft", async ({ page }) => {
+test("immutable entity edit exposes type catalog read failure and preserves the draft", async ({ page }) => {
   const entity = {
-    id: `app:${materials.id}:failed-read`,
-    source: "app",
-    external_id: "failed-read",
+    id: `${materials.id}:${APP_IDENTIFIER_RULE_ID}:failed-read`, identity_label: "앱 · 자동 발급 · failed-read",
     entity_type_id: materials.id,
     schema_version: 1,
-    properties: { prop_1: "元の名前" },
+    properties: { prop_1: "元の名前" , prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "failed-read") },
     title: "元の名前",
     type: materials,
     version: 1,
     tag_ids: [],
     deleted_at: null,
-    source_label: "앱",
     current_schema_version: 1,
 
     tasks: { items: [], count: 0 },
@@ -896,12 +898,9 @@ test("immutable entity edit exposes identity catalog read failure and preserves 
   };
   entityDetail.parse(entity);
   let editing = false, preparations = 0;
+
   await page.route(
-    `**/api/entity-types/${materials.id}/identity`,
-    (route) => route.fulfill({ json: fixtureIdentity(materials.id) }),
-  );
-  await page.route(
-    `**/api/entities/${encodeURIComponent(`app:${materials.id}:failed-read`)}`,
+    `**/api/entities/${encodeURIComponent(`${materials.id}:${APP_IDENTIFIER_RULE_ID}:failed-read`)}`,
     (route) => route.fulfill({ json: entity }),
   );
   await page.route("**/api/records/prepare", async (route) => {
@@ -922,7 +921,7 @@ test("immutable entity edit exposes identity catalog read failure and preserves 
   await form.getByLabel("이름", { exact: false }).fill("保留する名前");
   await expect(form.getByRole("alert").filter({ hasText: "자료 종류를 읽지 못했습니다." })).toBeVisible();
   await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
-  await expect(form.getByRole("status").filter({ hasText: "자료 종류·자료 번호 설정을 읽는 중…" })).toHaveCount(0);
+  await expect(form.getByRole("status").filter({ hasText: "속성 정의를 불러오는 중…" })).toHaveCount(0);
   await expect(form.getByLabel("이름", { exact: false })).toHaveValue("保留する名前");
   await expect(form.getByRole("button", { name: "취소", exact: true })).toBeEnabled();
   expect(preparations).toBe(0);
@@ -1004,15 +1003,7 @@ test(
       return route.fulfill({ json: { items: exists ? [saved] : [], next_cursor: null } });
     });
     await page.route(`**/api/entity-types/${saved.id}**`, (route) => {
-      if (new URL(route.request().url()).pathname.endsWith("/identity")) {
-        return route.fulfill({
-          json: fixtureIdentity(
-            decodeURIComponent(
-              new URL(route.request().url()).pathname.split("/").at(-2)!,
-            ),
-          ),
-        });
-      }
+
       const url = new URL(route.request().url());
       if (route.request().method() === "PATCH") {
         const input = route.request().postDataJSON();
@@ -1021,7 +1012,7 @@ test(
         return route.fulfill({ json: saved });
       }
       if (url.pathname.endsWith("/schema")) {
-        return route.fulfill({ json: { type_id: saved.id, schema_version: 1, ...initialEntityDefinition("제목") } });
+        return route.fulfill({ json: { identifier_kinds: fixtureSchema.identifier_kinds, type_id: saved.id, schema_version: 1, ...initialEntityDefinition("제목", { id: saved.id, title: saved.label, icon: saved.icon_id }) } });
       }
       if (url.pathname.endsWith("/schemas") || url.pathname.endsWith("/schema-changes")) {
         return route.fulfill({ json: { items: [], next_before: null } });
@@ -1137,12 +1128,12 @@ test("basic save preserves property edits and unfiltered archived selection at e
   await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
-  await page.getByLabel("항목 이름", { exact: true }).fill("保留する属性");
+  await page.getByLabel("항목 이름", { exact: true }).first().fill("保留する属性");
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("新しい基本情報");
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
-  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("保留する属性");
+  await expect(page.getByLabel("항목 이름", { exact: true }).first()).toHaveValue("保留する属性");
   await expect(page.getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
     "재료",
@@ -1173,18 +1164,10 @@ test("lost creation response replays one result and selects its workspace", asyn
     return route.fulfill({ json: created.get(key) });
   });
   await page.route(`**/api/entity-types/${saved.id}**`, (route) => {
-    if (new URL(route.request().url()).pathname.endsWith("/identity")) {
-      return route.fulfill({
-        json: fixtureIdentity(
-          decodeURIComponent(
-            new URL(route.request().url()).pathname.split("/").at(-2)!,
-          ),
-        ),
-      });
-    }
+
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/schema")) {
-      return route.fulfill({ json: { type_id: saved.id, schema_version: 1, ...initialEntityDefinition("제목") } });
+      return route.fulfill({ json: { identifier_kinds: fixtureSchema.identifier_kinds, type_id: saved.id, schema_version: 1, ...initialEntityDefinition("제목", { id: saved.id, title: saved.label, icon: saved.icon_id }) } });
     }
     if (url.pathname.endsWith("/schemas") || url.pathname.endsWith("/schema-changes")) {
       return route.fulfill({ json: { items: [], next_before: null } });
@@ -1224,7 +1207,7 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
       }),
   );
   await page.route(`**/api/entity-types/${materials.id}/schema`, (route) => {
-    return route.fulfill({ json: { type_id: materials.id, schema_version: 1, ...initialEntityDefinition("이름") } });
+    return route.fulfill({ json: { identifier_kinds: fixtureSchema.identifier_kinds, type_id: materials.id, schema_version: 1, ...initialEntityDefinition("이름") } });
   });
   await page.route(`**/api/entity-types/${materials.id}`, (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: latest });
@@ -1243,10 +1226,10 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
-  await page.getByLabel("항목 이름", { exact: true }).fill("남길 속성 초안");
-  await page.getByRole("button", { name: /^자료 번호/ }).click();
-  const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
-  await record.getByLabel("이름", { exact: false }).fill("남길 자료 번호 초안");
+  await page.getByLabel("항목 이름", { exact: true }).first().fill("남길 속성 초안");
+  await page.getByRole("button", { name: "식별자 항목 펼치기", exact: true }).click();
+  const record = page.getByRole("region", { name: / 입력 항목$/ }).filter({ has: page.getByLabel("기본 식별자 종류", { exact: true }) });
+  await record.getByLabel("항목 이름", { exact: true }).fill("남길 자료 번호 초안");
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   const name = page.getByLabel("자료 종류 이름", { exact: true });
   await name.fill("내 기본 정보 초안");
@@ -1257,8 +1240,8 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await expect(name).toHaveValue("내 기본 정보 초안");
   await expect(page.getByRole("radio", { name: "책", exact: true })).toBeChecked();
   await expect(page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)")).toBeChecked();
-  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
-  await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
+  await expect(page.getByLabel("항목 이름", { exact: true }).first()).toHaveValue("남길 속성 초안");
+  await expect(record.getByLabel("항목 이름", { exact: true })).toHaveValue(
     "남길 자료 번호 초안",
   );
   await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", {
@@ -1266,8 +1249,8 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
     exact: true,
   }).click();
   await expect(name).toHaveValue("다른 화면 저장값");
-  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
-  await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
+  await expect(page.getByLabel("항목 이름", { exact: true }).first()).toHaveValue("남길 속성 초안");
+  await expect(record.getByLabel("항목 이름", { exact: true })).toHaveValue(
     "남길 자료 번호 초안",
   );
   await name.fill("내 기본 정보 초안");
@@ -1281,8 +1264,8 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
     exact: true,
   }).click();
   await expect(name).toHaveValue("내 기본 정보 초안");
-  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
-  await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
+  await expect(page.getByLabel("항목 이름", { exact: true }).first()).toHaveValue("남길 속성 초안");
+  await expect(record.getByLabel("항목 이름", { exact: true })).toHaveValue(
     "남길 자료 번호 초안",
   );
 });

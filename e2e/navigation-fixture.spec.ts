@@ -2,7 +2,6 @@ import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { listHeader, openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import {
-  fixtureIdentity,
   fixtureSchema,
   fixtureType,
 } from "./support/workspace-data.ts";
@@ -20,8 +19,6 @@ test.beforeEach(async ({ page, baseURL }) => {
       await route.fulfill({
         json: url.pathname.endsWith("/schema")
           ? fixtureSchema
-          : url.pathname.endsWith("/identity")
-          ? fixtureIdentity()
           : fixtureType,
       });
     } else if (url.pathname.endsWith("/settings/business")) {
