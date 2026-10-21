@@ -1492,6 +1492,7 @@ test(
           const bounds = el.getBoundingClientRect();
           const values = cells.slice(2).map(cell => cell.querySelector(":scope > div")!.getBoundingClientRect());
           return {
+            reflowed: getComputedStyle(el).display === "grid",
             dateBelow: date.top >= title.bottom,
             statusSeparate: status.top >= date.bottom,
             labelsContained: [title, date, status].every(rect => rect.left >= bounds.left && rect.right <= bounds.right + 1),
@@ -1499,8 +1500,13 @@ test(
             overflowPixels: el.scrollWidth - el.clientWidth,
           };
         });
-        expect(layout, `${width}px ${scale}`).toMatchObject({ dateBelow: true, statusSeparate: true, labelsContained: true });
-        expect(layout.valueAxes).toBeLessThan(1);
+        expect(layout.labelsContained, `${width}px ${scale}`).toBe(true);
+        if (width <= 390) expect(layout.reflowed).toBe(true);
+        if (width === 768 && scale === "100%") expect(layout.reflowed).toBe(false);
+        if (layout.reflowed) {
+          expect(layout).toMatchObject({ dateBelow: true, statusSeparate: true });
+          expect(layout.valueAxes).toBeLessThan(1);
+        } else expect(layout).toMatchObject({ dateBelow: false, statusSeparate: false });
         expect(layout.overflowPixels).toBeLessThanOrEqual(2);
       }
     }
