@@ -285,7 +285,7 @@ for (
             await db`select * from app.entity_schema_versions order by workspace_id nulls last,type_id,schema_version`;
           assertEquals(
             versions.filter((r) => r.schema_version === 9),
-            oldVersions,
+            [...oldVersions],
           );
           assertEquals(versions.length, oldVersions.length + 3);
           if (scenario === "size_boundary") {

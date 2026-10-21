@@ -40,7 +40,6 @@ dbTest(
       await fixture.grant(fixture.manager, [
         { target_kind: "settings", target_id: "*", access: "write" },
         { target_kind: "entity_type", target_id: kind.id, access: "write" },
-        { target_kind: "records", target_id: "*", access: "read" },
       ]);
       const actor = fixture.manager;
       const document = await exportDataModel(model, actor);
@@ -119,6 +118,7 @@ dbTest(
       assertEquals(
         (await entities.listEntities(ed, actor, {
           entity_type_id: kind.id,
+          sort: "updated_at",
           limit: 100,
         })).items.length,
         2,
