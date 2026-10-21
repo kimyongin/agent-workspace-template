@@ -1,3 +1,4 @@
+import { entityTitleTemplateIssues } from "../../contracts/entity-title-template.ts";
 import { entityFieldInput } from "../../contracts/entity-schema-change.ts";
 import { Ajv2020 } from "ajv/2020";
 import addFormats from "ajv-formats";
@@ -42,6 +43,7 @@ const definition = z.strictObject({
     $schema: z.literal(ENTITY_SCHEMA_DIALECT),
     "x-type-id": z.string().uuid(),
     "x-version": z.number().int().positive().max(2147483647),
+    "x-title-template": z.string().optional(),
     title: z.string().trim().min(1).max(80),
     description: z.string().max(1000).optional(),
     "x-icon": entityTypeIcon,
@@ -58,6 +60,7 @@ function validator() {
   (addFormats as unknown as (a: Ajv2020, options: { mode: string }) => void)(ajv, { mode: "full" });
   for (
     const keyword of [
+      "x-title-template",
       "x-type-id",
       "x-version",
       "x-icon",
@@ -153,6 +156,10 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
     }
   };
   inspectText(parsed.data, "definition");
+  if (schema["x-title-template"] !== undefined) {
+    const issues = entityTitleTemplateIssues(schema["x-title-template"], schema);
+    if (issues.length) fail("schema.x-title-template", issues.map((issue) => issue.reason).join(" · "));
+  }
   const keys = Object.keys(schema.properties);
   if (!keys.length || keys.length > limits.fields) fail("schema.properties", "속성은 1~64개입니다");
   for (const [key, f] of Object.entries(schema.properties)) {

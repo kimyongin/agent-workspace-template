@@ -1,3 +1,4 @@
+import { renderEntityTitle } from "../../contracts/entity-title-template.ts";
 import { type EntitySchema, entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import type postgres from "postgres";
 import type { EntityValues } from "../../contracts/entity.ts";
@@ -78,7 +79,7 @@ export function entityPresentationRow(row: Record<string, unknown>, properties: 
       archived: Boolean(row.archived),
     },
     current_schema_version: Number(row.current_schema_version ?? row.schema_version),
-    title: String(properties[display.representative]),
+    title: renderEntityTitle(row.schema as EntitySchema, properties, String(row.external_id ?? row.id ?? "")),
     display_properties: Object.fromEntries(
       display.list_columns.filter((key) => Object.hasOwn(properties, key)).map((key) => [key, properties[key]]),
     ),

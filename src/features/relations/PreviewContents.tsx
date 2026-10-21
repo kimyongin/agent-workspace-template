@@ -5,7 +5,6 @@ import { taskLabels, type TaskResult } from "@contracts/task.ts";
 import type { RecordResult } from "@contracts/record.ts";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { TagNames } from "../tags/TagPicker.tsx";
-import { useLayoutEffect } from "react";
 import { StatusBadge } from "../activity/shared.tsx";
 import { ChangeContext } from "../activity/ChangeContext.tsx";
 
@@ -27,9 +26,6 @@ export function PreviewContents(
     shownTitle?: string;
   },
 ) {
-  useLayoutEffect(() => {
-    if (main && kind === "entities") onPropertiesReady(true);
-  }, [kind, main, onPropertiesReady]);
   const tags = (scope: "entity" | "task" | "record", ids: string[]) => (
     <DataFields className="col-span-full">
       <div>
@@ -45,15 +41,14 @@ export function PreviewContents(
     const entity = item as EntityDetail;
     return (
       <>
-        {!main && (
-          <EntityProperties
-            entity={entity}
-            selection="list"
-            omitRepresentative={entity.title === shownTitle}
-            onReadyChange={onPropertiesReady}
-            onRepresentativeLabel={onRepresentativeLabel}
-          />
-        )}
+        <EntityProperties
+          entity={entity}
+          selection="all"
+          activeOnly
+          emphasizeRepresentative={false}
+          onReadyChange={onPropertiesReady}
+          onRepresentativeLabel={onRepresentativeLabel}
+        />
         <DataFields>
           <div>
             <dt>자료 종류</dt>

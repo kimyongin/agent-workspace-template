@@ -285,3 +285,21 @@ Deno.test("semantically unchanged schema change never saves a new draft", async 
   );
   assertEquals((error as { code: string }).code, "invalid_input");
 });
+
+Deno.test("public schema change saves and reopens a composed title with same-request property reservations", async () => {
+  const f = await fixture();
+  const created = await createEntitySchemaChange(f.deps, actor, typeId, {
+    ...f.input,
+    edits: [addition, { op: "set_metadata", "x-title-template": "$prop_1$ - $new_amount$" }],
+  });
+  assertEquals(created.target.schema["x-title-template"], "$prop_1$ - $prop_2$");
+  assertEquals(created.change_kind, "compatible");
+  assertEquals(created.diff.find((item) => item.path === "x-title-template")?.after, "$prop_1$ - $prop_2$");
+  const reopened = await updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
+    expected_schema_version: 1,
+    expected_change_version: created.version,
+    edits: [addition, { op: "set_metadata", "x-title-template": "$prop_1$ - $new_amount$" }],
+  });
+  assertEquals(reopened.target.schema["x-title-template"], "$prop_1$ - $prop_2$");
+  assertEquals(reopened.version, created.version);
+});

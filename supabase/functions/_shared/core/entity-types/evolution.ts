@@ -1,3 +1,4 @@
+import { remapEntityTitleTemplate } from "../../contracts/entity-title-template.ts";
 import type { SchemaDefinition, SchemaDiff, SchemaEdit } from "../../contracts/entity-schema-change.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { exactMultipleOf, validateEntityDefinition } from "./schema-rules.ts";
@@ -40,6 +41,12 @@ export function resolveSchemaEdits(
     if (edit.op === "set_metadata") {
       const { op: _op, ...metadata } = edit;
       Object.assign(target.schema, metadata);
+      if (metadata["x-title-template"] !== undefined) {
+        target.schema["x-title-template"] = remapEntityTitleTemplate(
+          metadata["x-title-template"],
+          (key) => resolvePropertyReference(key, edits, reservations),
+        );
+      }
       if (metadata.description === null) delete target.schema.description;
       continue;
     }
@@ -173,7 +180,7 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
       "필수 입력 변경",
     );
   }
-  for (const key of ["title", "description", "x-icon", "deprecated"] as const) {
+  for (const key of ["title", "description", "x-icon", "deprecated", "x-title-template"] as const) {
     add(
       key,
       source.schema[key] ?? (key === "deprecated" ? false : undefined),

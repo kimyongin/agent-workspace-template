@@ -109,6 +109,7 @@ export type EntitySchema = {
   $schema: typeof ENTITY_SCHEMA_DIALECT;
   "x-type-id": string;
   "x-version": number;
+  "x-title-template"?: string;
   /** Absent only on retained historical documents that never captured this metadata. */
   title?: string;
   description?: string;
@@ -162,6 +163,7 @@ export function initialEntityDefinition(
       $schema: ENTITY_SCHEMA_DIALECT,
       "x-type-id": metadata.id ?? "00000000-0000-4000-8000-000000000001",
       "x-version": 1,
+      "x-title-template": "$prop_1$",
       title: metadata.title ?? label,
       "x-icon": metadata.icon ?? "box",
       deprecated: false,

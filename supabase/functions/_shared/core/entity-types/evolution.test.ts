@@ -110,3 +110,49 @@ Deno.test("explicit false search selection is compatible and equal to an omitted
   assertEquals(change.diff, []);
   assertEquals(change.kind, "compatible");
 });
+
+Deno.test("title template can be reviewed and published as a compatible definition change", async () => {
+  const { entitySchemaEdit } = await import("../../contracts/entity-schema-change.ts");
+  const source = initialEntityDefinition("고객명");
+  source.schema.properties.prop_2 = { type: "string", title: "지역", "x-order": 20 };
+  const edit = entitySchemaEdit.parse({ op: "set_metadata", "x-title-template": "$prop_1$ - $prop_2$" });
+  const result = resolveSchemaEdits(source, [edit], {});
+  assertEquals(result.kind, "compatible");
+  assertEquals((result.target.schema as unknown as Record<string, unknown>)["x-title-template"], "$prop_1$ - $prop_2$");
+  assertEquals(result.diff.find((item) => item.path === "x-title-template")?.after, "$prop_1$ - $prop_2$");
+});
+
+Deno.test("title template resolves same-change added properties and rejects dangling or archived references", async () => {
+  const { entitySchemaEdit } = await import("../../contracts/entity-schema-change.ts");
+  const source = initialEntityDefinition("고객명");
+  const added = resolveSchemaEdits(source, [
+    entitySchemaEdit.parse({
+      op: "set_metadata",
+      "x-title-template": "$prop_1$ - $new_region$",
+    }),
+    {
+      op: "add_property",
+      client_ref: "region",
+      field: { type: "string", title: "지역", "x-order": 20 },
+      required: false,
+    },
+  ], { region: "prop_2" });
+  assertEquals(added.target.schema["x-title-template"], "$prop_1$ - $prop_2$");
+  assertThrows(() => resolveSchemaEdits(added.target, [{ op: "archive_property", key: "prop_2" }], {}));
+  assertThrows(() => resolveSchemaEdits(added.target, [{ op: "remove_property", key: "prop_2" }], {}));
+  assertThrows(() =>
+    resolveSchemaEdits(source, [entitySchemaEdit.parse({ op: "set_metadata", "x-title-template": "$prop_999$" })], {})
+  );
+  assertThrows(() =>
+    resolveSchemaEdits(
+      source,
+      [entitySchemaEdit.parse({ op: "set_metadata", "x-title-template": "$new_missing$" })],
+      {},
+    )
+  );
+  const valid = resolveSchemaEdits(added.target, [
+    entitySchemaEdit.parse({ op: "set_metadata", "x-title-template": "$prop_1$" }),
+    { op: "archive_property", key: "prop_2" },
+  ], {});
+  assertEquals(valid.kind, "compatible");
+});
