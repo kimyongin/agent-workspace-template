@@ -30,8 +30,6 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     entityCreate.parse({
       entity_type_id: kind.id,
       schema_version: 1,
-      source: "app",
-      external_id: crypto.randomUUID(),
       properties: { prop_1: "검색 범위" },
     }),
   )).id;
@@ -115,7 +113,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
       { query: token + "changed" },
       { mode: "auto" as const },
       { tag_id: tagId },
-      { entity_id: `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}` },
+      { entity_id: `00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}` },
       { entity_id: entity },
       { kinds: ["record"] as ("record")[] },
     ]

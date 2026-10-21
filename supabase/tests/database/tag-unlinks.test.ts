@@ -46,8 +46,6 @@ dbTest(
         requestActor(actor),
         entityCreate.parse({
           ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "対象" },
         }),
       );

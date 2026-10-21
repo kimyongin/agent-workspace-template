@@ -1,3 +1,10 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
+import { getEntitySchema } from "../../functions/_shared/core/entity-types/application.ts";
+import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import * as registry from "../../functions/_shared/core/entity-issuers/application.ts";
 import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import { assertEquals, assertRejects } from "@std/assert";
@@ -197,15 +204,11 @@ dbTest(
     const f = await fixture();
     try {
       const schema = await fixtureSchema(f);
-      const savedSettings = await registry.getEntityTypeIdentity(
-        { uow: new SqlEntityIssuerUnitOfWork(sql) },
-        f.actor,
-        schema.entity_type_id,
-      );
+      const savedSettings = await getEntitySchema({ uow: new SqlEntityTypeUnitOfWork(sql) }, f.actor, {
+        type_id: schema.entity_type_id,
+      });
       const input = entityCreate.parse({
         ...schema,
-        source: savedSettings.default_source,
-        identity_version: savedSettings.version,
         properties: { prop_1: "auto" },
       });
       const createAttempt = keyed(f.actor);
@@ -215,11 +218,11 @@ dbTest(
         f.actor,
         schema.entity_type_id,
       );
-      assertEquals(setup.identity.version, savedSettings.version + 1);
+      assertEquals(setup.schema.schema_version, savedSettings.schema_version + 1);
       assertEquals(await entity.createEntity(ed, createAttempt, input), auto);
       await code(
         () => entity.createEntity(ed, keyed(f.actor), input),
-        "settings_changed",
+        "schema_changed",
       );
       await code(
         () =>
@@ -227,17 +230,15 @@ dbTest(
             ed,
             keyed(f.actor),
             entityCreate.parse({
-              ...schema,
+              ...setup.schema,
               properties: { prop_1: "no explicit identity" },
             }),
           ),
         "invalid_input",
       );
       const explicitInput = entityCreate.parse({
-        ...schema,
-        source: "app",
-        external_id: "000AbC",
-        properties: { prop_1: "external" },
+        ...setup.schema,
+        properties: { prop_1: "external", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "000AbC") },
       });
       const explicitAttempt = keyed(f.actor);
       const explicit = await entity.createEntity(
@@ -245,12 +246,12 @@ dbTest(
         explicitAttempt,
         explicitInput,
       );
-      assertEquals(explicit.id, `app:${schema.entity_type_id}:000AbC`);
+      assertEquals(explicit.id, encodeIdentifierReference(schema.entity_type_id, APP_IDENTIFIER_RULE_ID, "000AbC"));
       const updated = await replay(
         f.actor,
         (a) =>
           entity.updateEntity(ed, a, explicit.id, {
-            schema_version: schema.schema_version,
+            schema_version: setup.schema.schema_version,
             expected_version: 1,
             properties: { prop_1: "updated" },
           }),
@@ -258,11 +259,11 @@ dbTest(
       await code(
         () =>
           entity.updateEntity(ed, keyed(f.actor), explicit.id, {
-            schema_version: schema.schema_version,
+            schema_version: setup.schema.schema_version,
             expected_version: updated.version,
-            ...{ source: "app", external_id: "000XYZ" },
+            properties: { prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "000XYZ") },
           }),
-        "entity_type_immutable",
+        "invalid_input",
       );
       assertEquals(
         await entity.createEntity(ed, explicitAttempt, explicitInput),
@@ -273,16 +274,10 @@ dbTest(
         (a) => entity.deleteEntity(ed, a, updated.id, updated.version),
       );
       const deleted = await entity.getEntity(ed, f.actor, updated.id);
-      const restoreInput = entityCreate.parse({
-        ...schema,
-        properties: {},
-        source: "app",
-        external_id: "000AbC",
-        expected_version: deleted.version,
-      });
+      const restoreInput = { schema_version: setup.schema.schema_version, expected_version: deleted.version };
       const restored = await replay(
         f.actor,
-        (a) => entity.createEntity(ed, a, restoreInput),
+        (a) => entity.restoreEntity(ed, a, deleted.id, restoreInput),
       );
       assertEquals(restored.properties.prop_1, "updated");
       await registry.updateEntityIssuer(setup.deps, keyed(f.actor), "app", {
@@ -366,9 +361,7 @@ dbTest(
           name: "create_entity",
           input: {
             ...schema,
-            source: "app",
-            external_id: "000Case",
-            properties: { prop_1: "cross entity" },
+            properties: { prop_1: "cross entity", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "000Case") },
           },
           status: 201,
         },
@@ -533,9 +526,13 @@ dbTest(
           keyed(f.actor),
           entityCreate.parse({
             ...schema,
-            source: "app",
-            external_id: `${n.toString().padStart(3, "0")}${"😀".repeat(197)}`,
-            properties: { prop_1: "\u0001".repeat(100) },
+            properties: {
+              prop_1: "\u0001".repeat(100),
+              prop_2: encodeIdentifierValue(
+                APP_IDENTIFIER_RULE_ID,
+                `${n.toString().padStart(3, "0")}${"😀".repeat(197)}`,
+              ),
+            },
           }),
         );
         entityIds.push(created.id);

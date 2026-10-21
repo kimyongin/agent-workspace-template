@@ -1,3 +1,10 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
+  decodeIdentifierReference,
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
+import { getEntitySchema } from "../../functions/_shared/core/entity-types/application.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import { createEntityType } from "../../functions/_shared/core/entity-types/application.ts";
 import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
@@ -21,7 +28,7 @@ import * as entities from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { connect, dbTest, urls } from "./_db.ts";
-import { directEntitySource } from "./_entity.ts";
+import { configureIdentifierField, directEntitySource } from "./_entity.ts";
 
 // Invalid identity fields intentionally reach the public core guard, rather than failing a test-side parser.
 const updateInput = (value: unknown) => value as EntityUpdate;
@@ -37,14 +44,14 @@ async function typedKind(f: Awaited<ReturnType<typeof businessWorkspaceFixture>>
   const document = await exportDataModel(modelDeps, manager);
   const type = document.entity_types.find((value) => value.schema["x-type-id"] === kind.id)!;
   Object.assign(type.schema.properties, {
-    prop_2: { type: ["integer", "null"], title: "속성 2", minimum: 0, maximum: 1000000, default: null, "x-order": 20 },
-    prop_3: { type: ["string", "null"], title: "속성 3", format: "date", default: null, "x-order": 30 },
-    prop_4: {
+    prop_3: { type: ["integer", "null"], title: "속성 2", minimum: 0, maximum: 1000000, default: null, "x-order": 30 },
+    prop_4: { type: ["string", "null"], title: "속성 3", format: "date", default: null, "x-order": 40 },
+    prop_5: {
       type: "string",
       title: "속성 4",
       oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }],
       default: "a",
-      "x-order": 40,
+      "x-order": 50,
     },
   });
   const input = { mode: "update", document: JSON.stringify(document) };
@@ -79,24 +86,23 @@ dbTest("발급처 설정 조회 후 자동 식별자는 생성 성공에서 반�
   const f = await identityWorkspaceFixture();
   try {
     const schema = f.schema;
-    const settings = await registry.getEntityTypeIdentity(
-      { uow: new SqlEntityIssuerUnitOfWork(sql) },
-      f.actor,
-      schema.entity_type_id,
-    );
-    const source = settings.default_source;
+    const settings = await getEntitySchema({ uow: new SqlEntityTypeUnitOfWork(sql) }, f.actor, {
+      type_id: schema.entity_type_id,
+    });
+    assertEquals(settings.schema.properties.prop_2["x-identifier"]?.default_kind_id, APP_IDENTIFIER_RULE_ID);
     const saved = await entities.createEntity(
       ed,
       businessRequest(f.actor),
       entityCreate.parse({
         ...schema,
-        source,
-        identity_version: settings.version,
         properties: { prop_1: "짧은 자동 식별자" },
       }),
     );
-    assert(/^\d{8}-[A-Z0-9]{8}$/.test(saved.external_id));
-    assertEquals(saved.id, `${source}:${schema.entity_type_id}:${saved.external_id}`);
+    assert(/^\d{8}-[A-Z0-9]{8}$/.test(decodeIdentifierReference(saved.id).raw));
+    assertEquals(
+      saved.id,
+      encodeIdentifierReference(schema.entity_type_id, APP_IDENTIFIER_RULE_ID, decodeIdentifierReference(saved.id).raw),
+    );
   } finally {
     await f.cleanup();
   }
@@ -107,24 +113,26 @@ dbTest(
   async () => {
     const f = await identityWorkspaceFixture();
     try {
-      const schema = f.schema;
+      let schema = f.schema;
       const setup = await directEntitySource(sql, f.manager, schema.entity_type_id);
+      schema = setup.schema;
       const entity = await entities.createEntity(
         ed,
         businessRequest(f.actor),
-        entityCreate.parse({ ...schema, source: "crm", external_id: "보존", properties: { prop_1: "발급처 보존" } }),
+        entityCreate.parse({
+          ...schema,
+          properties: { prop_2: encodeIdentifierValue(setup.rule.id, "보존"), prop_1: "발급처 보존" },
+        }),
       );
       const task = await activity.createTask(
         ad,
         businessRequest(f.actor),
         taskCreate.parse({ kind: "once", title: "연결", entity_ids: [entity.id] }),
       );
-      await registry.updateEntityTypeIdentity(setup.deps, businessRequest(f.manager), schema.entity_type_id, {
-        label: "번호",
-        default_source: "app",
-        expected_version: setup.identity.version,
-        sources: setup.identity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })),
-      });
+      schema = (await configureIdentifierField(sql, f.manager, schema.entity_type_id, {
+        allowed_kind_ids: [APP_IDENTIFIER_RULE_ID, setup.rule.id],
+        default_kind_id: APP_IDENTIFIER_RULE_ID,
+      })).schema;
       await registry.updateEntityIssuer(setup.deps, businessRequest(f.manager), "crm", {
         expected_version: setup.issuer.version,
         active: false,
@@ -135,7 +143,10 @@ dbTest(
           entities.createEntity(
             ed,
             businessRequest(f.actor),
-            entityCreate.parse({ ...schema, source: "crm", external_id: "새 ID", properties: { prop_1: "금지" } }),
+            entityCreate.parse({
+              ...schema,
+              properties: { prop_2: encodeIdentifierValue(setup.rule.id, "새 ID"), prop_1: "금지" },
+            }),
           ),
         AppError,
       );
@@ -147,8 +158,7 @@ dbTest(
             entity.id,
             updateInput({
               schema_version: schema.schema_version,
-              source: "crm",
-              external_id: "변경 ID",
+              properties: { prop_2: encodeIdentifierValue(setup.rule.id, "변경 ID") },
               expected_version: 1,
             }),
           ),
@@ -166,11 +176,10 @@ dbTest(
       );
       await entities.deleteEntity(ed, businessRequest(f.actor), entity.id, edited.version);
       const restore = () =>
-        entities.createEntity(
-          ed,
-          businessRequest(f.actor),
-          entityCreate.parse({ ...schema, source: "crm", external_id: "보존", expected_version: 3, properties: {} }),
-        );
+        entities.restoreEntity(ed, businessRequest(f.actor), entity.id, {
+          schema_version: schema.schema_version,
+          expected_version: 3,
+        });
       const restored = await restore();
       assertEquals([restored.id, restored.properties.prop_1, restored.version, restored.deleted_at], [
         entity.id,
@@ -190,20 +199,26 @@ dbTest(
   async () => {
     const f = await identityWorkspaceFixture(), other = await identityWorkspaceFixture();
     try {
-      const schema = f.schema,
-        foreignSchema = other.schema;
-      await directEntitySource(sql, f.manager, schema.entity_type_id);
-      await directEntitySource(sql, other.manager, foreignSchema.entity_type_id);
+      const setup = await directEntitySource(sql, f.manager, f.schema.entity_type_id);
+      const foreignSetup = await directEntitySource(sql, other.manager, other.schema.entity_type_id);
+      const schema = setup.schema, foreignSchema = foreignSetup.schema;
       const input = entityCreate.parse({
         ...schema,
-        source: "crm",
-        external_id: "000Ab:/한글%",
-        properties: { prop_1: "보관 고객", prop_2: 0, prop_4: "c" },
+        properties: {
+          prop_2: encodeIdentifierValue(setup.rule.id, "000Ab:/한글%"),
+          prop_1: "보관 고객",
+          prop_3: 0,
+          prop_5: "c",
+        },
       });
       const created = await entities.createEntity(ed, businessRequest(f.actor), input),
-        foreign = await entities.createEntity(ed, businessRequest(other.actor), { ...input, ...foreignSchema });
-      assertEquals(created.id, `crm:${schema.entity_type_id}:000Ab:/한글%`);
-      assertEquals(foreign.external_id, created.external_id);
+        foreign = await entities.createEntity(ed, businessRequest(other.actor), {
+          ...input,
+          ...foreignSchema,
+          properties: { ...input.properties, prop_2: encodeIdentifierValue(foreignSetup.rule.id, "000Ab:/한글%") },
+        });
+      assertEquals(created.id, encodeIdentifierReference(schema.entity_type_id, setup.rule.id, "000Ab:/한글%"));
+      assertEquals(decodeIdentifierReference(foreign.id).raw, decodeIdentifierReference(created.id).raw);
       await assertRejects(() => entities.getEntity(ed, other.actor, created.id), AppError);
       const task = await activity.createTask(
         ad,
@@ -250,17 +265,11 @@ dbTest(
       );
       assertEquals([completed.record.entity_id, completed.record.task_id], [null, task.id]);
       const restore = () =>
-        entities.createEntity(
-          ed,
-          businessRequest(f.actor),
-          entityCreate.parse({
-            ...schema,
-            source: "crm",
-            external_id: input.external_id,
-            expected_version: 2,
-            properties: { prop_3: "2026-10-09" },
-          }),
-        );
+        entities.restoreEntity(ed, businessRequest(f.actor), created.id, {
+          schema_version: schema.schema_version,
+          expected_version: 2,
+          properties: { prop_4: "2026-10-09" },
+        });
       const competing = await Promise.allSettled([restore(), restore()]);
       assertEquals(competing.filter((r) => r.status === "fulfilled").length, 1);
       const restored = (competing.find((r) =>
@@ -268,8 +277,8 @@ dbTest(
       ) as PromiseFulfilledResult<Awaited<ReturnType<typeof restore>>>).value;
       assertEquals([
         restored.properties.prop_1,
-        restored.properties.prop_2,
-        restored.properties.prop_4,
+        restored.properties.prop_3,
+        restored.properties.prop_5,
         restored.version,
       ], ["보관 고객", 0, "c", 3]);
       await assertRejects(() =>
@@ -288,9 +297,7 @@ dbTest(
         businessRequest(f.actor),
         entityCreate.parse({
           ...schema,
-          source: "app",
-          external_id: "000Ab:/한글%",
-          properties: { prop_1: "다른 발급처" },
+          properties: { prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "000Ab:/한글%"), prop_1: "다른 발급처" },
         }),
       );
       await entities.deleteEntity(ed, businessRequest(f.actor), collision.id, 1);
@@ -301,8 +308,9 @@ dbTest(
           restored.id,
           updateInput({
             schema_version: schema.schema_version,
-            source: "app",
-            external_id: input.external_id,
+            properties: {
+              prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, decodeIdentifierReference(created.id).raw),
+            },
             expected_version: 3,
           }),
         ), AppError);
@@ -315,9 +323,7 @@ dbTest(
             restored.id,
             updateInput({
               schema_version: schema.schema_version,
-              properties: { prop_1: "실패한 속성 변경" },
-              source: "crm",
-              external_id: "failed:/ID",
+              properties: { prop_1: "실패한 속성 변경", prop_2: encodeIdentifierValue(setup.rule.id, "failed:/ID") },
               expected_version: 3,
               change_tag_ids: [crypto.randomUUID()],
             }),
@@ -357,33 +363,42 @@ dbTest(
       const order = await createEntityType({ uow: new SqlEntityTypeUnitOfWork(sql) }, businessRequest(f.manager), {
         label: "주문",
       });
-      await directEntitySource(sql, f.manager, order.id);
+      const orderSetup = await directEntitySource(sql, f.manager, order.id);
       await f.grantKind(f.actor, order.id, "write");
       const sameNumber = await entities.createEntity(
         ed,
         businessRequest(f.actor),
         entityCreate.parse({
           entity_type_id: order.id.toUpperCase(),
-          schema_version: 1,
-          source: "crm",
-          external_id: input.external_id,
-          properties: { prop_1: "같은 번호 주문" },
+          schema_version: orderSetup.schema.schema_version,
+          properties: {
+            prop_2: encodeIdentifierValue(orderSetup.rule.id, decodeIdentifierReference(created.id).raw),
+            prop_1: "같은 번호 주문",
+          },
         }),
       );
-      assertEquals(sameNumber.id, `crm:${order.id}:000Ab:/한글%`);
+      assertEquals(sameNumber.id, encodeIdentifierReference(order.id, orderSetup.rule.id, "000Ab:/한글%"));
       assertEquals(
         new Set(
-          (await entities.listEntities(ed, f.actor, entityListQuery.parse({ source: "crm" }))).items.map((row) =>
-            row.id
-          ),
+          (await entities.listEntities(
+            ed,
+            f.actor,
+            entityListQuery.parse({
+              filters: [{ key: "prop_2", operator: "eq", value: encodeIdentifierValue(setup.rule.id, "000Ab:/한글%") }],
+            }),
+          )).items.map((row) => row.id),
         ),
         new Set([restored.id, sameNumber.id]),
       );
       for (
-        const [field, value] of [["id", "replacement"], ["source", "app"], ["external_id", "replacement"], [
-          "entity_type_id",
-          order.id,
-        ]]
+        const [field, value] of [
+          ["id", encodeIdentifierReference(schema.entity_type_id, setup.rule.id, "replacement")],
+          ["properties", { ...updated.properties, prop_2: encodeIdentifierValue(setup.rule.id, "replacement") }],
+          [
+            "entity_type_id",
+            order.id,
+          ],
+        ]
       ) {
         await runInWorkspace(sql, f.actor, {
           mode: "business",
@@ -391,9 +406,9 @@ dbTest(
         }, async (tx) => {
           const failure = await assertRejects(() =>
             tx.savepoint(async (nested) => {
-              const changed = await nested`update app.entities set ${
-                nested(field)
-              }=${value} where workspace_id=${f.workspaceId} and id=${restored.id} returning id`;
+              const changed = await nested`update app.entities set ${nested(field)}=${
+                typeof value === "object" ? nested.json(value) : value
+              } where workspace_id=${f.workspaceId} and id=${restored.id} returning id`;
               assertEquals(changed.length, 1, "a zero-row write cannot prove the identity guard");
             })
           );

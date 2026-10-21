@@ -19,10 +19,10 @@ dbTest(
       await f.grantKind(f.manager, kind.id, "write");
       await f.grantKind(f.member, kind.id, "read");
       const document = await model.exportDataModel(models, f.manager);
-      document.entity_types[0].schema.properties.prop_2 = {
+      document.entity_types[0].schema.properties.prop_3 = {
         type: ["number", "null"],
         title: "수량",
-        "x-order": 20,
+        "x-order": 30,
       };
       const input = { mode: "update", document: JSON.stringify(document) };
       const preview = await model.previewDataModel(models, f.manager, input);
@@ -39,9 +39,9 @@ dbTest(
       const schema = await types.getEntitySchema(f.typeDeps, f.manager, { type_id: kind.id });
       const values = [];
       for (
-        const properties of [{ prop_1: "누락" }, { prop_1: "명시적 없음", prop_2: null }, { prop_1: "영", prop_2: 0 }, {
+        const properties of [{ prop_1: "누락" }, { prop_1: "명시적 없음", prop_3: null }, { prop_1: "영", prop_3: 0 }, {
           prop_1: "둘",
-          prop_2: 2,
+          prop_3: 2,
         }]
       ) {
         values.push(
@@ -53,7 +53,7 @@ dbTest(
         );
       }
       for (const direction of ["asc", "desc"] as const) {
-        const query = entityListQuery.parse({ entity_type_id: kind.id, sort: { key: "prop_2", direction }, limit: 1 });
+        const query = entityListQuery.parse({ entity_type_id: kind.id, sort: { key: "prop_3", direction }, limit: 1 });
         let page = await entities.listEntities(deps, f.member, query);
         const ids = page.items.map((row) => row.id);
         while (page.next_cursor) {
@@ -67,7 +67,7 @@ dbTest(
         f.member,
         entityListQuery.parse({
           entity_type_id: kind.id,
-          filters: [{ key: "prop_2", operator: "gte", value: 0 }, { key: "prop_2", operator: "lte", value: 0 }],
+          filters: [{ key: "prop_3", operator: "gte", value: 0 }, { key: "prop_3", operator: "lte", value: 0 }],
         }),
       );
       assertEquals(filtered.items.map((row) => row.title), ["영"]);
@@ -76,8 +76,8 @@ dbTest(
         f.member,
         entityListQuery.parse({
           entity_type_id: kind.id,
-          filters: [{ key: "prop_2", operator: "unset" }],
-          sort: { key: "prop_2", direction: "asc" },
+          filters: [{ key: "prop_3", operator: "unset" }],
+          sort: { key: "prop_3", direction: "asc" },
         }),
       );
       assertEquals(unset.items.map((row) => row.title), ["누락", "명시적 없음"]);

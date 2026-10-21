@@ -44,8 +44,6 @@ dbTest(
         businessRequest(f.actor),
         entityCreate.parse({
           ...schema,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "원본" },
           change_tag_ids: [own],
         }),
@@ -156,8 +154,6 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
       businessRequest(f.actor),
       entityCreate.parse({
         ...schema,
-        source: "app",
-        external_id: crypto.randomUUID(),
         properties: { prop_1: "대상" },
         change_note: "",
       }),

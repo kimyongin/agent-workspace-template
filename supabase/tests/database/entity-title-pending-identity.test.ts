@@ -1,3 +1,4 @@
+import { decodeIdentifierReference } from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { assert, assertEquals } from "@std/assert";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -41,12 +42,12 @@ dbTest(
       const actor = fixture.manager;
       const document = await exportDataModel(model, actor);
       const type = document.entity_types.find((i) => i.schema["x-type-id"] === kind.id)!;
-      type.schema.properties.prop_2 = {
+      type.schema.properties.prop_3 = {
         type: "string",
-        "x-order": 20,
+        "x-order": 30,
         title: "선택 이름",
       };
-      type.schema["x-title-template"] = "$prop_2$";
+      type.schema["x-title-template"] = "$prop_3$";
       const input = { mode: "update", document: JSON.stringify(document) };
       const review = await previewDataModel(model, actor, input);
       const plan = await prepareDataModel(model, businessRequest(actor), {
@@ -67,7 +68,7 @@ dbTest(
         });
       const pending = await prepare({ prop_1: "필수 원문" });
       assertEquals(pending.pending_entity_id, true);
-      assertEquals(pending.prepared_input.external_id, undefined);
+      assertEquals((pending.prepared_input.properties as Record<string, unknown>).prop_2, undefined);
       assertEquals(pending.prepared_input.properties, { prop_1: "필수 원문" });
       const first = await entities.createEntity(
         ed,
@@ -77,16 +78,17 @@ dbTest(
           change_tag_ids: pending.change_tag_ids,
         }),
       );
-      assert(first.external_id);
-      assertEquals(first.title, first.external_id);
+      const raw = decodeIdentifierReference(first.id).raw;
+      assert(raw);
+      assertEquals(first.title, raw);
       const detail = await entities.getEntity(ed, actor, first.id);
       const record = await records.getRecord(
         activity,
         actor,
         detail.records.items[0].id,
       );
-      assertEquals(record.change?.target_title, first.external_id);
-      assert(record.body.includes(first.external_id));
+      assertEquals(record.change?.target_title, raw);
+      assert(record.body.includes(raw));
       assertEquals(record.body.includes("저장 후 발급되는"), false);
       const edited = await entities.createEntity(
         ed,
@@ -106,7 +108,7 @@ dbTest(
         )).body,
         "직접 쓴 메모",
       );
-      const visible = await prepare({ prop_1: "원문", prop_2: "확정 제목" });
+      const visible = await prepare({ prop_1: "원문", prop_3: "확정 제목" });
       assertEquals(visible.pending_entity_id, undefined);
       assert(visible.change_note.includes("확정 제목"));
       // Read-only preparation must not create or reserve another entity identity.
