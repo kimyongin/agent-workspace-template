@@ -16,7 +16,7 @@ const layouts = {
     first: "@max-[36rem]/business:col-start-1",
     second: "@max-[36rem]/business:col-start-2",
     title: "@max-[36rem]/business:row-start-1",
-    property: "@max-[36rem]/business:grid @max-[36rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[36rem]/business:gap-x-3",
+    property: "@max-[36rem]/business:grid @max-[36rem]/business:grid-cols-1 @max-[36rem]/business:gap-x-4 @max-[36rem]/business:gap-y-1 @max-[36rem]/business:@min-[16rem]/business-cell:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)]",
     label: "@max-[36rem]/business:block",
     disclosure: "@max-[36rem]/business:col-start-1 @max-[36rem]/business:row-start-1",
     details: "@max-[36rem]/business:pl-2",
@@ -34,7 +34,7 @@ const layouts = {
     first: "@max-[64rem]/business:col-start-1",
     second: "@max-[64rem]/business:col-start-2",
     title: "@max-[64rem]/business:row-start-1",
-    property: "@max-[64rem]/business:grid @max-[64rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[64rem]/business:gap-x-3",
+    property: "@max-[64rem]/business:grid @max-[64rem]/business:grid-cols-1 @max-[64rem]/business:gap-x-4 @max-[64rem]/business:gap-y-1 @max-[64rem]/business:@min-[16rem]/business-cell:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)]",
     label: "@max-[64rem]/business:block",
     disclosure: "@max-[64rem]/business:col-start-1 @max-[64rem]/business:row-start-1",
     details: "@max-[64rem]/business:pl-2",
@@ -52,7 +52,7 @@ const layouts = {
     first: "@max-[128rem]/business:col-start-1",
     second: "@max-[128rem]/business:col-start-2",
     title: "@max-[128rem]/business:row-start-1",
-    property: "@max-[128rem]/business:grid @max-[128rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[128rem]/business:gap-x-3",
+    property: "@max-[128rem]/business:grid @max-[128rem]/business:grid-cols-1 @max-[128rem]/business:gap-x-4 @max-[128rem]/business:gap-y-1 @max-[128rem]/business:@min-[16rem]/business-cell:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)]",
     label: "@max-[128rem]/business:block",
     disclosure: "@max-[128rem]/business:col-start-1 @max-[128rem]/business:row-start-1",
     details: "@max-[128rem]/business:pl-2",
@@ -70,7 +70,7 @@ const layouts = {
     first: "@max-[192rem]/business:col-start-1",
     second: "@max-[192rem]/business:col-start-2",
     title: "@max-[192rem]/business:row-start-1",
-    property: "@max-[192rem]/business:grid @max-[192rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[192rem]/business:gap-x-3",
+    property: "@max-[192rem]/business:grid @max-[192rem]/business:grid-cols-1 @max-[192rem]/business:gap-x-4 @max-[192rem]/business:gap-y-1 @max-[192rem]/business:@min-[16rem]/business-cell:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)]",
     label: "@max-[192rem]/business:block",
     disclosure: "@max-[192rem]/business:col-start-1 @max-[192rem]/business:row-start-1",
     details: "@max-[192rem]/business:pl-2",
@@ -88,7 +88,7 @@ const layouts = {
     first: "@max-[512rem]/business:col-start-1",
     second: "@max-[512rem]/business:col-start-2",
     title: "@max-[512rem]/business:row-start-1",
-    property: "@max-[512rem]/business:grid @max-[512rem]/business:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] @max-[512rem]/business:gap-x-3",
+    property: "@max-[512rem]/business:grid @max-[512rem]/business:grid-cols-1 @max-[512rem]/business:gap-x-4 @max-[512rem]/business:gap-y-1 @max-[512rem]/business:@min-[16rem]/business-cell:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)]",
     label: "@max-[512rem]/business:block",
     disclosure: "@max-[512rem]/business:col-start-1 @max-[512rem]/business:row-start-1",
     details: "@max-[512rem]/business:pl-2",
@@ -154,11 +154,13 @@ export function BusinessCell({ index, children, className, ...props }: React.Com
   const style = layout?.style ?? layouts.regular;
   return (
     <TableCell {...props} role="cell" headers={layout ? `${layout.heading}-${index}` : undefined}
-      className={cn("min-w-0 whitespace-normal wrap-anywhere", numeric && "text-right tabular-nums", style.text, layout?.disclosureColumn === false ? style.first : style.second, index === 0
-        ? style.title
-        : cn(style.property, "@max-[16rem]/business:grid-cols-1 @max-[16rem]/business:gap-y-1"), className)}>
-      {index > 0 && <span aria-hidden="true" className={cn("hidden text-xs text-muted-foreground", style.label)}>{layout?.columns[index]}</span>}
-      <div className="min-w-0 wrap-anywhere">{children}</div>
+      className={cn("min-w-0 whitespace-normal wrap-anywhere", numeric && "text-right tabular-nums", style.text, layout?.disclosureColumn === false ? style.first : style.second, index === 0 && style.title, className)}>
+      {index === 0 ? <div className="min-w-0 wrap-anywhere">{children}</div> : <div className="@container/business-cell min-w-0">
+        <div className={cn("min-w-0", style.property)}>
+          <span aria-hidden="true" className={cn("hidden text-xs text-muted-foreground @min-[16rem]/business-cell:text-sm", style.label)}>{layout?.columns[index]}</span>
+          <div className="min-w-0 wrap-anywhere">{children}</div>
+        </div>
+      </div>}
     </TableCell>
   );
 }

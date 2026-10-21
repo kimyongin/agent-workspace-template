@@ -134,7 +134,7 @@ export function RelatedItem(
   </ItemActions>;
   const metadataContent = metadata && (!disclosure || disclosure.expanded) && <div className="min-w-0 text-sm text-muted-foreground">{metadata}</div>;
   const previewContent = disclosure?.expanded && disclosure.content;
-  const titleData = <DataFields className="flex-1"><div><dt>{label}</dt><dd className="flex min-w-0 flex-wrap items-center gap-2">{titleContent}{titleBadge}</dd></div></DataFields>;
+  const titleData = <DataFields className="flex-1 [&>div]:items-center"><div><dt>{label}</dt><dd className="flex min-w-0 flex-wrap items-center gap-2">{titleContent}{titleBadge}</dd></div></DataFields>;
   if (table) return <>
     <BusinessRow data-expanded={disclosure?.expanded || undefined}>
       <BusinessDisclosureCell>{toggle}</BusinessDisclosureCell>
@@ -145,9 +145,9 @@ export function RelatedItem(
       {disclosure && action && <div className="flex flex-wrap items-center gap-2 @max-[16rem]/business:[&_[data-slot=button]]:h-auto @max-[16rem]/business:[&_[data-slot=button]]:min-h-11 @max-[16rem]/business:[&_[data-slot=button]]:max-w-full @max-[16rem]/business:[&_[data-slot=button]]:flex-col @max-[16rem]/business:[&_[data-slot=button]]:px-1 @max-[16rem]/business:[&_[data-slot=button]]:py-2 @max-[16rem]/business:[&_[data-slot=button]]:whitespace-normal">{action}</div>}{metadataContent}{previewContent}
     </BusinessDetails>}
   </>;
-  const item = <Item variant="outline" className="@container min-w-0 flex-col flex-nowrap items-stretch">
-    <ItemHeader className="flex-nowrap items-start gap-3">{toggle && <CollapsibleTrigger asChild>{toggle}</CollapsibleTrigger>}{titleData}</ItemHeader>
-    <ItemContent className="min-w-0">
+  const item = <Item variant="outline" className={cn("@container grid min-w-0 grid-cols-1 items-start", disclosure && "grid-cols-[max-content_minmax(0,1fr)] gap-x-3")}>
+    <ItemHeader className="contents">{toggle && <CollapsibleTrigger asChild>{toggle}</CollapsibleTrigger>}{titleData}</ItemHeader>
+    <ItemContent className={cn("min-w-0", disclosure && "col-start-2")}>
       {actions}
       {cells.length > 0 && <DataFields>
         {(layout?.columns.slice(1) ?? cells.map(() => "값")).map((column, index) => <div key={column} className="min-w-0"><dt>{column}</dt><dd className="wrap-anywhere">{cells[index] ?? "—"}</dd></div>)}
