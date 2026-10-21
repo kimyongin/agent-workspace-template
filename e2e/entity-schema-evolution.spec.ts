@@ -193,13 +193,14 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
       schema_version: 1,
       properties: { prop_1: "보존할 자료" },
     });
+    const originalDefinition = await mcp.call("get_entity_schema", { type_id: type.id });
     const change = await mcp.call("create_entity_schema_change", {
       type_id: type.id,
       expected_schema_version: 1,
       edits: [{
         op: "add_property",
         client_ref: "note",
-        field: { "x-order": 20, type: ["string", "null"], title: "메모" },
+        field: { "x-order": 30, type: ["string", "null"], title: "메모" },
         required: false,
       }],
     });
@@ -221,7 +222,9 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
       1,
       entity.properties,
     ]);
-    expect((await mcp.call("get_entity_schema", { type_id: type.id })).schema_version).toBe(1);
+    const currentDefinition = await mcp.call("get_entity_schema", { type_id: type.id });
+    expect(currentDefinition.schema_version).toBe(1);
+    expect(currentDefinition.schema).toEqual(originalDefinition.schema);
     await page.reload();
     const discarded = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
       has: page.getByRole("button", { name: /상태 폐기됨$/ }),
@@ -233,7 +236,9 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await expect(businessRows(page.getByRole("table", { name: "입력 항목 목록", exact: true })))
-      .toHaveCount(1);
+      .toHaveCount(2);
+    await expect(page.getByRole("region", { name: "이름 입력 항목", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "식별자 입력 항목", exact: true })).toBeVisible();
     await expect(page.getByRole("region", { name: "메모 입력 항목", exact: true })).toHaveCount(0);
   } finally {
     await mcp.close();
