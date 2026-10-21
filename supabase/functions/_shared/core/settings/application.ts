@@ -1,5 +1,6 @@
 import { tagConnectionSelection } from "../../contracts/tag-connection.ts";
 import { renderEntityTitle } from "../../contracts/entity-title-template.ts";
+import { resolveIdentifierProperties } from "../entity/identifier-values.ts";
 import { assertImmutableType } from "../entity/application.ts";
 import type { RequestStore } from "../shared/request.ts";
 import { runWrite } from "../shared/request.ts";
@@ -33,7 +34,7 @@ import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate, versionOnly } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { entityCreate, entityRestore, entityUpdate } from "../../contracts/entity.ts";
-import { decodeIdentifierValue, encodeIdentifierValue } from "../../contracts/entity-identifiers.ts";
+import { decodeIdentifierValue } from "../../contracts/entity-identifiers.ts";
 import { checkedProperties, type EntityDefinitions, requireDefinition } from "../entity/values.ts";
 export interface BusinessSettingsStore extends RequestStore {
   definition?: EntityDefinitions["definition"];
@@ -152,21 +153,21 @@ export function prepareBusinessRecord(
       const patch = (input.input.properties ?? {}) as Record<string, unknown>;
       const preview = { ...before?.properties, ...(content.properties as Record<string, unknown> ?? {}) };
       const selected = definition.schema["x-identity-property"];
-      let generatedPreview = false;
-      if (input.action === "create" && selected && preview[selected] === undefined) {
-        const kind = (content.generate_identifiers as Record<string, string> | undefined)?.[selected] ??
-          definition.schema.properties[selected]?.["x-identifier"]?.default_kind_id;
-        if (definition.identifier_kinds?.find((k) => k.id === kind && k.active && k.generation === "automatic")) {
-          preview[selected] = encodeIdentifierValue(kind!, "자동 발급");
-          generatedPreview = true;
+      const intents = (content.generate_identifiers ?? {}) as Record<string, string>;
+      if (input.action === "update") {
+        for (const key of Object.keys(intents)) {
+          if (patch[key] !== undefined) throw invalidInput("값과 자동 발급 요청을 함께 보낼 수 없습니다");
+          delete preview[key];
         }
       }
-      if (selected && input.action !== "create" && preview[selected] !== before?.properties?.[selected]) {
-        throw invalidInput("자료 식별자는 변경할 수 없습니다");
-      }
+      const resolved = await resolveIdentifierProperties(
+        definition, preview, intents, input.action === "create", before?.properties ?? {},
+        () => Promise.resolve("자동 발급"),
+      );
+      const generated = new Set(resolved.generated_keys);
       const properties = checkedProperties(
         definition,
-        preview,
+        resolved.properties,
         patch,
         input.action === "create",
         before?.properties,
@@ -194,7 +195,7 @@ export function prepareBusinessRecord(
           ...prepared_input,
           properties: Object.fromEntries(
             Object.entries(properties).filter(([key]) =>
-              !definition.schema.properties[key]?.readOnly && !(generatedPreview && key === selected)
+              !definition.schema.properties[key]?.readOnly && !generated.has(key)
             ),
           ),
         };
