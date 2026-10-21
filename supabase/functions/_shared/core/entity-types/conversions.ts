@@ -7,6 +7,13 @@ import { compileEntityFieldValue, compileEntityProperties, jsonbText } from "./s
 /** Restricted literal operations; no defaults, expressions, URLs or cross-property execution. */
 export function compileMigration(target: SchemaDefinition, plan: MigrationPlan, recoveryKeys?: string[] | null) {
   const validate = compileEntityProperties(target);
+  const selected = target.schema["x-identity-property"];
+  if (plan.rules.some((rule) => rule.key === selected) || plan.overrides.some((value) => value.key === selected)) {
+    throw invalidInput("자료 식별자는 값 변환이나 보완으로 변경할 수 없습니다", [{
+      path: `properties.${selected}`,
+      message: "자료 식별자는 변경할 수 없습니다",
+    }]);
+  }
   const keys = new Set<string>();
   for (const rule of plan.rules) {
     if (rule.op !== "remove" && !Object.hasOwn(target.schema.properties, rule.key)) {
@@ -126,6 +133,9 @@ export function compileMigration(target: SchemaDefinition, plan: MigrationPlan, 
           if (errors[i].path === `properties.${rule.key}`) errors.splice(i, 1);
         }
       }
+    }
+    if (selected && canonical(before[selected]) !== canonical(after[selected])) {
+      errors.push({ path: `properties.${selected}`, message: "복구로 자료 식별자를 변경할 수 없습니다" });
     }
     const finalErrors = [...errors, ...check()].filter((e, i, a) =>
       a.findIndex((x) => x.path === e.path && x.message === e.message) === i

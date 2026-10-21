@@ -1,3 +1,4 @@
+import { decodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
@@ -111,7 +112,7 @@ test("JSON file export→edited import→normal publication→web create/read→
     edited.properties.prop_8 = {
       type: ["string", "null"],
       title: "판매 상태",
-      "x-order": 20,
+      "x-order": 30,
 
       oneOf: [{ const: "ready", title: "판매 중" }, {
         const: "closed",
@@ -125,7 +126,7 @@ test("JSON file export→edited import→normal publication→web create/read→
     edited.properties.prop_12 = {
       type: ["number", "null"],
       title: "수량",
-      "x-order": 30,
+      "x-order": 40,
 
       default: 0,
       minimum: 0,
@@ -134,7 +135,7 @@ test("JSON file export→edited import→normal publication→web create/read→
     edited.properties.prop_16 = {
       type: "string",
       title: "고정 번호",
-      "x-order": 40,
+      "x-order": 50,
       readOnly: true,
       default: "LOCKED",
     };
@@ -182,7 +183,10 @@ test("JSON file export→edited import→normal publication→web create/read→
       new URL(page.url()).pathname.split("/").at(-1)!,
     );
     const created = await mcp.call("get_entity", { id: entityId });
+    const identifier = decodeIdentifierReference(created.id);
+    expect(identifier.kind_id).toBe(APP_IDENTIFIER_RULE_ID);
     expect(created.properties).toEqual({
+      [published.schema["x-identity-property"]]: encodeIdentifierValue(identifier.kind_id, identifier.raw),
       prop_1: name,
       [statusKey]: null,
       [quantityKey]: 0,

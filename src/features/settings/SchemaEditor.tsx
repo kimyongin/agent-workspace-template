@@ -220,6 +220,15 @@ export function SchemaEditor(
     restartedFrom,
     planSyncNeeded,
   } = editor.view;
+  const errorNotice = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!error || fieldError) return;
+    const frame = requestAnimationFrame(() => {
+      errorNotice.current?.scrollIntoView({ block: "nearest" });
+      errorNotice.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [error, fieldError]);
   const {
     editField,
     editNumeric,
@@ -332,7 +341,7 @@ export function SchemaEditor(
         />
       )}
       {error && (
-        <Alert variant="destructive" role="alert" className="text-sm text-destructive">
+        <Alert ref={errorNotice} tabIndex={-1} variant="destructive" role="alert" className="text-sm text-destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -410,6 +419,30 @@ export function SchemaEditor(
               className="min-w-0"
               disabled={inputsDisabled}
             >
+              <Field
+                fullWidth
+                label="자료 식별자 항목"
+                help="보관된 자료를 포함해 자료가 없는 종류에서만 바꿀 수 있습니다. 선택할 항목은 기본값 없는 필수 식별자여야 합니다."
+              >
+                {(props) => (
+                  <NativeSelect
+                    {...props}
+                    aria-label="자료 식별자 항목"
+                    value={draft.schema["x-identity-property"]}
+                    disabled={inputsDisabled || Boolean(plan?.recovery) || definition.identity_change_allowed !== true}
+                    onChange={(event) => editor.editIdentityProperty(event.target.value)}
+                  >
+                    {Object.entries(draft.schema.properties).filter(([key, field]) =>
+                      field.type === "string" && field["x-identifier"] &&
+                      draft.schema.required.includes(key) && !field.deprecated && !field.readOnly &&
+                      field.default === undefined
+                    )
+                      .map(([key, field]) => (
+                        <NativeSelectOption key={key} value={key}>{field.title || key}</NativeSelectOption>
+                      ))}
+                  </NativeSelect>
+                )}
+              </Field>
               <SchemaTitleTemplateSetting
                 draft={draft}
                 saved={definition}

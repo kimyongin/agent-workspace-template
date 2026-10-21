@@ -1,3 +1,4 @@
+import { decodeIdentifierValue } from "../../contracts/entity-identifiers.ts";
 import { entityTitleTemplateIssues } from "../../contracts/entity-title-template.ts";
 import { entityFieldInput } from "../../contracts/entity-schema-change.ts";
 import { Ajv2020 } from "ajv/2020";
@@ -107,6 +108,16 @@ export function exactMultipleOf(value: number, divisor: number): boolean {
   const scale = Math.max(decimalPlaces(value), decimalPlaces(divisor));
   const integer = (number: number) => BigInt(number.toFixed(scale).replace(".", ""));
   return integer(value) % integer(divisor) === 0n;
+}
+function identifier(field: EntityField, value: unknown, path: string) {
+  if (!field["x-identifier"] || value === null || value === undefined) return;
+  let kind: string;
+  try {
+    kind = decodeIdentifierValue(value as string).kind_id;
+  } catch {
+    fail(path, "식별자 종류와 원본 문자열의 정확한 쌍을 입력하세요");
+  }
+  if (!field["x-identifier"].allowed_kind_ids.includes(kind!)) fail(path, "허용된 식별자 종류를 선택하세요");
 }
 function numeric(f: EntityField, value: unknown, path: string) {
   if (typeof value !== "number") return;
@@ -305,6 +316,7 @@ export function compileEntityProperties(raw: unknown) {
       );
     }
     for (const [key, value] of Object.entries(result)) {
+      identifier(schema.properties[key], value, `properties.${key}`);
       numeric(schema.properties[key], value, `properties.${key}`);
       if (schema.properties[key].format === "date" && typeof value === "string" && value.startsWith("0000-")) {
         fail(`properties.${key}`, "날짜의 연도는 0001~9999입니다");
@@ -331,6 +343,7 @@ export function compileEntityFieldValue(field: EntityField) {
   const check = validator().compile({ $schema: ENTITY_SCHEMA_DIALECT, ...field });
   return (value: unknown) => {
     if (!check(value)) throw invalidInput("보완값이 대상 속성 제약을 만족하지 않습니다");
+    identifier(field, value, "value");
     numeric(field, value, "value");
     if (typeof value === "string" && (!sqlSafeText(value) || (field.format === "date" && value.startsWith("0000-")))) {
       throw invalidInput("저장할 수 없는 보완값입니다");

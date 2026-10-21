@@ -1,3 +1,4 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
@@ -92,14 +93,14 @@ async function analyze(
       op: "add_property",
       client_ref: "count",
       field: {
-        "x-order": 20,
+        "x-order": 30,
         type: "integer",
         title: "수량",
       },
       required: true,
     }, ...(titleTemplate ? [{ op: "set_metadata" as const, "x-title-template": titleTemplate }] : [])],
     migration: {
-      rules: [{ op: "fill", key: "prop_2", value: 7 }],
+      rules: [{ op: "fill", key: "prop_3", value: 7 }],
       overrides: [],
     },
   });
@@ -191,8 +192,7 @@ dbTest(
         createEntity(e, requestActor(a.actor), {
           entity_type_id: typeId,
           schema_version: 1,
-          source: "app",
-          external_id: crypto.randomUUID(),
+
           properties: { prop_1: title },
         });
       const x = await make(type.id, "원본"),
@@ -452,11 +452,11 @@ dbTest(
       );
       const after = await getEntity(e, a.actor, x.id),
         delAfter = await getEntity(e, a.actor, deleted.id);
-      assertEquals(after.properties, { prop_1: "원본", prop_2: 7 });
+      assertEquals(after.properties, { ...x.properties, prop_1: "원본", prop_3: 7 });
       assertEquals(after.version, currentX.version + 1);
       assertEquals(after.entity_type_id, type.id);
       assertEquals(after.schema_version, 2);
-      assertEquals(delAfter.properties, { prop_1: "삭제 원본", prop_2: 7 });
+      assertEquals(delAfter.properties, { ...deleted.properties, prop_1: "삭제 원본", prop_3: 7 });
       assertEquals(delAfter.deleted_at, delBefore.deleted_at);
       assertEquals(delAfter.version, delBefore.version + 1);
       assertEquals(await getEntity(e, a.actor, y.id), yBefore);
@@ -581,6 +581,7 @@ dbTest(
         })
       );
       assertEquals((await getEntity(e, a.actor, entity.id)).properties, {
+        ...entity.properties,
         prop_1: "old",
       });
       assertEquals(
@@ -699,7 +700,7 @@ dbTest(
       const observations: Array<{ schema: number; title: string; value?: unknown }> = [{
         schema: old.current_schema_version,
         title: old.title,
-        value: old.properties.prop_2,
+        value: old.properties.prop_3,
       }];
       reader = (async () => {
         for (let i = 0; i < 40 && !stopReader; i++) {
@@ -707,7 +708,7 @@ dbTest(
           observations.push({
             schema: row.current_schema_version,
             title: row.title,
-            value: row.properties.prop_2,
+            value: row.properties.prop_3,
           });
           if (stopReader) break;
           const list = await listEntities(e, a.actor, {
@@ -738,7 +739,7 @@ dbTest(
       const after = await getEntity(e, a.actor, entity.id);
       assertEquals({
         schema: after.current_schema_version,
-        value: after.properties.prop_2,
+        value: after.properties.prop_3,
       }, { schema: 2, value: 7 });
       assertEquals(
         (await getEntitySchemaMigration(d, a.actor, job.job_id)).status,
@@ -771,7 +772,7 @@ dbTest(
         a.actor,
         { mode: "business", requirements: [] },
         (tx) =>
-          tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.workspaceId},'app:'||${type.id}::text||':'||n,'app',n::text,${type.id},1,jsonb_build_object('prop_1','item '||n) from generate_series(1,2000) n`,
+          tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties) select ${a.workspaceId},${type.id}::text||':'||${APP_IDENTIFIER_RULE_ID}||':'||n,${type.id},1,jsonb_build_object('prop_2',${APP_IDENTIFIER_RULE_ID}||':'||n,'prop_1','item '||n) from generate_series(1,2000) n`,
       );
       const plan = await analyze(d, a.actor, type.id, worker);
       const snapshotStarted = performance.now();
@@ -810,7 +811,7 @@ dbTest(
       assertEquals(done.processed, 2000);
       assertEquals(done.result?.changed, 2000);
       const [effects] =
-        await admin`select (select count(*) from app.entities where workspace_id=${a.workspaceId} and entity_type_id=${type.id} and schema_version=2 and version=2 and properties->'prop_2'='7'::jsonb)::int as entities,(select count(*) from app.records where workspace_id=${a.workspaceId} and change_metadata->>'schema_migration_id'=${job.job_id})::int as records,(select count(*) from app.search_index_state s join app.records r on r.workspace_id=s.workspace_id and r.id=s.id where r.workspace_id=${a.workspaceId} and r.change_metadata->>'schema_migration_id'=${job.job_id})::int as indexes`;
+        await admin`select (select count(*) from app.entities where workspace_id=${a.workspaceId} and entity_type_id=${type.id} and schema_version=2 and version=2 and properties->'prop_3'='7'::jsonb)::int as entities,(select count(*) from app.records where workspace_id=${a.workspaceId} and change_metadata->>'schema_migration_id'=${job.job_id})::int as records,(select count(*) from app.search_index_state s join app.records r on r.workspace_id=s.workspace_id and r.id=s.id where r.workspace_id=${a.workspaceId} and r.change_metadata->>'schema_migration_id'=${job.job_id})::int as indexes`;
       assertEquals(effects, { entities: 2000, records: 2000, indexes: 2000 });
       const over = await createWritableType(a, d, { label: "Over count" });
       await runInWorkspace(
@@ -818,7 +819,7 @@ dbTest(
         a.actor,
         { mode: "business", requirements: [] },
         (tx) =>
-          tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.workspaceId},'app:'||${over.id}::text||':'||n,'app',n::text,${over.id},1,jsonb_build_object('prop_1','item') from generate_series(1,2001) n`,
+          tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties) select ${a.workspaceId},${over.id}::text||':'||${APP_IDENTIFIER_RULE_ID}||':'||n,${over.id},1,jsonb_build_object('prop_2',${APP_IDENTIFIER_RULE_ID}||':'||n,'prop_1','item') from generate_series(1,2001) n`,
       );
       await code(() => analyze(d, a.actor, over.id, worker), "invalid_input");
       const large = await createWritableType(a, d, { label: "Over bytes" });
@@ -827,7 +828,7 @@ dbTest(
         a.actor,
         { mode: "business", requirements: [] },
         (tx) =>
-          tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.workspaceId},'app:'||${large.id}::text||':'||n,'app',n::text,${large.id},1,jsonb_build_object('prop_1',repeat('한',4096)) from generate_series(1,700) n`,
+          tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties) select ${a.workspaceId},${large.id}::text||':'||${APP_IDENTIFIER_RULE_ID}||':'||n,${large.id},1,jsonb_build_object('prop_2',${APP_IDENTIFIER_RULE_ID}||':'||n,'prop_1',repeat('한',4096)) from generate_series(1,700) n`,
       );
       await code(() => analyze(d, a.actor, large.id, worker), "invalid_input");
       assertEquals(
