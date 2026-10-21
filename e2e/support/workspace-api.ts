@@ -2,8 +2,8 @@ import { renderEntityTitle } from "../../supabase/functions/_shared/contracts/en
 import { taskComplete } from "../../supabase/functions/_shared/contracts/task.ts";
 import { occurrenceRecordCreate, recordUpdate } from "../../supabase/functions/_shared/contracts/record.ts";
 import { fixtureWorkspaceId } from "./workspace-scope.ts";
-import { entitySummary } from "../../supabase/functions/_shared/contracts/entity.ts";
-import { entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
+import { entityCreate, entityUpdate, entityRestore, entitySummary } from "../../supabase/functions/_shared/contracts/entity.ts";
+import { encodeIdentifierReference, encodeIdentifierValue, decodeIdentifierValue } from "../../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import type { Page } from "@playwright/test";
 import { recordDisplayText } from "../../supabase/functions/_shared/contracts/record-display.ts";
 import {
@@ -11,7 +11,6 @@ import {
   entity,
   fixtureSchema,
   fixtureType,
-  fixtureIdentity,
 
   record,
   stamp,
@@ -128,7 +127,10 @@ export async function installWorkspaceApi(
     };
     if (kind === "entity-relation-definitions") return reply({items:[],next_cursor:null});
     if (kind === "entities" && action === "links" && method === "GET") return reply({ items: [], next_cursor: null });
-    if (kind === "entity-types") return reply(key ? action === "schema" ? fixtureSchema : action === "identity" ? fixtureIdentity(key) : fixtureType : { items: [fixtureType], next_cursor: null });
+    if (kind === "entity-types") {
+      if (action === "identity") return reply({ code: "not_found", message: "퇴역 경로" }, 404);
+      return reply(key ? action === "schema" ? fixtureSchema : fixtureType : { items: [fixtureType], next_cursor: null });
+    }
     if (kind === "settings" && key === "business") {
       return reply({
         versions: { record_templates: 0 },
@@ -197,6 +199,8 @@ export async function installWorkspaceApi(
       return reply({ code: "not_found", message: "수행 결과는 할 일에서 작성합니다." }, 404);
     }
     if (method === "GET") {
+      if (kind === "entities" && key === "lookup") return reply(storage.entities.find(row =>
+        row.entity_type_id === url.searchParams.get("entity_type_id") && (row.properties as Record<string, unknown>)[fixtureSchema.schema["x-identity-property"]!] === url.searchParams.get("identifier")) ?? null);
       if (key) {
         const found = storage[kind].find((r) => r.id === key);
         return found ? reply(found) : reply({ code: "not_found", message: "삭제된 자료" }, 404);
@@ -237,6 +241,10 @@ export async function installWorkspaceApi(
     if (kind === "tasks" && method === "POST" && (action === "complete" || action === "occurrences" && parts[4] === "records")) {
       const input = action === "complete" ? taskComplete.safeParse(body) : occurrenceRecordCreate.safeParse(body);
       if (!input.success) return reply({ code: "invalid_input", message: "수행 결과 계약을 확인하세요." }, 400);
+    }
+    if (kind === "entities") {
+      const contract = method === "POST" && !key ? entityCreate : method === "PATCH" ? entityUpdate : action === "restore" ? entityRestore : null;
+      if (contract && !contract.safeParse(body).success) return reply({ code: "invalid_input", message: "자료 쓰기 계약을 확인하세요." }, 400);
     }
     writes.push({ workspaceId,
       method,
@@ -288,12 +296,20 @@ export async function installWorkspaceApi(
         ...body,
       };
       if (kind === "entities") {
-        const source = String(body.source ?? "app"), external_id = String(body.external_id ?? crypto.randomUUID());
+        const properties = { ...saved.properties as Record<string, unknown> }, selected = fixtureSchema.schema["x-identity-property"]!;
+        // This isolated adapter generates only explicit requests and the required selected default.
+        for (const [key, field] of Object.entries(fixtureSchema.schema.properties)) {
+          if (properties[key] === undefined && field.default !== undefined) properties[key] = field.default;
+          const kind = (body.generate_identifiers as Record<string, string> | undefined)?.[key] ??
+            (key === selected && !(body.properties as Record<string, unknown>)[key] ? field["x-identifier"]?.default_kind_id : undefined);
+          if (kind) properties[key] = encodeIdentifierValue(kind, crypto.randomUUID());
+        }
+        const pair = decodeIdentifierValue(String(properties[selected]));
         Object.assign(saved, {
-          source,
-          external_id,
-          id: entityId(source, String(body.entity_type_id ?? fixtureType.id), external_id),
-          title: renderEntityTitle(fixtureSchema.schema, saved.properties as Record<string, unknown>, external_id),
+          properties,
+          identity_label: `앱 · 자동 발급 · ${pair.raw}`,
+          id: encodeIdentifierReference(String(body.entity_type_id ?? fixtureType.id), pair.kind_id, pair.raw),
+          title: renderEntityTitle(fixtureSchema.schema, properties, pair.raw),
 
         });
       }
@@ -306,9 +322,10 @@ export async function installWorkspaceApi(
     Object.assign(found, body, { version: found.version + 1 });
     if (kind === "entities" && body.properties) {
       found.properties = { ...(previousProperties as object), ...(body.properties as object) };
-      found.title = renderEntityTitle(fixtureSchema.schema, found.properties as Record<string, unknown>, String(found.external_id));
+      found.title = renderEntityTitle(fixtureSchema.schema, found.properties as Record<string, unknown>, String(found.identity_label));
 
     }
+    if (kind === "entities" && action === "restore") found.deleted_at = null;
     if (kind === "tasks" && body.entity_ids) {
       found.entity_context = (body.entity_ids as string[]).map((id) => ({
         id,

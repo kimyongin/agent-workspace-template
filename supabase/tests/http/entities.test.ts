@@ -1,5 +1,9 @@
 import { assert, assertEquals } from "@std/assert";
 import { call } from "./_client.ts";
+import {
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { activityWorkspaceSuite, scopedHttp } from "./_workspace-activity-fixture.ts";
 activityWorkspaceSuite("owned typed entity HTTP lifecycle", async (f, t) => {
   const { A, B, workspaceA, workspaceB, schema } = f;
@@ -13,27 +17,33 @@ activityWorkspaceSuite("owned typed entity HTTP lifecycle", async (f, t) => {
         })).status,
         404,
       );
-      const settings = await scopedHttp(
+      assertEquals(
+        (await scopedHttp(A, workspaceA, "GET", `/entity-types/${schema.entity_type_id}/identity`)).status,
+        404,
+      );
+      const definition = await scopedHttp(
         A,
         workspaceA,
         "GET",
-        `/entity-types/${schema.entity_type_id}/identity`,
+        `/entity-types/${schema.entity_type_id}/schema`,
       );
-      assertEquals(settings.status, 200);
-      const identity_version = settings.body.version;
+      assertEquals(definition.status, 200);
+      const key = definition.body.schema["x-identity-property"], kind = "00000000-0000-4000-8000-000000000001";
       const input = {
         ...schema,
-        identity_version,
-        source: "app",
-        external_id: crypto.randomUUID(),
-        properties: { prop_1: "실제 엔터티", prop_2: 0, prop_3: "2024-02-29" },
+        properties: {
+          prop_1: "실제 엔터티",
+          prop_2: 0,
+          prop_3: "2024-02-29",
+          [key]: encodeIdentifierValue(kind, crypto.randomUUID()),
+        },
       };
       assertEquals(
         (await scopedHttp(A, workspaceA, "POST", "/entities", {
           ...input,
-          identity_version: identity_version + 1,
+          schema_version: schema.schema_version + 1,
         })).body.code,
-        "settings_changed",
+        "schema_changed",
       );
       const created = await scopedHttp(
         A,
@@ -77,7 +87,7 @@ activityWorkspaceSuite("owned typed entity HTTP lifecycle", async (f, t) => {
       ) {
         const failure = await scopedHttp(A, workspaceA, "POST", "/entities", {
           ...bad,
-          external_id: crypto.randomUUID(),
+          properties: { ...bad.properties, [key]: encodeIdentifierValue(kind, crypto.randomUUID()) },
         });
         assertEquals(failure.status, 400);
         assertEquals(failure.body.code, "invalid_input");
@@ -128,7 +138,7 @@ activityWorkspaceSuite("owned typed entity HTTP lifecycle", async (f, t) => {
       assertEquals(
         (await scopedHttp(A, workspaceA, "POST", "/search", {
           ...search,
-          entity_id: `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`,
+          entity_id: encodeIdentifierReference("00000000-0000-4000-8000-000000000001", kind, crypto.randomUUID()),
         })).body.items,
         [],
       );
@@ -207,25 +217,36 @@ activityWorkspaceSuite("owned typed entity HTTP lifecycle", async (f, t) => {
         "c",
         3,
       ]);
-      for (const expected_version of [undefined, 2]) {
-        assertEquals(
-          (await scopedHttp(A, workspaceA, "POST", "/entities", {
-            ...input,
-            ...expected_version === undefined ? {} : { expected_version },
-          }))
-            .body.code,
-          "conflict",
-        );
-      }
-      const restored = await scopedHttp(A, workspaceA, "POST", "/entities", {
-        ...schema,
-        properties: {},
-        source: input.source,
-        external_id: input.external_id,
-        identity_version,
-        expected_version: retained.version,
+      assertEquals((await scopedHttp(A, workspaceA, "POST", "/entities", input)).body.code, "conflict");
+      assertEquals(
+        (await scopedHttp(A, workspaceA, "POST", "/entities", { ...input, expected_version: 3 })).body.code,
+        "invalid_input",
+      );
+      assertEquals(
+        (await scopedHttp(A, workspaceA, "POST", `/entities/${encodeURIComponent(e.id)}/restore`, {
+          schema_version: schema.schema_version,
+          expected_version: 2,
+        })).body.code,
+        "conflict",
+      );
+      const lookupQuery = new URLSearchParams({
+        entity_type_id: schema.entity_type_id,
+        identifier: String(input.properties[key]),
       });
-      assertEquals(restored.status, 201);
+      const found = await scopedHttp(A, workspaceA, "GET", `/entities/lookup?${lookupQuery}`);
+      assertEquals(found.body.id, e.id);
+      const restored = await scopedHttp(
+        A,
+        workspaceA,
+        "POST",
+        `/entities/${encodeURIComponent(found.body.id)}/restore`,
+        {
+          schema_version: schema.schema_version,
+          properties: {},
+          expected_version: found.body.version,
+        },
+      );
+      assertEquals(restored.status, 200);
       assertEquals([
         restored.body.id,
         restored.body.properties.prop_1,
