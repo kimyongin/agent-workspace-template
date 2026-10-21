@@ -1,3 +1,4 @@
+import { decodeIdentifierReference } from "../../contracts/entity-identifiers.ts";
 import { renderEntityTitle } from "../../contracts/entity-title-template.ts";
 import { type EntitySchema } from "../../contracts/entity-type.ts";
 import type postgres from "postgres";
@@ -65,7 +66,12 @@ export async function loadBusinessEntityDefinition(
       );
     }
   }
-  return loadEntityDefinition(tx, typeId);
+  const definition = await loadEntityDefinition(tx, typeId);
+  if (!definition) return null;
+  if (lock) await tx`select app.lock_business_entity_identity(${typeId}::uuid)`;
+  const [metadata] =
+    await tx`select app.entity_identifier_kinds(${typeId}::uuid,${definition.schema_version}::integer) as kinds`;
+  return { ...definition, identifier_kinds: metadata.kinds };
 }
 /** Current display settings project unchanged stored values after compatible publication. */
 /** Joined entity+current definition reads use one statement snapshot, including during atomic migration. */
@@ -78,6 +84,6 @@ export function entityPresentationRow(row: Record<string, unknown>, properties: 
       archived: Boolean(row.archived),
     },
     current_schema_version: Number(row.current_schema_version ?? row.schema_version),
-    title: renderEntityTitle(row.schema as EntitySchema, properties, String(row.external_id ?? row.id ?? "")),
+    title: renderEntityTitle(row.schema as EntitySchema, properties, decodeIdentifierReference(String(row.id)).raw),
   };
 }

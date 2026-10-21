@@ -6,7 +6,6 @@ import {
   issuerCreate,
   issuerUpdate,
   registryDelete,
-  typeIdentityUpdate,
 } from "../../contracts/entity-issuer.ts";
 import {
   createEntityIssuer,
@@ -14,11 +13,9 @@ import {
   deleteEntityIssuer,
   deleteIdentifierRule,
   type EntityIssuerDeps,
-  getEntityTypeIdentity,
   listEntityIssuers,
   listIdentifierRules,
   updateEntityIssuer,
-  updateEntityTypeIdentity,
   updateIdentifierRule,
 } from "../../core/entity-issuers/application.ts";
 import { keyedTool, type ToolDef } from "./tools.ts";
@@ -95,23 +92,6 @@ export function entityIssuerTools(d: EntityIssuerDeps): ToolDef[] {
       handler: (i, a) => {
         const { rule_id, ...raw } = i;
         return updateIdentifierRule(d, a, String(rule_id), raw);
-      },
-    },
-    {
-      name: "get_entity_type_identity",
-      description: "자료 종류의 번호 라벨·기본 발급처·지원 규칙·독립 버전 조회.",
-      input: z.strictObject({ type_id: z.string().uuid() }),
-      readOnly: true,
-      handler: (i, a) => getEntityTypeIdentity(d, a, String(i.type_id)),
-    },
-    {
-      name: "update_entity_type_identity",
-      description: "종류별 식별자 설정 저장. 활성 기본 발급처 필수, 참조된 연결 규칙 교체·제거 불가.",
-      input: typeIdentityUpdate.safeExtend({ type_id: z.string().uuid() }),
-      readOnly: false,
-      handler: (i, a) => {
-        const { type_id, ...raw } = i;
-        return updateEntityTypeIdentity(d, a, String(type_id), raw);
       },
     },
   ];

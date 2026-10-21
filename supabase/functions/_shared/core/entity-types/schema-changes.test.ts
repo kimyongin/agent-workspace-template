@@ -19,7 +19,7 @@ const actor = { userId: "owner", source: "http" as const, request: { key: "33333
 const addition: SchemaEdit = {
   op: "add_property",
   client_ref: "amount",
-  field: { "x-order": 20, type: "string", title: "수량" },
+  field: { "x-order": 30, type: "string", title: "수량" },
   required: false,
 };
 
@@ -31,7 +31,7 @@ async function fixture() {
     previous: null,
   };
   let saved: EntitySchemaChange | null = null;
-  let next = 2;
+  let next = 3;
   const templateFingerprint = await effectiveEntityTemplateFingerprint({}, typeId);
   const store: Pick<
     SchemaChangeStore,
@@ -115,8 +115,8 @@ async function fixture() {
 Deno.test("public schema change create/update preserve reserved additions and unchanged versions", async () => {
   const f = await fixture();
   const created = await createEntitySchemaChange(f.deps, actor, typeId, f.input);
-  assertEquals(created.reservations, { amount: "prop_2" });
-  assertEquals(created.target.schema.properties.prop_2, { type: "string", title: "수량", "x-order": 20 });
+  assertEquals(created.reservations, { amount: "prop_3" });
+  assertEquals(created.target.schema.properties.prop_3, { type: "string", title: "수량", "x-order": 30 });
   assertEquals(created.change_kind, "compatible");
   const unchanged = await updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
     ...f.input,
@@ -126,22 +126,22 @@ Deno.test("public schema change create/update preserve reserved additions and un
   const updated = await updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
     ...f.input,
     expected_change_version: 1,
-    edits: [{ ...addition, field: { "x-order": 20, type: "string", title: "갯수" } }],
+    edits: [{ ...addition, field: { "x-order": 30, type: "string", title: "갯수" } }],
   });
   assertEquals(updated.version, 2);
-  assertEquals(updated.reservations, { amount: "prop_2" });
-  assertEquals(updated.target.schema.properties.prop_2.title, "갯수");
+  assertEquals(updated.reservations, { amount: "prop_3" });
+  assertEquals(updated.target.schema.properties.prop_3.title, "갯수");
 });
 
 Deno.test("public schema change create/update classify explicit value conversions consistently", async () => {
   const f = await fixture();
-  const input = { ...f.input, migration: { rules: [{ op: "fill", key: "prop_2", value: "0" }], overrides: [] } };
+  const input = { ...f.input, migration: { rules: [{ op: "fill", key: "prop_3", value: "0" }], overrides: [] } };
   const created = await createEntitySchemaChange(f.deps, actor, typeId, input);
   assertEquals(created.change_kind, "migration_required");
   const updated = await updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
     ...input,
     expected_change_version: 1,
-    migration: { rules: [{ op: "fill", key: "prop_2", value: "1" }] },
+    migration: { rules: [{ op: "fill", key: "prop_3", value: "1" }] },
   });
   assertEquals(updated.change_kind, "migration_required");
   assertEquals(updated.version, 2);
@@ -157,7 +157,7 @@ Deno.test("public schema change rejects unmatched removal rules without keeping 
   );
   assertEquals((error as { code: string }).code, "invalid_input");
   const created = await createEntitySchemaChange(f.deps, actor, typeId, f.input);
-  assertEquals(created.reservations, { amount: "prop_2" });
+  assertEquals(created.reservations, { amount: "prop_3" });
   const updatedError = await assertRejects(() =>
     updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
       ...f.input,
@@ -199,7 +199,7 @@ Deno.test("public change reserves new fields while presentation travels with eac
         ...addition,
         field: {
           type: "string",
-          "x-order": 20,
+          "x-order": 30,
 
           title: "상태",
           oneOf: [{ const: "available", title: "판매 중" }],
@@ -223,11 +223,11 @@ Deno.test("public change reserves new fields while presentation travels with eac
   };
   const created = await createEntitySchemaChange(f.deps, actor, typeId, input);
   assertEquals(entitySchemaPresentation(created.target.schema), {
-    order: ["prop_3", "prop_1", "prop_2"],
+    order: ["prop_4", "prop_1", "prop_2", "prop_3"],
     archived: [],
-    option_labels: { prop_2: { available: "판매 중" } },
+    option_labels: { prop_3: { available: "판매 중" } },
   });
-  assertEquals(created.migration.rules, [{ op: "fill", key: "prop_3", value: "기본 상품명", include_null: false }]);
+  assertEquals(created.migration.rules, [{ op: "fill", key: "prop_4", value: "기본 상품명", include_null: false }]);
   const updated = await updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
     ...input,
     expected_change_version: created.version,
@@ -258,7 +258,7 @@ Deno.test("archived type publishes metadata or an explicit unarchive with proper
     edits: [...f.input.edits, { op: "set_metadata", deprecated: false }],
   });
   assertEquals(restored.target.schema.deprecated, false);
-  assertEquals(restored.target.schema.properties[restored.reservations.amount]["x-order"], 20);
+  assertEquals(restored.target.schema.properties[restored.reservations.amount]["x-order"], 30);
   assertEquals(f.context.type.archived, true);
 });
 Deno.test("semantically unchanged schema change never saves a new draft", async () => {
@@ -278,14 +278,14 @@ Deno.test("public schema change saves and reopens a composed title with same-req
     ...f.input,
     edits: [addition, { op: "set_metadata", "x-title-template": "$prop_1$ - $new_amount$" }],
   });
-  assertEquals(created.target.schema["x-title-template"], "$prop_1$ - $prop_2$");
+  assertEquals(created.target.schema["x-title-template"], "$prop_1$ - $prop_3$");
   assertEquals(created.change_kind, "compatible");
-  assertEquals(created.diff.find((item) => item.path === "x-title-template")?.after, "$prop_1$ - $prop_2$");
+  assertEquals(created.diff.find((item) => item.path === "x-title-template")?.after, "$prop_1$ - $prop_3$");
   const reopened = await updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
     expected_schema_version: 1,
     expected_change_version: created.version,
     edits: [addition, { op: "set_metadata", "x-title-template": "$prop_1$ - $new_amount$" }],
   });
-  assertEquals(reopened.target.schema["x-title-template"], "$prop_1$ - $prop_2$");
+  assertEquals(reopened.target.schema["x-title-template"], "$prop_1$ - $prop_3$");
   assertEquals(reopened.version, created.version);
 });

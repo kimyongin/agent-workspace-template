@@ -1,4 +1,3 @@
-import { identityFixture } from "../_entity-identity.ts";
 import { requestActor } from "../_request.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
@@ -27,9 +26,9 @@ import { initialEntityDefinition } from "../../functions/_shared/contracts/entit
 const entity_type_id = crypto.randomUUID();
 const definition = initialEntityDefinition("이름");
 Object.assign(definition.schema.properties, {
-  prop_2: { "x-order": 20, type: ["integer", "null"] },
-  prop_3: { "x-order": 30, type: ["string", "null"], format: "date" },
-  prop_4: { "x-order": 40, type: "string", oneOf: ["a", "b", "c"].map((value) => ({ const: value })), default: "a" },
+  prop_3: { "x-order": 30, type: ["integer", "null"] },
+  prop_4: { "x-order": 40, type: ["string", "null"], format: "date" },
+  prop_5: { "x-order": 50, type: "string", oneOf: ["a", "b", "c"].map((value) => ({ const: value })), default: "a" },
 });
 
 const type = { id: entity_type_id, label: "재료", icon_id: "leaf", archived: false };
@@ -38,9 +37,25 @@ function memory() {
   let writes = 0;
   const store: EntityStore = {
     definition: () =>
-      Promise.resolve({ ...definition, type, type_id: entity_type_id, type_version: 1, schema_version: 1 }),
+      Promise.resolve({
+        ...definition,
+        type,
+        type_id: entity_type_id,
+        type_version: 1,
+        schema_version: 1,
+        identifier_kinds: [{
+          id: "00000000-0000-4000-8000-000000000001",
+          source: "app",
+          label: "번호",
+          source_label: "앱",
+          active: true,
+          generation: "automatic" as const,
+          version: 1,
+          source_version: 1,
+        }],
+      }),
     executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
-    getTypeIdentity: () => Promise.resolve(identityFixture(entity_type_id)),
+    issueDataId: () => Promise.resolve(crypto.randomUUID()),
     restore: (id, changes) => {
       const row = { ...rows.get(id)!, ...changes, deleted_at: null, version: rows.get(id)!.version + 1 };
       rows.set(id, row);
@@ -60,7 +75,7 @@ function memory() {
         ...input,
         tag_ids: [],
         id: input.id ?? crypto.randomUUID(),
-        source_label: input.source,
+        identity_label: "앱 · 번호",
         type,
         current_schema_version: 1,
         title: String(input.properties.prop_1),
@@ -102,16 +117,14 @@ Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한
     input = entityCreate.parse({
       entity_type_id,
       schema_version: 1,
-      source: "app",
-      external_id: crypto.randomUUID(),
-      properties: { prop_1: "한글 😀" },
+      properties: { prop_1: "한글 😀", prop_2: "00000000-0000-4000-8000-000000000001:001" },
     });
   const e = await createEntity(d, requestActor(A), input);
   assertEquals((await assertRejects(() => createEntity(d, requestActor(A), input), AppError)).code, "conflict");
   assertEquals(writes(), 1);
   assertEquals(
     (await assertRejects(
-      () => createEntity(d, requestActor(A), { ...input, properties: { prop_1: "다른 내용" } }),
+      () => createEntity(d, requestActor(A), { ...input, properties: { ...input.properties, prop_1: "다른 내용" } }),
       AppError,
     )).code,
     "conflict",
@@ -126,7 +139,7 @@ Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한
           schema_version: 1,
           change_note: "테스트 변경 이유",
           expected_version: 2,
-          properties: { prop_2: 0 },
+          properties: { prop_3: 0 },
         }),
       ),
     AppError,
@@ -141,18 +154,16 @@ Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한
       schema_version: 1,
       change_note: "테스트 변경 이유",
       expected_version: 1,
-      properties: { prop_2: 0 },
+      properties: { prop_3: 0 },
     }),
   );
-  assertEquals(changed.properties.prop_2, 0);
+  assertEquals(changed.properties.prop_3, 0);
   await createEntity(
     d,
     requestActor(A),
     entityCreate.parse({
       entity_type_id,
       schema_version: 1,
-      source: "app",
-      external_id: crypto.randomUUID(),
       properties: { prop_1: "둘째" },
     }),
   );
@@ -200,8 +211,6 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
   const res = await request("POST", "/entities", {
     entity_type_id,
     schema_version: 1,
-    source: "app",
-    external_id: crypto.randomUUID(),
     properties: { prop_1: "웹" },
   });
   assertEquals(res.status, 201);
@@ -244,7 +253,7 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
     id: e.id,
     expected_version: 1,
     schema_version: 1,
-    properties: { prop_4: "c" },
+    properties: { prop_5: "c" },
   }) as EntityValues;
   assertEquals(changed.version, 2);
   assertEquals((await request("GET", `/entities/${encodeURIComponent(e.id)}`)).status, 200);
@@ -257,23 +266,23 @@ Deno.test("Entity HTTP/MCP list: typed AND inputs require a type and reject coer
   const tool = entityTools(d).find((t) => t.name === "list_entities")!;
   const query = {
     entity_type_id,
-    filters: [{ key: "prop_2", operator: "gte", value: 0 }],
-    sort: { key: "prop_2", direction: "asc" },
+    filters: [{ key: "prop_3", operator: "gte", value: 0 }],
+    sort: { key: "prop_3", direction: "asc" },
   };
   assertEquals((await tool.handler(query, A) as { items: unknown[] }).items, []);
   for (
     const bad of [
       { ...query, entity_type_id: undefined },
       { filters: [] },
-      { ...query, filters: [{ key: "prop_2", operator: "gte", value: "0" }] },
-      { ...query, filters: [{ key: "prop_99", operator: "eq", value: 0 }] },
-      { ...query, filters: [{ key: "prop_4", operator: "gte", value: "a" }] },
+      { ...query, filters: [{ key: "prop_3", operator: "gte", value: "0" }] },
+      { ...query, filters: [{ key: "prop_100", operator: "eq", value: 0 }] },
+      { ...query, filters: [{ key: "prop_5", operator: "gte", value: "a" }] },
       {
         ...query,
-        filters: [{ key: "prop_2", operator: "gt", value: 5 }, { key: "prop_2", operator: "lte", value: 5 }],
+        filters: [{ key: "prop_3", operator: "gt", value: 5 }, { key: "prop_3", operator: "lte", value: 5 }],
       },
-      { ...query, filters: [{ key: "prop_2", operator: "eq", value: 0 }, { key: "prop_2", operator: "unset" }] },
-      { ...query, filters: [{ key: "prop_2", operator: "eq", value: 0 }, { key: "prop_2", operator: "eq", value: 0 }] },
+      { ...query, filters: [{ key: "prop_3", operator: "eq", value: 0 }, { key: "prop_3", operator: "unset" }] },
+      { ...query, filters: [{ key: "prop_3", operator: "eq", value: 0 }, { key: "prop_3", operator: "eq", value: 0 }] },
     ]
   ) {
     assertEquals((await assertRejects(() => tool.handler(bad, A), AppError)).code, "invalid_input");
@@ -293,11 +302,11 @@ Deno.test("Entity HTTP list: structured URL filters and sorts share strict MCP s
   });
   const query = new URLSearchParams({
     entity_type_id,
-    filters: JSON.stringify([{ key: "prop_2", operator: "gte", value: 0 }]),
-    sort: JSON.stringify({ key: "prop_2", direction: "desc" }),
+    filters: JSON.stringify([{ key: "prop_3", operator: "gte", value: 0 }]),
+    sort: JSON.stringify({ key: "prop_3", direction: "desc" }),
   });
   assertEquals((await app.request(`/entities?${query}`)).status, 200);
-  query.set("filters", JSON.stringify([{ key: "prop_2", operator: "gte", value: "0" }]));
+  query.set("filters", JSON.stringify([{ key: "prop_3", operator: "gte", value: "0" }]));
   assertEquals((await app.request(`/entities?${query}`)).status, 400);
   query.set("filters", "[");
   assertEquals((await app.request(`/entities?${query}`)).status, 400);
@@ -330,7 +339,7 @@ Deno.test("entity POST query is a keyless read sharing GET/MCP defaults and stri
   for (
     const body of [
       { owner_id: "other" },
-      { entity_type_id, filters: [{ key: "prop_2", operator: "eq", value: "wrong" }] },
+      { entity_type_id, filters: [{ key: "prop_3", operator: "eq", value: "wrong" }] },
       { entity_type_id, limit: 101 },
       { entity_type_id, cursor: "invalid" },
     ]

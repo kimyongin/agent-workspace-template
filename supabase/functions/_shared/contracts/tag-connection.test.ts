@@ -3,7 +3,7 @@ import { tagConnectionInput } from "./tag-connection.ts";
 Deno.test("saved target tag command separates entity identity and record metadata", () => {
   const entity = {
     target_kind: "entity",
-    target_id: `app:${crypto.randomUUID()}:saved`,
+    target_id: `${crypto.randomUUID()}:00000000-0000-4000-8000-000000000001:saved`,
     expected_version: 1,
     tag_ids: [],
   };

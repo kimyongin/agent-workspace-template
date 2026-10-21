@@ -1,3 +1,4 @@
+import { decodeIdentifierReference } from "../../contracts/entity-identifiers.ts";
 import { renderEntityTitle } from "../../contracts/entity-title-template.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { compileMigration } from "./conversions.ts";
@@ -31,8 +32,6 @@ export type MigrationWorkerBatch = {
       entity_id: string;
       properties: Record<string, string | number | boolean | null>;
       after: Record<string, string | number | boolean | null>;
-      source: string;
-      external_id: string;
       tag_ids: string[];
       changed: boolean;
       recovery_properties?: Record<string, unknown> | null;
@@ -51,15 +50,14 @@ export function migrationRecordRenderer(
   const beforeLabels = labels(batch.source_definition), afterLabels = labels(batch.target);
   return (row: MigrationWorkerBatch["rows"][number]) => {
     const facts = (properties: typeof row.properties, definition: SchemaDefinition): ChangeFacts => ({
-      source: row.source,
-      external_id: row.external_id,
+      identity_label: decodeIdentifierReference(row.entity_id).raw,
       entity_type_id: batch.type_id,
       properties,
       tag_ids: row.tag_ids,
-      title: renderEntityTitle(definition.schema, properties, row.external_id),
+      title: renderEntityTitle(definition.schema, properties, decodeIdentifierReference(row.entity_id).raw),
       property_labels: definition === batch.source_definition ? beforeLabels : afterLabels,
     });
-    const title = renderEntityTitle(batch.target.schema, row.after, row.external_id);
+    const title = renderEntityTitle(batch.target.schema, row.after, decodeIdentifierReference(row.entity_id).raw);
     const context = [{
       id: row.entity_id,
       title,

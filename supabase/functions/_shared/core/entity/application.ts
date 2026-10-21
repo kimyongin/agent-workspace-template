@@ -1,14 +1,18 @@
 import { runWrite } from "../shared/request.ts";
 import { entityChangeFacts, entityChangeTarget } from "./change.ts";
-import { registrationContent, registrationIdentity, registrationState } from "./domain.ts";
 import { isoDateTime, text } from "../../contracts/common.ts";
 import { checkedProperties, type EntityDefinitions, requireDefinition } from "./values.ts";
-import { entityId, entityReferenceId, entityTypeKey } from "../../contracts/entity-identity.ts";
-import type { EntityTypeIdentity } from "../../contracts/entity-issuer.ts";
+import { entityReferenceId, entityTypeKey } from "../../contracts/entity-identity.ts";
+import {
+  decodeIdentifierValue,
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../contracts/entity-identifiers.ts";
 import type {
   EntityCreate,
   EntityDetail,
   EntityQuery,
+  EntityRestore,
   EntitySummary,
   EntityUpdate,
   EntityValues,
@@ -21,14 +25,11 @@ import { changed, type ChangeStore } from "../shared/changes.ts";
 
 export interface EntityStore extends ChangeStore, EntityDefinitions {
   issueDataId?(): Promise<string>;
-  getTypeIdentity(typeId: string, lock?: boolean): Promise<EntityTypeIdentity | null>;
   get(id: string, lock?: boolean): Promise<EntityValues | null>;
   related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">>;
   insert(
     input: EntityCreate & {
       id: string;
-      source: string;
-      external_id: string;
     },
     generatedIdentity?: boolean,
   ): Promise<EntityValues>;
@@ -37,7 +38,7 @@ export interface EntityStore extends ChangeStore, EntityDefinitions {
     changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_tag_ids">,
   ): Promise<EntityValues>;
   delete(id: string): Promise<void>;
-  restore(id: string, changes: EntityCreate): Promise<EntityValues>;
+  restore(id: string, changes: EntityRestore): Promise<EntityValues>;
   listRevisions?(typeId?: string): Promise<Array<{ id: string; type_version: number; schema_version: number }>>;
   list(
     query: EntityQuery,
@@ -58,58 +59,93 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
   return runWrite(
     entityWork(d, { access: "write", typeId: i.entity_type_id }),
     a,
-    i.expected_version === undefined ? "entity.create" : "entity.restore",
+    "entity.create",
     null,
     i,
     (s) => createEntityInTransaction(s, i),
   );
 }
-/** Store-level creation/restoration command; caller owns the transaction and single request receipt. */
+/** Resolve explicit generation commands only within the write transaction. */
+async function identifierProperties(
+  s: EntityStore,
+  definition: Awaited<ReturnType<typeof requireDefinition>>,
+  properties: EntityValues["properties"],
+  intents: Record<string, string> = {},
+  creation = false,
+  previous: EntityValues["properties"] = {},
+) {
+  const selected = definition.schema["x-identity-property"];
+  if (!selected) throw invalidInput("자료 식별자 항목이 필요합니다");
+  const values = { ...properties }, commands = { ...intents };
+  const kinds = definition.identifier_kinds ?? [];
+  const settings = definition.schema.properties[selected]?.["x-identifier"];
+  if (
+    creation && values[selected] === undefined && commands[selected] === undefined && settings &&
+    kinds.find((k) => k.id === settings.default_kind_id)?.generation === "automatic"
+  ) {
+    commands[selected] = settings.default_kind_id;
+  }
+  for (const [key, kindId] of Object.entries(commands)) {
+    const property = definition.schema.properties[key];
+    const field = property?.["x-identifier"];
+    const kind = kinds.find((k) => k.id === kindId);
+    if (
+      (!creation && key === selected) || property?.readOnly || property?.deprecated || properties[key] !== undefined ||
+      !field?.allowed_kind_ids.includes(kindId) ||
+      !kind?.active || kind.generation !== "automatic"
+    ) {
+      throw invalidInput("자동 발급 요청을 확인하세요", [{
+        path: `generate_identifiers.${key}`,
+        message: "활성 자동 발급 종류를 선택하고 기존 값은 함께 보내지 마세요",
+      }]);
+    }
+    if (!s.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
+    values[key] = encodeIdentifierValue(kindId, await s.issueDataId());
+  }
+  for (const [key, field] of Object.entries(definition.schema.properties)) {
+    if (!field["x-identifier"] || values[key] == null) continue;
+    if (!creation && key === selected && values[key] !== previous[key]) {
+      throw invalidInput("자료 식별자는 변경할 수 없습니다");
+    }
+    let pair;
+    try {
+      pair = decodeIdentifierValue(String(values[key]));
+    } catch {
+      throw invalidInput("식별자 종류와 원본 값을 확인하세요", [{
+        path: `properties.${key}`,
+        message: "완전한 식별자 값이 필요합니다",
+      }]);
+    }
+    if (
+      !field["x-identifier"].allowed_kind_ids.includes(pair.kind_id) ||
+      ((creation || previous[key] !== values[key]) && !kinds.find((k) => k.id === pair.kind_id)?.active)
+    ) {
+      throw invalidInput("현재 허용된 활성 식별자 종류를 선택하세요", [{
+        path: `properties.${key}`,
+        message: "식별자 종류를 확인하세요",
+      }]);
+    }
+  }
+  return { properties: values, generated: commands[selected] !== undefined };
+}
 export async function createEntityInTransaction(s: EntityStore, i: EntityCreate): Promise<EntityValues> {
   const definition = await requireDefinition(s, i.entity_type_id, i.schema_version, true);
-  const settings = await s.getTypeIdentity(i.entity_type_id, true);
-  if (!settings) throw notFound();
-  if (i.identity_version !== undefined && i.identity_version !== settings.version) {
-    throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 설정을 다시 조회하세요");
+  const resolved = await identifierProperties(s, definition, i.properties, i.generate_identifiers, true);
+  const properties = checkedProperties(definition, resolved.properties, i.properties, true);
+  // Fixed defaults are assignments too; validate the complete effective values under the same locks.
+  await identifierProperties(s, definition, properties, {}, true);
+  const pair = decodeIdentifierValue(String(properties[definition.schema["x-identity-property"]!]));
+  const id = encodeIdentifierReference(i.entity_type_id, pair.kind_id, pair.raw);
+  if (!resolved.generated && await s.get(id)) {
+    throw conflict("같은 식별자의 자료가 있습니다. 삭제 자료는 명시 복원하세요");
   }
-  const { source } = registrationIdentity(settings, i);
-  if (i.expected_version !== undefined && i.external_id === undefined) {
-    throw invalidInput(
-      "복원할 외부 식별자가 필요합니다",
-    );
-  }
-  let external_id = i.external_id;
-  if (external_id === undefined) {
-    if (!s.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
-    external_id = await s.issueDataId();
-  }
-  const id = entityId(source, i.entity_type_id, external_id);
-  const { change_note, change_tag_ids, expected_version, identity_version: _settings, ...props } = i;
-  const generated = i.external_id === undefined;
-  const snapshot = generated ? null : await s.get(id);
-  if (snapshot && snapshot.entity_type_id !== i.entity_type_id) {
-    throw new AppError("entity_type_immutable", "같은 식별자의 자료 종류는 변경할 수 없습니다", [{
-      path: "entity_type_id",
-      message: "원래 자료 종류로 복원하세요",
-    }]);
-  }
-  const old = snapshot ? await s.get(id, true) : null;
-  const registration = registrationState(old);
-  if (registration === "duplicate") throw conflict("같은 발급처·식별자의 활성 엔터티가 있습니다");
-  if (old && old.version !== expected_version) {
-    throw conflict("삭제된 기존 엔터티를 조회하고 현재 버전으로 복원을 확인하세요");
-  }
-  if (!old && expected_version !== undefined) throw conflict("복원할 엔터티가 없습니다");
-  const content = registrationContent(props, { source, external_id }, old ? entityChangeFacts(old) : null);
-  content.properties = checkedProperties(definition, content.properties, props.properties, !old, old?.properties);
-  const result = old
-    ? await s.restore(id, { ...props, ...content })
-    : await s.insert({ ...props, ...content, id }, generated);
+  const { change_note, change_tag_ids, generate_identifiers: _g, ...input } = i;
+  const result = await s.insert({ ...input, id, properties }, resolved.generated);
   await s.appendChange({
     target_kind: "entity",
     target: entityChangeTarget(result),
-    action: old ? "restore" : "create",
-    before: old ? entityChangeFacts(old) : null,
+    action: "create",
+    before: null,
     after: {
       ...entityChangeFacts(result),
       property_labels: Object.fromEntries(
@@ -121,6 +157,45 @@ export async function createEntityInTransaction(s: EntityStore, i: EntityCreate)
   });
   return result;
 }
+export function lookupEntity(d: EntityDeps, a: Actor, typeId: string, identifier: string) {
+  const pair = decodeIdentifierValue(identifier);
+  const id = encodeIdentifierReference(typeId, pair.kind_id, pair.raw);
+  return d.uow.run(a, (s) => s.get(id), { access: "read", typeId });
+}
+export function restoreEntity(d: EntityDeps, a: Actor, id: string, i: EntityRestore) {
+  return runWrite(entityWork(d, { access: "write", entityId: id }), a, "entity.restore", id, i, (s) => {
+    return restoreEntityInTransaction(s, id, i);
+  });
+}
+export async function restoreEntityInTransaction(s: EntityStore, id: string, i: EntityRestore) {
+  const old = await s.get(id, true);
+  if (!old) throw notFound();
+  if (!old.deleted_at || old.version !== i.expected_version) {
+    throw conflict("삭제 자료의 현재 버전으로 복원을 확인하세요");
+  }
+  const definition = await requireDefinition(s, old.entity_type_id, i.schema_version, true);
+  const resolved = await identifierProperties(
+    s,
+    definition,
+    { ...old.properties, ...i.properties },
+    {},
+    false,
+    old.properties,
+  );
+  const properties = checkedProperties(definition, resolved.properties, i.properties ?? {}, false, old.properties);
+  const result = await s.restore(id, { ...i, properties });
+  await s.appendChange({
+    target_kind: "entity",
+    target: entityChangeTarget(result),
+    action: "restore",
+    before: entityChangeFacts(old),
+    after: entityChangeFacts(result),
+    change_note: i.change_note,
+    change_tag_ids: i.change_tag_ids,
+  });
+  return result;
+}
+
 export function getEntity(d: EntityDeps, a: Actor, id: string) {
   return d.uow.run(a, async (s) => {
     const entity = await s.get(id);
@@ -141,14 +216,22 @@ export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdat
     const old = await requireVersion(s, id, i.expected_version);
     const definition = await requireDefinition(s, old.entity_type_id, i.schema_version);
     const { expected_version: _v, change_note, change_tag_ids, ...input } = i;
+    const { generate_identifiers, ...changes } = input;
+    // Explicit generation replaces an ordinary value; omitted values otherwise remain unchanged.
+    const supplied = { ...old.properties, ...input.properties };
+    for (const key of Object.keys(generate_identifiers ?? {})) {
+      if (input.properties?.[key] !== undefined) throw invalidInput("값과 자동 발급 요청을 함께 보낼 수 없습니다");
+      delete supplied[key];
+    }
+    const resolved = await identifierProperties(s, definition, supplied, generate_identifiers, false, old.properties);
     const finalProperties = checkedProperties(
       definition,
-      { ...old.properties, ...input.properties },
+      resolved.properties,
       input.properties ?? {},
       false,
       old.properties,
     );
-    const patch = { ...input, ...(input.properties === undefined ? {} : { properties: finalProperties }) };
+    const patch = { ...changes, properties: finalProperties };
     if (!changed(entityChangeFacts(old), patch)) return old;
     const result = await s.update(id, patch);
     await s.appendChange({

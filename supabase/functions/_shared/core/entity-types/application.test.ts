@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { createEntityType } from "./application.ts";
 import type { EntityTypeStore } from "./application.ts";
-Deno.test("explicit type creation starts with an ordinary required initial name and title template", async () => {
+Deno.test("explicit type creation publishes name and selected app identifier together", async () => {
   let definition: unknown;
   const store = {
     executeRequest: (_r: unknown, fn: () => Promise<unknown>) => fn(),
@@ -15,7 +15,14 @@ Deno.test("explicit type creation starts with an ordinary required initial name 
     source: "http",
     request: { key: "11111111-1111-4111-8111-111111111111" },
   }, { label: "재료" });
-  assertEquals((definition as { schema: { required: string[] } }).schema.required, ["prop_1"]);
+  const schema = (definition as { schema: import("../../contracts/entity-type.ts").EntitySchema }).schema;
+  assertEquals(schema.required, ["prop_1", "prop_2"]);
+  assertEquals(schema["x-identity-property"], "prop_2");
+  assertEquals(schema.properties.prop_2["x-identifier"], {
+    allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
+    default_kind_id: "00000000-0000-4000-8000-000000000001",
+  });
+  assertEquals(schema["x-title-template"], "$prop_1$");
 });
 
 Deno.test("type metadata SQL-unsafe input fails at the public usecase before transaction", async () => {

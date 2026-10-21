@@ -73,3 +73,15 @@ export interface IdentityDefaultType {
   label: string;
 }
 export const registryDelete = z.strictObject({ expected_version: expectedVersion });
+
+/** Registry projection restricted to kinds referenced by an authorized definition. */
+export interface IdentifierKindMetadata {
+  id: string;
+  source: string;
+  label: string;
+  source_label: string;
+  active: boolean;
+  generation: "automatic" | "direct";
+  version: number;
+  source_version: number;
+}

@@ -104,7 +104,11 @@ Deno.test("group rules reuse existing scalar validation for corrective values", 
           type_ref: "ingredient",
           migration: {
             rules: [],
-            overrides: [{ entity_id: "app:10000000-0000-4000-8000-000000000001:one", key: "prop_1", value: 123 }],
+            overrides: [{
+              entity_id: "10000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:one",
+              key: "prop_1",
+              value: 123,
+            }],
           },
         }],
       }),

@@ -3,7 +3,7 @@ import { changeMetadata } from "./change.ts";
 
 Deno.test("change metadata retains one typed historical target without adding record parents", () => {
   const snapshot = {
-    id: "app:00000000-0000-4000-8000-000000000001:captured",
+    id: "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:captured",
     title: "게시 당시 이름",
     type: { id: "00000000-0000-4000-8000-000000000001", label: "게시 당시 종류", icon_id: "file", archived: false },
     schema_version: 2,

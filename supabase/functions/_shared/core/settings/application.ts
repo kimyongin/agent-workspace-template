@@ -1,6 +1,5 @@
 import { tagConnectionSelection } from "../../contracts/tag-connection.ts";
 import { renderEntityTitle } from "../../contracts/entity-title-template.ts";
-import type { EntityTypeIdentity } from "../../contracts/entity-issuer.ts";
 import { assertImmutableType } from "../entity/application.ts";
 import type { RequestStore } from "../shared/request.ts";
 import { runWrite } from "../shared/request.ts";
@@ -30,15 +29,13 @@ import {
   type TemplateModel,
 } from "../../contracts/record-template.ts";
 import { changeDefaults } from "./change-defaults.ts";
-import { registrationContent, registrationIdentity, registrationState, restorationContent } from "../entity/domain.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate, versionOnly } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
-import { type EntityCreate, entityCreate, entityUpdate } from "../../contracts/entity.ts";
-import { entityId } from "../../contracts/entity-identity.ts";
+import { entityCreate, entityRestore, entityUpdate } from "../../contracts/entity.ts";
+import { decodeIdentifierValue, encodeIdentifierValue } from "../../contracts/entity-identifiers.ts";
 import { checkedProperties, type EntityDefinitions, requireDefinition } from "../entity/values.ts";
 export interface BusinessSettingsStore extends RequestStore {
-  getTypeIdentity?(typeId: string, lock?: boolean): Promise<EntityTypeIdentity | null>;
   definition?: EntityDefinitions["definition"];
   get(): Promise<BusinessSettingsResult>;
   getForTarget?(
@@ -92,15 +89,10 @@ export function prepareBusinessRecord(
     const connectingTags = input.intent === "tag-connections";
     let content: Record<string, unknown> = connectingTags ? tagConnectionSelection.parse(input.input) : input.input;
     if (input.model === "entity" && input.action === "update") assertImmutableType(content);
-    let identity: EntityTypeIdentity | null = null;
-    if (input.model === "entity" && ["create", "restore"].includes(input.action)) {
-      identity = await store.getTypeIdentity?.(String(content.entity_type_id ?? before?.entity_type_id ?? "")) ?? null;
-      if (!identity) throw notFound();
-    }
     let prepared_input = content;
     if (!connectingTags && (input.action === "update" || input.action === "restore")) {
       const schema = input.action === "restore"
-        ? input.model === "task" ? versionOnly : entityCreate
+        ? input.model === "task" ? versionOnly : entityRestore
         : input.model === "task"
         ? taskUpdate
         : entityUpdate;
@@ -119,13 +111,6 @@ export function prepareBusinessRecord(
         )
         : fields;
       prepared_input = content;
-      if (input.action === "restore" && input.model === "entity") {
-        content = restorationContent(
-          identity!,
-          before!,
-          { ...content, expected_version: input.expected_version } as EntityCreate,
-        );
-      }
     }
     if (input.action === "create") {
       const schema = input.model === "task" ? taskCreate : entityCreate;
@@ -139,29 +124,6 @@ export function prepareBusinessRecord(
       }
       prepared_input = creation.data;
       content = input.model === "task" ? taskContent(taskCreate.parse(creationInput)) : creation.data;
-      if (input.model === "entity") {
-        const settings = identity!;
-        const { source } = registrationIdentity(settings, content);
-        const external_id = content.external_id as string | undefined;
-        if (external_id !== undefined) {
-          const existing = await store.target?.(
-            "entity",
-            entityId(source, String(content.entity_type_id), external_id),
-          );
-          const registration = registrationState(existing ?? null);
-          if (registration !== "create") {
-            throw conflict(
-              registration === "restore"
-                ? "삭제된 기존 대상을 restore 액션과 현재 버전으로 준비하세요"
-                : "같은 발급처·식별자의 활성 엔터티가 있습니다",
-            );
-          }
-          content = registrationContent(content as EntityCreate, { source, external_id });
-        } else {
-          content = { ...content, source };
-        }
-        prepared_input = { ...creation.data, ...content, identity_version: identity!.version };
-      }
     }
     if (input.action === "stop" || input.action === "resume") {
       const task = {
@@ -188,9 +150,23 @@ export function prepareBusinessRecord(
         input.action === "create" || input.action === "restore",
       );
       const patch = (input.input.properties ?? {}) as Record<string, unknown>;
+      const preview = { ...before?.properties, ...(content.properties as Record<string, unknown> ?? {}) };
+      const selected = definition.schema["x-identity-property"];
+      let generatedPreview = false;
+      if (input.action === "create" && selected && preview[selected] === undefined) {
+        const kind = (content.generate_identifiers as Record<string, string> | undefined)?.[selected] ??
+          definition.schema.properties[selected]?.["x-identifier"]?.default_kind_id;
+        if (definition.identifier_kinds?.find((k) => k.id === kind && k.active && k.generation === "automatic")) {
+          preview[selected] = encodeIdentifierValue(kind!, "자동 발급");
+          generatedPreview = true;
+        }
+      }
+      if (selected && input.action !== "create" && preview[selected] !== before?.properties?.[selected]) {
+        throw invalidInput("자료 식별자는 변경할 수 없습니다");
+      }
       const properties = checkedProperties(
         definition,
-        { ...before?.properties, ...(content.properties as Record<string, unknown> ?? {}) },
+        preview,
         patch,
         input.action === "create",
         before?.properties,
@@ -198,10 +174,15 @@ export function prepareBusinessRecord(
       content = {
         ...content,
         properties,
+        identity_label: selected && typeof properties[selected] === "string"
+          ? decodeIdentifierValue(String(properties[selected])).raw
+          : "",
         title: renderEntityTitle(
           definition.schema,
           properties,
-          String(content.external_id ?? before?.external_id ?? ""),
+          selected && typeof properties[selected] === "string"
+            ? decodeIdentifierValue(String(properties[selected])).raw
+            : "",
         ),
         property_labels: Object.fromEntries(
           Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
@@ -212,7 +193,9 @@ export function prepareBusinessRecord(
         prepared_input = {
           ...prepared_input,
           properties: Object.fromEntries(
-            Object.entries(properties).filter(([key]) => !definition.schema.properties[key]?.readOnly),
+            Object.entries(properties).filter(([key]) =>
+              !definition.schema.properties[key]?.readOnly && !(generatedPreview && key === selected)
+            ),
           ),
         };
       }
@@ -221,14 +204,6 @@ export function prepareBusinessRecord(
       ...before,
       ...content,
     } as ChangeFacts;
-    if (input.action === "restore" && input.model === "entity") {
-      prepared_input = {
-        ...prepared_input,
-        source: before?.source,
-        external_id: before?.external_id,
-        identity_version: identity!.version,
-      };
-    }
     if (input.action !== "create") prepared_input = { ...prepared_input, expected_version: input.expected_version };
     const title = String((after ?? before)?.title ?? "");
     const ids = effectiveRecordTemplate(
@@ -251,7 +226,7 @@ export function prepareBusinessRecord(
       await store.recordTags(ids),
     );
     const pendingEntityId = input.model === "entity" && input.action === "create" &&
-      !content.external_id && content.title === "";
+      !content.identity_label && content.title === "";
     return {
       ...result,
       prepared_input,

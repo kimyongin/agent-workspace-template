@@ -19,8 +19,7 @@ export const templateFields: Record<TemplateModel, Record<string, string>> = {
   entity: {
     제목: "title",
     태그: "tag_ids",
-    발급처: "source",
-    식별자: "external_id",
+    식별자: "identity_label",
   },
   task: {
     제목: "title",

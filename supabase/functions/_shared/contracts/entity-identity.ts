@@ -1,3 +1,4 @@
+import { decodeIdentifierReference } from "./entity-identifiers.ts";
 import { z } from "zod";
 import { codePointLength } from "./common.ts";
 
@@ -17,32 +18,8 @@ export const entityTypeKey = z.string().uuid().transform((v) => v.toLowerCase())
 export const entityNumberInput = entityExternalId.refine((v) => v.trim() === v, {
   message: "번호 앞뒤에 공백을 사용할 수 없습니다",
 });
-export const entityIdentity = z.strictObject({
-  source: entitySourceCode,
-  entity_type_id: entityTypeKey,
-  external_id: entityExternalId,
-});
-/** Fixed source/type segments precede the entire unchanged raw number. */
-export function entityId(source: string, entity_type_id: string, external_id: string): string {
-  const identity = entityIdentity.parse({ source, entity_type_id, external_id });
-  return `${identity.source}:${identity.entity_type_id}:${identity.external_id}`;
-}
-export function splitEntityId(value: string) {
-  const first = value.indexOf(":"), second = value.indexOf(":", first + 1);
-  return entityIdentity.parse({
-    source: value.slice(0, first),
-    entity_type_id: value.slice(first + 1, second),
-    external_id: value.slice(second + 1),
-  });
-}
-export const entityReferenceId = z.string().refine((v) => {
-  try {
-    const tuple = splitEntityId(v);
-    return entityId(tuple.source, tuple.entity_type_id, tuple.external_id) === v;
-  } catch {
-    return false;
-  }
-}, { message: "발급처:자료 종류:번호 조합이어야 합니다" });
+export { identifierReference as entityReferenceId } from "./entity-identifiers.ts";
+import { identifierReference as entityReferenceId } from "./entity-identifiers.ts";
 export const entityReferenceIds = z.array(entityReferenceId).max(100).refine(
   (ids) => new Set(ids).size === ids.length,
   {
@@ -52,6 +29,8 @@ export const entityReferenceIds = z.array(entityReferenceId).max(100).refine(
 export function entityPath(id: string): string {
   return `/entities/${encodeURIComponent(id)}`;
 }
-export function entityIdentityLabel(value: { source: string; external_id: string; source_label?: string }): string {
-  return `${value.source_label ?? value.source} · ${value.external_id}`;
+export function entityIdentityLabel(value: { id: string; identity_label?: string }): string {
+  if (value.identity_label) return value.identity_label;
+  const pair = decodeIdentifierReference(value.id);
+  return `${pair.kind_id.slice(0, 8)} · ${pair.raw}`;
 }
