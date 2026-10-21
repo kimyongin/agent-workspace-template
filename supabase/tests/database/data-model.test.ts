@@ -12,7 +12,7 @@ import {
   previewDataModel,
 } from "../../functions/_shared/core/data-model/application.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
-import { createEntity } from "../../functions/_shared/core/entity/application.ts";
+import { createEntity, deleteEntity } from "../../functions/_shared/core/entity/application.ts";
 import { SqlEntityTypeUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-type-store.ts";
 import type { DataModelDocument } from "../../functions/_shared/contracts/data-model.ts";
 const admin = connect(urls.admin), sql = connect(urls.direct, { max: 2, prepare: false });
@@ -104,11 +104,13 @@ dbTest("whole model aborts a late identity reference without publishing earlier 
     });
     // A valid public write introduces a reference after review. The frozen plan
     // remains immutable; final publication must recheck current references.
-    await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.manager), {
+    const created = await createEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.manager), {
       entity_type_id: sku.schema["x-type-id"],
       schema_version: 1,
       properties: { prop_1: "등록 SKU", [selected]: `${sellerId}:sku-1` },
     });
+    assertEquals((await previewDataModel(deps, a.manager, input)).can_apply, false);
+    await deleteEntity({ uow: new SqlEntityUnitOfWork(sql) }, requestActor(a.manager), created.id, created.version);
     const removal = await previewDataModel(deps, a.manager, input);
     assertEquals(removal.can_apply, false);
     assertEquals(

@@ -32,7 +32,13 @@ export function SchemaDefinitionRead(
           ["데이터 타입", fieldTypeLabel(field)],
         ];
         if (field["x-identifier"]) {
-          const kindLabel = (id: string) => identifierKinds.find((kind) => kind.id === id)?.label ?? id;
+          const kindLabel = (id: string) => {
+            const kind = identifierKinds.find((kind) => kind.id === id);
+            if (!kind) return id;
+            return identifierKinds.filter((candidate) => candidate.label === kind.label).length > 1
+              ? `${kind.label} (${id.slice(0, 8)})`
+              : kind.label;
+          };
           values.push(
             ["자료 식별자", definition.schema["x-identity-property"] === key ? "예" : "아니요"],
             ["허용 식별자 종류", field["x-identifier"].allowed_kind_ids.map(kindLabel).join(", ")],
