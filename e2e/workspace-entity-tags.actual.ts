@@ -238,6 +238,14 @@ test(
       expect(schema.status).toBe(200);
       const titleLabel = schema.body.schema.properties.prop_1.title as string;
       const original = `실제 등록 ${run.slice(0, 8)}`;
+      const expectEntityValue = async (value: string) => {
+        const detail = detailDialog(bPage);
+        await expect(detail.getByRole("heading", { name: value, exact: true })).toBeVisible();
+        const escapedLabel = titleLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const property = detail.getByRole("term").filter({ hasText: new RegExp(`^${escapedLabel}$`) });
+        await expect(property).toHaveCount(1);
+        await expect(property.locator("..").getByRole("definition")).toHaveText(value);
+      };
       await form.getByLabel(titleLabel, { exact: false }).fill(original);
       const creation = bPage.waitForResponse((r) =>
         r.url() === `${env.api}/entities` && r.request().method() === "POST"
@@ -253,7 +261,7 @@ test(
       const region = bPage.getByRole("region", { name: "태그 연결", exact: true });
       await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
       await expect(detailDialog(bPage).getByText("속성 정의를 불러오는 중…", { exact: true })).toHaveCount(0);
-      await expect(detailDialog(bPage).getByText(original, { exact: true })).toBeVisible();
+      await expectEntityValue(original);
       await bPage.screenshot({ path: info.outputPath("actual-entity-created.png"), fullPage: true });
       await region.getByRole("button", { name: "태그 연결", exact: true }).click();
       await chooseTag(bPage, region, tagName);
@@ -350,7 +358,7 @@ test(
       await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toHaveCount(0);
       await expect(detailDialog(bPage).getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
       await expect(detailDialog(bPage).getByText("속성 정의를 불러오는 중…", { exact: true })).toHaveCount(0);
-      await expect(detailDialog(bPage).getByText(`${original} 수정`, { exact: true })).toBeVisible();
+      await expectEntityValue(`${original} 수정`);
       await expect(bPage.getByText("불러오는 중…", { exact: true }).filter({ visible: true })).toHaveCount(0);
       await bPage.screenshot({ path: info.outputPath("actual-entity-readonly.png"), fullPage: true });
       expect(

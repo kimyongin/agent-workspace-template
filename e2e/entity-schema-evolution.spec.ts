@@ -1,7 +1,7 @@
 import { businessRows, disclosureContent } from "./table-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, ownedWorkspace, workspacePath} from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, unique, workspacePath } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·이전 폼 충돌이 같은 정의를 사용한다", async ({ page, context }) => {
   await devLogin(page);
@@ -36,9 +36,10 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     const inputSection = page.getByRole("region", { name: "입력 항목", exact: true });
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
-    await page.getByRole("region", { name: "이름 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true }).fill(
-      "자료 이름",
-    );
+    await page.getByRole("region", { name: "이름 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true })
+      .fill(
+        "자료 이름",
+      );
     await page.getByRole("button", { name: /^변경 이력/ }).click();
     await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
     await expect(
@@ -59,13 +60,18 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
       exact: true,
     }).selectOption("value");
     await expect(count.getByLabel("기본값", { exact: true })).toHaveValue("0");
-    await page.getByRole("button", { name: "변경 검토", exact: true }).click();
+    await inputSection.getByRole("button", { name: "변경 검토", exact: true }).click();
     await expect(inputSection).toBeVisible();
-    await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
-    const plans = await mcp.call("list_entity_schema_changes", {
-      type_id: typeId,
-    });
-    const planId = plans.items[0].id;
+    await expect(inputSection.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
+    let savedPlan: { id: string } | undefined;
+    await expect.poll(async () => {
+      const plans = await mcp.call("list_entity_schema_changes", { type_id: typeId });
+      savedPlan = plans.items.find((item: { status: string }) =>
+        item.status !== "applied" && item.status !== "cancelled"
+      );
+      return Boolean(savedPlan);
+    }).toBe(true);
+    const planId = savedPlan!.id;
     const draft = await mcp.call("get_entity_schema_change", {
       type_id: typeId,
       change_id: planId,
@@ -102,8 +108,8 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     ).toBeVisible();
     await inputSection.getByRole("button", { name: "같은 요청 다시 확인", exact: true })
       .click();
-    await expect(page.getByRole("heading", { name: /^입력 항목/, level: 2 }))
-      .toBeVisible();
+    await expect(inputSection.getByRole("heading", { name: /^입력 항목/, level: 2 })).toBeVisible();
+    await expect.poll(async () => (await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(2);
     const current = await mcp.call("get_entity", { id: existing.id });
     expect(current.schema_version).toBe(1);
     expect(current.version).toBe(existing.version);
@@ -144,17 +150,21 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await page.goto(workspacePath(workspace.id, `/entities/${encodeURIComponent(created.id)}`));
     await assertCurrentProperties(created.title, "0");
     await page.goto(workspacePath(workspace.id, `/settings/entity-types/${typeId}/versions`));
-    const initialVersion = businessRows(page.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
-      has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
-    });
+    const history = page.getByRole("region", { name: "변경 이력", exact: true });
+    const initialVersion = businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true }))
+      .filter({
+        has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
+      });
     await initialVersion.getByRole("button", { name: /버전 2 · 적용됨$/ })
       .click();
-    const initialContent = await disclosureContent(page, initialVersion.getByRole("button", { name: /버전 2 · 적용됨$/ }));
+    const initialContent = await disclosureContent(
+      page,
+      initialVersion.getByRole("button", { name: /버전 2 · 적용됨$/ }),
+    );
     await expect(initialContent.locator("input, select, textarea")).toHaveCount(
       0,
     );
-    await expect(page.getByRole("region", { name: "버전 차이", exact: true }))
-      .toContainText("수량");
+    await expect(history.getByRole("region", { name: "버전 차이", exact: true })).toContainText("수량");
     await page.setViewportSize({ width: 320, height: 640 });
     await page.evaluate(() => {
       document.documentElement.style.zoom = "2";

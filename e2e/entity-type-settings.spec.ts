@@ -2,7 +2,7 @@ import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { entitySchemaPresentation } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, test, unique, ownedWorkspace, workspacePath} from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, unique, workspacePath } from "./support.ts";
 import { analyzeAndApply, schemaAnalysisTick } from "./entity-schema-support.ts";
 import { revealSetting } from "./ui-actions.ts";
 
@@ -22,7 +22,10 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await creation.getByRole("radio", { name: "별", exact: true }).check();
     const beforeNavigation = page.url();
     await openMainNavigation(page);
-    const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
+    const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", {
+      name: "할 일",
+      exact: true,
+    });
     await expect(tasksLink).toHaveAttribute("href", workspacePath(workspace.id, "/tasks"));
     await tasksLink.click();
     const initialConfirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
@@ -104,7 +107,9 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     expect(renamed.schema_version).toBe(3);
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await history.getByRole("button", { name: /^변경 이력/ }).click();
-    const row = businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({ hasText: "버전 1 · 적용됨" });
+    const row = businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).filter({
+      hasText: "버전 1 · 적용됨",
+    });
     await expect(row).toHaveCount(1);
     await row.getByRole("button", { name: /^최초 생성 시각/ }).click();
     await expect(page).toHaveURL(/schema_version=1/);
@@ -124,7 +129,10 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
       }
       await expect(definition.locator("input,select,textarea")).toHaveCount(0);
       const content = await disclosureContent(page, row.getByRole("button", { name: /^최초 생성 시각/ }));
-      await expect(content.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
+      await expect(
+        content.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ })
+          .locator("..").getByRole("definition"),
+      ).toHaveText("1 · 최초 생성");
       const published = await mcp.call("get_entity_schema", { type_id: typeId, schema_version: 1 });
       expect({
         type_id: published.type_id,
@@ -210,7 +218,7 @@ test("자료 종류 생성의 성공 응답 유실은 초안·같은 요청을 �
   }
 });
 
-test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표시를 MCP 변경안과 게시 정의에 그대로 저장한다", async ({ page }) => {
+test("첫 웹 검토가 속성 순서·필수 상품명·판매 상태 선택지·제목 템플릿을 MCP 변경안과 게시 정의에 저장한다", async ({ page }) => {
   await devLogin(page);
   const workspace = await ownedWorkspace(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
