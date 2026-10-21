@@ -157,7 +157,8 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
         expect(target!.width).toBeGreaterThanOrEqual(44); expect(target!.height).toBeGreaterThanOrEqual(44);
       }
       if (view === "table") for (const cell of await page.locator('[data-slot="table-cell"][class*="tabular-nums"]').all()) {
-        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe(width === 1440 ? "right" : "left");
+        const reflowed = await cell.evaluate(el => getComputedStyle(el.parentElement!).display === "grid");
+        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe(reflowed ? "left" : "right");
         expect(await cell.evaluate(el => getComputedStyle(el).fontVariantNumeric)).toBe("tabular-nums");
       }
       await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
@@ -185,13 +186,15 @@ test("table rows and headers share the same columns across wrapper types and vie
     const geometry = await table.evaluate(table => {
       const box = (el: Element) => { const rect = el.getBoundingClientRect(); return { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width }; };
       const headers = [...table.querySelectorAll<HTMLTableCellElement>("thead th")];
-      return { columns: headers.map(box), rows: [...table.querySelectorAll("tbody tr")].filter(row => !row.querySelector("td[colspan]")).map(row => ({ cells: [...row.children].map(box), labels: [...row.querySelectorAll<HTMLTableCellElement>(":scope > td")].slice(1).map((cell, index) => ({ actual: cell.headers, expected: headers[index + 1].id })) })) };
+      return { columns: headers.map(box), rows: [...table.querySelectorAll("tbody tr")].filter(row => !row.querySelector("td[colspan]")).map(row => ({ reflowed: getComputedStyle(row).display === "grid", cells: [...row.children].map(box), labels: [...row.querySelectorAll<HTMLTableCellElement>(":scope > td")].slice(1).map((cell, index) => ({ actual: cell.headers, expected: headers[index + 1].id })) })) };
     });
     expect(geometry.rows.length).toBeGreaterThan(0);
     for (const row of geometry.rows) {
+      if (width <= 390) expect(row.reflowed).toBe(true);
+      if (width === 1440) expect(row.reflowed).toBe(false);
       expect(row.cells).toHaveLength(geometry.columns.length);
       for (const relation of row.labels) expect(relation.actual).toBe(relation.expected);
-      if (width === 1440) {
+      if (!row.reflowed) {
         for (const [index, cell] of row.cells.entries()) {
           expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
           expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
@@ -455,7 +458,15 @@ test("card title labels and wrapped values remain ordered and readable", async (
       const key = row.getByRole("term").first();
       await expect(key).toBeVisible();
       const keyBox = (await key.boundingBox())!, titleBox = (await title.boundingBox())!;
-      expect(keyBox.y + keyBox.height).toBeLessThanOrEqual(titleBox.y + 1);
+      const horizontal = await key.evaluate(el => {
+        const fields = el.closest("dl")!;
+        return fields.getBoundingClientRect().width >= 16 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+      });
+      if (horizontal) {
+        expect(keyBox.x + keyBox.width).toBeLessThanOrEqual(titleBox.x);
+      } else {
+        expect(keyBox.y + keyBox.height).toBeLessThanOrEqual(titleBox.y + 1);
+      }
       expect(titleBox.x).toBeGreaterThanOrEqual(0);
       expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(width);
       expect((await title.boundingBox())!.height).toBeGreaterThanOrEqual(44);

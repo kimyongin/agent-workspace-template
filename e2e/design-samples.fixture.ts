@@ -144,6 +144,25 @@ test("authentication-free samples align input actions and handle narrow widths",
   expect(writes).toEqual([]);
 });
 
+test("ordinary sample changes apply in place while templates stay open and history remains optional", async ({ page }) => {
+  await page.goto(direct);
+  const workspace = page.locator("#workspace");
+  const input = workspace.getByRole("region", { name: "입력 항목", exact: true });
+  const history = workspace.getByRole("region", { name: "변경 이력", exact: true });
+  const templates = workspace.getByRole("region", { name: "기록 자동 완성", exact: true });
+  await expect(templates.getByRole("textbox", { name: "메모 템플릿", exact: true })).toBeVisible();
+  await expect(templates.getByRole("button", { name: /기록 자동 완성/ })).toHaveCount(0);
+  await input.getByRole("textbox", { name: "항목 이름" }).fill("재고 수량 즉시 적용");
+  await expect(input.getByText("수정 중", { exact: true })).toBeVisible();
+  await input.getByRole("button", { name: "변경 적용", exact: true }).click();
+  await expect(history.getByRole("button", { name: /현재 버전 2/ })).toHaveAttribute("aria-expanded", "false");
+  await expect(input.getByRole("button", { name: "변경 적용", exact: true })).toBeDisabled();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await input.getByRole("textbox", { name: "항목 이름" }).fill("취소할 변경");
+  await input.getByRole("button", { name: "변경 취소", exact: true }).click();
+  await expect(input.getByRole("textbox", { name: "항목 이름" })).toHaveValue("재고 수량 즉시 적용");
+});
+
 test("review captures a read-only definition; apply and discard preserve later drafts", async ({ page }) => {
   await page.goto(direct);
   const workspace = page.locator("#workspace"), history = workspace.getByRole("region", { name: "변경 이력" });

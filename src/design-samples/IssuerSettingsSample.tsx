@@ -82,6 +82,17 @@ export function IssuerSettingsSample(
             )}
             onToggle={() => setSelected(selected === index ? null : index)}
           >
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-medium">번호 종류 ({source.numbers.length}개)</h3>
+              {!source.system && (
+                <Button variant="ghost" type="button"
+                  disabled={!!numberEdit}
+                  onClick={() => setEditing({ source: index })}
+                ><PlusIcon data-icon="inline-start" />
+                  번호 종류 추가
+                </Button>
+              )}
+            </div>
             {source.numbers.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
             <BusinessTable label="번호 종류 예시" columns={["번호 종류 이름", "입력 방식", "사용"]} disclosureColumn={!source.system}>
               {source.numbers.map((number, numberIndex) => {
@@ -135,16 +146,6 @@ export function IssuerSettingsSample(
                 );
               })}
             </BusinessTable>
-            {!source.system && (
-              <div>
-                <Button variant="ghost" type="button"
-                  disabled={!!numberEdit}
-                  onClick={() => setEditing({ source: index })}
-                ><PlusIcon data-icon="inline-start" />
-                  번호 종류 추가
-                </Button>
-              </div>
-            )}
           </IssuerRow>
         ))}
       </CollectionList>
@@ -294,11 +295,11 @@ function SampleNumberEditor(
         </FieldLabel>
         <p className="text-sm text-muted-foreground">사용을 중지해도 기존 자료의 번호는 유지됩니다.</p>
       </FieldSet>
-      <div className="flex min-w-0 flex-col gap-4-actions">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
         <Button variant="destructive" type="button"  onClick={() => setConfirm("delete")}>
           번호 종류 삭제
         </Button>
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline"
             type="button"
             onClick={() => dirty ? setConfirm("discard") : onClose()}

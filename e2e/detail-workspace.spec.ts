@@ -1248,7 +1248,10 @@ test("desktop: entity pairs follow resized panel width and keep the same edit ax
   await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeLessThan(1);
   await page.screenshot({ path: info.outputPath("entity-narrow-panel.png") });
   await separator.press("Home");
-  await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeGreaterThan(200);
+  await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x)).toBeLessThan(1);
+  const sourceValue = source.locator("+ dd"), numberValue = number.locator("+ dd");
+  expect((await sourceValue.boundingBox())!.x).toBeGreaterThan((await source.boundingBox())!.x + (await source.boundingBox())!.width);
+  expect((await sourceValue.boundingBox())!.x).toBeCloseTo((await numberValue.boundingBox())!.x, 0);
   const before = (await source.boundingBox())!.x;
   await page.screenshot({ path: info.outputPath("entity-wide-panel.png") });
   await detail.getByRole("button", { name: "편집", exact: true }).click();

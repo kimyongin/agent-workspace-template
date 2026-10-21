@@ -160,7 +160,7 @@ function SamplesContent() {
       <section id="workspace" className="flex scroll-mt-4 flex-col gap-5 border-t pt-6" aria-labelledby="workspace-title">
         <h2 id="workspace-title" className="text-2xl font-semibold tracking-tight wrap-anywhere">목록과 자료 설정</h2>
         <p className="text-sm text-muted-foreground">
-          입력 항목을 수정하고 변경 검토를 눌러보세요. 이력에는 당시 입력 항목과 변경 결과가 표시됩니다.
+          입력 항목을 수정한 자리에서 적용해보세요. 자세한 변경 검토와 이력은 필요할 때 열 수 있습니다.
         </p>
         <MaterialWorkspaceSample />
       </section>

@@ -1,4 +1,4 @@
-import { DataFields } from "@/components/DataFields";
+import { DataFieldGroup, DataFields } from "@/components/DataFields";
 import { Badge } from "../components/ui/badge.tsx";
 import { cn } from "../lib/utils.ts";
 import { FieldGroup, FieldSet } from "../components/ui/field.tsx";
@@ -213,7 +213,7 @@ function EditDialog(
                 event.preventDefault();
                 review();
               }}
-            ><FieldGroup>
+            ><DataFieldGroup>
               <Field label="상품명" required error={error}>
                 {(props) => (
                   <Input
@@ -232,7 +232,7 @@ function EditDialog(
               <Field fullWidth label="메모">{props => <Textarea {...props}  rows={3} value={draft.memo} onChange={e => setDraft({ ...draft, memo: e.target.value })} readOnly={uncertain} />}</Field>
               <DataFields><div><dt>태그</dt><dd>{tags.length ? <span className="flex flex-wrap items-center gap-2">{sampleTags.filter(tag => tags.includes(tag.id)).map(tag => <Badge variant="secondary" key={tag.id} >{tag.name}</Badge>)}</span> : "연결된 태그 없음"}</dd></div></DataFields>
               <p className="text-sm text-muted-foreground">취소하면 같은 보기로 돌아갑니다. 변경한 입력은 폐기 확인을 거쳐 버립니다.</p>
-            </FieldGroup></form>
+            </DataFieldGroup></form>
     </ConfirmationSurface>
     <ConfirmDialog open={stage === "discard"} title="변경을 버릴까요?" message="저장하지 않은 상품명 변경을 버립니다. 취소하면 입력한 내용과 편집 위치를 유지합니다."
       confirmLabel="변경 버리기" danger onCancel={() => setStage("edit")} onConfirm={onClose} />
