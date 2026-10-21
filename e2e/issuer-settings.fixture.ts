@@ -15,6 +15,7 @@ const user = {
 };
 async function fixture(page: Page, baseURL: string) {
   const definition = initialEntityDefinition("이름");
+  let identityChangeAllowed = false;
   for (const [property, title] of [["prop_3", "고객 번호"], ["prop_4", "주문 번호"]]) {
     definition.schema.properties[property] = {
       type: ["string", "null"],
@@ -228,6 +229,7 @@ async function fixture(page: Page, baseURL: string) {
           type_id: typeId,
           schema_version: 1,
           ...definition,
+          identity_change_allowed: identityChangeAllowed,
           identifier_kinds: rules.map((rule) => ({
             ...rule,
             source_label: issuers.find((issuer) => issuer.code === rule.source)!.label,
@@ -243,6 +245,9 @@ async function fixture(page: Page, baseURL: string) {
   return {
     writes,
     definition,
+    allowIdentityChange: () => {
+      identityChangeAllowed = true;
+    },
     renameIssuer: (code: string, label: string) => {
       issuers.find((i) => i.code === code)!.label = label;
     },
@@ -316,7 +321,22 @@ test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 
   ).toBeVisible();
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
-  await expect(menu.getByRole("menuitem")).toHaveText(["기본", "자료", "태그", "기록"]);
+  await expect(menu.getByRole("menuitem")).toHaveText([
+    "기본",
+    "자료",
+    "태그",
+    "기록",
+    "이 공간 관리",
+    "공간 목록 · 새 공간",
+  ]);
+  await expect(menu.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveAttribute(
+    "href",
+    fixtureWorkspacePath("/manage"),
+  );
+  await expect(menu.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute(
+    "href",
+    "/workspaces",
+  );
   await menu.getByRole("menuitem", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/issuers$/);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
@@ -376,7 +396,7 @@ test("settings menu supports directional keys and visibly identifies the current
   expect(await current.evaluate((node) => getComputedStyle(node).backgroundColor))
     .not.toBe(await first.evaluate((node) => getComputedStyle(node).backgroundColor));
   await current.press("End");
-  const last = menu.getByRole("menuitem", { name: "기록", exact: true });
+  const last = menu.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true });
   await expect(last).toBeFocused();
   await page.keyboard.press("Home");
   await expect(first).toBeFocused();
@@ -905,4 +925,57 @@ test("skipping a first kind while its slow catalog loads returns focus to the fi
   } finally {
     release();
   }
+});
+
+test(
+  "an empty type selects a required identifier only through the schema review and keeps the choice after a stale refusal",
+  async ({ page, baseURL }, info) => {
+    const state = await fixture(page, baseURL!);
+    state.allowIdentityChange();
+    state.definition.schema.properties.prop_3.type = "string";
+    state.definition.schema.required.push("prop_3");
+    const field = await fieldEditor(page);
+    const selected = page.getByLabel("자료 식별자 항목", { exact: true });
+    await expect(selected).toHaveValue("prop_2");
+    await selected.selectOption("prop_3");
+    await expect(selected).toHaveValue("prop_3");
+    await expect(field.getByText("자료 식별자", { exact: true })).toBeVisible();
+    await expect(field.getByLabel("필수 입력", { exact: true })).toBeDisabled();
+    await expect(page.getByText("변경 1개 · 검토 후 자료에 적용됩니다.", { exact: true })).toBeVisible();
+    const requests: unknown[] = [];
+    await page.route(`**/api/entity-types/${typeId}/schema-changes`, async (route) => {
+      if (route.request().method() === "GET") return route.fallback();
+      requests.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 409,
+        json: { code: "schema_plan_stale", message: "자료가 추가되었습니다. 현재 자료 식별자를 유지하세요" },
+      });
+    });
+    await page.getByRole("button", { name: "변경 검토", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("자료가 추가되었습니다");
+    await expect(page.getByRole("alert")).toBeInViewport();
+    await expect(page.getByRole("alert")).toBeFocused();
+    await expect(selected).toHaveValue("prop_3");
+    expect(requests).toEqual([
+      expect.objectContaining({
+        expected_schema_version: 1,
+        edits: [{ op: "set_metadata", "x-identity-property": "prop_3" }],
+      }),
+    ]);
+    expect(state.writes).toEqual([]);
+    await page.screenshot({
+      path: info.outputPath("selected-identifier-review-stale.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
+  },
+);
+
+test("a populated type keeps the server selected identifier locked", async ({ page, baseURL }) => {
+  const state = await fixture(page, baseURL!);
+  await fieldEditor(page, "prop_2");
+  const selected = page.getByLabel("자료 식별자 항목", { exact: true });
+  await expect(selected).toBeDisabled();
+  await expect(selected).toHaveValue("prop_2");
+  expect(state.writes).toEqual([]);
 });

@@ -51,10 +51,18 @@ async function typedKind(f: Awaited<ReturnType<typeof businessWorkspaceFixture>>
   return { entity_type_id: kind.id, schema_version: 2 };
 }
 
-const fixture = await businessWorkspaceFixture(admin, sql);
-const schema = await typedKind(fixture);
-const otherWorkspace = await fixture.addWorkspace("다른 자료 공간");
-const foreignSchema = await typedKind(fixture, otherWorkspace.manager);
+const { fixture, schema, otherWorkspace, foreignSchema } = await (async () => {
+  const fixture = await businessWorkspaceFixture(admin, sql);
+  try {
+    const schema = await typedKind(fixture);
+    const otherWorkspace = await fixture.addWorkspace("다른 자료 공간");
+    const foreignSchema = await typedKind(fixture, otherWorkspace.manager);
+    return { fixture, schema, otherWorkspace, foreignSchema };
+  } catch (error) {
+    await fixture.cleanup();
+    throw error;
+  }
+})();
 await fixture.grant(fixture.member, [
   { target_kind: "tasks", target_id: "*", access: "write" },
   { target_kind: "entity_type", target_id: schema.entity_type_id, access: "write" },

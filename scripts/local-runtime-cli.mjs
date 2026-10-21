@@ -111,8 +111,8 @@ export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
     finally { clearTimeout(timer); }
   }
 
-  function launch(file, args, stdio) {
-    const child = spawn(file, args, { shell: false, stdio, env, detached: process.platform !== 'win32' });
+  function launch(file, args, stdio, childEnv = env) {
+    const child = spawn(file, args, { shell: false, stdio, env: childEnv, detached: process.platform !== 'win32' });
     child.finished = new Promise(resolve => {
       child.once('error', () => { child.spawnFailed = true; resolve({ code: null, interrupted: false, spawnFailed: true }); });
       child.once('close', (code, signal) => resolve({ code, signal, interrupted: Boolean(signal) || interruptedCodes.has(code) }));
@@ -120,8 +120,8 @@ export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
     return child;
   }
 
-  async function command(file, args, { signal, stdio = ['ignore', 'pipe', 'pipe'], timeoutMs = 15_000, resources = false } = {}) {
-    const child = launch(file, args, stdio);
+  async function command(file, args, { signal, stdio = ['ignore', 'pipe', 'pipe'], timeoutMs = 15_000, resources = false, childEnv = env } = {}) {
+    const child = launch(file, args, stdio, childEnv);
     const finishResources = resources ? startProcessSamples(child.pid) : undefined;
     let output = '', oversized = false;
     child.stdout?.on('data', chunk => {
@@ -175,18 +175,86 @@ export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
   }
 
   async function run(check, signal, extra = []) {
+    const fixtureServer = !Array.isArray(extra) ? extra.fixtureServer : undefined;
+    if (fixtureServer && !childRunning(fixtureServer.child)) throw new Error("Owned fixture web server exited before checks");
     const label = typeof check === 'string' ? check : check.id;
     const args = typeof check === 'string' ? [npm, 'run', '-s', scripts[check], ...extra]
       : check.nodeArgs ?? (check.npmArgs ? [npm, ...check.npmArgs] : [npm, 'run', '-s', check.script, ...(check.args ?? [])]);
     if (args[0] === npm && !existsSync(npm)) throw new Error('Run through npm to resolve its CLI');
     console.log(`\n▶ ${label}`);
     const started = performance.now();
-    const result = await command(process.execPath, args, { signal, stdio: 'inherit', timeoutMs: 0, resources: true });
-    return { code: result.code, signal: result.signal, interrupted: result.interrupted, stopFailed: result.stopFailed, spawnFailed: result.spawnFailed, elapsedMs: performance.now() - started, resources: result.resources, seconds: Math.round((performance.now() - started) / 1000) };
+    const result = await command(process.execPath, args, { signal, stdio: 'inherit', timeoutMs: 0, resources: true, childEnv: fixtureServer ? { ...env, WORKSPACE_FIXTURE_WEB_SERVER_GROUP: 'settings-model', WORKSPACE_FIXTURE_WEB_SERVER_PID: String(fixtureServer.child.pid) } : env });
+    return { code: result.code, signal: result.signal, interrupted: result.interrupted, stopFailed: result.stopFailed || Boolean(fixtureServer && !childRunning(fixtureServer.child)), spawnFailed: result.spawnFailed, elapsedMs: performance.now() - started, resources: result.resources, seconds: Math.round((performance.now() - started) / 1000) };
+  }
+
+  const childRunning = child => Number.isInteger(child.pid) && !child.spawnFailed && child.exitCode === null && child.signalCode === null;
+
+  async function cleanupFixtureWebServer({ child, release, finishSamples }) {
+    const errors = [], cleanup = { child: child ? 'pending' : 'not-started', resources: 'pending', lease: 'pending' };
+    let resources;
+    if (child) {
+      try { await stopChild(child); cleanup.child = 'stopped'; }
+      catch (error) { cleanup.child = 'failed'; errors.push({ phase: 'fixture-web-child-cleanup', error }); }
+    }
+    try {
+      resources = { ...finishSamples(), target: 'runner process tree summed RSS including owned Vite and sequential Playwright; excludes Docker/VM and reparented children' };
+      cleanup.resources = 'collected';
+    } catch (error) { cleanup.resources = 'failed'; errors.push({ phase: 'fixture-web-resource-cleanup', error }); }
+    // A failed child stop must never prevent attempting release of our exact lease.
+    try { release(); cleanup.lease = 'released'; }
+    catch (error) { cleanup.lease = 'failed'; errors.push({ phase: 'fixture-web-lease-cleanup', error }); }
+    return { fixtureCleanupErrors: errors, fixtureCleanup: cleanup, fixtureResources: resources };
+  }
+
+  async function startFixtureWebServer(signal) {
+    const release = acquireRuntimeLock('fixture-web:127.0.0.1:56883');
+    const finishSamples = startProcessSamples(process.pid);
+    let child;
+    const interruption = () => Object.assign(new Error('Fixture web preparation interrupted'), {
+      code: null, signal: ['SIGINT', 'SIGTERM'].includes(signal?.reason) ? signal.reason : null, interrupted: true,
+    });
+    try {
+      if (signal?.aborted) throw interruption();
+      child = launch(process.execPath, ['scripts/fixture-web-server.mjs'], ['ignore', 'inherit', 'inherit', 'ipc'], {
+        ...env, VITE_SUPABASE_URL: 'http://127.0.0.1:56884', VITE_API_URL: 'http://127.0.0.1:56884/api',
+        VITE_SUPABASE_PUBLISHABLE_KEY: 'fixture-public-key', VITE_DEV_LOGIN: 'true',
+      });
+      await new Promise((resolve, reject) => {
+        const ready = message => {
+          if (message?.ready === 'settings-model' && message.pid === child.pid && childRunning(child)) { clean(); resolve(); }
+        };
+        const abort = () => { clean(); reject(interruption()); };
+        const exited = () => {
+          clean();
+          reject(Object.assign(new Error('Owned fixture web server failed to start'), { code: child.exitCode, signal: child.signalCode, spawnFailed: Boolean(child.spawnFailed) }));
+        };
+        const timer = setTimeout(() => { clean(); reject(Object.assign(new Error('Fixture web preparation timed out'), { code: null, signal: null, timedOut: true })); }, 30_000);
+        const clean = () => {
+          clearTimeout(timer); child.off('message', ready); child.off('close', exited); child.off('error', exited);
+          signal?.removeEventListener('abort', abort);
+        };
+        child.on('message', ready); child.once('close', exited); child.once('error', exited);
+        signal?.addEventListener('abort', abort, { once: true });
+        if (signal?.aborted) abort();
+      });
+      return { child, release, finishSamples };
+    } catch (error) {
+      // Keep the primary preparation outcome; cleanup hazards are separate facts.
+      Object.assign(error, await cleanupFixtureWebServer({ child, release, finishSamples }));
+      throw error;
+    }
+  }
+
+  async function stopFixtureWebServer(server) {
+    const cleanup = await cleanupFixtureWebServer(server);
+    if (cleanup.fixtureCleanupErrors.length) {
+      throw Object.assign(new AggregateError(cleanup.fixtureCleanupErrors.map(item => item.error), 'Owned fixture cleanup failed'), cleanup);
+    }
+    return cleanup.fixtureResources;
   }
 
   return {
-    source, log, now: Date.now, observe,
+    source, log, now: Date.now, observe, startFixtureWebServer, stopFixtureWebServer,
     pause: signal => pause(1000, undefined, { signal }),
     run,
     async prepare(signal) {
@@ -213,7 +281,7 @@ export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
       console.log(`\n▶ Edge Functions 실행 (개인 로그: ${log})`);
       return child;
     },
-    childRunning: child => Number.isInteger(child.pid) && !child.spawnFailed && child.exitCode === null && child.signalCode === null,
+    childRunning,
     async stopChild(child) { try { await stopChild(child); } finally { child.removeEnv?.(); } },
     stopContainer: id => removeOwnedContainer(id, command),
   };
