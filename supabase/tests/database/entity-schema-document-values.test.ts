@@ -28,14 +28,14 @@ dbTest(
           {
             op: "add_property",
             client_ref: "server",
-            field: { type: "integer", "x-order": 20, readOnly: true, default: 7 },
+            field: { type: "integer", "x-order": 30, readOnly: true, default: 7 },
           },
-          { op: "add_property", client_ref: "number", field: { type: "number", "x-order": 30, multipleOf: 0.25 } },
-          { op: "add_property", client_ref: "guide", field: { type: "string", "x-order": 40, examples: ["안내값"] } },
+          { op: "add_property", client_ref: "number", field: { type: "number", "x-order": 40, multipleOf: 0.25 } },
+          { op: "add_property", client_ref: "guide", field: { type: "string", "x-order": 50, examples: ["안내값"] } },
           {
             op: "add_property",
             client_ref: "retired",
-            field: { type: "string", "x-order": 50, deprecated: true, default: "자동 입력 금지" },
+            field: { type: "string", "x-order": 60, deprecated: true, default: "자동 입력 금지" },
           },
         ],
       });
@@ -48,26 +48,26 @@ dbTest(
       });
       const schema = await getEntitySchema(types, owner.manager, { type_id: type.id });
       assertEquals(schema.schema["x-version"], 2);
-      assertEquals(schema.schema.properties.prop_3.multipleOf, 0.25);
+      assertEquals(schema.schema.properties.prop_4.multipleOf, 0.25);
       const create = (properties: EntityProperties) =>
         createEntity(entities, requestActor(owner.manager), { entity_type_id: type.id, schema_version: 2, properties });
       for (
-        const properties of [{ prop_1: "readonly", prop_2: 7 }, { prop_1: "retired", prop_5: "입력 금지" }, {
+        const properties of [{ prop_1: "readonly", prop_3: 7 }, { prop_1: "retired", prop_6: "입력 금지" }, {
           prop_1: "fraction",
-          prop_3: 0.3,
+          prop_4: 0.3,
         }] as EntityProperties[]
       ) {
         assertEquals((await assertRejects(() => create(properties), AppError)).code, "invalid_input");
       }
-      const saved = await create({ prop_1: "원본", prop_3: 0.5 });
-      assertEquals(saved.properties, { prop_1: "원본", prop_2: 7, prop_3: 0.5 });
+      const saved = await create({ prop_1: "원본", prop_4: 0.5 });
+      assertEquals(saved.properties, { prop_2: saved.properties.prop_2, prop_1: "원본", prop_3: 7, prop_4: 0.5 });
       const same = await updateEntity(entities, requestActor(owner.manager), saved.id, {
         expected_version: saved.version,
         schema_version: 2,
-        properties: { prop_2: 7, prop_3: 0.75 },
+        properties: { prop_3: 7, prop_4: 0.75 },
       });
-      assertEquals(same.properties, { prop_1: "원본", prop_2: 7, prop_3: 0.75 });
-      for (const properties of [{ prop_2: 8 }, { prop_3: 0.6 }, { prop_5: "새 입력" }] as EntityProperties[]) {
+      assertEquals(same.properties, { prop_2: saved.properties.prop_2, prop_1: "원본", prop_3: 7, prop_4: 0.75 });
+      for (const properties of [{ prop_3: 8 }, { prop_4: 0.6 }, { prop_6: "새 입력" }] as EntityProperties[]) {
         assertEquals(
           (await assertRejects(() =>
             updateEntity(entities, requestActor(owner.manager), saved.id, {

@@ -1,3 +1,9 @@
+import { getEntitySchema } from "../../functions/_shared/core/entity-types/application.ts";
+import {
+  decodeIdentifierReference,
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import * as entities from "../../functions/_shared/core/entity/application.ts";
 import * as registry from "../../functions/_shared/core/entity-issuers/application.ts";
@@ -6,7 +12,7 @@ import { entityCreate, type EntityUpdate, entityUpdate } from "../../functions/_
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
 import { businessRequest, businessWorkspaceFixture } from "./_workspace-business.ts";
-import { directEntitySource } from "./_entity.ts";
+import { configureIdentifierField, directEntitySource } from "./_entity.ts";
 import { connect, dbTest, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.direct, { max: 3, prepare: false });
@@ -44,9 +50,9 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
         meaning: "다른 공간에만 있는 직접 번호",
       },
     );
-    const current = await registry.getEntityTypeIdentity(setup.deps, f.member, kind.id);
-    assertEquals(current, setup.identity, "kind writer reads current registration settings without settings grant");
-    assertEquals(current.sources.find((source) => source.code === "crm")?.generation, "direct");
+    const current = await getEntitySchema(f.typeDeps, f.member, { type_id: kind.id });
+    assertEquals(current, setup.definition, "kind writer reads field settings without settings grant");
+    assertEquals(current.identifier_kinds?.find((kind) => kind.id === setup.rule.id)?.generation, "direct");
     assertEquals(
       (await assertRejects(() =>
         registry.createEntityIssuer(setup.deps, businessRequest(f.member), {
@@ -57,45 +63,33 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
     );
     // Both a known foreign rule under the same code and a foreign-only issuer
     // must fail before a local assignment is replaced or added.
-    for (
-      const sources of [
-        current.sources.map(({ code, rule_id, active }) => ({
-          code,
-          rule_id: code === "crm" ? foreignSetup.rule.id : rule_id,
-          active,
-        })),
-        [...current.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })), {
-          code: foreignIssuer.code,
-          rule_id: foreignRule.id,
-          active: true,
-        }],
-      ]
-    ) {
+    for (const foreignKindId of [foreignSetup.rule.id, foreignRule.id]) {
       assertEquals(
         (await assertRejects(() =>
-          registry.updateEntityTypeIdentity(setup.deps, businessRequest(f.manager), kind.id, {
-            label: current.label,
-            default_source: current.default_source,
-            expected_version: current.version,
-            sources,
+          configureIdentifierField(sql, f.manager, kind.id, {
+            allowed_kind_ids: [setup.rule.id, foreignKindId],
+            default_kind_id: setup.rule.id,
           }), AppError)).code,
-        "invalid_reference",
+        "invalid_input",
       );
     }
-    assertEquals(await registry.getEntityTypeIdentity(setup.deps, f.member, kind.id), current);
+    assertEquals(await getEntitySchema(f.typeDeps, f.member, { type_id: kind.id }), current);
     const input = entityCreate.parse({
       entity_type_id: kind.id.toUpperCase(),
-      schema_version: 1,
-      identity_version: current.version,
-      source: "crm",
-      external_id: "000Ab:/한글%é",
-      properties: { prop_1: "보존할 원본" },
+      schema_version: setup.schema.schema_version,
+      properties: { prop_1: "보존할 원본", prop_2: encodeIdentifierValue(setup.rule.id, "000Ab:/한글%é") },
     });
     const request = businessRequest(f.member);
     const created = await entities.createEntity(deps, request, input);
-    assertEquals([created.id, created.source, created.external_id, created.entity_type_id, created.version], [
-      `crm:${kind.id}:000Ab:/한글%é`,
-      "crm",
+    assertEquals([
+      created.id,
+      decodeIdentifierReference(created.id).kind_id,
+      decodeIdentifierReference(created.id).raw,
+      created.entity_type_id,
+      created.version,
+    ], [
+      encodeIdentifierReference(kind.id, setup.rule.id, "000Ab:/한글%é"),
+      setup.rule.id,
       "000Ab:/한글%é",
       kind.id,
       1,
@@ -107,7 +101,11 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
     );
     assertEquals(
       (await assertRejects(
-        () => entities.createEntity(deps, request, { ...input, external_id: "different" }),
+        () =>
+          entities.createEntity(deps, request, {
+            ...input,
+            properties: { ...input.properties, prop_2: encodeIdentifierValue(setup.rule.id, "different") },
+          }),
         AppError,
       )).code,
       "idempotency_key_reused",
@@ -116,17 +114,16 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
       (await assertRejects(() =>
         entities.createEntity(deps, businessRequest(f.member), {
           ...input,
-          identity_version: current.version + 1,
-          external_id: "stale-settings",
+          schema_version: current.schema_version - 1,
+          properties: { ...input.properties, prop_2: encodeIdentifierValue(setup.rule.id, "stale-settings") },
         }), AppError)).code,
-      "settings_changed",
+      "schema_changed",
     );
     assertEquals(
       (await assertRejects(() =>
         entities.createEntity(deps, businessRequest(f.member), {
           ...input,
-          source: foreignIssuer.code,
-          external_id: "foreign-issuer",
+          properties: { ...input.properties, prop_2: encodeIdentifierValue(foreignRule.id, "foreign-issuer") },
         }), AppError)).code,
       "invalid_input",
     );
@@ -141,18 +138,32 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
     // Exact case, leading zeros, composed/decomposed Unicode and punctuation
     // are identities, not a normalization or integer conversion input.
     const siblings = [];
-    for (const external_id of ["000ab:/한글%é", "Ab:/한글%é", "000Ab:/한글%e\u0301"]) {
-      const saved = await entities.createEntity(deps, businessRequest(f.member), { ...input, external_id });
-      assertEquals([saved.id, saved.external_id], [`crm:${kind.id}:${external_id}`, external_id]);
+    for (const raw of ["000ab:/한글%é", "Ab:/한글%é", "000Ab:/한글%e\u0301"]) {
+      const saved = await entities.createEntity(deps, businessRequest(f.member), {
+        ...input,
+        properties: { ...input.properties, prop_2: encodeIdentifierValue(setup.rule.id, raw) },
+      });
+      assertEquals([saved.id, decodeIdentifierReference(saved.id).raw], [
+        encodeIdentifierReference(kind.id, setup.rule.id, raw),
+        raw,
+      ]);
       siblings.push(saved);
     }
     assertEquals(new Set([created.id, ...siblings.map((value) => value.id)]).size, 4);
     const parallel = await entities.createEntity(deps, businessRequest(other.member), {
       ...input,
       entity_type_id: foreignKind.id,
-      identity_version: foreignSetup.identity.version,
+      schema_version: foreignSetup.schema.schema_version,
+      properties: {
+        ...input.properties,
+        prop_2: encodeIdentifierValue(foreignSetup.rule.id, decodeIdentifierReference(created.id).raw),
+      },
     });
-    assertEquals([parallel.source, parallel.external_id, parallel.version], [created.source, created.external_id, 1]);
+    assertEquals([
+      decodeIdentifierReference(parallel.id).kind_id,
+      decodeIdentifierReference(parallel.id).raw,
+      parallel.version,
+    ], [foreignSetup.rule.id, decodeIdentifierReference(created.id).raw, 1]);
     assert(parallel.id !== created.id);
     assertEquals(
       (await assertRejects(() => entities.getEntity(deps, other.member, created.id), AppError)).code,
@@ -163,23 +174,26 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
       "not_found",
     );
     for (
-      const [field, value] of [["id", "replacement"], ["source", "app"], ["external_id", "replacement"], [
+      const [field, value] of [["id", encodeIdentifierReference(kind.id, setup.rule.id, "replacement")], [
+        "properties",
+        { ...created.properties, prop_2: encodeIdentifierValue(setup.rule.id, "replacement") },
+      ], [
         "entity_type_id",
         foreignKind.id,
       ]]
     ) {
       const invalid = {
-        schema_version: 1,
+        schema_version: setup.schema.schema_version,
         expected_version: 1,
         properties: { prop_1: "반영되면 안 되는 값" },
-        [field]: value,
+        [field as string]: value,
       } as EntityUpdate;
       assertEquals(
         (await assertRejects(
           () => entities.updateEntity(deps, businessRequest(f.member), created.id, invalid),
           AppError,
         )).code,
-        "entity_type_immutable",
+        field === "properties" ? "invalid_input" : "entity_type_immutable",
       );
       // Catch inside a savepoint to retain the raw guard's SQLSTATE/message;
       // runInWorkspace still establishes the real app_server -> app_user role.
@@ -189,14 +203,17 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
       }, async (tx) => {
         const rejected = await assertRejects(() =>
           tx.savepoint(async (nested) => {
-            const rows = await nested`update app.entities set ${
-              nested(field)
-            }=${value} where workspace_id=${f.workspaceId} and id=${created.id} returning id`;
+            const rows = await nested`update app.entities set ${nested(field as string)}=${
+              typeof value === "object" ? nested.json(value) : value
+            } where workspace_id=${f.workspaceId} and id=${created.id} returning id`;
             assertEquals(rows.length, 1, "a zero-row update cannot establish the immutable identity guard");
           })
         );
         assertEquals((rejected as { code?: string }).code, "23514");
-        assertEquals((rejected as { message?: string }).message, "entity_identity_immutable");
+        assertEquals(
+          (rejected as { message?: string }).message,
+          field === "entity_type_id" ? "identifier_definition_missing" : "entity_identity_immutable",
+        );
       });
     }
     const changed = await entities.updateEntity(
@@ -204,12 +221,16 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
       businessRequest(f.member),
       created.id,
       entityUpdate.parse({
-        schema_version: 1,
+        schema_version: setup.schema.schema_version,
         expected_version: 1,
         properties: { prop_1: "수정 후에도 같은 식별자" },
       }),
     );
-    assertEquals([changed.id, changed.external_id, changed.version], [created.id, created.external_id, 2]);
+    assertEquals([changed.id, decodeIdentifierReference(changed.id).raw, changed.version], [
+      created.id,
+      decodeIdentifierReference(created.id).raw,
+      2,
+    ]);
     assertEquals(
       (await assertRejects(() => entities.deleteEntity(deps, businessRequest(f.member), created.id, 1), AppError)).code,
       "conflict",
@@ -222,31 +243,38 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
     // A retained successful create receipt is not an implicit restore command.
     assertEquals(await entities.createEntity(deps, request, input), created);
     assertEquals((await entities.getEntity(deps, f.manager, created.id)).deleted_at, deleted.deleted_at);
-    for (const expected_version of [undefined, 2]) {
-      assertEquals(
-        (await assertRejects(() =>
-          entities.createEntity(deps, businessRequest(f.member), {
-            ...input,
-            properties: {},
-            ...expected_version === undefined ? {} : { expected_version },
-          }), AppError)).code,
-        "conflict",
-      );
-    }
-    const restoreRequest = businessRequest(f.member);
-    const restoreInput = { ...input, expected_version: 3, properties: {} };
-    const restored = await entities.createEntity(deps, restoreRequest, restoreInput);
     assertEquals(
-      [restored.id, restored.external_id, restored.version, restored.deleted_at, restored.properties.prop_1],
+      (await assertRejects(() => entities.createEntity(deps, businessRequest(f.member), input), AppError)).code,
+      "conflict",
+    );
+    assertEquals(
+      (await assertRejects(() =>
+        entities.restoreEntity(deps, businessRequest(f.member), created.id, {
+          schema_version: setup.schema.schema_version,
+          expected_version: 2,
+        }), AppError)).code,
+      "conflict",
+    );
+    const restoreRequest = businessRequest(f.member);
+    const restoreInput = { schema_version: setup.schema.schema_version, expected_version: 3 };
+    const restored = await entities.restoreEntity(deps, restoreRequest, created.id, restoreInput);
+    assertEquals(
+      [
+        restored.id,
+        decodeIdentifierReference(restored.id).raw,
+        restored.version,
+        restored.deleted_at,
+        restored.properties.prop_1,
+      ],
       [
         created.id,
-        created.external_id,
+        decodeIdentifierReference(created.id).raw,
         4,
         null,
         changed.properties.prop_1,
       ],
     );
-    assertEquals(await entities.createEntity(deps, restoreRequest, restoreInput), restored);
+    assertEquals(await entities.restoreEntity(deps, restoreRequest, created.id, restoreInput), restored);
     await entities.deleteEntity(deps, deleteRequest, created.id, 2);
     assertEquals((await entities.getEntity(deps, f.manager, created.id)).version, 4);
     assertEquals(
@@ -255,7 +283,11 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
           deps,
           businessRequest(f.member),
           created.id,
-          entityUpdate.parse({ schema_version: 1, expected_version: 3, properties: { prop_1: "오래된 수정" } }),
+          entityUpdate.parse({
+            schema_version: setup.schema.schema_version,
+            expected_version: 3,
+            properties: { prop_1: "오래된 수정" },
+          }),
         ), AppError)).code,
       "conflict",
     );
@@ -301,7 +333,10 @@ dbTest("workspace entity direct identities preserve exact tuples and shared hist
       [...survivingHistory],
       history.map(({ id, created_by_name }) => ({ id, created_by: null, created_by_name })),
     );
-    assertEquals((await entities.getEntity(deps, other.manager, parallel.id)).external_id, created.external_id);
+    assertEquals(
+      decodeIdentifierReference((await entities.getEntity(deps, other.manager, parallel.id)).id).raw,
+      decodeIdentifierReference(created.id).raw,
+    );
   } finally {
     await f.cleanup();
   }
