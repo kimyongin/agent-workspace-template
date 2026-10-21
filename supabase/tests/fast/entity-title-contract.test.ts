@@ -14,11 +14,12 @@ Deno.test("current title definitions require a template and reject retired prope
   }
   const numeric = {
     ...definition.schema,
-    required: [],
-    "x-title-template": "$prop_2$",
+    required: ["prop_2"],
+    "x-title-template": "$prop_3$",
     properties: {
-      prop_2: { type: "integer" as const, "x-order": 20 },
+      ...definition.schema.properties,
+      prop_3: { type: "integer" as const, "x-order": 30 },
     },
   };
-  assertEquals(validateEntityDefinition({ schema: numeric }).schema["x-title-template"], "$prop_2$");
+  assertEquals(validateEntityDefinition({ schema: numeric }).schema["x-title-template"], "$prop_3$");
 });

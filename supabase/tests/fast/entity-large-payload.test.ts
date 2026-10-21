@@ -20,7 +20,7 @@ import {
 Deno.test("near-64 KiB detail values survive HTTP and MCP while title-only default20/max100 summaries remain bounded with resumable cursors", async () => {
   const actor = { userId: crypto.randomUUID() }, typeId = crypto.randomUUID();
   const definition = initialEntityDefinition("이름");
-  for (let n = 2; n <= 21; n++) {
+  for (let n = 3; n <= 22; n++) {
     definition.schema.properties[`prop_${n}`] = {
       type: "string",
       "x-order": n * 10,
@@ -31,10 +31,11 @@ Deno.test("near-64 KiB detail values survive HTTP and MCP while title-only defau
   validateEntityDefinition(definition);
   const properties: Record<string, string> = {
     prop_1: "대표",
+    prop_2: "00000000-0000-4000-8000-000000000001:000",
     ...Object.fromEntries(
-      Array.from({ length: 5 }, (_, n) => [`prop_${n + 2}`, "한".repeat(4096)]),
+      Array.from({ length: 5 }, (_, n) => [`prop_${n + 3}`, "한".repeat(4096)]),
     ),
-    prop_7: "끝".repeat(1300),
+    prop_8: "끝".repeat(1300),
   };
   validateEntityProperties(definition, properties);
   const bytes = (value: unknown) => new TextEncoder().encode(jsonbText(value)).byteLength;
@@ -55,10 +56,8 @@ Deno.test("near-64 KiB detail values survive HTTP and MCP while title-only defau
     created_at: "2026-10-12T00:00:00Z",
   };
   const rows: EntityValues[] = Array.from({ length: 101 }, (_, n) => ({
-    id: `large:${typeId}:${String(n).padStart(3, "0")}`,
-    source: "large",
-    external_id: String(n),
-    source_label: "large",
+    id: `${typeId}:00000000-0000-4000-8000-000000000001:${String(n).padStart(3, "0")}`,
+    identity_label: `앱 · 번호 · ${String(n)}`,
     entity_type_id: typeId,
     type,
     schema_version: 1,
@@ -91,7 +90,7 @@ Deno.test("near-64 KiB detail values survive HTTP and MCP while title-only defau
             _cursor: {
               id: row.id,
               category: 2 as const,
-              at: typeof q.sort === "object" ? properties.prop_2 : row.updated_at,
+              at: typeof q.sort === "object" ? properties.prop_3 : row.updated_at,
             },
           })),
       ),
@@ -113,7 +112,7 @@ Deno.test("near-64 KiB detail values survive HTTP and MCP while title-only defau
   const schema = await app.request(`/entity-types/${typeId}/schema`);
   assertEquals(schema.status, 200);
   assertEquals((await schema.json()).schema, definition.schema);
-  const detail = await app.request(`/entities/large:${typeId}:000`);
+  const detail = await app.request(`/entities/${typeId}:00000000-0000-4000-8000-000000000001:000`);
   assertEquals(detail.status, 200);
   assertEquals((await detail.json()).properties, properties);
   for (const limit of [undefined, 100]) {
@@ -133,7 +132,9 @@ Deno.test("near-64 KiB detail values survive HTTP and MCP while title-only defau
     assertEquals(next.status, 200);
     assertEquals(
       (await next.json()).items[0].id,
-      limit === 100 ? `large:${typeId}:100` : `large:${typeId}:020`,
+      limit === 100
+        ? `${typeId}:00000000-0000-4000-8000-000000000001:100`
+        : `${typeId}:00000000-0000-4000-8000-000000000001:020`,
     );
   }
   const registered = new Map<
@@ -173,7 +174,7 @@ Deno.test("near-64 KiB detail values survive HTTP and MCP while title-only defau
   const query = {
     entity_type_id: typeId,
     limit: 100,
-    sort: { key: "prop_2", direction: "asc" },
+    sort: { key: "prop_3", direction: "asc" },
   };
   const result = await registered.get("list_entities")!(query);
   const page = result.structuredContent as {
@@ -191,6 +192,6 @@ Deno.test("near-64 KiB detail values survive HTTP and MCP while title-only defau
     cursor: page.next_cursor,
   });
   assertEquals((next.structuredContent as typeof page).items.map((r) => r.id), [
-    `large:${typeId}:100`,
+    `${typeId}:00000000-0000-4000-8000-000000000001:100`,
   ]);
 });

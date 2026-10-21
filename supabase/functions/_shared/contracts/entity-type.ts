@@ -171,6 +171,13 @@ export function initialEntityDefinition(
       type: "object",
       additionalProperties: false,
       properties: {
+        prop_1: {
+          type: "string",
+          title: label,
+          minLength: 1,
+          maxLength: 4096,
+          "x-order": 10,
+        },
         prop_2: {
           type: "string",
           title: "식별자",
@@ -179,13 +186,6 @@ export function initialEntityDefinition(
             allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
             default_kind_id: "00000000-0000-4000-8000-000000000001",
           },
-        },
-        prop_1: {
-          type: "string",
-          title: label,
-          minLength: 1,
-          maxLength: 4096,
-          "x-order": 10,
         },
       },
       required: ["prop_1", "prop_2"],

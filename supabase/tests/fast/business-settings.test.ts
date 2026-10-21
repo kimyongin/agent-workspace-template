@@ -1,4 +1,4 @@
-import { identityFixture } from "../_entity-identity.ts";
+import { identifierKindsFixture } from "../_entity-identity.ts";
 import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import {
@@ -13,9 +13,9 @@ import { initialEntityDefinition } from "../../functions/_shared/contracts/entit
 const entity_type_id = crypto.randomUUID();
 const entityDefinition = initialEntityDefinition("이름");
 Object.assign(entityDefinition.schema.properties, {
-  prop_2: { "x-order": 20, type: ["integer", "null"], default: null },
-  prop_3: { "x-order": 30, type: ["string", "null"], format: "date", default: null },
-  prop_4: { "x-order": 40, type: "string", oneOf: ["a", "b", "c"].map((value) => ({ const: value })), default: "a" },
+  prop_3: { "x-order": 30, type: ["integer", "null"], default: null },
+  prop_4: { "x-order": 40, type: ["string", "null"], format: "date", default: null },
+  prop_5: { "x-order": 50, type: "string", oneOf: ["a", "b", "c"].map((value) => ({ const: value })), default: "a" },
 });
 
 const definition = () =>
@@ -24,6 +24,7 @@ const definition = () =>
     type_id: entity_type_id,
     schema_version: 1,
     type_version: 1,
+    identifier_kinds: identifierKindsFixture(),
     type: { id: entity_type_id, label: "재료", icon_id: "leaf", archived: false },
   });
 
@@ -119,7 +120,6 @@ Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기
           },
           get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
           target: () => Promise.resolve(null),
-          getTypeIdentity: () => Promise.resolve(identityFixture(entity_type_id)),
           definition,
           update: () => Promise.reject(new Error("읽기 전용")),
           recordTags: () => Promise.resolve([]),
@@ -132,21 +132,21 @@ Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기
     input: {
       entity_type_id,
       schema_version: 1,
-      properties: { prop_1: "새 대상" },
-      external_id: "001",
-      expected_version: 2,
+      properties: { prop_2: "00000000-0000-4000-8000-000000000001:001", prop_1: "새 대상" },
       change_note: "입력 기록",
       change_tag_ids: [],
     },
   });
   assertEquals(prepared.prepared_input, {
-    source: "app",
-    identity_version: 1,
-    external_id: "001",
     entity_type_id,
     schema_version: 1,
-    properties: { prop_1: "새 대상", prop_2: null, prop_3: null, prop_4: "a" },
-    expected_version: 2,
+    properties: {
+      prop_2: "00000000-0000-4000-8000-000000000001:001",
+      prop_1: "새 대상",
+      prop_3: null,
+      prop_4: null,
+      prop_5: "a",
+    },
     change_note: "입력 기록",
     change_tag_ids: [],
   });
@@ -235,7 +235,7 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
                   entity_types: {
                     [entity_type_id]: {
                       restore: {
-                        memo: "${엔터티.이전.prop_2$} → ${엔터티.이후.prop_2$} / ${엔터티.이후.식별자$}",
+                        memo: "${엔터티.이전.prop_3$} → ${엔터티.이후.prop_3$} / ${엔터티.이후.식별자$}",
                         tag_ids: [],
                       },
                     },
@@ -245,18 +245,21 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
             }),
           update: () => Promise.reject(new Error("읽기만")),
           recordTags: () => Promise.resolve([]),
-          getTypeIdentity: () => Promise.resolve(identityFixture(entity_type_id)),
           definition,
           target: () =>
             Promise.resolve({
               version: 3,
               deleted_at: "2026-10-09T00:00:00Z",
               facts: {
-                source: "app",
-                external_id: "001",
                 entity_type_id,
                 schema_version: 1,
-                properties: { prop_1: "보관값", prop_2: 0, prop_3: null, prop_4: "a" },
+                properties: {
+                  prop_2: "00000000-0000-4000-8000-000000000001:001",
+                  prop_1: "보관값",
+                  prop_3: 0,
+                  prop_4: null,
+                  prop_5: "a",
+                },
                 tag_ids: [],
               },
             }),
@@ -266,17 +269,13 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
   const prepared = await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
     model: "entity",
     action: "restore",
-    target_id: `app:${entity_type_id}:001`,
+    target_id: `${entity_type_id}:00000000-0000-4000-8000-000000000001:001`,
     expected_version: 3,
-    input: { entity_type_id, schema_version: 1, properties: {} },
+    input: { schema_version: 1, properties: {} },
   });
   assertEquals(prepared.change_note, "0 → 0 / 001");
   assertEquals(prepared.prepared_input, {
-    source: "app",
-    external_id: "001",
     expected_version: 3,
-    identity_version: 1,
-    entity_type_id,
     schema_version: 1,
     properties: {},
   });

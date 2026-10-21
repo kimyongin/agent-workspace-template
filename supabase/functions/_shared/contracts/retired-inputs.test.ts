@@ -5,7 +5,7 @@ import { recordTemplates } from "./record-template.ts";
 import { prepareRecordMemo } from "./record-preparation.ts";
 import { searchInput } from "./search.ts";
 
-const entity = "app:00000000-0000-4000-8000-000000000001:001";
+const entity = "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:001";
 
 Deno.test("task associations remain optional and multiple; record parents cannot be submitted or moved", () => {
   const task = { body: "대상 선택", title: "계획", kind: "once" };

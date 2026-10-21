@@ -7,12 +7,21 @@ Deno.test("single document preserves metadata and nullable choice annotations", 
       "x-type-id": "11111111-1111-4111-8111-111111111111",
       "x-version": 1,
       "x-title-template": "$prop_1$",
+      "x-identity-property": "prop_3",
       title: "자료",
       "x-icon": "box",
       deprecated: false,
       type: "object",
       additionalProperties: false,
       properties: {
+        prop_3: {
+          type: "string",
+          "x-order": 30,
+          "x-identifier": {
+            allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
+            default_kind_id: "00000000-0000-4000-8000-000000000001",
+          },
+        },
         prop_1: { type: "string", minLength: 1, "x-order": 10 },
         prop_2: {
           type: ["string", "null"],
@@ -20,11 +29,18 @@ Deno.test("single document preserves metadata and nullable choice annotations", 
           oneOf: [{ const: "a", title: "첫째" }, { const: null, title: "없음" }],
         },
       },
-      required: ["prop_1"],
+      required: ["prop_1", "prop_3"],
     },
   };
   assertEquals<unknown>(validateEntityDefinition(definition), definition);
-  assertEquals(validateEntityProperties(definition, { prop_1: "이름", prop_2: null }).prop_2, null);
+  assertEquals(
+    validateEntityProperties(definition, {
+      prop_1: "이름",
+      prop_2: null,
+      prop_3: "00000000-0000-4000-8000-000000000001:001",
+    }).prop_2,
+    null,
+  );
   assertThrows(() => validateEntityDefinition({ ...definition, display: {} }));
 });
 
@@ -58,6 +74,12 @@ Deno.test("published identifier fields retain allowed kinds and one required ide
 
 Deno.test("published identifier definitions reject a missing or optional selected identity", () => {
   const definition = initialEntityDefinition("이름");
+  const withoutIdentifiers = structuredClone(definition);
+  delete withoutIdentifiers.schema["x-identity-property"];
+  delete withoutIdentifiers.schema.properties.prop_2["x-identifier"];
+  assertThrows(() => validateEntityDefinition(withoutIdentifiers));
+  delete definition.schema["x-identity-property"];
+  definition.schema.required = ["prop_1"];
   definition.schema.properties.prop_2 = {
     type: "string",
     "x-order": 20,
@@ -118,14 +140,14 @@ Deno.test("metadata changes publish while equivalent boolean annotations and req
 import { checkedProperties, type EntityDefinition } from "../entity/values.ts";
 Deno.test("readOnly creation defaults and immutable values remain independent of deprecated fields", () => {
   const definition = initialEntityDefinition("이름");
-  definition.schema.properties.prop_2 = {
+  definition.schema.properties.prop_3 = {
     type: "number",
-    "x-order": 20,
+    "x-order": 30,
     readOnly: true,
     default: 0.3,
     multipleOf: 0.1,
   };
-  definition.schema.required.push("prop_2");
+  definition.schema.required.push("prop_3");
   const saved = {
     ...definition,
     type_id: definition.schema["x-type-id"],
@@ -133,16 +155,38 @@ Deno.test("readOnly creation defaults and immutable values remain independent of
     type_version: 1,
     type: { id: definition.schema["x-type-id"], label: "이름", icon_id: "box", archived: false },
   } as EntityDefinition;
-  assertEquals(checkedProperties(saved, { prop_1: "이름" }, { prop_1: "이름" }, true), { prop_1: "이름", prop_2: 0.3 });
-  assertThrows(() => checkedProperties(saved, { prop_1: "이름", prop_2: 0.3 }, { prop_2: 0.3 }, true));
   assertEquals(
-    checkedProperties(saved, { prop_1: "이름", prop_2: 0.3 }, { prop_2: 0.3 }, false, { prop_2: 0.3 }).prop_2,
+    checkedProperties(saved, { prop_2: "00000000-0000-4000-8000-000000000001:001", prop_1: "이름" }, {
+      prop_2: "00000000-0000-4000-8000-000000000001:001",
+      prop_1: "이름",
+    }, true),
+    { prop_2: "00000000-0000-4000-8000-000000000001:001", prop_1: "이름", prop_3: 0.3 },
+  );
+  assertThrows(() =>
+    checkedProperties(saved, { prop_2: "00000000-0000-4000-8000-000000000001:001", prop_1: "이름", prop_3: 0.3 }, {
+      prop_3: 0.3,
+    }, true)
+  );
+  assertEquals(
+    checkedProperties(
+      saved,
+      { prop_2: "00000000-0000-4000-8000-000000000001:001", prop_1: "이름", prop_3: 0.3 },
+      { prop_3: 0.3 },
+      false,
+      { prop_3: 0.3 },
+    ).prop_3,
     0.3,
   );
   assertThrows(() =>
-    checkedProperties(saved, { prop_1: "이름", prop_2: 0.4 }, { prop_2: 0.4 }, false, { prop_2: 0.3 })
+    checkedProperties(
+      saved,
+      { prop_2: "00000000-0000-4000-8000-000000000001:001", prop_1: "이름", prop_3: 0.4 },
+      { prop_3: 0.4 },
+      false,
+      { prop_3: 0.3 },
+    )
   );
-  delete definition.schema.properties.prop_2.default;
+  delete definition.schema.properties.prop_3.default;
   assertThrows(() => validateEntityDefinition(definition));
 });
 

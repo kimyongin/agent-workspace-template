@@ -19,7 +19,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "list_entities",
       description:
-        "내 자료 목록. entity_type_id로 자료 종류를 선택한다. keyword는 현재 템플릿 제목·발급처·식별자 부분 일치. sort는 updated_at 내림차순 또는 title 오름차순. 목록은 계산된 title을 포함하며 편집 전 get_entity로 전체 properties를 읽는다. 커서는 같은 조건에만 사용.",
+        "내 자료 목록. entity_type_id로 자료 종류를 선택한다. keyword는 현재 템플릿 제목·식별자 원본 부분 일치. sort는 updated_at 내림차순 또는 title 오름차순. 목록은 계산된 title을 포함하며 편집 전 get_entity로 전체 properties를 읽는다. 커서는 같은 조건에만 사용.",
       input: entityListQuery,
       readOnly: true,
       handler: (i, a) => entity.listEntities(d, a, parse(entityListQuery, i)),
@@ -65,7 +65,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "update_entity",
       description:
-        "현재 schema_version/expected_version으로 properties 부분 수정. 생략한 키는 유지하고 명시 null은 스키마가 허용할 때 저장한다. 자료 종류·발급처·번호는 변경할 수 없다. schema_changed이면 초안을 유지하고 현재 정의를 확인한다.",
+        "현재 schema_version/expected_version으로 properties 부분 수정. 생략한 키는 유지하고 명시 null은 스키마가 허용할 때 저장한다. 자료 종류·선택된 자료 식별자는 변경할 수 없다. 일반 식별자의 명시 자동 발급은 generate_identifiers로 요청한다. schema_changed이면 초안을 유지하고 현재 정의를 확인한다.",
       input: entityUpdate.extend({ id }),
       readOnly: false,
       handler: (i, a) => {
@@ -79,7 +79,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "delete_entity",
       description:
-        "자료 소프트 삭제. 속성·태그·할 일/기록 연결은 보존하고 활성 후보에서 제외한다. 같은 조합·현재 버전으로 등록하면 복원한다.",
+        "자료 소프트 삭제. 속성·태그·할 일/기록 연결은 보존하고 활성 후보에서 제외한다. 서버가 반환한 ID·현재 버전으로 restore_entity를 호출해 명시 복원한다.",
       input: z.strictObject({ id, expected_version: expectedVersion, ...businessMeta }),
       readOnly: false,
       destructive: true,

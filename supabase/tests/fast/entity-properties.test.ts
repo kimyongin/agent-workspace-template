@@ -1,4 +1,4 @@
-import { identityFixture } from "../_entity-identity.ts";
+import { identifierKindsFixture } from "../_entity-identity.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   createEntity,
@@ -18,7 +18,7 @@ import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
 Deno.test("Typed entity usecase validates the final patch, uses defaults only at creation and preserves stored type", async () => {
   const typeId = crypto.randomUUID();
   const definition = initialEntityDefinition("이름");
-  definition.schema.properties.prop_2 = { "x-order": 20, type: ["integer", "null"], default: 7 };
+  definition.schema.properties.prop_3 = { "x-order": 30, type: ["integer", "null"], default: 7 };
   const state: { row: EntityValues | null } = { row: null };
   const store = {
     executeRequest: (_: unknown, run: () => unknown) => run(),
@@ -28,16 +28,16 @@ Deno.test("Typed entity usecase validates the final patch, uses defaults only at
         type_id: typeId,
         schema_version: 1,
         type_version: 1,
+        identifier_kinds: identifierKindsFixture(),
         type: { id: typeId, label: "재료", icon_id: "leaf", archived: false },
       }),
-    getTypeIdentity: () => Promise.resolve(identityFixture(typeId)),
     get: () => Promise.resolve(state.row),
     insert: (i: Parameters<EntityStore["insert"]>[0]) =>
       Promise.resolve(
         state.row = {
           ...i,
           tag_ids: [],
-          source_label: i.source,
+          identity_label: "앱 · 자동 발급",
           type: { id: typeId, label: "재료", icon_id: "leaf", archived: false },
           created_at: "2026-10-12T00:00:00Z",
           updated_at: "2026-10-12T00:00:00Z",
@@ -57,22 +57,29 @@ Deno.test("Typed entity usecase validates the final patch, uses defaults only at
   await createEntity(deps, actor, {
     entity_type_id: typeId,
     schema_version: 1,
-    properties: { prop_1: "재료" },
-    external_id: "한글/%",
+    properties: { prop_1: "재료", prop_2: "00000000-0000-4000-8000-000000000001:한글/%" },
   });
-  assertEquals(state.row!.properties, { prop_1: "재료", prop_2: 7 });
+  assertEquals(state.row!.properties, {
+    prop_1: "재료",
+    prop_2: "00000000-0000-4000-8000-000000000001:한글/%",
+    prop_3: 7,
+  });
   await updateEntity(deps, actor, state.row!.id, {
     schema_version: 1,
     expected_version: 1,
-    properties: { prop_2: null },
+    properties: { prop_3: null },
   });
-  assertEquals(state.row!.properties, { prop_1: "재료", prop_2: null });
+  assertEquals(state.row!.properties, {
+    prop_1: "재료",
+    prop_2: "00000000-0000-4000-8000-000000000001:한글/%",
+    prop_3: null,
+  });
   const error = await assertRejects(
     () =>
-      updateEntity(deps, actor, state.row!.id, { schema_version: 1, expected_version: 2, properties: { prop_2: 1.5 } }),
+      updateEntity(deps, actor, state.row!.id, { schema_version: 1, expected_version: 2, properties: { prop_3: 1.5 } }),
     AppError,
   );
-  assertEquals(error.fields?.[0].path, "properties.prop_2");
+  assertEquals(error.fields?.[0].path, "properties.prop_3");
   assertEquals(state.row!.version, 2);
   for (const value of ["bad\u0000text", "bad\uD800text", "bad\uDC00text"]) {
     const storageError = await assertRejects(

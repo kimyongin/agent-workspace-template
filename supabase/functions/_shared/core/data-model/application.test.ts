@@ -112,9 +112,9 @@ Deno.test("whole model accepts a valid multi-kind bundle larger than the retired
     t.ref = `kind_${n}`;
     t.schema["x-type-id"] = `60000000-0000-4000-8000-${String(n + 1).padStart(12, "0")}`;
     t.schema.title = `종류 ${n}`;
-    t.schema.properties.prop_2 = {
+    t.schema.properties.prop_3 = {
       type: "string",
-      "x-order": 20,
+      "x-order": 30,
       examples: Array.from({ length: 45 }, () => "x".repeat(4096)),
     };
     return t;
@@ -256,19 +256,19 @@ Deno.test("referenced per-kind identity sources cannot be removed or rebound dur
 Deno.test("whole model exchange retains selected text annotations on stable properties", async () => {
   const doc = example();
   doc.entity_types[0].schema.properties.prop_1["x-search-text"] = true;
-  doc.entity_types[0].schema.properties.prop_2 = {
+  doc.entity_types[0].schema.properties.prop_3 = {
     type: ["string", "null"],
-    "x-order": 20,
+    "x-order": 30,
     title: "설명",
     "x-search-text": false,
   };
   const first = await resolveModel({ document: empty as DataModelDocument, types: {} }, doc, "update", actor.userId);
   const schema = first.target.entity_types[0].schema;
   assertEquals(schema.properties.prop_1["x-search-text"], true);
-  assertEquals(schema.properties.prop_2["x-search-text"], false);
+  assertEquals(schema.properties.prop_3["x-search-text"], false);
   const imported = parseModel(JSON.stringify(first.target));
   imported.entity_types[0].schema.properties.prop_1.title = "새 이름";
-  const types = { [schema["x-type-id"]]: { next_property_number: 3, count: 0, locked: false } };
+  const types = { [schema["x-type-id"]]: { next_property_number: 4, count: 0, locked: false } };
   const second = await resolveModel({ document: first.target, types }, imported, "update", actor.userId);
   assertEquals(second.target.entity_types[0].schema.properties.prop_1["x-search-text"], true);
   assertEquals(second.target.entity_types[0].schema.properties.prop_1.title, "새 이름");
@@ -278,11 +278,16 @@ Deno.test("whole model exchange retains selected text annotations on stable prop
 Deno.test("model copy remaps composed title variables with property keys while preserving literals", async () => {
   const d = example();
   const schema = d.entity_types[0].schema;
-  schema.properties = { prop_7: schema.properties.prop_1, prop_9: { type: "number", "x-order": 20 } };
-  schema.required = ["prop_7"];
+  schema.properties = {
+    prop_7: schema.properties.prop_1,
+    prop_8: schema.properties.prop_2,
+    prop_9: { type: "number", "x-order": 30 },
+  };
+  schema.required = ["prop_7", "prop_8"];
+  schema["x-identity-property"] = "prop_8";
   schema["x-title-template"] = "$prop_9$ / ${prop_7$} $$";
   const r = await previewDataModel(deps, actor, { mode: "copy", document: JSON.stringify(d) });
   const copied = r.items.find((i) => i.ref === "ingredient")!.schema!;
-  assertEquals(copied["x-title-template"], "$prop_2$ / $prop_1$ $$");
-  assertEquals(Object.keys(copied.properties), ["prop_1", "prop_2"]);
+  assertEquals(copied["x-title-template"], "$prop_3$ / $prop_1$ $$");
+  assertEquals(Object.keys(copied.properties), ["prop_1", "prop_2", "prop_3"]);
 });

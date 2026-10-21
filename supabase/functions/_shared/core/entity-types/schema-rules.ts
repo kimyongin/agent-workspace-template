@@ -82,9 +82,6 @@ function typeOf(f: EntityField) {
 function validateIdentifierDefinition(schema: EntitySchemaVersion["schema"]) {
   const fields = Object.entries(schema.properties).filter(([, field]) => field["x-identifier"]);
   const identity = schema["x-identity-property"];
-  // The expand phase can still read existing definitions; identifier definitions
-  // themselves never publish an incomplete selected identity.
-  if (!fields.length && identity === undefined) return;
   const selected = identity && schema.properties[identity];
   if (
     !identity || !selected || !selected["x-identifier"] || selected.type !== "string" || selected.deprecated ||
