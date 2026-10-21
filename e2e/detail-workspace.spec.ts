@@ -1446,7 +1446,7 @@ test("record responsive parity: panel resize and 200% text enlargement keep the 
 });
 
 
-test("review: readonly entity representative keeps the full-width emphasized value in edit", async ({ page }, info) => {
+test("review: readonly entity property uses an ordinary key-value pair beside the computed title preview", async ({ page }, info) => {
   const state = await fixture(page);
   const schema = structuredClone(fixtureSchema);
   schema.schema.properties.prop_1.readOnly = true;

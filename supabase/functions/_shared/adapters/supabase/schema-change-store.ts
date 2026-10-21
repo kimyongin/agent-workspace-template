@@ -582,7 +582,10 @@ function retainedSchemaEdits(row: postgres.Row): SchemaEdit[] {
   const target = normalizeStoredEntityDefinition(row.target, row.type_id, Number(row.source_schema_version) + 1);
   if (
     !(row.edits as Array<{ op: string }>).some((e) => e.op === "set_display") &&
-    !(row.target as { display?: unknown }).display
+    !(row.target as { display?: unknown }).display &&
+    !Object.values(row.target.schema.properties as Record<string, Record<string, unknown>>).some((field) =>
+      ["x-representative", "x-show-in-list", "x-list-order"].some((key) => Object.hasOwn(field, key))
+    )
   ) return row.edits;
   const edits: SchemaEdit[] = [];
   for (const edit of row.edits as Array<SchemaEdit | { op: "set_display" }>) {

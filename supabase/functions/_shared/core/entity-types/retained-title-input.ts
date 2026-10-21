@@ -4,7 +4,7 @@ import { ownStringDictionary } from "../../contracts/option-labels.ts";
 import { z } from "zod";
 import { propertyKey } from "../../contracts/entity-type.ts";
 const scalar = z.enum(["string", "integer", "number", "boolean"]);
-export const entityFieldInput = z.strictObject({
+const entityFieldInput = z.strictObject({
   type: z.union([scalar, z.array(z.union([scalar, z.literal("null")])).min(2).max(2)]),
   title: z.string().max(80).optional(),
   description: z.string().max(1000).optional(),
@@ -30,7 +30,7 @@ export const entityFieldInput = z.strictObject({
 // new_<client_ref> is valid in display/conversion input alongside its add_property.
 // Published definitions and all other property-key contracts remain prop_n only.
 const propertyInputReference = z.union([propertyKey, z.string().startsWith("new_").min(5).max(84)]);
-export const entitySchemaEdit = z.discriminatedUnion("op", [
+const entitySchemaEdit = z.discriminatedUnion("op", [
   z.strictObject({
     op: z.literal("add_property"),
     client_ref: z.string().min(1).max(80).refine(
@@ -62,7 +62,7 @@ export const entitySchemaEdit = z.discriminatedUnion("op", [
   }),
 ]);
 const literal = z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()]);
-export const migrationRule = z.discriminatedUnion("op", [
+const migrationRule = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("convert"), key: propertyKey, to: z.enum(["string", "integer", "number", "date"]) }),
   z.strictObject({
     op: z.literal("map"),
@@ -74,20 +74,10 @@ export const migrationRule = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("remove"), key: propertyKey }),
   z.strictObject({ op: z.literal("replace_failure"), key: propertyKey, value: literal }),
 ]);
-export const migrationOverride = z.strictObject({
+const migrationOverride = z.strictObject({
   entity_id: entityReferenceId,
   key: propertyKey,
   value: literal,
-});
-export const migrationPlan = z.strictObject({
-  rules: z.array(migrationRule).max(128).default([]),
-  overrides: z.array(migrationOverride).max(2000).default([]),
-});
-export const schemaAnalysisRows = z.strictObject({
-  analysis_id: z.string().uuid(),
-  limit: z.number().int().min(1).max(100).default(20),
-  after: entityReferenceId.optional(),
-  failures_only: z.boolean().default(false),
 });
 const migrationInput = z.strictObject({
   rules: z.array(z.discriminatedUnion("op", [
@@ -105,13 +95,6 @@ export const schemaChangeCreate = z.strictObject({
   migration: migrationInput.default({ rules: [], overrides: [] }),
 });
 export const schemaChangeUpdate = schemaChangeCreate.extend({ expected_change_version: z.number().int().positive() });
-export const schemaChangeAction = z.strictObject({ expected_change_version: z.number().int().positive() });
-export const schemaChangeApply = schemaChangeAction.extend({ analysis_id: z.string().uuid() });
-export const schemaChangeList = z.strictObject({
-  limit: z.number().int().min(1).max(100).default(20),
-  before: z.string().uuid().optional(),
-});
-
 const safeText = (v: string) =>
   !v.includes("\u0000") && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(v);
 export const retainedTitleTypeCreate = z.strictObject({

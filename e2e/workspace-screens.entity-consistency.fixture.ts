@@ -140,7 +140,7 @@ test("schema retry preserves property input after a conflict", async ({ page }) 
   expect(state.writes).toHaveLength(0);
 });
 
-test("nonrepresentative false, null and archived properties remain readable", async ({ page }) => {
+test("false, null and archived property values remain readable beside the computed title", async ({ page }) => {
   const state = await fixtures(page);
   const schema = structuredClone(fixtureSchema);
   schema.schema.properties.prop_5 = { "x-order": 50, type: "boolean", title: "판매 중" };
