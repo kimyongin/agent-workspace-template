@@ -267,16 +267,6 @@ test("one whole-model file configures two new kinds and their typed relationship
             title: productName,
             icon: "package",
           }).schema,
-          identity: {
-            label: "번호",
-            default_source: "app",
-            version: 1,
-            sources: [{
-              code: "app",
-              rule_id: APP_IDENTIFIER_RULE_ID,
-              active: true,
-            }],
-          },
         },
         {
           ref: "orders",
@@ -285,16 +275,6 @@ test("one whole-model file configures two new kinds and their typed relationship
             title: orderName,
             icon: "box",
           }).schema,
-          identity: {
-            label: "번호",
-            default_source: "app",
-            version: 1,
-            sources: [{
-              code: "app",
-              rule_id: APP_IDENTIFIER_RULE_ID,
-              active: true,
-            }],
-          },
         },
       ],
       relations: [{
