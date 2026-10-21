@@ -152,11 +152,12 @@ for (
       await page.keyboard.press("Enter");
       expect(requests).toHaveLength(3);
       await page.unroute(`**/api/${path}?**`);
-      let link = page.getByRole("button", { name: title, exact: true });
-      await link.scrollIntoViewIfNeeded();
-      await link.focus();
+      let link = page.getByRole("link", { name: `${title} 상세`, exact: true });
+      const toggle = page.getByRole("button", { name: title, exact: true });
+      await toggle.scrollIntoViewIfNeeded();
+      await toggle.focus();
       await page.keyboard.press("Enter");
-      await expect(link).toHaveAttribute("aria-expanded","true");
+      await expect(toggle).toHaveAttribute("aria-expanded","true");
       await openListDetail(page,title);
       await expect(page.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
       const view=detailDialog(page);
@@ -199,7 +200,7 @@ for (
       if(kind==="task")await fillChangeMemo(page,dialog,"판단 근거 정정");
       await saveOnce(page, dialog);
       await expect(dialog).not.toBeVisible();
-      if(kind==="record")link=page.getByRole("button",{name:"수정한 근거",exact:true});
+      if(kind==="record")link=page.getByRole("link",{name:"수정한 근거 상세",exact:true});
       await page.getByRole("button", { name: "닫기", exact: true }).click();
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
@@ -220,7 +221,7 @@ for (
       // without changing its content or immutable record parent.
       const leaving = await create(unique("연결 조건 이탈"));
       await page.goto(listPath);
-      const leavingLink = page.getByRole("button", { name: kind === "record" ? leaving.body : leaving.title, exact: true });
+      const leavingLink = page.getByRole("link", { name: `${kind === "record" ? leaving.body : leaving.title} 상세`, exact: true });
       await openListDetail(page,await leavingLink.innerText());
       await mcp.call("set_tag_connections", {target_kind:kind,target_id:leaving.id,expected_version:leaving.version,tag_ids:[]});
       await page.goBack();

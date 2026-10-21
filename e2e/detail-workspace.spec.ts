@@ -548,7 +548,7 @@ test("desktop: list position survives panel hide, reopen and last close", async 
   await page.getByRole("button", { name: "상세 패널 숨기기" }).click(); await expect.poll(() => page.getByRole("main").evaluate(element => element.scrollTop)).toBe(750);
   await page.getByRole("button", { name: "상세 탭 보기 (1개)" }).click(); await expect.poll(() => list.evaluate(el => el.scrollTop)).toBe(750);
   await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).click(); await expect.poll(() => page.getByRole("main").evaluate(element => element.scrollTop)).toBe(750);
-  const origin = list.getByRole("button", { name: "등심", exact: true });
+  const origin = list.getByRole("link", { name: "등심 상세", exact: true });
   await expect(origin).toBeFocused(); expect(await origin.evaluate(element => element.tabIndex)).toBe(0); expect(state.errors).toEqual([]);
 });
 
@@ -861,7 +861,7 @@ test("desktop: entity list focus round trips a Unicode and percent identity thro
   Object.assign(state.rows.entities[0],{id:canonical,source:"crm",external_id:external,source_label:"고객 관리"});
   await page.goto(fixtureWorkspacePath("/entities"));await openEntity(page);
   await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();
-  const target=baseWorkspace(page).getByRole("button",{name:"등심",exact:true});
+  const target=baseWorkspace(page).getByRole("link",{name:"등심 상세",exact:true});
   await expect(target).toBeFocused();expect(await target.evaluate(element=>element.tabIndex)).toBe(0);expect(new URL(page.url()).hash).toBe(`#${encodeURIComponent(`entity-${canonical}`)}`);
   await page.reload();await expect(target).toBeFocused();expect(state.errors).toEqual([]);
 });

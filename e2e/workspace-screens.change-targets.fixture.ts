@@ -120,7 +120,7 @@ for (const [kind, route, n] of targetCases) {
         expect(state.errors).toEqual([]);
         return;
       }
-      await expect(target.getByRole("button", { name: change.target_title, exact: true })).toContainText(change.target_title);
+      await expect(target.getByText(change.target_title, { exact: true })).toHaveCount(1);
       const link = target.getByRole("button", { name: change.target_title, exact: true });
       if (outcome === "exists") await expect(link).toHaveAttribute("aria-expanded", "false");
       else if (outcome === "failed") {

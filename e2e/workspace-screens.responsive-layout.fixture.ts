@@ -134,7 +134,7 @@ for (const width of [390, 1440]) {
     expect(titleBox.y).toBeGreaterThanOrEqual(searchBox.y + searchBox.height);
     expect(titleBox.x).toBeGreaterThanOrEqual(12);
     expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(width - 12);
-    await expect(bottom.getByRole("link", { name: "자료 상세", exact: true })).toHaveCount(0);
+    await expect(bottom.getByRole("link", { name: "자료 상세", exact: true })).toHaveText("자료");
     await openListEditor(page, "자료");
     await expect(form(page).getByLabel("제목", { exact: false })).toHaveValue("자료");
     await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toHaveCount(0);

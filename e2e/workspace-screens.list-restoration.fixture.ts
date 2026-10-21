@@ -149,7 +149,7 @@ test("#203 긴 펼침 GET 뒤에 목록 scroll·초점을 복원", async ({ page
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   release();
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(scroll);
-  await expect(toggle).toBeFocused();
+  await expect(page.getByRole("link", { name: "할 일 상세", exact: true })).toBeFocused();
   expect(state.errors).toEqual([]);
   expect(state.writes).toHaveLength(0);
 });
@@ -580,7 +580,8 @@ for (const outcome of ["success", "failed"] as const) {
       await expect(preview.getByRole("status")).toHaveText("불러오는 중…");
       // Flush the restoration animation frame while the actual preview read remains gated.
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-      await expect(toggle).not.toBeFocused();
+      const anchor = page.locator(`[id=${JSON.stringify(await preview.getAttribute("aria-labelledby"))}]`);
+      await expect(anchor).not.toBeFocused();
       release();
       if (outcome === "success") {
         await expect(preview.getByRole("term").filter({ hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(target.external_id);
@@ -589,8 +590,8 @@ for (const outcome of ["success", "failed"] as const) {
         await expect(preview.getByRole("alert")).toHaveText("내용을 불러오지 못했습니다.");
         await expect(preview.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
       }
-      await expect(toggle).toBeFocused();
-      await expect(toggle).toBeInViewport();
+      await expect(anchor).toBeFocused();
+      await expect(anchor).toBeInViewport();
       expect(state.writes).toHaveLength(0);
       expect(state.errors).toEqual([]);
     } finally {

@@ -93,7 +93,7 @@ for (const kind of ["entities", "tasks", "records"] as const) {
     await form(page).getByRole("button", { name: "닫기", exact: true }).click();
     const toggle = page.getByRole("button", { name: "저장한 새 내용", exact: true });
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(toggle).toBeFocused();
+    await expect(page.getByRole("link", { name: "저장한 새 내용 상세", exact: true })).toBeFocused();
     expect(state.writes).toHaveLength(1);
     expect(state.errors).toEqual([]);
   });
@@ -110,11 +110,10 @@ for (const width of [320, 1440]) {
     const view = form(page).getByRole("link", { name: "할 일 상세", exact: true });
     await expect(form(page).getByRole("link", { name: "할 일 편집", exact: true })).toHaveCount(0);
     const viewBox = (await view.boundingBox())!,
-      chevronBox = (await form(page).getByRole("button", { name: "할 일 접기", exact: true }).boundingBox())!;
-    const titleBox = (await toggle.boundingBox())!;
+      chevronBox = (await toggle.boundingBox())!;
+    const titleBox = (await view.boundingBox())!;
     expect(chevronBox.x + chevronBox.width).toBeLessThanOrEqual(titleBox.x);
-    expect(viewBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
-    expect((await view.locator("..").boundingBox())!.x).toBeCloseTo(titleBox.x, 0);
+    expect(viewBox.y).toBeCloseTo(chevronBox.y, 0);
     await view.click();
     await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
     await expect(openDialogs(page)).toHaveCount(1);
@@ -425,8 +424,8 @@ for (const [kind, title] of [["entities", "자료"], ["tasks", "할 일"], ["rec
   test(`${kind}: 제목은 보기, 편집 저장은 보기와 목록 초점으로 복귀`, async ({ page }, info) => {
     const state = await fixtures(page);
     await go(page, `/${kind}`);
-    await expect(page.getByRole("link", { name: `${title} 상세`, exact: true })).toHaveCount(0);
-    await openListDetail(page, title);
+    await expect(page.getByRole("link", { name: `${title} 상세`, exact: true })).toHaveText(title);
+    await page.getByRole("link", { name: `${title} 상세`, exact: true }).click();
     await expect(form(page).getByRole("textbox")).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
     await page.screenshot({ path: info.outputPath(`${kind}-read.png`) });
@@ -443,7 +442,7 @@ for (const [kind, title] of [["entities", "자료"], ["tasks", "할 일"], ["rec
       .toBeVisible();
     await expect(form(page).getByRole("textbox")).toHaveCount(0);
     await form(page).getByRole("button", { name: "닫기", exact: true }).click();
-    await expect(page.getByRole("button", { name: "수정한 제목", exact: true })).toBeFocused();
+    await expect(page.getByRole("link", { name: "수정한 제목 상세", exact: true })).toBeFocused();
     expect(state.writes.filter((w) => w.method === "PATCH")).toHaveLength(1);
     expect(state.errors).toEqual([]);
   });
@@ -457,16 +456,15 @@ for (
       const state = await fixtures(page);
       await page.setViewportSize({ width, height: 900 });
       await go(page, `/${kind}`);
-      await expect(page.getByRole("link", { name: title + " 상세", exact: true })).toHaveCount(0);
-      const titleLink = page.getByRole("button", { name: title, exact: true }),
+      await expect(page.getByRole("link", { name: title + " 상세", exact: true })).toHaveText(title);
+      const titleLink = page.getByRole("link", { name: title + " 상세", exact: true }),
         row = businessRows(page.getByRole("table")).filter({ has: page.getByRole("button", { name: title, exact: true }) }).first();
       const t = (await titleLink.boundingBox())!, r = (await row.boundingBox())!;
       expect(t.width).toBeLessThan(r.width - 40);
       await row.click({ position: { x: 4, y: 4 } });
       await expect(form(page)).toHaveCount(0);
-      await expect(titleLink).toHaveAttribute("aria-expanded", "false");
+      await expect(row.getByRole("button", { name: title, exact: true })).toHaveAttribute("aria-expanded", "false");
       await titleLink.click();
-      await page.getByRole("link", { name: title + " 상세", exact: true }).click();
       await expect(form(page)).toHaveCount(1);
       await form(page).evaluate((el) => el.setAttribute("data-same-dialog", "yes"));
       await openDetailEditor(page);

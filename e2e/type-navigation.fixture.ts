@@ -1379,7 +1379,7 @@ for (const width of [320, 1440]) {
     failIssues = false;
     await page.getByRole("button", { name: "다시 시도", exact: true }).click();
     const summary = page.getByRole("region", { name: "색인 문제 목록", exact: true })
-      .getByRole("button", { name: /^긴 제목/ });
+      .getByRole("button", { name: /^(열기|접기): 긴 제목/ });
     await expect(summary).toBeVisible();
     await summary.press("Enter");
     await expect(summary).toHaveAttribute("aria-expanded", "true");

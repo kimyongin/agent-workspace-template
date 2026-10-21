@@ -83,7 +83,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
   anchored.hash = fragment.toString();
   await page.goto(fixtureWorkspacePath("/tasks"));
   expect((await page.goto(anchored.href))?.status()).toBe(200);
-  await expect(page.getByRole("button", { name: "필터 검사", exact: true })).toBeFocused();
+  await expect(page.getByRole("link", { name: "필터 검사 상세", exact: true })).toBeFocused();
   const ambiguous = new URL(copied);
   ambiguous.searchParams.set("property_filters", "[]");
   await page.goto(ambiguous.href);
@@ -191,7 +191,7 @@ test("long filter survives detail edit/task modes and rejected record intent and
   await closeDetail(page, "모드 검사");
   await expect.poll(() => new URL(page.url()).pathname).toBe(fixtureWorkspacePath("/entities"));
   expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("entity_type_id")).toBe(fixtureType.id);
-  await expect(page.getByRole("button", { name: "모드 검사", exact: true })).toBeFocused();
+  await expect(page.getByRole("link", { name: "모드 검사 상세", exact: true })).toBeFocused();
   // Copied cross-kind visits can still disclose an entity list; editor modes must not append a second query marker.
   const taskVisit = new URL(fixtureWorkspacePath(`/tasks/${relatedTask.id}`), new URL(page.url()).origin);
   taskVisit.searchParams.set("list", `/entities?entity_type_id=${fixtureType.id}&keyword=보관`);
