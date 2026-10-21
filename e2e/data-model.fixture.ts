@@ -341,6 +341,12 @@ test("변경안 저장 성공 후 상세 실패는 저장 성공을 유지하고
 
 test("낡은 원본과 세 버전을 구분하고 누락 속성의 명시 확인을 변경안에만 보낸다", async ({ page }) => {
   let writes = 0;
+  const current = initialEntityDefinition("상품명").schema;
+  current["x-version"] = 3;
+  current.properties.prop_3 = { type: "number", title: "가격", "x-order": 30 };
+  const target = structuredClone(current);
+  target["x-version"] = 4;
+  delete target.properties.prop_3;
   await page.route("**/api/data-model/**", (route) => {
     const req = route.request(), path = new URL(req.url()).pathname;
     if (path.endsWith("/preview")) {
@@ -354,16 +360,16 @@ test("낡은 원본과 세 버전을 구분하고 누락 속성의 명시 확인
             current_schema_version: 3,
             target_schema_version: 4,
             source_is_stale: true,
-            removed_keys: ["prop_2"],
-            current_schema: { properties: { prop_2: { title: "가격" } } },
-            schema: { properties: {} },
+            removed_keys: ["prop_3"],
+            current_schema: current,
+            schema: target,
           }],
         },
       });
     }
     if (req.method() === "POST") {
       writes++;
-      expect(req.postDataJSON().remove_keys).toEqual({ order: ["prop_2"] });
+      expect(req.postDataJSON().remove_keys).toEqual({ order: ["prop_3"] });
       return route.fulfill({ json: created });
     }
     if (path.endsWith("/change-id")) return route.fulfill({ json: created });
@@ -512,7 +518,7 @@ test("요약 이력을 다시 열면 독립 상세를 읽어 저장한 전체 �
   expect(reads).toBe(1);
 });
 
-test("모델 검토의 번호 출처와 설정 차이는 읽기 전용 표로 전체 값을 제공한다", async ({ page }) => {
+test("모델 검토의 번호 출처와 설정 차이는 읽기 전용 표로 전체 값을 제공한다", async ({ page }, info) => {
   const before = initialEntityDefinition("상품명");
   before.schema.properties.prop_1.maxLength = 20;
   const after = structuredClone(before);
@@ -534,6 +540,7 @@ test("모델 검토의 번호 출처와 설정 차이는 읽기 전용 표로 �
   const previous = page.getByRole("table", { name: "입력 항목 정의 목록", exact: true }).nth(1);
   await expect(previous.getByRole("row", { name: "기존 판매 번호 정의", exact: true })).toContainText("기존 판매 규칙");
   await expect(previous.getByRole("row", { name: "기존 판매 번호 정의", exact: true })).toContainText("사용 중지");
+  await sources.screenshot({ path: info.outputPath("model-identifier-field-policies.png") });
   const differences = page.getByRole("table", { name: "모델 변경값 목록", exact: true });
   await expect(differences).toContainText("20 → 40");
   await expect(differences.locator("input,select,textarea")).toHaveCount(0);

@@ -29,14 +29,21 @@ Deno.test("schema identifier metadata respects settings readers, exact type read
     // Creating/configuring a kind gives no implicit business grant to its manager.
     const managerRead = await getEntitySchema(fixture.typeDeps, fixture.manager, { type_id: type.id });
     assertEquals(managerRead.identifier_kinds?.map((kind) => kind.id), [APP_IDENTIFIER_RULE_ID]);
+    assertEquals(
+      managerRead.identity_change_allowed,
+      false,
+      "settings authority cannot infer emptiness without type read",
+    );
     await fixture.grant(fixture.member, [{ target_kind: "settings", target_id: "*", access: "read" }]);
     const settingsRead = await getEntitySchema(fixture.typeDeps, fixture.member, { type_id: type.id });
     assertEquals(settingsRead.schema, managerRead.schema);
+    assertEquals(settingsRead.identity_change_allowed, false);
     assertEquals(settingsRead.identifier_kinds?.map((kind) => kind.id), [APP_IDENTIFIER_RULE_ID]);
     assertEquals(settingsRead.identifier_kinds?.some((kind) => kind.id === unrelated.id), false);
     await fixture.grant(fixture.member, [{ target_kind: "entity_type", target_id: type.id, access: "read" }]);
     const typeRead = await getEntitySchema(fixture.typeDeps, fixture.member, { type_id: type.id });
     assertEquals(typeRead.identifier_kinds, settingsRead.identifier_kinds);
+    assertEquals(typeRead.identity_change_allowed, true, "the explicitly readable kind is empty");
     assertEquals((await assertRejects(() => listEntityIssuers(issuers, fixture.member), AppError)).code, "forbidden");
     assertEquals(
       (await assertRejects(() => getEntitySchema(fixture.typeDeps, fixture.member, { type_id: hidden.id }), AppError))

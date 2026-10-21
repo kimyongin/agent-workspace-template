@@ -1,3 +1,4 @@
+import { analyzeDataModel } from "../../functions/_shared/core/data-model/groups.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { connect, dbTest, urls } from "./_db.ts";
 import { businessWorkspaceFixture } from "./_workspace-business.ts";
@@ -119,6 +120,20 @@ dbTest("whole model aborts a late identity reference without publishing earlier 
       )?.kind,
       "conflict",
     );
+    const conflicted = await prepareDataModel(deps, requestActor(a.manager), {
+      ...input,
+      preview_fingerprint: removal.fingerprint,
+    });
+    await assertRejects(() =>
+      analyzeDataModel(deps, requestActor(a.manager), conflicted.id, { expected_version: conflicted.version })
+    );
+    await runInWorkspace(sql, a.manager, {
+      mode: "business",
+      requirements: [{ target_kind: "settings", target_id: "*", access: "write" }],
+    }, async (tx) => {
+      await tx`select app.refresh_data_model_analysis(${conflicted.id}::uuid)`;
+    });
+    assertEquals((await getDataModelChange(deps, a.manager, conflicted.id)).review.can_apply, false);
     const replacement = structuredClone(original);
     const replacementType = replacement.entity_types.find((t) => t.schema["x-type-id"] === sku.schema["x-type-id"])!;
     const oldSource = replacementType.schema.properties[selected]["x-identifier"]!;
