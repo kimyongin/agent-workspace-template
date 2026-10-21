@@ -81,7 +81,7 @@ export function planEntityReset(manifest, inventory) {
       for (const row of related) if (!selection[table].includes(row)) selection[table].push(row);
     }
     for (const row of rows(inventory, "app.records").filter((r) => own(r) && r.task_id == null
-      && (r.entity_id === entity.id || r.target_kind === "entity" && r.target_id === entity.id))) {
+      && (r.entity_id === entity.id || r.change_metadata?.target_kind === "entity" && r.change_metadata?.target_id === entity.id))) {
       if (!selection["app.records"].includes(row)) selection["app.records"].push(row);
     }
   }
