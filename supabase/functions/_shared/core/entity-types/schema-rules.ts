@@ -44,6 +44,7 @@ const definition = z.strictObject({
     "x-type-id": z.string().uuid(),
     "x-version": z.number().int().positive().max(2147483647),
     "x-title-template": z.string(),
+    "x-identity-property": propertyKey.optional(),
     title: z.string().trim().min(1).max(80),
     description: z.string().max(1000).optional(),
     "x-icon": entityTypeIcon,
@@ -61,6 +62,8 @@ function validator() {
   for (
     const keyword of [
       "x-title-template",
+      "x-identity-property",
+      "x-identifier",
       "x-type-id",
       "x-version",
       "x-icon",
@@ -75,6 +78,29 @@ function fail(path: string, message: string): never {
 }
 function typeOf(f: EntityField) {
   return Array.isArray(f.type) ? f.type.find((t) => t !== "null")! : f.type;
+}
+function validateIdentifierDefinition(schema: EntitySchemaVersion["schema"]) {
+  const fields = Object.entries(schema.properties).filter(([, field]) => field["x-identifier"]);
+  const identity = schema["x-identity-property"];
+  // The expand phase can still read existing definitions; identifier definitions
+  // themselves never publish an incomplete selected identity.
+  if (!fields.length && identity === undefined) return;
+  const selected = identity && schema.properties[identity];
+  if (
+    !identity || !selected || !selected["x-identifier"] || selected.type !== "string" || selected.deprecated ||
+    !schema.required.includes(identity) || selected.default !== undefined
+  ) fail("schema.x-identity-property", "자료 식별자는 기본값 없는 필수 식별자 항목 하나로 지정하세요");
+  for (const [key, field] of fields) {
+    if (
+      typeOf(field) !== "string" || field.format || field.oneOf || field.minLength !== undefined ||
+      field.maxLength !== undefined
+    ) {
+      fail(
+        `schema.properties.${key}.x-identifier`,
+        "식별자 항목은 원본 1~200자를 사용하며 별도 형식·선택지·길이를 지정하지 않습니다",
+      );
+    }
+  }
 }
 function decimalPlaces(value: number) {
   const [fraction, exponent] = String(value).toLowerCase().split("e");
@@ -159,6 +185,7 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
   }
   const keys = Object.keys(schema.properties);
   if (!keys.length || keys.length > limits.fields) fail("schema.properties", "속성은 1~64개입니다");
+  validateIdentifierDefinition(schema);
   for (const [key, f] of Object.entries(schema.properties)) {
     const type = typeOf(f);
     if (f["x-search-text"] && !supportsEntitySearchText(f)) {

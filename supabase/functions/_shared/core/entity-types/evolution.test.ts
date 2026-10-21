@@ -2,6 +2,30 @@ import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import { assertEquals, assertThrows } from "@std/assert";
 import { initialEntityDefinition } from "../../contracts/entity-type.ts";
 import { resolveSchemaEdits } from "./evolution.ts";
+Deno.test("selected identity metadata resolves an added field through the same reserved property reference", async () => {
+  const { entitySchemaEdit } = await import("../../contracts/entity-schema-change.ts");
+  const source = initialEntityDefinition("상품명");
+  const add = entitySchemaEdit.parse({
+    op: "add_property",
+    client_ref: "sku",
+    required: true,
+    field: {
+      type: "string",
+      title: "상품 번호",
+      "x-order": 20,
+      "x-identifier": {
+        allowed_kind_ids: ["22222222-2222-4222-8222-222222222222"],
+        default_kind_id: "22222222-2222-4222-8222-222222222222",
+      },
+    },
+  });
+  const selected = entitySchemaEdit.parse({ op: "set_metadata", "x-identity-property": "new_sku" });
+  const result = resolveSchemaEdits(source, [selected, add], { sku: "prop_2" });
+  assertEquals(result.target.schema["x-identity-property"], "prop_2");
+  assertEquals(result.diff.find((item) => item.path === "x-identity-property")?.after, "prop_2");
+  assertThrows(() => resolveSchemaEdits(source, [selected], { sku: "prop_2" }));
+});
+
 Deno.test("schema edit policy preserves key meaning and labels but classifies narrowing independently of data", () => {
   const source = initialEntityDefinition("이름");
   const change = resolveSchemaEdits(source, [{

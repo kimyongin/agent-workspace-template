@@ -78,6 +78,19 @@ test('Docker Desktop macOS Users bridge resolves the actual directory and reject
   assert.throws(() => realHostBindSource(`${bridge}/missing-runtime-bind-directory`));
 });
 
+test('Docker Desktop macOS private temporary bridge resolves only an actual directory', { skip: process.platform !== 'darwin' }, () => {
+  const directory = mkdtempSync(join(tmpdir(), 'runtime-bind-test-'));
+  try {
+    const canonical = realpathSync(directory);
+    assert.ok(canonical.startsWith('/private/'), 'fixture must use an actual macOS private temporary directory');
+    const bridge = `/host_mnt${canonical}`;
+    assert.equal(realHostBindSource(bridge), canonical);
+    assert.throws(() => realHostBindSource(`${bridge}/../${canonical.split('/').at(-1)}`));
+    assert.throws(() => realHostBindSource(bridge.replace('/private/', '/private//')));
+    assert.throws(() => realHostBindSource(`${bridge}/missing-runtime-bind-directory`));
+  } finally { rmdirSync(directory); }
+});
+
 test('concurrent same-project runners cannot acquire while unrelated projects and a later run can', () => {
   const directory = mkdtempSync(join(tmpdir(), 'runtime-lock-test-'));
   const release = acquireRuntimeLock('same', directory);

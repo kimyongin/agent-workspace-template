@@ -1,4 +1,5 @@
 import { entityReferenceId } from "./entity-identity.ts";
+import { identifierFieldSettings } from "./entity-identifiers.ts";
 import { ownStringDictionary } from "./option-labels.ts";
 import { z } from "zod";
 import { type EntityField, type EntitySchemaVersion, propertyKey } from "./entity-type.ts";
@@ -21,6 +22,7 @@ export const entityFieldInput = z.strictObject({
   multipleOf: z.number().positive().finite().optional(),
   "x-order": z.number().int().positive(),
   "x-search-text": z.boolean().optional(),
+  "x-identifier": identifierFieldSettings.optional(),
   default: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]).optional(),
 });
 // new_<client_ref> is valid in display/conversion input alongside its add_property.
@@ -54,6 +56,7 @@ export const entitySchemaEdit = z.discriminatedUnion("op", [
       "제목 템플릿은 4096자 이하입니다",
     ).optional(),
     "x-icon": z.enum(["box", "leaf", "package", "book", "tool", "star"]).optional(),
+    "x-identity-property": propertyInputReference.optional(),
     deprecated: z.boolean().optional(),
   }),
 ]);
