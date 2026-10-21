@@ -180,6 +180,10 @@ export function PropertyFields(
                       })}
                     </NativeSelect>
                     {automatic && <p role="status" className="text-sm text-muted-foreground">저장 시 자동 발급</p>}
+                    {automatic && onGenerate && <Button type="button" variant="outline" disabled={disabled} onClick={() => {
+                      set(key, `${kindId}:`);
+                      onGenerate(key, undefined);
+                    }}>기존 번호 입력</Button>}
                     {rawEditable && <Input {...props} disabled={disabled} value={raw} autoComplete="off" onChange={event => {
                         onGenerate?.(key, undefined);
                         const next = event.target.value;

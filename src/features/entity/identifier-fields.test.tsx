@@ -75,3 +75,14 @@ test("an omitted optional identifier issues nothing until the user explicitly se
   expect(form.generations.prop_3).toBeUndefined();
   expect(form.values()).not.toHaveProperty("prop_3");
 });
+
+test("an automatic identity also accepts an existing raw number for explicit lookup", async () => {
+  const form = setup({ prop_1: "상품" });
+  await form.render();
+  const manual = [...form.container.querySelectorAll("button")].find(button => button.textContent === "기존 번호 입력");
+  expect(manual).toBeDefined();
+  await act(async () => manual!.click());
+  expect(form.values().prop_2).toBe(`${kind}:`);
+  expect(form.generations.prop_2).toBeUndefined();
+  expect([...form.container.querySelectorAll("input")].some(input => input.value === "")).toBe(true);
+});

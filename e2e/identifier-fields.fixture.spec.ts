@@ -7,19 +7,20 @@ const typeId = "00000000-0000-4000-8000-000000000900";
 const automatic = "00000000-0000-4000-8000-000000000001";
 const direct = "00000000-0000-4000-8000-000000000002";
 const stamp = "2026-10-22T00:00:00Z";
-async function fixture(page: Page, tombstone = false) {
+async function fixture(page: Page, tombstone = false, existingAutomatic = false) {
   const user = { id: "00000000-0000-4000-8000-000000000100", aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: {} };
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   const type = { id: typeId, label: "상품", icon_id: "box", archived: false, schema_version: 1, next_property_number: 4, created_at: stamp, updated_at: stamp };
   const definition = initialEntityDefinition("상품명", { id: typeId, title: "상품" });
-  definition.schema.properties.prop_2["x-identifier"] = { allowed_kind_ids: [automatic, direct], default_kind_id: tombstone ? direct : automatic };
+  const selectedKind = tombstone && !existingAutomatic ? direct : automatic;
+  definition.schema.properties.prop_2["x-identifier"] = { allowed_kind_ids: [automatic, direct], default_kind_id: selectedKind };
   definition.schema.properties.prop_3 = { type: ["string", "null"], title: "외부 번호", "x-order": 30, "x-identifier": { allowed_kind_ids: [automatic, direct], default_kind_id: automatic } };
   const schema = { ...definition, type_id: typeId, type, schema_version: 1, identifier_kinds: [
     { id: automatic, source: "app", source_label: "앱", label: "자동 번호", active: true, generation: "automatic", version: 1, source_version: 1 },
     { id: direct, source: "seller", source_label: "판매처", label: "상품 번호", active: true, generation: "direct", version: 1, source_version: 1 },
   ] };
-  let entity = { id: encodeIdentifierReference(typeId, tombstone ? direct : automatic, tombstone ? "001:한글/😀" : "generated-1"), identity_label: "상품 번호", entity_type_id: typeId, type,
-    schema_version: 1, current_schema_version: 1, version: 3, title: "보관 상품", properties: { prop_1: "보관 상품", prop_2: tombstone ? `${direct}:001:한글/😀` : `${automatic}:generated-1` },
+  let entity = { id: encodeIdentifierReference(typeId, selectedKind, tombstone ? "001:한글/😀" : "generated-1"), identity_label: "상품 번호", entity_type_id: typeId, type,
+    schema_version: 1, current_schema_version: 1, version: 3, title: "보관 상품", properties: { prop_1: "보관 상품", prop_2: tombstone ? `${selectedKind}:001:한글/😀` : `${automatic}:generated-1` },
     deleted_at: tombstone ? stamp : null, tag_ids: [], tasks: { count: 0, items: [] }, records: { count: 0, items: [] }, created_at: stamp, updated_at: stamp };
   const writes: { path: string; body: Record<string, unknown> }[] = [], reads: string[] = [];
   await page.route("**/*", async route => {
@@ -73,10 +74,11 @@ test("type-only writer creates with explicit selected issuance and leaves an opt
   expect(state.reads.some(path => path.endsWith("/identity") || path.includes("entity-issuers"))).toBe(false);
 });
 
-test("manual identity lookup restores only the server returned key and version with the archived values", async ({ page }) => {
-  const state = await fixture(page, true);
+for (const generation of ["direct", "automatic"]) test(`${generation} identity lookup restores only the server returned key and version with the archived values`, async ({ page }) => {
+  const state = await fixture(page, true, generation === "automatic");
   await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${typeId}&create=1`));
   const form = page.getByRole("dialog");
+  if (generation === "automatic") await form.getByRole("button", { name: "기존 번호 입력", exact: true }).click();
   await form.getByRole("textbox", { name: /^식별자/ }).fill("001:한글/😀");
   await form.getByRole("button", { name: "기존 대상 확인" }).click();
   await expect(form.getByText("보관한 자료를 불러왔습니다.", { exact: false })).toBeVisible();
