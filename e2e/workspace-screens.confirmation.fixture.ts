@@ -128,9 +128,9 @@ for (const revoked of ["read", "none"] as const) {
       actorId: id(901), workspaceId: fixtureWorkspaceId, request_key: attempts[0].key,
       method: "POST", path: `/tasks/${id(2)}/stop`, status: "unknown",
     });
-    const workspaceLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "Workspace", exact: true });
     const frozenUrl = page.url();
-    await workspaceLink.click();
+    await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("button", { name: "공간 선택", exact: true }).click();
+    await page.getByRole("menuitem", { name: "테스트 공간", exact: true }).click();
     await expect(page).toHaveURL(frozenUrl);
     access = revoked; membershipVersion++;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
