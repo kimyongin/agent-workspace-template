@@ -86,10 +86,10 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       analysis_id: fresh.analysis.id,
     });
     expect(await (await httpRows).json()).toEqual(rows);
-    expect(rows.items[0].before).toEqual({ prop_1: "001" });
-    expect(rows.items[0].after).toEqual({ prop_1: "01" });
+    expect(rows.items[0].before).toEqual(entity.properties);
+    expect(rows.items[0].after).toEqual({ ...entity.properties, prop_1: "01" });
     expect(fresh.analysis.changed).toBe(1);
-    expect((await mcp.call("get_entity", { id: entity.id })).properties).toEqual({ prop_1: "001" });
+    expect((await mcp.call("get_entity", { id: entity.id })).properties).toEqual(entity.properties);
     await mcp.call("update_entity", {
       id: entity.id,
       expected_version: entity.version,

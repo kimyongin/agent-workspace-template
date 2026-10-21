@@ -1,21 +1,32 @@
+import { encodeIdentifierReference } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { fulfillFixtureWorkspace, fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
-import { fixtureIdentity } from "./support/workspace-data.ts";
+import { fixtureSchema } from "./support/workspace-data.ts";
 import { revealSetting } from "./ui-actions.ts";
 import { expect, type Route, test } from "@playwright/test";
 import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
-import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
+import { type EntityType, initialEntityDefinition as baseDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import type { EntitySchemaMigration } from "../supabase/functions/_shared/contracts/entity-schema-migration.ts";
+// Keep ordinary prop_2..4 semantics separate from the selected identifier.
+function initialEntityDefinition(label: string, metadata: Parameters<typeof baseDefinition>[1] = {}) {
+  const definition = baseDefinition(label, { id: materials.id, title: materials.label, icon: materials.icon_id, ...metadata });
+  definition.schema.properties.prop_5 = { ...definition.schema.properties.prop_2, "x-order": 50 };
+  delete definition.schema.properties.prop_2;
+  definition.schema["x-identity-property"] = "prop_5";
+  definition.schema.required = ["prop_1", "prop_5"];
+  return definition;
+}
 const type = (n: number, label: string, archived = false): EntityType => ({
   id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
   label,
   archived,
   icon_id: "leaf",
   schema_version: 1,
-  next_property_number: 2,
+  next_property_number: 6,
   created_at: `2026-10-${String(n).padStart(2, "0")}T00:00:00Z`,
   updated_at: "2026-10-12T00:00:00Z",
 });
@@ -41,9 +52,7 @@ test.beforeEach(async ({ page, baseURL }) => {
       url.pathname.startsWith(`/api/entity-types/${value.id}`)
     );
     if (selected) {
-      if (url.pathname.endsWith("/identity")) {
-        return route.fulfill({ json: fixtureIdentity(selected.id) });
-      }
+
       if (url.pathname.includes("/schema-changes/")) {
         return route.fulfill({
           json: {
@@ -72,11 +81,11 @@ test.beforeEach(async ({ page, baseURL }) => {
       }
       return route.fulfill({
         json: url.pathname.endsWith("/schema")
-          ? {
+          ? { identifier_kinds: fixtureSchema.identifier_kinds,
             type: selected,
             type_id: selected.id,
             schema_version: 1,
-            ...initialEntityDefinition("이름"),
+            ...initialEntityDefinition("이름", { id: selected.id, title: selected.label, icon: selected.icon_id }),
           }
           : selected,
       });
@@ -192,7 +201,7 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(
     "남길 기본 입력",
   );
-  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("항목 이름", { exact: true }).first()).toHaveValue(
     "남길 속성 입력",
   );
   await expect(
@@ -203,7 +212,7 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
     "완료",
   );
   await page.goBack();
-  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("항목 이름", { exact: true }).first()).toHaveValue(
     "남길 속성 입력",
   );
 });
@@ -378,18 +387,14 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
 
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/identity")) {
-      return route.fulfill({
-        json: fixtureIdentity(decodeURIComponent(path.split("/").at(-2)!)),
-      });
-    }
+
     if (path.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
     }
     if (path.endsWith("/schema")) {
       definitionReads++;
       return route.fulfill({
-        json: {
+        json: { identifier_kinds: fixtureSchema.identifier_kinds,
           type_id: materials.id,
           schema_version: requestedVersion(route, complete ? 2 : 1),
           ...(requestedVersion(route, complete ? 2 : 1) === 2 ? published : original),
@@ -448,9 +453,9 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
     .click();
   await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
-  await page.getByRole("region", { name: "자료 번호", exact: true }).getByRole("heading", { level: 2 }).first().getByRole("button").click();
-  const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
-  await record.getByLabel("이름", { exact: false }).fill("남길 자료 번호 입력");
+  await page.getByRole("button", { name: "식별자 항목 펼치기", exact: true }).click();
+  const record = page.getByRole("region", { name: / 입력 항목$/ }).filter({ has: page.getByLabel("기본 식별자 종류", { exact: true }) });
+  await record.getByLabel("항목 이름", { exact: true }).fill("남길 자료 번호 입력");
   complete = true;
   await page.getByRole("button", { name: "상태 다시 조회", exact: true })
     .click();
@@ -466,7 +471,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   );
   await expect(page.getByLabel("항목 이름", { exact: true }).first())
     .toHaveValue("남길 속성 입력");
-  await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
+  await expect(record.getByLabel("항목 이름", { exact: true })).toHaveValue(
     "남길 자료 번호 입력",
   );
   await expect(
@@ -502,11 +507,7 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
   const published = initialEntityDefinition("갱신한 이름");
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/identity")) {
-      return route.fulfill({
-        json: fixtureIdentity(decodeURIComponent(path.split("/").at(-2)!)),
-      });
-    }
+
     if (path.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
     }
@@ -522,7 +523,7 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
         });
       }
       return route.fulfill({
-        json: {
+        json: { identifier_kinds: fixtureSchema.identifier_kinds,
           type_id: materials.id,
           schema_version: requestedVersion(route, complete ? 2 : 1),
           ...(requestedVersion(route, complete ? 2 : 1) === 2 ? published : initialEntityDefinition("이름")),
@@ -602,17 +603,13 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
   const writes: any[] = [];
   await page.route(`**/api/entity-types/${materials.id}**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/identity")) {
-      return route.fulfill({
-        json: fixtureIdentity(decodeURIComponent(path.split("/").at(-2)!)),
-      });
-    }
+
     if (path.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
     }
     if (path.endsWith("/schema")) {
       return route.fulfill({
-        json: {
+        json: { identifier_kinds: fixtureSchema.identifier_kinds,
           type_id: materials.id,
           schema_version: requestedVersion(route, saved.schema_version),
           ...initialEntityDefinition("이름"),
@@ -702,18 +699,14 @@ test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시
 
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/identity")) {
-      return route.fulfill({
-        json: fixtureIdentity(decodeURIComponent(path.split("/").at(-2)!)),
-      });
-    }
+
     if (path.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
     }
     if (path.endsWith("/schema")) {
       definitionReads++;
       return route.fulfill({
-        json: {
+        json: { identifier_kinds: fixtureSchema.identifier_kinds,
           type_id: materials.id,
           schema_version: requestedVersion(route, currentVersion),
           ...(requestedVersion(route, currentVersion) === 2 ? published : initialEntityDefinition("이름")),
@@ -815,22 +808,14 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
     };
   }, `/api/entity-types/${materials.id}/schemas`);
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
-    if (new URL(route.request().url()).pathname.endsWith("/identity")) {
-      return route.fulfill({
-        json: fixtureIdentity(
-          decodeURIComponent(
-            new URL(route.request().url()).pathname.split("/").at(-2)!,
-          ),
-        ),
-      });
-    }
+
     const url = new URL(route.request().url());
     if (url.pathname.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
     }
     if (url.pathname.endsWith("/schema")) {
       return route.fulfill({
-        json: {
+        json: { identifier_kinds: fixtureSchema.identifier_kinds,
           type_id: materials.id,
           schema_version: Number(
             url.searchParams.get("schema_version") ?? (complete ? 3 : 2),
@@ -940,7 +925,7 @@ test(
       `**/api/entity-types/${materials.id}/schema`,
       (route) =>
         route.fulfill({
-          json: {
+          json: { identifier_kinds: fixtureSchema.identifier_kinds,
             type: materials,
             type_id: materials.id,
             schema_version: 1,
@@ -972,7 +957,7 @@ test(
       const relationBox = (await relation.boundingBox())!;
       expect(relationBox.width).toBeGreaterThanOrEqual(44);
       expect(relationBox.height).toBeGreaterThanOrEqual(44);
-      const names = ["기본 정보", "자료 번호", "입력 항목", "변경 이력"];
+      const names = ["기본 정보", "입력 항목", "변경 이력"];
       const boxes = [];
       for (const name of names) {
         boxes.push((await page.getByRole("region", { name, exact: true }).boundingBox())!);
@@ -1042,15 +1027,15 @@ test(
     const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
     await expect(deletion).toHaveAttribute("data-variant", "destructive");
     await quantity.getByText("추가 설정", { exact: true }).click();
-    await page.getByRole("region", { name: "자료 번호", exact: true }).getByRole("heading", { level: 2 }).first().getByRole("button").click();
-    const record = page.getByRole("form", { name: "자료 번호 설정", exact: true });
+    await page.getByRole("button", { name: "식별자 항목 펼치기", exact: true }).click();
+    const record = page.getByRole("region", { name: / 입력 항목$/ }).filter({ has: page.getByLabel("기본 식별자 종류", { exact: true }) });
     await expect(record).toBeVisible();
-    await expect(page.getByRole("heading", { name: /^자료 번호/ })).toHaveCount(1);
+    await expect(record.getByText("자료 식별자", { exact: true })).toBeVisible();
     await page.screenshot({
       path: info.outputPath("identity-settings-flat.png"),
       fullPage: true,
     });
-    await page.getByRole("region", { name: "자료 번호", exact: true }).getByRole("heading", { level: 2 }).first().getByRole("button").click();
+    await page.getByRole("button", { name: "식별자 항목 접기", exact: true }).click();
     await page.screenshot({
       path: info.outputPath("property-display-settings.png"),
       fullPage: true,
@@ -1147,15 +1132,7 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
       : null,
   });
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
-    if (new URL(route.request().url()).pathname.endsWith("/identity")) {
-      return route.fulfill({
-        json: fixtureIdentity(
-          decodeURIComponent(
-            new URL(route.request().url()).pathname.split("/").at(-2)!,
-          ),
-        ),
-      });
-    }
+
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/schema-changes")) {
       return route.fulfill({ json: { items: [change()], next_before: null } });
@@ -1184,7 +1161,7 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
     }
     if (url.pathname.endsWith("/schema")) {
       return route.fulfill({
-        json: {
+        json: { identifier_kinds: fixtureSchema.identifier_kinds,
           type_id: materials.id,
           schema_version: Number(
             url.searchParams.get("schema_version") ?? (complete ? 2 : 1),
@@ -1267,15 +1244,7 @@ test("적용 변경과 최초 생성은 한 목록에서 각 버전 정의와 �
     updated_at: "2026-10-15T00:00:00Z",
   };
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
-    if (new URL(route.request().url()).pathname.endsWith("/identity")) {
-      return route.fulfill({
-        json: fixtureIdentity(
-          decodeURIComponent(
-            new URL(route.request().url()).pathname.split("/").at(-2)!,
-          ),
-        ),
-      });
-    }
+
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/schema-changes")) {
       return route.fulfill({ json: { items: [change], next_before: null } });
@@ -1295,7 +1264,7 @@ test("적용 변경과 최초 생성은 한 목록에서 각 버전 정의와 �
     if (url.pathname.endsWith("/schema")) {
       const version = Number(url.searchParams.get("schema_version") ?? 2);
       return route.fulfill({
-        json: {
+        json: { identifier_kinds: fixtureSchema.identifier_kinds,
           type_id: materials.id,
           schema_version: version,
           ...(version === 1 ? original : current),
@@ -1424,15 +1393,7 @@ test(
     target.schema.properties.prop_4.deprecated = true;
     let mismatch = true;
     await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
-      if (new URL(route.request().url()).pathname.endsWith("/identity")) {
-        return route.fulfill({
-          json: fixtureIdentity(
-            decodeURIComponent(
-              new URL(route.request().url()).pathname.split("/").at(-2)!,
-            ),
-          ),
-        });
-      }
+
       const url = new URL(route.request().url());
       if (url.pathname.endsWith("/schemas")) {
         return route.fulfill({
@@ -1450,7 +1411,7 @@ test(
       if (url.pathname.endsWith("/schema")) {
         const n = requestedVersion(route, 2);
         return route.fulfill({
-          json: {
+          json: { identifier_kinds: fixtureSchema.identifier_kinds,
             type_id: materials.id,
             schema_version: mismatch && n === 1 ? 99 : n,
             ...(n === 1 ? original : target),
@@ -1462,7 +1423,7 @@ test(
       });
     });
     await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
-    const sections = ["기본 정보", "자료 번호", "입력 항목", "변경 이력"];
+    const sections = ["기본 정보", "입력 항목", "변경 이력"];
     for (const name of sections) {
       const section = page.getByRole("region", { name, exact: true });
       await expect(section).toBeVisible();
@@ -1623,7 +1584,7 @@ test("다른 완료 변경을 열면 버전과 해당 변환 작업을 함께 �
     }
     if (url.pathname.endsWith("/schema")) {
       return route.fulfill({
-        json: { type_id: materials.id, schema_version: requestedVersion(route, 3), ...initialEntityDefinition("이름") },
+        json: { identifier_kinds: fixtureSchema.identifier_kinds, type_id: materials.id, schema_version: requestedVersion(route, 3), ...initialEntityDefinition("이름") },
       });
     }
     return route.fulfill({ json: { ...materials, version: 3, schema_version: 3 } });
@@ -1643,7 +1604,7 @@ test("다른 완료 변경을 열면 버전과 해당 변환 작업을 함께 �
 test(
   "exports the current and historical documents without inventing historical metadata",
   async ({ page }, testInfo) => {
-    const current = {
+    const current = { identifier_kinds: fixtureSchema.identifier_kinds,
       ...initialEntityDefinition("재료명", { id: materials.id, title: "재료", icon: "leaf" }),
       type_id: materials.id,
       schema_version: 2,
@@ -1709,14 +1670,14 @@ test(
 );
 
 test("복구 충돌 대상 표는 기존 자료 링크·21개 제한·좁은 화면을 유지한다", async ({ page }) => {
-  const source = { ...job(20), source_expires_at: "2026-11-13T00:00:00Z", recovery: { status: "conflict", reason: "이후 변경 확인 필요", current_schema_version: 1, conflicts: Array.from({ length: 22 }, (_, n) => ({ path: `entities.app:${materials.id}:${id(70 + n)}`, message: `다른 사용자가 변경했습니다 ${n}` })) } };
+  const source = { ...job(20), source_expires_at: "2026-11-13T00:00:00Z", recovery: { status: "conflict", reason: "이후 변경 확인 필요", current_schema_version: 1, conflicts: Array.from({ length: 22 }, (_, n) => ({ path: `entities.${materials.id}:${APP_IDENTIFIER_RULE_ID}:${id(70 + n)}`, message: `다른 사용자가 변경했습니다 ${n}` })) } };
   await page.route("**/api/entity-schema-migrations/**", route => route.fulfill({ json: source }));
   await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}/migrations/${source.id}`));
   const conflicts = page.getByRole("table", { name: "복구 충돌 대상 목록", exact: true });
   await expect(conflicts).toBeVisible();
   await expect(conflicts.getByRole("row")).toHaveCount(22);
   await expect(conflicts.getByRole("link")).toHaveCount(21);
-  await expect(conflicts.getByRole("link").first()).toHaveAttribute("href", fixtureWorkspacePath(`/entities/${encodeURIComponent(`app:${materials.id}:${id(70)}`)}`));
+  await expect(conflicts.getByRole("link").first()).toHaveAttribute("href", fixtureWorkspacePath(`/entities/${encodeURIComponent(`${materials.id}:${APP_IDENTIFIER_RULE_ID}:${id(70)}`)}`));
   await expect(conflicts.getByText("다른 사용자가 변경했습니다 20", { exact: true })).toBeVisible();
   await expect(conflicts.getByText("다른 사용자가 변경했습니다 21", { exact: true })).toHaveCount(0);
   await expect(page.getByText("한 번에 최대 21개 사유를 표시합니다.", { exact: false })).toBeVisible();
@@ -1729,7 +1690,7 @@ test("복구 충돌 대상 표는 기존 자료 링크·21개 제한·좁은 화
 for (const mode of ["editor", "history"] as const) {
   test(`자료별 검토 오류 표 ${mode}: 긴 자료 번호·모든 사유·좁은 배율을 보존한다`, async ({ page }, info) => {
     const number = "긴자료번호-".repeat(30);
-    const first = `crm:${id(9)}:${number}`;
+    const first = encodeIdentifierReference(materials.id, APP_IDENTIFIER_RULE_ID, number);
     const current = { ...linkedChange(), status: "invalid", analysis: {
       id: id(501), status: "succeeded", total: 2, processed: 2, failed: 2,
       change_version: 1, snapshot_fingerprint: "fixture", definition_fingerprint: "fixture",
@@ -1756,7 +1717,7 @@ for (const mode of ["editor", "history"] as const) {
     await expect(table).toBeVisible();
     const rows = businessRows(table);
     await expect(rows).toHaveCount(2);
-    await expect(rows.nth(0).getByRole("cell").nth(0)).toHaveText(`crm · ${number}`);
+    await expect(rows.nth(0).getByRole("cell").nth(0)).toHaveText(`00000000 · ${number}`);
     await expect(rows.nth(1).getByRole("cell").nth(0)).toHaveText("이전형식-자료번호");
     await expect(rows.nth(0).getByRole("listitem")).toHaveText(["이름 · 필수 입력: 필수 값을 입력하세요", "이름 · 최대 길이: 허용 길이를 초과했습니다"]);
     await expect(rows.nth(1).getByRole("listitem")).toHaveText(["이름 · 타입: 문자열 값이 필요합니다"]);
@@ -1777,7 +1738,7 @@ test("schema default date calendar edits only the retained definition draft", as
   const definition = initialEntityDefinition("이름");
   definition.schema.properties.prop_2 = { "x-order": 20, type: "string", format: "date", title: "확인 날짜", default: "2024-02-29" };
   await page.route(`**/api/entity-types/${materials.id}/schema`, (route) => route.fulfill({
-    json: { ...definition, type: materials, type_id: materials.id, schema_version: 1 },
+    json: { identifier_kinds: fixtureSchema.identifier_kinds, ...definition, type: materials, type_id: materials.id, schema_version: 1 },
   }));
   const writes: string[] = [];
   page.on("request", (request) => {

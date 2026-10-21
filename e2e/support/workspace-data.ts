@@ -1,7 +1,6 @@
 import { renderEntityTitle } from "../../supabase/functions/_shared/contracts/entity-title-template.ts";
 import {
   APP_IDENTIFIER_RULE_ID,
-  type EntityTypeIdentity,
   type IdentifierKindMetadata,
 } from "../../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { initialEntityDefinition } from "../../supabase/functions/_shared/contracts/entity-type.ts";
@@ -41,23 +40,6 @@ export const fixtureType = {
   created_at: stamp,
   updated_at: stamp,
 };
-export function fixtureIdentity(typeId = fixtureType.id): EntityTypeIdentity {
-  return {
-    type_id: typeId,
-    label: "번호",
-    default_source: "app",
-    version: 1,
-    sources: [{
-      code: "app",
-      rule_id: APP_IDENTIFIER_RULE_ID,
-      active: true,
-      referenced: false,
-      source_label: "앱",
-      rule_label: "자동 발급",
-      generation: "automatic",
-    }],
-  };
-}
 export const fixtureSchema = (() => {
   const definition = initialEntityDefinition("제목", {
     id: fixtureType.id,

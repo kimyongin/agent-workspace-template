@@ -1,3 +1,5 @@
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { expect, test } from "@playwright/test";
@@ -7,7 +9,13 @@ import type {
   MigrationPlan,
 } from "../supabase/functions/_shared/contracts/entity-schema-change.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
-const source = initialEntityDefinition("상품명");
+const typeId = "00000000-0000-4000-8000-000000000900";
+const entityId = encodeIdentifierReference(typeId, APP_IDENTIFIER_RULE_ID, "one");
+const pair = encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "one");
+const source = initialEntityDefinition("상품명", { id: typeId, title: "상품" });
+source.schema.properties.prop_3 = { ...source.schema.properties.prop_2, "x-order": 30 };
+source.schema["x-identity-property"] = "prop_3";
+source.schema.required = ["prop_1", "prop_3"];
 source.schema.properties.prop_2 = { type: "string", title: "수량", "x-order": 20 };
 const target = structuredClone(source);
 target.schema.properties.prop_2 = { type: "integer", title: "수량", "x-order": 20 };
@@ -32,7 +40,7 @@ const initial: ModelChange = {
     mode: "update",
     fingerprint: "a".repeat(64),
     can_apply: false,
-    mapping: { types: { product: "product-id" }, properties: {}, relations: {}, rules: {} },
+    mapping: { types: { product: typeId }, properties: {}, relations: {}, rules: {} },
     items: [{
       ref: "product",
       label: "상품",
@@ -61,7 +69,7 @@ function analyzed(version: number, migration: MigrationPlan, failed = 0): ModelC
         source,
         change: {
           id: "child-change",
-          type_id: "product-id",
+          type_id: typeId,
           source_schema_version: 1,
           source_template_fingerprint: "source",
           version,
@@ -148,7 +156,7 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
         if (analyses === 2) {
           await new Promise<void>((resolve) => { releaseAnalysis = resolve; });
           expect(body.conversions[0].migration.overrides).toEqual([{
-            entity_id: "app:product-id:one",
+            entity_id: entityId,
             key: "prop_2",
             value: 4,
           }]);
@@ -168,7 +176,7 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
         version: model.version + 1,
         result: {
           changed: true,
-          type_ids: ["product-id"],
+          type_ids: [typeId],
           relation_ids: [],
           counts: {
             types: { added: 0, updated: 1, unchanged: 0 },
@@ -182,16 +190,16 @@ test("변환 규칙과 실패 행을 보완해 전체 분석 후 접수하고 �
     return route.fulfill({ json: model });
   });
   await page.route(
-    "**/api/entity-types/product-id/schema-changes/child-change/rows?**",
+    `**/api/entity-types/${typeId}/schema-changes/child-change/rows?**`,
     (route) =>
       route.fulfill({
         json: {
           analysis_id: `analysis-${model.version}`,
           next_after: null,
           items: [{
-            entity_id: "app:product-id:one",
-            before: { prop_1: "볼펜", prop_2: "미정" },
-            after: { prop_1: "볼펜", prop_2: "미정" },
+            entity_id: entityId,
+            before: { prop_1: "볼펜", prop_2: "미정", prop_3: pair },
+            after: { prop_1: "볼펜", prop_2: "미정", prop_3: pair },
             after_bytes: 30,
             changed: false,
             removed: 0,
@@ -354,9 +362,9 @@ test("변환 초안은 자료 설정 이동에서 보호하고 잘못된 숫자 
       route.fulfill({
         json: {
           items: [{
-            entity_id: "app:product-id:one",
-            before: { prop_1: "볼펜", prop_2: "미정" },
-            after: { prop_1: "볼펜", prop_2: "미정" },
+            entity_id: entityId,
+            before: { prop_1: "볼펜", prop_2: "미정", prop_3: pair },
+            after: { prop_1: "볼펜", prop_2: "미정", prop_3: pair },
             errors: [{ path: "properties.prop_2", message: "정수 필요" }],
           }],
           next_after: null,
@@ -404,7 +412,7 @@ test("worker 준비 완료 상태는 규칙을 잠그고 GET 조회로 전체 �
     ...model,
     version: 5,
     status: "applied",
-    result: { type_ids: ["product-id"], relation_ids: [], changed: true },
+    result: { type_ids: [typeId], relation_ids: [], changed: true },
   };
   await expect(page.getByText("적용 완료", { exact: true })).toBeVisible();
   expect(writes).toBe(0);

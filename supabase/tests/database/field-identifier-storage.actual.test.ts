@@ -80,9 +80,7 @@ async function identifierFixture() {
   const inDb = <T>(fn: (tx: postgres.TransactionSql) => Promise<T>) =>
     admin.begin(async (tx) => {
       await tx`select set_config('request.workspace_id',${fixture.workspaceId},true),
-      set_config('request.jwt.claims',${
-        JSON.stringify({ sub: fixture.manager.userId, role: "authenticated" })
-      },true)`;
+      set_config('request.jwt.claims',${JSON.stringify({ sub: fixture.manager.userId, role: "authenticated" })},true)`;
       return fn(tx);
     }) as Promise<T>;
   await inDb(async (tx) => {
@@ -147,9 +145,7 @@ dbTest(
       ) {
         assertEquals(
           (await outcome(f.inDb(async (tx) => {
-            await tx`update app.entities set properties=properties||${
-              tx.json(patch)
-            }
+            await tx`update app.entities set properties=properties||${tx.json(patch)}
           where workspace_id=${f.workspaceId} and id=${f.id}`;
           }))).startsWith("23514"),
           true,
@@ -164,8 +160,7 @@ dbTest(
         await tx`update app.entities set deleted_at=null,properties=properties||'{"prop_1":"복원한 이름"}'::jsonb
         where workspace_id=${f.workspaceId} and id=${f.id}`;
       });
-      const [row] =
-        await admin`select properties from app.entities where workspace_id=${f.workspaceId} and id=${f.id}`;
+      const [row] = await admin`select properties from app.entities where workspace_id=${f.workspaceId} and id=${f.id}`;
       assertEquals(row.properties.prop_2, f.pair);
       assertEquals(
         (await outcome(
@@ -252,9 +247,7 @@ dbTest(
       });
       assertEquals(
         (await outcome(f.inDb(async (tx) => {
-          await tx`update app.entities set properties=properties||${
-            tx.json({ prop_3: `${f.ruleId}:new ordinary` })
-          }
+          await tx`update app.entities set properties=properties||${tx.json({ prop_3: `${f.ruleId}:new ordinary` })}
         where workspace_id=${f.workspaceId} and id=${f.id}`;
         }))).startsWith("23514"),
         true,
@@ -281,9 +274,9 @@ dbTest(
     const [row] = await admin`select app.entity_title(${admin.json(document)},${
       admin.json({ prop_2: pair })
     },'fallback') title,
-    app.entity_title(${
-      admin.json({ ...document, "x-title-template": "$prop_1$" })
-    },${admin.json({ prop_2: pair })},'fallback') fallback`;
+    app.entity_title(${admin.json({ ...document, "x-title-template": "$prop_1$" })},${
+      admin.json({ prop_2: pair })
+    },'fallback') fallback`;
     assertEquals(row, { title: "000:원본😀", fallback: "000:원본😀" });
   },
 );
@@ -343,10 +336,8 @@ dbTest(
           { target_kind: "entity_type", target_id: f.typeId, access: "read" },
         ],
       }, async (tx) => {
-        const [row] =
-          await tx`select app.entity_identifier_kinds(${f.typeId}::uuid,1) kinds`;
-        const settings =
-          await tx`select id from app.entity_identifier_rules where id=${unrelated}`;
+        const [row] = await tx`select app.entity_identifier_kinds(${f.typeId}::uuid,1) kinds`;
+        const settings = await tx`select id from app.entity_identifier_rules where id=${unrelated}`;
         assertEquals(settings.length, 0);
         return row.kinds;
       });
@@ -384,13 +375,9 @@ dbTest(
       const attempt = () =>
         competing.begin(async (tx) => {
           await tx`select set_config('request.workspace_id',${f.workspaceId},true),
-        set_config('request.jwt.claims',${
-            JSON.stringify({ sub: f.manager.userId, role: "authenticated" })
-          },true)`;
+        set_config('request.jwt.claims',${JSON.stringify({ sub: f.manager.userId, role: "authenticated" })},true)`;
           await tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
-        values(${f.workspaceId},${f.id},${f.typeId},1,${
-            tx.json(f.properties)
-          })`;
+        values(${f.workspaceId},${f.id},${f.typeId},1,${tx.json(f.properties)})`;
         });
       const results = await Promise.all([
         outcome(attempt()),
@@ -411,19 +398,15 @@ dbTest(
 dbTest(
   "retired source columns and independent type identity tables have no runtime SQL consumers",
   async () => {
-    const retired =
-      await admin`select to_regclass('app.entity_type_identity') settings,
+    const retired = await admin`select to_regclass('app.entity_type_identity') settings,
     to_regclass('app.entity_type_identity_sources') mappings`;
     assertEquals(retired[0], { settings: null, mappings: null });
-    const columns =
-      await admin`select attname from pg_attribute where attrelid='app.entities'::regclass
+    const columns = await admin`select attname from pg_attribute where attrelid='app.entities'::regclass
     and attnum>0 and not attisdropped and attname in ('source','external_id')`;
     assertEquals([...columns], []);
-    const [grants] =
-      await admin`select has_table_privilege('app_user','app.entities','DELETE') hard_delete`;
+    const [grants] = await admin`select has_table_privilege('app_user','app.entities','DELETE') hard_delete`;
     assertEquals(grants.hard_delete, false);
-    const functions =
-      await admin`select n.nspname,p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+    const functions = await admin`select n.nspname,p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname in ('app','private') and p.prokind='f' and
     (pg_get_functiondef(p.oid) ~ 'entity_type_identity|external_id')`;
     assertEquals([...functions], []);
