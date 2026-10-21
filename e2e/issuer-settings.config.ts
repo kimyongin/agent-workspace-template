@@ -1,10 +1,16 @@
 import { ownedFixtureWebServer } from "./support/fixture-web-server.ts";
 import { defineConfig, devices } from "@playwright/test";
+
+const workerSetting = process.env.WORKSPACE_ISSUER_FIXTURE_WORKERS ?? "1";
+if (!/^[1-3]$/.test(workerSetting)) {
+  throw new Error("WORKSPACE_ISSUER_FIXTURE_WORKERS must be 1, 2, or 3");
+}
+
 export default defineConfig({
   testDir: ".",
   testMatch: "issuer-settings.fixture.ts",
   fullyParallel: false,
-  workers: 1,
+  workers: Number(workerSetting),
   projects: [{ name: "desktop", use: { ...devices["Desktop Chrome"] } }, {
     name: "mobile",
     use: { ...devices["Pixel 7"], viewport: { width: 320, height: 568 } },

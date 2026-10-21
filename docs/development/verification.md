@@ -160,6 +160,25 @@ worker override가 없으면 설정이 소유하는 수를 관찰하지 못했�
 
 같은 검증 시간에 실제 strict port 충돌은 기존 HTTP 서버를 보존한 채 거절했고, 두 번째 소유자 거절·정확한 자식 정리·포트 해제도 확인했다. 기존 단독 설정+파일+desktop 선택 1건은 별도 서버로 통과했다. 최초 측정 도구는 npm CLI 경로 누락으로 검사 전 실패했으며, 외부 도구만 수정하고 원시 실패 근거를 별도 보존했다. 이 환경 수정은 제품 성능 개선에 포함하지 않는다. 원시 계획/수집 목록/보고서/로그/RSS 표본/완료 화면 산출물과 상세 경계는 [#547 실행 근거](https://github.com/kimyongin/agent-workspace-template/issues/547)에 기록한다. 기존 #544의 `422bb0cd` 측정이나 다른 프로토콜로 전환한 #546 검사 목록과 합산하지 않는다.
 
+### 식별자 설정 화면의 선택적 병렬 실행
+
+`e2e/issuer-settings.config.ts`는 기본 worker 1개를 유지한다. 이 격리 화면만 `WORKSPACE_ISSUER_FIXTURE_WORKERS=2 npm run test:e2e -- --config e2e/issuer-settings.config.ts`로 늘릴 수 있다. 허용 값은 1·2·3이며 빈 값이나 그 밖의 값은 실행 전에 거절한다. 전체 실행에서도 이 환경 변수는 식별자 설정 화면에만 적용된다. Playwright의 명시 `--workers=1`이 환경 변수보다 우선하며 실제 API 설정의 worker 수는 바꾸지 않는다. 자동 자원 감지나 스케줄러는 추가하지 않는다.
+
+각 사례는 독립 browser context와 메모리 API fixture·registry·receipt를 사용한다. 공유 파일 쓰기와 실제 업무 API 호출은 없으며 화면 캡처는 사례·프로젝트별 `outputPath`에 저장한다. Vite 정적 자원만 공유한다. `fullyParallel: false`를 유지하므로 현재 두 프로젝트의 파일이 병렬 실행되는 범위다. worker 3개는 허용하지만 현재 구성의 추가 속도 이점을 확인한 값은 아니다. 다른 화면 설정과 실제 API 검사의 격리를 검증한 것으로 확대 해석하지 않는다.
+
+2026-10-22의 고정 소스 `f2768f912de57284d09ed0dabb32ce98f3226dd9`에서 같은 42개 사례를 worker 1→2→2→1 순서로 실행했다. 각 실행은 모두 42개 통과했고 재시도·제외·timeout 변경이 없었다. 기존 캐시를 보존한 warm 조건, 명령마다 새 Vite/browser, 순차 단독 실행이었다. 자식 트리 RSS는 1초 간격 표본이며 Docker VM과 순간 peak를 포함하지 않는다.
+
+| 순서 | worker | 전체 실행 시간 | 최대 표본 RSS |
+| --- | --- | --- | --- |
+| 1 | 1 | 95.87초 | 1,538,464 KiB |
+| 2 | 2 | 51.12초 | 2,245,568 KiB |
+| 3 | 2 | 51.10초 | 2,392,928 KiB |
+| 4 | 1 | 96.87초 | 1,588,688 KiB |
+
+호스트는 macOS·메모리 16 GiB였으며 Docker 설정은 8 GiB/10 CPU였다. 표본 수집 실패는 없었다. 호스트 free 메모리의 최솟값은 약 75–95 MB였지만 macOS reclaimable 메모리를 포함한 사용 가능 용량과 다르다. 별도 `memory_pressure`의 free percentage는 44–50%였다. 이 환경에서 시간 감소와 메모리 증가를 함께 확인했으므로 기본값은 유지하고 여유가 있는 실행에서만 2개를 선택한다. 사례·공유 상태·환경이 바뀌면 같은 범위와 조건으로 다시 비교한다.
+
+원본 로그·Playwright 결과·자원 보고서는 `/private/tmp/workspace-546-comparison-20261022/corrected/`에 보존했다. 앞선 실행은 메뉴 개수에 대한 오래된 기대값 때문에 38개 통과·4개 실패했으며 별도 상위 디렉터리에 남겼다. 그 실패 시간을 개선 비교에 사용하지 않았다. 이후 기본값·선택 값·명시 override·잘못된 값 거절과 동일 사례 발견은 공개 Playwright CLI의 `--list` 경계에서 검사한다. 발견 검사는 실제 브라우저 실행 증거를 대신하지 않는다.
+
 ## 웹·E2E 코드의 국소 포맷팅
 
 웹 TS/TSX와 브라우저 검사는 package.json·lockfile에 고정된 Deno formatter를 사용한다. `--no-config --line-width 120`으로 서버 설정·사용자 설정의 자동 탐색과 구분하고, 기본 2칸 들여쓰기·큰따옴표·세미콜론 스타일을 따른다. formatter는 한 import 안의 이름 순서를 정렬하고 필요한 제어문 중괄호도 배치한다. 별도 formatter 의존성이나 저장소 전체 재포맷을 추가할 필요는 없다.
