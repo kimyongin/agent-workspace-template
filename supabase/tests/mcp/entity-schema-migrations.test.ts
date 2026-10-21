@@ -228,7 +228,7 @@ activityWorkspaceSuite(
         change_id: draft.body.id,
         analysis_id: recoveredPlan.analysis.id,
       });
-      assertEquals(rows.items[0].after, { prop_1: "source" });
+      assertEquals(rows.items[0].after, entity.properties);
       const recovered = await scopedTool(client, w, "start_entity_schema_migration", {
         type_id: typeId,
         change_id: draft.body.id,
