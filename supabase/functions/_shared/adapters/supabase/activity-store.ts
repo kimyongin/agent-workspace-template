@@ -19,6 +19,7 @@ import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./wor
 import { AppError, notFound } from "../../core/shared/errors.ts";
 import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import { loadBusinessEntityDefinition } from "./entity-values.ts";
+import { resolvedEntityTypeIcon } from "../../contracts/entity-type.ts";
 import { hasAnyTag, hasTag, tagIdsColumn } from "./tag-links.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 import { replayRetainedSqlRequest } from "./request-ledger.ts";
@@ -128,8 +129,21 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async visibleTask(task: Task): Promise<Task> {
     if (!task.entity_ids?.length) return { ...task, entity_ids: [], entity_context: [] };
-    const visible = await this.tx<{ id: string; entity_type_id: string }[]>`select id,entity_type_id from app.entities
-      where workspace_id=${this.workspaceId} and id=any(${task.entity_ids}::text[])`;
+    const visible = await this.tx<{
+      id: string;
+      entity_type_id: string;
+      deleted_at: Date | null;
+      title: string;
+      label: string;
+      icon_id: string;
+      archived: boolean;
+      schema_version: number;
+    }[]>`select e.id,e.entity_type_id,e.deleted_at,app.entity_title(v.schema,e.properties,e.external_id) as title,
+      v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,
+      coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version
+      from app.entities e join app.entity_types t on t.workspace_id=e.workspace_id and t.id=e.entity_type_id
+      join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version
+      where e.workspace_id=${this.workspaceId} and e.id=any(${task.entity_ids}::text[])`;
     const requirements = [...new Set(visible.map((row) => row.entity_type_id))].sort().map((id) => ({
       target_kind: "entity_type" as const,
       target_id: id,
@@ -146,7 +160,24 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     return {
       ...task,
       entity_ids: task.entity_ids.filter((id) => ids.has(id)),
-      entity_context: (task.entity_context ?? []).filter((item) => ids.has(item.id)),
+      // Task links are current references. Only this read DTO refreshes their labels;
+      // stored capture bytes and event/record snapshots retain their historical facts.
+      entity_context: (task.entity_context ?? []).filter((item) => ids.has(item.id)).map((item) => {
+        const current = visible.find((row) => row.id === item.id);
+        return current && !current.deleted_at
+          ? {
+            ...item,
+            title: current.title,
+            type: {
+              id: current.entity_type_id,
+              label: current.label,
+              icon_id: resolvedEntityTypeIcon(current.icon_id),
+              archived: current.archived,
+            },
+            schema_version: Number(current.schema_version),
+          }
+          : item;
+      }),
     };
   }
   async getTask(id: string, opts: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean } = {}) {

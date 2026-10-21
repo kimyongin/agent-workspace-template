@@ -10,6 +10,8 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
   const source = initialEntityDefinition("Name"), target = structuredClone(source);
   target.schema.properties.prop_2 = { "x-order": 20, type: "integer", title: "수량" };
   target.schema.required.push("prop_2");
+  source.schema["x-title-template"] = "고객:$prop_1$";
+  target.schema["x-title-template"] = "$prop_1$ - $prop_2$";
 
   const templates = {
     entity: { update: { memo: "$엔터티.이후.prop_2$ · $엔터티.이전.제목$", tag_ids: ["one", "missing"] } },
@@ -45,16 +47,16 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
   }, batch.type_id);
   const output = await prepareMigrationBatch(batch, new Date("2026-10-12T00:00:00Z"));
   assert(!output.stale);
-  assertEquals(output.results[0].record_body, "0 · 원본");
+  assertEquals(output.results[0].record_body, "0 · 고객:원본");
   assertEquals(output.results[0].record_tags, ["one"]);
   assertEquals(output.results[0].record_path, "/entities/app%3A%F0%9F%98%80%2F%3F");
   assertEquals(output.results[0].record_context[0].schema_version, 2);
-  assertEquals(output.results[0].record_context[0].title, "원본");
+  assertEquals(output.results[0].record_context[0].title, "원본 - 0");
   assertEquals(output.results[0].after, { prop_1: "원본", prop_2: 0 });
   assertEquals(output.results[0].record_context[0].captured_at, "2026-10-12T00:00:00.000Z");
   const later = await prepareMigrationBatch(batch, new Date("2027-02-03T04:05:06Z"));
   assertEquals(later.results[0].record_context[0].captured_at, "2027-02-03T04:05:06.000Z");
-  assertEquals(later.results[0].record_body, "0 · 원본");
+  assertEquals(later.results[0].record_body, "0 · 고객:원본");
   const unchanged = migrationRecordRenderer(batch, new Date("2026-10-12T00:00:00Z"))({
     ...batch.rows[0],
     changed: false,
@@ -63,7 +65,7 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
   assertEquals(unchanged.record_tags, []);
   assertEquals(unchanged.record_context, [{
     id: "app:😀/?",
-    title: "원본",
+    title: "원본 - 0",
     type: batch.type,
     schema_version: 2,
     captured_at: "2026-10-12T00:00:00.000Z",
