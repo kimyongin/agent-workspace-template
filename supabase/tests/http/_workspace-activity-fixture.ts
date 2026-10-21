@@ -313,6 +313,11 @@ export async function withActivityWorkspace(
         value: { schema: Record<string, unknown> },
       ) => value.schema["x-type-id"] === kind.body.id);
       assert(type);
+      const identityKey = type.schema["x-identity-property"];
+      const identityField = type.schema.properties[identityKey];
+      type.schema.properties.prop_5 = { ...identityField, "x-order": 50 };
+      type.schema["x-identity-property"] = "prop_5";
+      type.schema.required = [...type.schema.required.filter((key: string) => key !== identityKey), "prop_5"];
       Object.assign(type.schema.properties, {
         prop_2: {
           type: ["integer", "null"],
