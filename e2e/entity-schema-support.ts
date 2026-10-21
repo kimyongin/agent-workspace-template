@@ -108,11 +108,9 @@ export async function createFixtureEntity(
   mcp: FixtureClient,
   workspace: FixtureWorkspace,
   properties: Record<string, unknown>,
-  identity: Record<string, unknown> = {},
 ) {
   const type = await scalarFixtureType(mcp, workspace);
   return mcp.call("create_entity", {
-    ...identity,
     entity_type_id: type.id,
     schema_version: type.schema_version,
     properties,
