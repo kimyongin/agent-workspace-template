@@ -1,14 +1,14 @@
+import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { expect, test } from "@playwright/test";
 import { fixtures, form, go } from "./support/workspace-screens.ts";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
 import { openDialogs, saveOnce } from "./ui-actions.ts";
 
-const marketEntity = (n: number, source: string, label: string) => ({
+const marketEntity = (n: number, label: string) => ({
   ...entity(n, { prop_1: "같은 상품" }),
-  source,
-  source_label: label,
-  external_id: `000Ab-${n}`,
-  id: `${source}:${fixtureType.id}:000Ab-${n}`,
+  identity_label: `${label} · 상품 번호 · 000Ab-${n}`,
+  properties: { ...entity(n).properties, prop_1: "같은 상품", prop_5: encodeIdentifierValue(id(n + 700), `000Ab-${n}`) },
+  id: encodeIdentifierReference(fixtureType.id, id(n + 700), `000Ab-${n}`),
 });
 
 for (const width of [320, 1440]) {
@@ -38,7 +38,7 @@ for (const width of [320, 1440]) {
     `relation choices ${width}px: excluded pages explain emptiness and selected rows keep the human identity`,
     async ({ page }, info) => {
       const state = await fixtures(page);
-      const first = marketEntity(21, "coupang", "쿠팡"), second = marketEntity(22, "naver", "네이버");
+      const first = marketEntity(21, "쿠팡"), second = marketEntity(22, "네이버");
       // The adapter keeps the same rows object; replace its contents, not the storage property.
       state.rows.entities.splice(0, state.rows.entities.length, first, second);
       state.listPages("entities", [[first], [second]]);
@@ -53,12 +53,12 @@ for (const width of [320, 1440]) {
       await results.getByRole("button", { name: "같은 상품 연결", exact: true }).click();
       await expect(results.getByText("현재 결과에 연결할 수 있는 항목이 없습니다.", { exact: true })).toBeVisible();
       const selected = editor.getByRole("table", { name: "선택한 자료", exact: true });
-      await expect(selected).toContainText("쿠팡 · 000Ab-21");
+      await expect(selected).toContainText("쿠팡 · 상품 번호 · 000Ab-21");
       await expect(selected).not.toContainText(first.id);
       await results.getByRole("button", { name: "검색 결과 더 보기", exact: true }).click();
       await results.getByRole("button", { name: "같은 상품 연결", exact: true }).click();
       await expect(results.getByText("연결할 수 있는 결과가 없습니다.", { exact: true })).toBeVisible();
-      await expect(selected).toContainText("네이버 · 000Ab-22");
+      await expect(selected).toContainText("네이버 · 상품 번호 · 000Ab-22");
       await selected.getByRole("button", { name: "같은 상품 해제", exact: true }).last().click();
       await expect(results.getByRole("button", { name: "같은 상품 연결", exact: true })).toBeVisible();
       await page.screenshot({ path: info.outputPath(`relation-choice-${width}.png`), fullPage: true });
@@ -70,7 +70,7 @@ for (const width of [320, 1440]) {
 
   test(`known relation ${width}px: metadata failure keeps the captured name and unsaved note through retry`, async ({ page }) => {
     const state = await fixtures(page);
-    const item = marketEntity(21, "coupang", "쿠팡");
+    const item = marketEntity(21, "쿠팡");
     state.rows.entities.splice(0, state.rows.entities.length, item);
     await page.setViewportSize({ width, height: 900 });
     await go(page, `/entities/${encodeURIComponent(item.id)}`);
@@ -83,7 +83,7 @@ for (const width of [320, 1440]) {
     await expect(selected).toContainText("같은 상품");
     await expect(selected).not.toContainText(item.id);
     await form(page).getByRole("button", { name: "다시 조회", exact: true }).click();
-    await expect(selected).toContainText("쿠팡 · 000Ab-21");
+    await expect(selected).toContainText("쿠팡 · 상품 번호 · 000Ab-21");
     await expect(form(page).getByLabel("본문", { exact: false })).toHaveValue("보존할 할 일 초안");
     expect(state.writes).toHaveLength(0);
   });

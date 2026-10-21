@@ -1,3 +1,8 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import type postgres from "postgres";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -103,8 +108,12 @@ dbTest(
       await tx`insert into app.tags(id,workspace_id,name,scope) values(${collision},${member.workspaceId},'existing','task')`;
       await tx`insert into app.tasks(id,workspace_id,kind,title,status) values(${collision},${member.workspaceId},'once','existing','open')`;
       await tx`insert into app.records(id,workspace_id,task_id,record_kind,body) values(${collision},${member.workspaceId},${collision},'result','existing')`;
-      await tx`insert into app.entities(id,workspace_id,source,external_id,entity_type_id,schema_version,properties)
-        values(${`app:${schema.entity_type_id}:${collision}`},${member.workspaceId},'app',${collision},${schema.entity_type_id},1,'{"prop_1":"existing"}'::jsonb)`;
+      await tx`insert into app.entities(id,workspace_id,entity_type_id,schema_version,properties)
+        values(${
+        encodeIdentifierReference(schema.entity_type_id, APP_IDENTIFIER_RULE_ID, collision)
+      },${member.workspaceId},${schema.entity_type_id},1,${
+        tx.json({ prop_1: "existing", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, collision) })
+      })`;
       const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
       const td = { uow: new SqlTagUnitOfWork(sql) };
       const ed = { uow: new SqlEntityUnitOfWork(sql) };
@@ -123,7 +132,9 @@ dbTest(
         const a = actor(member), value = await write(a);
         assertEquals(
           value.id,
-          value.id.startsWith("app:") ? `app:${schema.entity_type_id}:20261011-00000001` : "20261011-00000001",
+          value.id.startsWith(schema.entity_type_id + ":")
+            ? encodeIdentifierReference(schema.entity_type_id, APP_IDENTIFIER_RULE_ID, "20261011-00000001")
+            : "20261011-00000001",
         );
         assertEquals(await write(a), value);
       }
@@ -184,8 +195,12 @@ dbTest(
   () =>
     deterministic(async (tx, _sql, member, schema) => {
       await tx`insert into app.tags(id,workspace_id,name,scope) values('20261011-00000000',${member.workspaceId},'duplicate','task')`;
-      await tx`insert into app.entities(id,workspace_id,source,external_id,entity_type_id,schema_version,properties)
-        values(${`app:${schema.entity_type_id}:explicit`},${member.workspaceId},'app','explicit',${schema.entity_type_id},1,'{"prop_1":"existing"}'::jsonb)`;
+      await tx`insert into app.entities(id,workspace_id,entity_type_id,schema_version,properties)
+        values(${
+        encodeIdentifierReference(schema.entity_type_id, APP_IDENTIFIER_RULE_ID, "explicit")
+      },${member.workspaceId},${schema.entity_type_id},1,${
+        tx.json({ prop_1: "existing", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "explicit") })
+      })`;
       await tx`reset role`;
       const beforeReceipts =
         (await tx`select count(*)::int n from private.workspace_request_results where workspace_id=${member.workspaceId}`)[
@@ -198,7 +213,10 @@ dbTest(
           entity.createEntity(
             { uow: new SqlEntityUnitOfWork(connection) },
             actor(member),
-            entityCreate.parse({ ...schema, external_id: "explicit", properties: { prop_1: "new" } }),
+            entityCreate.parse({
+              ...schema,
+              properties: { prop_1: "new", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "explicit") },
+            }),
           ),
       ];
       for (const write of writes) {

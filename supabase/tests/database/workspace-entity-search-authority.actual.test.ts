@@ -69,8 +69,6 @@ for (const stage of stages) {
           entityCreate.parse({
             entity_type_id: kind.id,
             schema_version: 2,
-            source: "app",
-            external_id: crypto.randomUUID(),
             properties: { prop_1: "오래된 자료 색인이 공개되면 안 되는 공유 원문" },
           }),
         );

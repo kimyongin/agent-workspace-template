@@ -31,30 +31,30 @@ const user = connect(urls.pooler, { max: 1, prepare: false });
 dbTest("entity title SQL and public read semantics agree for scalar, Unicode, escape and length cases", async () => {
   const { schema } = initialEntityDefinition("고객명");
   Object.assign(schema.properties, {
-    prop_2: { type: "string", "x-order": 20 },
-    prop_3: { type: "boolean", "x-order": 30 },
-    prop_4: { type: "number", "x-order": 40 },
-    prop_5: {
+    prop_3: { type: "string", "x-order": 30 },
+    prop_4: { type: "boolean", "x-order": 40 },
+    prop_5: { type: "number", "x-order": 50 },
+    prop_6: {
       type: ["string", "null"],
-      "x-order": 50,
+      "x-order": 60,
       oneOf: [{ const: "a", title: "진행 중" }, { const: null, title: "미정" }],
     },
-    prop_6: { type: "string", format: "date", "x-order": 60 },
+    prop_7: { type: "string", format: "date", "x-order": 70 },
   });
   const cases: Array<{ template: string; properties: Record<string, unknown>; expected: string }> = [
     {
-      template: "$prop_1$ - $prop_2$",
-      properties: { prop_1: "초록상점", prop_2: "서울" },
+      template: "$prop_1$ - $prop_3$",
+      properties: { prop_1: "초록상점", prop_3: "서울" },
       expected: "초록상점 - 서울",
     },
     {
-      template: "$prop_1$ / $prop_3$ / $prop_4$ / $prop_5$ / $prop_6$ / $$",
-      properties: { prop_1: "<상점>", prop_3: false, prop_4: 0, prop_5: "a", prop_6: "2024-02-29" },
+      template: "$prop_1$ / $prop_4$ / $prop_5$ / $prop_6$ / $prop_7$ / $$",
+      properties: { prop_1: "<상점>", prop_4: false, prop_5: 0, prop_6: "a", prop_7: "2024-02-29" },
       expected: "<상점> / 아니오 / 0 / 진행 중 / 2024-02-29 / $",
     },
     {
-      template: "${prop_1$} $prop_5$ $prop_3$",
-      properties: { prop_1: "초록", prop_5: null, prop_3: true },
+      template: "${prop_1$} $prop_6$ $prop_4$",
+      properties: { prop_1: "초록", prop_6: null, prop_4: true },
       expected: "초록 미정 예",
     },
     { template: "$prop_1$", properties: {}, expected: "자료-1" },
@@ -70,8 +70,8 @@ dbTest("entity title SQL and public read semantics agree for scalar, Unicode, es
     { template: "고정 제목", properties: {}, expected: "고정 제목" },
     { template: "$prop_1$ 끝", properties: { prop_1: "😀".repeat(4096) }, expected: "😀".repeat(4095) + "…" },
     {
-      template: "$prop_1$$prop_2$",
-      properties: { prop_1: " ".repeat(4096), prop_2: "뒤의 내용" },
+      template: "$prop_1$$prop_3$",
+      properties: { prop_1: " ".repeat(4096), prop_3: "뒤의 내용" },
       expected: " ".repeat(4095) + "…",
     },
   ];
@@ -87,10 +87,10 @@ dbTest("entity title SQL and public read semantics agree for scalar, Unicode, es
     assertEquals(row.title, item.expected);
   }
   // PostgreSQL numeric scale is not a user-visible distinction from JSON Number.
-  schema["x-title-template"] = "$prop_4$";
+  schema["x-title-template"] = "$prop_5$";
   const [numeric] = await admin`select app.entity_title(${
     admin.json(schema as never)
-  },'{"prop_4":1.2500}'::jsonb,'자료-1') as title`;
+  },'{"prop_5":1.2500}'::jsonb,'자료-1') as title`;
   assertEquals(numeric.title, "1.25");
 });
 
@@ -112,7 +112,7 @@ dbTest(
       const publish = async (template: string, addRegion = false) => {
         const document = await exportDataModel(model, actor);
         const definition = document.entity_types.find((item) => item.schema["x-type-id"] === kind.id)!;
-        if (addRegion) definition.schema.properties.prop_2 = { type: "string", title: "지역", "x-order": 20 };
+        if (addRegion) definition.schema.properties.prop_3 = { type: "string", title: "지역", "x-order": 30 };
         definition.schema["x-title-template"] = template;
         const input = { mode: "update", document: JSON.stringify(document) };
         const review = await previewDataModel(model, actor, input);
@@ -125,7 +125,7 @@ dbTest(
           "applied",
         );
       };
-      await publish("$prop_1$ - $prop_2$", true);
+      await publish("$prop_1$ - $prop_3$", true);
       const saved = [];
       for (const region of ["서울", "부산", "부산"]) {
         saved.push(
@@ -135,9 +135,7 @@ dbTest(
             entityCreate.parse({
               entity_type_id: kind.id,
               schema_version: 2,
-              source: "app",
-              external_id: crypto.randomUUID(),
-              properties: { prop_1: "초록상점", prop_2: region },
+              properties: { prop_1: "초록상점", prop_3: region },
             }),
           ),
         );
@@ -195,7 +193,7 @@ dbTest(
         await admin`select entity_context from app.tasks where workspace_id=${fixture.workspaceId} and id=${task.id}`;
       const [queueBefore] =
         await admin`select count(*)::int as n from pgmq.q_search_index where message->>'workspace_id'=${fixture.workspaceId} and message->>'kind'='entity'`;
-      await publish("$prop_2$ / $prop_1$");
+      await publish("$prop_3$ / $prop_1$");
       const after = await entities.getEntity(ed, actor, saved[0].id);
       assertEquals(after.title, "서울 / 초록상점");
       assertEquals(after.properties, before.properties);

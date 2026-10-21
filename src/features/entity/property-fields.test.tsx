@@ -2,6 +2,28 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { displayedProperty, PropertyFields, propertyValues } from "./property-fields.tsx";
 import { initialEntityDefinition } from "@contracts/entity-type.ts";
+it("identifier inputs show original text and kind labels without editing the serialized UUID prefix", () => {
+  const definition = initialEntityDefinition("상품명");
+  const kind = "22222222-2222-4222-8222-222222222222";
+  definition.schema.properties.prop_2["x-identifier"] = { allowed_kind_ids: [kind], default_kind_id: kind };
+  const html = renderToStaticMarkup(<PropertyFields definition={{ ...definition, identifier_kinds: [{
+    id: kind, source: "store", label: "상품 번호", source_label: "판매처", active: true,
+    generation: "direct", version: 1, source_version: 1,
+  }] }} values={{ prop_2: `${kind}:00123` }} onChange={() => {}} errors={{}} />);
+  expect(html).toContain("판매처 · 상품 번호");
+  expect(html).toContain('value="00123"');
+  expect(html).not.toContain(`value="${kind}:00123"`);
+});
+it("identifier drafts require a complete permitted pair and preserve the original Unicode budget", () => {
+  const definition = initialEntityDefinition("상품명");
+  const kind = "22222222-2222-4222-8222-222222222222";
+  definition.schema.properties.prop_2["x-identifier"] = { allowed_kind_ids: [kind], default_kind_id: kind };
+  for (const value of [`${kind}:`, "00123", `33333333-3333-4333-8333-333333333333:00123`, `${kind}:${"😀".repeat(201)}`]) {
+    expect(() => propertyValues(definition, { prop_2: value })).toThrow();
+  }
+  const pair = `${kind}:${"😀".repeat(200)}`;
+  expect(propertyValues(definition, { prop_2: pair }).prop_2).toBe(pair);
+});
 describe("schema form public presentation", () => {
   it("renders labels and three boolean states while preserving zero", () => {
     const definition = initialEntityDefinition("품명");
@@ -215,7 +237,7 @@ it("renders a readonly title-participating attribute as ordinary key/value in ed
   expect(html).toMatch(/<dd[^>]*>변경 불가 상품<\/dd>/);
   expect(html).not.toContain("<h2");
   expect(html).toContain("읽기 전용");
-  expect(html).not.toContain("<input");
+  expect(html).not.toContain('value="변경 불가 상품"');
 });
 
 it("validates title-participating text by its ordinary attribute constraints", () => {

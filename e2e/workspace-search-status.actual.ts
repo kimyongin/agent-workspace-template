@@ -24,8 +24,6 @@ async function setup(page: Page) {
   const entity = await client.call("create_entity", {
     entity_type_id: kind.id,
     schema_version: 2,
-    source: "app",
-    external_id: crypto.randomUUID(),
     properties: { prop_1: marker },
   });
   const task = await client.call("create_task", { kind: "once", title: "공유 검색 수행" });

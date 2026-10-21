@@ -310,7 +310,12 @@ test("responsive workspace brand and list heading remain reachable at every widt
     expect(titleBox.y).toBeGreaterThanOrEqual(banner.y + banner.height - 1);
     await openMainNavigation(page);
     const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
-    await expect(navigation.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/workspaces");
+    const switcher = navigation.getByRole("button", { name: "공간 선택", exact: true });
+    await expect(switcher).toContainText("테스트 공간");
+    await switcher.click();
+    await expect(page.getByRole("menuitem", { name: "테스트 공간", exact: true })).toHaveAttribute("aria-current", "page");
+    await page.keyboard.press("Escape");
+    await expect(switcher).toBeFocused();
     await expect(navigation.getByRole("link", { name: "할 일", exact: true })).toBeVisible();
     const close = page.getByRole("button", { name: "메뉴 닫기", exact: true }); if (await close.isVisible()) await close.click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -353,12 +358,12 @@ for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read 
     const surface = page.getByRole("dialog").filter({ visible: true });
     const properties = surface;
     const expectedKeys = kind === "entities"
-      ? ["제목", "번호 출처", "자료 번호", "수량", "날짜", "분류", "태그"]
+      ? ["제목", "식별자", "수량", "날짜", "분류", "태그"]
       : kind === "tasks"
       ? ["제목", "본문", "상태", "종류", "기한", "태그"]
       : ["본문", "종류", "수행 시각", "태그"];
     for (const label of expectedKeys) {
-      const key = properties.getByRole("term").and(properties.getByText(label, { exact: true })).filter({ visible: true }).first();
+      const key = properties.getByRole("term").filter({ hasText: label === "식별자" ? /^식별자 · 자료 식별자$/ : new RegExp(`^${label}$`) }).filter({ visible: true }).first();
       await expect(key).toBeVisible();
       const value = key.locator("..").getByRole("definition").first(); await expect(value).toBeVisible();
       if (kind === "entities" && label === "수량") await expect(value).toHaveText("0");
@@ -539,9 +544,9 @@ test("business tables: expanded attribute values reflow without horizontal scrol
   const state = await fixture(page);
   const schema = structuredClone(fixtureSchema);
 
-  schema.schema.properties.prop_5 = { type: "boolean", title: "확인 상태를 나타내는 긴 라벨", "x-order": 50};
+  schema.schema.properties.prop_6 = { type: "boolean", title: "확인 상태를 나타내는 긴 라벨", "x-order": 50};
   await page.route("**/api/entity-types/*/schema**", route => route.fulfill({ json: schema }));
-  Object.assign(state.rows.entities[0].properties, { prop_2: 240000, prop_3: "2026-10-08", prop_5: false });
+  Object.assign(state.rows.entities[0].properties, { prop_2: 240000, prop_3: "2026-10-08", prop_6: false });
   await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   const table = page.getByRole("table", { name: "검사 자료 목록", exact: true });
   const title = table.getByRole("link", { name: `${entity.title} 상세`, exact: true });

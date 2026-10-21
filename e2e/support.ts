@@ -704,7 +704,7 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
   });
   // A worktree can serve its app on a separate loopback port while the shared local Auth site_url stays fixed.
   // Preserve the real authorization request and ID, then show consent in the current app origin/session.
-  const appOrigin = new URL(page.url()).origin;
+  const appOrigin = new URL(process.env.WORKSPACE_E2E_BASE_URL!).origin;
   const authorization = await fetch(url, { redirect: "manual" });
   await authorization.body?.cancel();
   const consent = new URL(

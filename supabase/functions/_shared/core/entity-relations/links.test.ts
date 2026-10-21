@@ -2,7 +2,7 @@ import { assertEquals, assertRejects } from "@std/assert";
 import { connectEntityRelation } from "./links.ts";
 import { AppError } from "../shared/errors.ts";
 Deno.test("typed relation rejects own entity without reaching storage", async () => {
-  const id = "app:11111111-1111-4111-8111-111111111111:item";
+  const id = "11111111-1111-4111-8111-111111111111:00000000-0000-4000-8000-000000000001:item";
   const error = await assertRejects(() =>
     connectEntityRelation(
       {

@@ -1,3 +1,8 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
+  decodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { createTag, setTagConnections } from "../../functions/_shared/core/tags/application.ts";
 import { assertEquals, assertRejects } from "@std/assert";
@@ -11,6 +16,7 @@ import {
   deleteEntity,
   getEntity,
   listEntities,
+  restoreEntity,
   updateEntity,
 } from "../../functions/_shared/core/entity/application.ts";
 import { createEntityType, updateEntityType } from "../../functions/_shared/core/entity-types/application.ts";
@@ -31,12 +37,12 @@ dbTest(
       await owner.grantKind(owner.manager, second.id, "write");
       const definition = initialEntityDefinition("이름", { id: first.id, title: first.label, icon: first.icon_id });
       Object.assign(definition.schema.properties, {
-        prop_2: { "x-order": 20, type: ["integer", "null"], title: "개수", default: 7 },
-        prop_3: { "x-order": 30, type: ["number", "null"], title: "무게" },
-        prop_4: { "x-order": 40, type: ["string", "null"], format: "date", title: "날짜" },
-        prop_5: { "x-order": 50, type: ["boolean", "null"], title: "검사" },
-        prop_6: {
-          "x-order": 60,
+        prop_3: { "x-order": 30, type: ["integer", "null"], title: "개수", default: 7 },
+        prop_4: { "x-order": 40, type: ["number", "null"], title: "무게" },
+        prop_5: { "x-order": 50, type: ["string", "null"], format: "date", title: "날짜" },
+        prop_6: { "x-order": 60, type: ["boolean", "null"], title: "검사" },
+        prop_7: {
+          "x-order": 70,
           type: ["string", "null"],
           oneOf: [{ const: "a" }, { const: "b" }, { const: null }],
           title: "선택",
@@ -47,8 +53,8 @@ dbTest(
         title: second.label,
         icon: second.icon_id,
       });
-      secondDefinition.schema.properties.prop_2 = {
-        "x-order": 20,
+      secondDefinition.schema.properties.prop_3 = {
+        "x-order": 30,
         type: "string",
         format: "date",
         default: "2024-02-29",
@@ -60,22 +66,28 @@ dbTest(
         await tx`insert into app.entity_schema_versions(workspace_id,schema) values(${owner.workspaceId},${
           tx.json({ ...definition.schema, "x-type-id": first.id, "x-version": 2 })
         })`;
-        await tx`update app.entity_types set schema_version=2,next_property_number=7 where workspace_id=${owner.workspaceId} and id=${first.id}`;
+        await tx`update app.entity_types set schema_version=2,next_property_number=8 where workspace_id=${owner.workspaceId} and id=${first.id}`;
         await tx`insert into app.entity_schema_versions(workspace_id,schema) values(${owner.workspaceId},${
           tx.json({ ...secondDefinition.schema, "x-type-id": second.id, "x-version": 2 })
         })`;
-        await tx`update app.entity_types set schema_version=2,next_property_number=3 where workspace_id=${owner.workspaceId} and id=${second.id}`;
+        await tx`update app.entity_types set schema_version=2,next_property_number=4 where workspace_id=${owner.workspaceId} and id=${second.id}`;
       });
       const input = {
         entity_type_id: first.id,
         schema_version: 2,
-        external_id: "000/한글%",
-        properties: { prop_1: "재료", prop_3: 0, prop_4: "2024-02-29", prop_5: false, prop_6: null },
+        properties: {
+          prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "000/한글%"),
+          prop_1: "재료",
+          prop_4: 0,
+          prop_5: "2024-02-29",
+          prop_6: false,
+          prop_7: null,
+        },
       };
       const intent = requestActor(owner.manager);
       const saved = await createEntity(entities, intent, input);
       assertEquals(await createEntity(entities, intent, input), saved);
-      assertEquals(saved.properties, { ...input.properties, prop_2: 7 });
+      assertEquals(saved.properties, { ...input.properties, prop_3: 7 });
       assertEquals(saved.title, "재료");
       const summary =
         (await listEntities(entities, owner.manager, { entity_type_id: first.id, limit: 20, sort: "updated_at" }))
@@ -89,12 +101,12 @@ dbTest(
       );
       const invalidPatches: EntityProperties[] = [
         { prop_1: "" },
-        { prop_2: 1.5 },
-        { prop_2: Number.MAX_SAFE_INTEGER + 1 },
-        { prop_3: 0.0000001 },
-        { prop_4: "2023-02-29" },
-        { prop_6: "unknown" },
-        { prop_99: 1 },
+        { prop_3: 1.5 },
+        { prop_3: Number.MAX_SAFE_INTEGER + 1 },
+        { prop_4: 0.0000001 },
+        { prop_5: "2023-02-29" },
+        { prop_7: "unknown" },
+        { prop_100: 1 },
       ];
       for (const patch of invalidPatches) {
         const error = await assertRejects(() =>
@@ -109,9 +121,9 @@ dbTest(
       const changed = await updateEntity(entities, requestActor(owner.manager), saved.id, {
         expected_version: 1,
         schema_version: 2,
-        properties: { prop_2: null },
+        properties: { prop_3: null },
       });
-      assertEquals(changed.properties, { ...input.properties, prop_2: null });
+      assertEquals(changed.properties, { ...input.properties, prop_3: null });
       await updateEntityType(types, requestActor(owner.manager), first.id, {
         expected_schema_version: 2,
         label: "材料",
@@ -128,20 +140,20 @@ dbTest(
       await deleteEntity(entities, requestActor(owner.manager), saved.id, changed.version);
       const deleted = await getEntity(entities, owner.manager, saved.id);
       assertEquals(
-        (await assertRejects(() =>
-          createEntity(entities, requestActor(owner.manager), {
-            ...input,
-            entity_type_id: second.id,
-            schema_version: 2,
-            expected_version: deleted.version,
-          }), AppError)).code,
-        "conflict",
+        (await assertRejects(
+          () =>
+            restoreEntity(entities, requestActor(owner.manager), saved.id.replace(first.id, second.id), {
+              schema_version: 2,
+              expected_version: deleted.version,
+            }),
+          AppError,
+        )).code,
+        "not_found",
       );
       // Another type computes another canonical target; it cannot restore this deleted row.
       assertEquals((await getEntity(entities, owner.manager, saved.id)).deleted_at, deleted.deleted_at);
-      const restored = await createEntity(entities, requestActor(owner.manager), {
-        ...input,
-        properties: {},
+      const restored = await restoreEntity(entities, requestActor(owner.manager), saved.id, {
+        schema_version: input.schema_version,
         expected_version: deleted.version,
       });
       assertEquals(restored.properties, changed.properties);
@@ -163,10 +175,9 @@ dbTest(
       const independent = await createEntity(entities, requestActor(owner.manager), {
         entity_type_id: second.id,
         schema_version: 2,
-        properties: { prop_1: "상품" },
-        external_id: "independent",
+        properties: { prop_1: "상품", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "independent") },
       });
-      assertEquals(independent.properties.prop_2, "2024-02-29");
+      assertEquals(independent.properties.prop_3, "2024-02-29");
       await admin`update app.entity_types set schema_write_locked=false where workspace_id=${owner.workspaceId} and id=${first.id}`;
       await updateEntityType(types, requestActor(owner.manager), first.id, {
         expected_schema_version: 3,
@@ -182,7 +193,11 @@ dbTest(
       const archived = await getEntity(entities, owner.manager, saved.id);
       assertEquals(
         (await assertRejects(
-          () => createEntity(entities, requestActor(owner.manager), { ...input, expected_version: archived.version }),
+          () =>
+            restoreEntity(entities, requestActor(owner.manager), saved.id, {
+              schema_version: input.schema_version,
+              expected_version: archived.version,
+            }),
           AppError,
         )).code,
         "entity_type_archived",
@@ -211,14 +226,13 @@ dbTest(
       const original = await createEntity(entities, requestActor(owner.manager), {
         entity_type_id: a.id,
         schema_version: 1,
-        external_id: "stored",
-        properties: { prop_1: "existing" },
+        properties: { prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "stored"), prop_1: "existing" },
       });
       let locked!: () => void, release!: () => void;
       const ready = new Promise<void>((resolve) => locked = resolve),
         gate = new Promise<void>((resolve) => release = resolve);
       const definition = initialEntityDefinition("이름", { id: a.id, title: a.label, icon: a.icon_id });
-      definition.schema.properties.prop_2 = { "x-order": 20, type: "string", default: "new" };
+      definition.schema.properties.prop_3 = { "x-order": 30, type: "string", default: "new" };
       const publication = admin.begin(async (tx) => {
         await tx`select set_config('request.workspace_id',${owner.workspaceId},true)`;
         await tx`select id from app.entity_types where workspace_id=${owner.workspaceId} and id=${a.id} for update`;
@@ -233,15 +247,13 @@ dbTest(
       const pending = createEntity(entities, requestActor(owner.manager), {
         entity_type_id: a.id,
         schema_version: 1,
-        external_id: "racing",
-        properties: { prop_1: "old form" },
+        properties: { prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "racing"), prop_1: "old form" },
       });
       try {
         const independent = await createEntity(entities, requestActor(owner.manager), {
           entity_type_id: b.id,
           schema_version: 1,
-          external_id: "independent",
-          properties: { prop_1: "상품" },
+          properties: { prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "independent"), prop_1: "상품" },
         });
         assertEquals(independent.entity_type_id, b.id);
       } finally {
@@ -252,12 +264,15 @@ dbTest(
       assertEquals(
         (await listEntities(entities, owner.manager, { entity_type_id: a.id, limit: 20, sort: "updated_at" })).items
           .map(
-            (row) => row.external_id,
+            (row) => decodeIdentifierReference(row.id).raw,
           ),
         ["stored"],
       );
       const oldRead = await getEntity(entities, owner.manager, original.id);
-      assertEquals(oldRead.properties, { prop_1: "existing" });
+      assertEquals(oldRead.properties, {
+        prop_1: "existing",
+        prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "stored"),
+      });
       assertEquals([oldRead.schema_version, oldRead.current_schema_version], [1, 2]);
       const tags = { uow: new SqlTagUnitOfWork(sql) };
       const tag = await createTag(tags, requestActor(owner.manager), { scope: "entity", name: "unrelated" });
@@ -268,27 +283,33 @@ dbTest(
         tag_ids: [tag.id],
       });
       const unrelated = await getEntity(entities, owner.manager, original.id);
-      assertEquals(unrelated.properties, { prop_1: "existing" });
+      assertEquals(unrelated.properties, {
+        prop_1: "existing",
+        prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "stored"),
+      });
       assertEquals(unrelated.tag_ids, [tag.id]);
       assertEquals(unrelated.version, connection.version);
       await deleteEntity(entities, requestActor(owner.manager), original.id, unrelated.version);
       const removed = await getEntity(entities, owner.manager, original.id);
-      const restored = await createEntity(entities, requestActor(owner.manager), {
-        entity_type_id: a.id,
+      const restored = await restoreEntity(entities, requestActor(owner.manager), original.id, {
         schema_version: 2,
-        external_id: "stored",
-        properties: {},
         expected_version: removed.version,
       });
-      assertEquals(restored.properties, { prop_1: "existing" });
+      assertEquals(restored.properties, {
+        prop_1: "existing",
+        prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "stored"),
+      });
       assertEquals(restored.tag_ids, [tag.id]);
       const current = await createEntity(entities, requestActor(owner.manager), {
         entity_type_id: a.id,
         schema_version: 2,
-        external_id: "racing",
-        properties: { prop_1: "reviewed" },
+        properties: { prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "racing"), prop_1: "reviewed" },
       });
-      assertEquals(current.properties, { prop_1: "reviewed", prop_2: "new" });
+      assertEquals(current.properties, {
+        prop_1: "reviewed",
+        prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "racing"),
+        prop_3: "new",
+      });
     } finally {
       await owner.cleanup();
       await sql.end();
@@ -304,14 +325,17 @@ dbTest("Typed entity workspace DB: the 64 KiB properties limit matches canonical
     const type = await createEntityType(types, requestActor(owner.manager), { label: "한도 자료" });
     await owner.grantKind(owner.manager, type.id, "write");
     const definition = initialEntityDefinition("이름", { id: type.id, title: type.label, icon: type.icon_id });
-    const properties: EntityProperties = { prop_1: "size" };
-    for (let n = 2; n <= 17; n++) {
+    const properties: EntityProperties = {
+      prop_1: "size",
+      prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "size"),
+    };
+    for (let n = 3; n <= 18; n++) {
       const key = `prop_${n}`;
       definition.schema.properties[key] = { "x-order": n * 10, type: "string", maxLength: 4096 };
       properties[key] = "x".repeat(4096);
     }
     const [size] = await admin`select octet_length(${admin.json(properties)}::jsonb::text)::int bytes`;
-    properties.prop_17 = "x".repeat(4096 - (Number(size.bytes) - 65536));
+    properties.prop_18 = "x".repeat(4096 - (Number(size.bytes) - 65536));
     const [canonical] = await admin`select octet_length(${admin.json(properties)}::jsonb::text)::int bytes`;
     assertEquals(canonical.bytes, 65536);
     await admin.begin(async (tx) => {
@@ -319,12 +343,11 @@ dbTest("Typed entity workspace DB: the 64 KiB properties limit matches canonical
       await tx`insert into app.entity_schema_versions(workspace_id,schema) values(${owner.workspaceId},${
         tx.json({ ...definition.schema, "x-type-id": type.id, "x-version": 2 })
       })`;
-      await tx`update app.entity_types set schema_version=2,next_property_number=18 where workspace_id=${owner.workspaceId} and id=${type.id}`;
+      await tx`update app.entity_types set schema_version=2,next_property_number=19 where workspace_id=${owner.workspaceId} and id=${type.id}`;
     });
     const created = await createEntity(entities, requestActor(owner.manager), {
       entity_type_id: type.id,
       schema_version: 2,
-      external_id: "size",
       properties,
     });
     assertEquals(created.properties, properties);
@@ -333,7 +356,7 @@ dbTest("Typed entity workspace DB: the 64 KiB properties limit matches canonical
         updateEntity(entities, requestActor(owner.manager), created.id, {
           schema_version: 2,
           expected_version: 1,
-          properties: { prop_17: String(properties.prop_17) + "x" },
+          properties: { prop_18: String(properties.prop_18) + "x" },
         }),
       AppError,
     );

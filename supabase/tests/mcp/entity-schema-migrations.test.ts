@@ -26,16 +26,18 @@ activityWorkspaceSuite(
         properties: { prop_1: "source" },
       })).body;
       const entityId = entity.id;
-      const plan = (await scopedHttp(token, w, "POST", `/entity-types/${typeId}/schema-changes`, {
+      const planResponse = await scopedHttp(token, w, "POST", `/entity-types/${typeId}/schema-changes`, {
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
           client_ref: "flag",
-          field: { type: "boolean", title: "確認", "x-order": 20 },
+          field: { type: "boolean", title: "確認", "x-order": 30 },
           required: true,
         }],
-        migration: { rules: [{ op: "fill", key: "prop_2", value: false }], overrides: [] },
-      })).body;
+        migration: { rules: [{ op: "fill", key: "prop_3", value: false }], overrides: [] },
+      });
+      assertEquals(planResponse.status, 201, JSON.stringify(planResponse.body));
+      const plan = planResponse.body;
       await scopedHttp(token, w, "POST", `/entity-types/${typeId}/schema-changes/${plan.id}/analyze`, {
         expected_change_version: 1,
       });
@@ -166,8 +168,8 @@ activityWorkspaceSuite(
       assertEquals(replay.body, second.body);
       assertEquals(replay.headers.get("Idempotency-Replayed"), "true");
       assertEquals((await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties, {
-        prop_1: "source",
-        prop_2: false,
+        ...entity.properties,
+        prop_3: false,
       });
       const recoveryPath = `/entity-schema-migrations/${retryId}/recovery-changes`;
       const refs = {
@@ -192,7 +194,7 @@ activityWorkspaceSuite(
         draft.body,
       );
       assertEquals(
-        (await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties.prop_2,
+        (await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties.prop_3,
         false,
       );
       const recoveryAnalysis = await scopedTool(client, w, "analyze_entity_schema_change", {
@@ -226,7 +228,7 @@ activityWorkspaceSuite(
         change_id: draft.body.id,
         analysis_id: recoveredPlan.analysis.id,
       });
-      assertEquals(rows.items[0].after, { prop_1: "source" });
+      assertEquals(rows.items[0].after, entity.properties);
       const recovered = await scopedTool(client, w, "start_entity_schema_migration", {
         type_id: typeId,
         change_id: draft.body.id,
@@ -253,7 +255,7 @@ activityWorkspaceSuite(
         "succeeded",
       );
       assertEquals((await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties, {
-        prop_1: "source",
+        ...entity.properties,
       });
       const newer = (await scopedHttp(token, w, "GET", `/entity-schema-migrations/${recovered.job_id}`)).body;
       await scopedHttp(token, w, "PATCH", `/entities/${encodeURIComponent(entityId!)}`, {

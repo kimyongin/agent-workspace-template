@@ -131,7 +131,7 @@ dbTest(
         expected_version: 2,
         previous_other_id: previous.id,
         expected_previous_version: 2,
-        entity: { entity_type_id: right.id, schema_version: 1, properties: { prop_1: "새 상대" } },
+        entity: { action: "create", entity_type_id: right.id, schema_version: 1, properties: { prop_1: "새 상대" } },
       };
       const invalidRecordTag = await createTag({ uow: new SqlTagUnitOfWork(sql) }, businessRequest(f.manager), {
         scope: "entity",

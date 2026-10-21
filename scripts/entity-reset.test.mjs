@@ -90,3 +90,58 @@ test("literal collisions never select unrelated drafts, models or task receipts;
   assert.equal(plan.counts["app.data_model_changes"], 0);
   assert.equal(plan.counts["private.workspace_request_results"], 1);
 });
+
+test("explicit incompatible definition retirement selects exact versions, endpoints and live contract receipts", () => {
+  const compatible = "00000000-0000-4000-8000-000000000004";
+  const data = structuredClone(inventory);
+  data["app.entity_types"] = [{ workspace_id: workspace, id: type, schema_version: 2 }, { workspace_id: workspace, id: compatible, schema_version: 1 }];
+  data["app.entity_schema_versions"] = [1, 2].map((schema_version) => ({ workspace_id: workspace, type_id: type, schema_version, schema: { properties: {} } }));
+  data["app.entity_schema_versions"].push({ workspace_id: workspace, type_id: compatible, schema_version: 1, schema: { "x-identity-property": "key", required: ["key"], properties: { key: { type: "string", "x-identifier": {} } } } });
+  data["app.entity_relation_definitions"] = [{ workspace_id: workspace, id: "endpoint", left_type_id: type, right_type_id: compatible }, { workspace_id: workspace, id: "keep", left_type_id: compatible, right_type_id: compatible }];
+  data["private.workspace_request_results"].push({ workspace_id: workspace, request_key: "type", operation: "entity-type.create", completed_at: "done", result: { id: type } });
+  assert.ok(planEntityReset(manifest, data).blockers.some((b) => b.reason === "incompatible_definition_disposition_required"));
+  const m = structuredClone(manifest); m.scopes[0].retire_definitions = [{ type_id: type, expected_schema_version: 2, schema_versions: [1, 2] }];
+  const plan = planEntityReset(m, data);
+  assert.deepEqual(plan.blockers, []);
+  assert.equal(plan.counts["app.entity_types"], 1);
+  assert.equal(plan.counts["app.entity_schema_versions"], 2);
+  assert.equal(plan.counts["app.entity_relation_definitions"], 1);
+  assert.equal(plan.counts["private.workspace_request_results"], 2);
+  for (const mutate of [
+    (d) => d["app.entity_types"][0].schema_version++,
+    (d) => d["app.entity_schema_versions"].push({ workspace_id: workspace, type_id: type, schema_version: 3, schema: {} }),
+    (d) => { d["app.entity_relation_definitions"][0].right_type_id = type; },
+    (d) => d["private.workspace_request_results"].push({ workspace_id: workspace, request_key: "race", operation: "entity-type.update", completed_at: null, result: null }),
+    (d) => { d.__catalog = [{ definition: "changed guard" }]; },
+  ]) { const changed = structuredClone(data); mutate(changed); assert.notEqual(planEntityReset(m, changed).digest, plan.digest); }
+  const protectedData = structuredClone(data);
+  protectedData["private.workspace_grants"] = [{ workspace_id: workspace, entity_type_id: type }];
+  assert.ok(planEntityReset(m, protectedData).blockers.some((b) => b.reason === "definition_has_preserved_grants"));
+  const unsafe = structuredClone(m); unsafe.scopes[0].retire_definitions = [{ type_id: compatible, expected_schema_version: 1, schema_versions: [1] }];
+  assert.ok(planEntityReset(unsafe, data).blockers.some((b) => b.reason === "compatible_definition_retirement_forbidden"));
+});
+
+test("approved NULL-era registry victims alone are excluded from preservation while scoped lookalikes remain fenced", () => {
+  const legacyIssuer = { workspace_id: null, owner_id: actor, code: "legacy", label: "retire" };
+  const legacyRule = { workspace_id: null, owner_id: actor, id: type, source: "legacy", label: "retire" };
+  const scopedIssuer = { ...legacyIssuer, workspace_id: workspace, label: "preserve issuer" };
+  const scopedRule = { ...legacyRule, workspace_id: workspace, label: "preserve rule" };
+  const approved = { ...manifest, legacy_rows: [
+    { table: "app.entity_issuers", key: { owner_id: actor, code: "legacy" } },
+    { table: "app.entity_identifier_rules", key: { owner_id: actor, id: type } },
+  ] };
+  const before = { ...inventory, "app.entity_issuers": [legacyIssuer, scopedIssuer], "app.entity_identifier_rules": [legacyRule, scopedRule] };
+  const after = { ...inventory, "app.entity_issuers": [scopedIssuer], "app.entity_identifier_rules": [scopedRule] };
+  const plan = planEntityReset(approved, before);
+  assert.deepEqual(plan.blockers, []);
+  assert.equal(plan.counts["app.entity_issuers"], 1);
+  assert.equal(plan.counts["app.entity_identifier_rules"], 1);
+  assert.equal(plan.preservation_digest, planEntityReset(approved, after).preservation_digest);
+  for (const table of ["app.entity_issuers", "app.entity_identifier_rules"]) {
+    const changed = structuredClone(after); changed[table][0].label = "concurrent change";
+    assert.notEqual(plan.preservation_digest, planEntityReset(approved, changed).preservation_digest);
+    const unapproved = { ...before, [table]: [...before[table], { ...before[table][0], owner_id: "00000000-0000-4000-8000-000000000099" }] };
+    const mutated = structuredClone(unapproved); mutated[table][2].label = "unapproved legacy change";
+    assert.notEqual(planEntityReset(approved, unapproved).preservation_digest, planEntityReset(approved, mutated).preservation_digest);
+  }
+});

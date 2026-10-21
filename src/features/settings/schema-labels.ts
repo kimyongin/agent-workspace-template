@@ -4,12 +4,12 @@ import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { EntityField } from "@contracts/entity-type.ts";
 import type { EntitySchemaChange, SchemaDefinition } from "@contracts/entity-schema-change.ts";
 import { fieldType } from "../entity/property-fields.tsx";
-import { entityIdentityLabel, splitEntityId } from "@contracts/entity-identity.ts";
+import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 
 /** A readable reference without guessing a current title for a historical result. */
 export function schemaEntityLabel(id: string) {
   try {
-    return entityIdentityLabel(splitEntityId(id));
+    return entityIdentityLabel({ id });
   } catch {
     return id;
   }
@@ -28,7 +28,7 @@ export const schemaChangeLabels: Record<EntitySchemaChange["status"], string> = 
 };
 export function fieldTypeLabel(field: EntityField) {
   const kind = fieldType(field);
-  const label = fieldChoices(field)
+  const label = field["x-identifier"] ? "식별자" : fieldChoices(field)
     ? "단일 선택"
     : field.format === "date"
     ? "날짜"
@@ -64,6 +64,10 @@ export function schemaDiffLabel(path: string, target: SchemaDefinition, source: 
     "x-search-text": "검색에 사용",
     "x-icon": "아이콘",
     "x-title-template": "제목 템플릿",
+    "x-identity-property": "자료 식별자",
+    "x-identifier": "식별자 규칙",
+    allowed_kind_ids: "허용 규칙",
+    default_kind_id: "기본 규칙",
     deprecated: "사용 중지",
     readOnly: "읽기 전용",
     examples: "입력 예시",

@@ -5,6 +5,11 @@ import { grantOwnedKinds } from "./_workspace-grants.ts";
 import type { EntityDetail, EntitySummary } from "../../functions/_shared/contracts/entity.ts";
 import type { EntitySchemaResult } from "../../functions/_shared/contracts/entity-type.ts";
 import type { EntitySchemaChange } from "../../functions/_shared/contracts/entity-schema-change.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
+  decodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import {
   jsonbText,
   validateEntityDefinition,
@@ -82,14 +87,17 @@ activityWorkspaceSuite(
     assertEquals(created.status, 201);
     const typeId = created.body.id;
     await grantOwnedKinds(token, w, [typeId]);
+    const initial = await request<EntitySchemaResult>(token, w, "GET", `/entity-types/${typeId}/schema`);
+    assertEquals(initial.status, 200);
     const input = {
       expected_schema_version: created.body.schema_version,
       edits: [
         ...Array.from(
           { length: 22 },
           (_, n) => ({
-            op: "add_property",
-            client_ref: `field${n + 2}`,
+            ...(n === 0
+              ? { op: "update_property", key: "prop_2" }
+              : { op: "add_property", client_ref: `field${n + 2}` }),
             field: {
               type: "string",
               "x-order": (n + 2) * 10,
@@ -98,6 +106,13 @@ activityWorkspaceSuite(
             required: false,
           }),
         ),
+        {
+          op: "add_property",
+          client_ref: "identifier",
+          field: { ...initial.body.schema.properties.prop_2, "x-order": 240 },
+          required: true,
+        },
+        { op: "set_metadata", "x-identity-property": "new_identifier" },
       ],
     };
     const plan = await request<EntitySchemaChange>(
@@ -108,7 +123,7 @@ activityWorkspaceSuite(
       input,
       key(),
     );
-    assertEquals(plan.status, 201);
+    assertEquals(plan.status, 201, JSON.stringify(plan.body));
     validateEntityDefinition(plan.body.target);
     const definitionBytes = new TextEncoder().encode(jsonbText(plan.body.target)).byteLength;
     assert(definitionBytes > 65000 && definitionBytes <= 262144);
@@ -149,6 +164,8 @@ activityWorkspaceSuite(
       `/entity-types/${typeId}/schema`,
     );
     assertEquals(schema.status, 200);
+    assertEquals(schema.body.identity_change_allowed, true);
+    assertEquals(schema.body.schema["x-identity-property"], "prop_24");
     assertEquals(schema.body.schema, {
       ...plan.body.target.schema,
       "x-version": schema.body.schema_version,
@@ -173,11 +190,16 @@ activityWorkspaceSuite(
       ),
       prop_7: "끝".repeat(1300),
     };
+    const representative = {
+      ...properties,
+      prop_24: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "00000000-AAAAAAAA"),
+    };
     validateEntityProperties({
       schema: schema.body.schema,
-    }, properties);
-    evidence.properties_bytes = new TextEncoder().encode(jsonbText(properties)).byteLength;
-    assertEquals(evidence.properties_bytes, 65444);
+    }, representative);
+    evidence.properties_bytes = new TextEncoder().encode(jsonbText(representative)).byteLength;
+    assertEquals(evidence.properties_bytes, 65513);
+    let firstProperties: Record<string, unknown> | undefined;
     for (let n = 0; n < 101; n++) {
       const entity = await request<EntityDetail>(token, w, "POST", "/entities", {
         entity_type_id: typeId,
@@ -187,7 +209,11 @@ activityWorkspaceSuite(
       }, key());
       assertEquals(entity.status, 201);
       entities.push(entity.body.id);
-      assertEquals(entity.body.properties, properties);
+      assertEquals(entity.body.properties, {
+        ...properties,
+        prop_24: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, decodeIdentifierReference(entity.body.id).raw),
+      });
+      if (n === 0) firstProperties = entity.body.properties;
     }
     const detail = await request<EntityDetail>(
       token,
@@ -196,7 +222,7 @@ activityWorkspaceSuite(
       `/entities/${encodeURIComponent(entities[0])}`,
     );
     assertEquals(detail.status, 200);
-    assertEquals(detail.body.properties, properties);
+    assertEquals(detail.body.properties, firstProperties);
     assertEquals(
       (await sdk<EntityDetail>("get_entity", { id: entities[0] })).body,
       detail.body,
@@ -291,13 +317,8 @@ activityWorkspaceSuite(
     assertEquals(new Set(all).size, 101);
     assertEquals(all.sort(), entities.toSorted());
     const afterCreation = (await request<EntitySchemaResult>(token, w, "GET", `/entity-types/${typeId}/schema`)).body;
-    const { identity: initialIdentity, ...initialDefinition } = schema.body;
-    const { identity: referencedIdentity, ...unchangedDefinition } = afterCreation;
-    assertEquals(unchangedDefinition, initialDefinition);
-    assert(initialIdentity && referencedIdentity);
-    assertEquals(initialIdentity.sources.find((source) => source.code === "app")?.referenced, false);
-    assertEquals(referencedIdentity.sources.find((source) => source.code === "app")?.referenced, true);
-    assertEquals(referencedIdentity.version, initialIdentity.version);
+    // Registration locks selection while preserving the published definition and registry versions.
+    assertEquals(afterCreation, { ...schema.body, identity_change_allowed: false });
     const filtered = {
       entity_type_id: typeId,
       limit: 100,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { entityCreate } from "./entity.ts";
+import { entityCreate, entityRestore } from "./entity.ts";
 import { entityReferenceId } from "./entity-identity.ts";
 import { relationLocation } from "./entity-relation-links.ts";
 import { expectedVersion } from "./common.ts";
@@ -9,7 +9,10 @@ export const createAndLinkInput = relationLocation.extend({
   expected_version: expectedVersion,
   previous_other_id: entityReferenceId.nullable(),
   expected_previous_version: expectedVersion.nullable(),
-  entity: entityCreate,
+  entity: z.discriminatedUnion("action", [
+    entityCreate.extend({ action: z.literal("create") }),
+    entityRestore.extend({ action: z.literal("restore"), id: entityReferenceId }),
+  ]),
   ...businessMeta,
 }).superRefine((v, c) => {
   if ((v.previous_other_id === null) !== (v.expected_previous_version === null)) {

@@ -1,26 +1,26 @@
 import { authorizeWorkspace, requireWorkspaceActor, runInWorkspace } from "./workspace-context.ts";
 import { notFound } from "../../core/shared/errors.ts";
 import type { EntityEntry } from "../../core/entity/application.ts";
-import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
-import { entityId } from "../../contracts/entity-identity.ts";
+import {
+  decodeIdentifierReference,
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../contracts/entity-identifiers.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
-import type { EntityCreate, EntityDetail, EntityQuery, EntityUpdate, EntityValues } from "../../contracts/entity.ts";
+import type { EntityDetail, EntityQuery, EntityRestore, EntityUpdate, EntityValues } from "../../contracts/entity.ts";
 import { entityPresentationRow, loadBusinessEntityDefinition } from "./entity-values.ts";
 import type { EntityStore } from "../../core/entity/application.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import { type EntityKeyset, fieldKind } from "../../core/entity/list-rules.ts";
 import { SqlActorStore } from "./sql-context.ts";
 import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
-const columns =
-  "id,source,external_id,deleted_at,entity_type_id,schema_version,properties,version,created_at,updated_at";
+const columns = "id,deleted_at,entity_type_id,schema_version,properties,version,created_at,updated_at";
 function result(r: Record<string, unknown>) {
   return {
     tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
-    source: r.source as string,
-    external_id: r.external_id as string,
-    source_label: r.source as string,
+    identity_label: String(r.identity_label ?? ""),
     deleted_at: r.deleted_at instanceof Date ? r.deleted_at.toISOString() : null,
     entity_type_id: r.entity_type_id as string,
     schema_version: Number(r.schema_version),
@@ -36,13 +36,6 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   }
   definition(typeId: string, lock = false) {
     return loadBusinessEntityDefinition(this.tx, typeId, lock);
-  }
-  async getTypeIdentity(typeId: string, lock = false) {
-    if (lock) {
-      const [locked] = await this.tx`select app.lock_business_entity_identity(${typeId}::uuid) as available`;
-      if (!locked.available) return null;
-    }
-    return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId);
   }
   async get(id: string, lock = false) {
     if (lock) {
@@ -64,20 +57,24 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     return tx`${tx.unsafe(columns.split(",").map((name) => "entities." + name).join(","))},${
       tagIdsColumn(tx, "entity")
     },
-      t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version as current_schema_version,v.schema,
-      issuer.label as source_label`;
+      app.entity_identifier_kinds(t.id,t.schema_version) as identifier_kinds,t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version as current_schema_version,v.schema`;
   }
   private joined() {
     const tx = this.tx;
     return tx`app.entities join app.entity_types t on t.workspace_id=entities.workspace_id and t.id=entities.entity_type_id
-      join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version
-      join app.entity_issuers issuer on issuer.workspace_id=entities.workspace_id and issuer.code=entities.source`;
+      join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version`;
   }
   private present(r: Record<string, unknown>): EntityValues {
     const row = result(r);
+    const identity = decodeIdentifierReference(row.id);
+    const kind = (r.identifier_kinds as Array<{ id: string; source_label: string; label: string }>).find((k) =>
+      k.id === identity.kind_id
+    );
+    row.identity_label = kind
+      ? `${kind.source_label} · ${kind.label} · ${identity.raw}`
+      : `${identity.kind_id.slice(0, 8)} · ${identity.raw}`;
     return {
       ...row,
-      source_label: String(r.source_label),
       ...entityPresentationRow(r, row.properties),
     };
   }
@@ -105,19 +102,24 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     return revisions;
   }
   async insert(i: Parameters<EntityStore["insert"]>[0], generatedIdentity = false) {
-    let external_id = i.external_id;
+    let id = i.id, properties = { ...i.properties };
+    const identity = decodeIdentifierReference(id);
+    const definition = await this.definition(i.entity_type_id);
+    const selected = definition!.schema["x-identity-property"]!;
     const insert = () =>
-      this.tx`insert into app.entities(id,workspace_id,source,external_id,entity_type_id,schema_version,properties)
-      values (${entityId(i.source, i.entity_type_id, external_id)},${
-        requireWorkspaceActor(this.actor).workspaceId
-      },${i.source},${external_id},${i.entity_type_id},${i.schema_version},${this.tx.json(i.properties)})
+      this.tx`insert into app.entities(id,workspace_id,entity_type_id,schema_version,properties)
+      values (${id},${this.workspaceId},${i.entity_type_id},${i.schema_version},${this.tx.json(properties)})
       ${generatedIdentity ? this.tx`on conflict (workspace_id,id) do nothing` : this.tx``} returning ${
         this.tx.unsafe(columns)
       }`;
     let first = true;
     const row = generatedIdentity
       ? await insertWithIdRetry(async () => {
-        if (!first) external_id = await this.issueDataId();
+        if (!first) {
+          const raw = await this.issueDataId();
+          id = encodeIdentifierReference(i.entity_type_id, identity.kind_id, raw);
+          properties = { ...properties, [selected]: encodeIdentifierValue(identity.kind_id, raw) };
+        }
         first = false;
         return await insert();
       })
@@ -143,15 +145,16 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     await this
       .tx`update app.entities set deleted_at=now(),version=version+1,updated_at=now() where workspace_id=${this.workspaceId} and id=${id}`;
   }
-  async restore(id: string, changes: EntityCreate) {
-    const { source: _source, external_id: _external, expected_version: _version, ...props } = changes;
+  async restore(id: string, changes: EntityRestore) {
+    const { expected_version: _version, change_note: _note, change_tag_ids: _tags, ...props } = changes;
     await this.tx`update app.entities set deleted_at=null where workspace_id=${this.workspaceId} and id=${id}`;
     return this.update(id, props);
   }
   async list(q: EntityQuery, after?: EntityKeyset, typeIds?: string[]) {
     const tx = this.tx;
     const definition = q.entity_type_id ? await this.definition(q.entity_type_id) : null;
-    const title = tx`app.entity_title(v.schema,entities.properties,entities.external_id)`;
+    const title =
+      tx`app.entity_title(v.schema,entities.properties,app.identifier_raw(entities.properties->>(v.schema->>'x-identity-property')))`;
     const scalar = (key: string) => {
       const field = definition!.schema.properties[key], kind = fieldKind(field);
       const json = tx`entities.properties->${key}::text`, value = tx`entities.properties->>${key}::text`;
@@ -191,11 +194,10 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       from ${this.joined()} where entities.deleted_at is null
       ${typeIds ? tx`and entities.entity_type_id=any(${typeIds}::uuid[])` : tx``}
       ${q.entity_type_id ? tx`and entities.entity_type_id=${q.entity_type_id}::uuid` : tx``}
-      ${q.source ? tx`and entities.source=${q.source}` : tx``}
       ${q.tag_id ? tx`and ${hasTag(tx, "entity", q.tag_id)}` : tx``}
       ${
       q.keyword
-        ? tx`and (position(lower(${q.keyword}) in lower(${title}))>0 or position(lower(${q.keyword}) in lower(entities.external_id))>0 or position(lower(${q.keyword}) in lower(entities.source))>0)`
+        ? tx`and (position(lower(${q.keyword}) in lower(${title}))>0 or position(lower(${q.keyword}) in lower(app.identifier_raw(entities.properties->>(v.schema->>'x-identity-property'))))>0)`
         : tx``
     }
       ${filters.reduce((all, filter) => tx`${all} ${filter}`, tx``)} ${boundary}

@@ -1,6 +1,7 @@
 import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
 import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { entitySchemaPresentation } from "../supabase/functions/_shared/contracts/entity-type.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { expect } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, unique, workspacePath } from "./support.ts";
 import { analyzeAndApply, schemaAnalysisTick } from "./entity-schema-support.ts";
@@ -59,8 +60,14 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     typeId = created.id;
     expect(created.icon_id).toBe("leaf");
     const original = await mcp.call("get_entity_schema", { type_id: typeId });
-    expect(original.schema.required).toEqual(["prop_1"]);
+    expect(original.schema.required).toEqual(["prop_1", "prop_2"]);
     expect(original.schema.properties.prop_1.title).toBe("대표 이름");
+    expect(original.schema["x-identity-property"]).toBe("prop_2");
+    expect(original.schema.properties.prop_2.type).toBe("string");
+    expect(original.schema.properties.prop_2["x-identifier"]).toEqual({
+      allowed_kind_ids: [APP_IDENTIFIER_RULE_ID],
+      default_kind_id: APP_IDENTIFIER_RULE_ID,
+    });
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveCount(0);
     releaseDestination!();
@@ -244,6 +251,7 @@ test("첫 웹 검토가 속성 순서·필수 상품명·판매 상태 선택지
     await page.getByRole("option", { name: "상품명", exact: true }).click();
     await page.getByRole("button", { name: "상품명 위로", exact: true }).click();
     await page.getByRole("button", { name: "상품명 위로", exact: true }).click();
+    await page.getByRole("button", { name: "상품명 위로", exact: true }).click();
     const saveResponse = page.waitForResponse((response) =>
       response.request().method() === "POST" && response.url().endsWith(`/entity-types/${type.id}/schema-changes`)
     );
@@ -256,11 +264,12 @@ test("첫 웹 검토가 속성 순서·필수 상품명·판매 상태 선택지
     const statusKey = fields.find(([, value]) => value.title === "판매 상태")![0];
     const nameKey = fields.find(([, value]) => value.title === "상품명")![0];
     expect(entitySchemaPresentation(stored.target.schema)).toEqual({
-      order: [nameKey, "prop_1", statusKey],
+      order: [nameKey, "prop_1", "prop_2", statusKey],
       archived: [],
       option_labels: { [statusKey]: { option_1: "판매 중" } },
     });
     expect(stored.target.schema.required).toContain(nameKey);
+    expect(stored.target.schema["x-identity-property"]).toBe("prop_2");
     expect(stored.target.schema["x-title-template"]).toBe(`$${nameKey}$`);
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await expect(history.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
@@ -270,15 +279,17 @@ test("첫 웹 검토가 속성 순서·필수 상품명·판매 상태 선택지
     ).toBe("applied");
     const published = await mcp.call("get_entity_schema", { type_id: type.id });
     expect(published.schema_version).toBe(2);
+    expect(published.schema["x-identity-property"]).toBe("prop_2");
     expect(entitySchemaPresentation(published.schema)).toEqual(entitySchemaPresentation(stored.target.schema));
     await expect(history.getByRole("button", { name: "변경 이력 다시 조회", exact: true })).toBeEnabled();
     const inputToggle = page.getByRole("button", { name: "입력 항목", exact: true });
     if (await inputToggle.getAttribute("aria-expanded") === "false") await inputToggle.click();
     const renderedFields = businessRows(page.getByRole("table", { name: "입력 항목 목록", exact: true }));
-    await expect(renderedFields).toHaveCount(3);
+    await expect(renderedFields).toHaveCount(4);
     await expect(renderedFields.nth(0)).toHaveAttribute("aria-label", "상품명 입력 항목");
     await expect(renderedFields.nth(1)).toHaveAttribute("aria-label", "이름 입력 항목");
-    await expect(renderedFields.nth(2)).toHaveAttribute("aria-label", "판매 상태 입력 항목");
+    await expect(renderedFields.nth(2)).toHaveAttribute("aria-label", "식별자 입력 항목");
+    await expect(renderedFields.nth(3)).toHaveAttribute("aria-label", "판매 상태 입력 항목");
   } finally {
     await mcp.close();
   }
@@ -297,7 +308,7 @@ test("기록 템플릿이 바뀌면 같은 이력 행에서 변환 초안을 유
       edits: [{
         op: "add_property",
         client_ref: "price",
-        field: { "x-order": 20, type: ["integer", "null"], title: "가격" },
+        field: { "x-order": 30, type: ["integer", "null"], title: "가격" },
       }],
     });
     await analyzeAndApply(mcp, type.id, addition.id, addition.version);

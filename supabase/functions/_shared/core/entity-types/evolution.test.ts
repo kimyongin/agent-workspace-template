@@ -12,7 +12,7 @@ Deno.test("selected identity metadata resolves an added field through the same r
     field: {
       type: "string",
       title: "상품 번호",
-      "x-order": 20,
+      "x-order": 30,
       "x-identifier": {
         allowed_kind_ids: ["22222222-2222-4222-8222-222222222222"],
         default_kind_id: "22222222-2222-4222-8222-222222222222",
@@ -20,10 +20,10 @@ Deno.test("selected identity metadata resolves an added field through the same r
     },
   });
   const selected = entitySchemaEdit.parse({ op: "set_metadata", "x-identity-property": "new_sku" });
-  const result = resolveSchemaEdits(source, [selected, add], { sku: "prop_2" });
-  assertEquals(result.target.schema["x-identity-property"], "prop_2");
-  assertEquals(result.diff.find((item) => item.path === "x-identity-property")?.after, "prop_2");
-  assertThrows(() => resolveSchemaEdits(source, [selected], { sku: "prop_2" }));
+  const result = resolveSchemaEdits(source, [selected, add], { sku: "prop_3" });
+  assertEquals(result.target.schema["x-identity-property"], "prop_3");
+  assertEquals(result.diff.find((item) => item.path === "x-identity-property")?.after, "prop_3");
+  assertThrows(() => resolveSchemaEdits(source, [selected], { sku: "prop_3" }));
 });
 
 Deno.test("schema edit policy preserves key meaning and labels but classifies narrowing independently of data", () => {
@@ -47,45 +47,45 @@ Deno.test("schema edit policy preserves key meaning and labels but classifies na
   assertThrows(() =>
     resolveSchemaEdits(
       source,
-      [{ op: "update_property", key: "prop_99", field: { "x-order": 20, type: "string" }, required: false }],
+      [{ op: "update_property", key: "prop_100", field: { "x-order": 30, type: "string" }, required: false }],
       {},
     )
   );
 });
 Deno.test("archive retains definitions and requires explicit requiredness edit while template references stay active", () => {
   const source = initialEntityDefinition("이름");
-  source.schema.properties.prop_2 = { "x-order": 20, type: "string", title: "설명" };
-  source.schema.required.push("prop_2");
-  assertThrows(() => resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_2" }], {}));
-  const result = resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_2" }, {
+  source.schema.properties.prop_3 = { "x-order": 30, type: "string", title: "설명" };
+  source.schema.required.push("prop_3");
+  assertThrows(() => resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_3" }], {}));
+  const result = resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_3" }, {
     op: "update_property",
-    key: "prop_2",
-    field: source.schema.properties.prop_2,
+    key: "prop_3",
+    field: source.schema.properties.prop_3,
     required: false,
   }], {});
   assertEquals(result.kind, "compatible");
-  assertEquals(result.target.schema.properties.prop_2.title, "설명");
-  assertEquals(entitySchemaPresentation(result.target.schema).archived, ["prop_2"]);
+  assertEquals(result.target.schema.properties.prop_3.title, "설명");
+  assertEquals(entitySchemaPresentation(result.target.schema).archived, ["prop_3"]);
   assertEquals(result.target.schema["x-title-template"], "$prop_1$");
   assertThrows(() => resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_1" }], {}));
 });
 Deno.test("integer widening accounts for effective product number limits", () => {
   const source = initialEntityDefinition("이름");
-  source.schema.properties.prop_2 = { "x-order": 20, type: "integer" };
+  source.schema.properties.prop_3 = { "x-order": 30, type: "integer" };
 
   assertEquals(
     resolveSchemaEdits(
       source,
-      [{ op: "update_property", key: "prop_2", field: { "x-order": 20, type: "number" }, required: false }],
+      [{ op: "update_property", key: "prop_3", field: { "x-order": 30, type: "number" }, required: false }],
       {},
     ).kind,
     "migration_required",
   );
-  source.schema.properties.prop_2 = { "x-order": 20, type: "integer", minimum: -1e9, maximum: 1e9 };
+  source.schema.properties.prop_3 = { "x-order": 30, type: "integer", minimum: -1e9, maximum: 1e9 };
   assertEquals(
     resolveSchemaEdits(
       source,
-      [{ op: "update_property", key: "prop_2", field: { "x-order": 20, type: "number" }, required: false }],
+      [{ op: "update_property", key: "prop_3", field: { "x-order": 30, type: "number" }, required: false }],
       {},
     ).kind,
     "compatible",
@@ -103,11 +103,11 @@ Deno.test("integer widening accounts for effective product number limits", () =>
 
 Deno.test("decimal multipleOf expansion follows exact decimal divisibility", () => {
   const source = initialEntityDefinition("이름");
-  source.schema.properties.prop_2 = { type: "number", "x-order": 20, multipleOf: 0.3 };
+  source.schema.properties.prop_3 = { type: "number", "x-order": 30, multipleOf: 0.3 };
   const expanded = resolveSchemaEdits(source, [{
     op: "update_property",
-    key: "prop_2",
-    field: { type: "number", "x-order": 20, multipleOf: 0.1 },
+    key: "prop_3",
+    field: { type: "number", "x-order": 30, multipleOf: 0.1 },
     required: false,
   }], {});
   assertEquals(expanded.kind, "compatible");
@@ -115,11 +115,11 @@ Deno.test("decimal multipleOf expansion follows exact decimal divisibility", () 
 
 Deno.test("archiving selected text clears selection and restore does not silently reselect", () => {
   const source = initialEntityDefinition("이름");
-  source.schema.properties.prop_2 = { type: "string", "x-order": 20, "x-search-text": true };
-  const archived = resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_2" }], {});
-  assertEquals(archived.target.schema.properties.prop_2["x-search-text"], false);
-  const restored = resolveSchemaEdits(archived.target, [{ op: "restore_property", key: "prop_2" }], {});
-  assertEquals(restored.target.schema.properties.prop_2["x-search-text"], false);
+  source.schema.properties.prop_3 = { type: "string", "x-order": 30, "x-search-text": true };
+  const archived = resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_3" }], {});
+  assertEquals(archived.target.schema.properties.prop_3["x-search-text"], false);
+  const restored = resolveSchemaEdits(archived.target, [{ op: "restore_property", key: "prop_3" }], {});
+  assertEquals(restored.target.schema.properties.prop_3["x-search-text"], false);
 });
 
 Deno.test("explicit false search selection is compatible and equal to an omitted annotation", () => {
@@ -137,12 +137,12 @@ Deno.test("explicit false search selection is compatible and equal to an omitted
 Deno.test("title template can be reviewed and published as a compatible definition change", async () => {
   const { entitySchemaEdit } = await import("../../contracts/entity-schema-change.ts");
   const source = initialEntityDefinition("고객명");
-  source.schema.properties.prop_2 = { type: "string", title: "지역", "x-order": 20 };
-  const edit = entitySchemaEdit.parse({ op: "set_metadata", "x-title-template": "$prop_1$ - $prop_2$" });
+  source.schema.properties.prop_3 = { type: "string", title: "지역", "x-order": 30 };
+  const edit = entitySchemaEdit.parse({ op: "set_metadata", "x-title-template": "$prop_1$ - $prop_3$" });
   const result = resolveSchemaEdits(source, [edit], {});
   assertEquals(result.kind, "compatible");
-  assertEquals((result.target.schema as unknown as Record<string, unknown>)["x-title-template"], "$prop_1$ - $prop_2$");
-  assertEquals(result.diff.find((item) => item.path === "x-title-template")?.after, "$prop_1$ - $prop_2$");
+  assertEquals((result.target.schema as unknown as Record<string, unknown>)["x-title-template"], "$prop_1$ - $prop_3$");
+  assertEquals(result.diff.find((item) => item.path === "x-title-template")?.after, "$prop_1$ - $prop_3$");
 });
 
 Deno.test("title template resolves same-change added properties and rejects dangling or archived references", async () => {
@@ -156,15 +156,15 @@ Deno.test("title template resolves same-change added properties and rejects dang
     {
       op: "add_property",
       client_ref: "region",
-      field: { type: "string", title: "지역", "x-order": 20 },
+      field: { type: "string", title: "지역", "x-order": 30 },
       required: false,
     },
-  ], { region: "prop_2" });
-  assertEquals(added.target.schema["x-title-template"], "$prop_1$ - $prop_2$");
-  assertThrows(() => resolveSchemaEdits(added.target, [{ op: "archive_property", key: "prop_2" }], {}));
-  assertThrows(() => resolveSchemaEdits(added.target, [{ op: "remove_property", key: "prop_2" }], {}));
+  ], { region: "prop_3" });
+  assertEquals(added.target.schema["x-title-template"], "$prop_1$ - $prop_3$");
+  assertThrows(() => resolveSchemaEdits(added.target, [{ op: "archive_property", key: "prop_3" }], {}));
+  assertThrows(() => resolveSchemaEdits(added.target, [{ op: "remove_property", key: "prop_3" }], {}));
   assertThrows(() =>
-    resolveSchemaEdits(source, [entitySchemaEdit.parse({ op: "set_metadata", "x-title-template": "$prop_999$" })], {})
+    resolveSchemaEdits(source, [entitySchemaEdit.parse({ op: "set_metadata", "x-title-template": "$prop_1000$" })], {})
   );
   assertThrows(() =>
     resolveSchemaEdits(
@@ -175,7 +175,7 @@ Deno.test("title template resolves same-change added properties and rejects dang
   );
   const valid = resolveSchemaEdits(added.target, [
     entitySchemaEdit.parse({ op: "set_metadata", "x-title-template": "$prop_1$" }),
-    { op: "archive_property", key: "prop_2" },
+    { op: "archive_property", key: "prop_3" },
   ], {});
   assertEquals(valid.kind, "compatible");
 });

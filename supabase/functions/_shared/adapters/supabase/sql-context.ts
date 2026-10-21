@@ -113,6 +113,33 @@ export function translate(e: unknown): unknown {
   if (code === "P0001" && message === "workspace_version_conflict") {
     return new AppError("conflict", "참여 정보가 변경되었습니다. 다시 조회하세요");
   }
+  if (code === "23514" && message === "identifier_default_value_inactive") {
+    const property = String((e as { detail?: string }).detail ?? "");
+    return new AppError(
+      "invalid_input",
+      "식별자 기본값은 허용된 활성 종류여야 합니다",
+      /^prop_[1-9][0-9]*$/.test(property)
+        ? [{ path: `schema.properties.${property}.default`, message: "기본값의 식별자 종류를 변경하세요" }]
+        : undefined,
+    );
+  }
+  if (code === "23514" && message === "identity_default_inactive") {
+    const fields = [];
+    try {
+      const refs = JSON.parse(String((e as { detail?: string }).detail ?? "[]"));
+      if (Array.isArray(refs)) {
+        for (const ref of refs) {
+          if (/^[0-9a-f-]{36}$/.test(ref.type_id) && /^prop_[1-9][0-9]*$/.test(ref.property)) {
+            fields.push({
+              path: `default_fields.${ref.type_id}.${ref.property}`,
+              message: "이 항목의 기본 식별자 종류를 변경하세요",
+            });
+          }
+        }
+      }
+    } catch { /* A definition-local detail may contain only a property key. */ }
+    return new AppError("invalid_input", "항목의 기본 식별자 종류를 먼저 변경하세요", fields);
+  }
   if (code === "23514" && message === "workspace_final_admin") {
     return new AppError("conflict", "마지막 관리자는 권한을 넘기거나 공간을 삭제한 뒤 나갈 수 있습니다");
   }

@@ -1,3 +1,4 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
@@ -18,6 +19,7 @@ import {
   deleteEntity,
   getEntity,
   listEntities,
+  restoreEntity,
   updateEntity,
 } from "../../functions/_shared/core/entity/application.ts";
 import {
@@ -196,7 +198,7 @@ async function fixture() {
       edits: fields.map((field, i) => ({
         op: "add_property",
         client_ref: String(i),
-        field: { ...field, "x-order": (i + 2) * 10 },
+        field: { ...field, "x-order": (i + 3) * 10 },
         required: false,
       })),
     });
@@ -210,10 +212,10 @@ async function fixture() {
       schema_version: 2,
       properties: {
         prop_1: "original",
-        prop_2: null,
-        prop_3: 0,
-        prop_4: false,
-        prop_5: "",
+        prop_3: null,
+        prop_4: 0,
+        prop_5: false,
+        prop_6: "",
       },
     });
     const deleted = await createEntity(e, actor(), {
@@ -260,7 +262,7 @@ async function fixture() {
       body: "historical body",
     })).record;
     const source = await getEntitySchema(d, a.actor, { type_id: type.id });
-    const edits: SchemaEdit[] = [2, 3, 4, 5, 6].map((i) => ({
+    const edits: SchemaEdit[] = [3, 4, 5, 6, 7].map((i) => ({
       op: "remove_property",
       key: `prop_${i}`,
     }));
@@ -268,7 +270,7 @@ async function fixture() {
       expected_schema_version: 2,
       edits,
       migration: {
-        rules: [2, 3, 4, 5, 6].map((i) => ({ op: "remove", key: `prop_${i}` })),
+        rules: [3, 4, 5, 6, 7].map((i) => ({ op: "remove", key: `prop_${i}` })),
         overrides: [],
       },
     });
@@ -295,7 +297,7 @@ async function fixture() {
         (_, i) => ({
           op: "add_property" as const,
           client_ref: String(i),
-          field: { "x-order": (i + 2) * 10, type: "string" as const },
+          field: { "x-order": (i + 3) * 10, type: "string" as const },
           required: false,
         }),
       ),
@@ -311,7 +313,7 @@ async function fixture() {
       a.actor,
       { mode: "business", requirements: [] },
       (tx) =>
-        tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.workspaceId},'app:'||${type.id}::text||':'||n,'app',n::text,${type.id},2,jsonb_build_object('prop_1','row '||n,'prop_2',repeat('한',4096),'prop_3',repeat('글',4096),'prop_4',repeat('값',4096),'prop_5',repeat('복',4096),'prop_6',repeat('구',4096)) from generate_series(1,${count}) n`,
+        tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties) select ${a.workspaceId},${type.id}::text||':'||${APP_IDENTIFIER_RULE_ID}||':'||n,${type.id},2,jsonb_build_object('prop_2',${APP_IDENTIFIER_RULE_ID}||':'||n,'prop_1','row '||n,'prop_3',repeat('한',4096),'prop_4',repeat('글',4096),'prop_5',repeat('값',4096),'prop_6',repeat('복',4096),'prop_7',repeat('구',4096)) from generate_series(1,${count}) n`,
     );
     await updateBusinessSettings(
       { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: activity.clock },
@@ -328,12 +330,12 @@ async function fixture() {
     );
     const removal = await createEntitySchemaChange(d, actor(), type.id, {
       expected_schema_version: 2,
-      edits: [2, 3, 4, 5, 6].map((i) => ({
+      edits: [3, 4, 5, 6, 7].map((i) => ({
         op: "remove_property" as const,
         key: `prop_${i}`,
       })),
       migration: {
-        rules: [2, 3, 4, 5, 6].map((i) => ({
+        rules: [3, 4, 5, 6, 7].map((i) => ({
           op: "remove" as const,
           key: `prop_${i}`,
         })),
@@ -411,7 +413,7 @@ dbTest(
           edits: [{
             op: "add_property",
             client_ref: "unrelated",
-            field: { "x-order": 20, type: "string" },
+            field: { "x-order": 30, type: "string" },
             required: false,
           }],
         },
@@ -442,6 +444,7 @@ dbTest(
       assertEquals(c.change_kind, "migration_required");
       assertEquals(await f.recovery(o.job.job_id, key), c);
       assertEquals((await getEntity(f.e, f.a.actor, o.x.id)).properties, {
+        prop_2: o.x.properties.prop_2,
         prop_1: "original",
       });
       const job = await getEntitySchemaMigration(f.d, f.a.actor, o.job.job_id),
@@ -475,11 +478,12 @@ dbTest(
       assertEquals(
         rows.items.find((r) => r.entity_id === o.x.id)?.after,
         {
+          prop_2: o.x.properties.prop_2,
           prop_1: "original",
-          prop_2: null,
-          prop_3: 0,
-          prop_4: false,
-          prop_5: "",
+          prop_3: null,
+          prop_4: 0,
+          prop_5: false,
+          prop_6: "",
         },
       );
       const accepted = await startEntitySchemaMigration(
@@ -497,11 +501,12 @@ dbTest(
       await f.finish(accepted.job_id);
       const result = await getEntity(f.e, f.a.actor, o.x.id);
       assertEquals(result.properties, {
+        prop_2: o.x.properties.prop_2,
         prop_1: "original",
-        prop_2: null,
-        prop_3: 0,
-        prop_4: false,
-        prop_5: "",
+        prop_3: null,
+        prop_4: 0,
+        prop_5: false,
+        prop_6: "",
       });
       assertEquals(result.schema_version, 5);
       assertEquals(result.entity_type_id, o.type.id);
@@ -556,8 +561,8 @@ dbTest(
       const filtered = await listEntities(f.e, f.a.actor, {
         entity_type_id: o.type.id,
         limit: 100,
-        filters: [{ key: "prop_3", operator: "eq", value: 0 }],
-        sort: { key: "prop_3", direction: "asc" },
+        filters: [{ key: "prop_4", operator: "eq", value: 0 }],
+        sort: { key: "prop_4", direction: "asc" },
       });
       assertEquals(filtered.items.map((r) => r.id), [o.x.id]);
 
@@ -639,11 +644,8 @@ dbTest(
         }
         if (action === "restore") {
           const del = await getEntity(f.e, f.a.actor, o.deleted.id);
-          await createEntity(f.e, f.actor(), {
-            entity_type_id: del.entity_type_id,
+          await restoreEntity(f.e, f.actor(), del.id, {
             schema_version: 3,
-            source: del.source,
-            external_id: del.external_id,
             properties: del.properties,
             expected_version: del.version,
           });
@@ -730,7 +732,7 @@ dbTest(
           edits: [{
             op: "add_property",
             client_ref: "later",
-            field: { "x-order": 20, type: "string" },
+            field: { "x-order": 30, type: "string" },
             required: false,
           }],
         });
@@ -740,7 +742,7 @@ dbTest(
         analysis_id: ready.analysis!.id,
       });
       const c = await h.recovery(o.job.job_id);
-      assert(Object.hasOwn(c.target.schema.properties, "prop_7"));
+      assert(Object.hasOwn(c.target.schema.properties, "prop_8"));
       assertEquals(c.source_schema_version, 4);
       assertEquals(c.status, "draft");
       const next = await getEntityType(h.d, h.a.actor, t.id);
@@ -791,7 +793,7 @@ dbTest(
         "succeeded",
       );
       assertEquals(
-        (await getEntity(f.e, f.a.actor, o.x.id)).properties.prop_4,
+        (await getEntity(f.e, f.a.actor, o.x.id)).properties.prop_5,
         false,
       );
       await f.worker`select app.prune_entity_schema_sources()`;
@@ -889,6 +891,7 @@ dbTest(
         3,
       );
       assertEquals((await getEntity(f.e, f.a.actor, o.x.id)).properties, {
+        prop_2: o.x.properties.prop_2,
         prop_1: "original",
       });
     } finally {
@@ -937,8 +940,8 @@ dbTest(
       assertEquals(list.items.length, 66);
       for (const row of list.items) {
         const detail = await getEntity(f.e, f.a.actor, row.id);
-        assertEquals(detail.properties.prop_2, "한".repeat(4096));
-        assertEquals(detail.properties.prop_6, "구".repeat(4096));
+        assertEquals(detail.properties.prop_3, "한".repeat(4096));
+        assertEquals(detail.properties.prop_7, "구".repeat(4096));
         assertEquals(detail.schema_version, 4);
         assertEquals(detail.version, 3);
       }
@@ -963,7 +966,7 @@ dbTest(
     const f = await fixture();
     try {
       const o = await f.largeOriginal(70), c = await f.recovery(o.job.job_id);
-      const before = await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`);
+      const before = await getEntity(f.e, f.a.actor, `${o.type.id}:${APP_IDENTIFIER_RULE_ID}:1`);
       const ready = await f.analyze(o.type.id, c.id, c.version);
       assertEquals(ready.analysis?.status, "failed");
       assertEquals(ready.analysis?.failure_reason, "analysis_result_limit");
@@ -980,7 +983,7 @@ dbTest(
         "schema_plan_stale",
       );
       assertEquals(
-        await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
+        await getEntity(f.e, f.a.actor, `${o.type.id}:${APP_IDENTIFIER_RULE_ID}:1`),
         before,
       );
       assertEquals(
@@ -1023,7 +1026,7 @@ dbTest(
       );
       const c = await f.recovery(o.job.job_id),
         ready = await f.analyze(o.type.id, c.id, c.version);
-      const before = await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
+      const before = await getEntity(f.e, f.a.actor, `${o.type.id}:${APP_IDENTIFIER_RULE_ID}:1`),
         t = await getEntityType(f.d, f.a.actor, o.type.id);
       assert(ready.executable);
       await code(
@@ -1040,7 +1043,7 @@ dbTest(
         .admin`select count(*)::int as count from app.entity_schema_migrations where type_id=${o.type.id}`;
       assertEquals(jobs.count, 1);
       assertEquals(
-        await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
+        await getEntity(f.e, f.a.actor, `${o.type.id}:${APP_IDENTIFIER_RULE_ID}:1`),
         before,
       );
       assertEquals(
@@ -1084,7 +1087,7 @@ dbTest(
       const c = await f.recovery(o.job.job_id),
         ready = await f.analyze(o.type.id, c.id, c.version);
       assert(ready.executable);
-      const before = await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
+      const before = await getEntity(f.e, f.a.actor, `${o.type.id}:${APP_IDENTIFIER_RULE_ID}:1`),
         t = await getEntityType(f.d, f.a.actor, o.type.id);
       const [captured] = await f
         .admin`select sum(octet_length(properties::text)+octet_length(recovery_properties::text)+octet_length(after::text))::bigint as bytes from private.entity_schema_analysis_rows where analysis_id=${
@@ -1103,7 +1106,7 @@ dbTest(
         "invalid_input",
       );
       assertEquals(
-        await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
+        await getEntity(f.e, f.a.actor, `${o.type.id}:${APP_IDENTIFIER_RULE_ID}:1`),
         before,
       );
       assertEquals(

@@ -518,13 +518,12 @@ export function EntitiesPage() {
               initialTypeLabel={selectedType?.label}
               onClose={create.close}
               onRouteDiscard={create.discard}
-              onSave={async (value, requestKey) => {
+              onSave={async (command, requestKey) => {
+                if (command.action === "update") throw new Error("새 작성에서 기존 자료를 편집할 수 없습니다.");
                 const e = await api<EntitySummary>(
                   "POST",
-                  "/entities",
-                  {
-                    ...value,
-                  },
+                  command.action === "restore" ? `${entityPath(command.id)}/restore` : "/entities",
+                  command.input,
                   undefined,
                   requestKey(),
                 );

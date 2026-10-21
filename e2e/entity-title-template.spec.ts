@@ -12,21 +12,26 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
   try {
     const type = await client.call("create_entity_type", { label: unique("제목 템플릿 고객") });
     await workspace.grantKind(type.id);
+    const initial = await client.call("get_entity_schema", { type_id: type.id });
     const longPropertyLabel = "확장속성".repeat(19) + "이름값";
     const addition = await client.call("create_entity_schema_change", {
       type_id: type.id,
       expected_schema_version: type.schema_version,
       edits: [
-        { op: "add_property", client_ref: "region", field: { type: "string", title: "지역", "x-order": 20 } },
+        { op: "update_property", key: "prop_2", field: { type: "string", title: "지역", "x-order": 20 }, required: false },
         {
           op: "add_property",
           client_ref: "long_label",
           field: { type: "string", title: longPropertyLabel, "x-order": 30 },
         },
+        { op: "add_property", client_ref: "identifier", field: { ...initial.schema.properties.prop_2, "x-order": 40 }, required: true },
+        { op: "set_metadata", "x-identity-property": "new_identifier" },
       ],
     });
     await analyzeAndApply(client, type.id, addition.id, addition.version);
     const definition = await client.call("get_entity_schema", { type_id: type.id });
+    expect(definition.schema["x-identity-property"]).toBe("prop_4");
+    expect(definition.schema.properties.prop_2.type).toBe("string");
     const original = await client.call("create_entity", {
       entity_type_id: type.id,
       schema_version: definition.schema_version,
@@ -75,7 +80,7 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
 
     const current = await client.call("get_entity", { id: original.id });
     expect(current.title).toBe("초록상점 - 서울");
-    expect(current.properties).toEqual({ prop_1: "초록상점", prop_2: "서울" });
+    expect(current.properties).toEqual({ prop_1: "초록상점", prop_2: "서울", prop_4: original.properties.prop_4 });
     expect(current.version).toBe(original.version);
     expect(current.schema_version).toBe(original.schema_version);
     const found = await client.call("list_entities", {
@@ -130,17 +135,41 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
         document.documentElement.style.zoom = "2";
       });
       await expect(editor).toBeVisible();
-      const bounds = await editor.evaluate((element) => {
-        const box = element.getBoundingClientRect();
-        return { left: box.left, right: box.right, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth };
+      await expect.poll(() => editor.evaluate(async (element, label) => {
+        const sample = () => new Promise<{
+          editor: number[]; chip: number[] | null; text: string | null; editorFits: boolean; pageFits: boolean;
+        }>((resolve) => requestAnimationFrame(() => {
+          const token = [...element.querySelectorAll<HTMLElement>("[aria-label]")]
+            .find((node) => node.getAttribute("aria-label") === `변수: ${label}`);
+          const box = element.getBoundingClientRect(), chip = token?.getBoundingClientRect();
+          resolve({
+            editor: [box.left, box.right, box.top, box.bottom],
+            chip: chip ? [chip.left, chip.right, chip.top, chip.bottom] : null,
+            text: token?.textContent ?? null,
+            editorFits: element.scrollWidth <= element.clientWidth,
+            pageFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          });
+        }));
+        const first = await sample(), second = await sample(), frames = [first, second];
+        const stable = first.chip !== null && second.chip !== null &&
+          [...first.editor, ...first.chip].every((value, index) =>
+            Math.abs(value - [...second.editor, ...second.chip!][index]) <= 0.01
+          );
+        return {
+          stable,
+          chipPresent: frames.every((frame) => frame.chip !== null),
+          fullText: first.text === second.text ? second.text : null,
+          leftContained: frames.every((frame) => frame.chip !== null && frame.chip[0] >= frame.editor[0] - 1),
+          rightContained: frames.every((frame) => frame.chip !== null && frame.chip[1] <= frame.editor[1] + 1),
+          editorFits: frames.every((frame) => frame.editorFits),
+          pageFits: frames.every((frame) => frame.pageFits),
+          first,
+          second,
+        };
+      }, longPropertyLabel)).toMatchObject({
+        stable: true, chipPresent: true, fullText: longPropertyLabel,
+        leftContained: true, rightContained: true, editorFits: true, pageFits: true,
       });
-      const chip = await longChip.boundingBox();
-      expect(chip).not.toBeNull();
-      expect(chip!.x).toBeGreaterThanOrEqual(bounds.left - 1);
-      expect(chip!.x + chip!.width).toBeLessThanOrEqual(bounds.right + 1);
-      expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
-        .toBe(true);
       await editor.scrollIntoViewIfNeeded();
       await expect(editor).toBeInViewport();
       await page.screenshot({ path: info.outputPath("title-template-long-variable-320-zoom200.png"), fullPage: false });

@@ -1,4 +1,9 @@
 import { SqlEntityIssuerStore } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
@@ -37,20 +42,20 @@ function seedInWorkspace<T>(actor: WorkspaceActor, run: (tx: postgres.Transactio
 async function typeFixture(actor: WorkspaceActor, label: string, numeric = true) {
   const definition = initialEntityDefinition("이름");
   Object.assign(definition.schema.properties, {
-    prop_2: { "x-order": 20, type: numeric ? ["number", "null"] : "string", title: "값" },
-    prop_3: { "x-order": 30, type: ["string", "null"], format: "date", title: "날짜" },
-    prop_4: { "x-order": 40, type: ["boolean", "null"], title: "승인" },
-    prop_5: { "x-order": 50, deprecated: true, type: "string", title: "옛 메모" },
+    prop_3: { "x-order": 30, type: numeric ? ["number", "null"] : "string", title: "값" },
+    prop_4: { "x-order": 40, type: ["string", "null"], format: "date", title: "날짜" },
+    prop_5: { "x-order": 50, type: ["boolean", "null"], title: "승인" },
+    prop_6: { "x-order": 60, deprecated: true, type: "string", title: "옛 메모" },
   });
   return await seedInWorkspace(actor, async (tx) => {
+    await new SqlEntityIssuerStore(tx, actor).initializeRegistry();
     const [type] =
-      await tx`insert into app.entity_types(workspace_id,next_property_number) values(${actor.workspaceId},6) returning id`;
+      await tx`insert into app.entity_types(workspace_id,next_property_number) values(${actor.workspaceId},7) returning id`;
     definition.schema["x-type-id"] = String(type.id);
     definition.schema.title = label;
     await tx`insert into app.entity_schema_versions(workspace_id,schema) values(${actor.workspaceId},${
       tx.json(definition.schema as never)
     })`;
-    await new SqlEntityIssuerStore(tx, actor).initializeTypeIdentity(type.id);
     return { id: String(type.id), definition };
   });
 }
@@ -70,17 +75,19 @@ dbTest(
       await owner.grantKind(second.manager, secondType.id, "write");
       const values = [
         {},
-        { prop_2: null, prop_3: null, prop_4: null },
-        { prop_2: 0, prop_3: "2024-02-29", prop_4: false },
-        { prop_2: 2, prop_3: "2025-01-01", prop_4: true },
-        { prop_2: 2, prop_3: "2025-01-01", prop_4: false },
-        { prop_2: 10, prop_3: "9999-12-31", prop_4: true },
+        { prop_3: null, prop_4: null, prop_5: null },
+        { prop_3: 0, prop_4: "2024-02-29", prop_5: false },
+        { prop_3: 2, prop_4: "2025-01-01", prop_5: true },
+        { prop_3: 2, prop_4: "2025-01-01", prop_5: false },
+        { prop_3: 10, prop_4: "9999-12-31", prop_5: true },
       ];
       for (const [n, value] of values.entries()) {
         await seedInWorkspace(owner.manager, async (tx) => {
-          await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) values(${owner.workspaceId},${
-            `app:${type.id}:order` + n
-          },'app',${"order" + n},${type.id},1,${tx.json({ prop_1: "行" + n, ...value })})`;
+          await tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties) values(${owner.workspaceId},${
+            encodeIdentifierReference(type.id, APP_IDENTIFIER_RULE_ID, "order" + n)
+          },${type.id},1,${
+            tx.json({ prop_1: "行" + n, prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "order" + n), ...value })
+          })`;
         });
       }
       for (
@@ -92,14 +99,16 @@ dbTest(
         ]] as const
       ) {
         await seedInWorkspace(actor, async (tx) => {
-          await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) values(${actor.workspaceId},${
-            `app:${typeId}:` + id
-          },'app',${id},${typeId},1,${tx.json({ prop_1: id, prop_2: value })})`;
+          await tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties) values(${actor.workspaceId},${
+            encodeIdentifierReference(typeId, APP_IDENTIFIER_RULE_ID, id)
+          },${typeId},1,${
+            tx.json({ prop_1: id, prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, id), prop_3: value })
+          })`;
         });
       }
       let cursor = "";
       for (const direction of ["asc", "desc"] as const) {
-        const query = entityListQuery.parse({ entity_type_id: type.id, sort: { key: "prop_2", direction }, limit: 1 });
+        const query = entityListQuery.parse({ entity_type_id: type.id, sort: { key: "prop_3", direction }, limit: 1 });
         let page = await listEntities(d, owner.manager, query);
         cursor = page.next_cursor!;
         const ids = page.items.map((row) => row.id);
@@ -111,26 +120,26 @@ dbTest(
           ids,
           direction === "asc"
             ? [
-              `app:${type.id}:order0`,
-              `app:${type.id}:order1`,
-              `app:${type.id}:order2`,
-              `app:${type.id}:order3`,
-              `app:${type.id}:order4`,
-              `app:${type.id}:order5`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order0`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order1`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order2`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order3`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order4`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order5`,
             ]
             : [
-              `app:${type.id}:order5`,
-              `app:${type.id}:order4`,
-              `app:${type.id}:order3`,
-              `app:${type.id}:order2`,
-              `app:${type.id}:order1`,
-              `app:${type.id}:order0`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order5`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order4`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order3`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order2`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order1`,
+              `${type.id}:${APP_IDENTIFIER_RULE_ID}:order0`,
             ],
         );
       }
       const query = entityListQuery.parse({
         entity_type_id: type.id,
-        sort: { key: "prop_2", direction: "desc" },
+        sort: { key: "prop_3", direction: "desc" },
         limit: 1,
       });
       for (
@@ -140,7 +149,7 @@ dbTest(
           owner.manager,
           { entity_type_id: text.id },
         ], [owner.manager, {
-          filters: [{ key: "prop_4", operator: "eq", value: false }],
+          filters: [{ key: "prop_5", operator: "eq", value: false }],
         }]] as const
       ) {
         assertEquals(
@@ -156,33 +165,33 @@ dbTest(
         owner.manager,
         entityListQuery.parse({
           entity_type_id: type.id,
-          filters: [{ key: "prop_2", operator: "gte", value: 2 }, { key: "prop_2", operator: "lte", value: 2 }, {
-            key: "prop_4",
+          filters: [{ key: "prop_3", operator: "gte", value: 2 }, { key: "prop_3", operator: "lte", value: 2 }, {
+            key: "prop_5",
             operator: "eq",
             value: false,
-          }, { key: "prop_3", operator: "gte", value: "2024-02-29" }],
+          }, { key: "prop_4", operator: "gte", value: "2024-02-29" }],
           sort: "title",
         }),
       );
-      assertEquals(filtered.items.map((row) => row.id), [`app:${type.id}:order4`]);
+      assertEquals(filtered.items.map((row) => row.id), [`${type.id}:${APP_IDENTIFIER_RULE_ID}:order4`]);
       assertEquals(
         (await listEntities(
           d,
           owner.manager,
           entityListQuery.parse({
             entity_type_id: type.id,
-            filters: [{ key: "prop_2", operator: "unset" }],
+            filters: [{ key: "prop_3", operator: "unset" }],
             sort: "title",
           }),
         )).items.map((row) => row.id),
-        [`app:${type.id}:order0`, `app:${type.id}:order1`],
+        [`${type.id}:${APP_IDENTIFIER_RULE_ID}:order0`, `${type.id}:${APP_IDENTIFIER_RULE_ID}:order1`],
       );
       for (const value of ["2", true, 1.0000001, 1e10]) {
         await assertRejects(() =>
           listEntities(
             d,
             owner.manager,
-            entityListQuery.parse({ entity_type_id: type.id, filters: [{ key: "prop_2", operator: "eq", value }] }),
+            entityListQuery.parse({ entity_type_id: type.id, filters: [{ key: "prop_3", operator: "eq", value }] }),
           ), AppError);
       }
       await assertRejects(
@@ -192,7 +201,7 @@ dbTest(
             owner.manager,
             entityListQuery.parse({
               entity_type_id: type.id,
-              filters: [{ key: "prop_3", operator: "eq", value: "2025-02-29" }],
+              filters: [{ key: "prop_4", operator: "eq", value: "2025-02-29" }],
             }),
           ),
         AppError,
@@ -221,7 +230,7 @@ dbTest(
       await owner.grantKind(owner.manager, type.id, "write");
       await foreign.grantKind(foreign.manager, other.id, "write");
       const value = {
-        entity_types: { [type.id]: { restore: { memo: "$엔터티.이후.prop_2$ / $엔터티.이후.prop_4$", tag_ids: [] } } },
+        entity_types: { [type.id]: { restore: { memo: "$엔터티.이후.prop_3$ / $엔터티.이후.prop_5$", tag_ids: [] } } },
       };
       await updateBusinessSettings(settings, requestActor(owner.manager), {
         id: "record_templates",
@@ -229,29 +238,39 @@ dbTest(
         value,
       });
       await seedInWorkspace(owner.manager, async (tx) => {
-        await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties,deleted_at) values(${owner.workspaceId},${`app:${type.id}:restore`},'app','restore',${type.id},1,${
-          tx.json({ prop_1: "保管", prop_2: 0, prop_4: false, prop_5: "原文" })
+        await tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties,deleted_at) values(${owner.workspaceId},${
+          encodeIdentifierReference(type.id, APP_IDENTIFIER_RULE_ID, "restore")
+        },${type.id},1,${
+          tx.json({
+            prop_1: "保管",
+            prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "restore"),
+            prop_3: 0,
+            prop_5: false,
+            prop_6: "原文",
+          })
         },now())`;
       });
       const preview = await prepareBusinessRecord(settings, owner.manager, {
         model: "entity",
         action: "restore",
-        target_id: `app:${type.id}:restore`,
+        target_id: encodeIdentifierReference(type.id, APP_IDENTIFIER_RULE_ID, "restore"),
         expected_version: 1,
         input: {
-          entity_type_id: type.id,
           schema_version: 1,
-          source: "app",
-          external_id: "restore",
-          properties: { prop_1: "保管", prop_2: 0, prop_4: false },
+          expected_version: 1,
+          properties: { prop_1: "保管", prop_3: 0, prop_5: false },
         },
       });
       assertEquals(preview.change_note, "0 / false");
-      assertEquals((await getEntity(d, owner.manager, `app:${type.id}:restore`)).properties.prop_5, "原文");
+      assertEquals(
+        (await getEntity(d, owner.manager, encodeIdentifierReference(type.id, APP_IDENTIFIER_RULE_ID, "restore")))
+          .properties.prop_6,
+        "原文",
+      );
       for (
         const next of [{ entity_types: { [other.id]: { create: { memo: "$대상$", tag_ids: [] } } } }, {
-          entity_types: { [type.id]: { create: { memo: "$엔터티.이후.prop_5$", tag_ids: [] } } },
-        }, { entity: { create: { memo: "$엔터티.이후.prop_2$", tag_ids: [] } } }]
+          entity_types: { [type.id]: { create: { memo: "$엔터티.이후.prop_6$", tag_ids: [] } } },
+        }, { entity: { create: { memo: "$엔터티.이후.prop_3$", tag_ids: [] } } }]
       ) {
         await assertRejects(async () =>
           await updateBusinessSettings(settings, requestActor(owner.manager), {
@@ -272,7 +291,7 @@ dbTest("typed list scale: 2000 rows use the actual bounded joined query plan", a
     const type = await typeFixture(owner.manager, "계획 검사");
     await owner.grantKind(owner.manager, type.id, "write");
     await seedInWorkspace(owner.manager, async (tx) => {
-      await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) select ${owner.workspaceId}::uuid,'app:'||${type.id}::text||':scale-'||n,'app','scale-'||n,${type.id}::uuid,1,jsonb_build_object('prop_1','자료 '||n,'prop_2',n,'prop_4',false) from generate_series(1,2000) n`;
+      await tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties) select ${owner.workspaceId}::uuid,${type.id}::text||':'||${APP_IDENTIFIER_RULE_ID}||':scale-'||n,${type.id}::uuid,1,jsonb_build_object('prop_1','자료 '||n,'prop_2',${APP_IDENTIFIER_RULE_ID}||':scale-'||n,'prop_3',n,'prop_5',false) from generate_series(1,2000) n`;
     });
     observed = null;
     const started = performance.now();
@@ -281,8 +300,8 @@ dbTest("typed list scale: 2000 rows use the actual bounded joined query plan", a
       owner.manager,
       entityListQuery.parse({
         entity_type_id: type.id,
-        filters: [{ key: "prop_2", operator: "gte", value: 1000 }],
-        sort: { key: "prop_2", direction: "asc" },
+        filters: [{ key: "prop_3", operator: "gte", value: 1000 }],
+        sort: { key: "prop_3", direction: "asc" },
         limit: 100,
       }),
     );

@@ -1,3 +1,4 @@
+import { decodeIdentifierValue } from "../../contracts/entity-identifiers.ts";
 import { entityTitleTemplateIssues } from "../../contracts/entity-title-template.ts";
 import { entityFieldInput } from "../../contracts/entity-schema-change.ts";
 import { Ajv2020 } from "ajv/2020";
@@ -82,15 +83,13 @@ function typeOf(f: EntityField) {
 function validateIdentifierDefinition(schema: EntitySchemaVersion["schema"]) {
   const fields = Object.entries(schema.properties).filter(([, field]) => field["x-identifier"]);
   const identity = schema["x-identity-property"];
-  // The expand phase can still read existing definitions; identifier definitions
-  // themselves never publish an incomplete selected identity.
-  if (!fields.length && identity === undefined) return;
   const selected = identity && schema.properties[identity];
   if (
     !identity || !selected || !selected["x-identifier"] || selected.type !== "string" || selected.deprecated ||
     !schema.required.includes(identity) || selected.default !== undefined
   ) fail("schema.x-identity-property", "자료 식별자는 기본값 없는 필수 식별자 항목 하나로 지정하세요");
   for (const [key, field] of fields) {
+    identifier(field, field.default, `schema.properties.${key}.default`);
     if (
       typeOf(field) !== "string" || field.format || field.oneOf || field.minLength !== undefined ||
       field.maxLength !== undefined
@@ -110,6 +109,16 @@ export function exactMultipleOf(value: number, divisor: number): boolean {
   const scale = Math.max(decimalPlaces(value), decimalPlaces(divisor));
   const integer = (number: number) => BigInt(number.toFixed(scale).replace(".", ""));
   return integer(value) % integer(divisor) === 0n;
+}
+function identifier(field: EntityField, value: unknown, path: string) {
+  if (!field["x-identifier"] || value === null || value === undefined) return;
+  let kind: string;
+  try {
+    kind = decodeIdentifierValue(value as string).kind_id;
+  } catch {
+    fail(path, "식별자 종류와 원본 문자열의 정확한 쌍을 입력하세요");
+  }
+  if (!field["x-identifier"].allowed_kind_ids.includes(kind!)) fail(path, "허용된 식별자 종류를 선택하세요");
 }
 function numeric(f: EntityField, value: unknown, path: string) {
   if (typeof value !== "number") return;
@@ -308,6 +317,7 @@ export function compileEntityProperties(raw: unknown) {
       );
     }
     for (const [key, value] of Object.entries(result)) {
+      identifier(schema.properties[key], value, `properties.${key}`);
       numeric(schema.properties[key], value, `properties.${key}`);
       if (schema.properties[key].format === "date" && typeof value === "string" && value.startsWith("0000-")) {
         fail(`properties.${key}`, "날짜의 연도는 0001~9999입니다");
@@ -334,6 +344,7 @@ export function compileEntityFieldValue(field: EntityField) {
   const check = validator().compile({ $schema: ENTITY_SCHEMA_DIALECT, ...field });
   return (value: unknown) => {
     if (!check(value)) throw invalidInput("보완값이 대상 속성 제약을 만족하지 않습니다");
+    identifier(field, value, "value");
     numeric(field, value, "value");
     if (typeof value === "string" && (!sqlSafeText(value) || (field.format === "date" && value.startsWith("0000-")))) {
       throw invalidInput("저장할 수 없는 보완값입니다");

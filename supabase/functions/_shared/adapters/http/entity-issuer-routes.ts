@@ -5,11 +5,9 @@ import {
   deleteEntityIssuer,
   deleteIdentifierRule,
   type EntityIssuerDeps,
-  getEntityTypeIdentity,
   listEntityIssuers,
   listIdentifierRules,
   updateEntityIssuer,
-  updateEntityTypeIdentity,
   updateIdentifierRule,
 } from "../../core/entity-issuers/application.ts";
 import { type HttpEnv, json } from "./input.ts";
@@ -43,15 +41,6 @@ export function entityIssuerRoutes(d: EntityIssuerDeps) {
   app.delete(
     "/entity-identifier-rules/:rule_id",
     async (c) => c.json(await deleteIdentifierRule(d, c.get("actor"), c.req.param("rule_id"), await json(c.req.raw))),
-  );
-  app.get(
-    "/entity-types/:type_id/identity",
-    async (c) => c.json(await getEntityTypeIdentity(d, c.get("actor"), c.req.param("type_id"))),
-  );
-  app.patch(
-    "/entity-types/:type_id/identity",
-    async (c) =>
-      c.json(await updateEntityTypeIdentity(d, c.get("actor"), c.req.param("type_id"), await json(c.req.raw))),
   );
   return app;
 }

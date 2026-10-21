@@ -138,7 +138,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       icon_id: string;
       archived: boolean;
       schema_version: number;
-    }[]>`select e.id,e.entity_type_id,e.deleted_at,app.entity_title(v.schema,e.properties,e.external_id) as title,
+    }[]>`select e.id,e.entity_type_id,e.deleted_at,app.entity_title(v.schema,e.properties,app.identifier_raw(e.properties->>(v.schema->>'x-identity-property'))) as title,
       v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,
       coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version
       from app.entities e join app.entity_types t on t.workspace_id=e.workspace_id and t.id=e.entity_type_id

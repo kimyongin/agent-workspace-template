@@ -1,3 +1,6 @@
+import { AppError } from "../../functions/_shared/core/shared/errors.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierValue } from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { changeConfiguredRelation, configuredRelationFixture } from "./_configured-relations.ts";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import {
@@ -77,10 +80,10 @@ dbTest("explicit entity reset preserves workspace and tasks, expires receipts an
       edits: [{
         op: "add_property",
         client_ref: "count",
-        field: { type: "integer", title: "수량", "x-order": 20 },
+        field: { type: "integer", title: "수량", "x-order": 30 },
         required: true,
       }],
-      migration: { rules: [{ op: "fill", key: "prop_2", value: 7 }], overrides: [] },
+      migration: { rules: [{ op: "fill", key: "prop_3", value: 7 }], overrides: [] },
     });
     await analyzeEntitySchemaChange(f.typeDeps, businessRequest(f.manager), type.id, change.id, {
       expected_change_version: change.version,
@@ -197,12 +200,12 @@ dbTest(
         const left = await entities.createEntity(entityDeps, businessRequest(actor), {
           entity_type_id: type.id,
           schema_version: 1,
-          properties: { prop_1: "왼쪽" },
+          properties: { prop_1: "왼쪽", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "L") },
         });
         const right = await entities.createEntity(entityDeps, businessRequest(actor), {
           entity_type_id: type.id,
           schema_version: 1,
-          properties: { prop_1: "오른쪽" },
+          properties: { prop_1: "오른쪽", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "R") },
         });
         await changeConfiguredRelation(fixture, businessRequest(actor), left.id, {
           other_id: right.id,
@@ -231,7 +234,7 @@ dbTest(
           client_ref: "unrelated",
           field: {
             type: "string",
-            "x-order": 20,
+            "x-order": 30,
             title: firstEntity,
             default: firstEntity,
             oneOf: [{ const: firstEntity, title: "일반 코드" }],
@@ -319,6 +322,200 @@ dbTest(
           unrelatedActor.request!.key
         }`)[0],
         unrelatedReceipt,
+      );
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "post-cutover reset clears only fresh scoped entity references and preserves compatible definitions and task result bodies",
+  async () => {
+    const f = await businessWorkspaceFixture(admin, sql);
+    try {
+      const type = await f.createKind("현재 정의 보존");
+      await f.grant(f.manager, [{ target_kind: "settings", target_id: "*", access: "write" }, {
+        target_kind: "tasks",
+        target_id: "*",
+        access: "write",
+      }, { target_kind: "entity_type", target_id: type.id, access: "write" }]);
+      const attempt = businessRequest(f.manager),
+        input = { entity_type_id: type.id, schema_version: 1, properties: { prop_1: "초기화 자료" } };
+      const entity = await entities.createEntity(entityDeps, attempt, input);
+      const task = await activity.createTask(taskDeps, businessRequest(f.manager), {
+        kind: "once",
+        title: "보존할 업무",
+        body: "원문 보존",
+        entity_ids: [entity.id],
+      });
+      const result = await activity.completeTask(taskDeps, businessRequest(f.manager), task.id, {
+        expected_version: task.version,
+        body: "보존할 수행 결과",
+      });
+      const before =
+        await admin`select * from app.records where workspace_id=${f.workspaceId} and id=${result.record.id}`;
+      const definitions =
+        await admin`select * from app.entity_schema_versions where workspace_id=${f.workspaceId} order by type_id,schema_version`;
+      const registry =
+        await admin`select * from app.entity_identifier_rules where workspace_id=${f.workspaceId} order by id`;
+      const target = new URL(urls.admin);
+      const manifest = {
+        run_id: crypto.randomUUID(),
+        project_id: "post-cutover-fixture",
+        source_revision: "a".repeat(40),
+        environment: { host: target.hostname, port: Number(target.port), database: target.pathname.slice(1) },
+        scopes: [{ workspace_id: f.workspaceId, actor_id: f.manager.userId, entity_ids: [entity.id] }],
+      };
+      const plan = await runEntityReset(admin, manifest);
+      assertEquals(plan.blockers, []);
+      assertEquals((await runEntityReset(admin, manifest, plan)).mode, "applied");
+      assertEquals((await runEntityReset(admin, manifest, plan)).mode, "already-clean");
+      assertEquals(
+        (await entities.listEntities(entityDeps, f.manager, { entity_type_id: type.id, limit: 20, sort: "updated_at" }))
+          .items,
+        [],
+      );
+      assertEquals((await activity.getTask(taskDeps, f.manager, task.id)).entity_ids, []);
+      assertEquals(
+        await admin`select * from app.records where workspace_id=${f.workspaceId} and id=${result.record.id}`,
+        before,
+      );
+      assertEquals(
+        await admin`select * from app.entity_schema_versions where workspace_id=${f.workspaceId} order by type_id,schema_version`,
+        definitions,
+      );
+      assertEquals(
+        await admin`select * from app.entity_identifier_rules where workspace_id=${f.workspaceId} order by id`,
+        registry,
+      );
+      assertEquals(
+        (await assertRejects(() => entities.createEntity(entityDeps, attempt, input), AppError)).code,
+        "result_expired",
+      );
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
+
+dbTest("reset fails closed when a required current store is missing", async () => {
+  const name = "reset_missing_" + crypto.randomUUID().replaceAll("-", "");
+  let isolated: ReturnType<typeof connect> | undefined;
+  try {
+    await admin`create database ${admin(name)} template template0`;
+    const url = new URL(urls.admin);
+    url.pathname = "/" + name;
+    isolated = connect(url.href, { max: 1 });
+    await isolated`create schema app`;
+    await isolated`create schema private`;
+    const manifest = {
+      run_id: crypto.randomUUID(),
+      project_id: "missing-store-fixture",
+      source_revision: "b".repeat(40),
+      environment: { host: url.hostname, port: Number(url.port), database: name },
+      scopes: [{ workspace_id: crypto.randomUUID(), actor_id: crypto.randomUUID(), entity_ids: [] }],
+    };
+    await assertRejects(
+      () => runEntityReset(isolated!, manifest),
+      Error,
+      "required reset table is missing: app.entities",
+    );
+  } finally {
+    await isolated?.end();
+    await admin`drop database if exists ${admin(name)} with(force)`;
+  }
+});
+
+dbTest(
+  "explicit incompatible definition retirement preserves registry and grants and rejects protected grant references",
+  async () => {
+    const f = await businessWorkspaceFixture(admin, sql);
+    try {
+      const retired = await f.createKind("명시 폐기 정의"), compatible = await f.createKind("호환 정의 보존");
+      await f.grantKind(f.manager, retired.id, "write");
+      await f.grant(f.manager, [{ target_kind: "settings", target_id: "*", access: "write" }, {
+        target_kind: "tasks",
+        target_id: "*",
+        access: "write",
+      }, { target_kind: "entity_type", target_id: retired.id, access: "write" }]);
+      const entity = await entities.createEntity(entityDeps, businessRequest(f.manager), {
+        entity_type_id: retired.id,
+        schema_version: 1,
+        properties: { prop_1: "연결 정리" },
+      });
+      const task = await activity.createTask(taskDeps, businessRequest(f.manager), {
+        kind: "once",
+        title: "종류 권한을 옮기지 않고 보존",
+        body: "업무 원문",
+        entity_ids: [entity.id],
+      });
+      // A predecessor-shaped definition belongs only to this disposable fixture.
+      // Normal reset runs with every FK/trigger enabled; no guard is bypassed by reset.
+      await admin.begin(async (tx) => {
+        await tx`set local session_replication_role=replica`;
+        await tx`update app.entity_schema_versions set schema=schema-'x-identity-property'
+        where workspace_id=${f.workspaceId} and type_id=${retired.id}`;
+      });
+      const target = new URL(urls.admin),
+        manifest = {
+          run_id: crypto.randomUUID(),
+          project_id: "retired-definition-fixture",
+          source_revision: "c".repeat(40),
+          environment: { host: target.hostname, port: Number(target.port), database: target.pathname.slice(1) },
+          scopes: [{
+            workspace_id: f.workspaceId,
+            actor_id: f.manager.userId,
+            entity_ids: [entity.id],
+            retire_definitions: [{ type_id: retired.id, expected_schema_version: 1, schema_versions: [1] }],
+          }],
+        };
+      const grants =
+        await admin`select * from private.workspace_grants where workspace_id=${f.workspaceId} order by user_id,target_kind,target_id`;
+      const blocked = await runEntityReset(admin, manifest);
+      assert(blocked.blockers.some((b: { reason: string }) => b.reason === "definition_has_preserved_grants"));
+      await assertRejects(() => runEntityReset(admin, manifest, blocked), Error, "reset blocked");
+      assertEquals(
+        await admin`select * from private.workspace_grants where workspace_id=${f.workspaceId} order by user_id,target_kind,target_id`,
+        grants,
+      );
+      // The fixture owner explicitly removes its own fixture-only kind grant through
+      // the public permission usecase. The reset itself never edits permissions.
+      await f.grant(f.manager, [{ target_kind: "settings", target_id: "*", access: "write" }, {
+        target_kind: "tasks",
+        target_id: "*",
+        access: "write",
+      }]);
+      const preserved =
+        await admin`select * from private.workspace_grants where workspace_id=${f.workspaceId} order by user_id,target_kind,target_id`;
+      const registry =
+        await admin`select * from app.entity_identifier_rules where workspace_id=${f.workspaceId} order by id`;
+      const schema =
+        await admin`select * from app.entity_schema_versions where workspace_id=${f.workspaceId} and type_id=${compatible.id}`;
+      const plan = await runEntityReset(admin, manifest);
+      assertEquals(plan.blockers, []);
+      assertEquals(plan.counts["app.entity_types"], 1);
+      assertEquals(plan.counts["app.entity_schema_versions"], 1);
+      assertEquals((await runEntityReset(admin, manifest, plan)).mode, "applied");
+      assertEquals((await runEntityReset(admin, manifest, plan)).mode, "already-clean");
+      const keptTask = await activity.getTask(taskDeps, f.manager, task.id);
+      assertEquals(keptTask.entity_ids, []);
+      assertEquals(keptTask.body, "업무 원문");
+      assertEquals(
+        (await admin`select id from app.entity_types where workspace_id=${f.workspaceId} and id=${retired.id}`).length,
+        0,
+      );
+      assertEquals(
+        await admin`select * from app.entity_schema_versions where workspace_id=${f.workspaceId} and type_id=${compatible.id}`,
+        schema,
+      );
+      assertEquals(
+        await admin`select * from app.entity_identifier_rules where workspace_id=${f.workspaceId} order by id`,
+        registry,
+      );
+      assertEquals(
+        await admin`select * from private.workspace_grants where workspace_id=${f.workspaceId} order by user_id,target_kind,target_id`,
+        preserved,
       );
     } finally {
       await f.cleanup();

@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv , ownedWorkspace, workspacePath} from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique, requiredEnv , ownedRuntime, ownedWorkspace, workspacePath} from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 async function stopWorker(child: ChildProcess | undefined) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
@@ -66,10 +66,10 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
       edits: [{
         op: "add_property",
         client_ref: "count",
-        field: { "x-order": 20, type: "integer", title: "수량" },
+        field: { "x-order": 30, type: "integer", title: "수량" },
         required: true,
       }],
-      migration: { rules: [{ op: "fill", key: "prop_2", value: 7 }], overrides: [] },
+      migration: { rules: [{ op: "fill", key: "prop_3", value: 7 }], overrides: [] },
     });
     await mcp.call("analyze_entity_schema_change", {
       type_id: type.id,
@@ -90,13 +90,14 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     const path = workspacePath(workspace.id, `/settings/entity-types/${type.id}/migrations/${accepted.job_id}`);
     await expect(page).toHaveURL(new RegExp(`job_id=${accepted.job_id}(?:&|$)`));
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("접수");
-    expect((await mcp.call("get_entity", { id: x.id })).properties).toEqual({ prop_1: "원본" });
+    expect((await mcp.call("get_entity", { id: x.id })).properties).toEqual(x.properties);
     await openMainNavigation(page);
     const tasksLink = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "할 일", exact: true });
     await expect(tasksLink).toHaveAttribute("href", workspacePath(workspace.id, "/tasks"));
     await tasksLink.click();
     await page.goto(workspacePath(workspace.id, `/entities?entity_type_id=${other.id}`));
     // Explicit test infrastructure owns execution. No GET/page poll calls the worker.
+    ownedRuntime();
     const origin = new URL(requiredEnv("VITE_SUPABASE_URL"));
     expect(["127.0.0.1", "localhost"]).toContain(origin.hostname);
     expect(origin.protocol).toBe("http:");
@@ -104,6 +105,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
       new URL("../scripts/entity-schema-worker-local.mjs", import.meta.url).pathname,
       "--interval-ms=100",
       "--timeout-ms=10000",
+      `--env-file=${process.env.WORKSPACE_E2E_ENV_FILE!}`,
       ...(process.env.ENTITY_SCHEMA_WORKER_CONFIG ? [`--config=${process.env.ENTITY_SCHEMA_WORKER_CONFIG}`] : []),
     ], { cwd: new URL("..", import.meta.url).pathname, env: process.env, stdio: "ignore" });
     await expect.poll(async () => {
@@ -118,7 +120,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
     await expect(page.getByLabel("자료 종류 선택")).toHaveValue(type.id);
     const current = await mcp.call("get_entity", { id: x.id });
-    expect(current.properties).toEqual({ prop_1: "원본", prop_2: 7 });
+    expect(current.properties).toEqual({ ...x.properties, prop_3: 7 });
     expect(current.entity_type_id).toBe(type.id);
     expect(await mcp.call("get_entity", { id: y.id })).toEqual(otherBefore);
     expect(
@@ -160,7 +162,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
         field: { "x-order": 30, type: "boolean", title: "確認" },
         required: true,
       }],
-      migration: { rules: [{ op: "fill", key: "prop_2", value: false }], overrides: [] },
+      migration: { rules: [{ op: "fill", key: "prop_3", value: false }], overrides: [] },
     });
     await mcp.call("analyze_entity_schema_change", { type_id: typeId, change_id: plan.id, expected_change_version: 1 });
     await expect.poll(async () => {
@@ -181,7 +183,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
     await page.getByRole("button", { name: "변환 취소", exact: true }).click();
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("취소");
     expect((await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status).toBe("cancelled");
-    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "原本" });
+    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual(entity.properties);
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
     const afterCancel = await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id });
     expect(afterCancel).toMatchObject({ status: "draft", analysis: null, executable: false });
@@ -217,7 +219,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
       expected_job_version: restarted.job_version,
     });
     expect(cancelledAgain.status).toBe("cancelled");
-    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "原本" });
+    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual(entity.properties);
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
     await page.reload();
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("취소");
@@ -275,7 +277,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
         field: { "x-order": 40, type: "integer", title: "수량" },
         required: true,
       }],
-      migration: { rules: [{ op: "fill", key: "prop_2", value: 7 }], overrides: [] },
+      migration: { rules: [{ op: "fill", key: "prop_3", value: 7 }], overrides: [] },
     });
     await mcp.call("analyze_entity_schema_change", { type_id: typeId, change_id: plan.id, expected_change_version: 1 });
     await expect.poll(async () => {
@@ -302,7 +304,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     const failed = await mcp.call("get_entity_schema_migration", { job_id: job.job_id });
     expect(failed.status).toBe("failed");
     expect(failed.retryable).toBe(true);
-    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "보존 원본" });
+    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual(entity.properties);
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
     await page.goto(workspacePath(workspace.id, `/settings/entity-types/${typeId}/migrations/${job.job_id}`));
     await expect(page.getByRole("alert")).toContainText("같은 작업을 재시도할 수 있습니다");
@@ -336,7 +338,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     }, { timeout: 30000 }).toBe("succeeded");
     await expect(page.getByRole("region", { name: "값 변환 상세", exact: true }).getByRole("status")).toContainText("완료");
     const current = await mcp.call("get_entity", { id: entityId });
-    expect(current.properties).toEqual({ prop_1: "보존 원본", prop_2: 7 });
+    expect(current.properties).toEqual({ ...entity.properties, prop_3: 7 });
     expect(current.version).toBe(entity.version + 1);
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(2);
     expect(

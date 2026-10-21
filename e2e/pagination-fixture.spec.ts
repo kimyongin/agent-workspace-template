@@ -1,3 +1,5 @@
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 // Actual App and pagination bindings, with per-page Auth/API fixtures; no shared account.
@@ -129,8 +131,9 @@ test("Entity restored pages: retry cursor, focus and filter reset", async ({ pag
       json: {
         items: [{
           ...entity(index,{prop_1:`경계 항목 ${index}`}),
-          id: `app:${fixtureType.id}:${externalId}`,
-          external_id:externalId,
+          id: encodeIdentifierReference(fixtureType.id, APP_IDENTIFIER_RULE_ID, externalId),
+          identity_label: `앱 · 자동 발급 · ${externalId}`,
+          properties: { ...entity(index).properties, prop_1: `경계 항목 ${index}`, prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, externalId) },
         }],
         next_cursor: `page-${index}`,
       },

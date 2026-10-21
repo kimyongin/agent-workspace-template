@@ -56,12 +56,6 @@ function example(): DataModelDocument {
     entity_types: [{
       ref: "ingredient",
       schema,
-      identity: {
-        version: 1,
-        label: "번호",
-        default_source: "app",
-        sources: [{ code: "app", rule_id: APP_IDENTIFIER_RULE_ID, active: true }],
-      },
     }],
     relations: [{
       id: "10000000-0000-4000-8000-000000000012",
@@ -112,9 +106,9 @@ Deno.test("whole model accepts a valid multi-kind bundle larger than the retired
     t.ref = `kind_${n}`;
     t.schema["x-type-id"] = `60000000-0000-4000-8000-${String(n + 1).padStart(12, "0")}`;
     t.schema.title = `종류 ${n}`;
-    t.schema.properties.prop_2 = {
+    t.schema.properties.prop_3 = {
       type: "string",
-      "x-order": 20,
+      "x-order": 30,
       examples: Array.from({ length: 45 }, () => "x".repeat(4096)),
     };
     return t;
@@ -140,11 +134,9 @@ Deno.test("the original update file reapplies without losing immutable kind, pro
     active: true,
     version: 1,
   });
-  doc.entity_types[0].identity.sources.push({
-    code: "seller",
-    rule_id: "20000000-0000-4000-8000-000000000001",
-    active: true,
-  });
+  doc.entity_types[0].schema.properties.prop_2["x-identifier"]!.allowed_kind_ids.push(
+    "20000000-0000-4000-8000-000000000001",
+  );
   const first = await resolveModel({ document: empty as DataModelDocument, types: {} }, doc, "update", actor.userId);
   const types = Object.fromEntries(
     first.target.entity_types.map(
@@ -164,7 +156,7 @@ Deno.test("whole model review surfaces existing typed link cardinality and endpo
   const doc = example();
   const snapshot = {
     document: doc,
-    types: { [doc.entity_types[0].schema["x-type-id"]]: { next_property_number: 2, count: 0, locked: false } },
+    types: { [doc.entity_types[0].schema["x-type-id"]]: { next_property_number: 3, count: 0, locked: false } },
     relation_usage: { [doc.relations[0].id]: { links: 2, left_many: true, right_many: false } },
   };
   const target = structuredClone(doc);
@@ -181,7 +173,7 @@ Deno.test("whole model review rejects changing a used relationship endpoint kind
   other.schema.title = "다른 종류";
   doc.entity_types.push(other);
   const types = Object.fromEntries(
-    doc.entity_types.map((t) => [t.schema["x-type-id"], { next_property_number: 2, count: 0, locked: false }]),
+    doc.entity_types.map((t) => [t.schema["x-type-id"], { next_property_number: 3, count: 0, locked: false }]),
   );
   const changed = structuredClone(doc);
   changed.relations[0].ends[1].type_ref = "other";
@@ -207,7 +199,7 @@ Deno.test("identical empty-workspace previews bind copy IDs and review fingerpri
   assertEquals(a.review.mapping.types.ingredient === b.review.mapping.types.ingredient, false);
 });
 
-Deno.test("referenced per-kind identity sources cannot be removed or rebound during whole-model review", async () => {
+Deno.test("used identifier field kinds cannot be removed or rebound during whole-model review", async () => {
   const source = example(), type = source.entity_types[0], ruleId = "20000000-0000-4000-8000-000000000001";
   source.identity_definitions.issuers.push({
     code: "seller",
@@ -225,11 +217,11 @@ Deno.test("referenced per-kind identity sources cannot be removed or rebound dur
     active: true,
     version: 1,
   });
-  type.identity.sources.push({ code: "seller", rule_id: ruleId, active: true });
+  type.schema.properties.prop_2["x-identifier"]!.allowed_kind_ids.push(ruleId);
   const snapshot = {
     document: source,
-    types: { [type.schema["x-type-id"]]: { next_property_number: 2, count: 1, locked: false } },
-    identity_usage: { [type.schema["x-type-id"]]: { seller: ruleId } },
+    types: { [type.schema["x-type-id"]]: { next_property_number: 3, count: 1, locked: false } },
+    identifier_usage: { [type.schema["x-type-id"]]: { prop_2: [ruleId] } },
   };
   for (const replacement of [false, true]) {
     const target = structuredClone(source);
@@ -240,35 +232,33 @@ Deno.test("referenced per-kind identity sources cannot be removed or rebound dur
         label: "Other SKU",
       };
       target.identity_definitions.rules.push(other);
-      target.entity_types[0].identity.sources[1].rule_id = other.id;
-    } else {target.entity_types[0].identity.sources = target.entity_types[0].identity.sources.filter((s) =>
-        s.code !== "seller"
-      );}
+      target.entity_types[0].schema.properties.prop_2["x-identifier"]!.allowed_kind_ids[1] = other.id;
+    } else target.entity_types[0].schema.properties.prop_2["x-identifier"]!.allowed_kind_ids = [APP_IDENTIFIER_RULE_ID];
     const review = (await resolveModel(snapshot, target, "update", actor.userId)).review;
     assertEquals(review.items.find((i) => i.ref === type.ref)?.kind, "conflict");
     assertEquals(review.can_apply, false);
   }
   const suspended = structuredClone(source);
-  suspended.entity_types[0].identity.sources[1].active = false;
+  suspended.identity_definitions.rules[1].active = false;
   assertEquals((await resolveModel(snapshot, suspended, "update", actor.userId)).review.can_apply, true);
 });
 
 Deno.test("whole model exchange retains selected text annotations on stable properties", async () => {
   const doc = example();
   doc.entity_types[0].schema.properties.prop_1["x-search-text"] = true;
-  doc.entity_types[0].schema.properties.prop_2 = {
+  doc.entity_types[0].schema.properties.prop_3 = {
     type: ["string", "null"],
-    "x-order": 20,
+    "x-order": 30,
     title: "설명",
     "x-search-text": false,
   };
   const first = await resolveModel({ document: empty as DataModelDocument, types: {} }, doc, "update", actor.userId);
   const schema = first.target.entity_types[0].schema;
   assertEquals(schema.properties.prop_1["x-search-text"], true);
-  assertEquals(schema.properties.prop_2["x-search-text"], false);
+  assertEquals(schema.properties.prop_3["x-search-text"], false);
   const imported = parseModel(JSON.stringify(first.target));
   imported.entity_types[0].schema.properties.prop_1.title = "새 이름";
-  const types = { [schema["x-type-id"]]: { next_property_number: 3, count: 0, locked: false } };
+  const types = { [schema["x-type-id"]]: { next_property_number: 4, count: 0, locked: false } };
   const second = await resolveModel({ document: first.target, types }, imported, "update", actor.userId);
   assertEquals(second.target.entity_types[0].schema.properties.prop_1["x-search-text"], true);
   assertEquals(second.target.entity_types[0].schema.properties.prop_1.title, "새 이름");
@@ -278,11 +268,117 @@ Deno.test("whole model exchange retains selected text annotations on stable prop
 Deno.test("model copy remaps composed title variables with property keys while preserving literals", async () => {
   const d = example();
   const schema = d.entity_types[0].schema;
-  schema.properties = { prop_7: schema.properties.prop_1, prop_9: { type: "number", "x-order": 20 } };
-  schema.required = ["prop_7"];
+  schema.properties = {
+    prop_7: schema.properties.prop_1,
+    prop_8: schema.properties.prop_2,
+    prop_9: { type: "number", "x-order": 30 },
+  };
+  schema.required = ["prop_7", "prop_8"];
+  schema["x-identity-property"] = "prop_8";
   schema["x-title-template"] = "$prop_9$ / ${prop_7$} $$";
   const r = await previewDataModel(deps, actor, { mode: "copy", document: JSON.stringify(d) });
   const copied = r.items.find((i) => i.ref === "ingredient")!.schema!;
-  assertEquals(copied["x-title-template"], "$prop_2$ / $prop_1$ $$");
-  assertEquals(Object.keys(copied.properties), ["prop_1", "prop_2"]);
+  assertEquals(copied["x-title-template"], "$prop_3$ / $prop_1$ $$");
+  assertEquals(Object.keys(copied.properties), ["prop_1", "prop_2", "prop_3"]);
+});
+
+Deno.test("model exchange accepts field annotations as sole identity authority and rejects legacy envelopes", () => {
+  const doc = example();
+  assertEquals(parseModel(JSON.stringify(doc)).entity_types[0].schema["x-identity-property"], "prop_2");
+  const old = { ...doc, entity_types: [{ ...doc.entity_types[0], identity: { label: "번호" } }] };
+  let rejected = false;
+  try {
+    parseModel(JSON.stringify(old));
+  } catch {
+    rejected = true;
+  }
+  assertEquals(rejected, true);
+});
+
+Deno.test("model copy remaps two kinds from one issuer and full literal defaults while reusing the app kind", async () => {
+  const doc = example(),
+    first = "20000000-0000-4000-8000-000000000001",
+    second = "20000000-0000-4000-8000-000000000002";
+  doc.identity_definitions.issuers.push({ code: "seller", label: "판매자", active: true, system: false, version: 1 });
+  for (const id of [first, second]) {
+    doc.identity_definitions.rules.push({
+      id,
+      source: "seller",
+      label: "SKU",
+      meaning: id,
+      generation: "direct",
+      active: true,
+      version: 1,
+    });
+  }
+  doc.entity_types[0].schema.properties.prop_3 = {
+    type: "string",
+    "x-order": 30,
+    "x-identifier": { allowed_kind_ids: [first, second], default_kind_id: first },
+    default: second + ":한:글",
+  };
+  const result = await previewDataModel(deps, actor, { mode: "copy", document: JSON.stringify(doc) });
+  const field = result.items.find((i) => i.ref === "ingredient")!.schema!.properties.prop_3;
+  assertEquals(field["x-identifier"], {
+    allowed_kind_ids: [result.mapping.rules[first], result.mapping.rules[second]],
+    default_kind_id: result.mapping.rules[first],
+  });
+  assertEquals(field.default, result.mapping.rules[second] + ":한:글");
+  assertEquals(result.mapping.rules[first] === first, false);
+  assertEquals(result.mapping.rules[first] === result.mapping.rules[second], false);
+  assertEquals(result.mapping.rules[APP_IDENTIFIER_RULE_ID], APP_IDENTIFIER_RULE_ID);
+});
+Deno.test("model review permits an empty selected-field switch but blocks it with retained rows", async () => {
+  const doc = example(), target = structuredClone(doc), id = doc.entity_types[0].schema["x-type-id"];
+  target.entity_types[0].schema.properties.prop_3 = {
+    ...target.entity_types[0].schema.properties.prop_2,
+    "x-order": 30,
+  };
+  target.entity_types[0].schema.required.push("prop_3");
+  target.entity_types[0].schema["x-identity-property"] = "prop_3";
+  for (const count of [0, 1]) {
+    const result = await resolveModel(
+      { document: doc, types: { [id]: { next_property_number: 3, count, locked: false } } },
+      target,
+      "update",
+      actor.workspaceId,
+    );
+    assertEquals(result.review.items.find((i) => i.ref === "ingredient")!.kind === "conflict", count > 0);
+  }
+});
+
+Deno.test("model definition rejects a raw-only ordinary identifier literal default", () => {
+  const doc = example();
+  doc.entity_types[0].schema.properties.prop_3 = {
+    type: "string",
+    "x-order": 30,
+    "x-identifier": { allowed_kind_ids: [APP_IDENTIFIER_RULE_ID], default_kind_id: APP_IDENTIFIER_RULE_ID },
+    default: "raw-only",
+  };
+  let rejected = false;
+  try {
+    parseModel(JSON.stringify(doc));
+  } catch {
+    rejected = true;
+  }
+  assertEquals(rejected, true);
+});
+
+Deno.test("model definition rejects malformed complete identifier defaults before review", () => {
+  for (const raw of ["", "trailing "]) {
+    const doc = example();
+    doc.entity_types[0].schema.properties.prop_3 = {
+      type: "string",
+      "x-order": 30,
+      "x-identifier": { allowed_kind_ids: [APP_IDENTIFIER_RULE_ID], default_kind_id: APP_IDENTIFIER_RULE_ID },
+      default: APP_IDENTIFIER_RULE_ID + ":" + raw,
+    };
+    let rejected = false;
+    try {
+      parseModel(JSON.stringify(doc));
+    } catch {
+      rejected = true;
+    }
+    assertEquals(rejected, true);
+  }
 });

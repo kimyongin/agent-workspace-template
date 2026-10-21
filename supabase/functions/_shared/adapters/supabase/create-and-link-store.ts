@@ -6,8 +6,6 @@ import type { Actor } from "../../core/shared/actor.ts";
 import type { CreateAndLinkStore } from "../../core/entity-relations/create-and-link.ts";
 import type { CreateAndLinkInput } from "../../contracts/create-and-link.ts";
 import type { EntityRelationDefinition } from "../../contracts/entity-relation.ts";
-import { registrationIdentity } from "../../core/entity/domain.ts";
-import { entityId } from "../../contracts/entity-identity.ts";
 import { notFound } from "../../core/shared/errors.ts";
 import { SqlEntityStore } from "./entity-store.ts";
 import { SqlEntityRelationLinkStore } from "./entity-relation-link-store.ts";
@@ -25,13 +23,10 @@ export class SqlCreateAndLinkStore extends SqlActorStore implements CreateAndLin
     for (const typeId of [...new Set(def.ends.map((e) => e.type_id))].sort()) {
       if (!await loadBusinessEntityDefinition(this.tx, typeId, true)) throw notFound();
     }
-    const identity = await this.entities.getTypeIdentity(i.entity.entity_type_id, true);
-    if (!identity) throw notFound();
-    const { source } = registrationIdentity(identity, i.entity);
     const ids = [
+      ...(i.entity.action === "restore" ? [i.entity.id] : []),
       i.origin_id,
       ...(i.previous_other_id ? [i.previous_other_id] : []),
-      ...(i.entity.external_id !== undefined ? [entityId(source, i.entity.entity_type_id, i.entity.external_id)] : []),
     ];
     await this.relations.endpoints([...new Set(ids)], true);
   }

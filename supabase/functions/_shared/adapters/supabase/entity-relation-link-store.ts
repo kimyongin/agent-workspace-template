@@ -76,7 +76,7 @@ export class SqlEntityRelationLinkStore extends SqlActorStore implements EntityR
  where e.workspace_id=app.current_workspace_id() and d.workspace_id=e.workspace_id and app.workspace_allows('entity_type',e.entity_type_id::text,'read') and d.id=${q.definition_id}::uuid and e.entity_type_id=${kind} and e.id<>${q.origin_id} and e.deleted_at is null and not coalesce((v.schema->>'deprecated')::boolean,false)
  and not exists(select 1 from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id and ${own}=${q.origin_id} and ${peer}=e.id)
  and (${card}<>'one' or not exists(select 1 from app.entity_relation_links p where p.workspace_id=d.workspace_id and p.definition_id=d.id and ${otherSlot}=e.id))
- and (${q.q}='' or strpos(lower(app.entity_title(v.schema,e.properties,e.external_id)),lower(${q.q}))>0 or strpos(lower(e.external_id),lower(${q.q}))>0)
+ and (${q.q}='' or strpos(lower(app.entity_title(v.schema,e.properties,app.identifier_raw(e.properties->>(v.schema->>'x-identity-property')))),lower(${q.q}))>0 or strpos(lower(app.identifier_raw(e.properties->>(v.schema->>'x-identity-property'))),lower(${q.q}))>0)
  and (${after ?? null}::text is null or e.id collate "C">${
         after ?? null
       } collate "C") order by e.id collate "C" limit ${q.limit + 1}`
@@ -84,7 +84,7 @@ export class SqlEntityRelationLinkStore extends SqlActorStore implements EntityR
         join app.entity_types k on k.workspace_id=e.workspace_id and k.id=e.entity_type_id
         join app.entity_schema_versions v on v.workspace_id=k.workspace_id and v.type_id=k.id and v.schema_version=k.schema_version
         where l.workspace_id=app.current_workspace_id() and app.workspace_allows('entity_type',e.entity_type_id::text,'read') and l.definition_id=${q.definition_id}::uuid and ${own}=${q.origin_id}
-        and (${q.q}='' or strpos(lower(app.entity_title(v.schema,e.properties,e.external_id)),lower(${q.q}))>0 or strpos(lower(e.external_id),lower(${q.q}))>0)
+        and (${q.q}='' or strpos(lower(app.entity_title(v.schema,e.properties,app.identifier_raw(e.properties->>(v.schema->>'x-identity-property')))),lower(${q.q}))>0 or strpos(lower(app.identifier_raw(e.properties->>(v.schema->>'x-identity-property'))),lower(${q.q}))>0)
         and (${after ?? null}::text is null or e.id collate "C">${
         after ?? null
       } collate "C") order by e.id collate "C" limit ${q.limit + 1}`;

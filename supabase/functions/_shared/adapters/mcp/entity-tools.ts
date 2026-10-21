@@ -2,7 +2,7 @@ import { entityReferenceId as id } from "../../contracts/entity-identity.ts";
 import { z } from "zod";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion } from "../../contracts/common.ts";
-import { entityCreate, entityListQuery, entityUpdate } from "../../contracts/entity.ts";
+import { entityCreate, entityListQuery, entityLookup, entityRestore, entityUpdate } from "../../contracts/entity.ts";
 import * as entity from "../../core/entity/application.ts";
 import { parse } from "../errors.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -19,7 +19,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "list_entities",
       description:
-        "내 자료 목록. entity_type_id로 자료 종류를 선택한다. keyword는 현재 템플릿 제목·발급처·식별자 부분 일치. sort는 updated_at 내림차순 또는 title 오름차순. 목록은 계산된 title을 포함하며 편집 전 get_entity로 전체 properties를 읽는다. 커서는 같은 조건에만 사용.",
+        "내 자료 목록. entity_type_id로 자료 종류를 선택한다. keyword는 현재 템플릿 제목·식별자 원본 부분 일치. sort는 updated_at 내림차순 또는 title 오름차순. 목록은 계산된 title을 포함하며 편집 전 get_entity로 전체 properties를 읽는다. 커서는 같은 조건에만 사용.",
       input: entityListQuery,
       readOnly: true,
       handler: (i, a) => entity.listEntities(d, a, parse(entityListQuery, i)),
@@ -35,15 +35,37 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "create_entity",
       description:
-        "활성 자료 종류의 자료 생성. list_entity_types와 get_entity_schema로 entity_type_id/schema_version/prop_n의 의미와 제약을 확인하고 properties를 제출한다. 기본값은 새 생성에만 적용된다. 발급처 source·external_id는 정확하게 보존한다. get_entity_type_identity의 발급처·발급 방식·version을 identity_version으로 유지한다. automatic 방식은 external_id 생략 시 서버 발급한다. 삭제된 식별자는 get_entity의 원래 타입·보관값·version을 확인하고 같은 entity_type_id 및 현재 schema_version/expected_version으로 복원한다. 타입 변경은 금지된다. schema_changed/settings_changed이면 초안을 유지하고 최신 정본을 확인한 뒤 새 의도 키로 제출한다.",
+        "활성 자료 종류의 자료 생성. list_entity_types와 get_entity_schema로 entity_type_id/schema_version/prop_n의 의미와 제약을 확인하고 properties를 제출한다. 기본값은 새 생성에만 적용된다. 식별자 항목은 종류 UUID:원본 문자열로 제출한다. generate_identifiers는 항목 키와 자동 발급 종류 UUID의 명시 요청이다. 필수 자료 식별자 생략 시 기본 종류가 자동 발급이면 신규 생성에서만 발급한다. 삭제 자료는 lookup_entity_identifier 또는 get_entity 후 restore_entity로 명시 복원한다. 타입 변경은 금지된다. schema_changed/settings_changed이면 초안을 유지하고 최신 정본을 확인한 뒤 새 의도 키로 제출한다.",
       input: entityCreate,
       readOnly: false,
       handler: (i, a) => entity.createEntity(d, a, parse(entityCreate, i)),
     },
     {
+      name: "lookup_entity_identifier",
+      description:
+        "자료 종류와 선택된 식별자 값으로 기존 자료를 조회한다. 삭제 자료도 반환하며 값 발급·복원을 실행하지 않는다.",
+      input: entityLookup,
+      readOnly: true,
+      handler: (i, a) => {
+        const p = parse(entityLookup, i);
+        return entity.lookupEntity(d, a, p.entity_type_id, p.identifier);
+      },
+    },
+    {
+      name: "restore_entity",
+      description:
+        "서버가 반환한 삭제 자료 ID와 현재 버전으로 동일 자료를 명시 복원한다. 생략 속성은 유지하고 자료 식별자는 변경·재발급하지 않는다.",
+      input: entityRestore.extend({ id }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { id: key, ...p } = parse(entityRestore.extend({ id }), i);
+        return entity.restoreEntity(d, a, key, p);
+      },
+    },
+    {
       name: "update_entity",
       description:
-        "현재 schema_version/expected_version으로 properties 부분 수정. 생략한 키는 유지하고 명시 null은 스키마가 허용할 때 저장한다. 자료 종류·발급처·번호는 변경할 수 없다. schema_changed이면 초안을 유지하고 현재 정의를 확인한다.",
+        "현재 schema_version/expected_version으로 properties 부분 수정. 생략한 키는 유지하고 명시 null은 스키마가 허용할 때 저장한다. 자료 종류·선택된 자료 식별자는 변경할 수 없다. 일반 식별자의 명시 자동 발급은 generate_identifiers로 요청한다. schema_changed이면 초안을 유지하고 현재 정의를 확인한다.",
       input: entityUpdate.extend({ id }),
       readOnly: false,
       handler: (i, a) => {
@@ -57,7 +79,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "delete_entity",
       description:
-        "자료 소프트 삭제. 속성·태그·할 일/기록 연결은 보존하고 활성 후보에서 제외한다. 같은 조합·현재 버전으로 등록하면 복원한다.",
+        "자료 소프트 삭제. 속성·태그·할 일/기록 연결은 보존하고 활성 후보에서 제외한다. 서버가 반환한 ID·현재 버전으로 restore_entity를 호출해 명시 복원한다.",
       input: z.strictObject({ id, expected_version: expectedVersion, ...businessMeta }),
       readOnly: false,
       destructive: true,

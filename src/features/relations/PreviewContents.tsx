@@ -51,14 +51,6 @@ export function PreviewContents(
             <dt>자료 종류</dt>
             <dd>{entity.type.label}</dd>
           </div>
-          <div>
-            <dt>번호 출처</dt>
-            <dd>{entity.source_label}</dd>
-          </div>
-          <div>
-            <dt>자료 번호</dt>
-            <dd>{entity.external_id}</dd>
-          </div>
           {entity.deleted_at && (
             <div>
               <dt>상태</dt>

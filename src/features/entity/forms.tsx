@@ -4,27 +4,23 @@ import { ChangedValue } from "../../components/ChangedValue.tsx";
 import type { ConfirmationValue } from "../../components/RecordConfirmation.tsx";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
-import { cn } from "../../lib/utils.ts";
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { PlusIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
-import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
-import { Input } from "../../components/ui/input.tsx";
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
-import type { EntityTypeIdentity } from "@contracts/entity-issuer.ts";
 import { Link } from "../../lib/workspace-router.tsx";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
-import { entityId, entityIdentity, entityPath } from "@contracts/entity-identity.ts";
+import { identifierValue } from "@contracts/entity-identifiers.ts";
 import { ApiError } from "../../lib/api.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
-import { type EntityCreate, entityCreate, type EntityDetail } from "@contracts/entity.ts";
+import { type EntityCreate, entityCreate, type EntityDetail, type EntityRestore, type EntityUpdate, type EntityValues } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { useEntityTypes } from "./useEntityTypes.ts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { Field, Notice } from "../../components/Field.tsx";
+import { Notice } from "../../components/Field.tsx";
 
 import { fieldErrors } from "../../lib/format.ts";
 import { ReadonlyTags } from "../tags/TagConnections.tsx";
@@ -37,6 +33,10 @@ import {
   propertyValues,
   displayedProperty,
 } from "./property-fields.tsx";
+export type EntityFormSubmission =
+  | { action: "create"; input: EntityCreate }
+  | { action: "update"; id: string; input: EntityUpdate }
+  | { action: "restore"; id: string; input: EntityRestore };
 export function EntityForm({
   initial,
   initialTypeId,
@@ -66,63 +66,34 @@ export function EntityForm({
   deletion?: DeletionOptions;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (value: EntityCreate, requestKey: () => string) => Promise<void>;
+  onSave: (value: EntityFormSubmission, requestKey: () => string) => Promise<void>;
 }) {
   const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
-  const [identitySettings, setIdentitySettings] = useState<EntityTypeIdentity | null>(null),
-    [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
+  const [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
     [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [schemaError, setSchemaError] = useState(""),
     [pendingDefinition, setPendingDefinition] = useState<EntitySchemaResult | null>(null),
     [schemaReading, setSchemaReading] = useState(false),
     [reviewKeys, setReviewKeys] = useState<string[]>([]),
-    [identityReload, setIdentityReload] = useState(0),
     [nextType, setNextType] = useState<string | null>(null);
   const { types, error: catalogError, retry: retryCatalog } = useEntityTypes();
   const readable = visible && (!typeId || canReadType(typeId));
   const canWrite = readable && !readonly && canWriteType(typeId);
   const writableTypes = types?.filter((type) => !type.archived && canWriteType(type.id));
-  const [archived, setArchived] = useState<EntityDetail | null>(initial?.deleted_at ? initial : null),
-    [identityMessage, setIdentityMessage] = useState(""),
-    [identityStale, setIdentityStale] = useState(false);
-  const [source, setSource] = useState(initial?.source ?? ""),
-    [external, setExternal] = useState(initial?.external_id ?? ""),
-    [properties, setProperties] = useState<PropertyDraft>(propertyDraft(initial?.properties ?? {}));
+  const [archived, setArchived] = useState<EntityValues | null>(initial?.deleted_at ? initial : null),
+    [identityMessage, setIdentityMessage] = useState("");
+  const [properties, setProperties] = useState<PropertyDraft>(propertyDraft(initial?.properties ?? {})),
+    [generations, setGenerations] = useState<Record<string, string>>({});
   const baseline = useRef({
-    source: initial?.source ?? "",
-    external: initial?.external_id ?? "",
     properties: propertyDraft(initial?.properties ?? {}),
+    generations: {} as Record<string, string>,
     typeId: initial?.entity_type_id ?? initialTypeId ?? "",
   });
   const prepared = useRef<Record<string, unknown> | null>(null),
     initializedType = useRef<string | null>(null),
-    settingsVersion = useRef<number | undefined>(undefined),
     lookup = useRef<AbortController | null>(null),
     definitionRead = useRef<AbortController | null>(null);
-  useEffect(() => {
-    const c = new AbortController();
-    setIdentitySettings(null);
-    if (typeId) {
-      void api<EntityTypeIdentity>("GET", `/entity-types/${typeId}/identity`, undefined, c.signal).then((settings) => {
-        if (c.signal.aborted) return;
-        settingsVersion.current = settings.version;
-        setIdentitySettings(settings);
-        setIdentityStale(false);
-        if (!initial && !source) {
-          setSource(settings.default_source);
-          baseline.current.source = settings.default_source;
-        }
-      }).catch(() => {
-        if (!c.signal.aborted) {
-          setIdentityMessage("자료 번호 설정을 읽지 못했습니다. 다시 조회하세요.");
-        }
-      });
-    }
-    return () => {
-      c.abort();
-      lookup.current?.abort();
-    };
-  }, [typeId, identityReload]);
+  useEffect(() => () => lookup.current?.abort(), [typeId]);
   useEffect(() => {
     const c = new AbortController();
     definitionRead.current?.abort();
@@ -143,8 +114,14 @@ export function EntityForm({
             ).map(([key, field]) => [key, field.default!]),
           );
           const draft = propertyDraft(defaults);
+          const identity = value.schema["x-identity-property"];
+          const defaultKind = identity && value.schema.properties[identity]?.["x-identifier"]?.default_kind_id;
+          const generate = identity && defaultKind && value.identifier_kinds?.some(kind => kind.id === defaultKind && kind.active && kind.generation === "automatic")
+            ? { [identity]: defaultKind } : {};
           setProperties(draft);
+          setGenerations(generate);
           baseline.current.properties = draft;
+          baseline.current.generations = generate;
         }
       }).catch(() => {
         if (!c.signal.aborted) {
@@ -180,7 +157,7 @@ export function EntityForm({
   const acceptDefinition = () => {
     if (!pendingDefinition) return;
     const kind = (field: EntitySchemaResult["schema"]["properties"][string] | undefined) =>
-      field ? `${fieldType(field)}:${field.format ?? ""}:${fieldChoices(field) ? "selection" : ""}` : "missing";
+      field ? `${fieldType(field)}:${field.format ?? ""}:${fieldChoices(field) ? "selection" : ""}:${field["x-identifier"] ? "identifier" : ""}` : "missing";
     setReviewKeys(
       Object.keys(properties).filter((key) =>
         kind(definition?.schema.properties[key]) !== kind(pendingDefinition.schema.properties[key])
@@ -215,52 +192,57 @@ export function EntityForm({
       entity_type_id: typeId,
       schema_version: definition.schema_version,
       properties: writable,
-      source,
-      external_id: external || undefined,
-      identity_version: !initial || archived ? settingsVersion.current : undefined,
-      expected_version: archived?.version,
+      ...(Object.keys(generations).length ? { generate_identifiers: generations } : {}),
     };
   };
   const checkExisting = async () => {
     if (initial || archived) return archived;
-    if (!identitySettings) throw new Error("자료 번호 설정을 확인하세요");
-    if (!external && identitySettings.sources.find((item) => item.code === source)?.generation === "automatic") {
-      return null;
-    }
-    const identity = entityIdentity.safeParse({ source, entity_type_id: typeId, external_id: external });
-    if (!identity.success) throw new Error(identity.error.issues.map((i) => i.message).join(" · "));
+    const key = definition?.schema["x-identity-property"];
+    if (!key) throw new Error("자료 식별자 항목을 확인하세요");
+    if (generations[key]) return null;
+    const identity = identifierValue.safeParse(properties[key]);
+    if (!identity.success) throw new Error("자료 식별자의 종류와 원본 값을 입력하세요");
     lookup.current?.abort();
     const c = new AbortController();
     lookup.current = c;
     try {
-      const stored = await api<EntityDetail>(
+      const query = new URLSearchParams({ entity_type_id: typeId, identifier: identity.data });
+      const stored = await api<EntityValues | null>(
         "GET",
-        entityPath(entityId(source, typeId, external)),
+        `/entities/lookup?${query}`,
         undefined,
         c.signal,
       );
       c.signal.throwIfAborted();
-      if (!stored.deleted_at) throw new Error("같은 번호 출처·자료 번호의 활성 자료가 있습니다.");
+      if (!stored) { setIdentityMessage("새로운 자료 식별자입니다."); return null; }
+      if (!stored.deleted_at) throw new Error("같은 자료 식별자의 활성 자료가 있습니다.");
       if (stored.entity_type_id !== typeId) {
         throw new Error("삭제된 자료의 종류가 다릅니다. 원래 자료 종류에서 복원하세요.");
       }
       setArchived(stored);
       setProperties(propertyDraft(stored.properties));
+      setGenerations({});
       setIdentityMessage("보관한 자료를 불러왔습니다. 속성과 연결을 확인한 뒤 복원을 저장하세요.");
       return stored;
     } catch (e) {
       c.signal.throwIfAborted();
-      if (e instanceof ApiError && e.status === 404) {
-        setIdentityMessage("새로운 자료 번호입니다.");
-        return null;
-      }
       throw e;
     }
   };
-  const dirty = source !== baseline.current.source || external !== baseline.current.external ||
-    typeId !== baseline.current.typeId || JSON.stringify(properties) !== JSON.stringify(baseline.current.properties);
+  const submission = (): EntityFormSubmission => {
+    const { entity_type_id, ...input } = value();
+    if (archived) return { action: "restore", id: archived.id, input: {
+      schema_version: input.schema_version, properties: input.properties, expected_version: archived.version,
+    } };
+    if (initial) return { action: "update", id: initial.id, input: { ...input, expected_version: initial.version } };
+    return { action: "create", input: { entity_type_id, ...input } };
+  };
+  const dirty = typeId !== baseline.current.typeId || JSON.stringify(properties) !== JSON.stringify(baseline.current.properties) ||
+    JSON.stringify(generations) !== JSON.stringify(baseline.current.generations);
   const changeProperties = (values: PropertyDraft) => {
+    prepared.current = null;
     lookup.current?.abort();
+    setGenerations(current => Object.fromEntries(Object.entries(current).filter(([key]) => values[key] === properties[key])));
     setReviewKeys((keys) => keys.filter((key) => values[key] === properties[key]));
     setProperties(
       !initial && !archived && definition
@@ -278,13 +260,13 @@ export function EntityForm({
       const field = definition.schema.properties[key];
       if (field.readOnly || field.deprecated || presentation.archived.includes(key) || initial.properties[key] === next[key]) return [];
       const labels = presentation.option_labels[key];
-      return [{ label: field.title ?? key, value: <ChangedValue before={displayedProperty(field, initial.properties[key], labels)} after={displayedProperty(field, next[key], labels)}/> }];
+      return [{ label: field.title ?? key, value: <ChangedValue before={displayedProperty(field, initial.properties[key], labels, definition.identifier_kinds)} after={displayedProperty(field, next[key], labels, definition.identifier_kinds)}/> }];
     });
   };
   const previewTitle = (() => {
     if (!definition) return label;
     try {
-      return renderEntityTitle(definition.schema, propertyValues(definition, effectiveProperties), external || initial?.external_id || "");
+      return renderEntityTitle(definition.schema, propertyValues(definition, effectiveProperties), (archived ?? initial)?.identity_label ?? "");
     } catch {
       return label;
     }
@@ -295,11 +277,11 @@ export function EntityForm({
         open
         visible={readable}
         domain={label}
-        description="번호 출처와 번호를 확인하고, 자료의 입력 항목을 작성합니다."
+        description="식별자 종류와 원본 값을 확인하고, 자료의 입력 항목을 작성합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel={submitLabel}
         submitDisabled={!canWrite || !!typeId &&
-          (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
+          (!types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
           target: previewTitle,
           action: archived ? "복원" : initial ? "수정" : "등록",
@@ -312,40 +294,24 @@ export function EntityForm({
         onRouteDiscard={onRouteDiscard}
         preparation={async () => {
           if (!canWrite) throw new ApiError(403, "forbidden", "이 자료 종류의 편집 권한이 필요합니다.");
-          const existing = archived ?? await checkExisting(), target = existing ?? initial;
-          const input = existing && !archived
-            ? {
-              ...value(),
+          const existing = archived ?? await checkExisting();
+          const command: EntityFormSubmission = existing && !archived
+            ? { action: "restore", id: existing.id, input: {
+              schema_version: definition!.schema_version,
               properties: Object.fromEntries(
                 Object.entries(existing.properties).filter(([key]) =>
-                  !schemaPresentation(definition!).archived.includes(key)
+                  !schemaPresentation(definition!).archived.includes(key) && !definition!.schema.properties[key]?.readOnly
                 ),
               ),
               expected_version: existing.version,
-            }
-            : value();
-          if (initial && !existing) {
-            const {
-              entity_type_id: _type,
-              identity_version: _settings,
-              source: _source,
-              external_id: _number,
-              ...patch
-            } = input;
-            return {
-              model: "entity",
-              action: "update",
-              target_id: initial.id,
-              expected_version: initial.version,
-              input: patch,
-            };
-          }
+            } }
+            : submission();
           return {
             model: "entity",
-            action: existing ? "restore" : "create",
-            target_id: target?.id,
-            expected_version: target?.version,
-            input,
+            action: command.action,
+            target_id: command.action === "create" ? undefined : command.id,
+            expected_version: command.action === "create" ? undefined : command.input.expected_version,
+            input: command.input,
           };
         }}
         onPrepared={(result) => {
@@ -358,7 +324,7 @@ export function EntityForm({
               entity_type_id: "보관된 자료 종류에는 새 자료를 추가할 수 없습니다",
             };
           }
-          if (!identitySettings || !types || catalogError || !definition) {
+          if (!types || catalogError || !definition) {
             return {
               entity_type_id: "자료 종류와 속성 정의를 확인하세요",
             };
@@ -381,17 +347,17 @@ export function EntityForm({
             if (error instanceof PropertyDraftError) return error.fields;
             throw error;
           }
-          if (identitySettings.sources.find((item) => item.code === source)?.generation === "direct" && !external) {
-            return {
-              external_id: "자료 번호를 입력하세요",
-            };
-          }
           const errors: Record<string, string> = {};
+          for (const [key, field] of Object.entries(definition.schema.properties)) {
+            if (field["x-identifier"]?.allowed_kind_ids.some(id => !definition.identifier_kinds?.some(kind => kind.id === id))) {
+              errors[`properties.${key}`] = "식별자 종류를 읽지 못했습니다. 현재 정의를 다시 확인하세요.";
+            }
+          }
           for (
             const key of definition.schema.required
           ) {
             if (
-              properties[key] === undefined && !definition.schema.properties[key]?.deprecated &&
+              properties[key] === undefined && !generations[key] && !definition.schema.properties[key]?.deprecated &&
               !definition.schema.properties[key]?.readOnly
             ) {
               errors[
@@ -402,7 +368,7 @@ export function EntityForm({
           for (
             const [key, old] of Object.entries(initial?.properties ?? {})
           ) {
-            if (old !== undefined && properties[key] === undefined) {errors[`properties.${key}`] =
+            if (old !== undefined && properties[key] === undefined && !generations[key]) {errors[`properties.${key}`] =
                 "기존 값을 지우려면 값 없음으로 변경하세요. 미입력은 기존 값을 유지합니다.";}
           }
           const parsed = entityCreate.safeParse(fields);
@@ -410,16 +376,15 @@ export function EntityForm({
         }}
         onSubmit={async (requestKey, memo) => {
           if (!canWrite) throw new ApiError(403, "forbidden", "이 자료 종류의 편집 권한이 필요합니다.");
-          const current = value();
+          const current = submission();
           try {
             await onSave(
-              { ...current, ...prepared.current, ...memo } as EntityCreate,
+              { ...current, input: { ...current.input, ...prepared.current, ...memo } } as EntityFormSubmission,
               requestKey,
             );
           } catch (error) {
             if (error instanceof ApiError && error.code === "settings_changed") {
-              setIdentityStale(true);
-              setIdentityMessage("자료 번호 설정이 변경되었습니다. 입력을 유지했으니 현재 설정을 확인하세요.");
+              setSchemaError("식별자 종류 또는 정의가 변경되었습니다. 입력을 유지했으니 현재 정의를 확인하세요.");
             }
             throw error;
           }
@@ -473,7 +438,7 @@ export function EntityForm({
                 </FieldGroup>
               )}
               {schemaError && <p className="text-sm text-destructive" role="alert">{schemaError}</p>}
-              {typeId && (schemaError || errors.schema_version ||
+              {typeId && (schemaError || errors.schema_version || Object.keys(errors).some(key => key.startsWith("properties.")) ||
                 definition && activeType && definition.schema_version !== activeType.schema_version) &&
                 (
                   <Button variant="outline"
@@ -511,138 +476,18 @@ export function EntityForm({
                   </Button>
                 </section>
               )}
-              {(!identitySettings || identityStale) && typeId && (
-                <Button variant="outline"
-                  type="button"
-
-                  onClick={() => setIdentityReload((value) => value + 1)}
-                >
-                  자료 번호 설정 다시 조회
-                </Button>
+              {definition && <DataFields><div><dt>제목 미리보기</dt><dd>{previewTitle || "저장 후 발급되는 자료 식별자"}</dd></div></DataFields>}
+              {!initial && !archived && definition?.schema["x-identity-property"] &&
+                typeof properties[definition.schema["x-identity-property"]!] === "string" &&
+                !generations[definition.schema["x-identity-property"]!] && (
+                <Button variant="outline" type="button" disabled={frozen || !canWrite} onClick={() =>
+                  void checkExisting().catch(error => {
+                    if (!(error instanceof DOMException && error.name === "AbortError")) {
+                      setIdentityMessage(error instanceof Error ? error.message : "조회하지 못했습니다");
+                    }
+                  })}>기존 대상 확인</Button>
               )}
-              {definition && <DataFields><div><dt>제목 미리보기</dt><dd>{previewTitle || "저장 후 발급되는 자료 번호"}</dd></div></DataFields>}
-              {(initial || archived)
-                ? (
-                  <DataFields>
-                    <div>
-                      <dt>번호 출처</dt>
-                      <dd>
-                        {identitySettings?.sources.find((item) => item.code === source)?.source_label ??
-                          initial?.source_label ?? source}
-                      </dd>
-                    </div>
-                  </DataFields>
-                )
-                : identitySettings?.sources.filter((item) => item.active).length === 1
-                ? (
-                  <DataFields>
-                    <div>
-                      <dt>번호 출처</dt>
-                      <dd>
-                        {identitySettings.sources.find((item) => item.active)?.source_label}
-                        {errors.source && <p className="text-sm text-destructive" role="alert">{errors.source}</p>}
-                      </dd>
-                    </div>
-                  </DataFields>
-                )
-                : (
-                  <Field label="번호 출처" required error={errors.source}>
-                    {(p) => (
-                      <NativeSelect
-                        {...p}
-
-                        value={source}
-                        disabled={frozen || !canWrite || !identitySettings || !!initial || !!archived}
-                        onChange={(e) => {
-                          lookup.current?.abort();
-                          setSource(e.target.value);
-                          if (!initial) setExternal("");
-                        }}
-                      >
-                        {identitySettings?.sources.filter((item) =>
-                          item.active
-                        ).map(
-                          (item) => (
-                            <NativeSelectOption key={item.code} value={item.code} disabled={!item.active}>
-                              {item.source_label}
-                            </NativeSelectOption>
-                          ),
-                        )}
-                      </NativeSelect>
-                    )}
-                  </Field>
-                )}
-              {initial || archived
-                ? (
-                  <DataFields>
-                    <div>
-                      <dt>자료 번호</dt>
-                      <dd className="wrap-anywhere tabular-nums">{external}</dd>
-                    </div>
-                  </DataFields>
-                )
-                : identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"
-                ? (
-                  <DataFields>
-                    <div>
-                      <dt>{identitySettings.label}</dt>
-                      <dd>
-                        등록 시 자동 발급
-                        {errors.external_id && <p className="text-sm text-destructive" role="alert">{errors.external_id}</p>}
-                      </dd>
-                    </div>
-                  </DataFields>
-                )
-                : (
-                  <Field label={identitySettings?.label ?? "번호"} error={errors.external_id}>
-                    {(p) => (
-                      <Input
-                        {...p}
-
-                        value={external}
-                        maxLength={200}
-                        disabled={frozen || !canWrite || !identitySettings}
-                        readOnly={!!initial || !!archived ||
-                          identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"}
-                        placeholder={identitySettings?.sources.find((item) => item.code === source)?.generation ===
-                            "automatic"
-                          ? "자동 발급"
-                          : undefined}
-                        onChange={(e) => {
-                          lookup.current?.abort();
-                          setExternal(e.target.value);
-                        }}
-                      />
-                    )}
-                  </Field>
-                )}
-              {!initial && !archived && external &&
-                identitySettings?.sources.find((item) => item.code === source)?.generation === "direct" && (
-                <Button variant="outline"
-                  type="button"
-
-                  disabled={frozen || !canWrite || !identitySettings || !definition}
-                  onClick={() =>
-                    void checkExisting().catch((e) => {
-                      if (!(e instanceof DOMException && e.name === "AbortError")) {
-                        setIdentityMessage(e instanceof Error ? e.message : "조회하지 못했습니다");
-                      }
-                    })}
-                >
-                  기존 대상 확인
-                </Button>
-              )}
-              {(!identitySettings || !types) && !identityMessage && !catalogError && (
-                <p role="status">자료 종류·자료 번호 설정을 읽는 중…</p>
-              )}
-              {identityMessage && (
-                <p
-                  className={cn(!identitySettings ? "text-sm text-destructive" : undefined)}
-                  role={!identitySettings ? "alert" : "status"}
-                >
-                  {identityMessage}
-                </p>
-              )}
+              {identityMessage && <p role="status" className="text-sm text-muted-foreground">{identityMessage}</p>}
               {(initial || archived) && errors.entity_type_id && (
                 <p className="text-sm text-destructive" role="alert">{errors.entity_type_id}</p>
               )}
@@ -650,6 +495,17 @@ export function EntityForm({
                 ? (
                   <PropertyFields
                   disabled={frozen || !canWrite}
+                    identityLocked={!!initial || !!archived}
+                    generations={generations}
+                    onGenerate={archived ? undefined : (key, kind) => {
+                      prepared.current = null;
+                      lookup.current?.abort();
+                      setGenerations(current => {
+                        const next = { ...current };
+                        if (kind === undefined) delete next[key]; else next[key] = kind;
+                        return next;
+                      });
+                    }}
                     definition={definition}
                     values={effectiveProperties}
                   initialValues={initial && !archived ? baseline.current.properties : undefined}
@@ -682,8 +538,7 @@ export function EntityForm({
           prepared.current = null;
           setTypeId(nextType!);
           setProperties({});
-          setExternal("");
-          setSource("");
+          setGenerations({});
           setIdentityMessage("");
           setNextType(null);
         }}

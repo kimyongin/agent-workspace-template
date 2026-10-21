@@ -4,8 +4,7 @@ import type { Recurrence } from "../../contracts/task.ts";
 
 /** Facts used by the default memo, never a complete DTO or historical snapshot. */
 export interface ChangeFacts {
-  source?: string;
-  external_id?: string;
+  identity_label?: string;
   entity_type_id?: string;
   schema_version?: number;
   properties?: Record<string, string | number | boolean | null>;

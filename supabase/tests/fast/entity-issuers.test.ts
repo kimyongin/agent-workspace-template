@@ -7,32 +7,39 @@ import type { HttpEnv } from "../../functions/_shared/adapters/http/input.ts";
 import type { EntityIssuerDeps, EntityIssuerStore } from "../../functions/_shared/core/entity-issuers/application.ts";
 const typeId = "11111111-1111-4111-8111-111111111111";
 const actor = { userId: "owner", request: { key: "11111111-1111-4111-8111-111111111111" } };
-Deno.test("HTTP and MCP identity reads return reusable rule labels and the independent version", async () => {
-  const identity = {
-    type_id: typeId,
-    label: "상품 번호",
-    default_source: "coupang",
+Deno.test("HTTP and MCP schema reads project referenced kind labels and registry versions while retiring separate identity settings", async () => {
+  const kinds = [{
+    id: "22222222-2222-4222-8222-222222222222",
+    source: "coupang",
+    label: "상품 ID",
+    source_label: "쿠팡",
+    active: true,
+    generation: "direct" as const,
     version: 7,
-    sources: [{
-      code: "coupang",
-      rule_id: "22222222-2222-4222-8222-222222222222",
-      active: true,
-      source_label: "쿠팡",
-      rule_label: "상품 ID",
-      generation: "direct",
-    }],
+    source_version: 3,
+  }];
+  const { entityTypeRoutes } = await import("../../functions/_shared/adapters/http/entity-type-routes.ts");
+  const { entityTypeTools } = await import("../../functions/_shared/adapters/mcp/entity-type-tools.ts");
+  const { initialEntityDefinition } = await import("../../functions/_shared/contracts/entity-type.ts");
+  const result = {
+    ...initialEntityDefinition("이름", { id: typeId }),
+    type_id: typeId,
+    schema_version: 1,
+    created_at: "2026-10-22T00:00:00Z",
+    type: { id: typeId, label: "상품", icon_id: "box", archived: false },
+    identifier_kinds: kinds,
   };
-  const d: EntityIssuerDeps = {
+  const d = {
     uow: {
-      run: (a, fn) => {
-        assertEquals(a.userId, "owner");
-        return fn({
-          getTypeIdentity: (id: string) => {
-            assertEquals(id, typeId);
-            return Promise.resolve(identity);
-          },
-        } as unknown as EntityIssuerStore);
-      },
+      run: <T>(
+        _actor: unknown,
+        fn: (store: import("../../functions/_shared/core/entity-types/application.ts").EntityTypeStore) => Promise<T>,
+      ) =>
+        fn(
+          {
+            schema: () => Promise.resolve(result),
+          } as unknown as import("../../functions/_shared/core/entity-types/application.ts").EntityTypeStore,
+        ),
     },
   };
   const app = new Hono<HttpEnv>();
@@ -40,13 +47,25 @@ Deno.test("HTTP and MCP identity reads return reusable rule labels and the indep
     c.set("actor", actor);
     await next();
   });
-  app.route("/", entityIssuerRoutes(d));
-  const response = await app.request(`/entity-types/${typeId}/identity`);
+  app.route("/", entityTypeRoutes(d));
+  const response = await app.request(`/entity-types/${typeId}/schema`);
   assertEquals(response.status, 200);
-  assertEquals(await response.json(), identity);
-  const tool = entityIssuerTools(d).find((t) => t.name === "get_entity_type_identity")!;
+  assertEquals((await response.json()).identifier_kinds, kinds);
+  const tool = entityTypeTools(d).find((t) => t.name === "get_entity_schema")!;
   assertEquals(tool.readOnly, true);
-  assertEquals(await tool.handler({ type_id: typeId }, actor), identity);
+  assertEquals((await tool.handler({ type_id: typeId }, actor) as typeof result).identifier_kinds, kinds);
+  assertEquals((await app.request(`/entity-types/${typeId}/identity`)).status, 404);
+  const retired = entityIssuerTools({
+    uow: {
+      run: () => {
+        throw Error("retired command cannot reach storage");
+      },
+    },
+  });
+  assertEquals(
+    retired.some((t) => t.name === "get_entity_type_identity" || t.name === "update_entity_type_identity"),
+    false,
+  );
 });
 Deno.test("HTTP and MCP reject mutable issuer codes and external automatic generation", async () => {
   const d: EntityIssuerDeps = {
@@ -103,9 +122,13 @@ Deno.test("HTTP and MCP enforce registry system-definition policy through the sh
         fn({
           executeRequest: <T>(_r: unknown, execute: () => Promise<T>) => execute(),
           lockIssuer: () => Promise.resolve(appIssuer),
-          defaultTypes: () => Promise.resolve([{ type_id: typeId, label: "상품" }]),
+          defaultTypes: () => Promise.resolve([{ type_id: typeId, property: "prop_2", label: "상품" }]),
           lockRule: () => Promise.resolve(appRule),
-          ruleUsage: () => Promise.resolve({ referenced: true, defaultTypes: [{ type_id: typeId, label: "상품" }] }),
+          ruleUsage: () =>
+            Promise.resolve({
+              referenced: true,
+              defaultTypes: [{ type_id: typeId, property: "prop_2", label: "상품" }],
+            }),
         } as unknown as EntityIssuerStore),
     },
   };
@@ -139,7 +162,7 @@ Deno.test("HTTP and MCP enforce registry system-definition policy through the sh
 Deno.test("HTTP and MCP expose identical unused deletion and default-policy fields", async () => {
   let deletions = 0;
   const current = { code: "crm", label: "고객", active: true, system: false, version: 3 };
-  const defaults = [{ type_id: typeId, label: "상품" }];
+  const defaults = [{ type_id: typeId, property: "prop_2", label: "상품" }];
   const d: EntityIssuerDeps = {
     uow: {
       run: (_a, fn) =>
@@ -172,7 +195,7 @@ Deno.test("HTTP and MCP expose identical unused deletion and default-policy fiel
   });
   assertEquals(response.status, 400);
   const body = await response.json();
-  assertEquals(body.fields, [{ path: `default_types.${typeId}`, message: "상품" }]);
+  assertEquals(body.fields, [{ path: `default_fields.${typeId}.prop_2`, message: "상품" }]);
   const tools = entityIssuerTools(d);
   const failure = await assertRejects(() =>
     tools.find((t) => t.name === "update_entity_issuer")!.handler({

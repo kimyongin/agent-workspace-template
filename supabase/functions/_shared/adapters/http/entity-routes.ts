@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { entityHttpQuery } from "../../contracts/entity-query.ts";
 export { entityHttpQuery } from "../../contracts/entity-query.ts";
-import { entityCreate, entityListQuery, entityUpdate } from "../../contracts/entity.ts";
+import { entityCreate, entityListQuery, entityLookup, entityRestore, entityUpdate } from "../../contracts/entity.ts";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion } from "../../contracts/common.ts";
 import { z } from "zod";
@@ -37,6 +37,22 @@ export function entityRoutes(d: entity.EntityDeps) {
   app.post(
     "/entities/query",
     async (c) => c.json(await entity.listEntities(d, c.get("actor"), parse(entityListQuery, await json(c.req.raw)))),
+  );
+  app.get("/entities/lookup", async (c) => {
+    const input = parse(entityLookup, c.req.query());
+    return c.json(await entity.lookupEntity(d, c.get("actor"), input.entity_type_id, input.identifier));
+  });
+  app.post(
+    "/entities/:id/restore",
+    async (c) =>
+      c.json(
+        await entity.restoreEntity(
+          d,
+          c.get("actor"),
+          idParam(c.req.param("id")),
+          parse(entityRestore, await json(c.req.raw)),
+        ),
+      ),
   );
   app.get("/entities/:id", async (c) => c.json(await entity.getEntity(d, c.get("actor"), idParam(c.req.param("id")))));
   app.post(

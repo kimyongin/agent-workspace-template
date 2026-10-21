@@ -1,7 +1,7 @@
+import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
 import { publicationDefinition } from "../../core/entity-types/schema-rules.ts";
 import { normalizeStoredEntityDefinition } from "../../core/entity-types/stored-definition.ts";
 import { loadSchemaType } from "./schema-type.ts";
-import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
 import { SqlSchemaMigrationStore } from "./schema-migration-store.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
@@ -47,10 +47,9 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
   private get workspaceId(): string {
     return requireWorkspaceActor(this.actor).workspaceId;
   }
-  private async hydrate(row: postgres.Row): Promise<EntityType> {
+  private hydrate(row: postgres.Row): EntityType {
     return {
       ...typeRow(row),
-      identity: (await new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(row.id))!,
     };
   }
 
@@ -79,8 +78,10 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     const [count] = await this.tx`select count(*)::int as count from app.entity_types`;
     assertEntityTypeCapacity(count.count);
     await this.assertActiveLabel(input.label);
+    await new SqlEntityIssuerStore(this.tx, this.actor).initializeRegistry();
     const id = crypto.randomUUID();
-    await this.tx`insert into app.entity_types(id,workspace_id) values (${id},${this.workspaceId})`;
+    await this
+      .tx`insert into app.entity_types(id,workspace_id,next_property_number) values (${id},${this.workspaceId},3)`;
     const schema = {
       ...definition.schema,
       "x-type-id": id,
@@ -93,7 +94,6 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
       this.tx.json(schema as never)
     })`;
     const row = (await loadSchemaType(this.tx, id))!;
-    await new SqlEntityIssuerStore(this.tx, this.actor).initializeTypeIdentity(row.id);
     return this.hydrate(row);
   }
   async createImportedType(document: EntitySchemaVersion["schema"]) {
@@ -108,7 +108,6 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     await this.tx`insert into app.entity_schema_versions(workspace_id,schema) values (${this.workspaceId},${
       this.tx.json(schema as never)
     })`;
-    await new SqlEntityIssuerStore(this.tx, this.actor).initializeTypeIdentity(id);
     return this.hydrate((await loadSchemaType(this.tx, id))!);
   }
   private async assertActiveLabel(label: string, exceptId?: string) {
@@ -151,7 +150,12 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     const current = row.current_type;
     return {
       ...schemaRow(row),
-      identity: (await new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(current.id))!,
+      identity_change_allowed: (await this.tx`select app.workspace_allows('entity_type',${id},'read') and
+        not exists(select 1 from app.entities where entity_type_id=${id}) as allowed`)[0].allowed,
+      identifier_kinds:
+        (await this.tx`select app.entity_identifier_kinds(${id}::uuid,${
+          Number(row.schema_version)
+        }::integer) as kinds`)[0].kinds,
       type: {
         id: current.id,
         label: row.current_schema.title,

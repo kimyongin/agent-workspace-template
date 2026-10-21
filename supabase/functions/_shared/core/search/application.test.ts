@@ -101,14 +101,17 @@ Deno.test("selected entity text uses semantic query embedding and accepts its im
     query: "선택 본문",
     kinds: ["entity"],
     limit: 1,
-    anchor: { kind: "entity", id: "app:00000000-0000-4000-8000-000000000001:원본 번호" },
+    anchor: {
+      kind: "entity",
+      id: "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:원본 번호",
+    },
   });
   assertEquals((await search(state.d, actor, query)).search_state, "ok");
   assertEquals(state.counts(), { calls: 1 });
 });
 
 Deno.test("entity result pagination preserves Unicode original references", async () => {
-  const entityId = "app:00000000-0000-4000-8000-000000000001:한글 원본";
+  const entityId = "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:한글 원본";
   const original = { ...item, kind: "entity" as const, id: entityId, path: "/entities/encoded", rank: 1 };
   const store: SearchStore = {
     coverage: () => Promise.resolve({ pending: 0, excluded: 0, failed: 0 }),

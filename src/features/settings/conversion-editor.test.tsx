@@ -21,7 +21,7 @@ const plan = (path: string): EntitySchemaChange => ({
   analysis: null,
   diff: [{
     path,
-    before: { "x-order": 20, type: "integer" },
+    before: { "x-order": 30, type: "integer" },
     after: null,
     before_present: true,
     after_present: false,
@@ -42,7 +42,7 @@ test("removed property has an explicit removal picker while a removed constraint
         disabled={false}
       />,
     );
-  expect(render("properties.prop_2")).toContain('aria-label="삭제한 항목 변환 방식"');
-  expect(render("properties.prop_2")).toContain('value="remove"');
-  expect(render("properties.prop_2.maximum")).not.toContain('aria-label="삭제한 항목 변환 방식"');
+  expect(render("properties.prop_3")).toContain('aria-label="삭제한 항목 변환 방식"');
+  expect(render("properties.prop_3")).toContain('value="remove"');
+  expect(render("properties.prop_3.maximum")).not.toContain('aria-label="삭제한 항목 변환 방식"');
 });

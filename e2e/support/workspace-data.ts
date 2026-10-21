@@ -1,9 +1,10 @@
 import { renderEntityTitle } from "../../supabase/functions/_shared/contracts/entity-title-template.ts";
 import {
   APP_IDENTIFIER_RULE_ID,
-  type EntityTypeIdentity,
+  type IdentifierKindMetadata,
 } from "../../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { initialEntityDefinition } from "../../supabase/functions/_shared/contracts/entity-type.ts";
+import { encodeIdentifierReference, encodeIdentifierValue } from "../../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import type { EntityDetail } from "../../supabase/functions/_shared/contracts/entity.ts";
 import type {
   TaskDetail,
@@ -28,40 +29,26 @@ export const identity = (n: number) => ({
   created_at: stamp,
   updated_at: stamp,
 });
-export const entityKey = (n: number) => `app:${id(900)}:${id(n)}`;
+export const entityKey = (n: number) => encodeIdentifierReference(id(900), APP_IDENTIFIER_RULE_ID, id(n));
 export const fixtureType = {
   id: id(900),
   label: "검사 자료",
   icon_id: "box",
   archived: false,
   schema_version: 1,
-  next_property_number: 5,
+  next_property_number: 6,
   created_at: stamp,
   updated_at: stamp,
 };
-export function fixtureIdentity(typeId = fixtureType.id): EntityTypeIdentity {
-  return {
-    type_id: typeId,
-    label: "번호",
-    default_source: "app",
-    version: 1,
-    sources: [{
-      code: "app",
-      rule_id: APP_IDENTIFIER_RULE_ID,
-      active: true,
-      referenced: false,
-      source_label: "앱",
-      rule_label: "자동 발급",
-      generation: "automatic",
-    }],
-  };
-}
 export const fixtureSchema = (() => {
   const definition = initialEntityDefinition("제목", {
     id: fixtureType.id,
     title: fixtureType.label,
     icon: fixtureType.icon_id,
   });
+  definition.schema.properties.prop_5 = { ...definition.schema.properties.prop_2, "x-order": 50 };
+  definition.schema["x-identity-property"] = "prop_5";
+  definition.schema.required = ["prop_1", "prop_5"];
   Object.assign(definition.schema.properties, {
     prop_2: {
       "x-order": 20,
@@ -91,6 +78,7 @@ export const fixtureSchema = (() => {
     type_id: fixtureType.id,
     type: fixtureType,
     schema_version: 1,
+    identifier_kinds: [{ id: APP_IDENTIFIER_RULE_ID, source: "app", source_label: "앱", label: "자동 발급", active: true, generation: "automatic", version: 1, source_version: 1 }] as IdentifierKindMetadata[],
   };
 })();
 export const entity = (
@@ -99,9 +87,7 @@ export const entity = (
 ): EntityDetail => ({
   ...identity(n),
   id: entityKey(n),
-  source: "app",
-  external_id: id(n),
-  source_label: "앱",
+  identity_label: `앱 · 자동 발급 · ${id(n)}`,
   deleted_at: null,
   entity_type_id: fixtureType.id,
   type: fixtureType,
@@ -113,6 +99,7 @@ export const entity = (
     prop_2: 0,
     prop_3: null,
     prop_4: "a",
+    prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, id(n)),
     ...properties,
   },
 

@@ -1,15 +1,13 @@
-import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
+import { useSettingsAccess, WorkspaceSettingsBoundary } from "./workspace-settings-access.tsx";
 import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { FieldSet, FieldLegend, FieldLabel } from "@/components/ui/field";
+import { FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Input } from "../../components/ui/input.tsx";
 import { Button } from "../../components/ui/button.tsx";
-import { TypeIdentitySettings } from "./TypeIdentitySettings.tsx";
-import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 
 import { createMaterialDefinition } from "./material-definition.ts";
 import { MaterialSettingsHeading } from "./MaterialSettingsHeading.tsx";
@@ -28,7 +26,11 @@ import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 export function EntityTypeSettings() {
   const { type_id } = useParams();
-  return <WorkspaceSettingsBoundary><EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} /></WorkspaceSettingsBoundary>;
+  return (
+    <WorkspaceSettingsBoundary>
+      <EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} />
+    </WorkspaceSettingsBoundary>
+  );
 }
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const { canWrite } = useSettingsAccess();
@@ -73,8 +75,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       setJobState({ ...state, uncertain: !!state.uncertain, error: !!state.error }),
     [],
   );
-  const [identityState, setIdentityState] = useState<MaterialSectionState>({ dirty: false, busy: false });
-  const identityStateChange = useCallback((state: MaterialSectionState) => setIdentityState(state), []);
   const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
   const schemaStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain: boolean }) => setSchemaState(state),
@@ -114,14 +114,13 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     };
   }, []);
   const dirty = type_id ? basicDirty : label !== "" || icon !== "box" || initialPropertyLabel !== "이름";
-  const protectedDraft = dirty || busy || uncertain || identityState.dirty || identityState.uncertain ||
-    identityState.busy ||
-    schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
+  const protectedDraft = dirty || busy || uncertain || schemaState.dirty || schemaState.busy || schemaState.uncertain ||
+    jobState.dirty || jobState.busy ||
     jobState.uncertain;
-  const anyBusy = busy || identityState.busy || schemaState.busy ||
+  const anyBusy = busy || schemaState.busy ||
     jobState.busy;
-  const navigationLocked = anyBusy || canWrite && (uncertain || identityState.uncertain || schemaState.uncertain ||
-    jobState.uncertain);
+  const navigationLocked = anyBusy || canWrite && (uncertain || schemaState.uncertain ||
+        jobState.uncertain);
   useEffect(() => {
     const controller = new AbortController();
     setSelectedSchema(null);
@@ -191,7 +190,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     const current = {
       method: type_id ? "PATCH" : "POST",
       path: type_id ? `/entity-types/${type_id}` : "/entity-types",
-      input: type_id ? definitions.basicSaveInput() : { label, icon_id: icon, initial_property_label: initialPropertyLabel },
+      input: type_id
+        ? definitions.basicSaveInput()
+        : { label, icon_id: icon, initial_property_label: initialPropertyLabel },
     };
     try {
       const saved = await attempt.run(() =>
@@ -252,7 +253,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   if (activeTypeId !== type_id) {
     return (
       <section className="min-w-0 flex w-full flex-col gap-6 max-w-6xl">
-        <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert>
+        <Alert role="status">
+          <AlertDescription>불러오는 중…</AlertDescription>
+        </Alert>
       </section>
     );
   }
@@ -262,8 +265,13 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       aria-labelledby="entity-types-title"
     >
       <MaterialSettingsHeading section="types" id="entity-types-title" />
-      {!canWrite && (uncertain || identityState.uncertain || schemaState.uncertain || jobState.uncertain) && (
-        <Alert><AlertDescription>편집 권한이 변경되어 원래 요청의 결과를 다시 확인할 수 없습니다. 처리 여부는 아직 확정되지 않았으며, 이동해도 이미 전송한 요청이 취소되지는 않습니다. 최신 정보와 이력을 조회하세요.</AlertDescription></Alert>
+      {!canWrite && (uncertain || schemaState.uncertain || jobState.uncertain) && (
+        <Alert>
+          <AlertDescription>
+            편집 권한이 변경되어 원래 요청의 결과를 다시 확인할 수 없습니다. 처리 여부는 아직 확정되지 않았으며,
+            이동해도 이미 전송한 요청이 취소되지는 않습니다. 최신 정보와 이력을 조회하세요.
+          </AlertDescription>
+        </Alert>
       )}
 
       {(type_id || items.length > 0) && (
@@ -272,7 +280,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             {(props) => (
               <NativeSelect
                 {...props}
-
                 ref={selector}
                 value={type_id ?? ""}
                 disabled={anyBusy}
@@ -298,38 +305,70 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             )}
           </Field>
           {type_id && canWrite && (
-            <Button variant="outline" className="h-auto max-w-full whitespace-normal" asChild><Link
-              to="/settings/entity-types"
-              state={{ materialTypeFocus: true }}
-            >
-              종류 추가
-            </Link></Button>
+            <Button variant="outline" className="h-auto max-w-full whitespace-normal" asChild>
+              <Link
+                to="/settings/entity-types"
+                state={{ materialTypeFocus: true }}
+              >
+                종류 추가
+              </Link>
+            </Button>
           )}
           {!loading && type_id && (
-            <Button variant="outline" className="h-auto max-w-full whitespace-normal" asChild><Link to={`/settings/relations?type_id=${encodeURIComponent(type_id)}`}>
-              이 자료의 연결 설정
-            </Link></Button>
+            <Button variant="outline" className="h-auto max-w-full whitespace-normal" asChild>
+              <Link to={`/settings/relations?type_id=${encodeURIComponent(type_id)}`}>
+                이 자료의 연결 설정
+              </Link>
+            </Button>
           )}
         </div>
       )}
-      {!type_id && !canWrite && <Alert><AlertDescription>조회할 자료 종류를 선택하세요.</AlertDescription></Alert>}
-      {loading && <Alert role="status"><AlertDescription>불러오는 중…</AlertDescription></Alert>}
-      {!catalog.types && !catalog.error && <Alert role="status"><AlertDescription>자료 종류를 읽는 중…</AlertDescription></Alert>}
-      {catalog.error && (
-        <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>
-          자료 종류를 읽지 못했습니다.{" "}
-          <Button variant="ghost" type="button"  onClick={catalog.retry}><RotateCcwIcon data-icon="inline-start" />
-            자료 종류 다시 조회
-          </Button>
-        </AlertDescription></Alert>
+      {!type_id && !canWrite && (
+        <Alert>
+          <AlertDescription>조회할 자료 종류를 선택하세요.</AlertDescription>
+        </Alert>
       )}
-      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {loading && (
+        <Alert role="status">
+          <AlertDescription>불러오는 중…</AlertDescription>
+        </Alert>
+      )}
+      {!catalog.types && !catalog.error && (
+        <Alert role="status">
+          <AlertDescription>자료 종류를 읽는 중…</AlertDescription>
+        </Alert>
+      )}
+      {catalog.error && (
+        <Alert variant="destructive" role="alert" className="text-sm text-destructive">
+          <AlertDescription>
+            자료 종류를 읽지 못했습니다.{" "}
+            <Button variant="ghost" type="button" onClick={catalog.retry}>
+              <RotateCcwIcon data-icon="inline-start" />
+              자료 종류 다시 조회
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {error && (
+        <Alert variant="destructive" role="alert" className="text-sm text-destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       {error && !loading && (!type_id || !type) && (
-        <Button variant="ghost" type="button"  onClick={() => void retryRead()}><RotateCcwIcon data-icon="inline-start" />
+        <Button
+          variant="ghost"
+          type="button"
+          onClick={() => void retryRead()}
+        >
+          <RotateCcwIcon data-icon="inline-start" />
           조회 다시 시도
         </Button>
       )}
-      {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
+      {message && (
+        <Alert role="status">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
+      )}
       {!loading && (type_id ? !!type : canWrite) && (
         <MaterialSettingsSection
           title={type_id ? "기본 정보" : "자료 종류 만들기"}
@@ -348,13 +387,15 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             }}
           >
             {latestBasics && (
-              <Alert className="text-sm text-muted-foreground" role="status"><AlertDescription>
-                최신 저장값: {latestBasics.label} ·{" "}
-                {entityTypeIcons.find((value) => value.id === latestBasics.icon_id)?.label} ·{" "}
-                {latestBasics.archived ? "보관" : "사용 중"} · 버전{" "}
-                {latestBasics.schema_version}. 변경한 입력은 유지했습니다. 비교한 뒤 기본 정보를 저장하거나 변경 취소로
-                최신 저장값을 사용하세요.
-              </AlertDescription></Alert>
+              <Alert className="text-sm text-muted-foreground" role="status">
+                <AlertDescription>
+                  최신 저장값: {latestBasics.label} ·{" "}
+                  {entityTypeIcons.find((value) => value.id === latestBasics.icon_id)?.label} ·{" "}
+                  {latestBasics.archived ? "보관" : "사용 중"} · 버전{" "}
+                  {latestBasics.schema_version}. 변경한 입력은 유지했습니다. 비교한 뒤 기본 정보를 저장하거나 변경
+                  취소로 최신 저장값을 사용하세요.
+                </AlertDescription>
+              </Alert>
             )}
             <FieldSet
               className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
@@ -365,7 +406,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   <Input
                     {...props}
                     ref={type_id ? undefined : creationName}
-
                     required
                     maxLength={80}
                     value={label}
@@ -375,8 +415,21 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               </Field>
               <FieldSet className="col-span-full">
                 <FieldLegend className="text-sm font-medium">아이콘</FieldLegend>
-                <ToggleGroup type="single" value={icon} onValueChange={value => { if(value) definitions.editBasic("icon", value); }} aria-label="자료 종류 아이콘" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {entityTypeIcons.map(item => <ToggleGroupItem key={item.id} value={item.id} aria-label={item.label} className="justify-start"><EntityTypeIcon id={item.id} /><span>{item.label}</span></ToggleGroupItem>)}
+                <ToggleGroup
+                  type="single"
+                  value={icon}
+                  onValueChange={(value) => {
+                    if (value) definitions.editBasic("icon", value);
+                  }}
+                  aria-label="자료 종류 아이콘"
+                  className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+                >
+                  {entityTypeIcons.map((item) => (
+                    <ToggleGroupItem key={item.id} value={item.id} aria-label={item.label} className="justify-start">
+                      <EntityTypeIcon id={item.id} />
+                      <span>{item.label}</span>
+                    </ToggleGroupItem>
+                  ))}
                 </ToggleGroup>
               </FieldSet>
               {!type_id && (
@@ -384,7 +437,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   {(props) => (
                     <Input
                       {...props}
-
                       required
                       maxLength={80}
                       value={initialPropertyLabel}
@@ -396,7 +448,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               {type_id && (
                 <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                   <Checkbox
-
                     checked={archived}
                     onCheckedChange={(checked) => definitions.editBasic("archived", checked === true)}
                   />{" "}
@@ -406,15 +457,17 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             </FieldSet>
             <div className="flex flex-col gap-3 pt-4">
               {uncertain && canWrite && (
-                <Alert className="text-sm text-muted-foreground" role="status"><AlertDescription>
-                  저장 여부를 알 수 없습니다. 같은 요청으로 다시 확인하세요. 새로고침 후에는 현재 상태를 조회한 뒤 새
-                  작업을 시작하세요.
-                </AlertDescription></Alert>
+                <Alert className="text-sm text-muted-foreground" role="status">
+                  <AlertDescription>
+                    저장 여부를 알 수 없습니다. 같은 요청으로 다시 확인하세요. 새로고침 후에는 현재 상태를 조회한 뒤 새
+                    작업을 시작하세요.
+                  </AlertDescription>
+                </Alert>
               )}
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button variant="outline"
+                <Button
+                  variant="outline"
                   type="button"
-
                   disabled={busy || uncertain || latestBusy || basicConflict || !dirty}
                   onClick={cancel}
                   aria-label="변경 취소"
@@ -422,17 +475,17 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   취소
                 </Button>
                 {basicConflict && (
-                  <Button variant="outline"
+                  <Button
+                    variant="outline"
                     type="button"
-
                     disabled={!canWrite || busy || uncertain || latestBusy}
                     onClick={() => void readLatestBasics()}
                   >
                     {latestBusy ? "최신 기본 정보 읽는 중…" : "최신 기본 정보 확인"}
                   </Button>
                 )}
-                <Button variant="default"
-
+                <Button
+                  variant="default"
                   aria-label={busy
                     ? "저장 중…"
                     : uncertain
@@ -448,15 +501,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             </div>
           </form>
         </MaterialSettingsSection>
-      )}
-      {!loading && type_id && type && (
-        <TypeIdentitySettings
-          typeId={type_id}
-          onState={identityStateChange}
-          disabled={!canWrite || busy || uncertain || schemaState.busy ||
-            schemaState.uncertain || jobState.busy ||
-            jobState.uncertain}
-        />
       )}
       {schema && type && (
         <SchemaEditor
@@ -474,13 +518,11 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           onMigrationApplied={definitions.migrationSucceeded}
           jobErrors={jobErrors}
           onJobState={jobStateChange}
-          jobDisabled={!canWrite || busy || uncertain || identityState.busy ||
-            identityState.uncertain || schemaState.busy ||
+          jobDisabled={!canWrite || busy || uncertain || schemaState.busy ||
             schemaState.uncertain}
           onApplied={definitions.published}
           onState={schemaStateChange}
-          disabled={!canWrite || busy || uncertain || identityState.busy ||
-            identityState.uncertain || jobState.busy ||
+          disabled={!canWrite || busy || uncertain || jobState.busy ||
             jobState.uncertain}
         />
       )}

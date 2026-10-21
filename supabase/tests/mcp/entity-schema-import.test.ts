@@ -16,12 +16,6 @@ function bundle(schema: EntitySchema): DataModelDocument {
     entity_types: [{
       ref: "item",
       schema,
-      identity: {
-        version: 1,
-        label: "번호",
-        default_source: "app",
-        sources: [{ code: "app", rule_id: "00000000-0000-4000-8000-000000000001", active: true }],
-      },
     }],
     relations: [],
     identity_definitions: {
@@ -126,8 +120,8 @@ activityWorkspaceSuite(
       icon: "box",
     }).schema;
     Object.assign(schema.properties.prop_1, { readOnly: true, default: "Auto" });
-    schema.properties.prop_2 = { type: "string", "x-order": 20, readOnly: true, default: "LOCKED" };
-    schema.properties.prop_3 = { type: "string", "x-order": 30 };
+    schema.properties.prop_3 = { type: "string", "x-order": 30, readOnly: true, default: "LOCKED" };
+    schema.properties.prop_4 = { type: "string", "x-order": 40 };
     const copy = { mode: "copy", document: JSON.stringify(bundle(schema)) };
     const preview = await scopedHttp(token, w, "POST", "/data-model/preview", copy, null);
     assertEquals(preview.status, 200);
@@ -154,15 +148,14 @@ activityWorkspaceSuite(
         input: {
           entity_type_id: typeId,
           schema_version: 1,
-          external_id: `${transport}-${run}`,
-          properties: { prop_3: "human" },
+          properties: { prop_4: "human" },
         },
       };
       const http = await scopedHttp(token, w, "POST", "/records/prepare", input, null);
       assertEquals(http.status, 200);
       const mcp = await scopedTool(client, w, "prepare_record_memo", input);
       assertEquals(mcp, http.body);
-      assertEquals(mcp.prepared_input.properties, { prop_3: "human" });
+      assertEquals(mcp.prepared_input.properties, { prop_4: "human" });
       assert(mcp.change_note.includes("Auto"), "memo must use the resolved readonly representative");
       const payload = { ...mcp.prepared_input, change_note: mcp.change_note, change_tag_ids: mcp.change_tag_ids };
       const requestKey = key();
@@ -170,7 +163,12 @@ activityWorkspaceSuite(
         ? await scopedHttp(token, w, "POST", "/entities", payload, requestKey)
         : { status: 201, body: await scopedTool(client, w, "create_entity", { ...payload, request_key: requestKey }) };
       assertEquals(saved.status, 201);
-      assertEquals(saved.body.properties, { prop_1: "Auto", prop_2: "LOCKED", prop_3: "human" });
+      assertEquals(saved.body.properties, {
+        prop_1: "Auto",
+        prop_2: saved.body.id.slice(37),
+        prop_3: "LOCKED",
+        prop_4: "human",
+      });
       assertEquals(saved.body.title, "Auto");
       const replay = transport === "http"
         ? await scopedTool(client, w, "create_entity", { ...payload, request_key: requestKey })
@@ -187,14 +185,13 @@ activityWorkspaceSuite(
       input: {
         entity_type_id: typeId,
         schema_version: 1,
-        external_id: `invalid-${run}`,
-        properties: { prop_2: "LOCKED" },
+        properties: { prop_3: "LOCKED" },
       },
     };
     const rejected = await scopedHttp(token, w, "POST", "/records/prepare", bad, null);
     assertEquals(rejected.status, 400);
     assertEquals(rejected.body.code, "invalid_input");
-    assertEquals(rejected.body.fields[0].path, "properties.prop_2");
+    assertEquals(rejected.body.fields[0].path, "properties.prop_3");
     assertEquals((await scopedTool(client, w, "prepare_record_memo", bad)).error, rejected.body);
   },
   { mcp: true },

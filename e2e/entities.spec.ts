@@ -1,3 +1,5 @@
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 import { entity as makeEntity, fixtureSchema, fixtureType } from "./support/workspace-data.ts";
@@ -277,15 +279,16 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
     const externalId = crypto.randomUUID();
     const item = {
       ...makeEntity(1, { prop_1: keyword ?? "계속되는 목록" }),
-      id: `app:${created.id}:${externalId}`,
+      id: encodeIdentifierReference(created.id, APP_IDENTIFIER_RULE_ID, externalId),
       entity_type_id: created.id,
       type: visibleType,
-      external_id: externalId,
+      identity_label: `앱 · 자동 발급 · ${externalId}`,
+      properties: { ...makeEntity(1).properties, prop_1: keyword ?? "계속되는 목록", prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, externalId) },
     };
     await route.fulfill({ json: { items: [item], next_cursor: keyword ? null : "more" } }).catch(() => {});
   });
   await page.goto(
-    workspacePath(workspace.id, `/entities?pages=1#entity-${encodeURIComponent(`app:${created.id}:${crypto.randomUUID()}`)}`),
+    workspacePath(workspace.id, `/entities?pages=1#entity-${encodeURIComponent(encodeIdentifierReference(created.id, APP_IDENTIFIER_RULE_ID, crypto.randomUUID()))}`),
   );
   await expect(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true })).toBeFocused();
   expect(requests).toBe(2);
@@ -392,10 +395,11 @@ test("#396 material creation and editing explain schema bounds before memo confi
       edits: [{
         op: "add_property",
         client_ref: "quantity",
-        field: { "x-order": 20, type: ["integer", "null"], title: "수량", minimum: 0, maximum: 100 },
+        field: { "x-order": 30, type: ["integer", "null"], title: "수량", minimum: 0, maximum: 100 },
         required: false,
       }],
     });
+    const quantityKey = change.reservations.quantity;
     await analyzeAndApply(mcp, type.id, change.id, change.version);
     await page.goto(fixtureEntityList(workspace.id, type.id));
     await beginTabAction(page, type.label + " 추가");
@@ -412,7 +416,8 @@ test("#396 material creation and editing explain schema bounds before memo confi
     await saveOnce(page, form);
     await expect(form).not.toBeVisible();
     const id = decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
-    expect((await mcp.call("get_entity", { id })).properties.prop_2).toBe(0);
+    const created = await mcp.call("get_entity", { id });
+    expect(created.properties[quantityKey]).toBe(0);
     await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: type.label + " 편집" });
     await edit.getByLabel("수량", { exact: true }).fill("101");
@@ -422,7 +427,9 @@ test("#396 material creation and editing explain schema bounds before memo confi
     await edit.getByLabel("수량", { exact: true }).fill("100");
     await saveOnce(page, edit);
     await expect(edit).not.toBeVisible();
-    expect((await mcp.call("get_entity", { id })).properties.prop_2).toBe(100);
+    const updated = await mcp.call("get_entity", { id });
+    expect(updated.properties[quantityKey]).toBe(100);
+    expect(updated.properties.prop_2).toBe(created.properties.prop_2);
   } finally {
     await mcp.close();
   }

@@ -184,9 +184,11 @@ Deno.test("entity issue cursors preserve Unicode originals and belong to the cap
       },
       issues: (_actor, _at, after) =>
         Promise.resolve(Array.from({ length: after ? 1 : 6 }, (_, n) => ({
-          id: `app:00000000-0000-4000-8000-000000000001:한글 원본${n}`,
+          id: `00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:한글 원본${n}`,
           kind: "entity" as const,
-          path: `/entities/app%3A00000000-0000-4000-8000-000000000001%3A${encodeURIComponent(`한글 원본${n}`)}`,
+          path: `/entities/00000000-0000-4000-8000-000000000001%3A00000000-0000-4000-8000-000000000001%3A${
+            encodeURIComponent(`한글 원본${n}`)
+          }`,
           created_at: "2026-10-11T00:00:00.000Z",
           title: "확인할 자료",
           reason: "provider_unknown" as const,

@@ -25,6 +25,11 @@ const baselineReferences = (baseline, ids) => (baseline?.typed_links ?? []).some
   || (baseline?.records ?? []).some((record) => ids.has(record[2]));
 const preparationReferences = (row, ids) => (row.migration?.overrides ?? []).some((override) => ids.has(override.entity_id))
   || baselineReferences(row.source_references, ids) || baselineReferences(row.committed_references, ids);
+const identifierCompatible = (schema) => {
+  const key = schema?.["x-identity-property"], field = schema?.properties?.[key];
+  return typeof key === "string" && (schema.required ?? []).includes(key)
+    && field?.type === "string" && field["x-identifier"] != null;
+};
 const entityOperation = (operation) => /^(entity\.(create|restore|update|delete)|entity-relation\.(connect|unlink|replace|create-and-link)|entity-relation-link\.|entity-link\.)/.test(operation ?? "");
 
 // Fixed audited tables only. The manifest cannot introduce SQL or table names.
@@ -49,6 +54,7 @@ const legacyKeys = Object.freeze({
   "private.entity_schema_analysis_rows": ["owner_id", "analysis_id", "entity_id"],
   "private.entity_schema_migration_rows": ["owner_id", "job_id", "entity_id"],
 });
+const retiredIdentityTables = ["app.entity_type_identity", "app.entity_type_identity_sources"];
 const queues = ["pgmq.q_search_index", "pgmq.a_search_index"];
 const preservedTables = ["app.workspaces", "private.workspace_members", "private.workspace_grants", "private.workspace_invitations",
   "app.user_business_settings", "auth.users"];
@@ -73,6 +79,14 @@ export function validateEntityResetManifest(m) {
     if (!keys || !entry.key || Object.keys(entry.key).length !== keys.length
       || keys.some((k) => entry.key[k] === undefined || entry.key[k] === null)
       || !uuid.test(entry.key.owner_id ?? "")) throw new Error("exact allowlisted legacy row identity required");
+  }
+  for (const scope of m.scopes) {
+    const definitions = scope.retire_definitions ?? [];
+    if (!Array.isArray(definitions) || new Set(definitions.map((d) => d.type_id)).size !== definitions.length
+      || definitions.some((d) => !uuid.test(d.type_id ?? "") || !Number.isInteger(d.expected_schema_version) || d.expected_schema_version < 1
+        || !Array.isArray(d.schema_versions) || !d.schema_versions.length
+        || d.schema_versions.some((v) => !Number.isInteger(v) || v < 1)
+        || new Set(d.schema_versions).size !== d.schema_versions.length)) throw new Error("exact incompatible definition versions required");
   }
   return m;
 }
@@ -120,7 +134,27 @@ export function planEntityReset(manifest, inventory) {
     // Empty is permitted only for retry. Other target-set differences block apply.
     if (entities.length && (entities.length !== ids.size || entities.some((r) => !ids.has(r.id)))) blockers.push({ reason: "entity_set_changed", workspace_id: w });
     if (!rows(inventory, "app.workspaces").some((r) => r.id === w)) blockers.push({ reason: "workspace_missing", workspace_id: w });
-    const typeIds = new Set(entities.filter((r) => ids.has(r.id)).map((r) => r.entity_type_id));
+    const retirements = scope.retire_definitions ?? [], retiredIds = new Set(retirements.map((d) => d.type_id));
+    const definitions = scoped("app.entity_types"), versions = scoped("app.entity_schema_versions");
+    for (const definition of definitions) {
+      const published = versions.find((v) => v.type_id === definition.id && v.schema_version === definition.schema_version);
+      if (!identifierCompatible(published?.schema) && !retiredIds.has(definition.id)) blockers.push({ reason: "incompatible_definition_disposition_required", id: definition.id, workspace_id: w });
+    }
+    for (const retirement of retirements) {
+      const definition = definitions.find((d) => d.id === retirement.type_id);
+      if (!definition) continue; // idempotent retry; version rows may not survive without their parent.
+      const published = versions.find((v) => v.type_id === definition.id && v.schema_version === definition.schema_version);
+      if (identifierCompatible(published?.schema)) blockers.push({ reason: "compatible_definition_retirement_forbidden", id: definition.id });
+      if (definition.schema_version !== retirement.expected_schema_version
+        || canonical(versions.filter((v) => v.type_id === definition.id).map((v) => v.schema_version).sort((a,b) => a-b))
+          !== canonical([...retirement.schema_versions].sort((a,b) => a-b))) blockers.push({ reason: "definition_versions_changed", id: definition.id });
+      if (scoped("private.workspace_grants").some((g) => g.entity_type_id === definition.id)) blockers.push({ reason: "definition_has_preserved_grants", id: definition.id });
+      selection["app.entity_types"].push(definition);
+      selection["app.entity_schema_versions"].push(...versions.filter((v) => v.type_id === definition.id));
+      for (const table of retiredIdentityTables) selection[table].push(...scoped(table).filter((r) => r.type_id === definition.id));
+    }
+    selection["app.entity_relation_definitions"].push(...scoped("app.entity_relation_definitions").filter((r) => retiredIds.has(r.left_type_id) || retiredIds.has(r.right_type_id)));
+    const typeIds = new Set([...entities.filter((r) => ids.has(r.id)).map((r) => r.entity_type_id), ...retiredIds]);
     const records = scoped("app.records").filter((r) => ids.has(r.entity_id));
     const recordIds = new Set(records.map((r) => r.id));
     for (const task of scoped("app.tasks")) if (recordIds.has(task.result_record_id)) blockers.push({ reason: "task_result_anchor", id: task.id });
@@ -171,7 +205,7 @@ export function planEntityReset(manifest, inventory) {
     selection["app.entity_schema_changes"].push(...selectedChanges);
     selection["app.entity_schema_migrations"].push(...selectedJobs);
     const lockedTypes = new Set(selectedJobs.map((r) => r.type_id));
-    selection["app.entity_types"].push(...scoped("app.entity_types").filter((r) => r.schema_write_locked && lockedTypes.has(r.id)));
+    selection["app.entity_types"].push(...scoped("app.entity_types").filter((r) => r.schema_write_locked && lockedTypes.has(r.id) && !retiredIds.has(r.id)));
     selection["app.entity_schema_analyses"].push(...selectedAnalyses);
     selection["private.entity_schema_analysis_rows"].push(...scoped("private.entity_schema_analysis_rows").filter((r) => analysisIds.has(r.analysis_id) || ids.has(r.entity_id)));
     selection["private.entity_schema_migration_rows"].push(...scoped("private.entity_schema_migration_rows").filter((r) => jobIds.has(r.job_id) || ids.has(r.entity_id)));
@@ -184,6 +218,7 @@ export function planEntityReset(manifest, inventory) {
     const receiptRefs = new Set([...refs, ...modelIds, ...jobIds, ...changeIds, ...analysisIds]);
     selection["private.workspace_request_results"].push(...scoped("private.workspace_request_results").filter((r) => (r.result !== null || !r.completed_at)
       && (entityOperation(r.operation) || hasEntityReference(r.result, ids)
+        || /^entity-type\./.test(r.operation) && (retirements.length > 0 && (definitions.some((d) => d.id === r.result?.id) || !r.completed_at))
         || /^data-model\./.test(r.operation) && modelIds.has(r.result?.id)
         || /^entity-schema-/.test(r.operation) && [r.result?.id, r.result?.job_id, r.result?.change_id, r.result?.analysis_id].some((id) => receiptRefs.has(id))
         || /^(record\.|tag\.)/.test(r.operation) && [r.result?.id, r.result?.record?.id, r.result?.target_id].some((id) => recordIds.has(id)))));
@@ -201,7 +236,13 @@ export function planEntityReset(manifest, inventory) {
   selection["legacy_record_captures"] = rows(inventory, "app.records").filter((row) => row.workspace_id === null && !selection["app.records"].includes(row)
     && legacyEntities.some((e) => row.owner_id === e.owner_id && capturesEntity(row, new Set([e.id]))));
   for (const t of Object.keys(selection)) selection[t].sort((a, b) => canonical(a).localeCompare(canonical(b)));
-  const preserved = Object.fromEntries(["__store", "__catalog", ...preservedTables].map((t) => [t, [...rows(inventory, t)].sort((a, b) => canonical(a).localeCompare(canonical(b)))]));
+  const registryTables = ["app.entity_issuers", "app.entity_identifier_rules"];
+  const preserved = Object.fromEntries(["__store", "__catalog", ...preservedTables, ...registryTables].map((table) => [table,
+    rows(inventory, table).filter((row) => !(registryTables.includes(table) && row.workspace_id === null
+      && selection[table].includes(row) && (manifest.legacy_rows ?? []).some((entry) => entry.table === table
+        && legacyKeys[table].every((key) => row[key] === entry.key[key]))))
+      .sort((a, b) => canonical(a).localeCompare(canonical(b))),
+  ]));
   // Include all scoped data, not just victims: removal of a record must never
   // invalidate an unrelated task's result anchor or a new FK added unnoticed.
   const snapshot = Object.fromEntries(Object.entries(inventory).map(([t, rs]) => [t, rs.filter((r) => t.startsWith("pgmq.")
@@ -219,14 +260,35 @@ function connectionMatches(sql, environment) {
     throw new Error("reset connection does not match explicit manifest store");
   }
 }
+async function resetTablePresence(tx) {
+  const tables = [...entityResetTables, ...queues, ...preservedTables, "private.request_results"];
+  const presence = await tx`select name as table_name,to_regclass(name)::oid::text as relation_oid
+    from unnest(${tables}::text[]) t(name) order by name`;
+  for (const table of tables) if (!retiredIdentityTables.includes(table)
+    && !presence.some((row) => row.table_name === table && row.relation_oid)) {
+    throw new Error(`required reset table is missing: ${table}`);
+  }
+  const retired = presence.filter((row) => retiredIdentityTables.includes(row.table_name) && row.relation_oid);
+  if (retired.length !== 0 && retired.length !== retiredIdentityTables.length) {
+    throw new Error("retired identity stores must both exist or both be retired");
+  }
+  return presence;
+}
+
 async function inventoryFor(tx) {
+  const presence = await resetTablePresence(tx);
   const [store] = await tx`select (pg_control_system()).system_identifier::text as system_id,
     (select oid::text from pg_database where datname=current_database()) as database_id`;
   const constraints = await tx`select c.conrelid::regclass::text as table_name,c.conname,pg_get_constraintdef(c.oid) as definition
     from pg_constraint c where c.connamespace in ('app'::regnamespace,'private'::regnamespace) order by 1,2`;
-  const inventory = { "__store": [store], "__catalog": constraints };
+  const guards = await tx`select t.tgrelid::regclass::text as table_name,t.tgname,pg_get_triggerdef(t.oid) as definition,
+    pg_get_functiondef(t.tgfoid) as function from pg_trigger t where not t.tgisinternal
+    and t.tgrelid in (select to_regclass(name) from unnest(${presence.map((r) => r.table_name)}::text[]) t(name)) order by 1,2`;
+  const policies = await tx`select schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check from pg_policies
+    where schemaname in ('app','private') order by 1,2,3`;
+  const inventory = { "__store": [store], "__catalog": [...constraints, ...presence, ...guards, ...policies] };
   // Administrative maintenance, fixed allowlist; no credential/body output.
-  for (const table of [...entityResetTables, ...queues, ...preservedTables, "private.request_results"]) inventory[table] = await tx`select * from ${tx(table)}`;
+  for (const { table_name, relation_oid } of presence) inventory[table_name] = relation_oid ? await tx`select * from ${tx(table_name)}` : [];
   return inventory;
 }
 
@@ -242,8 +304,8 @@ export async function runEntityReset(sql, manifest, approval) {
     if (approval) {
       // Block every actual source/worker/receipt writer before taking a fresh
       // snapshot. Maintenance must already have stopped worker/provider calls.
-      for (const table of [...entityResetTables, ...queues, ...preservedTables, "private.request_results"].sort()) {
-        await tx`lock table ${tx(table)} in share row exclusive mode`;
+      for (const { table_name, relation_oid } of await resetTablePresence(tx)) {
+        if (relation_oid) await tx`lock table ${tx(table_name)} in share row exclusive mode`;
       }
     }
     const before = await inventoryFor(tx), report = planEntityReset(manifest, before);
@@ -275,16 +337,6 @@ export async function runEntityReset(sql, manifest, approval) {
     for (const row of selection["legacy_record_captures"]) {
       const ids = new Set(selection["app.entities"].filter((e) => e.workspace_id === null && e.owner_id === row.owner_id).map((e) => e.id));
       await tx`update app.records set entity_ids=${(row.entity_ids ?? []).filter((id) => !ids.has(id))}::text[],entity_context=${tx.json((row.entity_context ?? []).filter((r) => !ids.has(r.id)))} where workspace_id is null and owner_id=${row.owner_id} and id=${row.id}`;
-    }
-    for (const scope of manifest.scopes) {
-      await selectMutationContext(scope.workspace_id);
-      const ids = new Set(scope.entity_ids);
-      for (const row of selection["app.tasks"].filter((r) => r.workspace_id === scope.workspace_id)) {
-        const entityIds = (row.entity_ids ?? []).filter((id) => !ids.has(id));
-        const context = (row.entity_context ?? []).filter((item) => !ids.has(item.id));
-        await tx`update app.tasks set entity_ids=${entityIds}::text[],entity_context=${tx.json(context)},version=version+1,updated_at=clock_timestamp()
-          where workspace_id=${scope.workspace_id} and id=${row.id}`;
-      }
     }
     const deleteRows = async (table, key) => {
       for (const row of selection[table]) {
@@ -333,12 +385,36 @@ export async function runEntityReset(sql, manifest, approval) {
     await deleteRows("app.record_tags", ["workspace_id", "record_id", "tag_id"]);
     await deleteRows("app.records", ["workspace_id", "id"]);
     await deleteRows("app.entities", ["workspace_id", "id"]);
+    // Historical selection guards require read access to removed live kinds.
+    // Delete exactly the approved entities first; their no-longer-live task
+    // references can then be cleared with the actor's unchanged tasks grant.
+    // The same transaction keeps every FK and guard enabled throughout.
+    for (const scope of manifest.scopes) {
+      await selectMutationContext(scope.workspace_id);
+      const ids = new Set(scope.entity_ids);
+      for (const row of selection["app.tasks"].filter((r) => r.workspace_id === scope.workspace_id)) {
+        const entityIds = (row.entity_ids ?? []).filter((id) => !ids.has(id));
+        const context = (row.entity_context ?? []).filter((item) => !ids.has(item.id));
+        await tx`update app.tasks set entity_ids=${entityIds}::text[],entity_context=${tx.json(context)},version=version+1,updated_at=clock_timestamp()
+          where workspace_id=${scope.workspace_id} and id=${row.id}`;
+      }
+    }
+    for (const row of selection["app.entity_relation_definitions"].filter((r) => r.workspace_id !== null)) {
+      await selectMutationContext(row.workspace_id);
+      await tx`delete from app.entity_relation_definitions where workspace_id=${row.workspace_id} and id=${row.id}`;
+    }
+    for (const scope of manifest.scopes) {
+      await selectMutationContext(scope.workspace_id);
+      for (const retirement of scope.retire_definitions ?? []) {
+        await tx`delete from app.entity_types where workspace_id=${scope.workspace_id} and id=${retirement.type_id}`;
+      }
+    }
     // These definition rows can enter selection ONLY through explicit null-era
     // dispositions, never through a workspace or author wildcard.
     for (const table of ["app.entity_type_identity_sources", "app.entity_type_identity", "app.entity_schema_versions",
       "app.entity_relation_definitions", "app.entity_identifier_rules", "app.entity_issuers", "app.entity_types"]) {
       if (selection[table].some((r) => r.workspace_id !== null)) {
-        if (table !== "app.entity_types") throw new Error("scoped definition deletion forbidden");
+        if (table !== "app.entity_types" && ![...retiredIdentityTables, "app.entity_schema_versions", "app.entity_relation_definitions"].includes(table)) throw new Error("scoped definition deletion forbidden");
       }
       const scoped = selection[table];
       selection[table] = scoped.filter((r) => r.workspace_id === null);

@@ -1,4 +1,4 @@
-import type { EntityTypeIdentity } from "./entity-issuer.ts";
+import type { IdentifierKindMetadata } from "./entity-issuer.ts";
 import type { IdentifierFieldSettings } from "./entity-identifiers.ts";
 import { z } from "zod";
 export const ENTITY_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema";
@@ -109,6 +109,7 @@ export type EntitySchema = {
   "x-type-id": string;
   "x-version": number;
   "x-title-template": string;
+  /** Draft/history representation; publication and model parsing require one valid selected identifier. */
   "x-identity-property"?: string;
   /** Absent only on retained historical documents that never captured this metadata. */
   title?: string;
@@ -121,7 +122,7 @@ export type EntitySchema = {
   required: string[];
 };
 export type EntityType = {
-  identity?: EntityTypeIdentity;
+  identifier_kinds?: IdentifierKindMetadata[];
   id: string;
   label: string;
   icon_id: string;
@@ -132,7 +133,9 @@ export type EntityType = {
   updated_at: string;
 };
 export type EntitySchemaVersion = {
-  identity?: EntityTypeIdentity;
+  /** Advisory current membership; absent historical metadata keeps selection locked. */
+  identity_change_allowed?: boolean;
+  identifier_kinds?: IdentifierKindMetadata[];
   type_id: string;
   schema_version: number;
   schema: EntitySchema;
@@ -164,6 +167,7 @@ export function initialEntityDefinition(
       "x-type-id": metadata.id ?? "00000000-0000-4000-8000-000000000001",
       "x-version": 1,
       "x-title-template": "$prop_1$",
+      "x-identity-property": "prop_2",
       title: metadata.title ?? label,
       "x-icon": metadata.icon ?? "box",
       deprecated: false,
@@ -177,8 +181,17 @@ export function initialEntityDefinition(
           maxLength: 4096,
           "x-order": 10,
         },
+        prop_2: {
+          type: "string",
+          title: "식별자",
+          "x-order": 20,
+          "x-identifier": {
+            allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
+            default_kind_id: "00000000-0000-4000-8000-000000000001",
+          },
+        },
       },
-      required: ["prop_1"],
+      required: ["prop_1", "prop_2"],
     },
   };
 }

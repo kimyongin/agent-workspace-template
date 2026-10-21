@@ -10,18 +10,18 @@ activityWorkspaceSuite(
       edits: [{
         op: "add_property",
         client_ref: "count",
-        field: { type: "integer", title: "수량", "x-order": 20 },
+        field: { type: "integer", title: "수량", "x-order": 30 },
         required: false,
       }],
     };
     const key = crypto.randomUUID();
     const created = await scopedHttp(token, w, "POST", `/entity-types/${id}/schema-changes`, input, key);
-    assertEquals(created.status, 201);
+    assertEquals(created.status, 201, JSON.stringify(created.body));
     const history = await scopedHttp(token, w, "GET", `/entity-types/${id}/schema-changes`);
     assertEquals(history.status, 200);
     assertEquals(history.body.items[0].source_schema_version, 1);
     assertEquals(await scopedTool(client, w, "list_entity_schema_changes", { type_id: id }), history.body);
-    assertEquals(created.body.reservations, { count: "prop_2" });
+    assertEquals(created.body.reservations, { count: "prop_3" });
     assertEquals(
       await scopedTool(client, w, "create_entity_schema_change", { type_id: id, ...input, request_key: key }),
       created.body,

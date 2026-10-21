@@ -14,7 +14,7 @@ import { useIssuerRegistry } from "./issuer-registry-api.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 export function IdentitySourceModal({
   issuers,
-  linked,
+  linkedKindIds,
   onClose,
   onConnect,
   onIssuer,
@@ -22,7 +22,7 @@ export function IdentitySourceModal({
   onState,
 }: {
   issuers: EntityIssuer[];
-  linked: string[];
+  linkedKindIds: string[];
   onClose: () => void;
   onConnect: (source: EntityIssuer, rule: IdentifierRule) => void;
   onIssuer: (source: EntityIssuer) => void;
@@ -64,7 +64,7 @@ export function IdentitySourceModal({
       void issuerRegistry.rules(source, c.signal).then((result) => {
         if (!c.signal.aborted) {
           setRules(result.items);
-          const active = result.items.filter((r) => r.active);
+          const active = result.items.filter((r) => r.active && !linkedKindIds.includes(r.id));
           if (active.length === 1) setRuleId(active[0].id);
         }
       }).catch((e) => {
@@ -108,20 +108,20 @@ export function IdentitySourceModal({
   return (
     <ModalShell
       open
-      title="번호 출처 연결"
-      description="이 자료 종류에 사용할 번호 출처와 번호 종류를 선택합니다."
+      title="식별자 종류 추가"
+      description="이 항목에 허용할 식별자 종류를 선택하거나 새로 만듭니다."
       dirty={!!source || editState.dirty || !!editState.uncertain}
       busy={editState.busy || canWrite && !!editState.uncertain}
       onClose={onClose}
       footer={(requestClose) => (
         <>
-          <Button variant="outline"  type="button" onClick={requestClose}>취소</Button>
-          <Button variant="default"
-
+          <Button variant="outline" type="button" onClick={requestClose}>취소</Button>
+          <Button
+            variant="default"
             type="button"
-            disabled={!canWrite || !issuer?.active || !rule?.active || !!editing}
+            disabled={!canWrite || !issuer?.active || !rule?.active || linkedKindIds.includes(ruleId) || !!editing}
             onClick={() => {
-                if (!canWrite) return;
+              if (!canWrite) return;
               if (canWrite && issuer && rule) onConnect(issuer, rule);
             }}
           >
@@ -137,23 +137,22 @@ export function IdentitySourceModal({
               <NativeSelect
                 {...props}
                 ref={sourceSelect}
-
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
               >
                 <NativeSelectOption value="">선택</NativeSelectOption>
-                {issuers.filter((i) => i.active && !linked.includes(i.code)).map((i) => (
+                {issuers.filter((i) => i.active).map((i) => (
                   <NativeSelectOption key={i.code} value={i.code}>{i.label}</NativeSelectOption>
                 ))}
               </NativeSelect>
             )}
           </Field>
-          <Button variant="outline"
+          <Button
+            variant="outline"
             type="button"
-
             ref={issuerAdd}
             onClick={() => {
-                if (!canWrite) return;
+              if (!canWrite) return;
               returnTo.current = "issuer";
               setEditing({ kind: "issuer" });
             }}
@@ -161,24 +160,35 @@ export function IdentitySourceModal({
             번호 출처 추가
           </Button>
         </div>
-        {error && <Alert variant="destructive" className="text-sm text-destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
+        {error && (
+          <Alert variant="destructive" className="text-sm text-destructive" role="alert">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
         {source && (
           <div className="flex min-w-0 flex-wrap items-end gap-3 [&>div]:flex-1">
             <div>
               {rules === null && !error
-                ? <Alert role="status"><AlertDescription>번호 종류를 읽는 중…</AlertDescription></Alert>
+                ? (
+                  <Alert role="status">
+                    <AlertDescription>번호 종류를 읽는 중…</AlertDescription>
+                  </Alert>
+                )
                 : eligible.length > 1
                 ? (
                   <Field label="번호 종류">
                     {(props) => (
                       <NativeSelect
                         {...props}
-
                         value={ruleId}
                         onChange={(e) => setRuleId(e.target.value)}
                       >
                         <NativeSelectOption value="">선택</NativeSelectOption>
-                        {eligible.map((r) => <NativeSelectOption key={r.id} value={r.id}>{r.label}</NativeSelectOption>)}
+                        {eligible.map((r) => (
+                          <NativeSelectOption key={r.id} value={r.id} disabled={linkedKindIds.includes(r.id)}>
+                            {r.label}
+                          </NativeSelectOption>
+                        ))}
                       </NativeSelect>
                     )}
                   </Field>
@@ -193,17 +203,22 @@ export function IdentitySourceModal({
                 : <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
             </div>
             {issuer && !issuer.system && (
-              <Button variant="outline"
+              <Button
+                variant="outline"
                 type="button"
                 ref={ruleAdd}
                 disabled={rules === null}
                 onClick={() => {
-                if (!canWrite) return;
+                  if (!canWrite) return;
                   returnTo.current = "rule";
                   setEditing({ kind: "rule", source, sourceLabel: issuer.label });
                 }}
               >
-                {eligible.length > 1 ? "번호 종류 추가" : <><PlusIcon data-icon="inline-start" />번호 종류 추가</>}
+                {eligible.length > 1 ? "번호 종류 추가" : (
+                  <>
+                    <PlusIcon data-icon="inline-start" />번호 종류 추가
+                  </>
+                )}
               </Button>
             )}
           </div>

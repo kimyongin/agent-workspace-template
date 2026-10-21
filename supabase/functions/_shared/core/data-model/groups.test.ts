@@ -11,7 +11,7 @@ Deno.test("a model group never accepts conversions for a kind outside the review
               id: "10000000-0000-4000-8000-000000000001",
               version: 1,
               status: "needs_conversion",
-              plan: { target: { entity_types: [] } },
+              plan: { target: { entity_types: [] }, review: { items: [] } },
             }),
         }),
     },
@@ -36,6 +36,7 @@ const changeId = "10000000-0000-4000-8000-000000000001";
 function harness(status = "needs_conversion") {
   const schema = initialEntityDefinition("이름").schema;
   const plan = {
+    review: { items: [] },
     target: { entity_types: [{ ref: "ingredient", schema }] },
     source: { entity_types: [{ ref: "ingredient", schema }] },
     remove_keys: {},
@@ -104,7 +105,11 @@ Deno.test("group rules reuse existing scalar validation for corrective values", 
           type_ref: "ingredient",
           migration: {
             rules: [],
-            overrides: [{ entity_id: "app:10000000-0000-4000-8000-000000000001:one", key: "prop_1", value: 123 }],
+            overrides: [{
+              entity_id: "10000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:one",
+              key: "prop_1",
+              value: 123,
+            }],
           },
         }],
       }),
@@ -140,4 +145,17 @@ Deno.test("a prepared conversion group cannot fall through to direct definition 
   } as unknown as DataModelDeps;
   await assertRejects(() => applyDataModel(d, actor, changeId, { expected_version: 1 }), Error, "전체 작업 실행");
   assertEquals(published, false);
+});
+
+Deno.test("model conflict cannot be turned into an accepted conversion group", async () => {
+  const h = harness();
+  h.plan.review.items.push({
+    ref: "ingredient",
+    label: "자료",
+    kind: "conflict",
+    diff: [],
+    message: "사용 중인 식별자 종류 제거",
+  });
+  await assertRejects(() => analyzeDataModel(h.d, actor, changeId, { expected_version: 1 }), Error, "충돌");
+  assertEquals(h.calls(), 0);
 });

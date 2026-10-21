@@ -1,62 +1,75 @@
 import { assert, assertEquals } from "@std/assert";
+import {
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { activityWorkspaceSuite, scopedHttp, scopedTool } from "../http/_workspace-activity-fixture.ts";
 
 activityWorkspaceSuite(
-  "MCP creates from issuer settings, restores retained values, and rejects identity edits without changing HTTP links",
+  "MCP field identity preserves raw values, explicitly restores tombstones and keeps HTTP links immutable",
   async ({ A: token, workspaceA: w, clientA: client, schema }) => {
     assert(client);
-    const external_id = `000Ab:/한글%${crypto.randomUUID()}`;
-
-    assertEquals((await client.listTools()).tools.some((t) => t.name === "prepare_entity_registration"), false);
-    const settings = await scopedTool(client, w, "get_entity_type_identity", { type_id: schema.entity_type_id });
-    assertEquals(settings.type_id, schema.entity_type_id);
-    assertEquals(
-      settings.sources.some((source: { code: string; generation: string }) =>
-        source.code === "app" && source.generation === "automatic"
+    const raw = `000Ab:/한글%${crypto.randomUUID()}`;
+    const names = (await client.listTools()).tools.map((tool) => tool.name);
+    for (const retired of ["prepare_entity_registration", "get_entity_type_identity", "update_entity_type_identity"]) {
+      assertEquals(names.includes(retired), false);
+    }
+    assert(names.includes("lookup_entity_identifier") && names.includes("restore_entity"));
+    const definition = await scopedTool(client, w, "get_entity_schema", { type_id: schema.entity_type_id });
+    const key = definition.schema["x-identity-property"], kind = "00000000-0000-4000-8000-000000000001";
+    assert(
+      definition.identifier_kinds.some((value: { id: string; generation: string }) =>
+        value.id === kind && value.generation === "automatic"
       ),
-      true,
     );
-    const identity_version = settings.version;
-    const identity = { ...schema, source: "app", external_id, identity_version };
-    const created = await scopedTool(client, w, "create_entity", {
-      ...identity,
-      properties: { prop_1: "MCP 보관 대상", prop_2: 0, prop_4: "c" },
-    });
-    assertEquals(created.id, `app:${schema.entity_type_id}:${external_id}`);
+    const pair = encodeIdentifierValue(kind, raw);
+    const properties = { prop_1: "MCP 보관 대상", prop_2: 0, prop_4: "c", [key]: pair };
+    const created = await scopedTool(client, w, "create_entity", { ...schema, properties });
+    assertEquals(created.id, encodeIdentifierReference(schema.entity_type_id, kind, raw));
     assertEquals(
-      (await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(created.id)}`)).body.external_id,
-      external_id,
+      (await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(created.id)}`)).body.properties[key],
+      pair,
     );
-    assertEquals(
-      (await scopedTool(client, w, "create_entity", { ...identity, properties: { prop_1: "활성 중복" } })).error.code,
-      "conflict",
-    );
+    assertEquals((await scopedTool(client, w, "create_entity", { ...schema, properties })).error.code, "conflict");
     assertEquals(
       (await scopedTool(client, w, "create_entity", {
-        ...identity,
-        external_id: `${external_id}-stale`,
-        identity_version: identity_version + 1,
-        properties: { prop_1: "오래된 설정" },
+        ...schema,
+        schema_version: schema.schema_version + 1,
+        properties: { ...properties, [key]: encodeIdentifierValue(kind, `${raw}-stale`) },
       })).error.code,
-      "settings_changed",
+      "schema_changed",
     );
     await scopedTool(client, w, "delete_entity", { id: created.id, expected_version: 1 });
-    const restore = await scopedTool(client, w, "get_entity", { id: created.id });
-    assertEquals([restore.version, restore.properties.prop_2, restore.properties.prop_4], [2, 0, "c"]);
-    assert(restore.deleted_at);
-    for (const expected_version of [undefined, 1]) {
-      assertEquals(
-        (await scopedTool(client, w, "create_entity", {
-          ...identity,
-          properties: { prop_1: "오래된 등록" },
-          ...expected_version === undefined ? {} : { expected_version },
-        })).error.code,
-        "conflict",
-      );
-    }
-    const restored = await scopedTool(client, w, "create_entity", {
-      ...identity,
-      expected_version: restore.version,
+    const archived = await scopedTool(client, w, "lookup_entity_identifier", {
+      entity_type_id: schema.entity_type_id,
+      identifier: pair,
+    });
+    assertEquals([archived.id, archived.version, archived.properties.prop_2, archived.properties.prop_4], [
+      created.id,
+      2,
+      0,
+      "c",
+    ]);
+    assert(archived.deleted_at);
+    assertEquals((await scopedTool(client, w, "create_entity", { ...schema, properties })).error.code, "conflict");
+    assertEquals(
+      (await scopedTool(client, w, "create_entity", { ...schema, properties, expected_version: 2 })).error.code,
+      "invalid_input",
+    );
+    assertEquals(
+      (await scopedTool(client, w, "restore_entity", {
+        request_key: crypto.randomUUID(),
+        id: archived.id,
+        schema_version: schema.schema_version,
+        expected_version: 1,
+      })).error.code,
+      "conflict",
+    );
+    const restored = await scopedTool(client, w, "restore_entity", {
+      request_key: crypto.randomUUID(),
+      id: archived.id,
+      schema_version: schema.schema_version,
+      expected_version: archived.version,
       properties: { prop_3: "2026-10-09" },
     });
     assertEquals([
@@ -65,21 +78,28 @@ activityWorkspaceSuite(
       restored.properties.prop_4,
       restored.version,
       restored.deleted_at,
-    ], [
-      "MCP 보관 대상",
-      0,
-      "c",
-      3,
-      null,
-    ]);
-    for (const field of ["source", "external_id", "entity_type_id"]) {
-      const rejected = await scopedTool(client, w, "update_entity", {
+    ], ["MCP 보관 대상", 0, "c", 3, null]);
+    assertEquals(restored.properties[key], pair);
+    assertEquals(
+      (await scopedTool(client, w, "update_entity", {
         id: restored.id,
         expected_version: 3,
         schema_version: schema.schema_version,
-        [field]: field === "entity_type_id" ? schema.entity_type_id : "replacement",
-      });
-      assertEquals(rejected.error.code, "entity_type_immutable");
+        properties: { [key]: encodeIdentifierValue(kind, "replacement") },
+      })).error.code,
+      "invalid_input",
+    );
+    for (const field of ["source", "external_id", "entity_type_id"]) {
+      assertEquals(
+        (await scopedTool(client, w, "update_entity", {
+          id: restored.id,
+          expected_version: 3,
+          schema_version: schema.schema_version,
+          properties: { prop_1: "금지" },
+          [field]: field === "entity_type_id" ? schema.entity_type_id : "replacement",
+        })).error.code,
+        "entity_type_immutable",
+      );
     }
     assertEquals(
       (await scopedHttp(token, w, "GET", `/entities/${encodeURIComponent(created.id)}`)).body.id,
@@ -92,7 +112,7 @@ activityWorkspaceSuite(
     });
     assertEquals(events.items.length, 3);
     assertEquals(
-      new Set(events.items.map((r: { change: { target_id: string } }) => r.change.target_id)),
+      new Set(events.items.map((record: { change: { target_id: string } }) => record.change.target_id)),
       new Set([created.id]),
     );
   },

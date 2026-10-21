@@ -1,3 +1,4 @@
+import { entityIdentityLabel } from "../supabase/functions/_shared/contracts/entity-identity.ts";
 import { businessRows, entryDetails } from "./table-actions.ts";
 import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
@@ -40,7 +41,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).analysis?.status;
     }, { timeout: 30000 }).toBe("succeeded");
     const row = businessRows(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true })).filter({
-      has: page.getByRole("cell", { name: `${entity.title} · ${entity.source} · ${entity.external_id}`, exact: true }),
+      has: page.getByRole("cell", { name: `${entity.title} · ${entityIdentityLabel({ id: entity.id })}`, exact: true }),
     });
     await expect(row.getByText("변환 실패", { exact: true })).toBeVisible();
     const correction = entryDetails(row);
@@ -85,10 +86,10 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       analysis_id: fresh.analysis.id,
     });
     expect(await (await httpRows).json()).toEqual(rows);
-    expect(rows.items[0].before).toEqual({ prop_1: "001" });
-    expect(rows.items[0].after).toEqual({ prop_1: "01" });
+    expect(rows.items[0].before).toEqual(entity.properties);
+    expect(rows.items[0].after).toEqual({ ...entity.properties, prop_1: "01" });
     expect(fresh.analysis.changed).toBe(1);
-    expect((await mcp.call("get_entity", { id: entity.id })).properties).toEqual({ prop_1: "001" });
+    expect((await mcp.call("get_entity", { id: entity.id })).properties).toEqual(entity.properties);
     await mcp.call("update_entity", {
       id: entity.id,
       expected_version: entity.version,
@@ -174,10 +175,10 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
     const resultRows = businessRows(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true }));
     const failedRow = resultRows.filter({ has: page.getByRole("cell", {
-      name: `${bad.title} · ${bad.source} · ${bad.external_id}`, exact: true,
+      name: `${bad.title} · ${entityIdentityLabel({ id: bad.id })}`, exact: true,
     }) });
     const unchangedRow = resultRows.filter({ has: page.getByRole("cell", {
-      name: `${good.title} · ${good.source} · ${good.external_id}`, exact: true,
+      name: `${good.title} · ${entityIdentityLabel({ id: good.id })}`, exact: true,
     }) });
     await expect(resultRows).toHaveCount(1);
     await expect(failedRow.getByRole("cell", { name: "변환 실패", exact: true })).toBeVisible();

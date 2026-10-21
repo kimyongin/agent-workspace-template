@@ -1,3 +1,5 @@
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { decodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { openProfileMenu } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
@@ -31,7 +33,7 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   const form = page.getByRole("dialog", { name: `${label} 추가`, exact: true });
   await expect(form.getByLabel("자료 종류", { exact: true })).toHaveValue(label);
   await form.getByLabel("이름", { exact: false }).fill(title);
-  await expect(form.getByText("등록 시 자동 발급", { exact: true })).toBeVisible();
+  await expect(form.getByText("저장 시 자동 발급", { exact: true })).toBeVisible();
   await saveOnce(page, form);
   await expect(page).toHaveURL(/\/entities\//);
   await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
@@ -39,17 +41,16 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   const saved = await workspace.fetch("GET", `/entities/${encodeURIComponent(entityId)}`);
   expect(saved.ok()).toBe(true);
   const stored = await saved.json();
-  expect(stored).toMatchObject({ entity_type_id: typeId, source: "app", properties: { prop_1: title } });
-  expect(stored.external_id).toBeTruthy();
-  expect(entityId).toBe(`app:${typeId}:${stored.external_id}`);
+  const identifier = decodeIdentifierReference(entityId);
+  expect(identifier).toMatchObject({ entity_type_id: typeId, kind_id: APP_IDENTIFIER_RULE_ID });
+  expect(identifier.raw).toBeTruthy();
+  expect(stored).toMatchObject({ entity_type_id: typeId, properties: { prop_1: title, prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, identifier.raw) } });
+  expect(stored).not.toHaveProperty("external_id");
   await page.getByRole("button", { name: "편집", exact: true }).click();
   const editing = page.getByRole("dialog", { name: `${label} 편집`, exact: true });
   await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
-  await expect(editing.locator("dt:visible", { hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(stored.external_id);
-  await expect(editing.locator("dt:visible", { hasText: /^번호 출처$/ }).locator("../dd")).toHaveText(
-    stored.source_label,
-  );
-  await expect(editing.getByRole("textbox", { name: /^(번호|자료 번호|번호 출처)$/ })).toHaveCount(0);
+  await expect(editing.locator("dt:visible", { hasText: /^식별자 · 자료 식별자$/ }).locator("../dd")).toHaveText(stored.identity_label);
+  await expect(editing.getByRole("textbox", { name: /^(식별자|번호|자료 번호|번호 출처)$/ })).toHaveCount(0);
   const updatedTitle = `${title} 수정`;
   await editing.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill(updatedTitle);
   await saveOnce(page, editing);
@@ -60,9 +61,7 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   expect(changed).toMatchObject({
     id: entityId,
     entity_type_id: typeId,
-    source: stored.source,
-    external_id: stored.external_id,
-    properties: { prop_1: updatedTitle },
+    properties: { prop_1: updatedTitle, prop_2: stored.properties.prop_2 },
     version: stored.version + 1,
   });
   await closeDetail(page, updatedTitle);

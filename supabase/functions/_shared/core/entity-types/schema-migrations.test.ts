@@ -7,14 +7,14 @@ import { createEntitySchemaRecovery } from "./schema-migrations.ts";
 const jobId = "11111111-1111-4111-8111-111111111111";
 function context(): RecoveryContext {
   const source = initialEntityDefinition("이름"), current = structuredClone(source);
-  current.schema.properties.prop_3 = {
-    "x-order": 30,
+  current.schema.properties.prop_4 = {
+    "x-order": 40,
     type: "string",
     title: "현재만 존재",
     oneOf: ["value"].map((value) => ({ const: value })),
   };
-  current.schema.properties.prop_3.deprecated = true;
-  current.schema.properties.prop_3.oneOf = [{ const: "value", title: "표시 이름" }];
+  current.schema.properties.prop_4.deprecated = true;
+  current.schema.properties.prop_4.oneOf = [{ const: "value", title: "표시 이름" }];
   return {
     job_id: jobId,
     job_version: 4,
@@ -69,8 +69,8 @@ Deno.test("recovery creation retains current-only field values and presentation 
   await run.create();
   assertEquals(run.saved.length, 1);
   assertEquals(run.saved[0].target, c.current);
-  assertEquals(run.saved[0].keys, ["prop_1"]);
-  assertEquals(c.source.schema.required, ["prop_1"]);
+  assertEquals(run.saved[0].keys, ["prop_1", "prop_2"]);
+  assertEquals(c.source.schema.required, ["prop_1", "prop_2"]);
 });
 Deno.test("recovery creation uses the observed expiry before the active gate and never saves stale material", async () => {
   const expired = context();
@@ -117,15 +117,15 @@ Deno.test("recovery creation observes expiry again after template preparation be
 
 Deno.test("recovery review reports each restored property type instead of a generic definition object", async () => {
   const c = context();
-  c.source.schema.properties.prop_2 = { "x-order": 20, type: "integer", title: "가격" };
+  c.source.schema.properties.prop_3 = { "x-order": 30, type: "integer", title: "가격" };
 
-  c.current.schema.properties.prop_2 = { "x-order": 20, type: "string", title: "가격" };
+  c.current.schema.properties.prop_3 = { "x-order": 30, type: "string", title: "가격" };
 
   c.committed_target = structuredClone(c.current);
   const run = usecase(c);
   await run.create();
-  assertEquals(run.saved[0].diff.find((d) => d.path === "properties.prop_2.type")?.before, "string");
-  assertEquals(run.saved[0].diff.find((d) => d.path === "properties.prop_2.type")?.after, "integer");
+  assertEquals(run.saved[0].diff.find((d) => d.path === "properties.prop_3.type")?.before, "string");
+  assertEquals(run.saved[0].diff.find((d) => d.path === "properties.prop_3.type")?.after, "integer");
 });
 
 Deno.test("bounded value recovery preserves the current archived root and newer metadata", async () => {
@@ -142,19 +142,19 @@ Deno.test("bounded value recovery preserves the current archived root and newer 
 
 Deno.test("recovery retains later fields when their annotation orders collide with a restored field", async () => {
   const c = context(), run = usecase(c);
-  c.source.schema.properties.prop_2 = { type: "integer", "x-order": 20 };
-  c.current.schema.properties.prop_3 = { type: "string", "x-order": 20 };
+  c.source.schema.properties.prop_3 = { type: "integer", "x-order": 30 };
+  c.current.schema.properties.prop_4 = { type: "string", "x-order": 30 };
   c.committed_target = initialEntityDefinition("이름");
   await run.create();
-  assertEquals(run.saved[0].target.schema.properties.prop_2["x-order"], 20);
   assertEquals(run.saved[0].target.schema.properties.prop_3["x-order"], 30);
+  assertEquals(run.saved[0].target.schema.properties.prop_4["x-order"], 40);
   assertEquals(run.saved[0].target.schema["x-title-template"], c.current.schema["x-title-template"]);
 });
 
 Deno.test("recovery preserves the current composed title and decodes legacy source properties without changing retained evidence", async () => {
   const c = context(), run = usecase(c);
-  c.current.schema.properties.prop_3.deprecated = false;
-  c.current.schema["x-title-template"] = "$prop_3$ / $prop_1$";
+  c.current.schema.properties.prop_4.deprecated = false;
+  c.current.schema["x-title-template"] = "$prop_4$ / $prop_1$";
   delete (c.source.schema as Record<string, unknown>)["x-title-template"];
   Object.assign(c.source.schema.properties.prop_1, {
     "x-representative": true,
@@ -163,16 +163,16 @@ Deno.test("recovery preserves the current composed title and decodes legacy sour
   });
   const raw = structuredClone(c.source);
   await run.create();
-  assertEquals(run.saved[0].target.schema["x-title-template"], "$prop_3$ / $prop_1$");
+  assertEquals(run.saved[0].target.schema["x-title-template"], "$prop_4$ / $prop_1$");
   assertEquals(run.saved[0].target.schema.properties.prop_1, initialEntityDefinition("이름").schema.properties.prop_1);
   assertEquals(c.source, raw);
 });
 
 Deno.test("recovery rejects a current title reference absent from restored properties before saving a proposal", async () => {
   const c = context(), run = usecase(c);
-  c.current.schema.properties.prop_2 = { type: "string", "x-order": 20, title: "변환 후 항목" };
-  c.committed_target.schema.properties.prop_2 = c.current.schema.properties.prop_2;
-  c.current.schema["x-title-template"] = "$prop_2$";
+  c.current.schema.properties.prop_3 = { type: "string", "x-order": 30, title: "변환 후 항목" };
+  c.committed_target.schema.properties.prop_3 = c.current.schema.properties.prop_3;
+  c.current.schema["x-title-template"] = "$prop_3$";
   const error = await assertRejects(run.create);
   assertEquals((error as { code: string }).code, "invalid_input");
   assertEquals((error as { fields: { path: string }[] }).fields[0].path, "schema.x-title-template");

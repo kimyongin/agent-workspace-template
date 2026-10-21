@@ -49,9 +49,8 @@ if (packet.operation === "seed") {
         }],
       },
       (tx) =>
-        tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-      values(${packet.workspace},${packet.entityId!},'app',${packet
-          .external!},${packet.kindId!},1,'{"prop_1":"12"}')`,
+        tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+      values(${packet.workspace},${packet.entityId!},${packet.kindId!},1,${tx.json({ prop_1: "12", prop_2: `00000000-0000-4000-8000-000000000001:${packet.external!}` })})`,
     );
   } finally {
     await direct.end();

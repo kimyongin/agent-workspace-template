@@ -25,10 +25,12 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       initial_property_label: "이름",
     });
     await workspace.grantKind(other.id);
+    const initial = await mcp.call("get_entity_schema", { type_id: type.id });
     const additions = [
       {
-        op: "add_property",
-        client_ref: "count",
+        op: "update_property",
+        key: "prop_2",
+        required: false,
         field: {
           "x-order": 20,
           type: ["integer", "null"],
@@ -52,6 +54,8 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
         client_ref: "checked",
         field: { "x-order": 40, type: ["boolean", "null"], title: "검사" },
       },
+      { op: "add_property", client_ref: "identifier", field: { ...initial.schema.properties.prop_2, "x-order": 50 }, required: true },
+      { op: "set_metadata", "x-identity-property": "new_identifier" },
     ];
     let change = await mcp.call("create_entity_schema_change", {
       type_id: type.id,
@@ -63,12 +67,12 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       change_id: change.id,
       expected_schema_version: 1,
       expected_change_version: change.version,
-      edits: additions.map((edit) => ({
-        ...edit,
-        field: { ...edit.field },
-      })),
+      edits: additions.map((edit) => "field" in edit ? { ...edit, field: { ...edit.field } } : { ...edit }),
     });
     await analyzeAndApply(mcp, type.id, change.id, change.version);
+    const published = await mcp.call("get_entity_schema", { type_id: type.id });
+    expect(published.schema["x-identity-property"]).toBe("prop_5");
+    expect(published.schema.properties.prop_2.type).toEqual(["integer", "null"]);
     const first = await mcp.call("create_entity", {
       entity_type_id: type.id,
       schema_version: 2,
@@ -161,6 +165,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
       properties: { prop_2: 0, prop_4: false },
     });
     expect(updated.properties.prop_2).toBe(0);
+    expect(updated.properties.prop_5).toBe(second.properties.prop_5);
     const logs = await mcp.call("list_records", {
       entity_id: second.id,
       record_kind: "change",

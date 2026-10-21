@@ -32,27 +32,43 @@ activityWorkspaceSuite(
       label: "상품 번호",
       meaning: "상품 한 등록 건",
     });
-    const initial = (await scopedHttp(a, w, "GET", `/entity-types/${typeId}/identity`)).body;
-    const sources = [
-      ...initial.sources.map((s: { code: string; rule_id: string; active: boolean }) => ({
-        code: s.code,
-        rule_id: s.rule_id,
-        active: s.active,
-      })),
-      { code: source, rule_id: rule.id, active: true },
-    ];
-    const identity = await scopedTool(client, w, "update_entity_type_identity", {
-      type_id: typeId,
-      label: "상품 번호",
-      default_source: source,
-      expected_version: initial.version,
-      sources,
-    });
+    const initial = (await scopedHttp(a, w, "GET", `/entity-types/${typeId}/schema`)).body;
+    const property = initial.schema["x-identity-property"], appKind = "00000000-0000-4000-8000-000000000001";
+    const publish = async (allowed: string[], defaultKind: string) => {
+      const document = await scopedTool(client, w, "export_data_model", {});
+      const target = document.entity_types.find((type: { schema: Record<string, unknown> }) =>
+        type.schema["x-type-id"] === typeId
+      );
+      assert(target);
+      target.schema.properties[property]["x-identifier"] = { allowed_kind_ids: allowed, default_kind_id: defaultKind };
+      const input = { mode: "update", document: JSON.stringify(document) };
+      const review = await scopedTool(client, w, "preview_data_model", input);
+      assertEquals(review.error, undefined);
+      const change = await scopedTool(client, w, "prepare_data_model", {
+        request_key: crypto.randomUUID(),
+        ...input,
+        preview_fingerprint: review.fingerprint,
+      });
+      assertEquals(change.error, undefined);
+      const result = await scopedTool(client, w, "apply_data_model", {
+        request_key: crypto.randomUUID(),
+        id: change.id,
+        expected_version: change.version,
+      });
+      assertEquals(result.error, undefined);
+      assertEquals(result.status, "applied");
+      return (await scopedHttp(a, w, "GET", `/entity-types/${typeId}/schema`)).body;
+    };
+    const configured = await publish([appKind, rule.id], rule.id);
+    assertEquals(configured.schema_version, initial.schema_version + 1);
     const stop = { active: false, expected_version: 1 };
     const refused = await scopedHttp(a, w, "PATCH", `/entity-issuers/${source}`, stop);
     assertEquals(refused.status, 400);
     assertEquals(refused.body.code, "invalid_input");
-    assertEquals(refused.body.fields, [{ path: `default_types.${typeId}`, message: created.body.label }]);
+    assertEquals(refused.body.fields, [{
+      path: `default_fields.${typeId}.${property}`,
+      message: `${created.body.label} · ${initial.schema.properties[property].title}`,
+    }]);
     assertEquals(await scopedTool(client, w, "update_entity_issuer", { code: source, ...stop }), {
       error: refused.body,
     });
@@ -63,20 +79,33 @@ activityWorkspaceSuite(
     const linked = await scopedHttp(a, w, "DELETE", `/entity-identifier-rules/${rule.id}`, { expected_version: 1 });
     assertEquals(linked.status, 400);
     assertEquals(linked.body.code, "invalid_input");
-    const detached = await scopedTool(client, w, "update_entity_type_identity", {
-      type_id: typeId,
-      label: identity.label,
-      default_source: "app",
-      expected_version: identity.version,
-      sources: sources.filter((s) => s.code === "app"),
+    const detached = await publish([appKind], appKind);
+    assertEquals(detached.schema_version, configured.schema_version + 1);
+    // Detaching the current field preserves its historical meaning; a referenced rule remains protected.
+    assertEquals(
+      (await scopedHttp(a, w, "DELETE", `/entity-identifier-rules/${rule.id}`, { expected_version: 1 })).body.code,
+      "invalid_input",
+    );
+    assertEquals(
+      (await scopedHttp(a, w, "DELETE", `/entity-issuers/${source}`, { expected_version: 1 })).body.code,
+      "invalid_input",
+    );
+    const unusedSource = `unused_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`;
+    assertEquals(
+      (await scopedHttp(a, w, "POST", "/entity-issuers", { code: unusedSource, label: "미사용 정리" })).status,
+      201,
+    );
+    const unusedRule = await scopedTool(client, w, "create_entity_identifier_rule", {
+      source: unusedSource,
+      label: "미사용 번호",
+      meaning: "정의에 연결하지 않은 원본 번호",
     });
-    assertEquals(detached.version, identity.version + 1);
     const ruleKey = crypto.randomUUID();
     const removed = await scopedHttp(
       a,
       w,
       "DELETE",
-      `/entity-identifier-rules/${rule.id}`,
+      `/entity-identifier-rules/${unusedRule.id}`,
       { expected_version: 1 },
       ruleKey,
     );
@@ -84,7 +113,7 @@ activityWorkspaceSuite(
     assertEquals(removed.body, { deleted: true });
     assertEquals(
       await scopedTool(client, w, "delete_entity_identifier_rule", {
-        rule_id: rule.id,
+        rule_id: unusedRule.id,
         expected_version: 1,
         request_key: ruleKey,
       }),
@@ -93,13 +122,20 @@ activityWorkspaceSuite(
     const issuerKey = crypto.randomUUID();
     assertEquals(
       await scopedTool(client, w, "delete_entity_issuer", {
-        code: source,
+        code: unusedSource,
         expected_version: 1,
         request_key: issuerKey,
       }),
       { deleted: true },
     );
-    const replay = await scopedHttp(a, w, "DELETE", `/entity-issuers/${source}`, { expected_version: 1 }, issuerKey);
+    const replay = await scopedHttp(
+      a,
+      w,
+      "DELETE",
+      `/entity-issuers/${unusedSource}`,
+      { expected_version: 1 },
+      issuerKey,
+    );
     assertEquals(replay.status, 200);
     assertEquals(replay.headers.get("Idempotency-Replayed"), "true");
     assertEquals((await call(null, "DELETE", "/entity-issuers/app", { expected_version: 1 })).status, 401);

@@ -12,6 +12,8 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { entityCreate, entityListQuery, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierValue } from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../functions/_shared/contracts/task.ts";
 import { recordListQuery } from "../../functions/_shared/contracts/record.ts";
 import * as entity from "../../functions/_shared/core/entity/application.ts";
@@ -28,14 +30,14 @@ async function typedKind(f: Awaited<ReturnType<typeof businessWorkspaceFixture>>
   const document = await exportDataModel(modelDeps, manager);
   const type = document.entity_types.find((value) => value.schema["x-type-id"] === kind.id)!;
   Object.assign(type.schema.properties, {
-    prop_2: { type: ["integer", "null"], title: "속성 2", minimum: 0, maximum: 1000000, default: null, "x-order": 20 },
-    prop_3: { type: ["string", "null"], title: "속성 3", format: "date", default: null, "x-order": 30 },
-    prop_4: {
+    prop_3: { type: ["integer", "null"], title: "속성 2", minimum: 0, maximum: 1000000, default: null, "x-order": 30 },
+    prop_4: { type: ["string", "null"], title: "속성 3", format: "date", default: null, "x-order": 40 },
+    prop_5: {
       type: "string",
       title: "속성 4",
       oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }],
       default: "a",
-      "x-order": 40,
+      "x-order": 50,
     },
   });
   const input = { mode: "update", document: JSON.stringify(document) };
@@ -51,10 +53,18 @@ async function typedKind(f: Awaited<ReturnType<typeof businessWorkspaceFixture>>
   return { entity_type_id: kind.id, schema_version: 2 };
 }
 
-const fixture = await businessWorkspaceFixture(admin, sql);
-const schema = await typedKind(fixture);
-const otherWorkspace = await fixture.addWorkspace("다른 자료 공간");
-const foreignSchema = await typedKind(fixture, otherWorkspace.manager);
+const { fixture, schema, otherWorkspace, foreignSchema } = await (async () => {
+  const fixture = await businessWorkspaceFixture(admin, sql);
+  try {
+    const schema = await typedKind(fixture);
+    const otherWorkspace = await fixture.addWorkspace("다른 자료 공간");
+    const foreignSchema = await typedKind(fixture, otherWorkspace.manager);
+    return { fixture, schema, otherWorkspace, foreignSchema };
+  } catch (error) {
+    await fixture.cleanup();
+    throw error;
+  }
+})();
 await fixture.grant(fixture.member, [
   { target_kind: "tasks", target_id: "*", access: "write" },
   { target_kind: "entity_type", target_id: schema.entity_type_id, access: "write" },
@@ -78,8 +88,6 @@ function create(name: string, actor = A, extra = {}) {
     businessRequest(actor),
     entityCreate.parse({
       ...selected,
-      source: "app",
-      external_id: crypto.randomUUID(),
       properties: { prop_1: name, ...extra },
     }),
   );
@@ -94,7 +102,12 @@ dbTest("Entity DB: cross-workspace 참조 거부·삭제 링크 보존·원문/�
       ...{ kind: "once", title: "행동", entity_ids: [e.id] },
     }),
   );
-  for (const ref of [foreign.id, `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`]) {
+  for (
+    const ref of [
+      foreign.id,
+      `00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`,
+    ]
+  ) {
     const error = await assertRejects(
       () =>
         activity.updateTask(
@@ -150,11 +163,10 @@ dbTest("Entity DB: cross-workspace 참조 거부·삭제 링크 보존·원문/�
   await entity.deleteEntity(d, businessRequest(B), foreign.id, 1);
 });
 dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 경쟁", async () => {
+  // Independent requests compete for one explicitly supplied identifier.
   const input = entityCreate.parse({
     ...schema,
-    source: "app",
-    external_id: crypto.randomUUID(),
-    properties: { prop_1: "멱등" },
+    properties: { prop_1: "멱등", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, crypto.randomUUID()) },
   });
   const results = await Promise.allSettled([
     entity.createEntity(d, businessRequest(A), input),
@@ -234,11 +246,11 @@ Deno.test({
   fn: async () => {
     const marker = crypto.randomUUID(), items = [];
     for (const [n, amount, date] of [["가", null, null], ["나", 0, "2024-02-29"], ["다", 2, "2025-01-01"]] as const) {
-      items.push(await create(`${marker} ${n}`, A, { prop_2: amount, prop_3: date, prop_4: "b" }));
+      items.push(await create(`${marker} ${n}`, A, { prop_3: amount, prop_4: date, prop_5: "b" }));
     }
     for (
-      const sort of ["updated_at", { key: "prop_1", direction: "asc" }, { key: "prop_2", direction: "asc" }, {
-        key: "prop_3",
+      const sort of ["updated_at", { key: "prop_1", direction: "asc" }, { key: "prop_3", direction: "asc" }, {
+        key: "prop_4",
         direction: "asc",
       }] as const
     ) {
@@ -260,7 +272,7 @@ Deno.test({
         entity.listEntities(
           d,
           A,
-          entityListQuery.parse({ ...q, filters: [{ key: "prop_4", operator: "eq", value: "a" }], cursor }),
+          entityListQuery.parse({ ...q, filters: [{ key: "prop_5", operator: "eq", value: "a" }], cursor }),
         ), AppError);
     }
     assertEquals(
@@ -271,9 +283,9 @@ Deno.test({
           entity_type_id: schema.entity_type_id,
           keyword: marker,
           filters: [
-            { key: "prop_3", operator: "gte", value: "2024-02-29" },
-            { key: "prop_3", operator: "lte", value: "2024-02-29" },
-            { key: "prop_4", operator: "eq", value: "b" },
+            { key: "prop_4", operator: "gte", value: "2024-02-29" },
+            { key: "prop_4", operator: "lte", value: "2024-02-29" },
+            { key: "prop_5", operator: "eq", value: "b" },
           ],
         }),
       )).items.map((e) => e.id),

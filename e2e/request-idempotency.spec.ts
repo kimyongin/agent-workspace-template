@@ -1,5 +1,7 @@
+import { encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { executionDialog } from "./ui-actions.ts";
 import {
+  configureFixtureIdentifier,
   fixtureEntityList,
   scalarFixtureType,
 } from "./entity-schema-support.ts";
@@ -166,7 +168,7 @@ test("committed task create, edit and delete survive a lost reply with one event
   }
 });
 
-test("external entity restore retries the committed tuple and type identity lookup allocates nothing", async ({ page }) => {
+test("entity restore retries the server key and schema lookup allocates nothing", async ({ page }) => {
   await devLogin(page);
   const workspace = await ownedWorkspace(page);
   const proof = await evidence(workspace), external_id = `000Ab:/한글%${unique("복원 자료 번호")}`, title = unique("응답 유실 복원");
@@ -174,7 +176,6 @@ test("external entity restore retries the committed tuple and type identity look
   try {
     const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
     const type = await scalarFixtureType(fixtureMcp, workspace);
-    await fixtureMcp.close();
     const source = `e2e_${
       crypto.randomUUID().replaceAll("-", "").slice(0, 16)
     }`;
@@ -186,37 +187,18 @@ test("external entity restore retries the committed tuple and type identity look
       label: "원본 번호",
       meaning: "복원 검사용 원본 번호",
     });
-    const initial = await proof.api("GET", `/entity-types/${type.id}/identity`);
-    const identity = await proof.api(
-      "PATCH",
-      `/entity-types/${type.id}/identity`,
-      {
-        label: "자료 번호",
-        default_source: source,
-        expected_version: initial.version,
-        sources: [
-          ...initial.sources.map(({ code, rule_id, active }: any) => ({
-            code,
-            rule_id,
-            active,
-          })),
-          { code: source, rule_id: rule.id, active: true },
-        ],
-      },
-    );
+    const configured = await configureFixtureIdentifier(fixtureMcp, type.id, rule.id);
+    await fixtureMcp.close();
     const entity = await proof.api("POST", "/entities", {
-      source,
-      external_id,
-      identity_version: identity.version,
       entity_type_id:type.id,
-      schema_version:type.schema_version,
-      properties:{prop_1:title,prop_2:0,prop_4:"a"},
+      schema_version:configured.schema_version,
+      properties:{prop_1:title,prop_2:0,prop_4:"a",prop_5:encodeIdentifierValue(rule.id,external_id)},
     });
     id = entity.id;
     await proof.api("POST", `/entities/${encodeURIComponent(id!)}/delete`, { expected_version: entity.version });
     const settings = await proof.api(
       "GET",
-      `/entity-types/${type.id}/identity`,
+      `/entity-types/${type.id}/schema`,
     );
     const before = await proof.preparationState();
     const taskPreparation = await proof.api("POST", "/records/prepare", {
@@ -225,7 +207,7 @@ test("external entity restore retries the committed tuple and type identity look
     expect(taskPreparation.prepared_input).not.toHaveProperty("id");
     const identitySettings = await proof.api(
       "GET",
-      `/entity-types/${type.id}/identity`,
+      `/entity-types/${type.id}/schema`,
     );
     expect(identitySettings).toEqual(settings);
     const retained = await proof.api("GET", `/entities/${encodeURIComponent(id!)}`);
@@ -235,23 +217,22 @@ test("external entity restore retries the committed tuple and type identity look
     await page.goto(fixtureEntityList(workspace.id, type.id));
     await beginTabAction(page, "검사 자료 추가");
     const form = page.getByRole("dialog", { name: /^검사 자료.* 추가$/, exact: true });
-    await expect(form.getByLabel("자료 번호")).toBeEnabled();
-    await form.getByLabel("자료 번호").fill(external_id);
+    await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+    await form.getByRole("textbox", { name: /^자료 번호/ }).fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
     const restore = page.getByRole("dialog", { name: `${type.label} 복원`, exact: true });
     await expect(restore.getByLabel("제목")).toHaveValue(title);
     await fillChangeMemo(page, restore, unique("복원 메모"));
     expect(await proof.preparationState()).toEqual(before);
-    const lostRestore = await loseCommittedReply(page, workspace.id, "POST", "/entities", 201);
+    const lostRestore = await loseCommittedReply(page, workspace.id, "POST", `/entities/${encodeURIComponent(id!)}/restore`, 200);
     await saveOnce(page, restore);
     await lostRestore.retry();
     const payload = JSON.parse(lostRestore.requests[0].body!);
-    expect([
-      payload.source,
-      payload.external_id,
-      payload.identity_version,
-      payload.expected_version,
-    ]).toEqual([source, external_id, settings.version, 2]);
+    expect(payload).toMatchObject({ schema_version: configured.schema_version, expected_version: 2,
+      properties: { prop_5: encodeIdentifierValue(rule.id, external_id) } });
+    expect(payload).not.toHaveProperty("source");
+    expect(payload).not.toHaveProperty("external_id");
+    expect(payload).not.toHaveProperty("generate_identifiers");
     expect(lostRestore.requests[0].result.id).toBe(id);
     const current = await proof.api("GET", `/entities/${encodeURIComponent(id!)}`);
     expect([current.version, current.deleted_at]).toEqual([3, null]);
