@@ -255,7 +255,7 @@ test("조회 실패는 현재 변경안을 유지하고 목록 재선택과 편�
   await expect(page.getByLabel("최대 길이", { exact: true })).toHaveValue("7.");
   await page.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(page.getByLabel("최대 길이", { exact: true })).toHaveValue("4096");
-  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
+  await expect(page.getByRole("region", { name: "입력 항목", exact: true }).getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
   failed = false;
   if (await page.getByRole("button", { name: /^변경 이력/ }).first().getAttribute("aria-expanded") === "false") {
     await page.getByRole("button", { name: /^변경 이력/ }).first().click();
@@ -264,7 +264,7 @@ test("조회 실패는 현재 변경안을 유지하고 목록 재선택과 편�
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
     "이전 이름",
   );
-  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
+  await expect(page.getByRole("region", { name: "입력 항목", exact: true }).getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "새 변경 시작", exact: true })).toHaveCount(0);
 });
 test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키를 다음 편집에도 유지한다", async ({ page }) => {
@@ -309,9 +309,7 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
   await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeEnabled();
   await expect(page.getByLabel("항목 이름", { exact: true }).last()).toBeDisabled();
   await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
-  await expect(page.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "false");
-  await page.getByRole("button", { name: "입력 항목", exact: true })
-    .click();
+  await expect(page.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByText("기술 정보", { exact: true })).toHaveCount(0);
   expect(requests[1]).toEqual(requests[0]);
   expect(requests[0].key).toBeTruthy();
@@ -319,8 +317,7 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
   await page.getByRole("region", { name: "추가값 입력 항목", exact: true }).getByLabel("항목 이름").fill("수정값");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect.poll(() => requests.length).toBe(3);
-  await expect(page.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "false");
-  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await expect(page.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("region", { name: "수정값 입력 항목", exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
   expect(requests[2].body.edits.find((edit) => edit.op === "add_property")?.client_ref)
@@ -435,11 +432,15 @@ test("속성 요약에서 열린 행의 입력을 검토하고 행 완료와 적
   await page.getByLabel("항목 이름", { exact: true }).fill("검토할 이름");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   const review = page.getByRole("region", { name: "입력 항목 변경 요약", exact: true });
+  const history = page.getByRole("region", { name: "변경 이력", exact: true });
+  await expect(review).toHaveCount(0);
+  await expect(history.getByRole("button", { name: /^변경 이력/ })).toHaveAttribute("aria-expanded", "false");
+  await history.getByRole("button", { name: /^변경 이력/ }).click();
+  await businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).getByRole("button", { name: /^입력 항목 변경 시각/ }).click();
   await expect(review).toContainText("검토할 이름");
   await expect(review).toContainText("아직 적용되지 않았습니다");
   expect(writes).toHaveLength(1);
-  await page.getByRole("button", { name: "입력 항목", exact: true })
-    .click();
+  await expect(page.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "true");
   await page.locator(
     "[role=\"row\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
@@ -827,7 +828,7 @@ test("취소한 변경안에서는 항목 편집으로 현재 설정을 열고 �
   );
 });
 
-test("변경 이력 통합: 모두 접기·초안 유지·검토 자동 펼침·행 안에서 폐기", async ({ page }) => {
+test("변경 이력 통합: 모두 접기·초안 유지·명시적인 이력 펼침·행 안에서 폐기", async ({ page }) => {
   let current = plan("history-new");
   let writes = 0;
   await page.route(`**${base}`, async (route) => {
@@ -892,7 +893,7 @@ test("변경 이력 통합: 모두 접기·초안 유지·검토 자동 펼침·
   await page.goto("/e2e/fixtures/schema-editor-read.html");
   const input = page.getByRole("region", { name: "입력 항목", exact: true });
   const history = page.getByRole("region", { name: "변경 이력", exact: true });
-  await expect(input.getByRole("button", { name: "항목 추가", exact: true })).toBeHidden();
+  await expect(input.getByRole("button", { name: "항목 추가", exact: true })).toBeVisible();
   await expect(input.getByRole("button", { name: "변경 검토", exact: true })).toBeHidden();
   await expect(history.getByRole("button", { name: "변경 이력 다시 조회" })).toBeHidden();
   await input.getByRole("button", { name: "입력 항목", exact: true }).click();
@@ -904,14 +905,19 @@ test("변경 이력 통합: 모두 접기·초안 유지·검토 자동 펼침·
   await input.getByRole("button", { name: "입력 항목", exact: true }).click();
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("수정한 이름");
   await input.getByRole("button", { name: "변경 검토", exact: true }).click();
-  await expect(input.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(input.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "true");
+  await expect(input.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
+  await expect(history.getByRole("button", { name: /^변경 이력/ })).toHaveAttribute("aria-expanded", "false");
+  await history.getByRole("button", { name: /^변경 이력/ }).click();
   const row = businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true }));
   await expect(row).toHaveCount(1);
+  await row.getByRole("button", { name: /^입력 항목 변경 시각/ }).click();
   const content = await disclosureContent(page, row.getByRole("button", { name: /^입력 항목 변경 시각/ }));
   await expect(content.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
   await expect(content).toContainText("수정한 이름");
   await history.getByRole("button", { name: /^변경 이력/ }).first().click();
-  await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toBeHidden();
+  await expect(content.getByRole("button", { name: "변경 적용", exact: true })).toBeHidden();
+  await expect(input.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
   await history.getByRole("button", { name: /^변경 이력/ }).first().click();
   await content.getByRole("button", { name: "폐기", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경안을 폐기할까요?" }).getByRole("button", { name: "폐기", exact: true })

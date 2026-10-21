@@ -93,11 +93,12 @@ export function displayedProperty(field: EntityField, value: unknown, labels: Re
   return String(value);
 }
 export function PropertyFields(
-  { definition, values, onChange, errors, disabled = false, part = "all" }: {
+  { definition, values, initialValues, onChange, errors, disabled = false, part = "all" }: {
     disabled?: boolean;
     part?: "all" | "representative" | "remaining";
     definition: Pick<EntitySchemaVersion, "schema">;
     values: PropertyDraft;
+    initialValues?: PropertyDraft;
     onChange: (values: PropertyDraft) => void;
     errors: Record<string, string>;
   },
@@ -148,6 +149,7 @@ export function PropertyFields(
             className={cn(key === schemaPresentation(definition).representative ? "col-span-full" : undefined)}
             key={key}
             label={field.title ?? key}
+            changed={initialValues !== undefined && initialValues[key] !== value}
             required={required}
             error={errors[`properties.${key}`]}
           >

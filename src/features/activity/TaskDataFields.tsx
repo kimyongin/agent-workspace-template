@@ -18,9 +18,10 @@ import type { TaskDraft } from "./forms.tsx";
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 /** One field sequence for saved tasks and drafts; immutable context remains selectable text. */
-export function TaskDataFields({ task, draft, set, errors = {}, disabled = false }: {
+export function TaskDataFields({ task, draft, initialDraft, set, errors = {}, disabled = false }: {
   task?: TaskResult;
   draft?: TaskDraft;
+  initialDraft?: TaskDraft;
   set?: (
     patch: Partial<TaskDraft> | ((draft: TaskDraft) => Partial<TaskDraft>),
   ) => void;
@@ -44,6 +45,7 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
     <Field
       fullWidth={full}
       label={label}
+      changed={!!initialDraft && initialDraft[key] !== draft![key]}
       required={key === "title" || key === "starts_on" || key === "timezone"}
       error={errors[key]}
     >
@@ -101,10 +103,10 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
           <>
             {draft
               ? (
-                <Field label={taskLabels.recurrence}>
+                <Field label={taskLabels.recurrence} changed={!!initialDraft && initialDraft.freq !== draft.freq}>
                   {(p) => (
                     <ToggleGroup
-                      id={p.id}
+                      {...p}
                       type="single"
                       variant="outline"
                       value={freq}
@@ -123,7 +125,7 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
               : pair(taskLabels.recurrence, freq ? taskLabels[freq] : "—")}
             {freq === "weekly" && (draft
               ? (
-                <Field label={taskLabels.weekdays} error={errors.weekdays}>
+                <Field label={taskLabels.weekdays} error={errors.weekdays} changed={!!initialDraft && JSON.stringify([...initialDraft.weekdays].sort()) !== JSON.stringify([...draft.weekdays].sort())}>
                   {(p) => (
                     <ToggleGroup
                       id={p.id}

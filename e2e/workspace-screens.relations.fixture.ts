@@ -326,12 +326,13 @@ for (const kind of ["tasks"] as const) {
   });
 }
 
-test("#185 빈 연결 개수만 표시·관계 카드 빈 공간은 이동하지 않음", async ({ page }) => {
+test("빈 연결 공통 상태·관계 카드 빈 공간은 이동하지 않음", async ({ page }) => {
   const state = await fixtures(page);
   state.rows.records.length = 0;
   await go(page, `/tasks/${id(2)}`);
   await expect(form(page).getByRole("heading", { name: "기록 (0개)", exact: true })).toBeVisible();
-  await expect(form(page).getByText("연결된 기록이 없습니다.", { exact: true })).toHaveCount(0);
+  await expect(form(page).getByText("연결된 기록이 없습니다.", { exact: true })).toBeVisible();
+  await expect(form(page).getByRole("button", { name: "기록 작성", exact: true })).toBeEnabled();
   Object.assign(state.rows.tasks[0], {
     entity_ids: [entityKey(1)],
     entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],

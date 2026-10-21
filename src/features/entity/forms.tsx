@@ -1,4 +1,6 @@
 import { DataFields, DataFieldGroup } from "@/components/DataFields";
+import { ChangedValue } from "../../components/ChangedValue.tsx";
+import type { ConfirmationValue } from "../../components/RecordConfirmation.tsx";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { cn } from "../../lib/utils.ts";
@@ -32,6 +34,7 @@ import {
   PropertyDraftError,
   PropertyFields,
   propertyValues,
+  displayedProperty,
 } from "./property-fields.tsx";
 export function EntityForm({
   initial,
@@ -264,6 +267,19 @@ export function EntityForm({
         : values,
     );
   };
+  const changes = (): ConfirmationValue[] => {
+    if (!initial || archived || !definition) return [];
+    // Only validated, writable values are sent by this form. Match that same input.
+    let next: ReturnType<typeof propertyValues>;
+    try { next = propertyValues(definition, properties); } catch { return []; }
+    const presentation = schemaPresentation(definition);
+    return presentation.order.flatMap(key => {
+      const field = definition.schema.properties[key];
+      if (field.readOnly || field.deprecated || presentation.archived.includes(key) || initial.properties[key] === next[key]) return [];
+      const labels = presentation.option_labels[key];
+      return [{ label: field.title ?? key, value: <ChangedValue before={displayedProperty(field, initial.properties[key], labels)} after={displayedProperty(field, next[key], labels)}/> }];
+    });
+  };
   return (
     <>
       <FormModal
@@ -281,6 +297,7 @@ export function EntityForm({
             : label,
           action: archived ? "복원" : initial ? "수정" : "등록",
           message: context,
+          data: changes(),
         }}
         dirty={dirty}
         deletion={deletion}
@@ -507,6 +524,7 @@ export function EntityForm({
                   part="representative"
                   definition={definition}
                   values={effectiveProperties}
+                  initialValues={initial && !archived ? baseline.current.properties : undefined}
                   errors={errors}
                   onChange={changeProperties}
                 />
@@ -643,6 +661,7 @@ export function EntityForm({
                     part="remaining"
                     definition={definition}
                     values={effectiveProperties}
+                  initialValues={initial && !archived ? baseline.current.properties : undefined}
                     errors={errors}
                     onChange={changeProperties}
                   />
