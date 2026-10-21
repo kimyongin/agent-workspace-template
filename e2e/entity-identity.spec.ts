@@ -14,7 +14,7 @@ test.beforeEach(async ({ page }) => {
   workspace = await ownedWorkspace(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page), { workspaceId: workspace.id });
   try {
-    fixtureType = await mcp.call("create_entity_type", { label: unique("식별 시험"), representative_label: "이름" }) as { id: string; label: string };
+    fixtureType = await mcp.call("create_entity_type", { label: unique("식별 시험"), initial_property_label: "이름" }) as { id: string; label: string };
     await workspace.grantKind(fixtureType!.id);
     fixtureSource = `test_${crypto.randomUUID().replaceAll("-", "").slice(0, 24)}`;
     await mcp.call("create_entity_issuer", { code: fixtureSource, label: "시험 마켓" });
@@ -273,7 +273,7 @@ test("late archived lookup preserves newer identity and same-identity property e
           prop_3: null,
           prop_4: "a",
         },
-        display_properties: { prop_1: `보관된 값 ${number}` },
+
         source_label: source,
         tasks: { count: 0, items: [] },
         records: { count: 0, items: [] },
@@ -407,7 +407,7 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
           prop_3: null,
           prop_4: "a",
         },
-        display_properties: { prop_1: "옛 보관값" },
+
         source_label: source,
         tasks: { count: 0, items: [] },
         records: { count: 0, items: [] },

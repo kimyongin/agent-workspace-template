@@ -4,11 +4,11 @@
 
 ## 현재 계약
 
-자료는 `entity_type_id`·현재 `schema_version`·`properties.prop_n`을 제출한다. 속성 키는 서버가 발급하며 종류별 정의를 읽어 의미·라벨·값·제약을 해석한다. `get_entity`는 전체 properties를, 목록·연결 후보는 title/type/display_properties summary를 반환한다. 편집은 현재 schema_version과 expected_version을 함께 제출하며 생략한 속성은 보존한다. 현재 공간·자료 종류·정의 버전·실행자의 현재 권한 문맥을 다른 공간이나 자료에 재사용하지 않는다. 작성자는 접근 권한의 대체 기준이 아니다.
+자료는 `entity_type_id`·현재 `schema_version`·`properties.prop_n`을 제출한다. 속성 키는 서버가 발급하며 종류별 정의를 읽어 의미·라벨·값·제약을 해석한다. `get_entity`는 전체 properties를, 목록·연결 후보는 title/type summary를 반환한다. 편집은 현재 schema_version과 expected_version을 함께 제출하며 생략한 속성은 보존한다. 현재 공간·자료 종류·정의 버전·실행자의 현재 권한 문맥을 다른 공간이나 자료에 재사용하지 않는다. 작성자는 접근 권한의 대체 기준이 아니다.
 
 목록 URL은 `entity_type_id`와 JSON `property_filters`·`sort`를 쓰며 HTTP/MCP 입력은 `filters` 배열을 사용한다. 필터 초기화는 선택한 종류와 검색어를 보존한다. 종류를 바꾸면 속성 조건·정렬·페이지·cursor를 초기화한다. 정렬·조건 요약은 현재 정의의 라벨과 표시값을 사용한다.
 
-실제 E2E의 scalar fixture는 먼저 명시 종류를 만들고 호환 속성 변경안을 분석·게시한 뒤 자료를 저장한다. 브라우저 모의 adapter는 목록 summary와 단건 detail을 구분하고 properties 패치를 병합한 뒤 title/display_properties를 갱신한다. 할 일의 자료 연결 문맥은 type·schema_version을 함께 캡처하며, 기록은 자료 또는 할 일 하나의 불변 부모를 유지한다. fixture의 이름 변경은 전체 값·목록 표시·제목을 함께 변경한다.
+실제 E2E의 scalar fixture는 먼저 명시 종류를 만들고 호환 속성 변경안을 분석·게시한 뒤 자료를 저장한다. 브라우저 모의 adapter는 목록 summary와 단건 detail을 구분하고 properties 패치를 병합한 뒤 제목 템플릿으로 title을 갱신한다. 할 일의 자료 연결 문맥은 type·schema_version을 함께 캡처하며, 기록은 자료 또는 할 일 하나의 불변 부모를 유지한다. fixture의 이름 변경은 전체 값·템플릿 제목을 함께 변경한다.
 
 ## 보존한 과거 표현
 

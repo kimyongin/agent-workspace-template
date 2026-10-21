@@ -554,7 +554,7 @@ test("변환 미리보기는 속성 키처럼 생긴 저장 문자열도 원본 
   await expect(page.getByRole("table", { name: "자료 값 변환 결과 목록", exact: true }).getByText("원본 prop_0001 → 변환 prop_1", { exact: true })).toBeVisible();
 });
 
-test("입력 항목 안에서 대표·목록·순서 변경을 함께 취소하고 버튼도 섹션 안에 둔다", async ({ page }, info) => {
+test("입력 항목 안에서 제목·조건·순서 변경을 함께 취소한다", async ({ page }, info) => {
   const writes: string[] = [];
   page.on("request", (request) => {
     if (request.method() !== "GET" && request.url().includes("/api/")) writes.push(request.url());
@@ -563,24 +563,16 @@ test("입력 항목 안에서 대표·목록·순서 변경을 함께 취소하�
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   const section = page.getByRole("region", { name: "입력 항목", exact: true });
   await expect(page.getByRole("region", { name: "화면 표시", exact: true })).toHaveCount(0);
-  await expect(section.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true, includeHidden: true }))
-    .toBeChecked();
+  await expect(section.getByRole("textbox", { name: "제목 템플릿", exact: true })).toHaveText("재료명");
   await section.getByRole("button", { name: /^수량 항목 (?:펼치기|접기)$/, exact: true }).click();
   const quantity = page.getByRole("region", { name: "수량 입력 항목", exact: true });
-  await expect(quantity.getByLabel("수량 목록에 표시")).toBeHidden();
+  await expect(section.getByRole("radio")).toHaveCount(0);
   await quantity.getByText("추가 설정", { exact: true }).click();
   await quantity.getByLabel("필수 입력").check();
   await quantity.getByLabel("데이터 타입").selectOption("string");
-  const representative = quantity.getByRole("radio", { name: "수량 자료 이름으로 사용", exact: true });
-  await expect(representative).toBeEnabled();
   await revealSetting(quantity.getByLabel("최소 길이", { exact: true }));
-  await expect(quantity.getByLabel("최소 길이", { exact: true })).toHaveValue("1");
-  await representative.check();
-  await expect(representative).toBeChecked();
-  await section.getByRole("button", { name: /^단위 항목 (?:펼치기|접기)$/, exact: true }).click();
-  const unit = page.getByRole("region", { name: "단위 입력 항목", exact: true });
-  await unit.getByText("추가 설정", { exact: true }).click();
-  await unit.getByLabel("단위 목록에 표시").uncheck();
+  await quantity.getByLabel("최소 길이", { exact: true }).fill("1");
+  await section.getByRole("textbox", { name: "제목 템플릿", exact: true }).fill("$prop_2$");
   const quantityRow = businessRows(section.getByRole("table", { name: "입력 항목 목록", exact: true })).filter({ has: page.getByRole("button", { name: "수량 입력 항목 편집", exact: true }) });
   const move = quantityRow.getByRole("button", { name: "수량 위로", exact: true });
   await move.focus();
@@ -593,11 +585,9 @@ test("입력 항목 안에서 대표·목록·순서 변경을 함께 취소하�
   await expect(section.locator("[role=\"region\"][aria-label$=\" 입력 항목\"]").first().getByLabel("항목 이름", { exact: true })).toHaveValue("수량");
   await section.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(businessRows(section.getByRole("table", { name: "입력 항목 목록", exact: true })).first().getByRole("button", { name: "재료명 입력 항목 편집", exact: true })).toBeVisible();
-  await expect(unit.getByLabel("단위 목록에 표시")).toBeChecked();
   await expect(quantity.getByLabel("필수 입력")).not.toBeChecked();
   await expect(quantity.getByLabel("데이터 타입")).toHaveValue("number");
-  await expect(section.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true, includeHidden: true }))
-    .toBeChecked();
+  await expect(section.getByRole("textbox", { name: "제목 템플릿", exact: true })).toHaveText("재료명");
   await expect(section.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
   expect(writes).toEqual([]);
   await page.screenshot({ path: info.outputPath("integrated-settings.png"), fullPage: true });
@@ -711,16 +701,12 @@ test("새 행의 타입과 필수 설정은 단순하며 삭제 취소와 사용
   await expect(quantity.getByLabel("필수 입력")).not.toBeChecked();
   await expect(quantity.getByRole("button", { name: "다시 사용", exact: true }))
     .toBeEnabled();
-  await expect(page.getByLabel("수량 목록에 표시", { exact: true })).not
-    .toBeChecked();
-  await expect(page.getByLabel("수량 목록에 표시", { exact: true }))
-    .toBeDisabled();
+  await expect(page.getByLabel("수량 목록에 표시", { exact: true })).toHaveCount(0);
   expect(writes).toBe(0);
   await page.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(quantity.getByRole("button", { name: "사용 중지", exact: true }))
     .toBeVisible();
-  await expect(page.getByLabel("수량 목록에 표시", { exact: true }))
-    .toBeChecked();
+  await expect(page.getByLabel("수량 목록에 표시", { exact: true })).toHaveCount(0);
 });
 
 test("자료 폼에서 미입력과 명시적 null을 구분하고 0·false와 이전 정의를 보존한다", async ({ page }) => {
@@ -1200,7 +1186,7 @@ test("conversion preview distinguishes numeric zero from text zero and puts chan
   await expect(preview.getByLabel("가격 변환 방식", { exact: true })).toBeVisible();
 });
 
-test("first review includes reordered new fields, choice names, list display and the selected material name", async ({ page }) => {
+test("first review includes reordered new fields, choice names and the title template", async ({ page }) => {
   let posted: { edits: SchemaEdit[] } | undefined;
   await page.route(`**${base}`, (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: { items: [] } });
@@ -1215,8 +1201,6 @@ test("first review includes reordered new fields, choice names, list display and
   row = page.getByRole("region", { name: "상태 입력 항목", exact: true });
   await row.getByLabel("데이터 타입", { exact: true }).selectOption("select");
   await row.getByLabel("선택 항목 1", { exact: true }).fill("판매 중");
-  await revealSetting(row.getByLabel("상태 목록에 표시", { exact: true }));
-  await row.getByLabel("상태 목록에 표시", { exact: true }).check();
   await page.getByRole("button", { name: "항목 추가", exact: true }).click();
   row = page.getByRole("region", { name: "새 항목 입력 항목", exact: true });
   await row.getByLabel("항목 이름", { exact: true }).fill("새 이름");
@@ -1224,7 +1208,9 @@ test("first review includes reordered new fields, choice names, list display and
   await revealSetting(row.getByLabel("필수 입력", { exact: true }));
   await row.getByLabel("필수 입력", { exact: true }).check();
   await row.getByLabel("최소 길이", { exact: true }).fill("1");
-  await row.getByRole("radio", { name: "새 이름 자료 이름으로 사용", exact: true }).check();
+  await page.getByRole("textbox", { name: "제목 템플릿", exact: true }).fill("");
+  await page.getByRole("combobox", { name: "제목에 넣을 속성", exact: true }).click();
+  await page.getByRole("option", { name: "새 이름", exact: true }).click();
   await page.getByRole("button", { name: "새 이름 위로", exact: true }).click();
   await page.getByRole("button", { name: "새 이름 위로", exact: true }).click();
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
@@ -1232,9 +1218,13 @@ test("first review includes reordered new fields, choice names, list display and
   const additions = posted!.edits.filter((edit) => edit.op === "add_property");
   const status = additions.find((edit) => edit.field.title === "상태")!.field;
   const name = additions.find((edit) => edit.field.title === "새 이름")!.field;
-  expect(name).toMatchObject({ "x-representative": true, "x-order": 10 });
+  expect(name).toMatchObject({ "x-order": 10 });
+  expect(posted!.edits.find((edit) => edit.op === "set_metadata")).toMatchObject({
+    op: "set_metadata",
+    "x-title-template": expect.stringMatching(/\$new_[^$]+\$/),
+  });
   expect(status).toMatchObject({
-    "x-show-in-list": true,
+
     "x-order": 30,
     oneOf: [{ const: "option_1", title: "판매 중" }, { const: null }],
   });

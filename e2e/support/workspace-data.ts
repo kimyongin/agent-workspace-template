@@ -1,3 +1,4 @@
+import { renderEntityTitle } from "../../supabase/functions/_shared/contracts/entity-title-template.ts";
 import {
   APP_IDENTIFIER_RULE_ID,
   type EntityTypeIdentity,
@@ -84,7 +85,7 @@ export const fixtureSchema = (() => {
     },
   });
 
-  definition.schema.properties["prop_2"]["x-show-in-list"] = true;
+
   return {
     ...definition,
     type_id: fixtureType.id,
@@ -106,7 +107,7 @@ export const entity = (
   type: fixtureType,
   schema_version: 1,
   current_schema_version: 1,
-  title: String(properties.prop_1 ?? "자료"),
+  title: renderEntityTitle(fixtureSchema.schema, { prop_1: "자료", ...properties }, id(n)),
   properties: {
     prop_1: "자료",
     prop_2: 0,
@@ -114,10 +115,7 @@ export const entity = (
     prop_4: "a",
     ...properties,
   },
-  display_properties: {
-    prop_1: properties.prop_1 ?? "자료",
-    prop_2: properties.prop_2 ?? 0,
-  },
+
   tag_ids: [],
   tasks: { count: 0, items: [] },
   records: { count: 0, items: [] },

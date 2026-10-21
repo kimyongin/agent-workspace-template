@@ -12,7 +12,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
   try {
     const type = await mcp.call("create_entity_type", {
       label: unique("속성 편집"),
-      representative_label: "이름",
+      initial_property_label: "이름",
     });
     await workspace.grantKind(type.id);
     typeId = type.id;
@@ -60,8 +60,8 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     }).selectOption("value");
     await expect(count.getByLabel("기본값", { exact: true })).toHaveValue("0");
     await page.getByRole("button", { name: "변경 검토", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "변경 검토" }))
-      .toBeVisible();
+    await expect(inputSection).toBeVisible();
+    await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
     const plans = await mcp.call("list_entity_schema_changes", {
       type_id: typeId,
     });

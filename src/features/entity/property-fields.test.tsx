@@ -91,11 +91,9 @@ it("required empty inputs fail while optional null, zero and false remain distin
     prop_1: "이름",
     prop_2: null,
   });
-  for (const value of [null, "", "  "]) {
-    expect(() => propertyValues(definition, { prop_1: value })).toThrow(
-      "필수 항목",
-    );
-  }
+  expect(() => propertyValues(definition, { prop_1: null })).toThrow("값을 입력하세요");
+  expect(() => propertyValues(definition, { prop_1: "" })).toThrow("1자 이상");
+  expect(propertyValues(definition, { prop_1: "  " })).toEqual({ prop_1: "  " });
 });
 
 it("schema constraints reject invalid values beside the original field without changing drafts", () => {
@@ -184,7 +182,7 @@ it("required means presence while nullable null and unconstrained empty strings 
     prop_3: "",
   });
   expect(propertyValues(definition, { prop_1: "이름", prop_2: null, prop_3: "  " }).prop_3).toBe("  ");
-  expect(() => propertyValues(definition, { prop_1: " ", prop_2: null, prop_3: "" })).toThrow();
+  expect(propertyValues(definition, { prop_1: " ", prop_2: null, prop_3: "" })).toEqual({ prop_1: " ", prop_2: null, prop_3: "" });
 });
 
 it("keeps archived and readonly properties as named static values in the complete form", () => {
@@ -208,13 +206,19 @@ it("keeps archived and readonly properties as named static values in the complet
   expect(html).not.toContain('disabled=""');
 });
 
-it("keeps a readonly representative as the emphasized named heading in edit", () => {
+it("renders a readonly title-participating attribute as ordinary key/value in edit", () => {
   const definition = initialEntityDefinition("품명");
   definition.schema.properties.prop_1.readOnly = true;
   const html = renderToStaticMarkup(
     <PropertyFields definition={definition} values={{ prop_1: "변경 불가 상품" }} onChange={() => {}} errors={{}} />,
   );
-  expect(html).toMatch(/<h2[^>]*>변경 불가 상품<\/h2>/);
+  expect(html).toMatch(/<dd[^>]*>변경 불가 상품<\/dd>/);
+  expect(html).not.toContain("<h2");
   expect(html).toContain("읽기 전용");
   expect(html).not.toContain("<input");
+});
+
+it("validates title-participating text by its ordinary attribute constraints", () => {
+  const definition = initialEntityDefinition("이름");
+  expect(propertyValues(definition, { prop_1: " " })).toEqual({ prop_1: " " });
 });

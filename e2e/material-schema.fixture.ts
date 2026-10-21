@@ -934,8 +934,8 @@ test(
     });
 
     definition.schema.required.push("prop_4");
-    definition.schema.properties["prop_2"]["x-show-in-list"] = true;
-    definition.schema.properties["prop_3"]["x-show-in-list"] = true;
+
+
     await page.route(
       `**/api/entity-types/${materials.id}/schema`,
       (route) =>
@@ -990,20 +990,12 @@ test(
     });
     await expect(page.getByRole("region", { name: "화면 표시", exact: true }))
       .toHaveCount(0);
-    await expect(properties.getByRole("radiogroup", { name: "자료 이름으로 사용할 항목", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: /^재료명 항목 (?:펼치기|접기)$/, exact: true }).click();
-    await expect(properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true })).toBeChecked();
-    await expect(properties.getByRole("radio", { name: "수량 자료 이름으로 사용", exact: true })).toBeDisabled();
-    await page.getByRole("button", { name: /^표시 이름 항목 (?:펼치기|접기)$/, exact: true }).click();
-    await properties.getByRole("radio", { name: "표시 이름 자료 이름으로 사용", exact: true }).check();
-    await expect(properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true })).not.toBeChecked();
-    await expect(properties.getByRole("radio", { name: "표시 이름 자료 이름으로 사용", exact: true })).toBeChecked();
-    await properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true }).check();
-    await expect(properties.getByRole("radio", { name: "표시 이름 자료 이름으로 사용", exact: true })).not
-      .toBeChecked();
-    await page.getByRole("button", { name: /^표시 이름 항목 (?:펼치기|접기)$/, exact: true }).click();
-
-    await page.getByRole("button", { name: /^재료명 항목 (?:펼치기|접기)$/, exact: true }).click();
+    const titleTemplate = properties.getByRole("textbox", { name: "제목 템플릿", exact: true });
+    await expect(titleTemplate).toHaveText("재료명");
+    await titleTemplate.fill("$prop_3$");
+    await properties.getByRole("button", { name: "변경 취소", exact: true }).click();
+    await expect(titleTemplate).toHaveText("재료명");
+    await expect(properties.getByRole("radio")).toHaveCount(0);
     await expect(
       properties.getByRole("button", { name: "변경 검토", exact: true }),
     ).toBeDisabled();
@@ -1428,7 +1420,7 @@ test(
       title,
     }));
 
-    target.schema.properties["prop_2"]["x-show-in-list"] = true;
+
     target.schema.properties.prop_4.deprecated = true;
     let mismatch = true;
     await page.route(`**/api/entity-types/${materials.id}**`, (route) => {

@@ -32,8 +32,8 @@ if (new URLSearchParams(location.search).has("display-example")) {
     prop_3: { "x-order": 30, type: "string", title: "단위", oneOf: [{ const: "kg" }, { const: "g" }] },
   });
 
-  definition.schema.properties["prop_2"]["x-show-in-list"] = true;
-  definition.schema.properties["prop_3"]["x-show-in-list"] = true;
+
+
   definition.schema.properties.prop_3.oneOf = Object.entries({ kg: "킬로그램", g: "그램" }).map(([value, title]) => ({
     const: value,
     title,

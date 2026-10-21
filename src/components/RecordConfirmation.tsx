@@ -19,8 +19,9 @@ import { WorkspaceContext } from "../features/details/workspace-context.ts";
 export type ConfirmationValue = { label: string; value: ReactNode; fullWidth?: boolean };
 
 export interface RecordMemo { change_note?: string; change_tag_ids?: string[] }
-function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, message, data, record=true, excludeTag, preparing}: {
+function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, message, data, record=true, excludeTag, preparing, pendingEntityId}: {
   preparing?: boolean;
+  pendingEntityId?: boolean;
   data?: ConfirmationValue[];
   note: string; tags: string[]; onNote: (value: string) => void; onTags: (value: string[]) => void;
   errors: Record<string,string>; failure?: string | null; frozen: boolean; message?: ReactNode; record?: boolean; excludeTag?: string;
@@ -30,6 +31,7 @@ function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, 
     {message && <div className="text-sm">{message}</div>}
     {failure && <Notice kind="error">{failure}</Notice>}
     {record && preparing && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner />기록 메모 준비 중…</p>}
+    {record && pendingEntityId && <p className="text-sm text-muted-foreground">저장 후 발급되는 자료 번호로 기록 메모가 완성됩니다</p>}
     {record && <FieldSet disabled={frozen}><FieldGroup>
       <Field fullWidth label="기록 메모" error={errors.change_note}>{p => <Textarea {...p}  rows={4} value={note} onChange={e=>onNote(e.target.value)} placeholder="변경 내용과 이유를 작성하세요"/>}</Field>
       <div className="min-w-0"><TagPicker disabled={frozen} label="기록 태그" value={tags} error={errors.change_tag_ids} onChange={onTags} excludeId={excludeTag}/></div>
@@ -82,6 +84,7 @@ export function useRecordConfirmation(options: {
   const touched = useRef({ note: false, tags: false });
   const [preparing, setPreparing] = useState(false);
   const preparationReady = useRef(false);
+  const [pendingEntityId, setPendingEntityId] = useState(false);
   const preparationRun = useRef(0);
   const reject = (fields: Record<string, string>, message: string | null) => {
     setErrors(fields);
@@ -95,6 +98,7 @@ export function useRecordConfirmation(options: {
     setStage(kind);
     reject({}, null);
     const description = latest.current.describe(kind);
+    setPendingEntityId(false);
     if (!description.preparation || !description.record) {
       if (!touched.current.note) setNote(description.defaultNote);
       preparationReady.current = true;
@@ -108,6 +112,7 @@ export function useRecordConfirmation(options: {
       const result = await api<PreparedRecordMemo>("POST", "/records/prepare", request);
       if (run !== preparationRun.current) return;
       description.onPrepared?.(result);
+      setPendingEntityId("pending_entity_id" in result && result.pending_entity_id === true);
       if (!touched.current.note) setNote(result.change_note);
       if (!touched.current.tags) setTags(result.change_tag_ids);
       preparationReady.current = true;
@@ -144,7 +149,7 @@ export function useRecordConfirmation(options: {
     const local = description.record ? changeNoteErrors(note, false) : null;
     reject(local ?? {}, null);
     if (local) return;
-    const memo = { change_note: note, change_tag_ids: [...tags] };
+    const memo = { ...(pendingEntityId && !touched.current.note ? {} : { change_note: note }), change_tag_ids: [...tags] };
     const execute = description.execute;
     try {
       // Capture the actual operation and memo. WriteAttempt retains this closure on uncertainty.
@@ -163,7 +168,7 @@ export function useRecordConfirmation(options: {
     register({
       title: description.title, busy: busy || retaining, returnFocus: origin.current,
       body: <RecordMemoFields note={note} tags={tags} onNote={value => { touched.current.note = true; setNote(value); }} onTags={value => { touched.current.tags = true; setTags(value); }}
-        preparing={preparing}
+        preparing={preparing} pendingEntityId={pendingEntityId}
         errors={errors} failure={failure} frozen={!!options.disabled || busy || uncertain || preparing} record={description.record}
         data={description.data} message={description.message} excludeTag={description.excludeTag}/>,
       footer: <><Button variant="outline" type="button"  disabled={busy || retaining} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</Button>
@@ -173,7 +178,7 @@ export function useRecordConfirmation(options: {
       onCancel: cancel,
     });
     return () => register(null);
-  }, [register, options.open, options.visible, stage, note, tags, errors, failure, busy, uncertain, preparing,
+  }, [register, options.open, options.visible, stage, note, tags, errors, failure, busy, uncertain, preparing, pendingEntityId,
     options.disabled, retaining, description?.title, description?.label, description?.record, description?.danger, description?.excludeTag]);
   return { active: stage !== null, dirty: !!stage || touched.current.note || touched.current.tags || !!tags.length || uncertain,
     busy, uncertain, errors, failure, begin, write, reject };

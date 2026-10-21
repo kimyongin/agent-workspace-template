@@ -377,7 +377,7 @@ test("a late old type list cannot replace current rows", async ({ page }) => {
     const item = entitySummary.parse({
       id: `app:${kind.id}:result`, source: "app", external_id: "result", source_label: "앱", deleted_at: null,
       entity_type_id: kind.id, type: kind, schema_version: 1, current_schema_version: 1,
-      title: kind.label + " 결과", display_properties: { prop_1: kind.label + " 결과" }, tag_ids: [],
+      title: kind.label + " 결과",  tag_ids: [],
       version: 1, created_at: kind.created_at, updated_at: kind.updated_at,
     });
     try {
@@ -448,7 +448,7 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
     schema_version: 1,
     current_schema_version: 1,
     properties: { prop_1: "새 재료" },
-    display_properties: { prop_1: "새 재료" },
+
     title: "새 재료",
     tag_ids: [],
     version: 1,
@@ -553,7 +553,7 @@ test("type selection remains scoped while a returned list catalog is loading", a
     schema_version: 1,
     current_schema_version: 1,
     properties: { prop_1: "복귀 자료" },
-    display_properties: { prop_1: "복귀 자료" },
+
     title: "복귀 자료",
     tag_ids: [],
     version: 1,
@@ -644,7 +644,7 @@ test("definition history reads beyond the first hundred versions and opens the i
   const definition = oldestContent.getByRole("region", { name: "입력 항목 정의", exact: true });
   await expect(definition.getByRole("term").filter({ hasText: /^종류 이름$/ }).locator("..").getByRole("definition")).toHaveText("최초 이름");
   const field = definition.getByRole("row", { name: "최초 이름 정의", exact: true });
-  await expect((await valueCell(field, "자료 이름으로 사용")).getByText("사용", { exact: true })).toBeVisible();
+  await expect((await valueCell(field, "필수 입력")).getByText("예", { exact: true })).toBeVisible();
   await expect(definition.locator("input,select,textarea")).toHaveCount(0);
   await expect(oldestContent.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
   expect(readVersions).toContain(101);
@@ -765,7 +765,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     type: materials,
     source_label: "앱",
     current_schema_version: 1,
-    display_properties: { prop_1: "元の名前" },
+
     tasks: { items: [], count: 0 },
     records: { items: [], count: 0 },
     version: 1,
@@ -783,7 +783,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
         const input = route.request().postDataJSON();
         writes.push(input);
         Object.assign(entity, {
-          properties: input.properties, display_properties: input.properties,
+          properties: input.properties,
           title: input.properties.prop_1, version: 2,
         });
         return route.fulfill({ json: entity });
@@ -884,7 +884,7 @@ test("immutable entity edit exposes identity catalog read failure and preserves 
     deleted_at: null,
     source_label: "앱",
     current_schema_version: 1,
-    display_properties: { prop_1: "元の名前" },
+
     tasks: { items: [], count: 0 },
     records: { items: [], count: 0 },
     created_at: materials.created_at,
@@ -1030,7 +1030,7 @@ test(
     await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
     await page.screenshot({ path: info.outputPath("first-type.png"), fullPage: true });
     await page.getByLabel("자료 종류 이름", { exact: true }).fill("첫 자료");
-    await page.getByLabel("대표 입력 항목 이름", { exact: true }).fill("제목");
+    await page.getByLabel("첫 항목 이름", { exact: true }).fill("제목");
     await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(saved.id);
     await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();
@@ -1044,7 +1044,7 @@ test(
     await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)").uncheck();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
     await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option:checked")).toHaveText("첫 자료");
-    expect(writes).toMatchObject([{ label: "첫 자료", representative_label: "제목" }, {
+    expect(writes).toMatchObject([{ label: "첫 자료", initial_property_label: "제목" }, {
       archived: true,
     }, { archived: false }]);
   },
@@ -1190,7 +1190,7 @@ test("lost creation response replays one result and selects its workspace", asyn
   await page.goto(fixtureWorkspacePath("/settings/entity-types"));
   const name = page.getByLabel("자료 종류 이름", { exact: true });
   await name.fill("응답 유실 자료");
-  await page.getByLabel("대표 입력 항목 이름", { exact: true }).fill("제목");
+  await page.getByLabel("첫 항목 이름", { exact: true }).fill("제목");
   await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("저장 여부를 알 수 없습니다.");
   await expect(name).toHaveValue("응답 유실 자료");

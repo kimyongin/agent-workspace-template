@@ -28,7 +28,7 @@
 
 목록/상세/새 연결 capture의 현재 라벨·대표 이름·표시 순서·목록 컬럼·보관 표시는 현재 정의를 사용한다. 저장 schema_version은 마지막 저장 정의의 이력으로 유지한다. 과거 기록의 당시 제목/본문은 다시 쓰지 않는다.
 
-MCP는 `create/get/list/update/analyze/apply/discard_entity_schema_change`를 제공한다. create/update/analyze/apply/discard는 모두 request_key가 필요한 명시 쓰기다. 웹은 발급 전 추가 속성의 대표/목록/순서/선택 라벨도 같은 초안에서 편집한다. field의 x-order·x-representative·x-show-in-list·x-list-order·deprecated와 oneOf의 const/title로 표시 설정을 표현한다. migration.rules/overrides의 key는 같은 edits에 포함한 add_property의 `new_<client_ref>`를 참조할 수 있다. 서버가 이를 예약한 prop_n으로 해석한 target·migration만 저장하며, 추가가 없는 참조는 거절한다. 전송 결과가 불명확하면 동일 요청을 재확인하고, 완료 후 조회 실패는 게시 실패와 구분한다.
+MCP는 `create/get/list/update/analyze/apply/discard_entity_schema_change`를 제공한다. create/update/analyze/apply/discard는 모두 request_key가 필요한 명시 쓰기다. 웹은 제목 템플릿·발급 전 추가 속성의 순서·선택 라벨을 같은 초안에서 편집한다. 루트의 필수 x-title-template, field의 x-order·deprecated와 oneOf의 const/title로 표시 설정을 표현한다. migration.rules/overrides의 key는 같은 edits에 포함한 add_property의 `new_<client_ref>`를 참조할 수 있다. 서버가 이를 예약한 prop_n으로 해석한 target·migration만 저장하며, 추가가 없는 참조는 거절한다. 전송 결과가 불명확하면 동일 요청을 재확인하고, 완료 후 조회 실패는 게시 실패와 구분한다.
 
 자료 종류별 effective 기록 템플릿의 속성 참조가 target에서 존재하고 활성인지 검사한다. create/update/analyze/apply는 설정 잠금 아래 해당 타입의 effective 템플릿 SHA256을 비교한다. 다른 타입·할 일 템플릿 변경만으로 무관한 변경안을 stale로 만들지 않는다.
 
