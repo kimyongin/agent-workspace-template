@@ -466,7 +466,7 @@ dbTest(
           scopes: [{
             workspace_id: f.workspaceId,
             actor_id: f.manager.userId,
-            entity_ids: [],
+            entity_ids: [entity.id],
             retire_definitions: [{ type_id: retired.id, expected_schema_version: 1, schema_versions: [1] }],
           }],
         };
@@ -481,7 +481,11 @@ dbTest(
       );
       // The fixture owner explicitly removes its own fixture-only kind grant through
       // the public permission usecase. The reset itself never edits permissions.
-      await f.grant(f.manager, [{ target_kind: "settings", target_id: "*", access: "write" }]);
+      await f.grant(f.manager, [{ target_kind: "settings", target_id: "*", access: "write" }, {
+        target_kind: "tasks",
+        target_id: "*",
+        access: "write",
+      }]);
       const preserved =
         await admin`select * from private.workspace_grants where workspace_id=${f.workspaceId} order by user_id,target_kind,target_id`;
       const registry =
@@ -494,6 +498,9 @@ dbTest(
       assertEquals(plan.counts["app.entity_schema_versions"], 1);
       assertEquals((await runEntityReset(admin, manifest, plan)).mode, "applied");
       assertEquals((await runEntityReset(admin, manifest, plan)).mode, "already-clean");
+      const keptTask = await activity.getTask(taskDeps, f.manager, task.id);
+      assertEquals(keptTask.entity_ids, []);
+      assertEquals(keptTask.body, "업무 원문");
       assertEquals(
         (await admin`select id from app.entity_types where workspace_id=${f.workspaceId} and id=${retired.id}`).length,
         0,
