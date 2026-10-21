@@ -120,7 +120,7 @@ test('plan-only and invalid CLI options never invoke subprocesses or runtime ser
     const result = spawnSync(process.execPath, ['scripts/test-full.mjs', '--plan'], { env, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(JSON.parse(result.stdout).stages.length, 34);
-    for (const args of [['--unknown'], ['--actual-config', '/absent/config.ts'], ['--only', 'missing']]) {
+    for (const args of [['--unknown'], ['--actual-config', '/absent/config.ts'], ['--only', 'missing'], ['--only', 'actual,fixtures', '--workers', '2']]) {
       const invalid = spawnSync(process.execPath, ['scripts/test-full.mjs', ...args], { env, encoding: 'utf8' });
       assert.equal(invalid.status, 1);
     }
@@ -230,4 +230,15 @@ test('measurement options retain explicit worker and cache scope without adding 
   assert.equal(plan.results, undefined);
   assert.equal(plan.elapsedMs, undefined);
   for (const args of [['--workers', '0'], ['--cache-state', 'maybe'], ['--report', 'relative.json']]) assert.throws(() => fullTestPlan(args));
+});
+
+test('actual API browser scope refuses parallel worker overrides before runtime acquisition while fixtures retain them', async () => {
+  const { fullTestPlan } = await import('./test-run-plan.mjs');
+  for (const args of [['--workers', '2'], ['--only', 'actual', '--workers', '3'], ['--plan', '--only', 'actual,fixtures', '--workers', '2']]) {
+    assert.throws(() => fullTestPlan(args), /one worker/);
+  }
+  const actual = fullTestPlan(['--only', 'actual', '--workers', '1']);
+  assert.deepEqual(actual.stages[0].args.slice(-2), ['--workers', '1']);
+  const fixtures = fullTestPlan(['--only', 'fixtures', '--workers', '3']);
+  assert.ok(fixtures.stages.every(stage => stage.args.slice(-2).join(' ') === '--workers 3'));
 });

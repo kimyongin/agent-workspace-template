@@ -57,6 +57,9 @@ export function fullTestPlan(args) {
     throw new Error('Unknown or repeated --only test scope');
   }
   const selected = stages.filter(stage => !only || only.includes(stage.id) || only.includes(stage.group));
+  if (workers > 1 && selected.some(stage => stage.id === 'actual')) {
+    throw new Error('Actual API browser scope requires one worker; parallel overrides are for fixture-only browser scopes');
+  }
   if (runtimeConfig && actualConfig === 'playwright.config.ts' && selected.some(stage => stage.id === 'actual')) {
     throw new Error('An isolated runtime requires an explicit --actual-config for its browser scope');
   }
