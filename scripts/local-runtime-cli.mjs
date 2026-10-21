@@ -189,12 +189,32 @@ export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
 
   const childRunning = child => Number.isInteger(child.pid) && !child.spawnFailed && child.exitCode === null && child.signalCode === null;
 
+  async function cleanupFixtureWebServer({ child, release, finishSamples }) {
+    const errors = [], cleanup = { child: child ? 'pending' : 'not-started', resources: 'pending', lease: 'pending' };
+    let resources;
+    if (child) {
+      try { await stopChild(child); cleanup.child = 'stopped'; }
+      catch (error) { cleanup.child = 'failed'; errors.push({ phase: 'fixture-web-child-cleanup', error }); }
+    }
+    try {
+      resources = { ...finishSamples(), target: 'runner process tree summed RSS including owned Vite and sequential Playwright; excludes Docker/VM and reparented children' };
+      cleanup.resources = 'collected';
+    } catch (error) { cleanup.resources = 'failed'; errors.push({ phase: 'fixture-web-resource-cleanup', error }); }
+    // A failed child stop must never prevent attempting release of our exact lease.
+    try { release(); cleanup.lease = 'released'; }
+    catch (error) { cleanup.lease = 'failed'; errors.push({ phase: 'fixture-web-lease-cleanup', error }); }
+    return { fixtureCleanupErrors: errors, fixtureCleanup: cleanup, fixtureResources: resources };
+  }
+
   async function startFixtureWebServer(signal) {
     const release = acquireRuntimeLock('fixture-web:127.0.0.1:56883');
     const finishSamples = startProcessSamples(process.pid);
     let child;
+    const interruption = () => Object.assign(new Error('Fixture web preparation interrupted'), {
+      code: null, signal: ['SIGINT', 'SIGTERM'].includes(signal?.reason) ? signal.reason : null, interrupted: true,
+    });
     try {
-      if (signal?.aborted) throw new Error('Fixture web preparation interrupted');
+      if (signal?.aborted) throw interruption();
       child = launch(process.execPath, ['scripts/fixture-web-server.mjs'], ['ignore', 'inherit', 'inherit', 'ipc'], {
         ...env, VITE_SUPABASE_URL: 'http://127.0.0.1:56884', VITE_API_URL: 'http://127.0.0.1:56884/api',
         VITE_SUPABASE_PUBLISHABLE_KEY: 'fixture-public-key', VITE_DEV_LOGIN: 'true',
@@ -203,12 +223,12 @@ export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
         const ready = message => {
           if (message?.ready === 'settings-model' && message.pid === child.pid && childRunning(child)) { clean(); resolve(); }
         };
-        const abort = () => { clean(); reject(new Error('Fixture web preparation interrupted')); };
+        const abort = () => { clean(); reject(interruption()); };
         const exited = () => {
           clean();
           reject(Object.assign(new Error('Owned fixture web server failed to start'), { code: child.exitCode, signal: child.signalCode, spawnFailed: Boolean(child.spawnFailed) }));
         };
-        const timer = setTimeout(() => { clean(); reject(new Error('Fixture web preparation timed out')); }, 30_000);
+        const timer = setTimeout(() => { clean(); reject(Object.assign(new Error('Fixture web preparation timed out'), { code: null, signal: null, timedOut: true })); }, 30_000);
         const clean = () => {
           clearTimeout(timer); child.off('message', ready); child.off('close', exited); child.off('error', exited);
           signal?.removeEventListener('abort', abort);
@@ -219,20 +239,18 @@ export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
       });
       return { child, release, finishSamples };
     } catch (error) {
-      try { if (child) await stopChild(child); }
-      finally { finishSamples(); release(); }
+      // Keep the primary preparation outcome; cleanup hazards are separate facts.
+      Object.assign(error, await cleanupFixtureWebServer({ child, release, finishSamples }));
       throw error;
     }
   }
 
   async function stopFixtureWebServer(server) {
-    try { await stopChild(server.child); }
-    finally {
-      const resources = server.finishSamples();
-      server.resources = { ...resources, target: 'runner process tree summed RSS including owned Vite and sequential Playwright; excludes Docker/VM and reparented children' };
-      server.release();
+    const cleanup = await cleanupFixtureWebServer(server);
+    if (cleanup.fixtureCleanupErrors.length) {
+      throw Object.assign(new AggregateError(cleanup.fixtureCleanupErrors.map(item => item.error), 'Owned fixture cleanup failed'), cleanup);
     }
-    return server.resources;
+    return cleanup.fixtureResources;
   }
 
   return {

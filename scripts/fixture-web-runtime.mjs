@@ -13,7 +13,7 @@ export function groupFixtureStages(stages) {
 
 export async function runFixtureWebGroup(stages, adapter, signal, execute) {
   const started = performance.now(), timings = {};
-  let server, result, resources, preparationFailure;
+  let server, result, resources, preparationFailure, cleanup;
   const errors = [];
   try {
     server = await adapter.startFixtureWebServer(signal);
@@ -24,14 +24,20 @@ export async function runFixtureWebGroup(stages, adapter, signal, execute) {
   } catch (error) {
     timings.preparationMs ??= performance.now() - started;
     if (Number.isInteger(error.code) || error.code === null) {
-      preparationFailure = { code: error.code, signal: error.signal ?? null, spawnFailed: Boolean(error.spawnFailed) };
+      preparationFailure = { code: error.code, signal: error.signal ?? null, spawnFailed: Boolean(error.spawnFailed), interrupted: Boolean(error.interrupted), timedOut: Boolean(error.timedOut) };
     }
-    errors.push({ phase: 'fixture-web-preparation', error });
+    errors.push({ phase: 'fixture-web-preparation', error }, ...(error.fixtureCleanupErrors ?? []));
+    cleanup = error.fixtureCleanup;
+    resources = error.fixtureResources;
   } finally {
     const cleanupStarted = performance.now();
     if (server) {
       try { resources = await adapter.stopFixtureWebServer(server); }
-      catch (error) { errors.push({ phase: 'fixture-web-cleanup', error }); }
+      catch (error) {
+        errors.push(...(error.fixtureCleanupErrors ?? [{ phase: 'fixture-web-cleanup', error }]));
+        cleanup = error.fixtureCleanup;
+        resources = error.fixtureResources;
+      }
     }
     timings.cleanupMs = performance.now() - cleanupStarted;
     timings.totalMs = performance.now() - started;
@@ -41,5 +47,5 @@ export async function runFixtureWebGroup(stages, adapter, signal, execute) {
   return { results: result?.results ?? stages.map(stage => ({ label: stage.id, skipped: true,
     reason: interrupted ? 'interrupted' : 'fixture web preparation failed' })),
     errors: [...(result?.errors ?? []), ...errors], exitCode,
-    metric: { group: 'settings-model', stages: stages.map(stage => stage.id), timings, resources, preparationFailure } };
+    metric: { group: 'settings-model', stages: stages.map(stage => stage.id), timings, resources, preparationFailure, cleanup } };
 }

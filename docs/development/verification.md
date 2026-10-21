@@ -144,7 +144,7 @@ worker override가 없으면 설정이 소유하는 수를 관찰하지 못했�
 
 공유 실행기는 고정된 개발 서버를 정확한 자식 프로세스로 만들고, strict port listen 및 HTTP 준비 후 해당 자식의 IPC 응답으로 준비 완료를 확인한다. 모르는 서버를 채택하는 `reuseExistingServer`는 사용하지 않는다. 포트용 배타 lease를 얻은 실행만 시작하며, 실패·중단·정리에서도 그 실행의 프로세스 그룹과 lease만 다룬다. 살아 있는 소유 자식의 PID를 해당 세 설정의 검사 프로세스에만 전달하고 그 범위에서 Playwright의 별도 서버 시작을 생략한다. 이 내부 handoff 환경변수를 단독 명령에 직접 설정하지 않는다.
 
-구조화 보고서의 `fixtureWebMetrics`는 그룹 준비(프로세스 생성부터 HTTP/IPC 준비까지), 검사, 정리, 전체 시간을 기록한다. 설정별 시간은 공유 Vite 준비/정리를 제외한다. 그룹 RSS는 runner와 소유 Vite 및 현재 순차 Playwright 자손을 같은 시점에 합한 KiB 표본이며 설정별 자식 RSS와 범위가 다르므로 최대값을 합산하지 않는다. 공유 페이지 중복, 표본 사이 peak, Docker/VM·재부모화 한계는 위 기준과 같다.
+구조화 보고서의 `fixtureWebMetrics`는 그룹 준비(프로세스 생성부터 HTTP/IPC 준비까지), 검사, 정리, 전체 시간을 기록한다. 준비 종료 코드·신호·중단/timeout 여부는 `preparationFailure`로 보존하며, 준비 실패와 겹친 자식·표본·lease 정리 오류는 각각 별도 phase로 남긴다. 자식 stop이 실패해도 표본 정리와 정확한 lease 해제를 시도한다. `cleanup`의 실패 상태를 정리 완료로 바꾸거나 소유권이 바뀐 lease를 지우지 않는다. 설정별 시간은 공유 Vite 준비/정리를 제외한다. 그룹 RSS는 runner와 소유 Vite 및 현재 순차 Playwright 자손을 같은 시점에 합한 KiB 표본이며 설정별 자식 RSS와 범위가 다르므로 최대값을 합산하지 않는다. 공유 페이지 중복, 표본 사이 peak, Docker/VM·재부모화 한계는 위 기준과 같다.
 
 2026-10-22 독점 브라우저 시간에 main `3e82f99f`와 서버 공유 적용 `1adeefb9`를 순차 비교했다. 앱 `src`·공유 contracts·세 fixture 시나리오의 Git object가 동일하며, 파일/검사 이름/프로젝트 목록 118건도 정확히 일치한다. 둘 다 같은 순서(기본 문구→발급처→모델)·workers=1·warm으로 117건 통과, 의도된 mobile 폭 전환 제외 1건, 실패/재시도 0건이었다.
 
