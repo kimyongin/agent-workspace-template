@@ -434,6 +434,22 @@ dbTest(
     try {
       const retired = await f.createKind("명시 폐기 정의"), compatible = await f.createKind("호환 정의 보존");
       await f.grantKind(f.manager, retired.id, "write");
+      await f.grant(f.manager, [{ target_kind: "settings", target_id: "*", access: "write" }, {
+        target_kind: "tasks",
+        target_id: "*",
+        access: "write",
+      }, { target_kind: "entity_type", target_id: retired.id, access: "write" }]);
+      const entity = await entities.createEntity(entityDeps, businessRequest(f.manager), {
+        entity_type_id: retired.id,
+        schema_version: 1,
+        properties: { prop_1: "연결 정리" },
+      });
+      const task = await activity.createTask(taskDeps, businessRequest(f.manager), {
+        kind: "once",
+        title: "종류 권한을 옮기지 않고 보존",
+        body: "업무 원문",
+        entity_ids: [entity.id],
+      });
       // A predecessor-shaped definition belongs only to this disposable fixture.
       // Normal reset runs with every FK/trigger enabled; no guard is bypassed by reset.
       await admin.begin(async (tx) => {

@@ -332,16 +332,6 @@ export async function runEntityReset(sql, manifest, approval) {
       const ids = new Set(selection["app.entities"].filter((e) => e.workspace_id === null && e.owner_id === row.owner_id).map((e) => e.id));
       await tx`update app.records set entity_ids=${(row.entity_ids ?? []).filter((id) => !ids.has(id))}::text[],entity_context=${tx.json((row.entity_context ?? []).filter((r) => !ids.has(r.id)))} where workspace_id is null and owner_id=${row.owner_id} and id=${row.id}`;
     }
-    for (const scope of manifest.scopes) {
-      await selectMutationContext(scope.workspace_id);
-      const ids = new Set(scope.entity_ids);
-      for (const row of selection["app.tasks"].filter((r) => r.workspace_id === scope.workspace_id)) {
-        const entityIds = (row.entity_ids ?? []).filter((id) => !ids.has(id));
-        const context = (row.entity_context ?? []).filter((item) => !ids.has(item.id));
-        await tx`update app.tasks set entity_ids=${entityIds}::text[],entity_context=${tx.json(context)},version=version+1,updated_at=clock_timestamp()
-          where workspace_id=${scope.workspace_id} and id=${row.id}`;
-      }
-    }
     const deleteRows = async (table, key) => {
       for (const row of selection[table]) {
         await selectMutationContext(row.workspace_id ?? row.message?.workspace_id ?? null);
@@ -389,6 +379,20 @@ export async function runEntityReset(sql, manifest, approval) {
     await deleteRows("app.record_tags", ["workspace_id", "record_id", "tag_id"]);
     await deleteRows("app.records", ["workspace_id", "id"]);
     await deleteRows("app.entities", ["workspace_id", "id"]);
+    // Historical selection guards require read access to removed live kinds.
+    // Delete exactly the approved entities first; their no-longer-live task
+    // references can then be cleared with the actor's unchanged tasks grant.
+    // The same transaction keeps every FK and guard enabled throughout.
+    for (const scope of manifest.scopes) {
+      await selectMutationContext(scope.workspace_id);
+      const ids = new Set(scope.entity_ids);
+      for (const row of selection["app.tasks"].filter((r) => r.workspace_id === scope.workspace_id)) {
+        const entityIds = (row.entity_ids ?? []).filter((id) => !ids.has(id));
+        const context = (row.entity_context ?? []).filter((item) => !ids.has(item.id));
+        await tx`update app.tasks set entity_ids=${entityIds}::text[],entity_context=${tx.json(context)},version=version+1,updated_at=clock_timestamp()
+          where workspace_id=${scope.workspace_id} and id=${row.id}`;
+      }
+    }
     for (const row of selection["app.entity_relation_definitions"].filter((r) => r.workspace_id !== null)) {
       await selectMutationContext(row.workspace_id);
       await tx`delete from app.entity_relation_definitions where workspace_id=${row.workspace_id} and id=${row.id}`;
