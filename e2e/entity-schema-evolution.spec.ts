@@ -235,11 +235,12 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     await expect(discardedContent.locator(`a[href*="change_id=${change.id}"]`)).toHaveCount(1);
     await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-    await expect(businessRows(page.getByRole("table", { name: "입력 항목 목록", exact: true })))
-      .toHaveCount(2);
-    await expect(page.getByRole("region", { name: "이름 입력 항목", exact: true })).toBeVisible();
-    await expect(page.getByRole("region", { name: "식별자 입력 항목", exact: true })).toBeVisible();
-    await expect(page.getByRole("region", { name: "메모 입력 항목", exact: true })).toHaveCount(0);
+    const inputs = page.getByRole("table", { name: "입력 항목 목록", exact: true });
+    const fields = businessRows(inputs);
+    await expect(fields).toHaveCount(2);
+    await expect(fields.nth(0)).toHaveAttribute("aria-label", "이름 입력 항목");
+    await expect(fields.nth(1)).toHaveAttribute("aria-label", "식별자 입력 항목");
+    await expect(inputs.getByRole("row", { name: "메모 입력 항목", exact: true })).toHaveCount(0);
   } finally {
     await mcp.close();
   }
