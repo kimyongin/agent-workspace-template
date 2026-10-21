@@ -20,7 +20,7 @@ Deno.test("entity read title composes stable property references and literals wi
   assertEquals(properties, { prop_1: "초록상점", prop_2: "서울" });
 });
 
-Deno.test("entity title read formatting preserves scalar meanings, escapes and legacy titles", () => {
+Deno.test("entity title read formatting preserves scalar meanings, escapes and record-editor placeholder syntax", () => {
   const { schema } = initialEntityDefinition("고객명");
   schema.properties.prop_2 = { type: "boolean", "x-order": 20 };
   schema.properties.prop_3 = { type: "number", "x-order": 30 };
@@ -50,9 +50,9 @@ Deno.test("entity title read formatting preserves scalar meanings, escapes and l
   assertEquals(read("고정 제목", {}), "고정 제목");
   schema.properties.prop_1.title = "바뀐 고객명";
   assertEquals(read("$prop_1$", { prop_1: "초록상점" }), "초록상점");
-  delete schema["x-title-template"];
+  schema["x-title-template"] = "";
   const before = structuredClone(schema);
-  assertEquals(entityPresentationRow(row, { prop_1: "기존 제목" }).title, "기존 제목");
+  assertEquals(entityPresentationRow(row, { prop_1: "기존 제목" }).title, "고객-1");
   assertEquals(schema, before);
 });
 

@@ -25,7 +25,8 @@ dbTest("type foundation: explicit creation, workspace isolation, immutable versi
     const second = await createEntityType(d, requestActor(a.manager), { label: "상품" });
     const definition = await getEntitySchema(d, a.manager, { type_id: first.id });
     assertEquals(definition.schema.required, ["prop_1"]);
-    assertEquals(definition.schema.properties.prop_1["x-representative"], true);
+    assertEquals(definition.schema["x-title-template"], "$prop_1$");
+    assertEquals("x-representative" in definition.schema.properties.prop_1, false);
     assertEquals((await getEntitySchema(d, a.manager, { type_id: second.id })).schema_version, 1);
     assertEquals((await listEntityTypes(d, b.manager)).items, []);
     assertEquals((await assertRejects(() => getEntityType(d, b.manager, first.id), AppError)).code, "not_found");

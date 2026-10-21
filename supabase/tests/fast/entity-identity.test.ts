@@ -77,7 +77,7 @@ Deno.test("Entity registration uses exact namespaced identity and rejects active
         type: definition.type,
         title: String(i.properties.prop_1),
         current_schema_version: 1,
-        display_properties: i.properties,
+
         version: 1,
         deleted_at: null,
       };
@@ -137,7 +137,7 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
         type: definition.type,
         title: String(i.properties.prop_1),
         current_schema_version: 1,
-        display_properties: i.properties,
+
         source_label: i.source,
         created_at: "2026-10-09T00:00:00Z",
         updated_at: "2026-10-09T00:00:00Z",
@@ -318,7 +318,7 @@ Deno.test("Registration rejects stale type identity and retired creation while e
           type: definition.type,
           title: "고객",
           current_schema_version: 1,
-          display_properties: input.properties,
+
           tag_ids: [],
           source_label: "CRM",
           version: 1,
