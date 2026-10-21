@@ -2,7 +2,6 @@ import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { listHeader, openMainNavigation, openProfileMenu } from "./ui-actions.ts";
 import {
-  fixtureIdentity,
   fixtureSchema,
   fixtureType,
 } from "./support/workspace-data.ts";
@@ -20,8 +19,6 @@ test.beforeEach(async ({ page, baseURL }) => {
       await route.fulfill({
         json: url.pathname.endsWith("/schema")
           ? fixtureSchema
-          : url.pathname.endsWith("/identity")
-          ? fixtureIdentity()
           : fixtureType,
       });
     } else if (url.pathname.endsWith("/settings/business")) {
@@ -71,9 +68,15 @@ test("업무 메뉴와 프로필은 320~1440px와 200%에서 조작 가능하다
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 }); await page.goto(fixtureWorkspacePath("/settings"));
     await expect(page.getByRole("banner").getByText("Workspace", { exact: true })).toBeVisible();
+    const spaces = page.getByRole("region", { name: "워크스페이스", exact: true }).getByRole("link", { name: "공간 목록 · 새 공간", exact: true });
+    await expect(spaces).toHaveAttribute("href", "/workspaces");
+    await expect(spaces).toBeVisible();
     await openNavigation(page);
     const nav = page.getByRole("navigation", { name: "주 메뉴" });
-    await expect(nav.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute("href", "/workspaces");
+    const switcher = nav.getByRole("button", { name: "공간 선택", exact: true });
+    await expect(switcher).toBeVisible();
+    const switcherBox = (await switcher.boundingBox())!;
+    expect(switcherBox.width).toBeGreaterThanOrEqual(44); expect(switcherBox.height).toBeGreaterThanOrEqual(44);
     for (const name of [fixtureType.label, "할 일", "기록"]) {
       const link = nav.getByRole("link", { name, exact: true }); await expect(link).toBeVisible();
       const box = (await link.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);

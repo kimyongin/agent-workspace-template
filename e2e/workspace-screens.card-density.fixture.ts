@@ -15,7 +15,7 @@ test("카드 밀도와 선택 속성·펼친 기본 정보의 정렬은 화면 �
   const trigger = page.getByRole("button", { name: title, exact: true });
   const row = page.getByRole("listitem").filter({ has: trigger });
   await trigger.press("Enter");
-  await expect(row.getByText("자료 번호", { exact: true })).toBeVisible();
+  await expect(row.getByRole("term").filter({ hasText: /^식별자 · 자료 식별자$/ })).toBeVisible();
   await page.evaluate(() => document.fonts.ready.then(() => {}));
   for (const width of [390, 1440, 2410]) {
     await page.setViewportSize({ width, height: 1100 });
@@ -36,7 +36,7 @@ test("카드 밀도와 선택 속성·펼친 기본 정보의 정렬은 화면 �
           left: grid.getBoundingClientRect().left, columns: getComputedStyle(grid).gridTemplateColumns })) };
     }, { value: await row.getByRole("definition").last().elementHandle(), title: await trigger.elementHandle(),
       property: width >= 1440 ? await row.getByText("날짜", { exact: true }).elementHandle() : null,
-      identity: width >= 1440 ? await row.getByText("번호 출처", { exact: true }).elementHandle() : null });
+      identity: width >= 1440 ? await row.getByRole("term").filter({ hasText: /^식별자 · 자료 식별자$/ }).elementHandle() : null });
     expect(geometry.bottomGap).toBeLessThanOrEqual(24);
     if (width >= 1440) {
       if (geometry.width >= 800) expect(geometry.titleWidth).toBeLessThan(geometry.width / 2);

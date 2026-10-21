@@ -53,7 +53,7 @@ export function receiptChange(value: ModelChange): ModelChange {
     review: {
       ...value.review,
       items: value.review.items.map((
-        { schema: _s, current_schema: _c, identity: _i, current_identity: _ci, ...item },
+        { schema: _s, current_schema: _c, ...item },
       ) => ({ ...item, diff: [] })),
     },
   };
@@ -94,12 +94,12 @@ export class SqlDataModelStore implements DataModelStore {
         count: 0,
         locked: r.schema_write_locked,
       }])),
-      identity_usage: {},
+      identifier_usage: {},
       rule_usage: {},
       relation_usage: {},
     };
     if (!intent || intent.mode === "copy") return snapshot;
-    const mapped = await resolveModel(snapshot, intent.document, intent.mode, this.workspaceId);
+    const mapped = await resolveModel(snapshot, intent.document, intent.mode, this.workspaceId, true);
     const kinds = new Set<string>(), relations = new Set<string>(), rules = new Set<string>();
     for (const target of mapped.target.entity_types) {
       const id = target.schema["x-type-id"], old = document.entity_types.find((t) => t.schema["x-type-id"] === id);
@@ -108,8 +108,11 @@ export class SqlDataModelStore implements DataModelStore {
         schemaDefinitionDiff({ schema: old.schema }, { schema: target.schema }).some((d) =>
           d.kind === "migration_required"
         ) ||
-        old.identity.sources.some((source) =>
-          !target.identity.sources.some((n) => n.code === source.code && n.rule_id === source.rule_id)
+        old.schema["x-identity-property"] !== target.schema["x-identity-property"] ||
+        Object.entries(old.schema.properties).some(([key, field]) =>
+          field["x-identifier"]?.allowed_kind_ids.some((kind) =>
+            !target.schema.properties[key]?.["x-identifier"]?.allowed_kind_ids.includes(kind)
+          )
         )
       ) {
         kinds.add(id);
@@ -119,9 +122,6 @@ export class SqlDataModelStore implements DataModelStore {
       const old = document.identity_definitions.rules.find((r) => r.id === target.id);
       if (!old || old.meaning === target.meaning) continue;
       rules.add(old.id);
-      for (const type of document.entity_types) {
-        if (type.identity.sources.some((source) => source.rule_id === old.id)) kinds.add(type.schema["x-type-id"]);
-      }
     }
     const ends = (r: DataModelDocument["relations"][number], d: DataModelDocument) =>
       r.ends.map((e) => ({
@@ -136,6 +136,15 @@ export class SqlDataModelStore implements DataModelStore {
         if (e.type && snapshot.types[e.type]) kinds.add(e.type);
       }
     }
+    if (rules.size) {
+      const references = await this.tx`select r.id,exists(select 1 from app.entity_schema_versions v,
+        lateral jsonb_each(v.schema->'properties') p where v.workspace_id=r.workspace_id
+        and p.value->'x-identifier'->'allowed_kind_ids' ? r.id::text) as referenced
+        from app.entity_identifier_rules r where r.workspace_id=${this.workspaceId}::uuid and r.id=any(${[
+        ...rules,
+      ]}::uuid[])`;
+      for (const row of references) snapshot.rule_usage![row.id] = row.referenced;
+    }
     if (!kinds.size) return snapshot;
     const ids = [...kinds].sort();
     // Resolve targets from current stored definitions, then authorize before
@@ -148,12 +157,15 @@ export class SqlDataModelStore implements DataModelStore {
     for (const row of facts) {
       Object.assign(snapshot.types[row.id], { count: Number(row.count), membership: row.membership });
     }
-    const sources = await this.tx`select type_id,code,rule_id,referenced from app.entity_type_identity_sources
-      where workspace_id=${this.workspaceId}::uuid and type_id=any(${ids}::uuid[]) order by type_id,code`;
-    for (const source of sources) {
-      if (source.referenced) (snapshot.identity_usage![source.type_id] ??= {})[source.code] = source.rule_id;
-      if (source.referenced && rules.has(source.rule_id)) snapshot.rule_usage![source.rule_id] = true;
-    }
+    const identifiers = await this
+      .tx`select e.entity_type_id,p.key,array_agg(distinct app.identifier_kind(p.value #>> '{}')::text) as kinds
+      from app.entities e cross join lateral jsonb_each(e.properties) p
+      join app.entity_types t on t.workspace_id=e.workspace_id and t.id=e.entity_type_id
+      join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version
+      where e.workspace_id=${this.workspaceId}::uuid and e.entity_type_id=any(${ids}::uuid[])
+      and v.schema->'properties'->p.key ? 'x-identifier' and p.value<>'null'::jsonb
+      group by e.entity_type_id,p.key`;
+    for (const row of identifiers) (snapshot.identifier_usage![row.entity_type_id] ??= {})[row.key] = row.kinds;
     if (relations.size) {
       const usage = await this.tx`select d.id,
         (select count(*)::int from app.entity_relation_links l where l.workspace_id=d.workspace_id and l.definition_id=d.id) as links,

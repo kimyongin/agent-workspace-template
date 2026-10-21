@@ -17,17 +17,7 @@ for (const model of ["entity", "task"] as const) {
       try {
         if (model === "entity") {
           const type = await scalarFixtureType(mcp, workspace);
-          const identity = await mcp.call("get_entity_type_identity", {
-            type_id: type.id,
-          });
-          target = await createFixtureEntity(
-            mcp,
-            workspace, { prop_1: title, prop_2: 0 },
-            {
-              source: identity.default_source,
-              identity_version: identity.version,
-            },
-          );
+          target = await createFixtureEntity(mcp, workspace, { prop_1: title, prop_2: 0 });
         } else {
           const created = await mcp.call("create_task", { kind: "once", title });
           target = { id: created.id, version: created.version };

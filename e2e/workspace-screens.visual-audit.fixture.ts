@@ -123,9 +123,11 @@ for (const width of [390, 1440]) {
         const target = await menu.evaluate(node => node.getBoundingClientRect().toJSON());
         expect(target.width).toBeGreaterThanOrEqual(44);
         expect(target.height).toBeGreaterThanOrEqual(44);
-        for (const title of ["기본 정보", "자료 번호", "입력 항목"]) {
+        for (const title of ["기본 정보", "입력 항목"]) {
           await page.getByRole("button", { name: title, exact: true }).click();
         }
+        await page.getByRole("button", { name: "식별자 항목 펼치기", exact: true }).click();
+        await expect(page.getByRole("region", { name: "식별자 입력 항목", exact: true }).getByLabel("기본 식별자 종류", { exact: true })).toBeVisible();
       }
       if (name.endsWith("-detail")) {
         for (const list of await page.locator("[data-slot='item-group']:empty").all()) {

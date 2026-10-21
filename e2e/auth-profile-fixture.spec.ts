@@ -19,7 +19,8 @@ async function closeNavigation(page: Page) {
 async function requestWorkspacePicker(page: Page) {
   const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
   await expect(navigation.getByRole("link", { name: /^(전체 자료|할 일|기록)$/, exact: true })).toHaveCount(0);
-  const destination = navigation.getByRole("link", { name: "Workspace", exact: true });
+  await closeNavigation(page);
+  const destination = page.getByRole("region", { name: "워크스페이스", exact: true }).getByRole("link", { name: "공간 목록 · 새 공간", exact: true });
   await expect(destination).toHaveAttribute("href", "/workspaces");
   await destination.click();
 }
