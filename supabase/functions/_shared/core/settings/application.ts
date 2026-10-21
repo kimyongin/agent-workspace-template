@@ -88,6 +88,7 @@ export function prepareBusinessRecord(
       before = target.facts;
     }
     const connectingTags = input.intent === "tag-connections";
+    let pendingIdentifierGeneration = false;
     let content: Record<string, unknown> = connectingTags ? tagConnectionSelection.parse(input.input) : input.input;
     if (input.model === "entity" && input.action === "update") assertImmutableType(content);
     let prepared_input = content;
@@ -161,10 +162,15 @@ export function prepareBusinessRecord(
         }
       }
       const resolved = await resolveIdentifierProperties(
-        definition, preview, intents, input.action === "create", before?.properties ?? {},
+        definition,
+        preview,
+        intents,
+        input.action === "create",
+        before?.properties ?? {},
         () => Promise.resolve("자동 발급"),
       );
       const generated = new Set(resolved.generated_keys);
+      pendingIdentifierGeneration = generated.size > 0;
       const properties = checkedProperties(
         definition,
         resolved.properties,
@@ -226,8 +232,8 @@ export function prepareBusinessRecord(
       saved.settings,
       await store.recordTags(ids),
     );
-    const pendingEntityId = input.model === "entity" && input.action === "create" &&
-      !content.identity_label && content.title === "";
+    const pendingEntityId = pendingIdentifierGeneration ||
+      (input.model === "entity" && input.action === "create" && !content.identity_label && content.title === "");
     return {
       ...result,
       prepared_input,

@@ -4,10 +4,7 @@ import { entityChangeFacts, entityChangeTarget } from "./change.ts";
 import { isoDateTime, text } from "../../contracts/common.ts";
 import { checkedProperties, type EntityDefinitions, requireDefinition } from "./values.ts";
 import { entityReferenceId, entityTypeKey } from "../../contracts/entity-identity.ts";
-import {
-  decodeIdentifierValue,
-  encodeIdentifierReference,
-} from "../../contracts/entity-identifiers.ts";
+import { decodeIdentifierValue, encodeIdentifierReference } from "../../contracts/entity-identifiers.ts";
 import type {
   EntityCreate,
   EntityDetail,
@@ -65,7 +62,7 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
     (s) => createEntityInTransaction(s, i),
   );
 }
-async function identifierProperties(
+function identifierProperties(
   store: EntityStore,
   definition: Awaited<ReturnType<typeof requireDefinition>>,
   properties: EntityValues["properties"],
