@@ -1,4 +1,10 @@
-import { effectiveEntityTitleTemplate, entityTitleTemplateIssues, remapEntityTitleTemplate } from "@contracts/entity-title-template.ts";
+import { decodeIdentifierValue } from "@contracts/entity-identifiers.ts";
+import type { IdentifierKindMetadata } from "@contracts/entity-issuer.ts";
+import {
+  effectiveEntityTitleTemplate,
+  entityTitleTemplateIssues,
+  remapEntityTitleTemplate,
+} from "@contracts/entity-title-template.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -23,6 +29,7 @@ import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { fieldInputPolicy } from "./field-input-policy.ts";
 import { fieldType } from "../entity/property-fields.tsx";
 function supportsNumericCondition(field: EntityField, name: string) {
+  if (field["x-identifier"]) return false;
   const kind = fieldType(field);
   if (name === "minLength" || name === "maxLength") {
     return kind === "string" && !field.format;
@@ -70,9 +77,23 @@ type ReviewAction = {
  * Published definitions come from the settings owner; rows and focus stay in the UI.
  */
 export function useSchemaChangeEditor(
-  { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField, onReviewed, onNavigate, jobs }: {
+  {
+    type,
+    definition,
+    onApplied,
+    onState,
+    disabled,
+    selectionSearch,
+    onFieldKeysChanged,
+    onInvalidField,
+    onReviewed,
+    onNavigate,
+    jobs,
+    identifierKinds,
+  }: {
     onNavigate: (path: string) => void;
     jobs: EntitySchemaMigration[];
+    identifierKinds?: IdentifierKindMetadata[];
     type: EntityType;
     definition: EntitySchemaVersion;
     onApplied: (change?: EntitySchemaChange) => Promise<string>;
@@ -91,8 +112,10 @@ export function useSchemaChangeEditor(
   // Receipt confirmation has its own frozen request, independent of saving a change.
   const { attempt: startAttempt, ...startState } = useWriteAttempt<SchemaMigrationAccepted>();
   const [startError, setStartError] = useState("");
-  const lockedPlan = jobs.some((job) => migrationActive(job) &&
-    job.change_id === new URLSearchParams(selectionSearch).get("change_id"));
+  const lockedPlan = jobs.some((job) =>
+    migrationActive(job) &&
+    job.change_id === new URLSearchParams(selectionSearch).get("change_id")
+  );
   disabled = disabled || !canWrite || lockedPlan;
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [draft, setDraft] = useState<SchemaDefinition>(() => clone(definition)),
@@ -207,7 +230,9 @@ export function useSchemaChangeEditor(
     setSaved(clone(definition));
     setRefs((values) => Object.fromEntries(Object.entries(values).filter(([key]) => key.startsWith("new_"))));
     if (!migrationEdited) setMigration({ rules: [], overrides: [] });
-    setMessage("현재 적용된 입력 항목을 갱신했습니다. 편집 중인 입력은 유지됩니다. 변경된 조건을 확인하고 다시 검토하세요.");
+    setMessage(
+      "현재 적용된 입력 항목을 갱신했습니다. 편집 중인 입력은 유지됩니다. 변경된 조건을 확인하고 다시 검토하세요.",
+    );
   }, [type.id, definition.schema_version, busy, uncertain, startState.busy, startState.uncertain]);
   const base = `/entity-types/${type.id}/schema-changes`;
   const list = (signal?: AbortSignal) =>
@@ -325,10 +350,13 @@ export function useSchemaChangeEditor(
   const edits = (draft: SchemaDefinition): SchemaEdit[] => {
     const result: SchemaEdit[] = [];
     if (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(definition.schema)) {
-      result.push({ op: "set_metadata", "x-title-template": remapEntityTitleTemplate(
-        effectiveEntityTitleTemplate(draft.schema),
-        (key) => refs[key] ? `new_${refs[key]}` : key,
-      ) });
+      result.push({
+        op: "set_metadata",
+        "x-title-template": remapEntityTitleTemplate(
+          effectiveEntityTitleTemplate(draft.schema),
+          (key) => refs[key] ? `new_${refs[key]}` : key,
+        ),
+      });
     }
     for (const [key, field] of Object.entries(draft.schema.properties)) {
       const required = draft.schema.required.includes(key);
@@ -376,6 +404,27 @@ export function useSchemaChangeEditor(
         if (!valid.success) {
           condition = String(valid.error.issues[0].path[0]);
           throw new Error("입력 항목 조건을 확인하세요.");
+        }
+        const settings = field["x-identifier"];
+        if (settings) {
+          if (field.minLength !== undefined || field.maxLength !== undefined) {
+            throw new Error("식별자는 원본 1~200자를 사용하며 별도 길이를 지정하지 않습니다.");
+          }
+          if (identifierKinds && !identifierKinds.find((kind) => kind.id === settings.default_kind_id)?.active) {
+            throw new Error("활성 기본 식별자 종류를 선택하세요.");
+          }
+          if (field.default !== undefined && field.default !== null) {
+            let pair;
+            try {
+              pair = decodeIdentifierValue(String(field.default));
+            } catch {
+              throw new Error("식별자 기본값의 종류와 원본 문자열을 확인하세요.");
+            }
+            if (
+              !settings.allowed_kind_ids.includes(pair.kind_id) ||
+              identifierKinds && !identifierKinds.find((kind) => kind.id === pair.kind_id)?.active
+            ) throw new Error("식별자 기본값은 허용된 활성 종류여야 합니다.");
+          }
         }
         if (
           (field.minLength ?? 0) > (field.maxLength ?? 4096) ||
@@ -535,8 +584,10 @@ export function useSchemaChangeEditor(
   const refreshedJobs = useRef(new Set<string>());
   useEffect(() => {
     if (!plan) return;
-    const terminal = jobs.find((job) => job.type_id === type.id && job.change_id === plan.id &&
-      !migrationActive(job) && !refreshedJobs.current.has(`${job.id}:${job.version}`));
+    const terminal = jobs.find((job) =>
+      job.type_id === type.id && job.change_id === plan.id &&
+      !migrationActive(job) && !refreshedJobs.current.has(`${job.id}:${job.version}`)
+    );
     if (!terminal) return;
     refreshedJobs.current.add(`${terminal.id}:${terminal.version}`);
     void refreshPlan();
@@ -609,6 +660,11 @@ export function useSchemaChangeEditor(
   const canRestart = actionReady && !plan?.recovery;
   const canDiscard = actionReady && !dirty && !!plan && !["applied", "cancelled"].includes(plan.status);
   const editField = (key: string, field: EntityField) => {
+    if (
+      key === definition.schema["x-identity-property"] &&
+      (field.type !== "string" || !field["x-identifier"] || field.default !== undefined || field.deprecated ||
+        field.readOnly)
+    ) return;
     if (editable() && !plan?.recovery) setField(key, field);
   };
   const editNumeric = (
@@ -627,9 +683,11 @@ export function useSchemaChangeEditor(
     });
   };
   const editFlag = (key: string, name: "required" | "archived", value: boolean) => {
+    if (key === definition.schema["x-identity-property"]) return;
     if (editable() && !plan?.recovery) flag(key, name, value);
   };
   const setFieldInactive = (key: string, value: boolean) => {
+    if (key === definition.schema["x-identity-property"]) return;
     if (
       !editable() || plan?.recovery
     ) return;
@@ -657,9 +715,14 @@ export function useSchemaChangeEditor(
     }));
   };
   const removeField = (key: string) => {
+    if (key === definition.schema["x-identity-property"]) return;
     if (!editable() || plan?.recovery) return;
     if (definition.schema.properties[key] && draft.schema.properties[key]) {
-      deletedDrafts.current[key] = { field: structuredClone(draft.schema.properties[key]), required: draft.schema.required.includes(key), index: fieldOrder.indexOf(key) };
+      deletedDrafts.current[key] = {
+        field: structuredClone(draft.schema.properties[key]),
+        required: draft.schema.required.includes(key),
+        index: fieldOrder.indexOf(key),
+      };
     }
     setDraft((d) => {
       const properties = { ...d.schema.properties };
@@ -671,16 +734,30 @@ export function useSchemaChangeEditor(
     });
   };
   const restoreField = (key: string) => {
-    if (!editable() || plan?.recovery || !definition.schema.properties[key] || draft.schema.properties[key] || Object.keys(draft.schema.properties).length >= 64) return;
-    const removed = deletedDrafts.current[key] ?? { field: definition.schema.properties[key], required: definition.schema.required.includes(key), index: schemaPresentation(definition).order.indexOf(key) };
-    setDraft(d => {
-      const order = fieldOrder.filter(name => name === key || d.schema.properties[name]);
+    if (
+      !editable() || plan?.recovery || !definition.schema.properties[key] || draft.schema.properties[key] ||
+      Object.keys(draft.schema.properties).length >= 64
+    ) return;
+    const removed = deletedDrafts.current[key] ??
+      {
+        field: definition.schema.properties[key],
+        required: definition.schema.required.includes(key),
+        index: schemaPresentation(definition).order.indexOf(key),
+      };
+    setDraft((d) => {
+      const order = fieldOrder.filter((name) => name === key || d.schema.properties[name]);
       const restored = structuredClone(removed.field);
       const properties = { ...d.schema.properties, [key]: restored };
-      return { ...d, schema: { ...d.schema,
-        properties: Object.fromEntries(order.map(name => [name, { ...properties[name], "x-order": (fieldOrder.indexOf(name) + 1) * 10 }])),
-        required: removed.required ? [...d.schema.required, key] : d.schema.required,
-      } };
+      return {
+        ...d,
+        schema: {
+          ...d.schema,
+          properties: Object.fromEntries(
+            order.map((name) => [name, { ...properties[name], "x-order": (fieldOrder.indexOf(name) + 1) * 10 }]),
+          ),
+          required: removed.required ? [...d.schema.required, key] : d.schema.required,
+        },
+      };
     });
     delete deletedDrafts.current[key];
   };
@@ -806,15 +883,29 @@ export function useSchemaChangeEditor(
   );
   // Saving/analyzing a plan does not publish it. Keep pending state separate from dirty tracking.
   const pending = !plan || !["applied", "cancelled", "stale"].includes(plan.status);
-  const fieldStates = Object.fromEntries(schemaPresentation(draft).order.map(key => [key,
-    pending && !definition.schema.properties[key] ? "추가 예정" :
-    pending && (draftFingerprint(draft.schema.properties[key]) !== draftFingerprint(definition.schema.properties[key]) ||
-      draft.schema.required.includes(key) !== definition.schema.required.includes(key)) ? "수정 예정" :
-    changedFields.includes(key) ? "수정 중" : null,
-  ]));
-  const removedFields = pending ? schemaPresentation(definition).order.filter(key => !draft.schema.properties[key]).map(key => ({ key, field: deletedDrafts.current[key]?.field ?? definition.schema.properties[key], index: deletedDrafts.current[key]?.index ?? schemaPresentation(definition).order.indexOf(key) })) : [];
+  const fieldStates = Object.fromEntries(
+    schemaPresentation(draft).order.map((key) => [
+      key,
+      pending && !definition.schema.properties[key] ? "추가 예정" : pending &&
+          (draftFingerprint(draft.schema.properties[key]) !== draftFingerprint(definition.schema.properties[key]) ||
+            draft.schema.required.includes(key) !== definition.schema.required.includes(key))
+        ? "수정 예정"
+        : changedFields.includes(key)
+        ? "수정 중"
+        : null,
+    ]),
+  );
+  const removedFields = pending
+    ? schemaPresentation(definition).order.filter((key) => !draft.schema.properties[key]).map((key) => ({
+      key,
+      field: deletedDrafts.current[key]?.field ?? definition.schema.properties[key],
+      index: deletedDrafts.current[key]?.index ?? schemaPresentation(definition).order.indexOf(key),
+    }))
+    : [];
   const fieldOrder = [...schemaPresentation(draft).order];
-  for (const removed of [...removedFields].sort((a, b) => a.index - b.index)) fieldOrder.splice(Math.min(removed.index, fieldOrder.length), 0, removed.key);
+  for (const removed of [...removedFields].sort((a, b) => a.index - b.index)) {
+    fieldOrder.splice(Math.min(removed.index, fieldOrder.length), 0, removed.key);
+  }
   const changeCount = changedFields.length +
     (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(saved.schema) ? 1 : 0) +
     Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
@@ -824,20 +915,28 @@ export function useSchemaChangeEditor(
     setStartError("");
     const requestApi = api;
     try {
-      const accepted = await startAttempt.run(() => api<SchemaMigrationAccepted>(
-        "POST", `${base}/${plan.id}/migrations`, {
-          expected_change_version: plan.version,
-          expected_schema_version: plan.source_schema_version,
-          analysis_id: plan.analysis!.id,
-          fingerprint: plan.fingerprint,
-        }, undefined, startAttempt.requestKey(),
-      ));
+      const accepted = await startAttempt.run(() =>
+        api<SchemaMigrationAccepted>(
+          "POST",
+          `${base}/${plan.id}/migrations`,
+          {
+            expected_change_version: plan.version,
+            expected_schema_version: plan.source_schema_version,
+            analysis_id: plan.analysis!.id,
+            fingerprint: plan.fingerprint,
+          },
+          undefined,
+          startAttempt.requestKey(),
+        )
+      );
       if (!accepted || !mounted.current) return;
       const params = new URLSearchParams(selectionSearch);
       params.set("job_id", accepted.job_id);
       params.set("change_id", plan.id);
       requestAnimationFrame(() => {
-        if (mounted.current && latestApi.current === requestApi) onNavigate(`/settings/entity-types/${plan.type_id}?${params}`);
+        if (mounted.current && latestApi.current === requestApi) {
+          onNavigate(`/settings/entity-types/${plan.type_id}?${params}`);
+        }
       });
     } catch (e) {
       if (mounted.current) setStartError(plan.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));
@@ -904,7 +1003,9 @@ export function useSchemaChangeEditor(
         draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }),
     },
     editTitleTemplate: (value: string) => {
-      if (editable() && !plan?.recovery) setDraft((draft) => ({ ...draft, schema: { ...draft.schema, "x-title-template": value } }));
+      if (editable() && !plan?.recovery) {
+        setDraft((draft) => ({ ...draft, schema: { ...draft.schema, "x-title-template": value } }));
+      }
     },
     editField,
     editNumeric,
@@ -925,7 +1026,9 @@ export function useSchemaChangeEditor(
       review: {
         visible: !plan?.recovery && (!plan || dirty || reviewSaved),
         disabled: reviewDisabled,
-        run: () => { if (!reviewDisabled) return review(); },
+        run: () => {
+          if (!reviewDisabled) return review();
+        },
       },
       history: historyAction(),
       discard: { disabled: !canDiscard, run: discard },

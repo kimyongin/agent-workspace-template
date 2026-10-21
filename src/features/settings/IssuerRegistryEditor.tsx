@@ -1,20 +1,20 @@
 import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
-import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
+import { BusinessCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FieldGroup, FieldSet, FieldLabel } from "@/components/ui/field";
+import { FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "../../components/ui/button.tsx";
 import { Input } from "../../components/ui/input.tsx";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   type EntityIssuer,
+  type IdentifierDefaultField,
+  identifierDefaultFieldPath,
   type IdentifierRule,
-  type IdentityDefaultType,
-  identityDefaultTypeField,
 } from "@contracts/entity-issuer.ts";
 
-import { DefaultIssuerRepair } from "./DefaultIssuerRepair.tsx";
+import { Link } from "../../lib/workspace-router.tsx";
 import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
 import { ApiError } from "../../lib/api.ts";
@@ -59,30 +59,21 @@ export function IssuerRegistryEditor(
   const saving = useWriteAttempt(), deleting = useWriteAttempt();
   const { attempt } = saving;
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [blockedTypes, setBlockedTypes] = useState<IdentityDefaultType[]>([]);
-  const [repairing, setRepairing] = useState<IdentityDefaultType | null>(null);
-  const [repairState, setRepairState] = useState({
-    busy: false,
-    uncertain: false,
-  });
-  const reportRepair = useCallback(
-    (busy: boolean, uncertain: boolean) => setRepairState({ busy, uncertain }),
-    [],
-  );
-  const busy = saving.busy || deleting.busy || repairState.busy;
-  const uncertain = saving.uncertain || deleting.uncertain ||
-    repairState.uncertain;
+  const [blockedFields, setBlockedFields] = useState<IdentifierDefaultField[]>([]);
+  const busy = saving.busy || deleting.busy;
+  const uncertain = saving.uncertain || deleting.uncertain;
   const showFailure = (e: unknown) => {
     const changed = e instanceof ApiError && e.code === "settings_changed";
     setConflict(changed);
     setError(
       changed ? `${e.message} 입력을 유지했습니다. 최신 저장값을 확인하세요.` : writeErrorMessage(e),
     );
-    setBlockedTypes(
+    setBlockedFields(
       e instanceof ApiError
-        ? e.fields.filter((f) => f.path.startsWith(identityDefaultTypeField))
+        ? e.fields.filter((f) => f.path.startsWith(identifierDefaultFieldPath))
           .map((f) => ({
-            type_id: f.path.slice(identityDefaultTypeField.length),
+            type_id: f.path.slice(identifierDefaultFieldPath.length).split(".")[0],
+            property: f.path.slice(identifierDefaultFieldPath.length).split(".")[1],
             label: f.message,
           }))
         : [],
@@ -198,10 +189,10 @@ export function IssuerRegistryEditor(
   };
   const deleteAction = baseline && onDeleted && (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <Button variant="destructive" type="button"
-
-        disabled={!canWrite || busy || reading || conflict || saving.uncertain ||
-          repairState.uncertain}
+      <Button
+        variant="destructive"
+        type="button"
+        disabled={!canWrite || busy || reading || conflict || saving.uncertain}
         onClick={() => deleting.uncertain ? void remove() : setConfirmDelete(true)}
       >
         {deleting.uncertain ? "삭제 결과 다시 확인" : target.kind === "issuer" ? "번호 출처 삭제" : "번호 종류 삭제"}
@@ -210,20 +201,19 @@ export function IssuerRegistryEditor(
   );
   const footer = (requestClose: () => void) => (
     <>
-      <Button variant="outline"
-
+      <Button
+        variant="outline"
         type="button"
         disabled={busy || reading || canWrite && uncertain}
         onClick={requestClose}
       >
         {target.kind === "rule" && target.createdIssuer ? "나중에 추가" : "취소"}
       </Button>
-      <Button variant="default"
-
+      <Button
+        variant="default"
         type="submit"
         form={formId}
         disabled={!canWrite || busy || reading || conflict || deleting.uncertain ||
-          repairState.uncertain ||
           (!dirty && !uncertain)}
       >
         {saving.busy
@@ -236,7 +226,6 @@ export function IssuerRegistryEditor(
       </Button>
     </>
   );
-  const blockedChoices = blockedTypes.filter(type => type.type_id !== repairing?.type_id);
   const content = (
     <>
       <form
@@ -250,43 +239,47 @@ export function IssuerRegistryEditor(
       >
         {target.kind === "rule" && !inline && <p className="min-w-0 [overflow-wrap:anywhere]">{target.sourceLabel}</p>}
         {target.kind === "rule" && target.createdIssuer && (
-          <Alert role="status" className="text-sm text-muted-foreground"><AlertDescription>번호 출처를 저장했습니다.</AlertDescription></Alert>
+          <Alert role="status" className="text-sm text-muted-foreground">
+            <AlertDescription>번호 출처를 저장했습니다.</AlertDescription>
+          </Alert>
         )}
-        {error && <Alert variant="destructive" className="text-sm text-destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
-        {blockedTypes.length > 0 && (
+        {error && (
+          <Alert variant="destructive" className="text-sm text-destructive" role="alert">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {blockedFields.length > 0 && (
           <FieldGroup className="min-w-0">
-            {blockedChoices.length > 0 && <BusinessTable label="기본 출처 변경이 필요한 자료 종류" columns={["자료 종류", "조작"]} disclosureColumn={false}>
-              {blockedChoices.map(type => <BusinessRow key={type.type_id}>
-                <BusinessCell index={0}>{type.label}</BusinessCell>
-                <BusinessCell index={1}><Button variant="ghost" type="button" aria-label={`${type.label} 기본 번호 출처 변경`} disabled={!canWrite || busy || uncertain} onClick={() => setRepairing(type)}>기본 번호 출처 변경</Button></BusinessCell>
-              </BusinessRow>)}
-            </BusinessTable>}
-            {repairing && (
-              <DefaultIssuerRepair
-                key={repairing.type_id}
-                type={repairing}
-                blockedSource={target.kind === "issuer" ? (baseline as EntityIssuer).code : target.source}
-                blockedRule={target.kind === "rule" ? target.rule?.id : undefined}
-                onState={reportRepair}
-                onSaved={() => {
-                  setBlockedTypes((current) => current.filter((t) => t.type_id !== repairing.type_id));
-                  setRepairing(null);
-                  setRepairState({ busy: false, uncertain: false });
-                  setError("");
-                  requestAnimationFrame(() =>
-                    form.current?.querySelector<HTMLInputElement>("input")
-                      ?.focus()
-                  );
-                }}
-              />
-            )}
+            <BusinessTable
+              label="기본 종류 변경이 필요한 입력 항목"
+              columns={["입력 항목", "조작"]}
+              disclosureColumn={false}
+            >
+              {blockedFields.map((field) => (
+                <BusinessRow key={`${field.type_id}:${field.property}`}>
+                  <BusinessCell index={0}>{field.label}</BusinessCell>
+                  <BusinessCell index={1}>
+                    <Button asChild variant="outline" type="button" disabled={busy || uncertain}>
+                      <Link
+                        to={`/settings/entity-types/${encodeURIComponent(field.type_id)}?property=${
+                          encodeURIComponent(field.property)
+                        }`}
+                        aria-label={`${field.label} 기본 식별자 종류 변경`}
+                      >
+                        항목 설정 열기
+                      </Link>
+                    </Button>
+                  </BusinessCell>
+                </BusinessRow>
+              ))}
+            </BusinessTable>
           </FieldGroup>
         )}
         {conflict && (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Button variant="outline"
+            <Button
+              variant="outline"
               type="button"
-
               disabled={busy || uncertain || reading}
               onClick={() => void readLatest()}
             >
@@ -297,8 +290,8 @@ export function IssuerRegistryEditor(
                 <p className="text-sm text-muted-foreground">
                   최신 저장값: {latest.label} · {latest.active ? "사용 중" : "중지"}
                 </p>
-                <Button variant="outline"
-
+                <Button
+                  variant="outline"
                   type="button"
                   onClick={() => {
                     setBaseline(latest);
@@ -326,7 +319,6 @@ export function IssuerRegistryEditor(
             {(props) => (
               <Input
                 {...props}
-
                 required
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
@@ -335,7 +327,10 @@ export function IssuerRegistryEditor(
           </Field>
           {target.kind === "rule" && baseline && (
             <DataFields>
-              <div><dt>번호의 의미</dt><dd>{target.rule?.meaning}</dd></div>
+              <div>
+                <dt>번호의 의미</dt>
+                <dd>{target.rule?.meaning}</dd>
+              </div>
               <div>
                 <dt>입력 방식</dt>
                 <dd>
@@ -347,7 +342,6 @@ export function IssuerRegistryEditor(
           {baseline && (
             <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
               <Checkbox
-
                 checked={active}
                 onCheckedChange={(checked) => setActive(checked === true)}
               />{" "}
@@ -367,7 +361,17 @@ export function IssuerRegistryEditor(
         open={confirmDelete}
         danger
         title={target.kind === "issuer" ? "번호 출처를 삭제할까요?" : "번호 종류를 삭제할까요?"}
-        message={<><DataFields><div className="col-span-full"><dt>대상</dt><dd>{baseline?.label ?? "항목"}</dd></div></DataFields><p>영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.</p></>}
+        message={
+          <>
+            <DataFields>
+              <div className="col-span-full">
+                <dt>대상</dt>
+                <dd>{baseline?.label ?? "항목"}</dd>
+              </div>
+            </DataFields>
+            <p>영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.</p>
+          </>
+        }
         confirmLabel="삭제"
         busy={busy}
         onConfirm={() => void remove()}

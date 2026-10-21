@@ -67,9 +67,10 @@ export interface EntityTypeIdentity {
 }
 
 /** Policy field paths carry the affected owner-scoped type, never another owner's labels. */
-export const identityDefaultTypeField = "default_types.";
-export interface IdentityDefaultType {
+export const identifierDefaultFieldPath = "default_fields.";
+export interface IdentifierDefaultField {
   type_id: string;
+  property: string;
   label: string;
 }
 export const registryDelete = z.strictObject({ expected_version: expectedVersion });

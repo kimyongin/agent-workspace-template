@@ -18,7 +18,7 @@ export function fieldInputPolicy(
       ? [...field.oneOf]
       : [...field.oneOf, { const: null }];
   }
-  if (required && scalar === "string" && !field.format && !field.oneOf) {
+  if (required && scalar === "string" && !field.format && !field.oneOf && !field["x-identifier"]) {
     next.minLength = Math.max(1, field.minLength ?? 0);
   }
   if (required && next.default === null) delete next.default;

@@ -40,3 +40,15 @@ it("making an existing nullable choice optional preserves the null branch title 
   expect(fieldInputPolicy(field, false).oneOf).toEqual(field.oneOf);
   expect(field.oneOf[1]).toEqual({ const: null, title: "미정" });
 });
+it("identifier requiredness never adds generic encoded-string length restrictions", () => {
+  const field = {
+    type: "string" as const,
+    "x-order": 30,
+    "x-identifier": {
+      allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
+      default_kind_id: "00000000-0000-4000-8000-000000000001",
+    },
+  };
+  expect(fieldInputPolicy(field, true)).toEqual(field);
+  expect(fieldInputPolicy(field, false).type).toEqual(["string", "null"]);
+});
