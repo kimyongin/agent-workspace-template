@@ -44,6 +44,11 @@ export function RelatedPreviewItem(
   const error = cause
     ? cause instanceof ApiError && cause.status === 404 && cause.code === "not_found" ? "missing" : "failed"
     : null;
+  const [unavailablePath, setUnavailablePath] = useState<string>();
+  useLayoutEffect(() => {
+    if (error) setUnavailablePath(path);
+    else if (item) setUnavailablePath(previous => previous === path ? undefined : previous);
+  }, [path, error, item]);
   const enabled = !surface?.editor.current;
   useExpansionRegistration(kind ? path : undefined, enabled);
   const expanded = enabled && !!path && !!selection?.value.includes(path);
@@ -96,7 +101,7 @@ export function RelatedPreviewItem(
   };
   // A title opens the current detail directly; preview reads remain lazy.
   // A known unavailable target or a historical fallback stays non-navigable.
-  const titleLink = !fallback && !error
+  const titleLink = !fallback && !error && unavailablePath !== path
     ? list
       ? <Link {...list.link()} aria-label={`${props.title} 상세`}>{props.title}</Link>
       : <DetailLink to={path} aria-label={`${props.title} 상세`} restoreKey={`view-related-${path}`}>{props.title}</DetailLink>

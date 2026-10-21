@@ -146,8 +146,9 @@ export function RelatedItem(
     </BusinessDetails>}
   </>;
   const item = <Item variant="outline" className="@container min-w-0 flex-col flex-nowrap items-stretch">
-    <ItemHeader className="flex-nowrap items-start gap-3">{toggle && <CollapsibleTrigger asChild>{toggle}</CollapsibleTrigger>}{titleData}{actions}</ItemHeader>
+    <ItemHeader className="flex-nowrap items-start gap-3">{toggle && <CollapsibleTrigger asChild>{toggle}</CollapsibleTrigger>}{titleData}</ItemHeader>
     <ItemContent className="min-w-0">
+      {actions}
       {cells.length > 0 && <DataFields>
         {(layout?.columns.slice(1) ?? cells.map(() => "값")).map((column, index) => <div key={column} className="min-w-0"><dt>{column}</dt><dd className="wrap-anywhere">{cells[index] ?? "—"}</dd></div>)}
       </DataFields>}

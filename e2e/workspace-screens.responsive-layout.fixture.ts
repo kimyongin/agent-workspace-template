@@ -210,10 +210,10 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     }
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
     const row = businessRows(form(page).getByRole("region", { name: "할 일 (1개)" }).getByRole("table"));
-    const preview = await disclosureContent(page, row.getByRole("button", { name: "할 일 열기", exact: true }));
-    await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toHaveCount(0);
+    const preview = await disclosureContent(page, row.getByRole("button", { name: "할 일", exact: true }));
+    await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
     await expect(preview.getByRole("button", { name: "할 일 해제", exact: true })).toHaveCount(0);
-    await row.getByRole("button", { name: "할 일 열기", exact: true }).click();
+    await row.getByRole("button", { name: "할 일", exact: true }).click();
     await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
     await expect(preview.getByRole("button", { name: "할 일 해제", exact: true })).toBeVisible();
     const actions = row.getByRole("button").or(preview.getByRole("button")).or(preview.getByRole("link"));
@@ -223,10 +223,10 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       const box = (await action.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
     }
-    await row.getByRole("button", { name: "할 일 접기", exact: true }).click();
-    await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toHaveCount(0);
+    await row.getByRole("button", { name: "할 일", exact: true }).click();
+    await expect(row.getByRole("link", { name: "할 일 상세", exact: true })).toBeVisible();
     await expect(preview.getByRole("button", { name: "할 일 해제", exact: true })).toHaveCount(0);
-    await row.getByRole("button", { name: "할 일 열기", exact: true }).click();
+    await row.getByRole("button", { name: "할 일", exact: true }).click();
     await page.screenshot({ path: info.outputPath(`modal-${width}.png`) });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(state.writes).toHaveLength(0);

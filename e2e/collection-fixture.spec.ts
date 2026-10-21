@@ -650,3 +650,48 @@ for (const width of [390, 1440]) for (const view of ["테이블", "카드"]) for
   await expect(link).toBeFocused();
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
+
+
+for (const status of [403, 404]) test(`확인된 접근 불가 ${status}: 접어도 제목 링크를 되살리지 않고 재조회 성공 후 복구`, async ({ page }) => {
+  const state = await fixture(page);
+  let denied = true;
+  await page.route(`**/api/entities/${encodeURIComponent(entity.id)}`, route => denied
+    ? route.fulfill({ status, json: { code: status === 404 ? "not_found" : "forbidden", message: "접근할 수 없습니다." } })
+    : route.fallback());
+  await page.goto(fixtureWorkspacePath("/entities"));
+  const list = page.getByRole("region", { name: "전체 자료 목록", exact: true });
+  const title = list.getByRole("link", { name: `${entity.title} 상세`, exact: true });
+  const arrow = list.getByRole("button", { name: entity.title, exact: true });
+  await expect(title).toBeVisible();
+  await arrow.click();
+  await expect(list.getByText(status === 404 ? "삭제된 대상 또는 접근할 수 없는 대상입니다." : "내용을 불러오지 못했습니다.", { exact: true })).toBeVisible();
+  await expect(title).toHaveCount(0);
+  await arrow.click();
+  await expect(arrow).toHaveAttribute("aria-expanded", "false");
+  await expect(title).toHaveCount(0);
+  denied = false;
+  await arrow.click();
+  await expect(title).toBeVisible();
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+
+test("320px·200% 관계 카드: 화살표·제목·해제는 겹치지 않고 가로로 넘치지 않는다", async ({ page }, info) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 320, height: 1000 });
+  await page.goto(fixtureWorkspacePath(`/entities/${entity.id}`));
+  const related = page.getByRole("region", { name: "할 일 (1개)", exact: true });
+  await related.getByRole("radio", { name: "카드", exact: true }).click();
+  await related.getByRole("button", { name: task.title, exact: true }).click();
+  const link = related.getByRole("link", { name: `${task.title} 상세`, exact: true });
+  const unlink = related.getByRole("button", { name: `${task.title} 해제`, exact: true });
+  await expect(unlink).toBeVisible();
+  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  await expect(link).toBeVisible(); await expect(unlink).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  const [titleBox, actionBox] = await Promise.all([link.boundingBox(), unlink.boundingBox()]);
+  expect(titleBox).not.toBeNull(); expect(actionBox).not.toBeNull();
+  expect(actionBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height);
+  await page.screenshot({ path: info.outputPath("related-card-320-200.png"), fullPage: true });
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
