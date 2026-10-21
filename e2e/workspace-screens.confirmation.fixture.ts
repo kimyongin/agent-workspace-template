@@ -223,11 +223,13 @@ for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"
 
 test("수정 확인은 정규화된 실제 변경만 표시하고 본문 줄바꿈을 보존한다", async ({ page }) => {
   const state = await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
+  await page.setViewportSize({ width: 1440, height: 1000 });
   Object.assign(state.rows.tasks[0], {
     title: "월별 점검", body: "첫 줄\n둘째 줄", kind: "recurring", status: "active", timezone: "Asia/Seoul",
     recurrence: { freq: "monthly", month_days: [1, 2], starts_on: "2026-10-04" },
   });
-  await go(page, `/tasks/${id(2)}?edit=1&edit_from=view`);
+  await goApp(page, `/tasks/${id(2)}?edit=1&edit_from=view`);
   await form(page).getByLabel("제목", { exact: false }).fill("  월별 점검  ");
   await form(page).getByLabel("날짜", { exact: true }).fill("2, 1, 1");
   await form(page).getByLabel("본문", { exact: true }).fill("첫 줄 둘째 줄");
