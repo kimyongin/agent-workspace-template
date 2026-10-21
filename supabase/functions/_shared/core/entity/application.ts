@@ -132,6 +132,8 @@ export async function createEntityInTransaction(s: EntityStore, i: EntityCreate)
   const definition = await requireDefinition(s, i.entity_type_id, i.schema_version, true);
   const resolved = await identifierProperties(s, definition, i.properties, i.generate_identifiers, true);
   const properties = checkedProperties(definition, resolved.properties, i.properties, true);
+  // Fixed defaults are assignments too; validate the complete effective values under the same locks.
+  await identifierProperties(s, definition, properties, {}, true);
   const pair = decodeIdentifierValue(String(properties[definition.schema["x-identity-property"]!]));
   const id = encodeIdentifierReference(i.entity_type_id, pair.kind_id, pair.raw);
   if (!resolved.generated && await s.get(id)) {

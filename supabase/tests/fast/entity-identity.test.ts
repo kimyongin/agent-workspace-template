@@ -211,3 +211,22 @@ Deno.test("generation cannot edit an archived ordinary identifier", async () => 
   );
   assertEquals(f.issued, 0);
 });
+Deno.test("a fixed ordinary identifier default is a new assignment and cannot use a stopped kind", async () => {
+  const f = fixture(), otherKind = "22222222-2222-4222-8222-222222222222";
+  f.definition.identifier_kinds.push({ ...f.definition.identifier_kinds[0], id: otherKind, active: false });
+  f.definition.schema.properties.prop_3 = {
+    type: "string",
+    "x-order": 30,
+    default: `${otherKind}:001`,
+    "x-identifier": { allowed_kind_ids: [otherKind], default_kind_id: otherKind },
+  };
+  await assertRejects(
+    () =>
+      createEntity(f.deps, f.actor, {
+        entity_type_id: typeId,
+        schema_version: 1,
+        properties: { prop_1: "이름", prop_2: `${kindId}:001` },
+      }),
+    AppError,
+  );
+});
