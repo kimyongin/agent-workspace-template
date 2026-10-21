@@ -61,3 +61,14 @@ test("duplicate full legacy identity and arbitrary manifest keys are rejected", 
   const entry = { table: "app.entity_types", key: { owner_id: actor, id: type } };
   assert.throws(() => validateEntityResetManifest({ ...manifest, legacy_rows: [entry, entry] }), /duplicate/);
 });
+test("legacy entity change records are owned by captured change metadata; task results retain their bodies", () => {
+  const legacyEntity = { workspace_id: null, owner_id: actor, id: "legacy", entity_type_id: type };
+  const data = { ...inventory, "app.entities": [...inventory["app.entities"], legacyEntity], "app.records": [
+    { workspace_id: null, owner_id: actor, id: "entity-history", task_id: null, change_metadata: { target_kind: "entity", target_id: "legacy" } },
+    { workspace_id: null, owner_id: actor, id: "task-history", task_id: "task", body: "keep", entity_ids: ["legacy"], entity_context: [{ id: "legacy" }] },
+  ] };
+  const plan = planEntityReset({ ...manifest, legacy_rows: [{ table: "app.entities", key: { owner_id: actor, id: "legacy" } }] }, data);
+  assert.deepEqual(plan.blockers, []);
+  assert.equal(plan.counts["app.records"], 1);
+  assert.equal(plan.counts.legacy_record_captures, 1);
+});
