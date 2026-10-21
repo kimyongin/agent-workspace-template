@@ -281,6 +281,41 @@ for (const from of ["weekly", "monthly"] as const) {
   });
 }
 
+test("진행 중 저장의 화면 폭 전환을 유실 결과로 표시하지 않는다", async ({ page }, info) => {
+  const state = await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  let release: (() => void) | undefined;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let submitted = false;
+  await page.route(`**/api/tasks/${id(2)}/complete`, async route => {
+    submitted = true;
+    const result = { ...record(40), ...route.request().postDataJSON(), task_id: id(2), record_kind: "result" };
+    await held;
+    state.rows.records.push(result);
+    Object.assign(state.rows.tasks[0], {
+      status: "done", version: state.rows.tasks[0].version + 1,
+      result_record: { id: result.id, body: result.body },
+    });
+    await route.fulfill({ json: state.rows.tasks[0] });
+  });
+  await goApp(page, `/tasks/${id(2)}`);
+  await form(page).getByRole("button", { name: "완료하고 기록", exact: true }).click();
+  await form(page).getByLabel("본문", { exact: false }).fill("확인한 결과");
+  await form(page).getByRole("button", { name: "완료하고 기록 저장", exact: true }).click();
+  await expect.poll(() => submitted).toBe(true);
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(form(page).getByLabel("본문", { exact: false })).toBeDisabled();
+    await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("pending-save-resize-390.png") });
+  } finally { release!(); }
+  await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  await expect(form(page)).toContainText("완료하고 결과 기록을 저장했습니다.");
+  await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("confirmed-save-resize-390.png") });
+});
+
 test("#181 응답 유실은 확인 입력을 고정하고 같은 ID/version·메모·태그로 재시도", async ({ page }) => {
   const state = await fixtures(page, { failWrite: "unknown" });
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}?edit=1&edit_from=view`);
