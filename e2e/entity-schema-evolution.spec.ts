@@ -130,11 +130,11 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     const assertCurrentProperties = async (title: string, quantity: string) => {
       const viewer = detailDialog(page);
       await expect(viewer.getByRole("heading", { name: title, exact: true })).toHaveText(title);
-      // The representative label now belongs to the same schema-driven definition list as other properties.
+      // The name property uses the same schema-driven definition list as every other property.
       await expect(viewer.getByRole("term").filter({ hasText: /^이름$/ })).toHaveCount(0);
-      const representative = viewer.getByRole("term").filter({ hasText: /^자료 이름$/ });
-      await expect(representative).toHaveCount(1);
-      await expect(representative.locator("..").getByRole("definition")).toHaveText(title);
+      const nameProperty = viewer.getByRole("term").filter({ hasText: /^자료 이름$/ });
+      await expect(nameProperty).toHaveCount(1);
+      await expect(nameProperty.locator("..").getByRole("definition")).toHaveText(title);
       const count = viewer.getByRole("term").filter({ hasText: /^수량$/ });
       await expect(count).toHaveCount(1);
       await expect(count.locator("..").getByRole("definition")).toHaveText(quantity);

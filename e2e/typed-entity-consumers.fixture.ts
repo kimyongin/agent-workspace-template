@@ -219,7 +219,7 @@ test("entity numeric draft rejects precision loss before preparing a record and 
 });
 
 test(
-  "read-only representative default is visible and permits creation without a user value",
+  "read-only initial name default is visible and permits creation without a user value",
   async ({ page }, testInfo) => {
     const definition = structuredClone(fixtureSchema);
     Object.assign(definition.schema.properties.prop_1, { readOnly: true, default: "Auto" });
@@ -249,7 +249,7 @@ test(
     const title = form.getByRole("term").filter({ hasText: /^제목 · 읽기 전용$/ });
     await expect(title).toBeVisible();
     await expect(title.locator("..").getByRole("definition")).toHaveText("Auto");
-    await form.screenshot({ path: testInfo.outputPath("readonly-representative-default.png") });
+    await form.screenshot({ path: testInfo.outputPath("readonly-name-property-default.png") });
     await form.getByRole("button", { name: "저장", exact: true }).click();
     await expect.poll(() => preparedInputs.length).toBe(1);
     expect(preparedInputs[0].properties).not.toHaveProperty("prop_1");
