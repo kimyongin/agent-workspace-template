@@ -3,6 +3,6 @@ export default defineConfig({testDir:".",testMatch:"workspace-screens.*.fixture.
   timeout:60_000,reporter:"list",outputDir:"test-results/workspace-screens",
   use:{baseURL:"http://127.0.0.1:55580",trace:"retain-on-failure",screenshot:"only-on-failure"},
   projects:[{name:"screens",use:{...devices["Desktop Chrome"]}}],
-  webServer:{command:"npm run dev -- --port 55580",url:"http://127.0.0.1:55580",reuseExistingServer:false,
+  webServer:{command:"npm run dev -- --host 127.0.0.1 --port 55580 --strictPort",url:"http://127.0.0.1:55580",reuseExistingServer:false,
     env:{VITE_SUPABASE_URL:"http://127.0.0.1:55581",VITE_SUPABASE_PUBLISHABLE_KEY:"fixture-public-key",VITE_API_URL:"http://127.0.0.1:55581/api",VITE_DEV_LOGIN:"true"}},
 });
