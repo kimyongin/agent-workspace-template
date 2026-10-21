@@ -28,11 +28,10 @@ Deno.test("schema edit policy preserves key meaning and labels but classifies na
     )
   );
 });
-Deno.test("archive retains definitions and requires explicit requiredness edit while representative stays active", () => {
+Deno.test("archive retains definitions and requires explicit requiredness edit while template references stay active", () => {
   const source = initialEntityDefinition("이름");
   source.schema.properties.prop_2 = { "x-order": 20, type: "string", title: "설명" };
   source.schema.required.push("prop_2");
-  source.schema.properties.prop_2["x-show-in-list"] = true;
   assertThrows(() => resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_2" }], {}));
   const result = resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_2" }, {
     op: "update_property",
@@ -43,7 +42,7 @@ Deno.test("archive retains definitions and requires explicit requiredness edit w
   assertEquals(result.kind, "compatible");
   assertEquals(result.target.schema.properties.prop_2.title, "설명");
   assertEquals(entitySchemaPresentation(result.target.schema).archived, ["prop_2"]);
-  assertEquals(entitySchemaPresentation(result.target.schema).list_columns, ["prop_1"]);
+  assertEquals(result.target.schema["x-title-template"], "$prop_1$");
   assertThrows(() => resolveSchemaEdits(source, [{ op: "archive_property", key: "prop_1" }], {}));
 });
 Deno.test("integer widening accounts for effective product number limits", () => {

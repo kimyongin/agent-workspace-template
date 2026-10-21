@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { remapEntityTitleTemplate } from "../../contracts/entity-title-template.ts";
 import {
   dataModelAction,
   type DataModelDocument,
@@ -236,6 +237,7 @@ export async function resolveModel(
       "x-version": old ? old.schema["x-version"] + 1 : 1,
       properties: Object.fromEntries(keys.map((k) => [props[k], t.schema.properties[k]])),
       required: t.schema.required.map((k) => props[k]),
+      "x-title-template": remapEntityTitleTemplate(t.schema["x-title-template"], (key) => props[key]),
     };
     validateEntityDefinition({ schema: t.schema });
     const diff = old ? schemaDefinitionDiff({ schema: old.schema }, { schema: t.schema }) : [];

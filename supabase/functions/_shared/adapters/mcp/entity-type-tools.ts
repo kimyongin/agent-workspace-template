@@ -123,7 +123,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "create_entity_schema_change",
       description:
-        "자료 종류의 속성 변경 초안 저장. add_property client_ref를 prop_n으로 영구 예약. 속성의 x-order/x-representative/x-show-in-list와 const/title oneOf로 표시를 지정. migration key는 new_<client_ref>로 새 항목을 참조. set_metadata로 종류 정보를 같은 문서에서 수정. 제한된 편집만 지원, request_key 필수.",
+        "자료 종류의 속성 변경 초안 저장. add_property client_ref를 prop_n으로 영구 예약. 속성의 x-order와 const/title oneOf를 사용하고 set_metadata의 x-title-template으로 자료 제목을 조합. migration key는 new_<client_ref>로 새 항목을 참조. set_metadata로 종류 정보를 같은 문서에서 수정. 제한된 편집만 지원, request_key 필수.",
       input: schemaChangeCreate.extend({ type_id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {
@@ -226,7 +226,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     },
     {
       name: "create_entity_type",
-      description: "자료 종류와 초기 필수 대표 텍스트 prop_1 정의를 원자적으로 생성. 새 ID는 성공 응답으로 발급.",
+      description: "자료 종류와 초기 이름 항목 prop_1·제목 템플릿을 원자적으로 생성. 새 ID는 성공 응답으로 발급.",
       input: entityTypeCreate,
       readOnly: false,
       handler: (i, a) => createEntityType(deps, a, i),

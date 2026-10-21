@@ -200,8 +200,8 @@ Deno.test("public change reserves new fields while presentation travels with eac
         field: {
           type: "string",
           "x-order": 20,
-          "x-show-in-list": true,
-          "x-list-order": 10,
+
+
           title: "상태",
           oneOf: [{ const: "available", title: "판매 중" }],
         },
@@ -212,32 +212,21 @@ Deno.test("public change reserves new fields while presentation travels with eac
         field: {
           type: "string",
           "x-order": 5,
-          "x-representative": true,
-          "x-show-in-list": true,
-          "x-list-order": 20,
+
+
+
           title: "상품명",
           minLength: 1,
         },
         required: true,
       },
-      {
-        op: "update_property",
-        key: "prop_1",
-        field: {
-          ...initialEntityDefinition("이름").schema.properties.prop_1,
-          "x-representative": false,
-          "x-show-in-list": false,
-        },
-        required: true,
-      },
+      { op: "set_metadata", "x-title-template": "$new_sku$" },
     ],
     migration: { rules: [{ op: "fill", key: "new_sku", value: "기본 상품명" }] },
   };
   const created = await createEntitySchemaChange(f.deps, actor, typeId, input);
   assertEquals(entitySchemaPresentation(created.target.schema), {
-    representative: "prop_3",
     order: ["prop_3", "prop_1", "prop_2"],
-    list_columns: ["prop_2", "prop_3"],
     archived: [],
     option_labels: { prop_2: { available: "판매 중" } },
   });
