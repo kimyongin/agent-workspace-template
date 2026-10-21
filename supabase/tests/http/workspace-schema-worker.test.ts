@@ -123,6 +123,7 @@ httpTest(
         200,
       );
       const entityIds = new Map<string, string>();
+      const sourceProperties = new Map<string, Record<string, unknown>>();
       for (const kind of kinds) {
         const external = crypto.randomUUID();
         const kindId = "00000000-0000-4000-8000-000000000001", entityId = `${kind}:${kindId}:${external}`;
@@ -142,6 +143,9 @@ httpTest(
             tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
         values(${w.id},${entityId},${kind},1,${tx.json({ prop_1: "12", prop_2: `${kindId}:${external}` })})`,
         );
+        const stored = await scoped(a, w.id, "GET", `/entities/${encodeURIComponent(entityId)}`);
+        assertEquals(stored.status, 200);
+        sourceProperties.set(kind, stored.body.properties);
       }
       const document = await tool(client, "export_data_model", {
         workspace_id: w.id,
@@ -390,7 +394,7 @@ httpTest(
         failedRows.body,
       );
       assertEquals(failedRows.body.items.length, 1);
-      assertEquals(failedRows.body.items[0].before, { prop_1: "12" });
+      assertEquals(failedRows.body.items[0].before, sourceProperties.get(kinds[1]));
       assert(
         failedRows.body.items[0].errors.length > 0,
         "maxLength=1 rejects the actual two-character source value",
@@ -596,6 +600,10 @@ httpTest(
       for (const kind of exported.entity_types) {
         assertEquals(kind.schema["x-version"], 2);
         assertEquals(kind.schema.properties.prop_1.maxLength, 1);
+        const typeId = kind.schema["x-type-id"];
+        const stored = await scoped(b, w.id, "GET", `/entities/${encodeURIComponent(entityIds.get(typeId)!)}`);
+        assertEquals(stored.status, 200);
+        assertEquals(stored.body.properties, { ...sourceProperties.get(typeId), prop_1: "X" });
       }
       // The old successful apply receipt remains the original acceptance across transports.
       assertEquals(
