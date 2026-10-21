@@ -55,6 +55,9 @@ export function changeDataModelGroup(d: DataModelDeps, a: Actor, id: string, raw
 }
 
 export function validateModelGroupConversions(plan: ModelPlan, input: ModelGroupAnalyze) {
+  if (plan.review.items.some((item) => item.kind === "conflict")) {
+    throw invalidInput("충돌한 모델 정의를 수정하고 다시 검토하세요");
+  }
   const refs = new Set<string>();
   for (const conversion of input.conversions) {
     const target = plan.target.entity_types.find((t) => t.ref === conversion.type_ref);
