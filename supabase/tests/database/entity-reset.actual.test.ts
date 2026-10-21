@@ -426,3 +426,76 @@ dbTest("reset fails closed when a required current store is missing", async () =
     await admin`drop database if exists ${admin(name)} with(force)`;
   }
 });
+
+dbTest(
+  "explicit incompatible definition retirement preserves registry and grants and rejects protected grant references",
+  async () => {
+    const f = await businessWorkspaceFixture(admin, sql);
+    try {
+      const retired = await f.createKind("명시 폐기 정의"), compatible = await f.createKind("호환 정의 보존");
+      await f.grantKind(f.manager, retired.id, "write");
+      // A predecessor-shaped definition belongs only to this disposable fixture.
+      // Normal reset runs with every FK/trigger enabled; no guard is bypassed by reset.
+      await admin.begin(async (tx) => {
+        await tx`set local session_replication_role=replica`;
+        await tx`update app.entity_schema_versions set schema=schema-'x-identity-property'
+        where workspace_id=${f.workspaceId} and type_id=${retired.id}`;
+      });
+      const target = new URL(urls.admin),
+        manifest = {
+          run_id: crypto.randomUUID(),
+          project_id: "retired-definition-fixture",
+          source_revision: "c".repeat(40),
+          environment: { host: target.hostname, port: Number(target.port), database: target.pathname.slice(1) },
+          scopes: [{
+            workspace_id: f.workspaceId,
+            actor_id: f.manager.userId,
+            entity_ids: [],
+            retire_definitions: [{ type_id: retired.id, expected_schema_version: 1, schema_versions: [1] }],
+          }],
+        };
+      const grants =
+        await admin`select * from private.workspace_grants where workspace_id=${f.workspaceId} order by user_id,target_kind,target_id`;
+      const blocked = await runEntityReset(admin, manifest);
+      assert(blocked.blockers.some((b: { reason: string }) => b.reason === "definition_has_preserved_grants"));
+      await assertRejects(() => runEntityReset(admin, manifest, blocked), Error, "reset blocked");
+      assertEquals(
+        await admin`select * from private.workspace_grants where workspace_id=${f.workspaceId} order by user_id,target_kind,target_id`,
+        grants,
+      );
+      // The fixture owner explicitly removes its own fixture-only kind grant through
+      // the public permission usecase. The reset itself never edits permissions.
+      await f.grant(f.manager, [{ target_kind: "settings", target_id: "*", access: "write" }]);
+      const preserved =
+        await admin`select * from private.workspace_grants where workspace_id=${f.workspaceId} order by user_id,target_kind,target_id`;
+      const registry =
+        await admin`select * from app.entity_identifier_rules where workspace_id=${f.workspaceId} order by id`;
+      const schema =
+        await admin`select * from app.entity_schema_versions where workspace_id=${f.workspaceId} and type_id=${compatible.id}`;
+      const plan = await runEntityReset(admin, manifest);
+      assertEquals(plan.blockers, []);
+      assertEquals(plan.counts["app.entity_types"], 1);
+      assertEquals(plan.counts["app.entity_schema_versions"], 1);
+      assertEquals((await runEntityReset(admin, manifest, plan)).mode, "applied");
+      assertEquals((await runEntityReset(admin, manifest, plan)).mode, "already-clean");
+      assertEquals(
+        (await admin`select id from app.entity_types where workspace_id=${f.workspaceId} and id=${retired.id}`).length,
+        0,
+      );
+      assertEquals(
+        await admin`select * from app.entity_schema_versions where workspace_id=${f.workspaceId} and type_id=${compatible.id}`,
+        schema,
+      );
+      assertEquals(
+        await admin`select * from app.entity_identifier_rules where workspace_id=${f.workspaceId} order by id`,
+        registry,
+      );
+      assertEquals(
+        await admin`select * from private.workspace_grants where workspace_id=${f.workspaceId} order by user_id,target_kind,target_id`,
+        preserved,
+      );
+    } finally {
+      await f.cleanup();
+    }
+  },
+);

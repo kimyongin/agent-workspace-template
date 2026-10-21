@@ -27,12 +27,12 @@ begin
   or exists(select 1 from app.entity_schema_analyses)
   or exists(select 1 from app.entity_schema_migrations)
   or exists(select 1 from app.data_model_changes)
-  or exists(select 1 from private.workspace_request_results where operation ~ '^(entity[.]|entity-type[.]|entity-schema-|entity-relation[.]|entity-link[.]|data-model[.])'
+  or exists(select 1 from private.workspace_request_results where (result is not null or completed_at is null) and (operation ~ '^(entity[.]|entity-type[.]|entity-schema-|entity-relation[.]|entity-link[.]|data-model[.])'
    or result @? '$.**.entity_ids[*]' or result @? '$.**.entity_context[*]' or result @? '$.**.entity_id'
-   or result @? '$.**.target_kind ? (@ == "entity")')
-  or exists(select 1 from private.request_results where operation ~ '^(entity[.]|entity-type[.]|entity-schema-|entity-relation[.]|entity-link[.]|data-model[.])'
+   or result @? '$.**.target_kind ? (@ == "entity")'))
+  or exists(select 1 from private.request_results where (result is not null or completed_at is null) and (operation ~ '^(entity[.]|entity-type[.]|entity-schema-|entity-relation[.]|entity-link[.]|data-model[.])'
    or result @? '$.**.entity_ids[*]' or result @? '$.**.entity_context[*]' or result @? '$.**.entity_id'
-   or result @? '$.**.target_kind ? (@ == "entity")')
+   or result @? '$.**.target_kind ? (@ == "entity")'))
  then
   raise exception 'field_identifier_cutover_requires_explicit_reset' using errcode='55000',
    hint='Apply the reviewed single #551/#543 reset plan to incompatible entity definitions, entities and their retained work; no data was changed.';
