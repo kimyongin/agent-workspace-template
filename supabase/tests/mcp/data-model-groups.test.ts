@@ -33,6 +33,9 @@ activityWorkspaceSuite(
       initial.relations = [];
       for (const t of initial.entity_types) {
         t.schema.title += ` ${crypto.randomUUID().slice(0, 8)}`;
+        t.schema.properties.prop_4 = { ...t.schema.properties.prop_3, "x-order": 40 };
+        t.schema.required = [...t.schema.required.filter((key) => key !== "prop_3"), "prop_4"];
+        t.schema["x-identity-property"] = "prop_4";
         t.schema.properties.prop_2 = { type: "string", title: "수량", "x-order": 20 };
         t.schema.properties.prop_3 = {
           type: "string",
@@ -43,6 +46,7 @@ activityWorkspaceSuite(
       }
       const input = { mode: "copy", document: JSON.stringify(initial) },
         preview = await scopedTool(client, w, "preview_data_model", input);
+      assertEquals(preview.error, undefined);
       typeIds.push(...Object.values(preview.mapping.types) as string[]);
       const prepared = await scopedTool(client, w, "prepare_data_model", {
         ...input,
@@ -210,7 +214,10 @@ activityWorkspaceSuite(
       });
       assertEquals(await definitionFingerprint(replay), await definitionFingerprint(queued));
       for (const [index, e] of entities.entries()) {
-        assertEquals((await scopedTool(client, w, "get_entity", { id: e.id })).properties.prop_2, index + 8);
+        assertEquals((await scopedTool(client, w, "get_entity", { id: e.id })).properties, {
+          ...e.properties,
+          prop_2: index + 8,
+        });
       }
     } finally {
       await worker.end();

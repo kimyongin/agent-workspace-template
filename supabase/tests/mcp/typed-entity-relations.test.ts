@@ -170,7 +170,12 @@ activityWorkspaceSuite(
           expected_version: 2,
           previous_other_id: previous.body.id,
           expected_previous_version: 2,
-          entity: { entity_type_id: typeId, schema_version: 1, properties: { prop_1: "전송 새 상대" } },
+          entity: {
+            action: "create",
+            entity_type_id: typeId,
+            schema_version: 1,
+            properties: { prop_1: "전송 새 상대" },
+          },
         };
       const replaced = await tool(client, "create_and_link_entity", {
         ...scope,
@@ -178,6 +183,7 @@ activityWorkspaceSuite(
         ...nextInput,
         request_key: nextKey,
       });
+      assertEquals(replaced.error, undefined);
       assertEquals(replaced.entity.version, 2);
       assertEquals((await request(workspace, "POST", `${base}/create-and-link`, nextInput, nextKey)).body, replaced);
       assertEquals(

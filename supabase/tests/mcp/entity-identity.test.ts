@@ -58,6 +58,7 @@ activityWorkspaceSuite(
     );
     assertEquals(
       (await scopedTool(client, w, "restore_entity", {
+        request_key: crypto.randomUUID(),
         id: archived.id,
         schema_version: schema.schema_version,
         expected_version: 1,
@@ -65,6 +66,7 @@ activityWorkspaceSuite(
       "conflict",
     );
     const restored = await scopedTool(client, w, "restore_entity", {
+      request_key: crypto.randomUUID(),
       id: archived.id,
       schema_version: schema.schema_version,
       expected_version: archived.version,
