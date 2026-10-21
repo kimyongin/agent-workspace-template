@@ -122,9 +122,13 @@ Deno.test("HTTP and MCP enforce registry system-definition policy through the sh
         fn({
           executeRequest: <T>(_r: unknown, execute: () => Promise<T>) => execute(),
           lockIssuer: () => Promise.resolve(appIssuer),
-          defaultTypes: () => Promise.resolve([{ type_id: typeId, label: "상품" }]),
+          defaultTypes: () => Promise.resolve([{ type_id: typeId, property: "prop_2", label: "상품" }]),
           lockRule: () => Promise.resolve(appRule),
-          ruleUsage: () => Promise.resolve({ referenced: true, defaultTypes: [{ type_id: typeId, label: "상품" }] }),
+          ruleUsage: () =>
+            Promise.resolve({
+              referenced: true,
+              defaultTypes: [{ type_id: typeId, property: "prop_2", label: "상품" }],
+            }),
         } as unknown as EntityIssuerStore),
     },
   };
@@ -158,7 +162,7 @@ Deno.test("HTTP and MCP enforce registry system-definition policy through the sh
 Deno.test("HTTP and MCP expose identical unused deletion and default-policy fields", async () => {
   let deletions = 0;
   const current = { code: "crm", label: "고객", active: true, system: false, version: 3 };
-  const defaults = [{ type_id: typeId, label: "상품" }];
+  const defaults = [{ type_id: typeId, property: "prop_2", label: "상품" }];
   const d: EntityIssuerDeps = {
     uow: {
       run: (_a, fn) =>
@@ -191,7 +195,7 @@ Deno.test("HTTP and MCP expose identical unused deletion and default-policy fiel
   });
   assertEquals(response.status, 400);
   const body = await response.json();
-  assertEquals(body.fields, [{ path: `default_types.${typeId}`, message: "상품" }]);
+  assertEquals(body.fields, [{ path: `default_fields.${typeId}.prop_2`, message: "상품" }]);
   const tools = entityIssuerTools(d);
   const failure = await assertRejects(() =>
     tools.find((t) => t.name === "update_entity_issuer")!.handler({

@@ -9,10 +9,10 @@ import {
 import { z } from "zod";
 import {
   type EntityIssuer,
+  type IdentifierDefaultField,
   type IdentifierRule,
   identifierRuleCreate,
   identifierRuleUpdate,
-  type IdentityDefaultType,
   issuerCode,
   issuerCreate,
   issuerUpdate,
@@ -27,7 +27,7 @@ export interface EntityIssuerStore extends RequestStore {
   listIssuers(): Promise<EntityIssuer[]>;
   countIssuersForUpdate(): Promise<number>;
   lockIssuer(code: string): Promise<EntityIssuer | null>;
-  defaultTypes(source: string, ruleId?: string): Promise<IdentityDefaultType[]>;
+  defaultTypes(source: string, ruleId?: string): Promise<IdentifierDefaultField[]>;
   issuerHasDependencies(code: string): Promise<boolean>;
   ruleHasDependencies(id: string): Promise<boolean>;
   deleteIssuer(code: string): Promise<void>;

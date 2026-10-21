@@ -44,12 +44,19 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
     return row ? issuer(row) : null;
   }
   async defaultTypes(source: string, ruleId?: string) {
-    const rows = await this.tx`select distinct t.id,v.schema->>'title' as label from app.entity_types t
+    const rows = await this
+      .tx`select t.id,f.key as property,(v.schema->>'title') || ' · ' || coalesce(f.value->>'title',f.key) as label from app.entity_types t
       join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version
       cross join lateral jsonb_each(v.schema->'properties') f
-      join app.entity_identifier_rules r on r.workspace_id=t.workspace_id and r.id::text=f.value->'x-identifier'->>'default_kind_id'
-      where r.source=${source} and (${ruleId ?? null}::uuid is null or r.id=${ruleId ?? null}::uuid) order by t.id`;
-    return rows.map((row) => ({ type_id: row.id as string, label: row.label as string }));
+      join app.entity_identifier_rules r on r.workspace_id=t.workspace_id and (r.id::text=f.value->'x-identifier'->>'default_kind_id' or r.id=case when f.value ? 'x-identifier' and jsonb_typeof(f.value->'default')='string' then app.identifier_kind(f.value->>'default') end)
+      where r.source=${source} and (${ruleId ?? null}::uuid is null or r.id=${
+      ruleId ?? null
+    }::uuid) order by t.id,f.key`;
+    return rows.map((row) => ({
+      type_id: row.id as string,
+      property: row.property as string,
+      label: row.label as string,
+    }));
   }
   async issuerHasDependencies(code: string) {
     const [row] = await this.tx`select exists(select 1 from app.entity_identifier_rules where source=${code}) as used`;

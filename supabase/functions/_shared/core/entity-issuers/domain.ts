@@ -1,24 +1,16 @@
 import type { z } from "zod";
 import type {
   EntityIssuer,
-  EntityTypeIdentity,
+  IdentifierDefaultField,
   IdentifierRule,
   identifierRuleUpdate,
-  IdentityDefaultType,
   issuerUpdate,
-  typeIdentityUpdate,
 } from "../../contracts/entity-issuer.ts";
-import { identityDefaultTypeField } from "../../contracts/entity-issuer.ts";
+import { identifierDefaultFieldPath } from "../../contracts/entity-issuer.ts";
 import { AppError, invalidInput } from "../shared/errors.ts";
 export interface RuleUsage {
   referenced: boolean;
-  defaultTypes: IdentityDefaultType[];
-}
-export interface IdentitySourceAvailability {
-  code: string;
-  rule_id: string;
-  issuer_active: boolean;
-  rule_active: boolean;
+  defaultTypes: IdentifierDefaultField[];
 }
 function assertVersion(current: number, expected: number) {
   if (current !== expected) throw new AppError("settings_changed", "설정이 변경되었습니다. 최신 버전을 확인하세요");
@@ -30,7 +22,7 @@ export function assertIssuerCreation(code: string, count: number) {
 export function issuerUpdateDecision(
   current: EntityIssuer,
   input: z.infer<typeof issuerUpdate>,
-  defaultTypes: IdentityDefaultType[],
+  defaultTypes: IdentifierDefaultField[],
 ) {
   assertVersion(current.version, input.expected_version);
   if (current.system && input.active === false) throw invalidInput("앱 발급처는 중지할 수 없습니다");
@@ -60,35 +52,12 @@ export function identifierRuleUpdateDecision(
     active: input.active ?? current.active,
   };
 }
-export function assertTypeIdentityUpdate(
-  current: EntityTypeIdentity,
-  input: z.infer<typeof typeIdentityUpdate>,
-  available: IdentitySourceAvailability[],
-) {
-  assertVersion(current.version, input.expected_version);
-  for (const source of current.sources) {
-    const next = input.sources.find((s) => s.code === source.code);
-    if (source.referenced && (!next || next.rule_id.toLowerCase() !== source.rule_id.toLowerCase())) {
-      throw invalidInput("참조된 발급처 규칙은 제거하거나 교체할 수 없습니다");
-    }
-  }
-  for (const source of input.sources) {
-    const facts = available.find((s) =>
-      s.code === source.code && s.rule_id.toLowerCase() === source.rule_id.toLowerCase()
-    );
-    if (!facts) throw new AppError("invalid_reference", "발급처와 규칙을 확인하세요");
-    if (source.active && (!facts.issuer_active || !facts.rule_active)) {
-      throw invalidInput("중지된 발급처·규칙을 활성 연결할 수 없습니다");
-    }
-  }
-}
-
-export function assertNoDefaultTypes(types: IdentityDefaultType[]) {
+export function assertNoDefaultTypes(types: IdentifierDefaultField[]) {
   if (types.length) {
     throw invalidInput(
-      "기본 발급처를 먼저 변경하세요",
+      "항목의 기본 식별자 종류를 먼저 변경하세요",
       types.map((t) => ({
-        path: `${identityDefaultTypeField}${t.type_id}`,
+        path: `${identifierDefaultFieldPath}${t.type_id}.${t.property}`,
         message: t.label,
       })),
     );

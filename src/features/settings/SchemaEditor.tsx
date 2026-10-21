@@ -1,12 +1,30 @@
+import { APP_IDENTIFIER_RULE_ID } from "@contracts/entity-issuer.ts";
+import { IdentifierFieldSettings } from "./IdentifierFieldSettings.tsx";
+import { IdentitySourceModal } from "./IdentitySourceModal.tsx";
+import { useIdentifierCatalog } from "./useIdentifierCatalog.ts";
 import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { isCivilDateInput } from "../../lib/civil-date-input.ts";
-import { BusinessTable, BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
-import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
+import {
+  BusinessCell,
+  BusinessDetails,
+  BusinessDisclosureCell,
+  BusinessRow,
+  BusinessTable,
+} from "../../components/BusinessTable.tsx";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { FieldSet, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "../../components/ui/button.tsx";
 import { Input } from "../../components/ui/input.tsx";
@@ -23,15 +41,10 @@ import { materialSettingsPath } from "./material-settings-path.ts";
 import { fieldTypeLabel, schemaChangeLabels, schemaDiffValueLabel } from "./schema-labels.ts";
 import { SchemaSearchTextSetting } from "./SchemaSearchTextSetting.tsx";
 import { SchemaTitleTemplateSetting } from "./SchemaTitleTemplateSetting.tsx";
-import {
-  migrationActive,
-  migrationLabels,
-  SchemaMigrationJob,
-  useMigrationHistory,
-} from "./SchemaMigrationJobs.tsx";
+import { migrationActive, migrationLabels, SchemaMigrationJob, useMigrationHistory } from "./SchemaMigrationJobs.tsx";
 import { Link, useLocation, useNavigate } from "../../lib/workspace-router.tsx";
 import { ConversionEditor } from "./ConversionEditor.tsx";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import type {
   EntityField,
   EntitySchemaVersion,
@@ -42,7 +55,7 @@ import { useSchemaChangeEditor } from "./schema-change-editor.ts";
 import type { EditState } from "./schema-change-editor.ts";
 import { Field } from "../../components/Field.tsx";
 import { fieldInputPolicy } from "./field-input-policy.ts";
-import { CollectionItem, CollectionList  } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { SchemaVersionRead } from "./SchemaVersionRead.tsx";
 import { SchemaAnalysisErrors, SchemaChangeDiff, SchemaChangeRead } from "./SchemaChangeRead.tsx";
@@ -116,6 +129,21 @@ export function SchemaEditor(
     {},
   );
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const catalog = useIdentifierCatalog(propertiesOpen && canWrite);
+  const [addingKindFor, setAddingKindFor] = useState<string | null>(null);
+  const [kindModalState, setKindModalState] = useState<MaterialSectionState>({ dirty: false, busy: false });
+  const reportKindModal = useCallback((state: MaterialSectionState) => setKindModalState(state), []);
+  const [schemaEditState, setSchemaEditState] = useState<EditState>({ dirty: false, busy: false, uncertain: false });
+  useEffect(
+    () =>
+      onState({
+        ...schemaEditState,
+        dirty: schemaEditState.dirty || kindModalState.dirty,
+        busy: schemaEditState.busy || kindModalState.busy,
+        uncertain: schemaEditState.uncertain || !!kindModalState.uncertain,
+      }),
+    [onState, schemaEditState, kindModalState],
+  );
   const [historyOpen, setHistoryOpen] = useState(historyInitiallyOpen);
   const [reviewOpen, setReviewOpen] = useState(true);
   const [discardConfirm, setDiscardConfirm] = useState(false);
@@ -155,7 +183,8 @@ export function SchemaEditor(
     type,
     definition,
     onApplied,
-    onState,
+    onState: setSchemaEditState,
+    identifierKinds: catalog.kinds.length ? catalog.kinds : definition.identifier_kinds,
     disabled,
     jobs: jobs.items,
     onNavigate: navigate,
@@ -200,7 +229,8 @@ export function SchemaEditor(
   } = editor;
   useEffect(() => {
     const explicitlySelected = new URLSearchParams(location.search).get("change_id") === plan?.id;
-    const needsImpactReview = plan?.change_kind === "migration_required" || !!plan?.recovery || (plan?.analysis?.failed ?? 0) > 0;
+    const needsImpactReview = plan?.change_kind === "migration_required" || !!plan?.recovery ||
+      (plan?.analysis?.failed ?? 0) > 0;
     if (plan?.id && (explicitlySelected || needsImpactReview)) {
       setHistoryOpen(true);
       setReviewOpen(true);
@@ -272,11 +302,45 @@ export function SchemaEditor(
       openEditing();
     });
   };
+  const selectedProperty = new URLSearchParams(location.search).get("property");
+  useEffect(() => {
+    if (!selectedProperty || !draft.schema.properties[selectedProperty]) return;
+    setPropertiesOpen(true);
+    setOpenFields((keys) => keys.includes(selectedProperty) ? keys : [...keys, selectedProperty]);
+    requestAnimationFrame(() => fieldElements.current[selectedProperty]?.body?.scrollIntoView({ block: "nearest" }));
+  }, [selectedProperty, definition.schema_version]);
   const draftOrder = schemaPresentation(draft).order;
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
+      {addingKindFor && draft.schema.properties[addingKindFor] && (
+        <IdentitySourceModal
+          issuers={catalog.issuers}
+          linkedKindIds={draft.schema.properties[addingKindFor]["x-identifier"]!.allowed_kind_ids}
+          onState={reportKindModal}
+          onClose={() => setAddingKindFor(null)}
+          onIssuer={catalog.admitIssuer}
+          onRule={catalog.admitRule}
+          onConnect={(_issuer, rule) => {
+            const field = draft.schema.properties[addingKindFor];
+            const settings = field["x-identifier"]!;
+            editField(addingKindFor, {
+              ...field,
+              "x-identifier": { ...settings, allowed_kind_ids: [...new Set([...settings.allowed_kind_ids, rule.id])] },
+            });
+            setAddingKindFor(null);
+          }}
+        />
+      )}
+      {error && (
+        <Alert variant="destructive" role="alert" className="text-sm text-destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {message && (
+        <Alert role="status">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
+      )}
       <div className="grid min-w-0 gap-6">
         <section
           className="flex min-w-0 flex-col gap-4"
@@ -289,7 +353,8 @@ export function SchemaEditor(
               ref={propertiesHeading}
               tabIndex={-1}
             >
-              <Button variant="ghost"
+              <Button
+                variant="ghost"
                 className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 whitespace-normal text-left"
                 type="button"
                 aria-expanded={propertiesOpen}
@@ -302,7 +367,9 @@ export function SchemaEditor(
                   else setPropertiesOpen(!propertiesOpen);
                 }}
               >
-                {propertiesOpen ? <ChevronDownIcon data-icon="inline-start" /> : <ChevronRightIcon data-icon="inline-start" />}
+                {propertiesOpen
+                  ? <ChevronDownIcon data-icon="inline-start" />
+                  : <ChevronRightIcon data-icon="inline-start" />}
                 <span>입력 항목</span>
                 <span className="text-sm text-muted-foreground">
                   {busy
@@ -316,8 +383,8 @@ export function SchemaEditor(
               </Button>
             </h2>
             <div className="flex max-w-full flex-wrap items-center gap-2">
-              <Button variant="ghost"
-
+              <Button
+                variant="ghost"
                 type="button"
                 disabled={inputsDisabled ||
                   Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
@@ -326,7 +393,8 @@ export function SchemaEditor(
                   const key = editor.addField();
                   if (key) setOpenFields((keys) => [...keys, key]);
                 }}
-              ><PlusIcon data-icon="inline-start" />
+              >
+                <PlusIcon data-icon="inline-start" />
                 항목 추가
               </Button>
             </div>
@@ -342,23 +410,59 @@ export function SchemaEditor(
               className="min-w-0"
               disabled={inputsDisabled}
             >
-              <SchemaTitleTemplateSetting draft={draft} saved={definition} disabled={inputsDisabled || Boolean(plan?.recovery)} readOnly={!canWrite} onChange={editor.editTitleTemplate} />
+              <SchemaTitleTemplateSetting
+                draft={draft}
+                saved={definition}
+                disabled={inputsDisabled || Boolean(plan?.recovery)}
+                readOnly={!canWrite}
+                onChange={editor.editTitleTemplate}
+              />
+              {catalog.error && (
+                <Alert variant="destructive" role="alert">
+                  <AlertDescription>
+                    식별자 종류를 읽지 못했습니다. {catalog.error}{" "}
+                    <Button variant="outline" type="button" onClick={catalog.reload}>다시 조회</Button>
+                  </AlertDescription>
+                </Alert>
+              )}
               <CollectionList view="table" label="입력 항목 목록" columns={["입력 항목", "설정", "순서"]}>
                 {fieldOrder.map((key) => {
-                  const removed = removedFields.find(field => field.key === key);
-                  if (removed) return <CollectionItem key={`removed-${key}`}>
-                    <BusinessRow aria-label={`${removed.field.title || key} 삭제 예정 입력 항목`}>
-                      <BusinessDisclosureCell />
-                      <BusinessCell index={0}><span className="wrap-anywhere">{removed.field.title || key}</span></BusinessCell>
-                      <BusinessCell index={1}><Badge variant="destructive">삭제 예정</Badge></BusinessCell>
-                      <BusinessCell index={2}><Button variant="outline" type="button" disabled={Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
-                        aria-label={`${removed.field.title || key} 삭제 취소`} onClick={() => {
-                          editor.restoreField(key);
-                          setOpenFields(keys => [...keys, key]);
-                          requestAnimationFrame(() => fieldElements.current[key]?.body?.querySelector<HTMLInputElement>('input[data-schema-setting="title"]')?.focus());
-                        }}>삭제 취소</Button></BusinessCell>
-                    </BusinessRow>
-                  </CollectionItem>;
+                  const removed = removedFields.find((field) => field.key === key);
+                  if (removed) {
+                    return (
+                      <CollectionItem key={`removed-${key}`}>
+                        <BusinessRow aria-label={`${removed.field.title || key} 삭제 예정 입력 항목`}>
+                          <BusinessDisclosureCell />
+                          <BusinessCell index={0}>
+                            <span className="wrap-anywhere">{removed.field.title || key}</span>
+                          </BusinessCell>
+                          <BusinessCell index={1}>
+                            <Badge variant="destructive">삭제 예정</Badge>
+                          </BusinessCell>
+                          <BusinessCell index={2}>
+                            <Button
+                              variant="outline"
+                              type="button"
+                              disabled={Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
+                              aria-label={`${removed.field.title || key} 삭제 취소`}
+                              onClick={() => {
+                                editor.restoreField(key);
+                                setOpenFields((keys) => [...keys, key]);
+                                requestAnimationFrame(() =>
+                                  fieldElements.current[key]?.body?.querySelector<HTMLInputElement>(
+                                    'input[data-schema-setting="title"]',
+                                  )?.focus()
+                                );
+                              }}
+                            >
+                              삭제 취소
+                            </Button>
+                          </BusinessCell>
+                        </BusinessRow>
+                      </CollectionItem>
+                    );
+                  }
+                  const selectedIdentity = draft.schema["x-identity-property"] === key;
                   const index = draftOrder.indexOf(key);
                   const f = draft.schema.properties[key],
                     scalar = fieldType(f) ?? "string";
@@ -370,10 +474,9 @@ export function SchemaEditor(
                   const fieldSummary = (
                     <span className="flex max-w-full flex-wrap items-center gap-1 text-sm text-muted-foreground">
                       {!expanded && <span>{fieldTypeLabel(f)}</span>}
+                      {selectedIdentity && <Badge variant="secondary">자료 식별자</Badge>}
                       {draft.schema.required.includes(key) && <Badge variant="secondary">필수</Badge>}
-                      {schemaPresentation(draft).archived.includes(key) && (
-                        <Badge variant="secondary">사용 중지</Badge>
-                      )}
+                      {schemaPresentation(draft).archived.includes(key) && <Badge variant="secondary">사용 중지</Badge>}
                       {fieldStates[key] && <Badge>{fieldStates[key]}</Badge>}
                       {fieldError === key && (
                         <span className="text-sm text-destructive">
@@ -384,34 +487,68 @@ export function SchemaEditor(
                   );
                   return (
                     <CollectionItem key={key}>
-                      <BusinessRow aria-label={`${f.title || "새 항목"} 입력 항목`} data-expanded={expanded || undefined}
-                        ref={element => { fieldElements.current[key] = { ...fieldElements.current[key], row: element }; }}>
-                        <BusinessDisclosureCell><Button size="icon" data-schema-disclosure variant="ghost" type="button"
-                          aria-label={`${f.title || "새 항목"} 항목 ${expanded ? "접기" : "펼치기"}`} aria-expanded={expanded} aria-controls={`schema-field-${key}`} onClick={toggleField}>
-                          {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                        </Button></BusinessDisclosureCell>
-                        <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
-                          aria-label={`${f.title || "새 항목"} 입력 항목 편집`} aria-expanded={expanded} aria-controls={`schema-field-${key}`}
-                          onClick={() => {
-                            toggleField();requestAnimationFrame(() => {
-                              const input = fieldElements.current[key]?.body?.querySelector<HTMLInputElement>('input[data-schema-setting="title"]:not(:disabled)');
-                              (input ?? fieldElements.current[key]?.row?.querySelector<HTMLButtonElement>('[data-schema-disclosure]:not(:disabled)'))?.focus({preventScroll:true});
-                            });
-                          }}><span className="min-w-0 wrap-anywhere">{f.title || "새 항목"}</span></Button></h3></BusinessCell>
-                        <BusinessCell index={1}>{fieldSummary}</BusinessCell>
-                        <BusinessCell index={2}>                          <div data-schema-order-actions className="flex min-w-0 flex-wrap gap-1">
-                            <Button variant="ghost"
+                      <BusinessRow
+                        aria-label={`${f.title || "새 항목"} 입력 항목`}
+                        data-expanded={expanded || undefined}
+                        ref={(element) => {
+                          fieldElements.current[key] = { ...fieldElements.current[key], row: element };
+                        }}
+                      >
+                        <BusinessDisclosureCell>
+                          <Button
+                            size="icon"
+                            data-schema-disclosure
+                            variant="ghost"
+                            type="button"
+                            aria-label={`${f.title || "새 항목"} 항목 ${expanded ? "접기" : "펼치기"}`}
+                            aria-expanded={expanded}
+                            aria-controls={`schema-field-${key}`}
+                            onClick={toggleField}
+                          >
+                            {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                          </Button>
+                        </BusinessDisclosureCell>
+                        <BusinessCell index={0}>
+                          <h3>
+                            <Button
+                              variant="link"
                               type="button"
-
+                              className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                              aria-label={`${f.title || "새 항목"} 입력 항목 편집`}
+                              aria-expanded={expanded}
+                              aria-controls={`schema-field-${key}`}
+                              onClick={() => {
+                                toggleField();
+                                requestAnimationFrame(() => {
+                                  const input = fieldElements.current[key]?.body?.querySelector<HTMLInputElement>(
+                                    'input[data-schema-setting="title"]:not(:disabled)',
+                                  );
+                                  (input ??
+                                    fieldElements.current[key]?.row?.querySelector<HTMLButtonElement>(
+                                      "[data-schema-disclosure]:not(:disabled)",
+                                    ))?.focus({ preventScroll: true });
+                                });
+                              }}
+                            >
+                              <span className="min-w-0 wrap-anywhere">{f.title || "새 항목"}</span>
+                            </Button>
+                          </h3>
+                        </BusinessCell>
+                        <BusinessCell index={1}>{fieldSummary}</BusinessCell>
+                        <BusinessCell index={2}>
+                          <div data-schema-order-actions className="flex min-w-0 flex-wrap gap-1">
+                            <Button
+                              variant="ghost"
+                              type="button"
                               aria-label={`${f.title || "새 항목"} 위로`}
                               disabled={index === 0 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, -1)}
                             >
                               <ArrowUpIcon />
                             </Button>
-                            <Button variant="ghost"
+                            <Button
+                              variant="ghost"
                               type="button"
-
                               aria-label={`${f.title || "새 항목"} 아래로`}
                               disabled={index === schemaPresentation(draft).order.length - 1 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, 1)}
@@ -419,23 +556,29 @@ export function SchemaEditor(
                               <ArrowDownIcon />
                             </Button>
                           </div>
-</BusinessCell>
+                        </BusinessCell>
                       </BusinessRow>
-                      <BusinessDetails id={`schema-field-${key}`} hidden={!expanded} role="region" aria-label={`${f.title || "새 항목"} 입력 항목`}
-                        ref={element => { fieldElements.current[key] = { ...fieldElements.current[key], body: element }; }}>
-                                  <Field fullWidth label="항목 이름">
-                                    {(nameProps) => (
-                                      <Input
-                                        {...nameProps}
-
-                                        maxLength={80}
-                                        data-schema-setting="title"
-                                        value={f.title ?? ""}
-                                        disabled={Boolean(plan?.recovery)}
-                                        onChange={(event) => editField(key, { ...f, title: event.target.value })}
-                                      />
-                                    )}
-                                  </Field>
+                      <BusinessDetails
+                        id={`schema-field-${key}`}
+                        hidden={!expanded}
+                        role="region"
+                        aria-label={`${f.title || "새 항목"} 입력 항목`}
+                        ref={(element) => {
+                          fieldElements.current[key] = { ...fieldElements.current[key], body: element };
+                        }}
+                      >
+                        <Field fullWidth label="항목 이름">
+                          {(nameProps) => (
+                            <Input
+                              {...nameProps}
+                              maxLength={80}
+                              data-schema-setting="title"
+                              value={f.title ?? ""}
+                              disabled={Boolean(plan?.recovery)}
+                              onChange={(event) => editField(key, { ...f, title: event.target.value })}
+                            />
+                          )}
+                        </Field>
                         <FieldSet
                           className="min-w-0 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]"
                           hidden={!openFields.includes(key)}
@@ -445,15 +588,23 @@ export function SchemaEditor(
                             {(p) => (
                               <NativeSelect
                                 {...p}
-
                                 data-schema-setting="type"
-                                value={fieldChoices(f) ? "select" : f.format === "date" ? "date" : scalar}
+                                disabled={selectedIdentity}
+                                value={f["x-identifier"]
+                                  ? "identifier"
+                                  : fieldChoices(f)
+                                  ? "select"
+                                  : f.format === "date"
+                                  ? "date"
+                                  : scalar}
                                 onChange={(e) => {
                                   const value = e.target.value;
                                   editField(
                                     key,
                                     fieldInputPolicy({
-                                      type: value === "date" || value === "select" ? "string" : value as "string",
+                                      type: value === "identifier" || value === "date" || value === "select"
+                                        ? "string"
+                                        : value as "string",
                                       "x-order": f["x-order"],
                                       ...(value === "string" ? { "x-search-text": f["x-search-text"] } : {}),
                                       deprecated: f.deprecated,
@@ -461,6 +612,14 @@ export function SchemaEditor(
                                       examples: f.examples,
                                       title: f.title,
                                       description: f.description,
+                                      ...(value === "identifier"
+                                        ? {
+                                          "x-identifier": {
+                                            allowed_kind_ids: [APP_IDENTIFIER_RULE_ID],
+                                            default_kind_id: APP_IDENTIFIER_RULE_ID,
+                                          },
+                                        }
+                                        : {}),
                                       ...(value === "date"
                                         ? { format: "date" as const }
                                         : value === "select"
@@ -471,6 +630,7 @@ export function SchemaEditor(
                                 }}
                               >
                                 <NativeSelectOption value="string">텍스트</NativeSelectOption>
+                                <NativeSelectOption value="identifier">식별자</NativeSelectOption>
                                 <NativeSelectOption value="integer">정수</NativeSelectOption>
                                 <NativeSelectOption value="number">숫자</NativeSelectOption>
                                 <NativeSelectOption value="date">날짜</NativeSelectOption>
@@ -479,6 +639,16 @@ export function SchemaEditor(
                               </NativeSelect>
                             )}
                           </Field>
+                          {f["x-identifier"] && (
+                            <IdentifierFieldSettings
+                              field={f}
+                              kinds={catalog.kinds.length ? catalog.kinds : definition.identifier_kinds ?? []}
+                              selected={selectedIdentity}
+                              disabled={Boolean(plan?.recovery) || catalog.loading}
+                              onChange={(field) => editField(key, field)}
+                              onAddKind={() => setAddingKindFor(key)}
+                            />
+                          )}
                           {fieldChoices(f) && (
                             <div className="flex min-w-0 flex-col gap-3 col-span-full">
                               <h4 className="text-base font-semibold">선택 항목</h4>
@@ -491,7 +661,6 @@ export function SchemaEditor(
                                     {(props) => (
                                       <Input
                                         {...props}
-
                                         maxLength={80}
                                         value={optionLabel(
                                           schemaPresentation(draft).option_labels[key],
@@ -506,9 +675,9 @@ export function SchemaEditor(
                                       />
                                     )}
                                   </Field>
-                                  <Button variant="outline"
+                                  <Button
+                                    variant="outline"
                                     type="button"
-
                                     aria-label={`선택 항목 ${i + 1} 제거`}
                                     disabled={fieldChoices(f)!.filter((value) => value !== null).length <= 1}
                                     onClick={() =>
@@ -521,8 +690,8 @@ export function SchemaEditor(
                                   </Button>
                                 </div>
                               ))}
-                              <Button variant="ghost"
-
+                              <Button
+                                variant="ghost"
                                 type="button"
                                 disabled={fieldChoices(f)!.filter((value) => value !== null).length >= 128}
                                 onClick={() => {
@@ -540,7 +709,8 @@ export function SchemaEditor(
                                     }],
                                   });
                                 }}
-                              ><PlusIcon data-icon="inline-start" />
+                              >
+                                <PlusIcon data-icon="inline-start" />
                                 선택 항목 추가
                               </Button>
                               <p className="text-sm text-muted-foreground">
@@ -564,259 +734,277 @@ export function SchemaEditor(
                               );
                             }}
                           >
-                            <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">추가 설정</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
-                            <FieldGroup className="flex min-w-0 flex-col gap-5 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
-                              <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
-                                <Checkbox
+                            <CollapsibleTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left"
+                              >
+                                추가 설정
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+                              <FieldGroup className="flex min-w-0 flex-col gap-5 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+                                <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                                  <Checkbox
+                                    disabled={selectedIdentity}
+                                    checked={draft.schema.required.includes(key)}
+                                    onCheckedChange={(checked) => editFlag(key, "required", checked === true)}
+                                  />{" "}
+                                  필수 입력
+                                </FieldLabel>
 
-                                  checked={draft.schema.required.includes(key)}
-                                  onCheckedChange={(checked) => editFlag(key, "required", checked === true)}
-                                />{" "}
-                                필수 입력
-                              </FieldLabel>
-
-                              <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
-                                <Checkbox
-
-                                  checked={!!f.readOnly}
-                                  aria-label={`${f.title || "새 항목"} 읽기 전용`}
-                                  onCheckedChange={(checked) => editField(key, { ...f, readOnly: checked === true })}
-                                />{" "}
-                                읽기 전용
-                              </FieldLabel>
-                              <Field fullWidth label="설명">
-                                {(p) => (
-                                  <Textarea
-                                    {...p}
-
-                                    maxLength={1000}
-                                    value={f.description ?? ""}
-                                    onChange={(e) =>
-                                      editField(key, {
-                                        ...f,
-                                        description: e.target.value,
-                                      })}
-                                  />
+                                <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
+                                  <Checkbox
+                                    disabled={selectedIdentity}
+                                    checked={!!f.readOnly}
+                                    aria-label={`${f.title || "새 항목"} 읽기 전용`}
+                                    onCheckedChange={(checked) => editField(key, { ...f, readOnly: checked === true })}
+                                  />{" "}
+                                  읽기 전용
+                                </FieldLabel>
+                                <Field fullWidth label="설명">
+                                  {(p) => (
+                                    <Textarea
+                                      {...p}
+                                      maxLength={1000}
+                                      value={f.description ?? ""}
+                                      onChange={(e) =>
+                                        editField(key, {
+                                          ...f,
+                                          description: e.target.value,
+                                        })}
+                                    />
+                                  )}
+                                </Field>
+                                {unsupportedNumericInputs.filter(([address]) => address.startsWith(key + ":")).map(
+                                  ([address, raw]) => {
+                                    const label = numericConditionNames[address.split(":")[1]];
+                                    return (
+                                      <div key={address}>
+                                        <p className="text-sm text-destructive">
+                                          현재 타입에서 사용할 수 없는 이전 조건 입력입니다. 입력을 확인하고 제거하세요.
+                                        </p>
+                                        <Field label={`이전 ${label} 입력`}>
+                                          {(props) => (
+                                            <Input
+                                              {...props}
+                                              value={raw}
+                                              readOnly
+                                            />
+                                          )}
+                                        </Field>
+                                        <Button
+                                          variant="ghost"
+                                          type="button"
+                                          aria-label={`${f.title ?? "입력 항목"} 이전 ${label} 입력 제거`}
+                                          onClick={() => editor.removeNumericInput(address)}
+                                        >
+                                          이전 조건 입력 제거
+                                        </Button>
+                                      </div>
+                                    );
+                                  },
                                 )}
-                              </Field>
-                              {unsupportedNumericInputs.filter(([address]) => address.startsWith(key + ":")).map(
-                                ([address, raw]) => {
-                                  const label = numericConditionNames[address.split(":")[1]];
-                                  return (
-                                    <div key={address}>
-                                      <p className="text-sm text-destructive">
-                                        현재 타입에서 사용할 수 없는 이전 조건 입력입니다. 입력을 확인하고 제거하세요.
-                                      </p>
-                                      <Field label={`이전 ${label} 입력`}>
-                                        {(props) => (
+                                {scalar === "string" && !f.format && !f["x-identifier"] && (
+                                  <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] col-span-full">
+                                    {(["minLength", "maxLength"] as const).map((
+                                      name,
+                                    ) => (
+                                      <Field
+                                        key={name}
+                                        label={name === "minLength" ? "최소 길이" : "최대 길이"}
+                                      >
+                                        {(p) => (
                                           <Input
-                                            {...props}
-
-                                            value={raw}
-                                            readOnly
+                                            {...p}
+                                            type="text"
+                                            inputMode="decimal"
+                                            min={0}
+                                            max={4096}
+                                            data-schema-setting={name}
+                                            value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
+                                            onChange={(e) => editNumeric(key, name, e.target.value)}
                                           />
                                         )}
                                       </Field>
-                                      <Button variant="ghost"
-                                        type="button"
-                                        aria-label={`${f.title ?? "입력 항목"} 이전 ${label} 입력 제거`}
-                                        onClick={() => editor.removeNumericInput(address)}
-                                      >
-                                        이전 조건 입력 제거
-                                      </Button>
-                                    </div>
-                                  );
-                                },
-                              )}
-                              {scalar === "string" && !f.format && (
-                                <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] col-span-full">
-                                  {(["minLength", "maxLength"] as const).map((
-                                    name,
-                                  ) => (
-                                    <Field
-                                      key={name}
-                                      label={name === "minLength" ? "최소 길이" : "최대 길이"}
-                                    >
-                                      {(p) => (
-                                        <Input
-                                          {...p}
-
-                                          type="text"
-                                          inputMode="decimal"
-                                          min={0}
-                                          max={4096}
-                                          data-schema-setting={name}
-                                          value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
-                                          onChange={(e) => editNumeric(key, name, e.target.value)}
-                                        />
-                                      )}
-                                    </Field>
-                                  ))}
-                                </div>
-                              )}
-                              {["integer", "number"].includes(scalar) && (
-                                <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] col-span-full">
-                                  {(["minimum", "maximum", "multipleOf"] as const).map((name) => (
-                                    <Field key={name} label={numericConditionNames[name]}>
-                                      {(p) => (
-                                        <Input
-                                          {...p}
-
-                                          type="text"
-                                          inputMode="decimal"
-                                          step="any"
-                                          data-schema-setting={name}
-                                          value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
-                                          onChange={(e) => editNumeric(key, name, e.target.value)}
-                                        />
-                                      )}
-                                    </Field>
-                                  ))}
-                                </div>
-                              )}
-                              <Field label="생성 기본값 (기존 자료에는 채우지 않음)">
-                                {(p) => (
-                                  <NativeSelect
-                                    {...p}
-
-                                    value={f.default === undefined ||
-                                        f.default === null
-                                      ? "unset"
-                                      : "value"}
-                                    onChange={(e) =>
-                                      editField(key, {
-                                        ...f,
-                                        default: e.target.value === "unset"
-                                          ? undefined
-                                          : e.target.value === "null"
-                                          ? null
-                                          : scalar === "boolean"
-                                          ? false
-                                          : ["integer", "number"].includes(scalar)
-                                          ? 0
-                                          : fieldChoices(f)?.find((v) => v !== null) ?? "",
-                                      })}
-                                  >
-                                    <NativeSelectOption value="unset">설정 안 함</NativeSelectOption>
-                                    <NativeSelectOption value="value">값 지정</NativeSelectOption>
-                                  </NativeSelect>
+                                    ))}
+                                  </div>
                                 )}
-                              </Field>
-                              {f.default !== undefined && f.default !== null && (
-                                <Field label="기본값" error={f.format === "date" && !isCivilDateInput(String(f.default))
-                                  ? "올바른 날짜를 YYYY-MM-DD 형식으로 입력하세요." : undefined}>
-                                  {(p) =>
-                                    scalar === "boolean"
-                                      ? (
+                                {["integer", "number"].includes(scalar) && (
+                                  <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] col-span-full">
+                                    {(["minimum", "maximum", "multipleOf"] as const).map((name) => (
+                                      <Field key={name} label={numericConditionNames[name]}>
+                                        {(p) => (
+                                          <Input
+                                            {...p}
+                                            type="text"
+                                            inputMode="decimal"
+                                            step="any"
+                                            data-schema-setting={name}
+                                            value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
+                                            onChange={(e) => editNumeric(key, name, e.target.value)}
+                                          />
+                                        )}
+                                      </Field>
+                                    ))}
+                                  </div>
+                                )}
+                                {!f["x-identifier"] && (
+                                  <>
+                                    <Field label="생성 기본값 (기존 자료에는 채우지 않음)">
+                                      {(p) => (
                                         <NativeSelect
                                           {...p}
-
-                                          value={String(f.default)}
+                                          value={f.default === undefined ||
+                                              f.default === null
+                                            ? "unset"
+                                            : "value"}
                                           onChange={(e) =>
                                             editField(key, {
                                               ...f,
-                                              default: e.target.value === "true",
+                                              default: e.target.value === "unset"
+                                                ? undefined
+                                                : e.target.value === "null"
+                                                ? null
+                                                : scalar === "boolean"
+                                                ? false
+                                                : ["integer", "number"].includes(scalar)
+                                                ? 0
+                                                : fieldChoices(f)?.find((v) => v !== null) ?? "",
                                             })}
                                         >
-                                          <NativeSelectOption value="false">거짓</NativeSelectOption>
-                                          <NativeSelectOption value="true">참</NativeSelectOption>
+                                          <NativeSelectOption value="unset">설정 안 함</NativeSelectOption>
+                                          <NativeSelectOption value="value">값 지정</NativeSelectOption>
                                         </NativeSelect>
-                                      )
-                                      : fieldChoices(f)
-                                      ? (
-                                        <NativeSelect
-                                          {...p}
-
-                                          value={String(f.default)}
-                                          onChange={(e) =>
-                                            editField(key, {
-                                              ...f,
-                                              default: e.target.value,
-                                            })}
-                                        >
-                                          {fieldChoices(f)!.filter((v) => v !== null).map((
-                                            code,
-                                          ) => (
-                                            <NativeSelectOption key={code} value={code!}>
-                                              {optionLabel(
-                                                schemaPresentation(draft).option_labels[key],
-                                                code!,
-                                              )}
-                                            </NativeSelectOption>
-                                          ))}
-                                        </NativeSelect>
-                                      )
-                                      : f.format === "date" ? (
-                                        <DateInput
-                                          {...p}
-                                          label={`${f.title ?? key} 기본값`}
-                                          disabled={inputsDisabled}
-                                          data-schema-setting="default"
-                                          value={numericDrafts[key + ":default"] ?? String(f.default)}
-                                          onValueChange={(next) => editField(key, { ...f, default: next })}
-                                        />
-                                      ) : (
-                                        <Input
-                                          {...p}
-
-                                          type="text"
-                                          inputMode={["integer", "number"].includes(
-                                              scalar,
-                                            )
-                                            ? "decimal"
-                                            : undefined}
-                                          data-schema-setting="default"
-                                          value={numericDrafts[key + ":default"] ?? String(f.default)}
-                                          onChange={(e) =>
-                                            ["integer", "number"].includes(scalar)
-                                              ? editNumeric(
-                                                key,
-                                                "default",
-                                                e.target.value,
-                                              )
-                                              : editField(key, {
-                                                ...f,
-                                                default: e.target.value,
-                                              })}
-                                        />
                                       )}
-                                </Field>
-                              )}
-                              <p className="text-sm text-muted-foreground">
-                                사용 중지는 기존 값을 유지합니다. 삭제는 검토·적용 후 반영됩니다.
-                              </p>
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <Button variant="ghost"
-                                  type="button"
-                                  onClick={() =>
-                                    editor.setFieldInactive(
-                                      key,
-                                      !schemaPresentation(draft).archived.includes(key),
+                                    </Field>
+                                    {f.default !== undefined && f.default !== null && (
+                                      <Field
+                                        label="기본값"
+                                        error={f.format === "date" && !isCivilDateInput(String(f.default))
+                                          ? "올바른 날짜를 YYYY-MM-DD 형식으로 입력하세요."
+                                          : undefined}
+                                      >
+                                        {(p) =>
+                                          scalar === "boolean"
+                                            ? (
+                                              <NativeSelect
+                                                {...p}
+                                                value={String(f.default)}
+                                                onChange={(e) =>
+                                                  editField(key, {
+                                                    ...f,
+                                                    default: e.target.value === "true",
+                                                  })}
+                                              >
+                                                <NativeSelectOption value="false">거짓</NativeSelectOption>
+                                                <NativeSelectOption value="true">참</NativeSelectOption>
+                                              </NativeSelect>
+                                            )
+                                            : fieldChoices(f)
+                                            ? (
+                                              <NativeSelect
+                                                {...p}
+                                                value={String(f.default)}
+                                                onChange={(e) =>
+                                                  editField(key, {
+                                                    ...f,
+                                                    default: e.target.value,
+                                                  })}
+                                              >
+                                                {fieldChoices(f)!.filter((v) => v !== null).map((
+                                                  code,
+                                                ) => (
+                                                  <NativeSelectOption key={code} value={code!}>
+                                                    {optionLabel(
+                                                      schemaPresentation(draft).option_labels[key],
+                                                      code!,
+                                                    )}
+                                                  </NativeSelectOption>
+                                                ))}
+                                              </NativeSelect>
+                                            )
+                                            : f.format === "date"
+                                            ? (
+                                              <DateInput
+                                                {...p}
+                                                label={`${f.title ?? key} 기본값`}
+                                                disabled={inputsDisabled}
+                                                data-schema-setting="default"
+                                                value={numericDrafts[key + ":default"] ?? String(f.default)}
+                                                onValueChange={(next) => editField(key, { ...f, default: next })}
+                                              />
+                                            )
+                                            : (
+                                              <Input
+                                                {...p}
+                                                type="text"
+                                                inputMode={["integer", "number"].includes(
+                                                    scalar,
+                                                  )
+                                                  ? "decimal"
+                                                  : undefined}
+                                                data-schema-setting="default"
+                                                value={numericDrafts[key + ":default"] ?? String(f.default)}
+                                                onChange={(e) =>
+                                                  ["integer", "number"].includes(scalar)
+                                                    ? editNumeric(
+                                                      key,
+                                                      "default",
+                                                      e.target.value,
+                                                    )
+                                                    : editField(key, {
+                                                      ...f,
+                                                      default: e.target.value,
+                                                    })}
+                                              />
+                                            )}
+                                      </Field>
                                     )}
-                                >
-                                  {schemaPresentation(draft).archived.includes(key) ? "다시 사용" : "사용 중지"}
-                                </Button>
-                                <Button variant="destructive"
-
-                                  type="button"
-                                  onClick={() => setDeleteKey(key)}
-                                >
-                                  <Trash2Icon data-icon="inline-start" />항목 삭제
-                                </Button>
-                              </div>
-                            </FieldGroup>
-                          </CollapsibleContent></Collapsible>
+                                  </>
+                                )}
+                                <p className="text-sm text-muted-foreground">
+                                  사용 중지는 기존 값을 유지합니다. 삭제는 검토·적용 후 반영됩니다.
+                                </p>
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    type="button"
+                                    disabled={selectedIdentity}
+                                    onClick={() =>
+                                      editor.setFieldInactive(
+                                        key,
+                                        !schemaPresentation(draft).archived.includes(key),
+                                      )}
+                                  >
+                                    {schemaPresentation(draft).archived.includes(key) ? "다시 사용" : "사용 중지"}
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    type="button"
+                                    disabled={selectedIdentity}
+                                    onClick={() => setDeleteKey(key)}
+                                  >
+                                    <Trash2Icon data-icon="inline-start" />항목 삭제
+                                  </Button>
+                                </div>
+                              </FieldGroup>
+                            </CollapsibleContent>
+                          </Collapsible>
                         </FieldSet>
                       </BusinessDetails>
                     </CollectionItem>
                   );
                 })}
               </CollectionList>
-
             </FieldSet>
             <p className="text-sm text-muted-foreground">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
             {plan && !["applied", "cancelled"].includes(plan.status) && !actions.review.visible && (
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3" aria-label="입력 항목 적용 상태">
+              <div
+                className="flex min-w-0 flex-wrap items-center justify-between gap-3"
+                aria-label="입력 항목 적용 상태"
+              >
                 <p className="text-sm text-muted-foreground" role="status">
                   {plan.analysis?.status === "queued" || plan.analysis?.status === "running"
                     ? "기존 자료에 미치는 영향을 확인하고 있습니다."
@@ -825,14 +1013,35 @@ export function SchemaEditor(
                     : "적용 전에 기존 자료에 미치는 영향을 확인하세요."}
                 </p>
                 <div className="flex max-w-full flex-wrap items-center gap-2">
-                  {actions.conversionVisible || plan.analysis?.failed || plan.analysis?.status === "failed" || plan.status === "stale"
-                    ? <Button variant="outline" type="button" disabled={busy || uncertain} onClick={() => {
-                      setHistoryOpen(true); setReviewOpen(true);
-                      requestAnimationFrame(() => { reviewHeading.current?.scrollIntoView({ block: "start" }); reviewHeading.current?.focus(); });
-                    }}>영향·보완 내용 확인</Button>
-                    : primaryAction && <Button variant="default" type="button" disabled={primaryAction.disabled} onClick={() => void primaryAction.run?.()}>
-                      {primaryAction.label ?? actionLabels[primaryAction.kind]}
-                    </Button>}
+                  {actions.conversionVisible || plan.analysis?.failed || plan.analysis?.status === "failed" ||
+                      plan.status === "stale"
+                    ? (
+                      <Button
+                        variant="outline"
+                        type="button"
+                        disabled={busy || uncertain}
+                        onClick={() => {
+                          setHistoryOpen(true);
+                          setReviewOpen(true);
+                          requestAnimationFrame(() => {
+                            reviewHeading.current?.scrollIntoView({ block: "start" });
+                            reviewHeading.current?.focus();
+                          });
+                        }}
+                      >
+                        영향·보완 내용 확인
+                      </Button>
+                    )
+                    : primaryAction && (
+                      <Button
+                        variant="default"
+                        type="button"
+                        disabled={primaryAction.disabled}
+                        onClick={() => void primaryAction.run?.()}
+                      >
+                        {primaryAction.label ?? actionLabels[primaryAction.kind]}
+                      </Button>
+                    )}
                 </div>
               </div>
             )}
@@ -846,15 +1055,11 @@ export function SchemaEditor(
                   </p>
                 )}
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Button variant="outline"
-
-                    disabled={busy || uncertain || !dirty}
-                    onClick={editor.cancelEditing}
-                  >
+                  <Button variant="outline" disabled={busy || uncertain || !dirty} onClick={editor.cancelEditing}>
                     변경 취소
                   </Button>
-                  <Button variant="default"
-
+                  <Button
+                    variant="default"
                     disabled={actions.review.disabled}
                     onClick={() => void actions.review.run()}
                   >
@@ -922,58 +1127,89 @@ export function SchemaEditor(
                 : "";
               const title = row.version?.schema_version === 1 ? "최초 생성" : "입력 항목 변경";
               const toggleHistory = () => {
-                        if (isOpen) {
-                          setExpandedRow(undefined);
-                          if (plan?.id === row.changeId) setReviewOpen(false);
-                          if (isSelectedJob) setSelectedJobOpen(false);
-                          if (
-                            selectedVersion &&
-                            selectedVersion.schema_version ===
-                              row.version?.schema_version
-                          ) {
-                            const params = new URLSearchParams(location.search);
-                            params.delete("schema_version");
-                            navigate(`${location.pathname}?${params}`);
-                          }
-                          return;
-                        }
-                        setExpandedRow(row.id);
-                        if (isSelectedJob) setSelectedJobOpen(true);
-                        if (rowJob || row.version) {
-                          navigate(materialSettingsPath(type.id, location.search, {
-                            job_id: rowJob?.id ?? null,
-                            schema_version: row.version ? String(row.version.schema_version) : null,
-                          }));
-                        }
-                        if (row.changeId && c && !rowJob && !row.version) {
-                          setReviewOpen(true);
-                          const params = new URLSearchParams(location.search);
-                          params.set("change_id", row.changeId);
-                          params.delete("job_id");
-                          navigate(
-                            `/settings/entity-types/${type.id}?${params}`,
-                          );
-                          if (plan?.id !== row.changeId) {
-                            void loadPlan(row.changeId);
-                          }
-                        }
+                if (isOpen) {
+                  setExpandedRow(undefined);
+                  if (plan?.id === row.changeId) setReviewOpen(false);
+                  if (isSelectedJob) setSelectedJobOpen(false);
+                  if (
+                    selectedVersion &&
+                    selectedVersion.schema_version ===
+                      row.version?.schema_version
+                  ) {
+                    const params = new URLSearchParams(location.search);
+                    params.delete("schema_version");
+                    navigate(`${location.pathname}?${params}`);
+                  }
+                  return;
+                }
+                setExpandedRow(row.id);
+                if (isSelectedJob) setSelectedJobOpen(true);
+                if (rowJob || row.version) {
+                  navigate(materialSettingsPath(type.id, location.search, {
+                    job_id: rowJob?.id ?? null,
+                    schema_version: row.version ? String(row.version.schema_version) : null,
+                  }));
+                }
+                if (row.changeId && c && !rowJob && !row.version) {
+                  setReviewOpen(true);
+                  const params = new URLSearchParams(location.search);
+                  params.set("change_id", row.changeId);
+                  params.delete("job_id");
+                  navigate(
+                    `/settings/entity-types/${type.id}?${params}`,
+                  );
+                  if (plan?.id !== row.changeId) {
+                    void loadPlan(row.changeId);
+                  }
+                }
               };
               const historyDisabled = !isOpen && plan?.id !== row.changeId && (busy || uncertain || readBusy || dirty);
               return (
                 <CollectionItem key={row.id}>
-                  <BusinessRow aria-label={`${title} ${new Date(row.createdAt).toLocaleString()}`} data-expanded={isOpen || undefined}>
-                    <BusinessDisclosureCell><Button variant="ghost" size="icon" type="button" aria-label={`${title} ${new Date(row.createdAt).toLocaleString()} ${isOpen ? "접기" : "열기"}`} aria-expanded={isOpen} aria-controls={`schema-history-${row.id}`} disabled={historyDisabled} onClick={toggleHistory}>
-                      {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                    </Button></BusinessDisclosureCell>
-                    <BusinessCell index={0}><h3><Button variant="link" type="button" className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
-                      aria-label={`${title} 시각 ${new Date(row.createdAt).toLocaleString()} 상태 ${status}`} aria-expanded={isOpen} aria-controls={`schema-history-${row.id}`} disabled={historyDisabled} onClick={toggleHistory}>
-                      {title}
-                    </Button></h3></BusinessCell>
-                    <BusinessCell index={1}><time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString()}</time></BusinessCell>
+                  <BusinessRow
+                    aria-label={`${title} ${new Date(row.createdAt).toLocaleString()}`}
+                    data-expanded={isOpen || undefined}
+                  >
+                    <BusinessDisclosureCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        aria-label={`${title} ${new Date(row.createdAt).toLocaleString()} ${isOpen ? "접기" : "열기"}`}
+                        aria-expanded={isOpen}
+                        aria-controls={`schema-history-${row.id}`}
+                        disabled={historyDisabled}
+                        onClick={toggleHistory}
+                      >
+                        {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                      </Button>
+                    </BusinessDisclosureCell>
+                    <BusinessCell index={0}>
+                      <h3>
+                        <Button
+                          variant="link"
+                          type="button"
+                          className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                          aria-label={`${title} 시각 ${new Date(row.createdAt).toLocaleString()} 상태 ${status}`}
+                          aria-expanded={isOpen}
+                          aria-controls={`schema-history-${row.id}`}
+                          disabled={historyDisabled}
+                          onClick={toggleHistory}
+                        >
+                          {title}
+                        </Button>
+                      </h3>
+                    </BusinessCell>
+                    <BusinessCell index={1}>
+                      <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString()}</time>
+                    </BusinessCell>
                     <BusinessCell index={2}>{status}</BusinessCell>
                   </BusinessRow>
-                  <BusinessDetails hidden={!isOpen} role="region" aria-label={`${title} ${new Date(row.createdAt).toLocaleString()}`}>
-
+                  <BusinessDetails
+                    hidden={!isOpen}
+                    role="region"
+                    aria-label={`${title} ${new Date(row.createdAt).toLocaleString()}`}
+                  >
                     <div
                       id={`schema-history-${row.id}`}
                       className="flex min-w-0 flex-col gap-4 pt-4"
@@ -1007,15 +1243,34 @@ export function SchemaEditor(
                         <div className="flex flex-col gap-4">
                           {row.jobs.length > 1 && (
                             <nav aria-label="이 변경의 값 변환 이력">
-                              <BusinessTable label="변경별 값 변환 실행 목록" columns={["실행 시각", "상태"]} disclosureColumn={false}>
-                                {row.jobs.map(job => <BusinessRow key={job.id}>
-                                  <BusinessCell index={0}><Button asChild variant="link" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"><Link
-                                    to={materialSettingsPath(type.id, location.search, { job_id: job.id })}
-                                    aria-label={`${new Date(job.created_at).toLocaleString()} · ${migrationLabels[job.status]}`}>
-                                    <time dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time>
-                                  </Link></Button></BusinessCell>
-                                  <BusinessCell index={1}>{migrationLabels[job.status]}</BusinessCell>
-                                </BusinessRow>)}
+                              <BusinessTable
+                                label="변경별 값 변환 실행 목록"
+                                columns={["실행 시각", "상태"]}
+                                disclosureColumn={false}
+                              >
+                                {row.jobs.map((job) => (
+                                  <BusinessRow key={job.id}>
+                                    <BusinessCell index={0}>
+                                      <Button
+                                        asChild
+                                        variant="link"
+                                        className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
+                                      >
+                                        <Link
+                                          to={materialSettingsPath(type.id, location.search, { job_id: job.id })}
+                                          aria-label={`${new Date(job.created_at).toLocaleString()} · ${
+                                            migrationLabels[job.status]
+                                          }`}
+                                        >
+                                          <time dateTime={job.created_at}>
+                                            {new Date(job.created_at).toLocaleString()}
+                                          </time>
+                                        </Link>
+                                      </Button>
+                                    </BusinessCell>
+                                    <BusinessCell index={1}>{migrationLabels[job.status]}</BusinessCell>
+                                  </BusinessRow>
+                                ))}
                               </BusinessTable>
                             </nav>
                           )}
@@ -1045,7 +1300,11 @@ export function SchemaEditor(
                         >
                           <h3 className="text-base font-semibold" ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
                           {restartedFrom && (
-                            <Alert role="status"><AlertDescription>최신 기준으로 만든 새 변경안입니다. 기존 변경안은 이력에 유지됩니다.</AlertDescription></Alert>
+                            <Alert role="status">
+                              <AlertDescription>
+                                최신 기준으로 만든 새 변경안입니다. 기존 변경안은 이력에 유지됩니다.
+                              </AlertDescription>
+                            </Alert>
                           )}
                           <p>버전 {plan.source_schema_version} → {plan.source_schema_version + 1}</p>
                           {!["applied", "cancelled"].includes(plan.status) && (
@@ -1100,47 +1359,58 @@ export function SchemaEditor(
                             </section>
                           )}
                           {planSyncNeeded && (
-                            <Alert role="status"><AlertDescription>
-                              {readBusy ? "최신 변경안 상태를 확인하는 중…" : "최신 변경안 상태를 다시 확인하세요."}
-                            </AlertDescription></Alert>
+                            <Alert role="status">
+                              <AlertDescription>
+                                {readBusy ? "최신 변경안 상태를 확인하는 중…" : "최신 변경안 상태를 다시 확인하세요."}
+                              </AlertDescription>
+                            </Alert>
                           )}
                           <SchemaChangeDiff
                             change={plan}
                             definition={definition}
                           />
                           {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
-                            <Alert
-
-                              role="status"
-                            ><AlertDescription>
-                              <strong>
-                                {{
-                                  queued: "검토 접수",
-                                  running: "기존 자료 확인 중",
-                                  succeeded: plan.analysis.failed ? "보완 필요" : "검토 완료",
-                                  failed: "검토 실패",
-                                }[plan.analysis.status]}
-                              </strong>
-                              <p>
-                                확인한 자료 {plan.analysis.processed}/{plan.analysis
-                                  .total}개 · 문제 {plan.analysis.failed}개
-                              </p>
-                              {dirty && (
-                                <p className="text-sm text-destructive">
-                                  검토 이후 입력이 바뀌었습니다. 변경 검토를 다시 진행하세요.
+                            <Alert role="status">
+                              <AlertDescription>
+                                <strong>
+                                  {{
+                                    queued: "검토 접수",
+                                    running: "기존 자료 확인 중",
+                                    succeeded: plan.analysis.failed ? "보완 필요" : "검토 완료",
+                                    failed: "검토 실패",
+                                  }[plan.analysis.status]}
+                                </strong>
+                                <p>
+                                  확인한 자료 {plan.analysis.processed}/{plan.analysis
+                                    .total}개 · 문제 {plan.analysis.failed}개
                                 </p>
-                              )}
-                            </AlertDescription></Alert>
+                                {dirty && (
+                                  <p className="text-sm text-destructive">
+                                    검토 이후 입력이 바뀌었습니다. 변경 검토를 다시 진행하세요.
+                                  </p>
+                                )}
+                              </AlertDescription>
+                            </Alert>
                           )}
                           {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
                             <Collapsible>
-                              <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">자료별 결과</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
-                              <p>
-                                변경 {plan.analysis.changed}개 · 무변경 {plan.analysis.unchanged}개 · 값 제거{" "}
-                                {plan.analysis.removed}개 · 값 보완 {plan.analysis.replacements}개
-                              </p>
-                              <SchemaAnalysisErrors change={plan} definition={definition} />
-                            </CollapsibleContent></Collapsible>
+                              <CollapsibleTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left"
+                                >
+                                  자료별 결과
+                                </Button>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+                                <p>
+                                  변경 {plan.analysis.changed}개 · 무변경 {plan.analysis.unchanged}개 · 값 제거{" "}
+                                  {plan.analysis.removed}개 · 값 보완 {plan.analysis.replacements}개
+                                </p>
+                                <SchemaAnalysisErrors change={plan} definition={definition} />
+                              </CollapsibleContent>
+                            </Collapsible>
                           )}
                           {actions.conversionVisible
                             ? (
@@ -1170,9 +1440,11 @@ export function SchemaEditor(
                           )}
                           {!planSyncNeeded && plan.analysis?.status === "failed" &&
                             plan.status !== "cancelled" && (
-                            <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>
-                              분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.
-                            </AlertDescription></Alert>
+                            <Alert variant="destructive" role="alert" className="text-sm text-destructive">
+                              <AlertDescription>
+                                분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.
+                              </AlertDescription>
+                            </Alert>
                           )}
                           {plan.status === "stale" && (
                             <p>
@@ -1181,7 +1453,11 @@ export function SchemaEditor(
                                 : "정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요."}
                             </p>
                           )}
-                          <div role="group" aria-label="변경안 동작" className="flex flex-wrap items-center justify-end gap-2">
+                          <div
+                            role="group"
+                            aria-label="변경안 동작"
+                            className="flex flex-wrap items-center justify-end gap-2"
+                          >
                             {(row.version ||
                                 ["applied", "cancelled"].includes(plan.status))
                               ? (
@@ -1190,8 +1466,8 @@ export function SchemaEditor(
                                     definition.schema_version <=
                                       plan.source_schema_version &&
                                     (
-                                      <Button variant="outline"
-
+                                      <Button
+                                        variant="outline"
                                         disabled={busy || uncertain || readBusy}
                                         onClick={() => void editor.refreshDefinition()}
                                       >
@@ -1202,15 +1478,16 @@ export function SchemaEditor(
                               )
                               : (
                                 <>
-                                  <Button variant="destructive"
-
+                                  <Button
+                                    variant="destructive"
                                     disabled={actions.discard.disabled}
                                     onClick={() => setDiscardConfirm(true)}
                                   >
                                     폐기
                                   </Button>
                                   {primaryAction && (
-                                    <Button variant="default"
+                                    <Button
+                                      variant="default"
                                       disabled={primaryAction.disabled}
                                       onClick={() => void primaryAction.run?.()}
                                     >
@@ -1218,9 +1495,11 @@ export function SchemaEditor(
                                     </Button>
                                   )}
                                   {primaryAction?.kind === "migration" && startError && (
-                                    <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>
-                                      {startError} 작업 목록에서 접수 여부를 확인할 수 있습니다.
-                                    </AlertDescription></Alert>
+                                    <Alert variant="destructive" role="alert" className="text-sm text-destructive">
+                                      <AlertDescription>
+                                        {startError} 작업 목록에서 접수 여부를 확인할 수 있습니다.
+                                      </AlertDescription>
+                                    </Alert>
                                   )}
                                 </>
                               )}
@@ -1235,36 +1514,52 @@ export function SchemaEditor(
           </CollectionList>
           {historyRows.length === 0 && <p className="text-sm text-muted-foreground">변경 이력이 없습니다.</p>}
           {editor.view.changesBefore && (
-            <Button variant="ghost" type="button"
+            <Button
+              variant="ghost"
+              type="button"
               disabled={readBusy || busy || uncertain}
               onClick={() => void editor.moreChanges()}
             >
               이전 변경안 더 보기
             </Button>
           )}
-          <Button variant="ghost" type="button"
-
+          <Button
+            variant="ghost"
+            type="button"
             disabled={busy || readBusy || uncertain}
             onClick={() => {
               jobs.refresh();
               void editor.refreshChanges();
             }}
-          ><RotateCcwIcon data-icon="inline-start" />
+          >
+            <RotateCcwIcon data-icon="inline-start" />
             변경 이력 다시 조회
           </Button>
-          {jobs.error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{jobs.error}</AlertDescription></Alert>}
+          {jobs.error && (
+            <Alert variant="destructive" role="alert" className="text-sm text-destructive">
+              <AlertDescription>{jobs.error}</AlertDescription>
+            </Alert>
+          )}
           {jobs.before && (
-            <Button variant="ghost" type="button" disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
+            <Button
+              variant="ghost"
+              type="button"
+              disabled={jobs.moreBusy}
+              onClick={() => void jobs.more()}
+            >
               {jobs.moreBusy ? "이전 변환 이력 읽는 중…" : "이전 변환 이력 더 보기"}
             </Button>
           )}
           {jobs.error && (
-            <Button variant="ghost" type="button"  onClick={jobs.refresh}><RotateCcwIcon data-icon="inline-start" />
+            <Button variant="ghost" type="button" onClick={jobs.refresh}>
+              <RotateCcwIcon data-icon="inline-start" />
               변환 이력 다시 조회
             </Button>
           )}
           {historyBefore !== null && (
-            <Button variant="ghost" type="button"
+            <Button
+              variant="ghost"
+              type="button"
               disabled={historyBusy}
               onClick={() => void onMoreVersions?.()}
             >
@@ -1289,7 +1584,20 @@ export function SchemaEditor(
       <ConfirmDialog
         open={deleteKey !== null}
         title="항목을 삭제할까요?"
-        message={<><DataFields><div className="col-span-full"><dt>항목 이름</dt><dd>{deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"}</dd></div></DataFields><p>삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제 자료는 변경되지 않습니다.</p></>}
+        message={
+          <>
+            <DataFields>
+              <div className="col-span-full">
+                <dt>항목 이름</dt>
+                <dd>{deleteKey ? draft.schema.properties[deleteKey]?.title ?? "항목" : "항목"}</dd>
+              </div>
+            </DataFields>
+            <p>
+              삭제하는 변경안을 만듭니다. 적용하면 현재 자료의 해당 값도 제거되며 과거 기록은 유지됩니다. 아직 실제
+              자료는 변경되지 않습니다.
+            </p>
+          </>
+        }
         confirmLabel="삭제 변경안 만들기"
         danger
         confirmDisabled={busy || uncertain || disabled || readBusy}

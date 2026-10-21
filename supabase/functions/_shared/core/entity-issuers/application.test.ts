@@ -50,13 +50,13 @@ function registryFixture() {
     executeRequest: <T>(_r: unknown, fn: () => Promise<T>) => fn(),
     countIssuersForUpdate: () => Promise.resolve(2),
     lockIssuer: (code: string) => Promise.resolve(code === "app" ? app : issuer),
-    defaultTypes: () => Promise.resolve(defaultUsed ? [{ type_id: typeId, label: "상품" }] : []),
+    defaultTypes: () => Promise.resolve(defaultUsed ? [{ type_id: typeId, property: "prop_2", label: "상품" }] : []),
     countRules: () => Promise.resolve(1),
     lockRule: () => Promise.resolve(rule),
     ruleUsage: () =>
       Promise.resolve({
         referenced: true,
-        defaultTypes: defaultUsed ? [{ type_id: typeId, label: "상품" }] : [],
+        defaultTypes: defaultUsed ? [{ type_id: typeId, property: "prop_2", label: "상품" }] : [],
       }),
     listRules: () => Promise.resolve([rule]),
     listIssuers: () => Promise.resolve([app, issuer]),
@@ -154,7 +154,7 @@ Deno.test("policy refusals identify all affected kinds while stale registry vers
     updateEntityIssuer(f.d, f.actor, "crm", { active: false, expected_version: 1 })
   );
   assertEquals((error as { fields: unknown }).fields, [{
-    path: `default_types.${f.typeId}`,
+    path: `default_fields.${f.typeId}.prop_2`,
     message: "상품",
   }]);
   assertEquals(
@@ -163,4 +163,45 @@ Deno.test("policy refusals identify all affected kinds while stale registry vers
     }).code,
     "settings_changed",
   );
+});
+
+Deno.test("stopping a kind identifies every affected default property, including two fields on one type", async () => {
+  const typeId = "11111111-1111-4111-8111-111111111111";
+  const rule = {
+    id: "22222222-2222-4222-8222-222222222222",
+    source: "crm",
+    label: "고객",
+    meaning: "원본 고객",
+    generation: "direct" as const,
+    active: true,
+    version: 1,
+  };
+  const store = {
+    executeRequest: <T>(_r: unknown, fn: () => Promise<T>) => fn(),
+    lockRule: () => Promise.resolve(rule),
+    ruleUsage: () =>
+      Promise.resolve({
+        referenced: true,
+        defaultTypes: [{ type_id: typeId, property: "prop_2", label: "상품 · 상품 번호" }, {
+          type_id: typeId,
+          property: "prop_3",
+          label: "상품 · 주문 번호",
+        }],
+      }),
+    updateRule: () => {
+      throw Error("blocked stop must not write");
+    },
+  } as unknown as EntityIssuerStore;
+  const error = await assertRejects(() =>
+    updateIdentifierRule(
+      { uow: { run: (_a, fn) => fn(store) } },
+      { userId: "owner", request: { key: crypto.randomUUID() } },
+      rule.id,
+      { active: false, expected_version: 1 },
+    )
+  );
+  assertEquals((error as { fields: unknown }).fields, [{
+    path: `default_fields.${typeId}.prop_2`,
+    message: "상품 · 상품 번호",
+  }, { path: `default_fields.${typeId}.prop_3`, message: "상품 · 주문 번호" }]);
 });
