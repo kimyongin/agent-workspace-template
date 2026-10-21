@@ -36,6 +36,8 @@
 
 | [0026](0026-workspace-membership-and-inherited-record-access.md) | 워크스페이스 참여와 연결 대상에 따른 기록 권한 | 설계 채택, 구현은 [#511](https://github.com/kimyongin/agent-workspace-template/issues/511) |
 
+| [0027](0027-field-identifiers-and-workspace-keys.md) | 항목 기반 식별자와 공간 범위 자료 키 | 채택, 구현·검증은 #543·#551·#557 |
+
 ## 문서의 책임
 
 ADR에는 결정·이유·대가를 담는다. 제품의 의미와 범위는 [PRD](../product/concept.md), 설계·개발 방법은 [Matt 스킬](../development/matt-skills.md)이 담당한다. 번호는 재사용하지 않는다. 합의한 변경과 과거 근거는 Git/GitHub에서 추적한다.
