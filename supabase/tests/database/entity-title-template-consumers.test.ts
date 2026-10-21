@@ -78,7 +78,7 @@ dbTest("entity title SQL and public read semantics agree for scalar, Unicode, es
   for (const item of cases) {
     schema["x-title-template"] = item.template;
     assertEquals(renderEntityTitle(schema, item.properties, "자료-1"), item.expected);
-    const [row] = await admin.begin(async (tx) => {
+    const [row] = await user.begin(async (tx) => {
       await tx`set local role app_user`;
       return tx`select app.entity_title(${tx.json(schema as never)},${
         tx.json(item.properties as never)

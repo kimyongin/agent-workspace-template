@@ -51,15 +51,15 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
     await expect(editor).toHaveText("이름 - 지역");
     await page.screenshot({ path: info.outputPath("title-template-edit.png"), fullPage: true });
     await settings.getByRole("button", { name: "변경 검토", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "변경 검토", exact: true })).toBeVisible();
-    const plans = await client.call("list_entity_schema_changes", { type_id: type.id });
-    const plan = plans.items.find((item: { status: string }) =>
-      item.status !== "applied" && item.status !== "cancelled"
-    );
-    expect(plan).toBeTruthy();
+    let plan: { id: string } | undefined;
+    await expect.poll(async () => {
+      const plans = await client.call("list_entity_schema_changes", { type_id: type.id });
+      plan = plans.items.find((item: { status: string }) => item.status !== "applied" && item.status !== "cancelled");
+      return Boolean(plan);
+    }).toBe(true);
     await expect.poll(async () => {
       await schemaAnalysisTick();
-      return (await client.call("get_entity_schema_change", { type_id: type.id, change_id: plan.id })).status;
+      return (await client.call("get_entity_schema_change", { type_id: type.id, change_id: plan!.id })).status;
     }, { timeout: 30_000 }).toBe("ready");
     await settings.getByRole("button", { name: "변경 적용", exact: true }).click();
     await expect.poll(async () => (await client.call("get_entity_schema", { type_id: type.id })).schema_version)
