@@ -3,6 +3,8 @@ import { executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { entity, fixtureType, id } from "./support/workspace-data.ts";
+import { encodeIdentifierReference } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import type { EntityRelationDefinition } from "../supabase/functions/_shared/contracts/entity-relation.ts";
 test(
   "create related material in same panel: fixed type, cancel, replacement and exact uncertain retry",
@@ -254,7 +256,7 @@ test("business relation reader sees linked preview without settings or mutation 
 
 test("open relation confirmation respects WRITE to READ refresh and retains the original uncertain attempt", async ({ page }) => {
   const origin = entity(31, { prop_1: "권한 원점" }), peerTypeId = id(732),
-    peer = { ...entity(32, { prop_1: "권한 상대" }), id: `app:${peerTypeId}:${id(32)}`, entity_type_id: peerTypeId, type: { ...fixtureType, id: peerTypeId, label: "권한 상대 종류" } };
+    peer = { ...entity(32, { prop_1: "권한 상대" }), id: encodeIdentifierReference(peerTypeId, APP_IDENTIFIER_RULE_ID, id(32)), entity_type_id: peerTypeId, type: { ...fixtureType, id: peerTypeId, label: "권한 상대 종류" } };
   await installWorkspaceApi(page, "http://127.0.0.1:56906", { entities: [origin, peer], tasks: [], records: [], tags: [] });
   const user = { id: id(999), aud: "authenticated", app_metadata: {}, user_metadata: {} };
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
