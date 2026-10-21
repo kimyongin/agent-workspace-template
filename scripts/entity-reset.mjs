@@ -49,6 +49,7 @@ const legacyKeys = Object.freeze({
   "private.entity_schema_analysis_rows": ["owner_id", "analysis_id", "entity_id"],
   "private.entity_schema_migration_rows": ["owner_id", "job_id", "entity_id"],
 });
+const retiredIdentityTables = ["app.entity_type_identity", "app.entity_type_identity_sources"];
 const queues = ["pgmq.q_search_index", "pgmq.a_search_index"];
 const preservedTables = ["app.workspaces", "private.workspace_members", "private.workspace_grants", "private.workspace_invitations",
   "app.user_business_settings", "auth.users"];
@@ -219,14 +220,30 @@ function connectionMatches(sql, environment) {
     throw new Error("reset connection does not match explicit manifest store");
   }
 }
+async function resetTablePresence(tx) {
+  const tables = [...entityResetTables, ...queues, ...preservedTables, "private.request_results"];
+  const presence = await tx`select name as table_name,to_regclass(name)::oid::text as relation_oid
+    from unnest(${tables}::text[]) t(name) order by name`;
+  for (const table of tables) if (!retiredIdentityTables.includes(table)
+    && !presence.some((row) => row.table_name === table && row.relation_oid)) {
+    throw new Error(`required reset table is missing: ${table}`);
+  }
+  const retired = presence.filter((row) => retiredIdentityTables.includes(row.table_name) && row.relation_oid);
+  if (retired.length !== 0 && retired.length !== retiredIdentityTables.length) {
+    throw new Error("retired identity stores must both exist or both be retired");
+  }
+  return presence;
+}
+
 async function inventoryFor(tx) {
+  const presence = await resetTablePresence(tx);
   const [store] = await tx`select (pg_control_system()).system_identifier::text as system_id,
     (select oid::text from pg_database where datname=current_database()) as database_id`;
   const constraints = await tx`select c.conrelid::regclass::text as table_name,c.conname,pg_get_constraintdef(c.oid) as definition
     from pg_constraint c where c.connamespace in ('app'::regnamespace,'private'::regnamespace) order by 1,2`;
-  const inventory = { "__store": [store], "__catalog": constraints };
+  const inventory = { "__store": [store], "__catalog": [...constraints, ...presence] };
   // Administrative maintenance, fixed allowlist; no credential/body output.
-  for (const table of [...entityResetTables, ...queues, ...preservedTables, "private.request_results"]) inventory[table] = await tx`select * from ${tx(table)}`;
+  for (const { table_name, relation_oid } of presence) inventory[table_name] = relation_oid ? await tx`select * from ${tx(table_name)}` : [];
   return inventory;
 }
 
@@ -242,8 +259,8 @@ export async function runEntityReset(sql, manifest, approval) {
     if (approval) {
       // Block every actual source/worker/receipt writer before taking a fresh
       // snapshot. Maintenance must already have stopped worker/provider calls.
-      for (const table of [...entityResetTables, ...queues, ...preservedTables, "private.request_results"].sort()) {
-        await tx`lock table ${tx(table)} in share row exclusive mode`;
+      for (const { table_name, relation_oid } of await resetTablePresence(tx)) {
+        if (relation_oid) await tx`lock table ${tx(table_name)} in share row exclusive mode`;
       }
     }
     const before = await inventoryFor(tx), report = planEntityReset(manifest, before);
