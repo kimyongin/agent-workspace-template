@@ -296,6 +296,7 @@ for (const width of [390, 1440]) {
     await compatibleEdit(page);
     await expect(page.getByRole("dialog").filter({ visible: true })).toHaveCount(1);
     await fillChangeMemo(page, form(page), "길이 검수");
+    await settleSurface(executionDialog(page));
     await page.keyboard.press("Tab");
     await page.screenshot({ path: info.outputPath(`surface-${width}.png`) });
     await discardEditor(page);
@@ -327,7 +328,8 @@ test("shell resize: 경계 폭에서 읽기 기하·편집 초안·확인 메모
 
   await compatibleEdit(page);
   const title = form(page).getByRole("textbox", { name: /^제목/ });
-  const draft = `${await title.inputValue()} 보존`;
+  const originalTitle = await title.inputValue();
+  const draft = `${originalTitle} 보존`;
   await title.fill(draft);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 800 });
@@ -337,10 +339,13 @@ test("shell resize: 경계 폭에서 읽기 기하·편집 초안·확인 메모
     await expect(title).toBeFocused();
   }
 
+  // The draft has survived resizing; restore the original confirmation content.
+  await title.fill(originalTitle);
   await fillChangeMemo(page, form(page), "길이 검수");
   const memo = executionDialog(page).getByLabel("기록 메모", { exact: true });
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 800 });
+    await settleSurface(executionDialog(page));
     await expect(memo).toHaveValue("길이 검수");
     // Representative keyboard flows retain their own confirmation captures.
     if (width !== 390 && width !== 1440) {
