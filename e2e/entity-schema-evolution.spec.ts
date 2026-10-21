@@ -77,7 +77,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
       change_id: planId,
     });
     expect(draft.reservations).toEqual({
-      [Object.keys(draft.reservations)[0]]: "prop_2",
+      [Object.keys(draft.reservations)[0]]: "prop_3",
     });
     expect(
       (await mcp.call("get_entity_schema", { type_id: typeId })).schema_version,
@@ -113,7 +113,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     const current = await mcp.call("get_entity", { id: existing.id });
     expect(current.schema_version).toBe(1);
     expect(current.version).toBe(existing.version);
-    expect(current.properties).not.toHaveProperty("prop_2");
+    expect(current.properties).not.toHaveProperty("prop_3");
     await oldForm.getByRole("button", { name: "저장", exact: true }).click();
     await expect(
       executionDialog(oldPage).getByRole("alert"),
@@ -132,7 +132,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
       properties: { prop_1: unique("新資料") },
     });
     entityIds.push(created.id);
-    expect(created.properties.prop_2).toBe(0);
+    expect(created.properties.prop_3).toBe(0);
     const assertCurrentProperties = async (title: string, quantity: string) => {
       const viewer = detailDialog(page);
       await expect(viewer.getByRole("heading", { name: title, exact: true })).toHaveText(title);

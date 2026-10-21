@@ -1,3 +1,5 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierReference } from "../../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { WorkspaceCapabilitiesContext } from "../../src/features/workspaces/workspace-context.tsx";
 import { fixtureType } from "../support/workspace-data.ts";
 import { FixtureWorkspace, fixtureWorkspaceId } from "./workspace-scope.tsx";
@@ -18,7 +20,7 @@ const router = createBrowserRouter([{
   element: (
     <NavigationProtection><main>
       <Link to="/e2e/fixtures/entity-tags.html?fixture=other">다른 화면</Link>
-      <Link to="/entities/app%3A00000000-0000-4000-8000-000000000900%3A10000000-0000-4000-8000-000000000000">
+      <Link to={`/entities/${encodeURIComponent(encodeIdentifierReference(fixtureType.id, APP_IDENTIFIER_RULE_ID, "10000000-0000-4000-8000-000000000000"))}`}>
         자료 fixture
       </Link>
       <Link to="/tasks/20000000-0000-4000-8000-000000000000">할 일 fixture</Link>

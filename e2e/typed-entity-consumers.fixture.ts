@@ -318,13 +318,13 @@ for (const serverDefault of [true, false]) {
 
 test("date property calendar closes with Escape without closing the editor or writing its unchanged leap-day draft", async ({ page }) => {
   const schema = structuredClone(fixtureSchema);
-  schema.schema.properties.prop_5 = {
-    "x-order": 50,
+  schema.schema.properties.prop_6 = {
+    "x-order": 60,
     type: ["string", "null"],
     format: "date",
     title: "확인 날짜",
   };
-  const saved = { ...entity(), properties: { ...entity().properties, prop_5: "2024-02-29" } };
+  const saved = { ...entity(), properties: { ...entity().properties, prop_6: "2024-02-29" } };
   await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: schema }));
   await page.route("**/api/entities/*", (route) => route.fulfill({ json: saved }));
   const writes: string[] = [];
@@ -352,8 +352,8 @@ test("date property calendar closes with Escape without closing the editor or wr
 
 test("date calendar keeps its popup within a narrow enlarged screen without shrinking day targets", async ({ page }) => {
   const schema = structuredClone(fixtureSchema);
-  schema.schema.properties.prop_5 = { "x-order": 50, type: ["string", "null"], format: "date", title: "확인 날짜" };
-  const saved = { ...entity(), properties: { ...entity().properties, prop_5: "2024-02-29" } };
+  schema.schema.properties.prop_6 = { "x-order": 60, type: ["string", "null"], format: "date", title: "확인 날짜" };
+  const saved = { ...entity(), properties: { ...entity().properties, prop_6: "2024-02-29" } };
   await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: schema }));
   await page.route("**/api/entities/*", (route) => route.fulfill({ json: saved }));
   await page.setViewportSize({ width: 320, height: 800 });
