@@ -1,4 +1,5 @@
 import type { EntityField, EntitySchema } from "./entity-type.ts";
+import { decodeIdentifierValue } from "./entity-identifiers.ts";
 
 /** Reuse the scalar text budget for a composed identity, counted as Unicode code points. */
 export const ENTITY_TITLE_LENGTH = 4096;
@@ -68,6 +69,13 @@ export function remapEntityTitleTemplate(template: string, resolve: (key: string
 }
 
 function scalarTitle(field: EntityField | undefined, value: unknown): string {
+  if (field?.["x-identifier"] && typeof value === "string") {
+    try {
+      return decodeIdentifierValue(value).raw;
+    } catch {
+      return "";
+    }
+  }
   const choice = field?.oneOf?.find((option) => option.const === value);
   if (choice?.title !== undefined) return choice.title;
   if (value === undefined || value === null) return "";

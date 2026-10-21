@@ -1,4 +1,5 @@
 import type { EntityTypeIdentity } from "./entity-issuer.ts";
+import type { IdentifierFieldSettings } from "./entity-identifiers.ts";
 import { z } from "zod";
 export const ENTITY_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema";
 export const entityTypeIcons = [
@@ -95,18 +96,20 @@ export type EntityField = {
   multipleOf?: number;
   "x-order": number;
   "x-search-text"?: boolean;
+  "x-identifier"?: IdentifierFieldSettings;
   default?: string | number | boolean | null;
 };
 /** Search accepts active free text only, including nullable text. */
 export function supportsEntitySearchText(field: EntityField): boolean {
   const type = Array.isArray(field.type) ? field.type.find((value) => value !== "null") : field.type;
-  return type === "string" && !field.format && !field.oneOf && !field.deprecated;
+  return type === "string" && !field.format && !field.oneOf && !field.deprecated && !field["x-identifier"];
 }
 export type EntitySchema = {
   $schema: typeof ENTITY_SCHEMA_DIALECT;
   "x-type-id": string;
   "x-version": number;
   "x-title-template": string;
+  "x-identity-property"?: string;
   /** Absent only on retained historical documents that never captured this metadata. */
   title?: string;
   description?: string;

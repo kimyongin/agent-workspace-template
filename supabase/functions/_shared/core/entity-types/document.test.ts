@@ -30,6 +30,77 @@ Deno.test("single document preserves metadata and nullable choice annotations", 
 
 import { initialEntityDefinition } from "../../contracts/entity-type.ts";
 import { schemaDefinitionDiff } from "./evolution.ts";
+import { renderEntityTitle } from "../../contracts/entity-title-template.ts";
+Deno.test("published identifier fields retain allowed kinds and one required identity in the same document", () => {
+  const definition = initialEntityDefinition("이름");
+  const kind = "22222222-2222-4222-8222-222222222222";
+  const other = "33333333-3333-4333-8333-333333333333";
+  const schema = {
+    ...definition.schema,
+    "x-identity-property": "prop_2",
+    properties: {
+      ...definition.schema.properties,
+      prop_2: {
+        type: "string",
+        "x-order": 20,
+        "x-identifier": { allowed_kind_ids: [kind, other], default_kind_id: kind },
+      },
+      prop_3: {
+        type: ["string", "null"],
+        "x-order": 30,
+        "x-identifier": { allowed_kind_ids: [kind], default_kind_id: kind },
+      },
+    },
+    required: ["prop_1", "prop_2"],
+  };
+  assertEquals<unknown>(validateEntityDefinition({ schema }).schema, schema);
+});
+
+Deno.test("published identifier definitions reject a missing or optional selected identity", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = {
+    type: "string",
+    "x-order": 20,
+    "x-identifier": {
+      allowed_kind_ids: ["22222222-2222-4222-8222-222222222222"],
+      default_kind_id: "22222222-2222-4222-8222-222222222222",
+    },
+  };
+  assertThrows(() => validateEntityDefinition(definition));
+  definition.schema["x-identity-property"] = "prop_2";
+  assertThrows(() => validateEntityDefinition(definition));
+  definition.schema.required.push("prop_2");
+  assertEquals(validateEntityDefinition(definition).schema["x-identity-property"], "prop_2");
+  for (
+    const field of [
+      { ...definition.schema.properties.prop_2, type: ["string", "null"] },
+      { ...definition.schema.properties.prop_2, default: "22222222-2222-4222-8222-222222222222:fixed" },
+      { ...definition.schema.properties.prop_2, "x-identifier": undefined },
+      { ...definition.schema.properties.prop_2, minLength: 2 },
+      { ...definition.schema.properties.prop_2, maxLength: 100 },
+    ]
+  ) {
+    assertThrows(() =>
+      validateEntityDefinition({
+        schema: { ...definition.schema, properties: { ...definition.schema.properties, prop_2: field } },
+      })
+    );
+  }
+});
+
+Deno.test("title variables display an identifier original string without its stored kind prefix", () => {
+  const definition = initialEntityDefinition("상품 식별자");
+  definition.schema.properties.prop_1["x-identifier"] = {
+    allowed_kind_ids: ["22222222-2222-4222-8222-222222222222"],
+    default_kind_id: "22222222-2222-4222-8222-222222222222",
+  };
+  definition.schema["x-title-template"] = "상품 $prop_1$";
+  assertEquals(
+    renderEntityTitle(definition.schema, { prop_1: "22222222-2222-4222-8222-222222222222:00123" }, "대기"),
+    "상품 00123",
+  );
+});
+
 Deno.test("metadata changes publish while equivalent boolean annotations and required order do not", () => {
   const source = initialEntityDefinition("이름");
   source.schema.properties.prop_2 = { type: "string", "x-order": 20 };
