@@ -12,10 +12,18 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
   try {
     const type = await client.call("create_entity_type", { label: unique("제목 템플릿 고객") });
     await workspace.grantKind(type.id);
+    const longPropertyLabel = "확장속성".repeat(19) + "이름값";
     const addition = await client.call("create_entity_schema_change", {
       type_id: type.id,
       expected_schema_version: type.schema_version,
-      edits: [{ op: "add_property", client_ref: "region", field: { type: "string", title: "지역", "x-order": 20 } }],
+      edits: [
+        { op: "add_property", client_ref: "region", field: { type: "string", title: "지역", "x-order": 20 } },
+        {
+          op: "add_property",
+          client_ref: "long_label",
+          field: { type: "string", title: longPropertyLabel, "x-order": 30 },
+        },
+      ],
     });
     await analyzeAndApply(client, type.id, addition.id, addition.version);
     const definition = await client.call("get_entity_schema", { type_id: type.id });
@@ -105,6 +113,47 @@ test("제목 템플릿 저장은 원본과 과거 문맥을 보존하고 목록�
       await expect(detailDialog(page).getByRole("heading", { name: "초록상점 - 서울", exact: true })).toBeVisible();
       await closeDetail(page, "초록상점 - 서울");
     }
+
+    await page.goto(workspacePath(workspace.id, `/settings/entity-types/${type.id}`));
+    await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+    await editor.click();
+    await editor.press("End");
+    await editor.pressSequentially(" / ");
+    await chooseSetting(page, settings.getByLabel("제목에 넣을 속성", { exact: true }), longPropertyLabel);
+    const longChip = editor.getByLabel(`변수: ${longPropertyLabel}`, { exact: true });
+    await expect(longChip).toHaveText(longPropertyLabel);
+    const viewport = page.viewportSize();
+    const zoom = await page.evaluate(() => document.documentElement.style.zoom);
+    try {
+      await page.setViewportSize({ width: 320, height: 640 });
+      await page.evaluate(() => {
+        document.documentElement.style.zoom = "2";
+      });
+      await expect(editor).toBeVisible();
+      const bounds = await editor.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return { left: box.left, right: box.right, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth };
+      });
+      const chip = await longChip.boundingBox();
+      expect(chip).not.toBeNull();
+      expect(chip!.x).toBeGreaterThanOrEqual(bounds.left - 1);
+      expect(chip!.x + chip!.width).toBeLessThanOrEqual(bounds.right + 1);
+      expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
+        .toBe(true);
+      await page.screenshot({ path: info.outputPath("title-template-long-variable-320-zoom200.png"), fullPage: true });
+    } finally {
+      await page.evaluate((value) => {
+        document.documentElement.style.zoom = value;
+      }, zoom);
+      if (viewport) await page.setViewportSize(viewport);
+    }
+    await settings.getByRole("button", { name: "변경 취소", exact: true }).click();
+    await expect(editor).toHaveText("이름 - 지역");
+    expect((await client.call("get_entity_schema", { type_id: type.id })).schema_version).toBe(
+      definition.schema_version + 1,
+    );
+    expect((await client.call("get_entity", { id: original.id })).title).toBe("초록상점 - 서울");
   } finally {
     await client.close();
   }
