@@ -1,5 +1,5 @@
 import { publicationDefinition } from "./schema-rules.ts";
-import { replayRetainedSchemaRequest } from "./retained-requests.ts";
+import { findRetainedSchemaRequest } from "./retained-requests.ts";
 import {
   assertSchemaApplication,
   assertSchemaApplicationBindings,
@@ -105,30 +105,19 @@ function refs(typeId: string, id?: string) {
   parse(z.string().uuid(), typeId);
   if (id) parse(z.string().uuid(), id);
 }
-export function createEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, raw: unknown) {
+export async function createEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, raw: unknown) {
   refs(typeId);
-  if (
-    raw && typeof raw === "object" && Object.hasOwn(raw, "expected_type_version") &&
-    !schemaChangeCreate.safeParse(raw).success
-  ) return replayRetainedSchemaRequest<EntitySchemaChange>(d, a, "entity-schema-change.create", typeId, raw);
+  const retained = await findRetainedSchemaRequest<EntitySchemaChange>({ uow: writing(d) }, a, "entity-schema-change.create", typeId, raw);
+  if (retained.found) return retained.result as EntitySchemaChange;
   const i = parse(schemaChangeCreate, raw);
   return runWrite(writing(d), a, "entity-schema-change.create", typeId, i, (s) => prepareSchemaChange(s, typeId, i));
 }
-export function updateEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
+export async function updateEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
   refs(typeId, id);
-  if (
-    raw && typeof raw === "object" && Object.hasOwn(raw, "expected_type_version") &&
-    !schemaChangeUpdate.safeParse(raw).success
-  ) return replayRetainedSchemaRequest<EntitySchemaChange>(d, a, "entity-schema-change.update", [typeId, id], raw);
+  const retained = await findRetainedSchemaRequest<EntitySchemaChange>({ uow: writing(d) }, a, "entity-schema-change.update", [typeId, id], raw);
+  if (retained.found) return retained.result as EntitySchemaChange;
   const i = parse(schemaChangeUpdate, raw);
-  return runWrite(
-    writing(d),
-    a,
-    "entity-schema-change.update",
-    [typeId, id],
-    i,
-    (s) => prepareSchemaChange(s, typeId, i, id),
-  );
+  return runWrite(writing(d), a, "entity-schema-change.update", [typeId, id], i, (s) => prepareSchemaChange(s, typeId, i, id));
 }
 export async function prepareSchemaChange(
   s: SchemaChangeStore,

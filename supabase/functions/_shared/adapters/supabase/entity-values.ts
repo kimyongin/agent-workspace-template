@@ -1,5 +1,5 @@
 import { renderEntityTitle } from "../../contracts/entity-title-template.ts";
-import { type EntitySchema, entitySchemaPresentation } from "../../contracts/entity-type.ts";
+import { type EntitySchema } from "../../contracts/entity-type.ts";
 import type postgres from "postgres";
 import type { EntityValues } from "../../contracts/entity.ts";
 import type { EntityDefinition } from "../../core/entity/values.ts";
@@ -70,7 +70,6 @@ export async function loadBusinessEntityDefinition(
 /** Current display settings project unchanged stored values after compatible publication. */
 /** Joined entity+current definition reads use one statement snapshot, including during atomic migration. */
 export function entityPresentationRow(row: Record<string, unknown>, properties: EntityValues["properties"]) {
-  const display = entitySchemaPresentation(row.schema as EntitySchema);
   return {
     type: {
       id: String(row.type_id ?? row.id),
@@ -80,8 +79,6 @@ export function entityPresentationRow(row: Record<string, unknown>, properties: 
     },
     current_schema_version: Number(row.current_schema_version ?? row.schema_version),
     title: renderEntityTitle(row.schema as EntitySchema, properties, String(row.external_id ?? row.id ?? "")),
-    display_properties: Object.fromEntries(
-      display.list_columns.filter((key) => Object.hasOwn(properties, key)).map((key) => [key, properties[key]]),
-    ),
+
   };
 }

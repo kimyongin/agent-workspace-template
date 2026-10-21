@@ -418,8 +418,9 @@ export function previewDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
   );
 }
 export function prepareDataModel(d: DataModelDeps, a: Actor, raw: unknown) {
-  const i = parse(dataModelPrepare, raw), document = parseModel(i.document);
+  const i = parse(dataModelPrepare, raw);
   return runWrite(d.uow, a, "data-model.prepare", null, i, async (s) => {
+    const document = parseModel(i.document);
     const plan = await resolveModel(
       await s.snapshot({ document, mode: i.mode }),
       document,

@@ -1,3 +1,4 @@
+import { retainedTitleTypeCreate, schemaChangeCreate as retainedTitleChangeCreate, schemaChangeUpdate as retainedTitleChangeUpdate } from "./retained-title-input.ts";
 import { entityReferenceId } from "../../contracts/entity-identity.ts";
 import { optionLabelDictionary, ownStringDictionary } from "../../contracts/option-labels.ts";
 import { z } from "zod";
@@ -110,4 +111,16 @@ export function retainedSchemaRequestInput(operation: string, raw: unknown) {
     "entity-schema-migration.recovery": retainedRecovery,
   };
   return parsers[operation]?.safeParse(raw);
+}
+
+/** Distinct input generations retain their own normalization and defaults. */
+export function retainedSchemaRequestInputs(operation: string, raw: unknown): unknown[] {
+  const candidates = [retainedSchemaRequestInput(operation, raw)];
+  const titleParsers: Record<string, z.ZodType> = {
+    "entity-type.create": retainedTitleTypeCreate,
+    "entity-schema-change.create": retainedTitleChangeCreate,
+    "entity-schema-change.update": retainedTitleChangeUpdate,
+  };
+  candidates.push(titleParsers[operation]?.safeParse(raw));
+  return candidates.flatMap((result) => result?.success ? [result.data] : []);
 }

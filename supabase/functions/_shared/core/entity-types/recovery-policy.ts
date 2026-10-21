@@ -1,6 +1,8 @@
+import { normalizeStoredEntityDefinition } from "./stored-definition.ts";
+import { entityTitleTemplateIssues } from "../../contracts/entity-title-template.ts";
 import type { SchemaDefinition, SchemaDiff } from "../../contracts/entity-schema-change.ts";
 import type { EntitySchemaMigration } from "../../contracts/entity-schema-migration.ts";
-import { AppError, conflict } from "../shared/errors.ts";
+import { AppError, conflict, invalidInput } from "../shared/errors.ts";
 import { definitionFingerprint, schemaDefinitionDiff } from "./evolution.ts";
 import { publicationDefinition, validateEntityDefinition } from "./schema-rules.ts";
 export type RecoveryEvidence = {
@@ -65,16 +67,11 @@ export function recoveryTarget(context: RecoveryContext): SchemaDefinition {
   const target = {
     schema: {
       ...structuredClone(context.current.schema),
-      properties: structuredClone(context.source.schema.properties),
+      properties: normalizeStoredEntityDefinition(context.source, context.evidence.type.id, context.source.schema["x-version"]).schema.properties,
       required: [...context.source.schema.required],
     },
   };
   const orders = new Set(Object.values(target.schema.properties).map((f) => f["x-order"]));
-  const listOrders = new Set(
-    Object.values(target.schema.properties).filter((f) => f["x-show-in-list"] && !f.deprecated).map((f) =>
-      f["x-list-order"] ?? f["x-order"]
-    ),
-  );
   for (
     const [key, field] of Object.entries(context.current.schema.properties).sort(([, a], [, b]) =>
       a["x-order"] - b["x-order"]
@@ -86,18 +83,14 @@ export function recoveryTarget(context: RecoveryContext): SchemaDefinition {
       const later = structuredClone(field);
       if (orders.has(later["x-order"])) later["x-order"] = Math.max(...orders) + 10;
       orders.add(later["x-order"]);
-      if (later["x-representative"]) later["x-representative"] = false;
-      if (later["x-show-in-list"] && !later.deprecated) {
-        let order = later["x-list-order"] ?? later["x-order"];
-        if (listOrders.has(order)) {
-          order = Math.max(...listOrders) + 10;
-          later["x-list-order"] = order;
-        }
-        listOrders.add(order);
-      }
       target.schema.properties[key] = later;
       if (context.current.schema.required.includes(key)) target.schema.required.push(key);
     }
+  }
+  if (entityTitleTemplateIssues(target.schema["x-title-template"], target.schema).length) {
+    throw invalidInput("현재 제목 템플릿의 속성이 복구안에 없습니다. 제목 템플릿을 먼저 수정하고 복구안을 다시 만드세요", [{
+      path: "schema.x-title-template", message: "복구 후에도 사용할 수 있는 속성으로 제목 템플릿을 설정하세요",
+    }]);
   }
   validateEntityDefinition(target);
   publicationDefinition(target, context.evidence.type.id, context.evidence.type.schema_version + 1);

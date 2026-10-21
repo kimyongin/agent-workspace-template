@@ -32,11 +32,9 @@ function parse(template: string) {
   return { parts, issues };
 }
 
-/** Only a decoding fallback during the representative-contract transition. */
+/** Current definitions carry exactly one explicit title definition. */
 export function effectiveEntityTitleTemplate(schema: EntitySchema): string {
-  if (schema["x-title-template"] !== undefined) return schema["x-title-template"];
-  const key = Object.keys(schema.properties).find((key) => schema.properties[key]["x-representative"]);
-  return key ? `$${key}$` : "";
+  return schema["x-title-template"];
 }
 
 export function entityTitleTemplateIssues(template: string, schema: Pick<EntitySchema, "properties">) {

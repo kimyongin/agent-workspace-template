@@ -20,13 +20,15 @@ export function normalizeStoredEntityDefinition(
   schema["x-type-id"] ??= typeId;
   schema["x-version"] ??= version;
   const display = input.display;
+  const retained = schema.properties as Record<string, EntityField & {
+    "x-representative"?: boolean; "x-show-in-list"?: boolean; "x-list-order"?: number;
+  }>;
+  const representative = display?.representative ?? Object.keys(retained).find((key) => retained[key]["x-representative"]);
+  schema["x-title-template"] ??= representative ? `$${representative}$` : "";
   if (display) {
     for (const [key, field] of Object.entries(schema.properties)) {
       field["x-order"] = (display.order.indexOf(key) + 1) * 10;
       if (!field["x-order"]) field["x-order"] = (Object.keys(schema.properties).indexOf(key) + 1) * 10;
-      field["x-representative"] = display.representative === key;
-      field["x-show-in-list"] = display.list_columns.includes(key);
-      if (display.list_columns.includes(key)) field["x-list-order"] = (display.list_columns.indexOf(key) + 1) * 10;
       field.deprecated = display.archived.includes(key);
       const old = field as EntityField & { enum?: Array<string | null> };
       if (old.enum) {
@@ -39,6 +41,11 @@ export function normalizeStoredEntityDefinition(
         delete old.enum;
       }
     }
+  }
+  for (const field of Object.values(retained)) {
+    delete field["x-representative"];
+    delete field["x-show-in-list"];
+    delete field["x-list-order"];
   }
   return { schema };
 }

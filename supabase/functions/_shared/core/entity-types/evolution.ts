@@ -54,7 +54,6 @@ export function resolveSchemaEdits(
       if (!source.schema.properties[edit.key]) throw invalidInput("현재 정의에 없는 속성은 보관할 수 없습니다");
       target.schema.properties[edit.key].deprecated = edit.op === "archive_property";
       if (edit.op === "archive_property") {
-        target.schema.properties[edit.key]["x-show-in-list"] = false;
         target.schema.properties[edit.key]["x-search-text"] = false;
       }
       continue;
@@ -87,7 +86,6 @@ export function resolveSchemaEdits(
     if (edit.op === "archive_property" || edit.op === "restore_property") {
       target.schema.properties[edit.key].deprecated = edit.op === "archive_property";
       if (edit.op === "archive_property") {
-        target.schema.properties[edit.key]["x-show-in-list"] = false;
         target.schema.properties[edit.key]["x-search-text"] = false;
       }
     }
@@ -129,11 +127,11 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
       continue;
     }
     for (const name of new Set([...Object.keys(a), ...Object.keys(b)])) {
-      const booleans = ["deprecated", "readOnly", "x-representative", "x-show-in-list", "x-search-text"];
+      const booleans = ["deprecated", "readOnly", "x-search-text"];
       const old = (a as unknown as Record<string, unknown>)[name] ??
-          (booleans.includes(name) ? false : name === "x-list-order" ? a["x-order"] : undefined),
+          (booleans.includes(name) ? false : undefined),
         next = (b as unknown as Record<string, unknown>)[name] ??
-          (booleans.includes(name) ? false : name === "x-list-order" ? b["x-order"] : undefined);
+          (booleans.includes(name) ? false : undefined);
       let migration = false;
       let reason = "표시 또는 생성 기본값 변경";
       if (name === "type") {
