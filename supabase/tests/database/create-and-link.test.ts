@@ -1,3 +1,4 @@
+import { decodeIdentifierReference } from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
 import { connect, dbTest, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
@@ -53,8 +54,8 @@ dbTest(
         edits: [{
           op: "add_property",
           client_ref: "server",
-          field: { type: "integer", "x-order": 20, readOnly: true, default: 7 },
-        }, { op: "add_property", client_ref: "quantity", field: { type: "integer", "x-order": 30, default: 5 } }],
+          field: { type: "integer", "x-order": 30, readOnly: true, default: 7 },
+        }, { op: "add_property", client_ref: "quantity", field: { type: "integer", "x-order": 40, default: 5 } }],
       });
       const analysis = await analyzeEntitySchemaChange(types, requestActor(a.actor), line.id, draft.id, {
         expected_change_version: draft.version,
@@ -83,12 +84,17 @@ dbTest(
         expected_version: 1,
         previous_other_id: null,
         expected_previous_version: null,
-        entity: { entity_type_id: line.id, schema_version: 2, identity_version: 1, properties: { prop_1: "첫 품목" } },
+        entity: { action: "create", entity_type_id: line.id, schema_version: 2, properties: { prop_1: "첫 품목" } },
       };
       const actor = requestActor(a.actor), saved = await createAndLinkEntity(d, actor, input);
-      assertEquals(saved.entity.properties, { prop_1: "첫 품목", prop_2: 7, prop_3: 5 });
+      assertEquals(saved.entity.properties, {
+        prop_1: "첫 품목",
+        prop_2: saved.entity.properties.prop_2,
+        prop_3: 7,
+        prop_4: 5,
+      });
       assertEquals(saved.entity.version, 2);
-      assertMatch(saved.entity.external_id, /^\d{8}-[0-9A-Z]{8}$/);
+      assertMatch(decodeIdentifierReference(saved.entity.id).raw, /^\d{8}-[0-9A-Z]{8}$/);
       assertEquals(await createAndLinkEntity(d, actor, input), saved);
       assertEquals((await getEntity(entities, a.actor, saved.entity.id)).version, 2);
       const before = (await listRecords(activity, a.actor, recordListQuery.parse({ limit: 100 }))).items.map((r) =>
@@ -139,15 +145,10 @@ dbTest(
         (await assertRejects(() =>
           createAndLinkEntity(d, requestActor(a.actor), {
             ...stale,
-            entity: { ...stale.entity, identity_version: 99 },
-          }), AppError)).code,
-        "settings_changed",
-      );
-      assertEquals(
-        (await assertRejects(() =>
-          createAndLinkEntity(d, requestActor(a.actor), {
-            ...stale,
-            entity: { ...stale.entity, external_id: saved.entity.external_id },
+            entity: {
+              ...stale.entity,
+              properties: { ...stale.entity.properties, prop_2: saved.entity.properties.prop_2 },
+            },
           }), AppError)).code,
         "conflict",
       );
@@ -229,10 +230,9 @@ dbTest("failed create-and-link restoration retains deleted child and both existi
         previous_other_id: values[2].id,
         expected_previous_version: 2,
         entity: {
-          entity_type_id: type.id,
+          action: "restore",
+          id: deleted.id,
           schema_version: 1,
-          source: deleted.source,
-          external_id: deleted.external_id,
           expected_version: deleted.version,
           properties: { prop_1: "복원 시도" },
         },

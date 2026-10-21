@@ -1,7 +1,7 @@
 import { executionDialog } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { fixtures, form, go, linkedFixture } from "./support/workspace-screens.ts";
-import { entityKey, fixtureIdentity, fixtureSchema, id, stamp } from "./support/workspace-data.ts";
+import { entityKey, fixtureSchema, id, stamp } from "./support/workspace-data.ts";
 
 for (const width of [390, 1440]) {
   test(`computed entity title and ordinary properties remain readable at ${width}`, async ({ page }) => {
@@ -63,7 +63,7 @@ for (const outcome of ["success", "failed"] as const) {
       release();
       if (failed) {
         await expect(related.getByRole("alert")).toHaveText("속성 정의를 불러오지 못했습니다.");
-        await expect(related.getByRole("term").filter({ hasText: /^자료 번호$/ }).locator("../dd")).toHaveText(state.rows.entities[0].external_id);
+        await expect(related.getByRole("term").filter({ hasText: /^자료 식별자$/ }).locator("../dd")).toHaveText(state.rows.entities[0].identity_label);
         failed = false;
         await related.getByRole("button", { name: "속성 정의 다시 조회", exact: true }).click();
       }
@@ -80,7 +80,7 @@ for (const outcome of ["success", "failed"] as const) {
 test("automatic number creation has no empty lookup or normal schema recovery actions", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, "/entities?create=1");
-  await expect(form(page).getByText("등록 시 자동 발급", { exact: true })).toBeVisible();
+  await expect(form(page).getByText("저장 시 자동 발급", { exact: true })).toBeVisible();
   await expect(form(page).getByRole("button", { name: "기존 대상 확인", exact: true })).toHaveCount(0);
   await expect(form(page).getByRole("button", { name: "입력 항목 정의 다시 조회", exact: true })).toHaveCount(0);
   expect(state.writes).toHaveLength(0);
@@ -103,17 +103,18 @@ test("empty type scope is not a failed filter and keyword reset retains the type
 
 test("direct identifier lookup appears after input and reports a new identifier", async ({ page }) => {
   const state = await fixtures(page);
-  const identity = fixtureIdentity();
-  identity.default_source = "market";
-  identity.sources[0] = { ...identity.sources[0], code: "market", source_label: "마켓", generation: "direct" };
-  await page.route("**/api/entity-types/*/identity", (route) => route.fulfill({ json: identity }));
+  const schema = structuredClone(fixtureSchema), kindId = id(31);
+  const key = schema.schema["x-identity-property"]!;
+  schema.schema.properties[key]["x-identifier"] = { allowed_kind_ids: [kindId], default_kind_id: kindId };
+  schema.identifier_kinds = [{ id: kindId, source: "market", source_label: "마켓", label: "원본 번호", generation: "direct", active: true, version: 1, source_version: 1 }];
+  await page.route("**/api/entity-types/*/schema", route => route.fulfill({ json: schema }));
   await go(page, "/entities?create=1");
   const lookup = form(page).getByRole("button", { name: "기존 대상 확인", exact: true });
-  await expect(form(page).getByLabel("번호", { exact: true })).toBeEditable();
+  await expect(form(page).getByRole("textbox", { name: /^식별자/ })).toBeEditable();
   await expect(lookup).toHaveCount(0);
-  await form(page).getByLabel("번호", { exact: true }).fill("12345");
+  await form(page).getByRole("textbox", { name: /^식별자/ }).fill("12345");
   await lookup.click();
-  await expect(form(page)).toContainText("새로운 자료 번호입니다.");
+  await expect(form(page)).toContainText("새로운 자료 식별자입니다.");
   expect(state.writes).toHaveLength(0);
 });
 
@@ -148,10 +149,10 @@ test("schema retry preserves property input after a conflict", async ({ page }) 
 test("false, null and archived property values remain readable beside the computed title", async ({ page }) => {
   const state = await fixtures(page);
   const schema = structuredClone(fixtureSchema);
-  schema.schema.properties.prop_5 = { "x-order": 50, type: "boolean", title: "판매 중" };
+  schema.schema.properties.prop_6 = { "x-order": 50, type: "boolean", title: "판매 중" };
 
   schema.schema.properties["prop_4"]["deprecated"] = true;
-  state.rows.entities[0].properties.prop_5 = false;
+  state.rows.entities[0].properties.prop_6 = false;
   await page.route("**/api/entity-types/*/schema?schema_version=1", (route) => route.fulfill({ json: schema }));
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
   const properties = form(page).getByRole("term").filter({ hasText: /^제목$/ }).first().locator("xpath=ancestor::section[1]");
@@ -167,14 +168,14 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     linkedFixture(state);
     const schema = structuredClone(fixtureSchema);
     schema.schema.properties.prop_4.readOnly = true;
-    schema.schema.properties.prop_5 = {
+    schema.schema.properties.prop_6 = {
       "x-order": 50,
       type: "boolean",
       title: "판매 중지 여부를 포함한 아주 긴 항목 이름",
       deprecated: true,
     };
     schema.schema.properties.prop_6 = { "x-order": 60, type: "string", title: "미입력 항목" };
-    state.rows.entities[0].properties.prop_5 = false;
+    state.rows.entities[0].properties.prop_6 = false;
     state.rows.entities[0].properties.prop_1 = "이름과 번호를 포함하는 아주 긴 자료 이름".repeat(5);
     state.rows.entities[0].title = state.rows.entities[0].properties.prop_1;
     await page.route("**/api/entity-types/*/schema**", (route) => route.fulfill({ json: schema }));
@@ -183,7 +184,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     const detail = form(page);
     if (width === 1440) {
       const source = detail.locator("dt", { hasText: /^번호 출처$/ });
-      const number = detail.locator("dt", { hasText: /^자료 번호$/ });
+      const number = detail.locator("dt", { hasText: /^자료 식별자$/ });
       await expect.poll(async () => Math.abs((await source.boundingBox())!.x - (await number.boundingBox())!.x))
         .toBeLessThan(2);
       for (const key of [source, number]) {

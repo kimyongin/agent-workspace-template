@@ -414,7 +414,7 @@ CREATE OR REPLACE FUNCTION app.claim_entity_schema_migration()
 AS $function$
 declare v_candidate uuid; v_owner uuid; v_type_id uuid; v_job app.entity_schema_migrations%rowtype; v_batch jsonb;
 begin
- 
+
  select x.id,x.workspace_id,x.type_id into v_candidate,v_owner,v_type_id from app.entity_schema_migrations x where private.schema_job_current(x.workspace_id,x.id) and x.model_change_id is null and (x.status in ('queued','ready_to_commit') or (x.status in ('preparing','committing') and x.lease_until<now())) order by x.created_at,x.id limit 1;
  if v_candidate is null then return null; end if;
  if not private.authorize_schema_job(v_owner,v_candidate) then return null;end if;
@@ -437,7 +437,7 @@ CREATE OR REPLACE FUNCTION app.claim_data_model_conversion()
 AS $function$
 declare v_owner uuid;v_id uuid;v_group app.data_model_changes%rowtype;v_job app.entity_schema_migrations%rowtype;v_batch jsonb;
 begin
- 
+
  select g.workspace_id,g.id into v_owner,v_id from app.data_model_changes g where private.schema_group_current(g.workspace_id,g.id) and (g.status in ('queued','ready_to_commit') or (g.status in ('preparing','committing') and g.lease_until<now())) order by g.created_at,g.id limit 1;
  if v_id is null then return null;end if;
  if not private.authorize_schema_group(v_owner,v_id) then return null;end if;

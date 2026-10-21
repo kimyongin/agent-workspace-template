@@ -1,3 +1,7 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { assert, assertEquals } from "@std/assert";
 import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
 import { SqlDataModelGroupStore } from "../../functions/_shared/adapters/supabase/data-model-group-store.ts";
@@ -46,17 +50,17 @@ dbTest(
       const definition = document.entity_types.find((item) => item.schema["x-type-id"] === kind.id)!;
       definition.schema.properties.prop_1["x-search-text"] = true;
       definition.schema.properties.prop_1.title = "검색 제목";
-      definition.schema.properties.prop_2 = {
+      definition.schema.properties.prop_3 = {
         type: ["string", "null"],
         title: "설명",
-        "x-order": 20,
+        "x-order": 30,
         default: null,
         "x-search-text": true,
       };
-      definition.schema.properties.prop_3 = {
+      definition.schema.properties.prop_4 = {
         type: ["string", "null"],
         title: "선택하지 않은 메모",
-        "x-order": 30,
+        "x-order": 40,
         default: null,
       };
       const input = { mode: "update", document: JSON.stringify(document) };
@@ -87,12 +91,10 @@ dbTest(
         entityCreate.parse({
           entity_type_id: kind.id,
           schema_version: 2,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: {
             prop_1: "선택 자료",
-            prop_2: longText,
-            prop_3: "전송하지 않을 비밀",
+            prop_3: longText,
+            prop_4: "전송하지 않을 비밀",
           },
         }),
       );
@@ -192,8 +194,6 @@ dbTest(
         entityCreate.parse({
           entity_type_id: first.id,
           schema_version: 2,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "전체 모델 권한으로 준비한 자료" },
         }),
       );
@@ -203,8 +203,6 @@ dbTest(
         entityCreate.parse({
           entity_type_id: second.id,
           schema_version: 2,
-          source: "app",
-          external_id: crypto.randomUUID(),
           properties: { prop_1: "함께 게시한 다른 종류" },
         }),
       );
@@ -260,10 +258,10 @@ dbTest(
         const type = document.entity_types.find((entry) => entry.schema["x-type-id"] === kind.id)!;
         type.schema.properties.prop_1["x-search-text"] = true;
         type.schema.properties.prop_1.title = rename ? "바뀐 이름" : "처음 이름";
-        type.schema.properties.prop_2 = {
+        type.schema.properties.prop_3 = {
           type: ["string", "null"],
           title: "해제할 본문",
-          "x-order": 20,
+          "x-order": 30,
           default: null,
           "x-search-text": !rename,
         };
@@ -289,9 +287,11 @@ dbTest(
         entityCreate.parse({
           entity_type_id: kind.id,
           schema_version: 2,
-          source: "app",
-          external_id,
-          properties: { prop_1: "처음 값", prop_2: "선택 해제할 비밀" },
+          properties: {
+            prop_1: "처음 값",
+            prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, external_id),
+            prop_3: "선택 해제할 비밀",
+          },
         }),
       );
       const queue = new SqlIndexQueue(worker), ledger = new SqlExternalEffectLedger(worker);
@@ -332,7 +332,7 @@ dbTest(
         entityUpdate.parse({
           expected_version: original.version,
           schema_version: 3,
-          properties: { prop_1: "편집한 값", prop_2: "선택 해제할 비밀" },
+          properties: { prop_1: "편집한 값", prop_3: "선택 해제할 비밀" },
         }),
       );
       assertEquals((await indexBatch(queue, current, scope)).indexed, 1);
@@ -343,18 +343,11 @@ dbTest(
       const lookup = (query: string) =>
         search(searchDeps, fixture.member, searchInput.parse({ query, kinds: ["entity"], mode: "keyword" }));
       assertEquals((await lookup("편집한 값")).items, []);
-      const restored = await entities.createEntity(
-        entityDeps,
-        businessRequest(fixture.member),
-        entityCreate.parse({
-          entity_type_id: kind.id,
-          schema_version: 3,
-          source: "app",
-          external_id,
-          expected_version: changed.version + 1,
-          properties: { prop_1: "복원한 값", prop_2: "선택 해제할 비밀" },
-        }),
-      );
+      const restored = await entities.restoreEntity(entityDeps, businessRequest(fixture.member), original.id, {
+        schema_version: 3,
+        expected_version: changed.version + 1,
+        properties: { prop_1: "복원한 값", prop_3: "선택 해제할 비밀" },
+      });
       assertEquals(restored.id, original.id);
       assertEquals((await indexBatch(queue, current, scope)).indexed, 1);
       const result = await lookup("복원한 값");
@@ -365,7 +358,7 @@ dbTest(
       assertEquals(result.items[0].index_state, "indexed");
       assertEquals((await lookup("선택 해제할 비밀")).items, []);
       assertEquals(
-        (await entities.getEntity(entityDeps, fixture.member, original.id)).properties.prop_2,
+        (await entities.getEntity(entityDeps, fixture.member, original.id)).properties.prop_3,
         "선택 해제할 비밀",
       );
     } finally {
@@ -402,8 +395,6 @@ for (const failLate of [false, true]) {
               entityCreate.parse({
                 entity_type_id: kind.id,
                 schema_version: 1,
-                source: "app",
-                external_id: crypto.randomUUID(),
                 properties: { prop_1: "변환 전 긴 제목" },
               }),
             ),

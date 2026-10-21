@@ -125,7 +125,8 @@ httpTest(
       const entityIds = new Map<string, string>();
       for (const kind of kinds) {
         const external = crypto.randomUUID();
-        entityIds.set(kind, `app:${kind}:${external}`);
+        const kindId = "00000000-0000-4000-8000-000000000001", entityId = `${kind}:${kindId}:${external}`;
+        entityIds.set(kind, entityId);
         await runInWorkspace(
           sql,
           { userId: aId, workspaceId: w.id },
@@ -138,8 +139,8 @@ httpTest(
             }],
           },
           (tx) =>
-            tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties)
-        values(${w.id},${`app:${kind}:${external}`},'app',${external},${kind},1,'{"prop_1":"12"}')`,
+            tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties)
+        values(${w.id},${entityId},${kind},1,${tx.json({ prop_1: "12", prop_2: `${kindId}:${external}` })})`,
         );
       }
       const document = await tool(client, "export_data_model", {

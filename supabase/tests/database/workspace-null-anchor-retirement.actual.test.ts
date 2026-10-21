@@ -1,3 +1,8 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlEntityRelationDefinitionUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-relation-definition-store.ts";
@@ -39,8 +44,10 @@ dbTest(
           // Even privileged fixture DML that bypasses triggers cannot reintroduce
           // the old NULL ownership graph: NOT NULL is a storage constraint.
           await tx`set local session_replication_role='replica'`;
-          await tx`insert into app.entities(id,source,external_id,entity_type_id,schema_version,properties)
-        values(${`app:${kind.id}:unassigned`},'app','unassigned',${kind.id},1,'{}')`;
+          await tx`insert into app.entities(id,entity_type_id,schema_version,properties)
+        values(${encodeIdentifierReference(kind.id, APP_IDENTIFIER_RULE_ID, "unassigned")},${kind.id},1,${
+            tx.json({ prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "unassigned") })
+          })`;
         })
       );
       assertEquals((error as { code?: string }).code, "23502");

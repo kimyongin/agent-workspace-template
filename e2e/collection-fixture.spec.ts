@@ -539,9 +539,9 @@ test("business tables: expanded attribute values reflow without horizontal scrol
   const state = await fixture(page);
   const schema = structuredClone(fixtureSchema);
 
-  schema.schema.properties.prop_5 = { type: "boolean", title: "확인 상태를 나타내는 긴 라벨", "x-order": 50};
+  schema.schema.properties.prop_6 = { type: "boolean", title: "확인 상태를 나타내는 긴 라벨", "x-order": 50};
   await page.route("**/api/entity-types/*/schema**", route => route.fulfill({ json: schema }));
-  Object.assign(state.rows.entities[0].properties, { prop_2: 240000, prop_3: "2026-10-08", prop_5: false });
+  Object.assign(state.rows.entities[0].properties, { prop_2: 240000, prop_3: "2026-10-08", prop_6: false });
   await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
   const table = page.getByRole("table", { name: "검사 자료 목록", exact: true });
   const title = table.getByRole("link", { name: `${entity.title} 상세`, exact: true });

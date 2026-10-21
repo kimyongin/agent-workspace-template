@@ -33,16 +33,17 @@ activityWorkspaceSuite(
       external?: string,
     ) => {
       const id = model.mapping.types[ref], schema = await scopedTool(client, w, "get_entity_schema", { type_id: id });
-      const identity = await scopedTool(client, w, "get_entity_type_identity", { type_id: id });
+      const identityKey = schema.schema["x-identity-property"];
+      const kindId = schema.schema.properties[identityKey]["x-identifier"].default_kind_id;
       return {
         entity_type_id: id,
         schema_version: schema.schema_version,
-        identity_version: identity.version,
-        source: identity.default_source,
-        ...(external ? { external_id: external } : {}),
-        properties: Object.fromEntries(
-          Object.entries(props).map(([key, value]) => [model.mapping.properties[ref][key], value]),
-        ),
+        properties: {
+          ...Object.fromEntries(
+            Object.entries(props).map(([key, value]) => [model.mapping.properties[ref][key], value]),
+          ),
+          ...(external ? { [identityKey]: `${kindId}:${external}` } : {}),
+        },
       };
     };
     const create = async (model: Model, ref: string, props: Record<string, string | number>) => {
@@ -68,7 +69,7 @@ activityWorkspaceSuite(
         expected_version: origin.version,
         previous_other_id: null,
         expected_previous_version: null,
-        entity: await entityInput(model, ref, props, external),
+        entity: { action: "create", ...await entityInput(model, ref, props, external) },
       };
       const key = crypto.randomUUID(), created = await write("create_and_link_entity", input, key);
       assertEquals(await write("create_and_link_entity", input, key), created);

@@ -1,4 +1,4 @@
-import { fixtureType, fixtureSchema, fixtureIdentity } from "./workspace-data.ts";
+import { fixtureType, fixtureSchema } from "./workspace-data.ts";
 import type { Route } from "@playwright/test";
 
 /** Mirror the public GET selector while PATCH continues returning the full saved result. */
@@ -14,7 +14,10 @@ export async function fulfillPreparation(route: Route): Promise<boolean> {
   const path = new URL(route.request().url()).pathname;
   let json: unknown;
   if (path === "/api/entity-types") json = { items: [fixtureType], next_cursor: null };
-  else if (path.startsWith("/api/entity-types/")) json = path.endsWith("/schema") ? fixtureSchema : path.endsWith("/identity") ? fixtureIdentity(decodeURIComponent(path.split("/").at(-2)!)) : fixtureType;
+  else if (path.startsWith("/api/entity-types/")) {
+    if (path.endsWith("/identity")) { await route.fulfill({ status: 404, json: { code: "not_found", message: "퇴역 경로" } }); return true; }
+    json = path.endsWith("/schema") ? fixtureSchema : fixtureType;
+  }
   else if (path.endsWith("/settings/business")) json = settingsResponse(route, {settings:{record_templates:{}},versions:{record_templates:0}});
   else if (path.endsWith("/records/prepare")) {
     const body = route.request().postDataJSON();

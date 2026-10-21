@@ -1,3 +1,8 @@
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
+  encodeIdentifierReference,
+  encodeIdentifierValue,
+} from "../../functions/_shared/contracts/entity-identifiers.ts";
 import * as tags from "../../functions/_shared/core/tags/application.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { runInWorkspace } from "../../functions/_shared/adapters/supabase/workspace-context.ts";
@@ -174,8 +179,10 @@ dbTest("workspace record producer hides existing and missing sources after kind 
       mode: "business",
       requirements: [{ target_kind: "entity_type", target_id: type.id, access: "write" }],
     }, async (tx) => {
-      const external = crypto.randomUUID(), id = `app:${type.id}:${external}`;
-      await tx`insert into app.entities(workspace_id,id,source,external_id,entity_type_id,schema_version,properties) values(${workspaceId!},${id},'app',${external},${type.id},1,'{"prop_1":"공개하지 않을 값"}')`;
+      const external = crypto.randomUUID(), id = encodeIdentifierReference(type.id, APP_IDENTIFIER_RULE_ID, external);
+      await tx`insert into app.entities(workspace_id,id,entity_type_id,schema_version,properties) values(${workspaceId!},${id},${type.id},1,${
+        tx.json({ prop_1: "공개하지 않을 값", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, external) })
+      })`;
       const [record] =
         await tx`insert into app.records(workspace_id,entity_id,body,record_kind) values(${workspaceId!},${id},'공개하지 않을 본문','change') returning id`;
       return String(record.id);
@@ -307,18 +314,11 @@ dbTest("workspace entity lists bind readable kinds and cursors while lifecycle r
     );
     const deleted = await entities.getEntity(deps, reader, rows[0].id);
     assertEquals(deleted.version, 2);
-    const restored = await entities.createEntity(
-      deps,
-      key(author),
-      entityCreate.parse({
-        entity_type_id: visible.id,
-        schema_version: 1,
-        source: rows[0].source,
-        external_id: rows[0].external_id,
-        expected_version: 2,
-        properties: { prop_1: "같은 자료 복원" },
-      }),
-    );
+    const restored = await entities.restoreEntity(deps, key(author), rows[0].id, {
+      schema_version: 1,
+      expected_version: 2,
+      properties: { prop_1: "같은 자료 복원" },
+    });
     assertEquals([restored.id, restored.version], [rows[0].id, 3]);
     const history = await entities.getEntity(deps, reader, rows[0].id);
     assertEquals(history.records.count, 3);
