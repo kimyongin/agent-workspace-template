@@ -1,10 +1,11 @@
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import {
   entity as makeEntity,
   task as makeTask,
   record as makeRecord,
-  fixtureIdentity,
   fixtureSchema,
   fixtureType,
 } from "./support/workspace-data.ts";
@@ -237,14 +238,13 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
         ? {items:[fixtureType],next_cursor:null}
         : new URL(route.request().url()).pathname.endsWith("/schema")
         ? fixtureSchema
-        : new URL(route.request().url()).pathname.endsWith("/identity")
-        ? fixtureIdentity()
         : fixtureType,
     }));
   const entity = {
     ...makeEntity(300, {prop_1:"App 資料"}),
-    id: `app:${fixtureType.id}:30000000-0000-4000-8000-000000000000`,
-    external_id:"30000000-0000-4000-8000-000000000000",
+    id: `${fixtureType.id}:${APP_IDENTIFIER_RULE_ID}:30000000-0000-4000-8000-000000000000`,
+    identity_label: "앱 · 자동 발급 · 30000000-0000-4000-8000-000000000000",
+    properties: { ...makeEntity(300).properties, prop_1: "App 資料", prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "30000000-0000-4000-8000-000000000000") },
   };
   await page.route("**/api/entities**", route => {
 
@@ -349,14 +349,12 @@ test("자료 연결 작성·실패 초안·성공 후 조회 실패와 모달 �
         ? {items:[fixtureType],next_cursor:null}
         : new URL(route.request().url()).pathname.endsWith("/schema")
         ? fixtureSchema
-        : new URL(route.request().url()).pathname.endsWith("/identity")
-        ? fixtureIdentity()
         : fixtureType,
     }));
   const entity = {
     ...makeEntity(100, {prop_1:"文脈資料",prop_2:3,prop_3:"2026-10-04",prop_4:"b"}),
-    id: `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000`,
-    external_id:"10000000-0000-4000-8000-000000000000",
+    id: `${fixtureType.id}:${APP_IDENTIFIER_RULE_ID}:10000000-0000-4000-8000-000000000000`, identity_label: "앱 · 자동 발급 · 10000000-0000-4000-8000-000000000000",
+    properties: { ...makeEntity(100).properties, prop_1: "文脈資料", prop_2: 3, prop_3: "2026-10-04", prop_4: "b", prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "10000000-0000-4000-8000-000000000000") },
     version:7,
   };
   let saved = false, failSave = true;
@@ -615,7 +613,6 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   const history = [{ id: "tag-fixture-create", body: "최초 등록 기록", updated_at: current.updated_at, record_kind: "change", occurred_at: current.created_at }];
   await page.route("**/api/entity-types**", route => route.fulfill({
     json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema
-      : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity()
       : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType,
   }));
   await page.route("**/api/entities**", route => {
@@ -641,7 +638,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   await beginTabAction(page, "검사 자료 추가");
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await expect(form.getByRole("button", { name: "태그 선택", exact: true })).toHaveCount(0);
-  await expect(form.getByText("번호 출처와 번호를 확인하고, 자료의 입력 항목을 작성합니다.", { exact: true })).toBeVisible();
+  await expect(form.getByText("식별자 종류와 원본 값을 확인하고, 자료의 입력 항목을 작성합니다.", { exact: true })).toBeVisible();
   await form.getByLabel("제목").fill(current.title);
   await capture("new-entity-without-tag-selector");
   await saveOnce(page, form);
@@ -673,7 +670,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
 });
 
 test("보기에서 태그 연결 초안을 취소하거나 독립 적용한다", async ({ page }) => {
-  let current = { ...makeEntity(1), id: `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000`, tag_ids: [] as string[] };
+  let current = { ...makeEntity(1, { prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "10000000-0000-4000-8000-000000000000") }), id: `${fixtureType.id}:${APP_IDENTIFIER_RULE_ID}:10000000-0000-4000-8000-000000000000`, identity_label: "앱 · 자동 발급 · 10000000-0000-4000-8000-000000000000", tag_ids: [] as string[] };
   const writes: Record<string, unknown>[] = [];
   await page.route(/\/api\/(?:entities\/.*|tag-connections)$/, async route => {
     if (new URL(route.request().url()).pathname.endsWith("/links")) return route.fulfill({json:{items:[],next_cursor:null}});
@@ -683,7 +680,7 @@ test("보기에서 태그 연결 초안을 취소하거나 독립 적용한다",
     }
     await route.fulfill({ json: { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } });
   });
-  await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
+  await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
   await page.goto(url);
   await page.getByRole("link", { name: "자료 fixture", exact: true ,includeHidden:true}).evaluate((el:HTMLAnchorElement) => el.click());
   const region = page.getByRole("region", { name: "태그 연결" });
@@ -708,11 +705,11 @@ test("보기에서 태그 연결 초안을 취소하거나 독립 적용한다",
 
 for (const kind of ["entity", "task", "record"] as const) {
   test(`${kind} 일반 편집은 태그를 읽기 전용으로 보존하고 부분 저장에서 생략한다`, async ({ page }) => {
-    const base = kind === "entity" ? makeEntity(1) : kind === "task" ? makeTask(2) : makeRecord(3);
-    const targetId = kind === "entity" ? `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000` : kind === "task" ? task.id : "30000000-0000-4000-8000-000000000000";
-    let current = { ...base, id: targetId, tag_ids: [tags[0].id] };
+    const base = kind === "entity" ? makeEntity(1, { prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "10000000-0000-4000-8000-000000000000") }) : kind === "task" ? makeTask(2) : makeRecord(3);
+    const targetId = kind === "entity" ? `${fixtureType.id}:${APP_IDENTIFIER_RULE_ID}:10000000-0000-4000-8000-000000000000` : kind === "task" ? task.id : "30000000-0000-4000-8000-000000000000";
+    let current = { ...base, id: targetId, ...(kind === "entity" ? { identity_label: "앱 · 자동 발급 · 10000000-0000-4000-8000-000000000000" } : {}), tag_ids: [tags[0].id] };
     const writes: Record<string, unknown>[] = [];
-    await page.route("**/api/entity-types**", route => route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? {items:[fixtureType],next_cursor:null} : fixtureType}));
+    await page.route("**/api/entity-types**", route => route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/entity-types") ? {items:[fixtureType],next_cursor:null} : fixtureType}));
     await page.route(`**/api/${kind === "entity" ? "entities" : kind + "s"}/**`, async route => {
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith("/links")) return route.fulfill({json:{items:[],next_cursor:null}});
@@ -792,8 +789,8 @@ test("기록 태그 연결 버전 충돌은 원문과 선택 초안을 보존한
 
 test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 연결을 다시 시작한다", async ({ page }) => {
   let current = {
-    ...makeEntity(1),
-    id: `app:${fixtureType.id}:10000000-0000-4000-8000-000000000000`,
+    ...makeEntity(1, { prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "10000000-0000-4000-8000-000000000000") }),
+    id: `${fixtureType.id}:${APP_IDENTIFIER_RULE_ID}:10000000-0000-4000-8000-000000000000`, identity_label: "앱 · 자동 발급 · 10000000-0000-4000-8000-000000000000",
     tag_ids: [tags[0].id],
   };
   const writes: Record<string, unknown>[] = [];
@@ -803,8 +800,6 @@ test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 �
       route.fulfill({
         json: new URL(route.request().url()).pathname.endsWith("/schema")
           ? fixtureSchema
-          : new URL(route.request().url()).pathname.endsWith("/identity")
-          ? fixtureIdentity()
           : { items: [fixtureType], next_cursor: null },
       }),
   );
@@ -998,7 +993,7 @@ test("전체 자료 작성의 종류 선택은 설정 WRITE와 별개로 종류 
   await page.route("**/api/entity-types**", route => route.fulfill({ json:
     new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType, readable], next_cursor: null }
       : new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema
-      : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : fixtureType,
+      : fixtureType,
   }));
   await page.goto("/e2e/fixtures/entity-tags-app.html");
   await page.goto(`/w/${fixtureWorkspaceId}/entities`);
@@ -1021,7 +1016,7 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
     grants: access === "none" ? [] : [{ target_kind: "entity_type", target_id: fixtureType.id, access }],
   } }));
   let current = { ...makeEntity(351, { prop_1: "권한 갱신 자료" }), tag_ids: [tags[0].id] };
-  await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/identity") ? fixtureIdentity() : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
+  await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType }));
   await page.route("**/api/entities**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/links") ? { items: [], next_cursor: null } : { ...current, tasks: { count: 0, items: [] }, records: { count: 0, items: [] } } }));
   let release = () => {}, arrived = () => {};
   const started = new Promise<void>(resolve => arrived = resolve);
@@ -1122,7 +1117,7 @@ for (const mode of ["create", "edit"] as const) {
       if (access === "none") return route.fulfill(path.endsWith("/entity-types")
         ? { json: { items: [], next_cursor: null } }
         : { status: 404, json: { code: "not_found", message: "자료 종류를 찾을 수 없습니다." } });
-      return route.fulfill({ json: path.endsWith("/schema") ? fixtureSchema : path.endsWith("/identity") ? fixtureIdentity() : path.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType });
+      return route.fulfill({ json: path.endsWith("/schema") ? fixtureSchema : path.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType });
     });
     const writes: { body: any; key?: string }[] = [];
     await page.route("**/api/entities**", route => {

@@ -2,17 +2,26 @@ import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
-import { fixtureIdentity } from "./support/workspace-data.ts";
+import { fixtureSchema } from "./support/workspace-data.ts";
 import { expect, test } from "@playwright/test";
-import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
+import { type EntityType, initialEntityDefinition as baseDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
+// Keep ordinary prop_2..4 semantics separate from the selected identifier.
+function initialEntityDefinition(label: string, metadata: Parameters<typeof baseDefinition>[1] = {}) {
+  const definition = baseDefinition(label, { id: materials.id, title: materials.label, icon: materials.icon_id, ...metadata });
+  definition.schema.properties.prop_5 = { ...definition.schema.properties.prop_2, "x-order": 50 };
+  delete definition.schema.properties.prop_2;
+  definition.schema["x-identity-property"] = "prop_5";
+  definition.schema.required = ["prop_1", "prop_5"];
+  return definition;
+}
 const type = (n: number, label: string, archived = false): EntityType => ({
   id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
   label,
   archived,
   icon_id: "leaf",
   schema_version: 1,
-  next_property_number: 2,
+  next_property_number: 6,
   created_at: `2026-10-${String(n).padStart(2, "0")}T00:00:00Z`,
   updated_at: "2026-10-12T00:00:00Z",
 });
@@ -40,20 +49,18 @@ test.beforeEach(async ({ page, baseURL }) => {
       url.pathname.startsWith(`/api/entity-types/${value.id}`)
     );
     if (selected) {
-      if (url.pathname.endsWith("/identity")) {
-        return route.fulfill({ json: fixtureIdentity(selected.id) });
-      }
+
       if (
         url.pathname.endsWith("/schemas") ||
         url.pathname.endsWith("/schema-changes")
       ) return route.fulfill({ json: { items: [], next_before: null } });
       return route.fulfill({
         json: url.pathname.endsWith("/schema")
-          ? {
+          ? { identifier_kinds: fixtureSchema.identifier_kinds,
             type: selected,
             type_id: selected.id,
             schema_version: 1,
-            ...initialEntityDefinition("이름"),
+            ...initialEntityDefinition("이름", { id: selected.id, title: selected.label, icon: selected.icon_id }),
           }
           : selected,
       });
@@ -514,7 +521,7 @@ async function namedTemplateProperties(page: import("@playwright/test").Page) {
 
   await page.route(`**/api/entity-types/${materials.id}/schema`, (route) =>
     route.fulfill({
-      json: {
+      json: { identifier_kinds: fixtureSchema.identifier_kinds,
         type: materials,
         type_id: materials.id,
         schema_version: 1,
@@ -712,7 +719,7 @@ test("속성 정의를 기다리거나 실패한 동안 변수·편집·저장�
       return route.fulfill({ status: 500, json: { code: "unavailable", message: "fixture read failed" } });
     }
     return route.fulfill({
-      json: { type: materials, type_id: materials.id, schema_version: 1, ...initialEntityDefinition("이름") },
+      json: { identifier_kinds: fixtureSchema.identifier_kinds, type: materials, type_id: materials.id, schema_version: 1, ...initialEntityDefinition("이름") },
     });
   });
   const form = await openTyped(page);
