@@ -21,12 +21,15 @@ export function Field({ label, hideLabel = false, required, help, error, changed
   const id = useId();
   const helpId = `${id}-help`, errorId = `${id}-error`, changedId = `${id}-changed`;
   const describedBy = [help && helpId, error && errorId, changed && changedId].filter(Boolean).join(" ") || undefined;
+  const fieldLabel = <FieldLabel htmlFor={id} className={cn("flex-wrap", hideLabel && "sr-only")}>
+    {label}{required && <><span aria-hidden="true">*</span><span className="sr-only">(필수)</span></>}
+  </FieldLabel>;
   return <FieldRoot data-invalid={!!error} data-changed={changed || undefined} className={cn("min-w-0", fullWidth && "col-span-full", className)}>
-    <FieldLabel htmlFor={id} className={cn("flex-wrap", hideLabel && "sr-only")}>
-      {label}{required && <><span aria-hidden="true">*</span><span className="sr-only">(필수)</span></>}
-      {changed && <Badge aria-hidden="true">수정 중</Badge>}
-    </FieldLabel>
+    {changed && !hideLabel ? <div data-slot="field-label" className="flex min-w-0 flex-wrap items-center gap-2">
+      {fieldLabel}<Badge aria-hidden="true">수정 중</Badge>
+    </div> : fieldLabel}
     <FieldContent className="min-w-0">
+      {changed && hideLabel && <Badge aria-hidden="true">수정 중</Badge>}
       {children({ id, "aria-describedby": describedBy, "aria-invalid": error ? true : undefined, "data-field-control": "" })}
       {changed && <span id={changedId} className="sr-only">저장하지 않은 변경이 있습니다.</span>}
       {help && <FieldDescription id={helpId}>{help}</FieldDescription>}

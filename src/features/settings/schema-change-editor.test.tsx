@@ -35,13 +35,13 @@ afterEach(async () => {
   sessionStorage.clear();
   vi.unstubAllGlobals();
 });
-async function openEditor() {
+async function openEditor(sourceDefinition = definition) {
   let current!: ReturnType<typeof useSchemaChangeEditor>;
   let path = "";
   const config = { jobs: [] as EntitySchemaMigration[], workspace: "space", visible: true, access: "write" as "read" | "write" };
   function Editor({ onState }: { onState: (state: EditState) => void }) {
     const location = useLocation(), navigate = useNavigate();
-    current = useSchemaChangeEditor({ type, definition, disabled: false, selectionSearch: location.search,
+    current = useSchemaChangeEditor({ type, definition: sourceDefinition, disabled: false, selectionSearch: location.search,
       onApplied: async () => "", onState, onFieldKeysChanged: () => {}, onInvalidField: () => {},
       onReviewed: () => {}, onNavigate: navigate, jobs: config.jobs,
     });
@@ -243,4 +243,44 @@ test.each(["workspace", "unmount"] as const)("접수 응답이 늦는 동안 %s 
   });
   await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
   expect(screen.path()).toBe("/settings/entity-types/kind?change_id=change&keep=1");
+});
+
+test("연속 삭제와 역순 복원은 전체 행 순서와 각 항목의 편집값을 보존한다", async () => {
+  const source = structuredClone(definition);
+  source.schema.properties.prop_2 = { type: "string", title: "부서", "x-order": 20 };
+  source.schema.properties.prop_3 = { type: "string", title: "연락처", "x-order": 30 };
+  source.schema.required.push("prop_2");
+  vi.stubGlobal("fetch", async (url: string) => json(url.endsWith("/change") ? { ...plan, status: "draft", target: source } : { items: [] }));
+  const screen = await openEditor(source);
+  await act(() => screen.editor().editField("prop_2", { ...source.schema.properties.prop_2, title: "부서 초안" }));
+  await act(() => screen.editor().removeField("prop_2"));
+  await act(() => screen.editor().removeField("prop_3"));
+  expect(screen.editor().view.fieldOrder).toEqual(["prop_1", "prop_2", "prop_3"]);
+  await act(() => screen.editor().restoreField("prop_3"));
+  expect(screen.editor().view.fieldOrder).toEqual(["prop_1", "prop_2", "prop_3"]);
+  await act(() => screen.editor().restoreField("prop_2"));
+  expect(screen.editor().view.draft.schema.properties.prop_2.title).toBe("부서 초안");
+  expect(screen.editor().view.draft.schema.required).toContain("prop_2");
+  expect(screen.editor().view.fieldOrder).toEqual(["prop_1", "prop_2", "prop_3"]);
+});
+
+test("저장된 삭제의 복원과 전체 취소는 현재 대표 항목과 저장 기준을 유지한다", async () => {
+  const source = structuredClone(definition);
+  source.schema.properties.prop_2 = { type: "string", title: "새 이름", "x-order": 20, "x-representative": true, minLength: 1 };
+  source.schema.properties.prop_1["x-representative"] = false;
+  source.schema.required.push("prop_2");
+  const target = structuredClone(source);
+  delete target.schema.properties.prop_1;
+  target.schema.required = target.schema.required.filter(key => key !== "prop_1");
+  vi.stubGlobal("fetch", async (url: string) => json(url.endsWith("/change") ? { ...plan, status: "draft", target } : { items: [] }));
+  const screen = await openEditor(source);
+  await act(() => screen.editor().restoreField("prop_1"));
+  await act(() => screen.editor().editField("prop_1", { ...screen.editor().view.draft.schema.properties.prop_1, title: "취소할 초안" }));
+  await act(() => screen.editor().removeField("prop_1"));
+  await act(() => screen.editor().cancelEditing());
+  expect(screen.editor().view.removedFields[0].field.title).toBe("이름");
+  await act(() => screen.editor().restoreField("prop_1"));
+  expect(screen.editor().view.draft.schema.properties.prop_1.title).toBe("이름");
+  expect(screen.editor().view.draft.schema.properties.prop_1["x-representative"]).toBe(false);
+  expect(screen.editor().view.draft.schema.properties.prop_2["x-representative"]).toBe(true);
 });

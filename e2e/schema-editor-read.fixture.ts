@@ -313,6 +313,7 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
   await expect(page.getByText("기술 정보", { exact: true })).toHaveCount(0);
   expect(requests[1]).toEqual(requests[0]);
   expect(requests[0].key).toBeTruthy();
+  await expect(page.getByRole("row", { name: "추가값 입력 항목", exact: true }).and(page.locator("tr[aria-label]"))).toContainText("추가 예정");
   await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
   await page.getByRole("region", { name: "추가값 입력 항목", exact: true }).getByLabel("항목 이름").fill("수정값");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
@@ -436,7 +437,8 @@ test("속성 요약에서 열린 행의 입력을 검토하고 행 완료와 적
   await expect(review).toHaveCount(0);
   await expect(history.getByRole("button", { name: /^변경 이력/ })).toHaveAttribute("aria-expanded", "false");
   await history.getByRole("button", { name: /^변경 이력/ }).click();
-  await businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).getByRole("button", { name: /^입력 항목 변경 시각/ }).click();
+  const reviewRow = businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true })).getByRole("button", { name: /^입력 항목 변경 시각/ });
+  if (await reviewRow.getAttribute("aria-expanded") !== "true") await reviewRow.click();
   await expect(review).toContainText("검토할 이름");
   await expect(review).toContainText("아직 적용되지 않았습니다");
   expect(writes).toHaveLength(1);
@@ -475,7 +477,7 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
     "[role=\"row\"][aria-label$=\" 입력 항목\"] [data-schema-disclosure][aria-expanded=true]",
   ).click();
   await expect(page.getByRole("row", { name: "이름 입력 항목", exact: true }))
-    .toContainText("변경됨");
+    .toContainText("수정 중");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
     true,
@@ -911,8 +913,9 @@ test("변경 이력 통합: 모두 접기·초안 유지·명시적인 이력 �
   await history.getByRole("button", { name: /^변경 이력/ }).click();
   const row = businessRows(history.getByRole("table", { name: "입력 항목 변경 이력", exact: true }));
   await expect(row).toHaveCount(1);
-  await row.getByRole("button", { name: /^입력 항목 변경 시각/ }).click();
-  const content = await disclosureContent(page, row.getByRole("button", { name: /^입력 항목 변경 시각/ }));
+  const historyRow = row.getByRole("button", { name: /^입력 항목 변경 시각/ });
+  if (await historyRow.getAttribute("aria-expanded") !== "true") await historyRow.click();
+  const content = await disclosureContent(page, historyRow);
   await expect(content.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
   await expect(content).toContainText("수정한 이름");
   await history.getByRole("button", { name: /^변경 이력/ }).first().click();
@@ -1342,3 +1345,45 @@ test("conversion correction date calendar changes only the retained literal draf
   await expect(input).toHaveValue("0000-02-29");
   expect(writes).toEqual([]);
 });
+
+test("삭제 예정 행은 같은 위치에 남고 삭제 취소는 편집값·순서·초점을 복원한다", async ({ page }, info) => {
+  await page.goto("/e2e/fixtures/schema-editor-read.html?display-example");
+  const input = page.getByRole("region", { name: "입력 항목", exact: true });
+  await input.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await input.getByRole("button", { name: "수량 항목 펼치기", exact: true }).click();
+  const field = page.getByRole("region", { name: "수량 입력 항목", exact: true });
+  await field.getByLabel("항목 이름", { exact: true }).fill("남은 수량");
+  const edited = page.getByRole("region", { name: "남은 수량 입력 항목", exact: true });
+  await edited.getByRole("button", { name: "추가 설정", exact: true }).click();
+  await edited.getByRole("button", { name: "항목 삭제", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "항목을 삭제할까요?", exact: true }).getByRole("button", { name: "삭제 변경안 만들기", exact: true }).click();
+  const row = input.getByRole("row", { name: "남은 수량 삭제 예정 입력 항목", exact: true });
+  await expect(row).toContainText("삭제 예정");
+  const labels = await input.locator('tr[aria-label$="입력 항목"]').evaluateAll(rows => rows.map(row => row.getAttribute("aria-label")));
+  expect(labels).toEqual(["재료명 입력 항목", "남은 수량 삭제 예정 입력 항목", "단위 입력 항목"]);
+  await row.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("schema-deletion-pending.png") });
+  await row.getByRole("button", { name: "남은 수량 삭제 취소", exact: true }).press("Enter");
+  await expect(row).toHaveCount(0);
+  await expect(edited.getByLabel("항목 이름", { exact: true })).toHaveValue("남은 수량");
+  await expect(edited.getByLabel("항목 이름", { exact: true })).toBeFocused();
+  await expect(input.getByRole("row", { name: "남은 수량 입력 항목", exact: true }).and(page.locator("tr[aria-label]"))).toContainText("수정 예정");
+});
+
+for (const status of ["ready", "applied", "cancelled", "stale"] as const) {
+  test(`저장된 ${status} 변경안은 미적용 항목만 예정으로 표시한다`, async ({ page }) => {
+    const saved = { ...readyActionPlan(), status };
+    saved.target.schema.properties.prop_2 = { type: "string", title: "연락처", "x-order": 20 };
+    await page.route(`**${base}/b`, route => route.fulfill({ json: saved }));
+    await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
+    const input = page.getByRole("region", { name: "입력 항목", exact: true });
+    const addition = input.getByRole("row", { name: "연락처 입력 항목", exact: true, includeHidden: true }).and(page.locator("tr[aria-label]"));
+    await expect(addition).toHaveCount(1);
+    if (status === "ready") {
+      await input.getByRole("button", { name: "입력 항목", exact: true }).click();
+      await expect(addition).toBeVisible();
+      await expect(addition).toContainText("추가 예정");
+      await expect(input.getByRole("row", { name: "현재 이름 입력 항목", exact: true }).and(page.locator("tr[aria-label]"))).toContainText("수정 예정");
+    } else await expect(input.getByText(/^(추가|수정|삭제) 예정$/)).toHaveCount(0);
+  });
+}

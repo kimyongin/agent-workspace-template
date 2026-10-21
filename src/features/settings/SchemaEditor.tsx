@@ -171,7 +171,9 @@ export function SchemaEditor(
   });
   const {
     draft,
-    changedFields,
+    fieldStates,
+    removedFields,
+    fieldOrder,
     changeCount,
     unsupportedNumericInputs,
     plan,
@@ -271,6 +273,7 @@ export function SchemaEditor(
       openEditing();
     });
   };
+  const draftOrder = schemaPresentation(draft).order;
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {error && <Alert variant="destructive" role="alert" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -342,7 +345,22 @@ export function SchemaEditor(
             >
               <RadioGroup value={schemaPresentation(draft).representative} onValueChange={editor.chooseRepresentative} aria-label="자료 이름으로 사용할 항목">
               <CollectionList view="table" label="입력 항목 목록" columns={["입력 항목", "설정", "순서"]}>
-                {schemaPresentation(draft).order.map((key, index) => {
+                {fieldOrder.map((key) => {
+                  const removed = removedFields.find(field => field.key === key);
+                  if (removed) return <CollectionItem key={`removed-${key}`}>
+                    <BusinessRow aria-label={`${removed.field.title || key} 삭제 예정 입력 항목`}>
+                      <BusinessDisclosureCell />
+                      <BusinessCell index={0}><span className="wrap-anywhere">{removed.field.title || key}</span></BusinessCell>
+                      <BusinessCell index={1}><Badge variant="destructive">삭제 예정</Badge></BusinessCell>
+                      <BusinessCell index={2}><Button variant="outline" type="button" disabled={Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
+                        aria-label={`${removed.field.title || key} 삭제 취소`} onClick={() => {
+                          editor.restoreField(key);
+                          setOpenFields(keys => [...keys, key]);
+                          requestAnimationFrame(() => fieldElements.current[key]?.body?.querySelector<HTMLInputElement>('input[data-schema-setting="title"]')?.focus());
+                        }}>삭제 취소</Button></BusinessCell>
+                    </BusinessRow>
+                  </CollectionItem>;
+                  const index = draftOrder.indexOf(key);
                   const f = draft.schema.properties[key],
                     scalar = fieldType(f) ?? "string";
                   const toggleField = () =>
@@ -360,7 +378,7 @@ export function SchemaEditor(
                       {schemaPresentation(draft).archived.includes(key) && (
                         <Badge variant="secondary">사용 중지</Badge>
                       )}
-                      {changedFields.includes(key) && <Badge variant="secondary">변경됨</Badge>}
+                      {fieldStates[key] && <Badge>{fieldStates[key]}</Badge>}
                       {fieldError === key && (
                         <span className="text-sm text-destructive">
                           오류
