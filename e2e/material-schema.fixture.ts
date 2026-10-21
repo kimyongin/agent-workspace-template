@@ -1,3 +1,4 @@
+import { encodeIdentifierReference } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { fulfillFixtureWorkspace, fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
@@ -1689,7 +1690,7 @@ test("복구 충돌 대상 표는 기존 자료 링크·21개 제한·좁은 화
 for (const mode of ["editor", "history"] as const) {
   test(`자료별 검토 오류 표 ${mode}: 긴 자료 번호·모든 사유·좁은 배율을 보존한다`, async ({ page }, info) => {
     const number = "긴자료번호-".repeat(30);
-    const first = `crm:${id(9)}:${number}`;
+    const first = encodeIdentifierReference(materials.id, APP_IDENTIFIER_RULE_ID, number);
     const current = { ...linkedChange(), status: "invalid", analysis: {
       id: id(501), status: "succeeded", total: 2, processed: 2, failed: 2,
       change_version: 1, snapshot_fingerprint: "fixture", definition_fingerprint: "fixture",
@@ -1716,7 +1717,7 @@ for (const mode of ["editor", "history"] as const) {
     await expect(table).toBeVisible();
     const rows = businessRows(table);
     await expect(rows).toHaveCount(2);
-    await expect(rows.nth(0).getByRole("cell").nth(0)).toHaveText(`crm · ${number}`);
+    await expect(rows.nth(0).getByRole("cell").nth(0)).toHaveText(`00000000 · ${number}`);
     await expect(rows.nth(1).getByRole("cell").nth(0)).toHaveText("이전형식-자료번호");
     await expect(rows.nth(0).getByRole("listitem")).toHaveText(["이름 · 필수 입력: 필수 값을 입력하세요", "이름 · 최대 길이: 허용 길이를 초과했습니다"]);
     await expect(rows.nth(1).getByRole("listitem")).toHaveText(["이름 · 타입: 문자열 값이 필요합니다"]);

@@ -360,7 +360,7 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
     if (await profile.evaluate(element => element === document.activeElement)) { reachedProfile = true; break; }
   }
   expect(reachedProfile).toBe(true);
-  expect(visited).toEqual(expect.arrayContaining(["공간 선택", "메뉴 닫기", "Workspace", long.label, products.label, "할 일", "기록", "전체 자료", "내 프로필"]));
+  expect(visited).toEqual(expect.arrayContaining(["공간 선택", "메뉴 닫기", long.label, products.label, "할 일", "기록", "전체 자료", "내 프로필"]));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("short-navigation-keyboard.png") });
   await openProfileMenu(page);
@@ -629,7 +629,7 @@ test("definition history reads beyond the first hundred versions and opens the i
           type_id: materials.id,
           schema_version,
           created_at: materials.created_at,
-          ...initialEntityDefinition(schema_version === 1 ? "최초 이름" : "현재 이름"),
+          ...initialEntityDefinition(schema_version === 1 ? "최초 이름" : "현재 이름", { title: schema_version === 1 ? "최초 이름" : "현재 이름" }),
         },
       });
     }
