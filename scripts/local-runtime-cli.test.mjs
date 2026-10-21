@@ -336,11 +336,39 @@ test('fixture startup rejection releases its lease and leaves an unrelated HTTP 
   const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' });
   await new Promise(resolve => existing.listen(0, '127.0.0.1', resolve));
   try {
-    await assert.rejects(adapter.startFixtureWebServer(), /failed to start/);
+    await assert.rejects(adapter.startFixtureWebServer(), error => /failed to start/.test(error.message) && error.code === 7);
     assert.equal(await (await fetch(`http://127.0.0.1:${existing.address().port}`)).text(), 'existing owner');
     await assert.rejects(adapter.startFixtureWebServer(), /failed to start/);
   } finally {
     await new Promise(resolve => existing.close(resolve));
+    process.chdir(previousDirectory);
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test('fixture preparation interruption stops its newly launched child and preserves a later clean acquisition', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fixture-start-interruption-'));
+  const previousDirectory = process.cwd();
+  const marker = join(directory, 'child.pid');
+  const { readFileSync, existsSync } = await import('node:fs');
+  mkdirSync(join(directory, 'supabase/functions'), { recursive: true });
+  mkdirSync(join(directory, 'scripts'));
+  writeFileSync(join(directory, 'scripts/fixture-web-server.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, String(process.pid)); setInterval(() => {}, 1000);`);
+  process.chdir(directory);
+  const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' });
+  const controller = new AbortController();
+  try {
+    const started = adapter.startFixtureWebServer(controller.signal);
+    const rejected = assert.rejects(started, /interrupted/);
+    for (let attempt = 0; attempt < 100 && !existsSync(marker); attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(existsSync(marker), 'fixture child must launch before interruption');
+    const pid = Number(readFileSync(marker, 'utf8'));
+    controller.abort('SIGINT');
+    await rejected;
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    const release = acquireRuntimeLock('fixture-web:127.0.0.1:56883'); release();
+  } finally {
+    controller.abort('SIGINT');
     process.chdir(previousDirectory);
     rmSync(directory, { recursive: true });
   }

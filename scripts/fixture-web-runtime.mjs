@@ -13,7 +13,7 @@ export function groupFixtureStages(stages) {
 
 export async function runFixtureWebGroup(stages, adapter, signal, execute) {
   const started = performance.now(), timings = {};
-  let server, result, resources;
+  let server, result, resources, preparationFailure;
   const errors = [];
   try {
     server = await adapter.startFixtureWebServer(signal);
@@ -23,6 +23,9 @@ export async function runFixtureWebGroup(stages, adapter, signal, execute) {
     timings.checksMs = performance.now() - checksStarted;
   } catch (error) {
     timings.preparationMs ??= performance.now() - started;
+    if (Number.isInteger(error.code) || error.code === null) {
+      preparationFailure = { code: error.code, signal: error.signal ?? null, spawnFailed: Boolean(error.spawnFailed) };
+    }
     errors.push({ phase: 'fixture-web-preparation', error });
   } finally {
     const cleanupStarted = performance.now();
@@ -38,5 +41,5 @@ export async function runFixtureWebGroup(stages, adapter, signal, execute) {
   return { results: result?.results ?? stages.map(stage => ({ label: stage.id, skipped: true,
     reason: interrupted ? 'interrupted' : 'fixture web preparation failed' })),
     errors: [...(result?.errors ?? []), ...errors], exitCode,
-    metric: { group: 'settings-model', stages: stages.map(stage => stage.id), timings, resources } };
+    metric: { group: 'settings-model', stages: stages.map(stage => stage.id), timings, resources, preparationFailure } };
 }

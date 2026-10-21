@@ -307,7 +307,7 @@ test('shared fixture startup, interruption and cleanup failures preserve ownersh
       { id: 'outside' },
     ]);
     const result = await runFullTestPlan({ stages }, {}, {
-      startFixtureWebServer: async () => { calls.push('start'); if (failure === 'startup') throw Error('occupied'); return owned; },
+      startFixtureWebServer: async () => { calls.push('start'); if (failure === 'startup') throw Object.assign(Error('occupied'), { code: 7 }); return owned; },
       stopFixtureWebServer: async handle => {
         assert.equal(handle, owned); calls.push('stop'); if (failure === 'cleanup') throw Error('stop failed');
       },
@@ -321,6 +321,7 @@ test('shared fixture startup, interruption and cleanup failures preserve ownersh
     assert.equal(calls.filter(call => call === 'stop').length, failure === 'startup' ? 0 : 1);
     assert.ok(!calls.includes('outside'));
     assert.equal(result.results.find(item => item.label === 'outside').skipped, true);
+    if (failure === 'startup') assert.equal(result.fixtureWebMetrics[0].preparationFailure.code, 7);
     if (failure !== 'startup') assert.equal(result.results[0].code, failure === 'lost' ? null : 23);
     assert.equal(result.results.length, 3);
   }

@@ -204,7 +204,10 @@ export function createLocalRuntimeAdapter(config, { env = process.env } = {}) {
           if (message?.ready === 'settings-model' && message.pid === child.pid && childRunning(child)) { clean(); resolve(); }
         };
         const abort = () => { clean(); reject(new Error('Fixture web preparation interrupted')); };
-        const exited = () => { clean(); reject(new Error('Owned fixture web server failed to start')); };
+        const exited = () => {
+          clean();
+          reject(Object.assign(new Error('Owned fixture web server failed to start'), { code: child.exitCode, signal: child.signalCode, spawnFailed: Boolean(child.spawnFailed) }));
+        };
         const timer = setTimeout(() => { clean(); reject(new Error('Fixture web preparation timed out')); }, 30_000);
         const clean = () => {
           clearTimeout(timer); child.off('message', ready); child.off('close', exited); child.off('error', exited);
