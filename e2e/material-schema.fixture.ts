@@ -1543,16 +1543,48 @@ test(
     await expect(definition).not.toContainText("(kg)");
     await expect(definition).not.toContainText("(g)");
     for (const heading of await definition.getByRole("heading").all()) await expect(heading).toBeVisible();
-    const pairs = await definition.locator("dl > div").evaluateAll((elements) =>
-      elements.map((el) => {
-        const key = el.querySelector("dt")!.getBoundingClientRect(),
-          value = el.querySelector("dd")!.getBoundingClientRect();
-        return { keyBottom: key.bottom, valueTop: value.top };
-      })
-    );
-    for (const pair of pairs) {
-      expect(pair.keyBottom).toBeLessThanOrEqual(pair.valueTop + 1);
+    for (
+      const { width, fontSize, horizontal } of [
+        { width: 768, fontSize: "100%", horizontal: true },
+        { width: 320, fontSize: "200%", horizontal: false },
+      ]
+    ) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate((value) => document.documentElement.style.fontSize = value, fontSize);
+      const pairs = await definition.locator("dl > div").evaluateAll((elements) =>
+        elements.map((el) => {
+          const key = el.querySelector("dt")!.getBoundingClientRect(),
+            value = el.querySelector("dd")!.getBoundingClientRect(),
+            bounds = el.getBoundingClientRect();
+          return {
+            keyLeft: key.left,
+            keyRight: key.right,
+            keyTop: key.top,
+            keyBottom: key.bottom,
+            valueLeft: value.left,
+            valueRight: value.right,
+            valueTop: value.top,
+            left: bounds.left,
+            right: bounds.right,
+          };
+        })
+      );
+      expect(pairs.length).toBeGreaterThan(0);
+      for (const pair of pairs) {
+        expect(pair.keyLeft).toBeGreaterThanOrEqual(pair.left - 1);
+        expect(pair.valueRight).toBeLessThanOrEqual(pair.right + 1);
+        if (horizontal) {
+          expect(pair.keyRight).toBeLessThanOrEqual(pair.valueLeft + 1);
+          expect(Math.abs(pair.keyTop - pair.valueTop)).toBeLessThanOrEqual(1);
+        } else {
+          expect(pair.keyBottom).toBeLessThanOrEqual(pair.valueTop + 1);
+          expect(Math.abs(pair.keyLeft - pair.valueLeft)).toBeLessThanOrEqual(1);
+        }
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.evaluate(() => document.documentElement.style.fontSize = "");
     await expect(content.getByRole("region", { name: "변경 결과", exact: true }))
       .toContainText("1 → 2");
     const result = content.getByRole("region", { name: "변경 결과", exact: true });

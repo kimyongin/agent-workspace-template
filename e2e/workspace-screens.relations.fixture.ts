@@ -332,7 +332,9 @@ test("빈 연결 공통 상태·관계 카드 빈 공간은 이동하지 않음"
   await go(page, `/tasks/${id(2)}`);
   await expect(form(page).getByRole("heading", { name: "기록 (0개)", exact: true })).toBeVisible();
   await expect(form(page).getByText("연결된 기록이 없습니다.", { exact: true })).toBeVisible();
-  await expect(form(page).getByRole("button", { name: "기록 작성", exact: true })).toBeEnabled();
+  const records = form(page).getByRole("region", { name: "기록 (0개)", exact: true });
+  await expect(records.getByRole("button")).toHaveCount(0);
+  await expect(form(page).getByRole("button", { name: "완료하고 기록", exact: true })).toBeEnabled();
   Object.assign(state.rows.tasks[0], {
     entity_ids: [entityKey(1)],
     entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
