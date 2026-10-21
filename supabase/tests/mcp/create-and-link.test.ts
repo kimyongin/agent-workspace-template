@@ -26,10 +26,10 @@ activityWorkspaceSuite(
       expected_version: 1,
       previous_other_id: null,
       expected_previous_version: null,
-      entity: { entity_type_id: typeId, schema_version: 1, properties: { prop_1: "새 상대" } },
+      entity: { action: "create", entity_type_id: typeId, schema_version: 1, properties: { prop_1: "새 상대" } },
     };
     const key = nextKey(), created = await scopedHttp(a, w, "POST", `${base}/create-and-link`, input, key);
-    assertEquals(created.status, 201);
+    assertEquals(created.status, 201, JSON.stringify(created.body));
     assertEquals(created.body.entity.version, 2);
     assertEquals(
       await scopedTool(client, w, "create_and_link_entity", { ...location, ...input, request_key: key }),

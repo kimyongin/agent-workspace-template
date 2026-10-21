@@ -362,6 +362,7 @@ dbTest(
       const order = await createEntityType({ uow: new SqlEntityTypeUnitOfWork(sql) }, businessRequest(f.manager), {
         label: "주문",
       });
+      await f.grantKind(f.manager, order.id, "write");
       const orderSetup = await directEntitySource(sql, f.manager, order.id);
       await f.grantKind(f.actor, order.id, "write");
       const sameNumber = await entities.createEntity(

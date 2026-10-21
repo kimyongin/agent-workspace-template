@@ -12,6 +12,8 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { entityCreate, entityListQuery, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
+import { APP_IDENTIFIER_RULE_ID } from "../../functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierValue } from "../../functions/_shared/contracts/entity-identifiers.ts";
 import { taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../functions/_shared/contracts/task.ts";
 import { recordListQuery } from "../../functions/_shared/contracts/record.ts";
 import * as entity from "../../functions/_shared/core/entity/application.ts";
@@ -161,9 +163,10 @@ dbTest("Entity DB: cross-workspace 참조 거부·삭제 링크 보존·원문/�
   await entity.deleteEntity(d, businessRequest(B), foreign.id, 1);
 });
 dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 경쟁", async () => {
+  // Independent requests compete for one explicitly supplied identifier.
   const input = entityCreate.parse({
     ...schema,
-    properties: { prop_1: "멱등" },
+    properties: { prop_1: "멱등", prop_2: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, crypto.randomUUID()) },
   });
   const results = await Promise.allSettled([
     entity.createEntity(d, businessRequest(A), input),

@@ -43,14 +43,19 @@ activityWorkspaceSuite(
       target.schema.properties[property]["x-identifier"] = { allowed_kind_ids: allowed, default_kind_id: defaultKind };
       const input = { mode: "update", document: JSON.stringify(document) };
       const review = await scopedTool(client, w, "preview_data_model", input);
+      assertEquals(review.error, undefined);
       const change = await scopedTool(client, w, "prepare_data_model", {
+        request_key: crypto.randomUUID(),
         ...input,
         preview_fingerprint: review.fingerprint,
       });
+      assertEquals(change.error, undefined);
       const result = await scopedTool(client, w, "apply_data_model", {
+        request_key: crypto.randomUUID(),
         id: change.id,
         expected_version: change.version,
       });
+      assertEquals(result.error, undefined);
       assertEquals(result.status, "applied");
       return (await scopedHttp(a, w, "GET", `/entity-types/${typeId}/schema`)).body;
     };
