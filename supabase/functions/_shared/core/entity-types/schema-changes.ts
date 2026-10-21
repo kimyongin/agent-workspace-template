@@ -109,6 +109,7 @@ export async function createEntitySchemaChange(d: EntityTypeDeps, a: Actor, type
   refs(typeId);
   const retained = await findRetainedSchemaRequest<EntitySchemaChange>({ uow: writing(d) }, a, "entity-schema-change.create", typeId, raw);
   if (retained.found) return retained.result as EntitySchemaChange;
+  if (retained.mismatch && !schemaChangeCreate.safeParse(raw).success) throw retained.mismatch;
   const i = parse(schemaChangeCreate, raw);
   return runWrite(writing(d), a, "entity-schema-change.create", typeId, i, (s) => prepareSchemaChange(s, typeId, i));
 }
@@ -116,6 +117,7 @@ export async function updateEntitySchemaChange(d: EntityTypeDeps, a: Actor, type
   refs(typeId, id);
   const retained = await findRetainedSchemaRequest<EntitySchemaChange>({ uow: writing(d) }, a, "entity-schema-change.update", [typeId, id], raw);
   if (retained.found) return retained.result as EntitySchemaChange;
+  if (retained.mismatch && !schemaChangeUpdate.safeParse(raw).success) throw retained.mismatch;
   const i = parse(schemaChangeUpdate, raw);
   return runWrite(writing(d), a, "entity-schema-change.update", [typeId, id], i, (s) => prepareSchemaChange(s, typeId, i, id));
 }

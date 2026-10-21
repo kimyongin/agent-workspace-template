@@ -27,7 +27,7 @@ Deno.test("type metadata SQL-unsafe input fails at the public usecase before tra
     },
   };
   for (
-    const input of [{ label: "bad\u0000" }, { label: "name", representative_label: "bad\u0000" }, {
+    const input of [{ label: "bad\u0000" }, { label: "name", initial_property_label: "bad\u0000" }, {
       label: "bad\uD800",
     }]
   ) {

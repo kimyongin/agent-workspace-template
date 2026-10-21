@@ -1,4 +1,5 @@
 import type postgres from "postgres";
+import { normalizeStoredEntityDefinition } from "../../core/entity-types/stored-definition.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 import {
@@ -21,7 +22,17 @@ function changeRow(r: postgres.Row): ModelChange & { plan: ModelPlan } {
     id: r.id,
     version: Number(r.version),
     status: r.status,
-    review: r.plan.review,
+    // Review is a read projection; the raw plan below still owns its approval fingerprint.
+    review: {
+      ...r.plan.review,
+      items: r.plan.review.items.map((item: ModelChange["review"]["items"][number]) => ({
+        ...item,
+        ...Object.fromEntries((["schema", "current_schema"] as const).flatMap((key) => {
+          const schema = item[key];
+          return schema ? [[key, normalizeStoredEntityDefinition({ schema }, schema["x-type-id"], schema["x-version"]).schema]] : [];
+        })),
+      })),
+    },
     plan: r.plan,
     result: r.result,
     created_at: r.created_at.toISOString(),

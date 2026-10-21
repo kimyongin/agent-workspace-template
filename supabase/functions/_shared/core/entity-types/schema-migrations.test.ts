@@ -142,11 +142,11 @@ Deno.test("bounded value recovery preserves the current archived root and newer 
 
 Deno.test("recovery retains later fields when their annotation orders collide with a restored field", async () => {
   const c = context(), run = usecase(c);
-  c.source.schema.properties.prop_2 = { type: "integer", "x-order": 20, "x-show-in-list": true };
-  c.current.schema.properties.prop_3 = { type: "string", "x-order": 20, "x-show-in-list": true };
+  c.source.schema.properties.prop_2 = { type: "integer", "x-order": 20 };
+  c.current.schema.properties.prop_3 = { type: "string", "x-order": 20 };
   c.committed_target = initialEntityDefinition("이름");
   await run.create();
   assertEquals(run.saved[0].target.schema.properties.prop_2["x-order"], 20);
   assertEquals(run.saved[0].target.schema.properties.prop_3["x-order"], 30);
-  assertEquals(run.saved[0].target.schema.properties.prop_3["x-show-in-list"], true);
+  assertEquals(run.saved[0].target.schema["x-title-template"], c.current.schema["x-title-template"]);
 });

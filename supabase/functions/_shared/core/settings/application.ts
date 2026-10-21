@@ -250,7 +250,14 @@ export function prepareBusinessRecord(
       saved.settings,
       await store.recordTags(ids),
     );
-    return { ...result, prepared_input, settings_version: saved.versions.record_templates };
+    const pendingEntityId = input.model === "entity" && input.action === "create" &&
+      !content.external_id && content.title === "";
+    return {
+      ...result,
+      prepared_input,
+      settings_version: saved.versions.record_templates,
+      ...(pendingEntityId ? { pending_entity_id: true as const } : {}),
+    };
   });
 }
 export interface BusinessSettingsDeps {

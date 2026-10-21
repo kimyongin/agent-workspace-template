@@ -25,6 +25,8 @@ export const prepareRecordMemo = z.strictObject({
 export type PrepareRecordMemo = z.input<typeof prepareRecordMemo>;
 export interface PreparedRecordMemo {
   prepared_input: Record<string, unknown>;
+  /** Preview has no durable identity yet; untouched memo is rendered again after ID issuance. */
+  pending_entity_id?: true;
   change_note: string;
   change_tag_ids: string[];
   missing_tag_ids: string[];
