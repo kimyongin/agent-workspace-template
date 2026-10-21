@@ -13,7 +13,7 @@ export function reportMetadata(command, plan = {}) {
     scopes: plan.stages?.map(({ id, config, runtime }) => ({ id, config, runtime: Boolean(runtime) })) ?? null,
     workers: plan.workers ?? null, workerSource: plan.workers ? 'explicit browser override' : 'configuration-defined; not observed',
     cacheState: plan.cacheState ?? 'unspecified',
-    cacheDefinition: 'cold/warm is caller-declared. Each command starts fresh child/server processes; existing dependency/build/browser caches and DB are never reset. warm denotes retained caches, not a reused server.',
+    cacheDefinition: 'cold/warm is caller-declared. Each command starts a fresh command child; browser fixtures start fresh Vite, while actual API may borrow an existing runtime as recorded separately. Existing dependency/build/browser caches and DB are never reset. warm denotes retained caches; it does not assert runtime freshness.',
     execution: 'executed commands at their selected unit/mock/actual boundaries; not a discovered test count or proof of an unselected API scope',
     testCounts: null,
     environment: { platform: process.platform, arch: process.arch, osRelease: release(), node: process.version,

@@ -115,7 +115,7 @@ Draft PR은 `check`를 생략하고 관련 로컬 검사로 개발한다. 리뷰
 
 `test:full`, `test:integration:local`, `test:e2e:all`은 기존 콘솔 요약과 함께 실행별 임시 외부 디렉터리의 `report.json` 경로를 출력한다. 기존 보고서를 덮어쓰지 않는다. `test:full`은 `--report /절대/checkout밖/새보고서.json`, 브라우저 worker의 명시 override `--workers 1`, 캐시 조건 `--cache-state cold|warm|unspecified`를 받는다. `--plan`은 보고서 파일·실행 시간·성공 수를 만들지 않는다. 발견 목록은 실제 실행 결과가 아니다.
 
-보고서는 revision·추적 파일 변경 여부·명령과 선택 단계/설정·명시 worker 수·Node/OS·cold/warm 선언을 기록한다. worker override가 없으면 설정이 소유하는 수를 관찰하지 못했다고 표시한다. cold/warm은 호출자가 선언하며 runner는 의존성·브라우저·빌드 캐시나 DB를 초기화하지 않는다. warm 기준은 기존 캐시를 보존하되 각 명령의 자식·웹 서버를 새로 시작하는 조건이다. 보고서의 단계 성공은 명령 종료 0이며 개별 테스트 개수는 콘솔/Playwright 증거와 별도로 대조한다. 원문 stdout·환경 파일 내용·프로세스 명령줄은 수집하지 않는다.
+보고서는 revision·추적 파일 변경 여부·명령과 선택 단계/설정·명시 worker 수·Node/OS·cold/warm 선언을 기록한다. worker override가 없으면 설정이 소유하는 수를 관찰하지 못했다고 표시한다. cold/warm은 호출자가 선언하며 runner는 의존성·브라우저·빌드 캐시나 DB를 초기화하지 않는다. warm 기준은 기존 캐시를 보존하되 명령 자식을 새로 시작하는 조건이다. 격리 브라우저는 Vite를 새로 시작하고 실제 API는 준비된 runtime을 빌려 쓸 수 있으므로 해당 runtime mode를 함께 읽는다. 보고서의 단계 성공은 명령 종료 0이며 개별 테스트 개수는 콘솔/Playwright 증거와 별도로 대조한다. 원문 stdout·환경 파일 내용·프로세스 명령줄은 수집하지 않는다.
 
 전체 `elapsedMs`는 실행 루프를 직접 잰다. 전체 실행의 옵션/환경 사전 검증·metadata 생성·보고서 쓰기는 이 시간에서 제외한다. 실제 런타임의 준비(관찰·setup·서버 시작·ready 대기), 검사(명령과 후속 ready 관찰), 정리 시간을 나누며 lease 획득/해제는 별도다. 이 중첩 시간들을 전체 경과 시간으로 다시 합산하지 않는다. 브라우저 설정별 명령 시간은 Vite 준비·발견·검사·정리를 모두 포함하며 현재 경계에서 각 시간을 나누지 못한다. 준비 비용을 분리 관찰한 것으로 표시하지 않는다.
 
