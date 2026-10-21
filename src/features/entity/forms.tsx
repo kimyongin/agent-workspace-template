@@ -1,3 +1,4 @@
+import { renderEntityTitle } from "@contracts/entity-title-template.ts";
 import { DataFields, DataFieldGroup } from "@/components/DataFields";
 import { ChangedValue } from "../../components/ChangedValue.tsx";
 import type { ConfirmationValue } from "../../components/RecordConfirmation.tsx";
@@ -280,6 +281,14 @@ export function EntityForm({
       return [{ label: field.title ?? key, value: <ChangedValue before={displayedProperty(field, initial.properties[key], labels)} after={displayedProperty(field, next[key], labels)}/> }];
     });
   };
+  const previewTitle = (() => {
+    if (!definition) return label;
+    try {
+      return renderEntityTitle(definition.schema, propertyValues(definition, effectiveProperties), external || initial?.external_id || label);
+    } catch {
+      return label;
+    }
+  })();
   return (
     <>
       <FormModal
@@ -292,9 +301,7 @@ export function EntityForm({
         submitDisabled={!canWrite || !!typeId &&
           (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
-          target: definition
-            ? String(effectiveProperties[schemaPresentation(definition).representative] ?? label)
-            : label,
+          target: previewTitle,
           action: archived ? "복원" : initial ? "수정" : "등록",
           message: context,
           data: changes(),
@@ -518,6 +525,7 @@ export function EntityForm({
                   자료 번호 설정 다시 조회
                 </Button>
               )}
+              {definition && <DataFields><div><dt>제목 미리보기</dt><dd>{previewTitle}</dd></div></DataFields>}
               {definition && (
                 <PropertyFields
                   disabled={frozen || !canWrite}

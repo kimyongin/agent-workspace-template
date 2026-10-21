@@ -1,3 +1,4 @@
+import { renderEntityTitle } from "@contracts/entity-title-template.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { Fragment } from "react";
 import { BusinessTable, BusinessRow, BusinessCell, BusinessDetails } from "../../components/BusinessTable.tsx";
@@ -51,13 +52,9 @@ function previewKeys(row: SchemaAnalysisRow) {
   return keys.sort((a, b) => Number(changed(b)) - Number(changed(a)));
 }
 function analysisRowTitle(row: SchemaAnalysisRow, target: SchemaDefinition, source?: SchemaDefinition) {
-  const before = source ? row.before[schemaPresentation(source).representative] : undefined;
-  const after = row.after?.[schemaPresentation(target).representative];
-  const title = typeof before === "string" && before.length
-    ? before
-    : typeof after === "string" && after.length
-    ? after
-    : null;
+  const before = source ? renderEntityTitle(source.schema, row.before, "") : "";
+  const after = row.after ? renderEntityTitle(target.schema, row.after, "") : "";
+  const title = before && after && before !== after ? `${before} → ${after}` : before || after;
   const identifier = schemaEntityLabel(row.entity_id);
   return title ? `${title} · ${identifier}` : identifier;
 }
