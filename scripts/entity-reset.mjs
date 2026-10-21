@@ -5,9 +5,27 @@ const canonical = (v) => JSON.stringify(v, (_k, x) => x && typeof x === "object"
 const hash = (v) => createHash("sha256").update(canonical(v)).digest("hex");
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const rows = (inventory, table) => inventory[table] ?? [];
-const contains = (v, ids) => typeof v === "string" ? ids.has(v) : Array.isArray(v) ? v.some((x) => contains(x, ids))
-  : v && typeof v === "object" ? Object.values(v).some((x) => contains(x, ids)) : false;
-const entityOperation = (operation) => /^(entity\.(create|restore|update|delete)|entity-relation-link\.|entity-link\.)/.test(operation ?? "");
+const capturesEntity = (row, ids) => (row.entity_ids ?? []).some((id) => ids.has(id))
+  || (row.entity_context ?? []).some((capture) => ids.has(capture.id));
+// Only stored reference positions carry identity; labels/defaults/body are values.
+const hasEntityReference = (value, ids) => {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((item) => hasEntityReference(item, ids));
+  if (["entity_id", "origin_id", "other_id", "previous_other_id"].some((key) => ids.has(value[key]))
+    || Array.isArray(value.entity_ids) && value.entity_ids.some((id) => ids.has(id))
+    || Array.isArray(value.entity_context) && value.entity_context.some((capture) => ids.has(capture.id))
+    || value.target_kind === "entity" && ids.has(value.target_id)
+    || typeof value.entity_type_id === "string" && ids.has(value.id)) return true;
+  return Object.entries(value).some(([key, child]) => !["properties", "schema", "current_schema", "source_definition", "source_templates", "target", "plan"].includes(key)
+    && hasEntityReference(child, ids));
+};
+const baselineReferences = (baseline, ids) => (baseline?.typed_links ?? []).some((link) => ids.has(link[1]) || ids.has(link[2]))
+  || (baseline?.pairs ?? []).some((pair) => ids.has(pair[0]) || ids.has(pair[1]))
+  || (baseline?.tasks ?? []).some((task) => (task[1] ?? []).some((id) => ids.has(id)) || (task[2] ?? []).some((capture) => ids.has(capture.id)))
+  || (baseline?.records ?? []).some((record) => ids.has(record[2]));
+const preparationReferences = (row, ids) => (row.migration?.overrides ?? []).some((override) => ids.has(override.entity_id))
+  || baselineReferences(row.source_references, ids) || baselineReferences(row.committed_references, ids);
+const entityOperation = (operation) => /^(entity\.(create|restore|update|delete)|entity-relation\.(connect|unlink|replace|create-and-link)|entity-relation-link\.|entity-link\.)/.test(operation ?? "");
 
 // Fixed audited tables only. The manifest cannot introduce SQL or table names.
 export const entityResetTables = Object.freeze([
@@ -76,8 +94,7 @@ export function planEntityReset(manifest, inventory) {
     const own = (r) => r.workspace_id === null && r.owner_id === entity.owner_id;
     for (const table of ["app.tasks", "app.entity_tags", "app.entity_relation_links"]) {
       const related = rows(inventory, table).filter((r) => own(r) && (r.entity_id === entity.id
-        || r.left_entity_id === entity.id || r.right_entity_id === entity.id || contains(r.entity_ids, new Set([entity.id]))
-        || contains(r.entity_context, new Set([entity.id]))));
+        || r.left_entity_id === entity.id || r.right_entity_id === entity.id || capturesEntity(r, new Set([entity.id]))));
       for (const row of related) if (!selection[table].includes(row)) selection[table].push(row);
     }
     for (const row of rows(inventory, "app.records").filter((r) => own(r) && r.task_id == null
@@ -92,7 +109,8 @@ export function planEntityReset(manifest, inventory) {
   for (const table of ["app.search_index_state", "app.search_chunks", "private.passage_effects"]) selection[table].push(...rows(inventory, table).filter((r) => r.workspace_id === null && legacySource(r.owner_id, r.source_kind ?? r.kind, r.source_id ?? r.id)));
   for (const table of queues) selection[table].push(...rows(inventory, table).filter((r) => r.message?.workspace_id == null && legacySource(r.message?.owner_id, r.message?.kind, r.message?.id)));
   selection["private.request_results"] = rows(inventory, "private.request_results").filter((r) => (r.result !== null || !r.completed_at)
-    && legacyEntities.some((e) => e.owner_id === r.owner_id && (entityOperation(r.operation) || contains(r.result, new Set([e.id, ...legacyRecords.filter((record) => record.owner_id === e.owner_id).map((record) => record.id)])))));
+    && legacyEntities.some((e) => e.owner_id === r.owner_id && (entityOperation(r.operation) || hasEntityReference(r.result, new Set([e.id]))
+      || /^(record\.|tag\.)/.test(r.operation) && legacyRecords.some((record) => record.owner_id === e.owner_id && record.id === r.result?.id))));
   for (const row of selection["private.request_results"]) if (!row.completed_at) blockers.push({ reason: "unresolved_legacy_request", request_key: row.request_key });
   const scopes = new Map(manifest.scopes.map((s) => [s.workspace_id, s]));
   for (const scope of manifest.scopes) {
@@ -109,7 +127,7 @@ export function planEntityReset(manifest, inventory) {
     const refs = new Set([...ids, ...recordIds]);
     selection["app.entities"].push(...entities.filter((r) => ids.has(r.id)));
     selection["app.records"].push(...records);
-    selection["app.tasks"].push(...scoped("app.tasks").filter((r) => contains(r.entity_ids, ids) || contains(r.entity_context, ids)));
+    selection["app.tasks"].push(...scoped("app.tasks").filter((r) => capturesEntity(r, ids)));
     selection["app.entity_tags"].push(...scoped("app.entity_tags").filter((r) => ids.has(r.entity_id)));
     selection["app.record_tags"].push(...scoped("app.record_tags").filter((r) => recordIds.has(r.record_id)));
     selection["app.entity_relation_links"].push(...scoped("app.entity_relation_links").filter((r) => ids.has(r.left_entity_id) || ids.has(r.right_entity_id)));
@@ -117,15 +135,37 @@ export function planEntityReset(manifest, inventory) {
     // every associated preparation, never partially truncate a conversion.
     const changes = scoped("app.entity_schema_changes"), jobs = scoped("app.entity_schema_migrations"), analyses = scoped("app.entity_schema_analyses");
     const models = scoped("app.data_model_changes");
-    const modelIds = new Set(models.filter((r) => contains(r, refs) || contains(r, typeIds)).map((r) => r.id));
-    for (const r of [...changes, ...jobs]) if (typeIds.has(r.type_id) || contains(r, refs)) {
-      if (r.model_change_id) modelIds.add(r.model_change_id);
-    }
-    const related = (r) => typeIds.has(r.type_id) || modelIds.has(r.model_change_id) || contains(r, refs);
-    const selectedChanges = changes.filter(related), selectedJobs = jobs.filter(related);
-    const changeIds = new Set(selectedChanges.map((r) => r.id)), jobIds = new Set(selectedJobs.map((r) => r.id));
-    const selectedAnalyses = analyses.filter((r) => related(r) || changeIds.has(r.change_id));
-    const analysisIds = new Set(selectedAnalyses.map((r) => r.id));
+    const children = scoped("app.data_model_children");
+    const explicitRowJobs = new Set(scoped("private.entity_schema_migration_rows").filter((row) => ids.has(row.entity_id)).map((row) => row.job_id));
+    const explicitRowAnalyses = new Set(scoped("private.entity_schema_analysis_rows").filter((row) => ids.has(row.entity_id)).map((row) => row.analysis_id));
+    const modelIds = new Set(models.filter((r) => (r.plan?.target?.entity_types ?? []).some((type) => typeIds.has(type.schema?.["x-type-id"])
+      && (r.plan?.review?.items ?? []).some((item) => item.ref === type.ref && item.kind !== "unchanged"))
+      || (r.plan?.protected_kind_ids ?? []).some((id) => typeIds.has(id))
+      || Object.keys(r.source_memberships ?? {}).some((id) => typeIds.has(id))
+      || children.some((child) => child.model_id === r.id && typeIds.has(child.type_id))).map((r) => r.id));
+    const direct = (r) => typeIds.has(r.type_id) || preparationReferences(r, ids);
+    const changeIds = new Set(changes.filter(direct).map((r) => r.id));
+    const jobIds = new Set([...explicitRowJobs, ...jobs.filter(direct).map((r) => r.id)]);
+    const analysisIds = new Set([...explicitRowAnalyses, ...analyses.filter(direct).map((r) => r.id)]);
+    const add = (set, id) => { if (id != null) set.add(id); };
+    // Follow actual parent/child and retry links to a fixed point. Never infer
+    // affiliation from schema literals or a full model's source document.
+    let size;
+    do {
+      size = modelIds.size + changeIds.size + jobIds.size + analysisIds.size;
+      for (const row of jobs) if (jobIds.has(row.id) || modelIds.has(row.model_change_id) || changeIds.has(row.change_id) || analysisIds.has(row.analysis_id) || jobIds.has(row.retry_source_job_id)) {
+        add(jobIds, row.id); add(changeIds, row.change_id); add(analysisIds, row.analysis_id); add(modelIds, row.model_change_id);
+      }
+      for (const row of changes) if (changeIds.has(row.id) || modelIds.has(row.model_change_id) || analysisIds.has(row.analysis_id) || jobIds.has(row.recovery_source_job_id)) {
+        add(changeIds, row.id); add(analysisIds, row.analysis_id); add(modelIds, row.model_change_id);
+      }
+      for (const row of analyses) if (analysisIds.has(row.id) || changeIds.has(row.change_id)) { add(analysisIds, row.id); add(changeIds, row.change_id); }
+      for (const row of children) if (modelIds.has(row.model_id) || changeIds.has(row.change_id) || jobIds.has(row.job_id) || analysisIds.has(row.analysis_id)) {
+        add(modelIds, row.model_id); add(changeIds, row.change_id); add(jobIds, row.job_id); add(analysisIds, row.analysis_id);
+      }
+    } while (size !== modelIds.size + changeIds.size + jobIds.size + analysisIds.size);
+    const selectedChanges = changes.filter((r) => changeIds.has(r.id)), selectedJobs = jobs.filter((r) => jobIds.has(r.id));
+    const selectedAnalyses = analyses.filter((r) => analysisIds.has(r.id));
     selection["app.data_model_changes"].push(...models.filter((r) => modelIds.has(r.id)));
     selection["app.data_model_children"].push(...scoped("app.data_model_children").filter((r) => modelIds.has(r.model_id)));
     selection["app.entity_schema_changes"].push(...selectedChanges);
@@ -143,7 +183,10 @@ export function planEntityReset(manifest, inventory) {
       && (r.message.kind === "entity" ? ids.has(r.message.id) : r.message.kind === "record" && recordIds.has(r.message.id))));
     const receiptRefs = new Set([...refs, ...modelIds, ...jobIds, ...changeIds, ...analysisIds]);
     selection["private.workspace_request_results"].push(...scoped("private.workspace_request_results").filter((r) => (r.result !== null || !r.completed_at)
-      && (entityOperation(r.operation) || contains(r.result, receiptRefs))));
+      && (entityOperation(r.operation) || hasEntityReference(r.result, ids)
+        || /^data-model\./.test(r.operation) && modelIds.has(r.result?.id)
+        || /^entity-schema-/.test(r.operation) && [r.result?.id, r.result?.job_id, r.result?.change_id, r.result?.analysis_id].some((id) => receiptRefs.has(id))
+        || /^(record\.|tag\.)/.test(r.operation) && [r.result?.id, r.result?.record?.id, r.result?.target_id].some((id) => recordIds.has(id)))));
   }
   for (const row of selection["private.passage_effects"]) if (!["succeeded", "failed"].includes(row.state)) blockers.push({ reason: "unresolved_effect", id: row.id });
   for (const row of selection["private.workspace_request_results"]) if (!row.completed_at) blockers.push({ reason: "unresolved_request", request_key: row.request_key });
@@ -156,7 +199,7 @@ export function planEntityReset(manifest, inventory) {
   }
   // Retain task-owned historical records; clear only selected old captures.
   selection["legacy_record_captures"] = rows(inventory, "app.records").filter((row) => row.workspace_id === null && !selection["app.records"].includes(row)
-    && legacyEntities.some((e) => row.owner_id === e.owner_id && (contains(row.entity_ids, new Set([e.id])) || contains(row.entity_context, new Set([e.id])))));
+    && legacyEntities.some((e) => row.owner_id === e.owner_id && capturesEntity(row, new Set([e.id]))));
   for (const t of Object.keys(selection)) selection[t].sort((a, b) => canonical(a).localeCompare(canonical(b)));
   const preserved = Object.fromEntries(["__store", "__catalog", ...preservedTables].map((t) => [t, [...rows(inventory, t)].sort((a, b) => canonical(a).localeCompare(canonical(b)))]));
   // Include all scoped data, not just victims: removal of a record must never
@@ -211,6 +254,16 @@ export async function runEntityReset(sql, manifest, approval) {
     if (report.digest !== approval.digest) throw new Error("reset plan changed; repeat read-only planning");
     if (report.blockers.length) throw new Error("reset blocked by unresolved work or changed target");
     const selection = report.selection;
+    const selectMutationContext = async (workspaceId) => {
+      const scope = workspaceId == null ? null : manifest.scopes.find((scope) => scope.workspace_id === workspaceId);
+      if (workspaceId != null && !scope) throw new Error("mutation outside approved workspace scopes");
+      // NULL-era teardown uses the existing privileged parent-cleanup path.
+      // Current rows always retain their own manifest actor and live guards.
+      await tx`select set_config('request.jwt.claims',${JSON.stringify(scope ? { sub: scope.actor_id, role: "authenticated" } : {})},true),
+        set_config('request.workspace_id',${scope?.workspace_id ?? ""},true),set_config('request.workspace_lock_mode',${scope ? "business" : ""},true),
+        set_config('request.workspace_requirements','[]',true)`;
+    };
+    await selectMutationContext(null);
     for (const row of selection["private.request_results"]) await tx`update private.request_results set result=null where owner_id=${row.owner_id} and request_key=${row.request_key} and completed_at is not null`;
     for (const row of selection["app.tasks"].filter((r) => r.workspace_id === null)) {
       const ids = new Set(selection["app.entities"].filter((e) => e.workspace_id === null && e.owner_id === row.owner_id).map((e) => e.id));
@@ -224,8 +277,7 @@ export async function runEntityReset(sql, manifest, approval) {
       await tx`update app.records set entity_ids=${(row.entity_ids ?? []).filter((id) => !ids.has(id))}::text[],entity_context=${tx.json((row.entity_context ?? []).filter((r) => !ids.has(r.id)))} where workspace_id is null and owner_id=${row.owner_id} and id=${row.id}`;
     }
     for (const scope of manifest.scopes) {
-      await tx`select set_config('request.jwt.claims',${JSON.stringify({ sub: scope.actor_id, role: "authenticated" })},true),
-        set_config('request.workspace_id',${scope.workspace_id},true),set_config('request.workspace_lock_mode','business',true)`;
+      await selectMutationContext(scope.workspace_id);
       const ids = new Set(scope.entity_ids);
       for (const row of selection["app.tasks"].filter((r) => r.workspace_id === scope.workspace_id)) {
         const entityIds = (row.entity_ids ?? []).filter((id) => !ids.has(id));
@@ -236,6 +288,7 @@ export async function runEntityReset(sql, manifest, approval) {
     }
     const deleteRows = async (table, key) => {
       for (const row of selection[table]) {
+        await selectMutationContext(row.workspace_id ?? row.message?.workspace_id ?? null);
         const exactKeys = row.workspace_id === null && row.owner_id && !key.includes("owner_id") ? [...key, "owner_id"] : key;
         const predicates = exactKeys.map((k) => tx`${tx(k)} is not distinct from ${row[k]}`);
         const where = predicates.reduce((a, b) => tx`${a} and ${b}`);
@@ -249,12 +302,14 @@ export async function runEntityReset(sql, manifest, approval) {
     // Self retry FK is checked at end of each statement, so delete same-scope
     // lineage together rather than row by row. All type jobs are selected.
     const legacyOwners = [...new Set(selection["app.entity_schema_migrations"].filter((r) => r.workspace_id === null).map((r) => r.owner_id))];
+    await selectMutationContext(null);
     for (const owner of legacyOwners) {
       const ids = selection["app.entity_schema_migrations"].filter((r) => r.workspace_id === null && r.owner_id === owner).map((r) => r.id);
       await tx`delete from app.entity_schema_migrations where workspace_id is null and owner_id=${owner} and id=any(${ids}::uuid[])`;
     }
     for (const row of selection["app.entity_schema_changes"].filter((r) => r.workspace_id === null)) await tx`update app.entity_schema_changes set analysis_id=null where workspace_id is null and owner_id=${row.owner_id} and id=${row.id}`;
     for (const scope of manifest.scopes) {
+      await selectMutationContext(scope.workspace_id);
       const ids = selection["app.entity_schema_migrations"].filter((r) => r.workspace_id === scope.workspace_id).map((r) => r.id);
       if (ids.length) await tx`delete from app.entity_schema_migrations where workspace_id=${scope.workspace_id} and id=any(${ids}::uuid[])`;
       const changes = selection["app.entity_schema_changes"].filter((r) => r.workspace_id === scope.workspace_id).map((r) => r.id);
@@ -265,7 +320,10 @@ export async function runEntityReset(sql, manifest, approval) {
     await deleteRows("app.entity_schema_analyses", ["workspace_id", "id"]);
     await deleteRows("app.entity_schema_changes", ["workspace_id", "id"]);
     await deleteRows("app.data_model_changes", ["workspace_id", "id"]);
-    for (const row of selection["app.entity_types"].filter((r) => r.workspace_id !== null)) await tx`update app.entity_types set schema_write_locked=false where workspace_id=${row.workspace_id} and id=${row.id}`;
+    for (const row of selection["app.entity_types"].filter((r) => r.workspace_id !== null)) {
+      await selectMutationContext(row.workspace_id);
+      await tx`update app.entity_types set schema_write_locked=false where workspace_id=${row.workspace_id} and id=${row.id}`;
+    }
     for (const table of queues) await deleteRows(table, ["msg_id"]);
     await deleteRows("private.passage_effects", ["id"]);
     await deleteRows("app.search_chunks", ["workspace_id", "source_kind", "source_id", "ordinal"]);

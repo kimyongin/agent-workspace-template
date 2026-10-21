@@ -72,3 +72,21 @@ test("legacy entity change records are owned by captured change metadata; task r
   assert.equal(plan.counts["app.records"], 1);
   assert.equal(plan.counts.legacy_record_captures, 1);
 });
+test("literal collisions never select unrelated drafts, models or task receipts; typed job references retain lineage", () => {
+  const otherType = "00000000-0000-4000-8000-000000000009";
+  const data = { ...inventory,
+    "app.entity_schema_changes": [{ workspace_id: workspace, id: "unrelated", type_id: otherType, target: { schema: { properties: { prop_1: { title: "exact", default: type } } } } },
+      { workspace_id: workspace, id: "parent", type_id: otherType, analysis_id: "analysis" }],
+    "app.entity_schema_migrations": [{ workspace_id: workspace, id: "job", type_id: otherType, change_id: "parent", analysis_id: "analysis", source_references: { typed_links: [["definition", "exact", "peer", "date", 1]] } }],
+    "app.entity_schema_analyses": [{ workspace_id: workspace, id: "analysis", type_id: otherType, change_id: "parent" }],
+    "app.data_model_changes": [{ workspace_id: workspace, id: "unrelated-model", plan: { source: { entity_types: [{ schema: { "x-type-id": type } }] }, target: { entity_types: [{ schema: { "x-type-id": otherType, description: "exact" } }] } } }],
+    "private.workspace_request_results": [...inventory["private.workspace_request_results"], { workspace_id: workspace, operation: "task.create", request_key: "ordinary-value", completed_at: "done", result: { id: "task", title: "exact", body: "exact", entity_ids: [], entity_context: [] } }],
+  };
+  const plan = planEntityReset(manifest, data);
+  assert.deepEqual(plan.blockers, []);
+  assert.equal(plan.counts["app.entity_schema_changes"], 1);
+  assert.equal(plan.counts["app.entity_schema_migrations"], 1);
+  assert.equal(plan.counts["app.entity_schema_analyses"], 1);
+  assert.equal(plan.counts["app.data_model_changes"], 0);
+  assert.equal(plan.counts["private.workspace_request_results"], 1);
+});

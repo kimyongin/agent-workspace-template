@@ -1,3 +1,10 @@
+import { changeConfiguredRelation, configuredRelationFixture } from "./_configured-relations.ts";
+import { SqlDataModelUnitOfWork } from "../../functions/_shared/adapters/supabase/data-model-store.ts";
+import {
+  exportDataModel,
+  prepareDataModel,
+  previewDataModel,
+} from "../../functions/_shared/core/data-model/application.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { runEntityReset } from "../../../scripts/entity-reset.mjs";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -168,3 +175,153 @@ dbTest("explicit entity reset preserves workspace and tasks, expires receipts an
     await f.cleanup();
   }
 });
+
+dbTest(
+  "entity reset keeps each workspace actor for relation deletion and preserves unrelated literal lookalikes",
+  async () => {
+    const f = await businessWorkspaceFixture(admin, sql);
+    try {
+      const foreign = await f.addWorkspace("두 번째 초기화 공간");
+      await f.grant(f.manager, [{ target_kind: "settings", target_id: "*", access: "write" }, {
+        target_kind: "tasks",
+        target_id: "*",
+        access: "write",
+      }]);
+      await f.grant(foreign.member, [{ target_kind: "settings", target_id: "*", access: "write" }]);
+      const fixture = configuredRelationFixture(sql);
+      const scopes = [];
+      let firstEntity = "";
+      for (const actor of [f.manager, foreign.member]) {
+        const type = await f.createKind("연결 자료", actor);
+        await f.grantKind(actor, type.id, "write");
+        const left = await entities.createEntity(entityDeps, businessRequest(actor), {
+          entity_type_id: type.id,
+          schema_version: 1,
+          properties: { prop_1: "왼쪽" },
+        });
+        const right = await entities.createEntity(entityDeps, businessRequest(actor), {
+          entity_type_id: type.id,
+          schema_version: 1,
+          properties: { prop_1: "오른쪽" },
+        });
+        await changeConfiguredRelation(fixture, businessRequest(actor), left.id, {
+          other_id: right.id,
+          expected_version: left.version,
+          expected_other_version: right.version,
+        }, true);
+        scopes.push({ workspace_id: actor.workspaceId, actor_id: actor.userId, entity_ids: [left.id, right.id] });
+        firstEntity ||= left.id;
+      }
+      const unrelatedActor = businessRequest(f.manager);
+      await activity.createTask(taskDeps, unrelatedActor, {
+        title: "단순 문자열 본문",
+        body: firstEntity,
+        kind: "once",
+      });
+      const [unrelatedReceipt] =
+        await admin`select * from private.workspace_request_results where workspace_id=${f.workspaceId} and request_key=${
+          unrelatedActor.request!.key
+        }`;
+      const emptyType = await f.createKind("보존할 빈 종류");
+      await f.grantKind(f.manager, emptyType.id, "write");
+      const change = await createEntitySchemaChange(f.typeDeps, businessRequest(f.manager), emptyType.id, {
+        expected_schema_version: 1,
+        edits: [{
+          op: "add_property",
+          client_ref: "unrelated",
+          field: {
+            type: "string",
+            "x-order": 20,
+            title: firstEntity,
+            default: firstEntity,
+            oneOf: [{ const: firstEntity, title: "일반 코드" }],
+          },
+          required: false,
+        }],
+        migration: { rules: [], overrides: [] },
+      });
+      const modelDeps = { uow: new SqlDataModelUnitOfWork(sql) };
+      const document = await exportDataModel(modelDeps, f.manager);
+    document.entity_types.find((t) => t.schema["x-type-id"] === emptyType.id)!.schema.description = firstEntity;
+      document.relations = [];
+      const input = { mode: "update" as const, document: JSON.stringify(document) };
+      const preview = await previewDataModel(modelDeps, f.manager, input);
+      const model = await prepareDataModel(modelDeps, businessRequest(f.manager), {
+        ...input,
+        preview_fingerprint: preview.fingerprint,
+      });
+      const [changeBefore] =
+        await admin`select * from app.entity_schema_changes where workspace_id=${f.workspaceId} and id=${change.id}`;
+      const [modelBefore] =
+        await admin`select * from app.data_model_changes where workspace_id=${f.workspaceId} and id=${model.id}`;
+      const target = new URL(urls.admin);
+      const manifest = {
+        run_id: crypto.randomUUID(),
+        project_id: "isolated-multiscope-reset",
+        source_revision: "a".repeat(40),
+        environment: { host: target.hostname, port: Number(target.port), database: target.pathname.slice(1) },
+        scopes,
+      };
+      const invalidActor = { ...manifest, scopes: [{ ...scopes[0], actor_id: f.member.userId }, scopes[1]] };
+      const invalidPlan = await runEntityReset(admin, invalidActor);
+      const denied = await assertRejects(() => runEntityReset(admin, invalidActor, invalidPlan));
+      assertEquals(
+        (denied as { code?: string }).code,
+        "42501",
+        "the manifest actor must pass the existing workspace guard",
+      );
+      assertEquals(
+        (await admin`select * from app.entity_relation_links where workspace_id=any(${
+          scopes.map((s) => s.workspace_id)
+        }::uuid[])`).length,
+        2,
+      );
+      const plan = await runEntityReset(admin, manifest);
+      assertEquals(plan.blockers, []);
+      assertEquals(
+        plan.counts["app.entity_schema_changes"],
+        0,
+        "a text/default equal to the removed key is not a reference",
+      );
+      assertEquals(
+        plan.counts["app.data_model_changes"],
+        0,
+        "a source definition or free-text value is not an affected target kind",
+      );
+      assertEquals((await runEntityReset(admin, manifest, plan)).mode, "applied");
+      assertEquals(
+        (await admin`select * from app.entity_relation_links where workspace_id=any(${
+          scopes.map((s) => s.workspace_id)
+        }::uuid[])`).length,
+        0,
+      );
+      assertEquals(
+        (await admin`select * from app.entities where workspace_id=any(${scopes.map((s) => s.workspace_id)}::uuid[])`)
+          .length,
+        0,
+      );
+      assertEquals(
+        (await admin`select id from app.workspaces where id=any(${scopes.map((s) => s.workspace_id)}::uuid[])`).length,
+        2,
+      );
+      assertEquals(
+        (await admin`select * from app.entity_schema_changes where workspace_id=${f.workspaceId} and id=${change.id}`)[
+          0
+        ],
+        changeBefore,
+      );
+      assertEquals(
+        (await admin`select * from app.data_model_changes where workspace_id=${f.workspaceId} and id=${model.id}`)[0],
+        modelBefore,
+      );
+      assertEquals(
+        (await admin`select * from private.workspace_request_results where workspace_id=${f.workspaceId} and request_key=${
+          unrelatedActor.request!.key
+        }`)[0],
+        unrelatedReceipt,
+      );
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
