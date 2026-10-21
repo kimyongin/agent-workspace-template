@@ -293,6 +293,14 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   async loadSchemaChangeDraft(typeId: string): Promise<SchemaChangeDraftContext> {
     const t = await loadSchemaType(this.tx, typeId, true);
     if (!t) throw notFound();
+    const rows = await this
+      .tx`select field.key as property,array_agg(distinct app.identifier_kind(field.value#>>'{}')::text) as kinds
+      from app.entities e cross join lateral jsonb_each(e.properties) field
+      where e.entity_type_id=${typeId} and jsonb_typeof(field.value)='string'
+      and exists(select 1 from app.entity_schema_versions s where s.type_id=${typeId} and s.schema_version=${t.schema_version}
+       and s.schema->'properties'->field.key ? 'x-identifier') group by field.key`;
+    const [membership] = await this
+      .tx`select exists(select 1 from app.entities where entity_type_id=${typeId}) as present`;
     return {
       type: {
         id: t.id,
@@ -302,6 +310,8 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
         schema_write_locked: t.schema_write_locked,
       },
       definition: await this.definition(t),
+      has_entities: membership.present,
+      identifier_usage: Object.fromEntries(rows.map((row) => [row.property, row.kinds])),
       previous: null,
     };
   }
@@ -485,6 +495,12 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     const c = await this.row(typeId, id, true);
     const [a] = await this
       .tx`select * from app.entity_schema_analyses where id::text=${analysisId} and change_id=${id}`;
+    if (a) {
+      const [registry] = await this.tx`select app.entity_schema_registry_current(${analysisId}::uuid) as current`;
+      if (!registry.current) {
+        throw new AppError("schema_plan_stale", "식별자 종류가 변경되었습니다. 새 영향 분석을 준비하세요");
+      }
+    }
     const [epoch] = await this.tx`select app.workspace_generation() as generation`;
     if (
       Number(c.workspace_generation) !== Number(epoch.generation) ||

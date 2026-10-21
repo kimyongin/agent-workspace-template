@@ -204,3 +204,65 @@ Deno.test("trusted recovery restores removed same-meaning keys and distinguishes
   assertEquals(result.errors, []);
   assertEquals(result.changed, true);
 });
+
+Deno.test("selected identifier cannot be rewritten by migration literals or recovery originals", () => {
+  const definition = initialEntityDefinition("Name");
+  const original = { prop_1: "A", prop_2: "00000000-0000-4000-8000-000000000001:0001" };
+  const other = "00000000-0000-4000-8000-000000000001:other";
+  const attempts = [
+    { rules: [{ op: "fill" as const, key: "prop_2", value: other, include_null: true }], overrides: [] },
+    { rules: [], overrides: [{ entity_id: "a", key: "prop_2", value: other }] },
+  ];
+  for (const plan of attempts) {
+    let rejected = false;
+    try {
+      compileMigration(definition, plan);
+    } catch {
+      rejected = true;
+    }
+    assertEquals(rejected, true);
+  }
+  const recovered = compileMigration(definition, { rules: [], overrides: [] }, ["prop_2"])("a", original, {
+    ...original,
+    prop_2: other,
+  });
+  assertEquals(recovered.errors.some((error) => error.path === "properties.prop_2"), true);
+  assertEquals(original.prop_2, "00000000-0000-4000-8000-000000000001:0001");
+});
+
+Deno.test("ordinary identifier map fill and overrides require exact allowed pairs without guessing from raw strings", () => {
+  const definition = initialEntityDefinition("Name");
+  const first = "00000000-0000-4000-8000-000000000001", second = "00000000-0000-4000-8000-000000000002";
+  definition.schema.properties.prop_3 = {
+    type: ["string", "null"],
+    "x-order": 30,
+    "x-identifier": { allowed_kind_ids: [first, second], default_kind_id: first },
+  };
+  const source = { prop_1: "A", prop_2: `${first}:selected` };
+  const convert = compileMigration(definition, {
+    rules: [{ op: "map", key: "prop_3", mapping: { "000Ab:한글/😀": `${second}:000Ab:한글/😀` }, identity: false }, {
+      op: "fill",
+      key: "prop_3",
+      value: `${first}:001`,
+      include_null: true,
+    }],
+    overrides: [{ entity_id: "fixed", key: "prop_3", value: `${second}:override` }],
+  });
+  assertEquals(convert("mapped", { ...source, prop_3: "000Ab:한글/😀" }).after?.prop_3, `${second}:000Ab:한글/😀`);
+  assertEquals(convert("absent", source).after?.prop_3, `${first}:001`);
+  assertEquals(convert("fixed", { ...source, prop_3: "unknown" }).after?.prop_3, `${second}:override`);
+  assertEquals(convert("unmapped", { ...source, prop_3: "unknown" }).errors.length > 0, true);
+  for (const value of ["000Ab:한글/😀", "00000000-0000-4000-8000-000000000003:raw"]) {
+    let rejected = false;
+    try {
+      compileMigration(definition, {
+        rules: [{ op: "fill", key: "prop_3", value, include_null: false }],
+        overrides: [],
+      });
+    } catch {
+      rejected = true;
+    }
+    assertEquals(rejected, true);
+  }
+  assertEquals(source.prop_2, `${first}:selected`);
+});
