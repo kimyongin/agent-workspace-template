@@ -41,13 +41,16 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
       type_id: typeId,
       expected_schema_version: 1,
       edits: [
-        ...Object.entries(definition.schema.properties).filter(([key]) => key !== "prop_1").map(([key, field]) => key === "prop_2"
+        ...Object.entries(definition.schema.properties).sort(([, left], [, right]) => Number(left["x-order"]) - Number(right["x-order"])).filter(([key]) => key !== "prop_1").map(([key, field]) => key === "prop_2"
           ? { op: "update_property", key, field, required: false }
           : { op: "add_property", client_ref: key, field, required: key === "prop_7" }),
         { op: "set_metadata", "x-identity-property": "new_prop_7" },
       ],
     });
     await analyzeAndApply(mcp, typeId!, change.id, change.version);
+    const published = await mcp.call("get_entity_schema", { type_id: typeId });
+    expect(published.schema["x-identity-property"]).toBe("prop_7");
+    expect(published.schema.properties.prop_3.type).toEqual(["number", "null"]);
     const title = unique("검증 대상");
     const created = await mcp.call("create_entity", {
       entity_type_id: typeId,
