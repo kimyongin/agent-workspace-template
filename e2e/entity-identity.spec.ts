@@ -96,9 +96,9 @@ test("manual tuple registration restores stored properties and links while ident
       form.getByRole("button", { name: "기존 대상 확인", exact: true }),
     ).toHaveCount(0);
     releaseSettings();
-    await expect(form.getByLabel("자료 번호")).toBeEnabled();
+    await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
     await expect(form.getByRole("button", { name: "기존 대상 확인", exact: true })).toHaveCount(0);
-    await form.getByLabel("자료 번호").fill(external_id);
+    await form.getByRole("textbox", { name: /^자료 번호/ }).fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true })
       .click();
     const restore = page.getByRole("dialog", {
@@ -244,7 +244,7 @@ test("late archived lookup preserves newer identity and same-identity property e
       name: `${fixtureType!.label} 추가`,
       exact: true,
     });
-  await expect(form().getByLabel("자료 번호")).toBeEnabled();
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
   await expect(form().getByRole("combobox", { name: "자료 번호 종류", exact: true }).locator("option:checked")).toHaveText("시험 마켓 · 상품 번호");
   await expect(form().getByRole("combobox", { name: "번호 출처", exact: false })).toHaveCount(0);
 
@@ -318,17 +318,17 @@ test("late archived lookup preserves newer identity and same-identity property e
       new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     );
   };
-  await form().getByLabel("자료 번호").fill(identity);
+  await form().getByRole("textbox", { name: /^자료 번호/ }).fill(identity);
   await start();
-  await form().getByLabel("자료 번호").fill("다른 자료 번호");
+  await form().getByRole("textbox", { name: /^자료 번호/ }).fill("다른 자료 번호");
   await form().getByLabel("이름", { exact: false }).fill("새 입력");
   await settle();
-  await expect(form().getByLabel("자료 번호")).toHaveValue("다른 자료 번호");
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toHaveValue("다른 자료 번호");
   await expect(form().getByLabel("이름", { exact: false })).toHaveValue(
     "새 입력",
   );
 
-  await form().getByLabel("자료 번호").fill(identity);
+  await form().getByRole("textbox", { name: /^자료 번호/ }).fill(identity);
   await start();
   await form().getByLabel("이름", { exact: false }).fill(
     "같은 자료 번호에서 수정",
@@ -358,8 +358,8 @@ test("late archived lookup preserves newer identity and same-identity property e
       .click();
   }
   await beginTabAction(page, `${fixtureType!.label} 추가`);
-  await expect(form().getByLabel("자료 번호")).toBeEnabled();
-  await form().getByLabel("자료 번호").fill(identity);
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+  await form().getByRole("textbox", { name: /^자료 번호/ }).fill(identity);
   await start();
   await form().getByRole("button", { name: "취소", exact: true }).click();
   if (await discard.isVisible()) {
@@ -367,10 +367,10 @@ test("late archived lookup preserves newer identity and same-identity property e
       .click();
   }
   await beginTabAction(page, `${fixtureType!.label} 추가`);
-  await expect(form().getByLabel("자료 번호")).toBeEnabled();
-  const newIdentity = await form().getByLabel("자료 번호").inputValue();
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+  const newIdentity = await form().getByRole("textbox", { name: /^자료 번호/ }).inputValue();
   await settle();
-  await expect(form().getByLabel("자료 번호")).toHaveValue(newIdentity);
+  await expect(form().getByRole("textbox", { name: /^자료 번호/ })).toHaveValue(newIdentity);
   await expect(form().getByLabel("이름", { exact: false })).toHaveValue("");
 });
 
@@ -382,12 +382,12 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
     name: `${fixtureType!.label} 추가`,
     exact: true,
   });
-  await expect(form.getByLabel("자료 번호")).toBeEnabled();
+  await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
   await expect(form.getByRole("combobox", { name: "자료 번호 종류", exact: true }).locator("option:checked")).toHaveText("시험 마켓 · 상품 번호");
   await expect(form.getByRole("combobox", { name: "번호 출처", exact: false })).toHaveCount(0);
 
   const identity = unique("확인 중 조회"), title = unique("지킬 입력");
-  await form.getByLabel("자료 번호").fill(identity);
+  await form.getByRole("textbox", { name: /^자료 번호/ }).fill(identity);
   await form.getByLabel("이름", { exact: false }).fill(title);
   let release!: () => void, delivered!: () => void, reads = 0;
   const gate = new Promise<void>((resolve) => {

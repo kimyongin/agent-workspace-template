@@ -1,3 +1,5 @@
+import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
+import { encodeIdentifierReference } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { businessRows } from "./table-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { expect, test } from "@playwright/test";
@@ -170,7 +172,7 @@ for (const authorized of [true, false]) {
     const state = await fixtures(page), r = state.rows.records[0];
     const tag = state.rows.tags.find(value => value.scope === "record")!;
     const typeId = authorized ? fixtureType.id : id(999);
-    const parent = { ...state.rows.entities[0], id: `app:${typeId}:${id(1)}`,
+    const parent = { ...state.rows.entities[0], id: encodeIdentifierReference(typeId, APP_IDENTIFIER_RULE_ID, id(1)),
       entity_type_id: typeId, type: { ...fixtureType, id: typeId } };
     Object.assign(r, {
       entity_id: parent.id, task_id: null, record_kind: "change", body: "비공개 기록 본문",

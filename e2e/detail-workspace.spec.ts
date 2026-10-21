@@ -835,8 +835,8 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   const form = page.getByRole("dialog", {name:"검사 자료 추가",exact:true});
   await expect(form.getByRole("textbox", { name: "자료 번호", exact: true })).toHaveCount(0);
   releaseSettings();
-  await expect(form.getByLabel("자료 번호")).toBeEnabled();
-  await expect(form.getByLabel("자료 번호")).toHaveValue("");
+  await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+  await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toHaveValue("");
   await expect(form.getByRole("combobox", { name: "자료 번호 종류", exact: true })).toHaveValue(id(701));
   if (entered) await form.getByLabel("제목").fill("정의 도착 후 입력");
   await expect(form.getByRole("combobox", {name:"번호 출처",exact:true})).toHaveCount(0);

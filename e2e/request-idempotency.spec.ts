@@ -217,8 +217,8 @@ test("entity restore retries the server key and schema lookup allocates nothing"
     await page.goto(fixtureEntityList(workspace.id, type.id));
     await beginTabAction(page, "검사 자료 추가");
     const form = page.getByRole("dialog", { name: /^검사 자료.* 추가$/, exact: true });
-    await expect(form.getByLabel("자료 번호")).toBeEnabled();
-    await form.getByLabel("자료 번호").fill(external_id);
+    await expect(form.getByRole("textbox", { name: /^자료 번호/ })).toBeEnabled();
+    await form.getByRole("textbox", { name: /^자료 번호/ }).fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
     const restore = page.getByRole("dialog", { name: `${type.label} 복원`, exact: true });
     await expect(restore.getByLabel("제목")).toHaveValue(title);
