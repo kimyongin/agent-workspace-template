@@ -128,9 +128,9 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     const [size] = await this
       // Materialize the bounded, currently readable kind once. Fresh fixture
       // statistics may otherwise repeat its RLS scan for every source row.
-      .tx`with readable_entities as materialized (select workspace_id,id,source,external_id from app.entities
+      .tx`with readable_entities as materialized (select workspace_id,id from app.entities
         where workspace_id=${this.schemaWorkspaceId}::uuid and entity_type_id=${typeId})
-        select coalesce(sum(octet_length(r.properties::text)+octet_length(r.after::text)+coalesce(octet_length(r.recovery_properties::text),0)+octet_length(jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb))::text)),0) as bytes from private.entity_schema_analysis_rows r join readable_entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.workspace_id=${this.schemaWorkspaceId}::uuid and r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
+        select coalesce(sum(octet_length(r.properties::text)+octet_length(r.after::text)+coalesce(octet_length(r.recovery_properties::text),0)+octet_length(jsonb_build_object('id',e.id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb))::text)),0) as bytes from private.entity_schema_analysis_rows r join readable_entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.workspace_id=${this.schemaWorkspaceId}::uuid and r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
     const [metadata] = await this.tx`select octet_length(${this.tx.json(definition)}::jsonb::text)+octet_length(${
       this.tx.json(c.target)
     }::jsonb::text)+octet_length(${this.tx.json(refs.value)}::jsonb::text)+octet_length(${
@@ -156,9 +156,9 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     let after: string | null = null, preparedCount = 0;
     while (true) {
       const rows: postgres.Row[] = await this
-        .tx`with readable_entities as materialized (select workspace_id,id,source,external_id from app.entities
+        .tx`with readable_entities as materialized (select workspace_id,id from app.entities
           where workspace_id=${this.schemaWorkspaceId}::uuid and entity_type_id=${typeId}),
-        candidates as (select r.entity_id,r.properties,r.after,r.recovery_properties,r.changed,e.source,e.external_id,coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb) as tag_ids,octet_length(r.properties::text)+octet_length(r.after::text)+coalesce(octet_length(r.recovery_properties::text),0)+octet_length(jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb))::text) as bytes from private.entity_schema_analysis_rows r join readable_entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.workspace_id=${this.schemaWorkspaceId}::uuid and r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0 and (${after}::text is null or r.entity_id collate "C">${after}::text collate "C") order by r.entity_id collate "C" limit 50), bounded as (select *,sum(bytes) over (order by entity_id collate "C") as cumulative from candidates) select * from bounded where cumulative<=524288 order by entity_id collate "C"`;
+        candidates as (select r.entity_id,r.properties,r.after,r.recovery_properties,r.changed,coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb) as tag_ids,octet_length(r.properties::text)+octet_length(r.after::text)+coalesce(octet_length(r.recovery_properties::text),0)+octet_length(jsonb_build_object('id',e.id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb))::text) as bytes from private.entity_schema_analysis_rows r join readable_entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.workspace_id=${this.schemaWorkspaceId}::uuid and r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0 and (${after}::text is null or r.entity_id collate "C">${after}::text collate "C") order by r.entity_id collate "C" limit 50), bounded as (select *,sum(bytes) over (order by entity_id collate "C") as cumulative from candidates) select * from bounded where cumulative<=524288 order by entity_id collate "C"`;
       if (!rows.length) break;
       for (const row of rows) {
         const record = renderRecord({
@@ -166,8 +166,6 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
           properties: row.properties,
           after: row.after,
           changed: Boolean(row.changed),
-          source: String(row.source),
-          external_id: String(row.external_id),
           tag_ids: row.tag_ids,
         });
         totalBytes += encoder.encode(record.record_body ?? "").length +
@@ -195,9 +193,9 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
       // Materialize the authorized kind once: otherwise a correlated nested loop
       // may repeat its full RLS-filtered scan for every analysis row.
       .tx`with readable_entities as materialized (
-        select workspace_id,id,source,external_id from app.entities
+        select workspace_id,id from app.entities
         where workspace_id=${this.schemaWorkspaceId}::uuid and entity_type_id=${typeId}
-      ) insert into private.entity_schema_migration_rows(workspace_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed,recovery_properties) select r.workspace_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb)),r.after,r.changed,r.recovery_properties from private.entity_schema_analysis_rows r join readable_entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.workspace_id=${this.schemaWorkspaceId}::uuid and r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
+      ) insert into private.entity_schema_migration_rows(workspace_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed,recovery_properties) select r.workspace_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('id',e.id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where workspace_id=e.workspace_id and entity_id=e.id),'[]'::jsonb)),r.after,r.changed,r.recovery_properties from private.entity_schema_analysis_rows r join readable_entities e on e.workspace_id=r.workspace_id and e.id=r.entity_id where r.workspace_id=${this.schemaWorkspaceId}::uuid and r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
     await this.tx`update app.entity_types set schema_write_locked=true where id=${typeId}`;
     return this.accepted(j);
   }

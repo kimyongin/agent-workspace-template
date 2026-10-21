@@ -5,8 +5,6 @@ export function entityChangeFacts(
   entity: EntityValues,
 ): ChangeFacts {
   return {
-    source: entity.source,
-    external_id: entity.external_id,
     entity_type_id: entity.entity_type_id,
     schema_version: entity.schema_version,
     properties: entity.properties,

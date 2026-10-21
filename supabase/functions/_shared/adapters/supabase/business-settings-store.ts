@@ -1,4 +1,3 @@
-import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 import type postgres from "postgres";
@@ -25,9 +24,6 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     return requireWorkspaceActor(this.actor).workspaceId;
   }
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
-  getTypeIdentity(typeId: string, lock = false) {
-    return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId, lock);
-  }
   definition(typeId: string, lock = false) {
     return loadBusinessEntityDefinition(this.tx, typeId, lock);
   }
@@ -111,8 +107,6 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     if (!row) return null;
     const facts = model === "entity"
       ? {
-        source: row.source,
-        external_id: row.external_id,
         entity_type_id: row.entity_type_id,
         schema_version: Number(row.schema_version),
         properties: row.properties,

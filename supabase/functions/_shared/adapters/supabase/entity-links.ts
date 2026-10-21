@@ -77,7 +77,7 @@ export class SqlEntityLinks {
           archived: boolean;
           schema_version: number;
         }[]
-      >`select e.id,app.entity_title(v.schema,e.properties,e.external_id) as title,now() as captured_at,t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version from app.entities e
+      >`select e.id,app.entity_title(v.schema,e.properties,app.identifier_raw(e.properties->>(v.schema->>'x-identity-property'))) as title,now() as captured_at,t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version from app.entities e
       join app.entity_types t on t.workspace_id=e.workspace_id and t.id=e.entity_type_id
       join app.entity_schema_versions v on v.workspace_id=t.workspace_id and v.type_id=t.id and v.schema_version=t.schema_version
       where e.workspace_id=app.current_workspace_id() and e.deleted_at is null and not coalesce((v.schema->>'deprecated')::boolean,false) and e.id in ${

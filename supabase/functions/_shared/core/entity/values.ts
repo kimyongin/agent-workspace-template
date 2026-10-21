@@ -1,3 +1,4 @@
+import type { IdentifierKindMetadata } from "../../contracts/entity-issuer.ts";
 import type { EntitySchemaVersion, EntityTypeRef } from "../../contracts/entity-type.ts";
 import type { EntityProperties } from "../../contracts/entity.ts";
 import { validateEntityProperties } from "../entity-types/schema-rules.ts";
@@ -5,6 +6,7 @@ import { AppError, invalidInput, notFound } from "../shared/errors.ts";
 export type EntityDefinition = Pick<EntitySchemaVersion, "schema" | "type_id" | "schema_version"> & {
   type: EntityTypeRef;
   type_version: number;
+  identifier_kinds?: IdentifierKindMetadata[];
 };
 export interface EntityDefinitions {
   definition(typeId: string, lock?: boolean): Promise<EntityDefinition | null>;

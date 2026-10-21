@@ -2,10 +2,7 @@ import { z } from "zod";
 import { businessMeta } from "./change.ts";
 import { recordResult } from "./record.ts";
 import { codePointLength, expectedVersion, id, isoDateTime, page, pageInput, text } from "./common.ts";
-import {
-  entityReferenceId,
-  entityTypeKey,
-} from "./entity-identity.ts";
+import { entityReferenceId, entityTypeKey } from "./entity-identity.ts";
 import { identifierKindId, identifierValue } from "./entity-identifiers.ts";
 import { propertyKey } from "./entity-type.ts";
 export const entityProperties = z.record(
@@ -64,6 +61,7 @@ export const entityListQuery = z.strictObject({
 export const entitySummary = z.object({
   tag_ids: z.array(id),
   id: entityReferenceId,
+  identity_label: z.string(),
   deleted_at: isoDateTime.nullable(),
   entity_type_id: z.string().uuid(),
   type: z.object({ id: z.string().uuid(), label: z.string(), icon_id: z.string(), archived: z.boolean() }),

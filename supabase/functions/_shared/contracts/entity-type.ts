@@ -172,7 +172,9 @@ export function initialEntityDefinition(
       additionalProperties: false,
       properties: {
         prop_2: {
-          type: "string", title: "식별자", "x-order": 20,
+          type: "string",
+          title: "식별자",
+          "x-order": 20,
           "x-identifier": {
             allowed_kind_ids: ["00000000-0000-4000-8000-000000000001"],
             default_kind_id: "00000000-0000-4000-8000-000000000001",

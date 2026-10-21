@@ -1,6 +1,7 @@
+import { decodeIdentifierReference } from "../../contracts/entity-identifiers.ts";
 import { type CreateAndLinkInput, createAndLinkInput } from "../../contracts/create-and-link.ts";
 import type { EntityRelationDefinition } from "../../contracts/entity-relation.ts";
-import { createEntityInTransaction, type EntityStore } from "../entity/application.ts";
+import { createEntityInTransaction, type EntityStore, restoreEntityInTransaction } from "../entity/application.ts";
 import { type EntityRelationLinkStore, mutateRelationInTransaction, type RelationEntry } from "./links.ts";
 import type { Actor } from "../shared/actor.ts";
 import { type RequestStore, runWrite } from "../shared/request.ts";
@@ -23,12 +24,19 @@ export function createAndLinkEntity(d: CreateAndLinkDeps, a: Actor, raw: unknown
     );
   }
   const i = parsed.data;
+  const targetTypeId = i.entity.action === "create"
+    ? i.entity.entity_type_id
+    : decodeIdentifierReference(i.entity.id).entity_type_id;
   const uow: CreateAndLinkDeps["uow"] = {
     run: (actor, fn) =>
       d.uow.run(actor, fn, {
         definitionId: i.definition_id,
-        typeIds: [i.entity.entity_type_id],
-        endpointIds: [i.origin_id, ...(i.previous_other_id ? [i.previous_other_id] : [])],
+        typeIds: [targetTypeId],
+        endpointIds: [
+          ...(i.entity.action === "restore" ? [i.entity.id] : []),
+          i.origin_id,
+          ...(i.previous_other_id ? [i.previous_other_id] : []),
+        ],
         access: "write",
       }),
   };
@@ -48,7 +56,7 @@ export function createAndLinkEntity(d: CreateAndLinkDeps, a: Actor, raw: unknown
         );
       }
       if (def.archived) throw conflict("보관한 관계에는 새 자료를 연결할 수 없습니다");
-      if (i.entity.entity_type_id !== def.ends[i.side === 0 ? 1 : 0].type_id) {
+      if (targetTypeId !== def.ends[i.side === 0 ? 1 : 0].type_id) {
         throw invalidInput(
           "관계 상대 자료 종류로 작성하세요",
         );
@@ -92,7 +100,15 @@ export function createAndLinkEntity(d: CreateAndLinkDeps, a: Actor, raw: unknown
       }
       let created;
       try {
-        created = await createEntityInTransaction(s.entities, i.entity);
+        const { action, ...command } = i.entity;
+        created = action === "create"
+          ? await createEntityInTransaction(s.entities, command as import("../../contracts/entity.ts").EntityCreate)
+          : await restoreEntityInTransaction(
+            s.entities,
+            i.entity.action === "restore" ? i.entity.id : "",
+            command as import("../../contracts/entity.ts").EntityRestore,
+          );
+        if (created.entity_type_id !== targetTypeId) throw invalidInput("관계 상대 자료 종류로 복원하세요");
       } catch (error) {
         if (error instanceof AppError) {
           throw new AppError(
