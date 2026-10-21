@@ -164,6 +164,7 @@ activityWorkspaceSuite(
       `/entity-types/${typeId}/schema`,
     );
     assertEquals(schema.status, 200);
+    assertEquals(schema.body.identity_change_allowed, true);
     assertEquals(schema.body.schema["x-identity-property"], "prop_24");
     assertEquals(schema.body.schema, {
       ...plan.body.target.schema,
@@ -316,8 +317,8 @@ activityWorkspaceSuite(
     assertEquals(new Set(all).size, 101);
     assertEquals(all.sort(), entities.toSorted());
     const afterCreation = (await request<EntitySchemaResult>(token, w, "GET", `/entity-types/${typeId}/schema`)).body;
-    // Registration reserves the value without rewriting the published definition or registry versions.
-    assertEquals(afterCreation, schema.body);
+    // Registration locks selection while preserving the published definition and registry versions.
+    assertEquals(afterCreation, { ...schema.body, identity_change_allowed: false });
     const filtered = {
       entity_type_id: typeId,
       limit: 100,

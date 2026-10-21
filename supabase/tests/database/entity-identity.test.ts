@@ -378,16 +378,20 @@ dbTest(
         }),
       );
       assertEquals(sameNumber.id, encodeIdentifierReference(order.id, orderSetup.rule.id, "000Ab:/한글%"));
-      assertEquals(
-        new Set(
-          (await entities.listEntities(
+      const matching = await Promise.all(
+        [schema.entity_type_id, order.id].map((entity_type_id) =>
+          entities.listEntities(
             ed,
             f.actor,
             entityListQuery.parse({
+              entity_type_id,
               filters: [{ key: "prop_2", operator: "eq", value: encodeIdentifierValue(setup.rule.id, "000Ab:/한글%") }],
             }),
-          )).items.map((row) => row.id),
+          )
         ),
+      );
+      assertEquals(
+        new Set(matching.flatMap((page) => page.items.map((row) => row.id))),
         new Set([restored.id, sameNumber.id]),
       );
       for (

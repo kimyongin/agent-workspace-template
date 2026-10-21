@@ -98,7 +98,7 @@ activityWorkspaceSuite(
           properties: { prop_1: "금지" },
           [field]: field === "entity_type_id" ? schema.entity_type_id : "replacement",
         })).error.code,
-        "invalid_input",
+        "entity_type_immutable",
       );
     }
     assertEquals(
