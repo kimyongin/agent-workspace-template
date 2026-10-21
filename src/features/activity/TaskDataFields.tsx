@@ -31,7 +31,7 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
   const value = draft ?? task!;
   const recurrence = task?.recurrence;
   const freq = draft?.freq ?? recurrence?.freq;
-  const pair = (label: string, content: ReactNode, _full = false) => (
+  const pair = (label: string, content: ReactNode) => (
     draft ? <DataFields className="col-span-full"><DataField label={label}>{content}</DataField></DataFields>
       : <DataField label={label}>{content}</DataField>
   );
@@ -86,11 +86,10 @@ export function TaskDataFields({ task, draft, set, errors = {}, disabled = false
   const Grid = draft ? DataFieldGroup : DataFields;
   return (
     <Grid>
-      {draft ? field("제목", "title", "text", true) : pair("제목", <DetailTitle>{value.title}</DetailTitle>, true)}
+      {draft ? field("제목", "title", "text", true) : pair("제목", <DetailTitle>{value.title}</DetailTitle>)}
       {draft ? field("본문", "body", "text", true) : pair(
         "본문",
         value.body ? <MarkdownContent text={value.body} /> : "—",
-        true,
       )}
       {task && pair(taskLabels.status, task.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : <StatusBadge status={task.status} />)}
       {task && pair("작성자", task.created_by_name ?? "알 수 없음")}

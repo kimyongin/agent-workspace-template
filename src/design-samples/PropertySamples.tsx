@@ -101,7 +101,8 @@ function PropertyList(
       <CollectionList label="입력 항목 예시" columns={["입력 항목", "설정", "순서"]}>
         {fields.map((field, index) => {
           const saved = current.find(value => value.id === field.id);
-          const status = !saved ? "추가 예정" : JSON.stringify(saved) !== JSON.stringify(field) ? "수정 중" : null;
+          const status = !saved ? "추가 예정" : current.findIndex(value => value.id === field.id) !== index ||
+              JSON.stringify(saved) !== JSON.stringify(field) ? "수정 중" : null;
           const open = expanded.includes(field.id);
           const bodyId = `sample-${field.id}-body`;
           const labelError = errors[`${field.id}.label`];
@@ -363,7 +364,8 @@ export function MaterialWorkspaceSample() {
   const applyDraft = () => {
     if (current.some(before => {
       const after = draft.find(field => field.id === before.id);
-      return !after || after.type !== before.type;
+      return !after || after.type !== before.type || (!before.required && after.required) ||
+        (after.maxLength !== "" && (before.maxLength === "" || Number(after.maxLength) < Number(before.maxLength)));
     })) {
       review();
       return;

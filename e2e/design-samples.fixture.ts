@@ -154,6 +154,8 @@ test("ordinary sample changes apply in place while templates stay open and histo
   await expect(templates.getByRole("button", { name: /기록 자동 완성/ })).toHaveCount(0);
   await input.getByRole("textbox", { name: "항목 이름" }).fill("재고 수량 즉시 적용");
   await expect(input.getByText("수정 중", { exact: true })).toBeVisible();
+  await input.getByRole("button", { name: "상품명 아래로 이동", exact: true }).click();
+  await expect(input.getByText("수정 중", { exact: true })).toHaveCount(2);
   await input.getByRole("button", { name: "변경 적용", exact: true }).click();
   await expect(history.getByRole("button", { name: /현재 버전 2/ })).toHaveAttribute("aria-expanded", "false");
   await expect(input.getByRole("button", { name: "변경 적용", exact: true })).toBeDisabled();

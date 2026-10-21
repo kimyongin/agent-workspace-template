@@ -144,7 +144,7 @@ export function ChangeContext(
   const { formatDateTime } = useDisplayTime();
   const change = record.change;
   const target = change ? `${targets[change.target_kind]} 「${change.target_title}」` : null;
-  const pair = (label: string, value: ReactNode, _full = false) => (
+  const pair = (label: string, value: ReactNode) => (
     <DataFields><DataField label={label}>{value}</DataField></DataFields>
   );
   const properties = (
@@ -165,7 +165,6 @@ export function ChangeContext(
             {target}
             {compact && change?.action === "delete" ? " · 삭제된 대상" : ""}
           </>,
-          true,
         )}
       {change && pair("행동", changeActionNames[change.action])}
     </DataFieldGroup>
