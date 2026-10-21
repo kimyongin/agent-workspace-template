@@ -134,7 +134,7 @@ export function RelatedItem(
   </ItemActions>;
   const metadataContent = metadata && (!disclosure || disclosure.expanded) && <div className="min-w-0 text-sm text-muted-foreground">{metadata}</div>;
   const previewContent = disclosure?.expanded && disclosure.content;
-  const titleData = <DataFields className="flex-1"><div><dt>{label}</dt><dd className="flex min-w-0 flex-wrap items-center gap-2">{titleContent}{titleBadge}</dd></div></DataFields>;
+  const titleData = <DataFields className="flex-1 [&>div]:items-center"><div><dt>{label}</dt><dd className="flex min-w-0 flex-wrap items-center gap-2">{titleContent}{titleBadge}</dd></div></DataFields>;
   if (table) return <>
     <BusinessRow data-expanded={disclosure?.expanded || undefined}>
       <BusinessDisclosureCell>{toggle}</BusinessDisclosureCell>
