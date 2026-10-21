@@ -1,9 +1,10 @@
+import { runFixtureWebGroup } from './fixture-web-runtime.mjs';
 import { runLeasedLocalChecks } from './local-runtime-cli.mjs';
 
 // Ordinary test failures allow independent stages to run. Environment/cleanup failures and signals stop the run.
 export async function runFullTestPlan(plan, config, adapter, { signal, leaseDirectory } = {}) {
   const started = performance.now();
-  const results = [], errors = [], runtimeMetrics = [];
+  const results = [], errors = [], runtimeMetrics = [], fixtureWebMetrics = [];
   if (plan.planOnly) return { results, errors, exitCode: 0 };
   let stopped;
   const interruption = result => signal?.aborted || result?.interrupted;
@@ -15,7 +16,24 @@ export async function runFullTestPlan(plan, config, adapter, { signal, leaseDire
     if (stopped) { results.push({ label: stage.id, skipped: true, reason: stopped }); continue; }
     let activeStages = [stage];
     try {
-      if (stage.runtime) {
+      if (stage.fixtureWebGroup) {
+        const checks = [];
+        while (plan.stages[index]?.fixtureWebGroup === stage.fixtureWebGroup) checks.push(plan.stages[index++]);
+        index--;
+        activeStages = checks;
+        const grouped = await runFixtureWebGroup(checks, adapter, signal, async server =>
+          runFullTestPlan({ stages: checks.map(({ fixtureWebGroup, ...check }) => check) }, config,
+            { run: (check, currentSignal) => adapter.run(check, currentSignal, { fixtureServer: server }) }, { signal }));
+        results.push(...grouped.results);
+        errors.push(...grouped.errors);
+        fixtureWebMetrics.push(grouped.metric);
+        if (grouped.exitCode) exitCode = grouped.exitCode;
+        if (interruption() || grouped.results.some(item => item.interrupted)) {
+          stopped = 'interrupted'; exitCode = signalCode(grouped.results.find(item => item.interrupted));
+        } else if (grouped.errors.length || grouped.results.some(item => item.stopFailed || item.code === null)) {
+          stopped = 'fixture web preparation, execution or cleanup failed';
+        }
+      } else if (stage.runtime) {
         const checks = [];
         while (plan.stages[index]?.runtime) checks.push(plan.stages[index++]);
         index--;
@@ -47,5 +65,5 @@ export async function runFullTestPlan(plan, config, adapter, { signal, leaseDire
       for (const unexecuted of activeStages.slice(1)) results.push({ label: unexecuted.id, skipped: true, reason: stopped });
     }
   }
-  return { results, errors, runtimeMetrics, elapsedMs: performance.now() - started, exitCode };
+  return { results, errors, runtimeMetrics, fixtureWebMetrics, elapsedMs: performance.now() - started, exitCode };
 }
