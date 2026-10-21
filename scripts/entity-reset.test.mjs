@@ -90,3 +90,33 @@ test("literal collisions never select unrelated drafts, models or task receipts;
   assert.equal(plan.counts["app.data_model_changes"], 0);
   assert.equal(plan.counts["private.workspace_request_results"], 1);
 });
+
+test("explicit incompatible definition retirement selects exact versions, endpoints and live contract receipts", () => {
+  const compatible = "00000000-0000-4000-8000-000000000004";
+  const data = structuredClone(inventory);
+  data["app.entity_types"] = [{ workspace_id: workspace, id: type, schema_version: 2 }, { workspace_id: workspace, id: compatible, schema_version: 1 }];
+  data["app.entity_schema_versions"] = [1, 2].map((schema_version) => ({ workspace_id: workspace, type_id: type, schema_version, schema: { properties: {} } }));
+  data["app.entity_schema_versions"].push({ workspace_id: workspace, type_id: compatible, schema_version: 1, schema: { "x-identity-property": "key", required: ["key"], properties: { key: { type: "string", "x-identifier": {} } } } });
+  data["app.entity_relation_definitions"] = [{ workspace_id: workspace, id: "endpoint", left_type_id: type, right_type_id: compatible }, { workspace_id: workspace, id: "keep", left_type_id: compatible, right_type_id: compatible }];
+  data["private.workspace_request_results"].push({ workspace_id: workspace, request_key: "type", operation: "entity-type.create", completed_at: "done", result: { id: type } });
+  assert.ok(planEntityReset(manifest, data).blockers.some((b) => b.reason === "incompatible_definition_disposition_required"));
+  const m = structuredClone(manifest); m.scopes[0].retire_definitions = [{ type_id: type, expected_schema_version: 2, schema_versions: [1, 2] }];
+  const plan = planEntityReset(m, data);
+  assert.deepEqual(plan.blockers, []);
+  assert.equal(plan.counts["app.entity_types"], 1);
+  assert.equal(plan.counts["app.entity_schema_versions"], 2);
+  assert.equal(plan.counts["app.entity_relation_definitions"], 1);
+  assert.equal(plan.counts["private.workspace_request_results"], 2);
+  for (const mutate of [
+    (d) => d["app.entity_types"][0].schema_version++,
+    (d) => d["app.entity_schema_versions"].push({ workspace_id: workspace, type_id: type, schema_version: 3, schema: {} }),
+    (d) => { d["app.entity_relation_definitions"][0].right_type_id = type; },
+    (d) => d["private.workspace_request_results"].push({ workspace_id: workspace, request_key: "race", operation: "entity-type.update", completed_at: null, result: null }),
+    (d) => { d.__catalog = [{ definition: "changed guard" }]; },
+  ]) { const changed = structuredClone(data); mutate(changed); assert.notEqual(planEntityReset(m, changed).digest, plan.digest); }
+  const protectedData = structuredClone(data);
+  protectedData["private.workspace_grants"] = [{ workspace_id: workspace, entity_type_id: type }];
+  assert.ok(planEntityReset(m, protectedData).blockers.some((b) => b.reason === "definition_has_preserved_grants"));
+  const unsafe = structuredClone(m); unsafe.scopes[0].retire_definitions = [{ type_id: compatible, expected_schema_version: 1, schema_versions: [1] }];
+  assert.ok(planEntityReset(unsafe, data).blockers.some((b) => b.reason === "compatible_definition_retirement_forbidden"));
+});

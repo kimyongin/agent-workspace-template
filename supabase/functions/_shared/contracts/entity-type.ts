@@ -109,6 +109,7 @@ export type EntitySchema = {
   "x-type-id": string;
   "x-version": number;
   "x-title-template": string;
+  /** Draft/history representation; publication and model parsing require one valid selected identifier. */
   "x-identity-property"?: string;
   /** Absent only on retained historical documents that never captured this metadata. */
   title?: string;

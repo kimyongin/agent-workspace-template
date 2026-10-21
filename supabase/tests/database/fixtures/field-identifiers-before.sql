@@ -1,0 +1,20 @@
+-- Exact predecessor columns read by the new field-identifier cutover preflight.
+create schema app;
+create schema private;
+create schema pgmq;
+create table app.entities(id text);
+create table app.tasks(id text,entity_ids text[] default '{}',entity_context jsonb default '[]');
+create table app.records(id text,entity_id text,entity_ids text[] default '{}',entity_context jsonb default '[]',change_metadata jsonb default '{}',body text);
+create table app.search_index_state(kind text);
+create table app.search_chunks(source_kind text);
+create table private.passage_effects(source_kind text);
+create table pgmq.q_search_index(message jsonb);
+create table pgmq.a_search_index(message jsonb);
+create table app.entity_types(workspace_id uuid,id uuid,schema_version integer);
+create table app.entity_schema_versions(workspace_id uuid,type_id uuid,schema_version integer,schema jsonb);
+create table app.entity_schema_changes(id uuid);
+create table app.entity_schema_analyses(id uuid);
+create table app.entity_schema_migrations(id uuid);
+create table app.data_model_changes(id uuid);
+create table private.workspace_request_results(executor_id uuid,workspace_id uuid,request_key uuid,operation text,fingerprint text,result jsonb,completed_at timestamptz);
+create table private.request_results(owner_id uuid,request_key uuid,operation text,fingerprint text,result jsonb,completed_at timestamptz);

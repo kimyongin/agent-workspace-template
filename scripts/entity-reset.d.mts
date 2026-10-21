@@ -5,7 +5,7 @@ export type EntityResetManifest = {
   project_id: string;
   environment: { host: string; port: number; database: string };
   legacy_rows?: Array<{ table: string; key: Record<string, string | number> }>;
-  scopes: Array<{ workspace_id: string; actor_id: string; entity_ids: string[] }>;
+  scopes: Array<{ workspace_id: string; actor_id: string; entity_ids: string[]; retire_definitions?: Array<{ type_id: string; expected_schema_version: number; schema_versions: number[] }> }>;
 };
 export type EntityResetReport = {
   mode?: "plan" | "applied" | "already-clean";
