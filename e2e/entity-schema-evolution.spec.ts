@@ -33,6 +33,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
       "충돌 뒤 유지할 초안",
     );
     await page.goto(workspacePath(workspace.id, `/settings/entity-types/${typeId}`));
+    const inputSection = page.getByRole("region", { name: "입력 항목", exact: true });
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
     await page.getByRole("region", { name: "이름 입력 항목", exact: true }).getByLabel("항목 이름", { exact: true }).fill(
@@ -82,7 +83,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
         change_id: planId,
       })).status;
     }, { timeout: 30000 }).toBe("ready");
-    await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
+    await expect(inputSection.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
     let lost = false;
     await page.route(
       `**/entity-types/${typeId}/schema-changes/${planId}/apply`,
@@ -95,11 +96,11 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
         } else await route.continue();
       },
     );
-    await page.getByRole("button", { name: "변경 적용", exact: true }).click();
+    await inputSection.getByRole("button", { name: "변경 적용", exact: true }).click();
     await expect(
-      page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }),
+      inputSection.getByRole("button", { name: "같은 요청 다시 확인", exact: true }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })
+    await inputSection.getByRole("button", { name: "같은 요청 다시 확인", exact: true })
       .click();
     await expect(page.getByRole("heading", { name: /^입력 항목/, level: 2 }))
       .toBeVisible();
