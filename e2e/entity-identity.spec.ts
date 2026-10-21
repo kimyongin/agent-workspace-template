@@ -491,8 +491,8 @@ test("seven settings workspaces retain real API selections and stay within the v
       ["자료", "/settings/materials"],
       ["태그", "/settings/tags"],
       ["기록", "/settings/records"],
-      ["공간 관리", "/manage"],
-      ["내 공간", "/workspaces"],
+      ["이 공간 관리", "/manage"],
+      ["공간 목록 · 새 공간", "/workspaces"],
     ] as const;
     await expect(menu.getByRole("menuitem")).toHaveCount(6);
     await expect(menu.getByRole("menuitem")).toHaveText(destinations.map(([label]) => label));
