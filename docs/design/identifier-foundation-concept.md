@@ -4,7 +4,7 @@
 
 2026-10-22 이후의 식별자 저장·항목 정책·참조 키는 [ADR-0027](../adr/0027-field-identifiers-and-workspace-keys.md)이 대체한다. 아래의 상품·주문·상품 그룹 사용 사례는 유지하며, 독립 식별 설정과 출처당 규칙 하나를 추천한 부분은 당시 대안의 기록이다.
 
-시안은 구현 전의 메모리 예시이며 현재 소스의 실행 대상이 아니다. 원본은 커밋 `f00f07f02fa7265e98a034a3a6b537da56f91882`의 `src/features/settings/settings-prototype.html`로 식별하며 브랜치 정리 전 Git 백업에 보존했다. 현재 식별 계약은 [ADR-0021](../adr/0021-type-scoped-immutable-identity.md), 구현 상태와 실행 증거는 연결된 GitHub 이슈·PR에서 확인한다.
+시안은 구현 전의 메모리 예시이며 현재 소스의 실행 대상이 아니다. 원본은 커밋 `f00f07f02fa7265e98a034a3a6b537da56f91882`의 `src/features/settings/settings-prototype.html`로 식별하며 브랜치 정리 전 Git 백업에 보존했다. 현재 식별 계약은 [ADR-0027](../adr/0027-field-identifiers-and-workspace-keys.md), 구현 상태와 실행 증거는 연결된 GitHub 이슈·PR에서 확인한다.
 
 ## 1. 목적: 출처를 보존하면서 같은 업무로 관리한다
 
