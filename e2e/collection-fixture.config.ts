@@ -3,6 +3,8 @@ export default defineConfig({
   testDir: ".", fullyParallel: true, workers: 3, reporter: "list",
   use: { baseURL: "http://127.0.0.1:55586", trace: "retain-on-failure" },
   projects: [
+    { name: "identifier-desktop", testMatch: "identifier-fields.fixture.spec.ts", use: { ...devices["Desktop Chrome"] } },
+    { name: "identifier-mobile", testMatch: "identifier-fields.fixture.spec.ts", use: { ...devices["Pixel 7"] } },
     { name: "filter-draft-desktop", testMatch: "filter-draft.fixture.spec.ts", use: { ...devices["Desktop Chrome"] } },
     { name: "filter-draft-mobile", testMatch: "filter-draft.fixture.spec.ts", use: { ...devices["Pixel 7"] } },
     { name: "filter-url-desktop", testMatch: "entity-filter-url.fixture.spec.ts", use: { ...devices["Desktop Chrome"] } },

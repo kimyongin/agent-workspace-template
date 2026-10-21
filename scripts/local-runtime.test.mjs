@@ -234,3 +234,18 @@ test('an explicit reuse-only runtime never prepares or launches when absent', as
   assert.deepEqual(adapter.events, []);
   assert.match(result.errors[0].error.message, /already be running/);
 });
+
+test('runtime results separate preparation, checks and cleanup for success, failure and signals', async () => {
+  for (const outcome of ['success', 'failed', 'SIGTERM']) {
+    const controller = new AbortController(), adapter = external();
+    adapter.run = async () => {
+      if (outcome === 'SIGTERM') controller.abort('SIGTERM');
+      return { code: outcome === 'failed' ? 19 : 0 };
+    };
+    const result = await runLocalChecks(adapter, { checks: ['DB'], signal: controller.signal });
+    assert.equal(result.exitCode, outcome === 'SIGTERM' ? 143 : outcome === 'failed' ? 1 : 0);
+    for (const phase of ['preparationMs', 'checksMs', 'cleanupMs', 'totalMs']) assert.ok(result.timings[phase] >= 0, phase);
+    assert.equal(result.runtimeObservations[0].state, 'ready');
+    assert.equal(result.results[0].code, outcome === 'failed' ? 19 : 0);
+  }
+});

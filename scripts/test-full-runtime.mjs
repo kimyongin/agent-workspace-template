@@ -2,7 +2,8 @@ import { runLeasedLocalChecks } from './local-runtime-cli.mjs';
 
 // Ordinary test failures allow independent stages to run. Environment/cleanup failures and signals stop the run.
 export async function runFullTestPlan(plan, config, adapter, { signal, leaseDirectory } = {}) {
-  const results = [], errors = [];
+  const started = performance.now();
+  const results = [], errors = [], runtimeMetrics = [];
   if (plan.planOnly) return { results, errors, exitCode: 0 };
   let stopped;
   const interruption = result => signal?.aborted || result?.interrupted;
@@ -21,6 +22,7 @@ export async function runFullTestPlan(plan, config, adapter, { signal, leaseDire
         activeStages = checks;
         const local = await runLeasedLocalChecks(config, { checks, signal, borrowedOnly: plan.borrowedOnly }, adapter, leaseDirectory);
         results.push(...local.results.map(item => ({ ...item, runtime: local.runtime })));
+        runtimeMetrics.push({ runtime: local.runtime, timings: local.timings, leaseTimings: local.leaseTimings, observations: local.runtimeObservations });
         errors.push(...local.errors);
         if (local.exitCode !== 0) exitCode = local.exitCode;
         if (interruption() || local.results.some(item => item.interrupted)) {
@@ -45,5 +47,5 @@ export async function runFullTestPlan(plan, config, adapter, { signal, leaseDire
       for (const unexecuted of activeStages.slice(1)) results.push({ label: unexecuted.id, skipped: true, reason: stopped });
     }
   }
-  return { results, errors, exitCode };
+  return { results, errors, runtimeMetrics, elapsedMs: performance.now() - started, exitCode };
 }
