@@ -1,5 +1,5 @@
 // One local run owns observation, acquisition and teardown; external effects live in the CLI adapter.
-export async function runLocalChecks(adapter, { checks, source, signal, timeoutMs = 120_000 }) {
+export async function runLocalChecks(adapter, { checks, source, signal, borrowedOnly = false, timeoutMs = 120_000 }) {
   const results = [], errors = [];
   let runtime = 'borrowed', child, ownedContainer;
   const interrupted = () => {
@@ -38,10 +38,11 @@ export async function runLocalChecks(adapter, { checks, source, signal, timeoutM
     interrupted();
     let state = await adapter.observe(signal);
     if (state.state === 'absent') {
+      if (borrowedOnly) throw new Error('Explicit runtime must already be running; setup and launch are disabled');
       const prepared = await adapter.prepare(signal);
       results.push({ label: 'setup', ...prepared });
       interrupted();
-      if (prepared.code !== 0) throw new Error('Local preparation failed');
+      if (prepared.code !== 0 || prepared.stopFailed || prepared.interrupted) throw new Error('Local preparation failed');
       // Setup may reveal an independently started runtime. Never spawn over it.
       state = await adapter.observe(signal);
       if (state.state === 'absent') {
@@ -54,11 +55,20 @@ export async function runLocalChecks(adapter, { checks, source, signal, timeoutM
     }
     await ready(state);
     if (child && !ownedContainer) throw new Error('New runtime ownership could not be confirmed');
-    for (const label of checks) {
+    for (const check of checks) {
+      const label = typeof check === 'string' ? check : check.id;
       interrupted();
-      const result = await adapter.run(label, signal);
+      const result = await adapter.run(check, signal);
       results.push({ label, ...result });
-      if (result.interrupted) break;
+      if (result.interrupted || signal?.aborted) break;
+      if (result.stopFailed || result.code === null) throw new Error('Check subprocess execution or cleanup failed');
+      interrupted();
+      const current = await adapter.observe(signal);
+      capture(current);
+      if (current.state !== 'ready' || child && (!adapter.childRunning(child)
+        || current.container?.id !== ownedContainer?.id
+        || current.container?.ownershipToken !== child.ownershipToken
+        || current.container?.source !== source)) throw new Error('Local runtime lost during checks');
     }
   } catch (error) {
     errors.push({ phase: 'execution', error });

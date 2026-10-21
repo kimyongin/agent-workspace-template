@@ -80,6 +80,7 @@ Draft PR은 `check`를 생략하고 관련 로컬 검사로 개발한다. 리뷰
 | `npm run check:boundaries` | contracts·core·웹의 의존 경계 | 코드 의존성 변경 |
 | `npm run check:deno` | 서버 타입·lint·format | 서버 코드 변경 |
 | `npm run build` | 웹 타입 검사와 빌드 | 웹·공유 계약 변경 |
+| `npm run test:full` | core·빠른 어댑터·웹·스크립트·서비스 없는 실험 단위·실제 DB/HTTP/MCP·실제 API E2E·등록 격리 화면을 각 한 번 순차 실행 | 스펙 통합 뒤 이 전체 범위가 필요할 때; 먼저 `-- --plan`으로 확인 |
 | `npm run test:fast` | core·빠른 어댑터·웹 단위 검사 전체; 실제 서비스 없음 | 구현 종료 시 빠른 회귀 검사 |
 | `npm run test:db` / `test:http` / `test:mcp` | 각각 실제 DB·HTTP·MCP 계약 | 관련 저장·권한·진입점 변경 |
 | `npm run test:integration:local` | core·실제 DB·HTTP·MCP·기본 실제 API E2E; 웹 단위·격리 화면 설정 전체는 제외 | 준비된 로컬 환경에서 이 범위 전체가 필요할 때 |
@@ -87,6 +88,28 @@ Draft PR은 `check`를 생략하고 관련 로컬 검사로 개발한다. 리뷰
 | `npm run test:e2e:all` | 기본 실제 API와 각 격리 화면 설정; DB·HTTP·MCP·웹 단위 검사는 제외 | 스펙 통합 뒤 브라우저 영향이 넓거나 불확실할 때 |
 
 개발 중에는 관련 단일 검사부터 실행한다. 개별 PR의 변경에 맞는 로컬 검사와 CI, 스펙 통합 후 브라우저 범위 판단은 서로 구분한다. `test:integration:local`에는 기본 E2E가 포함되므로 개별 PR마다 관행적으로 실행하는 명령으로 사용하지 않는다. E2E를 제외한 실제 계약 검사가 필요하면 DB·HTTP·MCP 명령을 선택한다. 검사 로그에는 실제 실행한 명령과 포함 범위를 기록한다.
+
+### 중복 없는 전체 실행과 선택 실행
+
+`npm run test:full -- --plan`은 실행할 단계·명령·실제 설정의 범위·별도 선택 대상을 JSON으로 출력한다. 계획에서는 setup·migration·서버 시작·런타임 lease·DB/네트워크 접속을 하지 않는다. `--actual-config /절대/격리/playwright.config.ts`는 기존 파일만 허용하며 잘못된 경로나 옵션은 서비스 관찰 전에 거절한다. 별도 이미 준비한 runtime은 `--runtime-config /절대/runtime/supabase/config.toml --env-file /절대/runtime/.env.local`을 함께 지정한다. 이때 API origin·경로, 직접 DB·풀러 포트와 guard 경로를 서비스 관찰 전에 대조하고 비밀값은 출력하지 않는다. DB/HTTP/MCP는 그 환경 파일 하나만 사용하며 checkout의 `.env.local`을 fallback으로 읽지 않는다. 선택한 runtime이 없으면 setup·서버 시작 없이 실패하며 기존 실행의 준비 대기·lease·비소유 정리 금지는 유지한다. 브라우저 actual도 선택하면 해당 runtime에 맞춘 `--actual-config`가 필수다. `WORKSPACE_E2E_OWNERSHIP`·source revision 등 기존 실제 fixture의 소유권 guard는 계속 별도로 준비한다.
+
+`npm run test:full`은 core → 빠른 어댑터 → 웹 → 개발 스크립트 단위 → 임베딩 평가기 단위 → 제품 플러그인 실험 가드 단위 → 실제 DB·HTTP·MCP·API E2E → 등록된 격리 화면 순서로 실행한다. core를 포함한 `test:fast`와 core/실제 E2E를 포함한 `test:integration:local`, 실제 E2E를 포함한 `test:e2e:all`을 다시 중첩 호출하지 않는다. 기존 개별 명령의 포함 범위는 그대로다. 실제 구간은 기존 함수 수명주기의 관찰·재사용·소유권 증명·lease·정리를 한 번 사용하며 격리 화면과 순차 실행한다.
+
+개발 중에는 `npm run test:full -- --only core,web,scripts`처럼 선택한다. 가능한 범위는 `core,adapters,web,scripts,embedding,guards,db,http,mcp,actual,fixtures`이며 `fixture:e2e/collection-fixture.config.ts`처럼 등록 설정 하나도 선택할 수 있다. `--only`는 실행 계획에서 범위를 고르는 옵션으로, 개별 검사 내부의 파일·프로젝트 선택은 기존 명령을 사용한다. 선택한 범위만 실행한 결과를 전체 green으로 기록하지 않는다.
+
+| inventory | 포함·별도 선택과 실제 명령 |
+| --- | --- |
+| 개발 스크립트 | 기본 포함: `node --test "scripts/*.test.mjs"`; 문서 검사 자체는 별도 `check:docs` |
+| 임베딩 평가기 | 기본 포함: `node --test experiments/t02-3-embedding/evaluate.test.mjs`; 공급자 호출 없이 저장된 평가 입력의 계산 경계 확인 |
+| 제품 플러그인 실험 가드 | 기본 포함: `node --test "experiments/plugin-behavior/*.test.mjs"`; 실제 CLI나 업무 서비스 trial과 구분 |
+| 실제 API 기본 | `playwright.config.ts`의 `*.spec.ts`; 추가 `*.actual.ts` 다섯 시나리오를 포함한다고 표시하지 않음 |
+| 최종 통합 실제 API | 명시 선택: `--actual-config /절대/checkout/e2e/workspace-full-actual.config.ts`; 기본 실제 spec과 모델·태그·활동·할 일 조회 권한·검색/상태 actual 포함. 선택한 실행 환경의 guard 설정도 필요 |
+| 격리 화면 | `scripts/e2e-run-plan.mjs`의 전체 fixture registry가 정본. 기준 revision은 24개이며 이름·순서는 계획에서 확인; 개수 고정만으로 누락을 판단하지 않음 |
+| 별도 브라우저 설정 | 기능별 `workspace-*-actual`은 최종 실제 설정에 합쳐지고, `fin-integration`·`workspace-integration`은 실제 설정 교체용 wrapper. 과거 `workspace-navigation`의 탐색 fixture는 등록 `navigation-fixture`가 실행하므로 wrapper 자체를 추가 실행하지 않음 |
+| 외부 trial | 기본 제외: [실험 inventory](../../experiments/README.md)의 실제 DB 실험 `npm --prefix experiments/t02-1 run exp1`, 임베딩 공급자 `npm --prefix experiments/t02-3-embedding run evaluate`, 실제 CLI `node experiments/plugin-behavior/run-client.mjs <client> <owned-fixture.json> <scenario>`. 각 실험의 준비·소유권·정리 절차를 별도로 따름 |
+| Pinecone·정적 검사 | 유료 공급자 `RUN_PINECONE_E2E=1 npm run test:e2e`는 명시 opt-in. 문서·타입·lint·format·의존 경계·빌드는 별도이며 CI의 정적 검사 범위는 변경하지 않음 |
+
+일반 검사 실패 뒤에는 독립 단계를 계속하고 원래 단계 종료 코드를 결과에 보존한다. 환경 준비·런타임 유실·자식 실행/정리·lease 정리 실패 뒤에는 남은 단계를 이유와 함께 미실행으로 남긴다. SIGINT/SIGTERM은 소유한 자식과 증명된 런타임만 정리한 뒤 각각 130/143으로 끝난다. 전체 합산 종료는 성공 0·실패 1·중단 130/143이며 하위 검사의 원래 종료 코드와 구분한다. 기본 실제 설정과 교체 경로는 실행 전 계획에 남고 결과는 같은 단계 ID로 연결된다.
 
 ## 웹·E2E 코드의 국소 포맷팅
 
