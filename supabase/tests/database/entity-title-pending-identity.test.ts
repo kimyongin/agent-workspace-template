@@ -109,7 +109,8 @@ dbTest(
         "직접 쓴 메모",
       );
       const visible = await prepare({ prop_1: "원문", prop_3: "확정 제목" });
-      assertEquals(visible.pending_entity_id, undefined);
+      assertEquals(visible.pending_entity_id, true);
+      assertEquals(visible.prepared_input.properties, { prop_1: "원문", prop_3: "확정 제목" });
       assert(visible.change_note.includes("확정 제목"));
       // Read-only preparation must not create or reserve another entity identity.
       assertEquals(
