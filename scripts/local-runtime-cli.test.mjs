@@ -257,3 +257,20 @@ test('explicit runtime command uses its single env file and scoped child environ
     });
   } finally { rmSync(directory, { recursive: true }); }
 });
+
+test('stage resource measurement reports sampled process-tree RSS units and failures without inventing zero usage', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'stage-metrics-'));
+  const npm = join(directory, 'npm.mjs');
+  try {
+    writeFileSync(npm, 'await new Promise(resolve => setTimeout(resolve, 150));');
+    const adapter = createLocalRuntimeAdapter({ projectId: 'unused', apiUrl: 'http://127.0.0.1:1' }, { env: { ...process.env, npm_execpath: npm } });
+    const result = await adapter.run({ id: 'core', script: 'test:core' });
+    assert.equal(result.code, 0);
+    assert.ok(result.elapsedMs >= 150);
+    assert.equal(result.resources.unit, 'KiB');
+    assert.equal(result.resources.intervalMs, 1000);
+    assert.match(result.resources.target, /child process tree/);
+    if (result.resources.samples.length) assert.ok(result.resources.maxSampledRssKiB > 0);
+    else { assert.equal(result.resources.maxSampledRssKiB, null); assert.ok(result.resources.failures > 0); }
+  } finally { rmSync(directory, { recursive: true }); }
+});

@@ -196,3 +196,38 @@ test('isolated environment preflight rejects mismatched API and DB before any ru
     assert.throws(() => readTestRunEnvironment(plan, { WORKSPACE_E2E_CONFIG: '/other/config.toml' }));
   } finally { rmSync(directory, { recursive: true }); }
 });
+
+test('structured reports retain original results on report failure, including interruption and cleanup failure', async () => {
+  const { saveTestReport } = await import('./test-report.mjs');
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const directory = mkdtempSync(join(tmpdir(), 'test-report-'));
+  try {
+    for (const code of [0, 1, 130, 143]) {
+      const result = { exitCode: code, results: [{ label: 'actual', code: code === 1 ? 17 : code, stopFailed: code === 143 }], errors: [{ phase: 'cleanup', error: new Error('private-placeholder') }] };
+      const good = saveTestReport(result, { command: 'npm run test:full', execution: 'actual' }, join(directory, `run-${code}.json`));
+      assert.equal(good.exitCode, code);
+      const saved = readFileSync(good.reportFile, 'utf8');
+      assert.equal(saved.includes('private-placeholder'), false);
+      assert.equal(JSON.parse(saved).result.results[0].code, result.results[0].code);
+      const failed = saveTestReport(result, {}, directory);
+      assert.equal(failed.exitCode, code === 0 ? 1 : code);
+      assert.equal(failed.results, result.results);
+      assert.equal(failed.errors, result.errors);
+      assert.equal(failed.reportError, true);
+      assert.ok(failed.unsavedReport.result.results.length);
+    }
+  } finally { rmSync(directory, { recursive: true }); }
+});
+
+test('measurement options retain explicit worker and cache scope without adding execution results to a plan', async () => {
+  const { fullTestPlan } = await import('./test-run-plan.mjs');
+  const plan = fullTestPlan(['--plan', '--only', 'fixtures', '--workers', '1', '--cache-state', 'warm', '--report', '/private/tmp/test-544-report.json']);
+  assert.equal(plan.workers, 1);
+  assert.equal(plan.cacheState, 'warm');
+  assert.ok(plan.stages.every(stage => stage.args.slice(-2).join(' ') === '--workers 1'));
+  assert.equal(plan.results, undefined);
+  assert.equal(plan.elapsedMs, undefined);
+  for (const args of [['--workers', '0'], ['--cache-state', 'maybe'], ['--report', 'relative.json']]) assert.throws(() => fullTestPlan(args));
+});

@@ -1,8 +1,9 @@
+import { externalReportPath } from './test-report.mjs';
 import { e2eRunPlan, fixtureConfigs } from "./e2e-run-plan.mjs";
 
 // This is a finite composition, not a dependency engine. Individual npm scripts retain their scopes.
 export function fullTestPlan(args) {
-  let planOnly = false, only, runtimeConfig, envFile, actualConfig = 'playwright.config.ts';
+  let planOnly = false, only, runtimeConfig, envFile, workers, cacheState, reportFile, actualConfig = 'playwright.config.ts';
   for (let index = 0; index < args.length; index++) {
     const option = args[index];
     if (option === '--plan' && !planOnly) planOnly = true;
@@ -16,7 +17,16 @@ export function fullTestPlan(args) {
       runtimeConfig = e2eRunPlan(['--actual-config', args[++index]])[0];
     } else if (option === '--env-file' && !envFile) {
       envFile = e2eRunPlan(['--actual-config', args[++index]])[0];
-    } else throw new Error('Usage: test:full [--plan] [--only core,adapters,web,scripts,embedding,guards,db,http,mcp,actual,fixtures] [--actual-config /absolute/config] [--runtime-config /absolute/config.toml --env-file /absolute/env]');
+    } else if (option === '--workers' && workers === undefined) {
+      const value = args[++index];
+      if (!/^[1-9][0-9]*$/.test(value ?? '') || Number(value) > 32) throw new Error('--workers must be an integer from 1 to 32');
+      workers = Number(value);
+    } else if (option === '--cache-state' && cacheState === undefined) {
+      cacheState = args[++index];
+      if (!['cold', 'warm', 'unspecified'].includes(cacheState)) throw new Error('--cache-state must be cold, warm or unspecified');
+    } else if (option === '--report' && reportFile === undefined) {
+      reportFile = externalReportPath(args[++index] ?? '');
+    } else throw new Error('Usage: test:full [--plan] [--only core,adapters,web,scripts,embedding,guards,db,http,mcp,actual,fixtures] [--actual-config /absolute/config] [--runtime-config /absolute/config.toml --env-file /absolute/env] [--workers 1] [--cache-state cold|warm|unspecified] [--report /absolute/external/new.json]');
   }
   if (Boolean(runtimeConfig) !== Boolean(envFile)) throw new Error('--runtime-config and --env-file must be supplied together');
   const stages = [
@@ -41,6 +51,7 @@ export function fullTestPlan(args) {
       '--allow-env', '--allow-net', '--allow-read', `--env-file=${envFile}`,
       `supabase/tests/${stage.id === 'db' ? 'database' : stage.id}`];
   }
+  if (workers) for (const stage of stages.filter(item => item.config)) stage.args.push('--workers', String(workers));
   const groups = new Set([...stages.map(stage => stage.id), 'fixtures']);
   if (only && (!only.length || only.some(id => !groups.has(id)) || new Set(only).size !== only.length)) {
     throw new Error('Unknown or repeated --only test scope');
@@ -50,7 +61,7 @@ export function fullTestPlan(args) {
     throw new Error('An isolated runtime requires an explicit --actual-config for its browser scope');
   }
   return {
-    planOnly, runtimeConfig, envFile, borrowedOnly: Boolean(runtimeConfig),
+    planOnly, runtimeConfig, envFile, workers, cacheState, reportFile, borrowedOnly: Boolean(runtimeConfig),
     stages: selected,
     excluded: [
       'static checks/build (separate check:docs, check:boundaries, check:deno, build)',
