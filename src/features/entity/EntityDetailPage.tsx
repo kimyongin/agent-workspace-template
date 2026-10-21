@@ -1,4 +1,3 @@
-import { DataFields } from "../../components/DataFields.tsx";
 import { WorkspacePermissionNotice } from "../workspaces/WorkspacePermissionNotice.tsx";
 import { useTaskAccess } from "../activity/task-access.ts";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
@@ -210,16 +209,6 @@ export function EntityDetailPage() {
           <div ref={readRoot} className="flex min-w-0 flex-col gap-6">
             <section className="flex flex-col gap-4 min-w-0">
               <DetailTitle>{entity.title}</DetailTitle>
-              <DataFields>
-                <div>
-                  <dt>번호 출처</dt>
-                  <dd>{entity.source_label}</dd>
-                </div>
-                <div>
-                  <dt>자료 번호</dt>
-                  <dd className="wrap-anywhere tabular-nums">{entity.external_id}</dd>
-                </div>
-              </DataFields>
               <EntityProperties entity={entity} />
               <TagConnections
                 onDraftClosed={detail.editClosed}
@@ -363,19 +352,13 @@ export function EntityDetailPage() {
                   },
                 }}
                 {...editor.formProps}
-                onSave={async (
-                  { source, external_id, expected_version, entity_type_id, identity_version, ...value },
-                  requestKey,
-                ) => {
+                onSave={async (command, requestKey) => {
+                  if (command.action === "create") throw new Error("자료 편집에서 새 자료를 만들 수 없습니다.");
                   await detail.save(async (current) => {
                     const savedEntity = await api<EntityDetail>(
-                      entity.deleted_at ? "POST" : "PATCH",
-                      entity.deleted_at ? "/entities" : entityPath(id),
-                      {
-                        ...value,
-                        ...(entity.deleted_at ? { source, external_id, entity_type_id, identity_version } : {}),
-                        expected_version: expected_version ?? entity.version,
-                      },
+                      command.action === "restore" ? "POST" : "PATCH",
+                      `${entityPath(command.id)}${command.action === "restore" ? "/restore" : ""}`,
+                      command.input,
                       undefined,
                       requestKey(),
                     );

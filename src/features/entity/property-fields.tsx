@@ -9,6 +9,9 @@ import { entityNumberDraft } from "@contracts/entity-number.ts";
 import type { EntityField, EntitySchemaVersion } from "@contracts/entity-type.ts";
 import type { EntityProperties } from "@contracts/entity.ts";
 import { Field } from "../../components/Field.tsx";
+import { Button } from "../../components/ui/button.tsx";
+import { decodeIdentifierValue, identifierKindId } from "@contracts/entity-identifiers.ts";
+import type { IdentifierKindMetadata } from "@contracts/entity-issuer.ts";
 export type PropertyDraft = Record<string, string | boolean | null>;
 export function fieldType(field: EntityField | undefined) {
   if (!field) return undefined;
@@ -52,6 +55,12 @@ export function propertyValues(
           }
         }
         if (typeof parsed === "string") {
+          if (field["x-identifier"]) {
+            let pair;
+            try { pair = decodeIdentifierValue(parsed); }
+            catch { throw new Error("식별자 종류와 원본 문자열 1~200자를 확인하세요"); }
+            if (!field["x-identifier"].allowed_kind_ids.includes(pair.kind_id)) throw new Error("이 항목에 허용된 식별자 종류를 선택하세요");
+          }
           if (field.minLength !== undefined && codePointLength(parsed) < field.minLength) {
             throw new Error(`${field.minLength}자 이상이어야 합니다`);
           }
@@ -71,10 +80,16 @@ export function propertyValues(
   if (Object.keys(errors).length) throw new PropertyDraftError(errors);
   return result;
 }
-export function displayedProperty(field: EntityField, value: unknown, labels: Record<string, string> = {}): string {
+export function displayedProperty(field: EntityField, value: unknown, labels: Record<string, string> = {}, kinds: IdentifierKindMetadata[] = []): string {
   if (value === undefined) return "미입력";
   if (value === null) return fieldChoiceTitle(field, null) ?? "값 없음";
   if (typeof value === "boolean") return value ? "참" : "거짓";
+  if (field["x-identifier"] && typeof value === "string") {
+    try {
+      const pair = decodeIdentifierValue(value), kind = kinds.find((kind) => kind.id === pair.kind_id);
+      return kind ? `${kind.source_label} · ${kind.label} · ${pair.raw}` : pair.raw;
+    } catch { return "식별자 확인 필요"; }
+  }
   const choices = { ...fieldChoiceLabels(field), ...labels };
   if (Object.hasOwn(choices, String(value))) return choices[String(value)];
   if (typeof value === "number" && ["integer", "number"].includes(fieldType(field) ?? "")) {
@@ -83,9 +98,12 @@ export function displayedProperty(field: EntityField, value: unknown, labels: Re
   return String(value);
 }
 export function PropertyFields(
-  { definition, values, initialValues, onChange, errors, disabled = false }: {
+  { definition, values, initialValues, onChange, errors, disabled = false, identityLocked = false, generations = {}, onGenerate }: {
     disabled?: boolean;
-    definition: Pick<EntitySchemaVersion, "schema">;
+    definition: Pick<EntitySchemaVersion, "schema" | "identifier_kinds">;
+    identityLocked?: boolean;
+    generations?: Record<string, string>;
+    onGenerate?: (key: string, kind: string | undefined) => void;
     values: PropertyDraft;
     initialValues?: PropertyDraft;
     onChange: (values: PropertyDraft) => void;
@@ -107,15 +125,16 @@ export function PropertyFields(
             (!fieldChoices(field) || fieldChoices(field)!.includes(null)),
           required = definition.schema.required.includes(key),
           archived = schemaPresentation(definition).archived.includes(key);
-        if (archived || field.readOnly) {
+        const selected = definition.schema["x-identity-property"] === key;
+        if (archived || field.readOnly || selected && identityLocked) {
           return (
             <DataFields key={key} className="col-span-full">
               <div>
                 <dt>
-                  {field.title ?? key} <span className="text-sm text-muted-foreground">· {archived ? "보관" : "읽기 전용"}</span>
+                  {field.title ?? key} <span className="text-sm text-muted-foreground">· {archived ? "보관" : selected && identityLocked ? "자료 식별자" : "읽기 전용"}</span>
                 </dt>
                 <dd>
-                  {displayedProperty(field, value, schemaPresentation(definition).option_labels[key])}
+                  {displayedProperty(field, value, schemaPresentation(definition).option_labels[key], definition.identifier_kinds)}
                 </dd>
               </div>
             </DataFields>
@@ -131,7 +150,49 @@ export function PropertyFields(
           >
             {(props) => (
               <>
-                {fieldChoices(field) || fieldType(field) === "boolean"
+                {field["x-identifier"] ? (() => {
+                  const settings = field["x-identifier"];
+                  // Editing may temporarily contain an empty/invalid raw suffix.
+                  // Stored values still go through the shared strict codec on submit.
+                  const prefix = typeof value === "string" && value[36] === ":" && identifierKindId.safeParse(value.slice(0, 36)).success;
+                  const kindId = generations[key] ?? (prefix ? String(value).slice(0, 36) : settings.default_kind_id);
+                  const kind = definition.identifier_kinds?.find((kind) => kind.id === kindId);
+                  const raw = prefix ? String(value).slice(37) : "";
+                  const automatic = !!generations[key] || selected && value === undefined && kind?.generation === "automatic";
+                  const choice = value === null ? "null" : value === undefined && !automatic && !selected ? "unset" : kindId;
+                  const rawEditable = !automatic && choice !== "unset" && choice !== "null";
+                  return <>
+                    <NativeSelect {...(!rawEditable ? props : {})} id={!rawEditable ? props.id : `${props.id}-kind`} aria-label={`${field.title ?? key} 종류`} disabled={disabled} value={choice} onChange={event => {
+                      const next = event.target.value;
+                      onGenerate?.(key, undefined);
+                      if (next === "unset" || next === "null") { set(key, next === "unset" ? undefined : null); return; }
+                      const nextKind = definition.identifier_kinds?.find(kind => kind.id === next);
+                      if (nextKind?.generation === "automatic" && onGenerate) { set(key, undefined); onGenerate(key, next); }
+                      else set(key, `${next}:${raw}`);
+                    }}>
+                      {!required && <NativeSelectOption value="unset">미입력</NativeSelectOption>}
+                      {nullable && <NativeSelectOption value="null">값 없음</NativeSelectOption>}
+                      {settings.allowed_kind_ids.map(id => {
+                        const option = definition.identifier_kinds?.find(kind => kind.id === id);
+                        return <NativeSelectOption key={id} value={id} disabled={!!option && !option.active && !(prefix && id === kindId)}>
+                          {option ? `${option.source_label} · ${option.label}${option.active ? "" : " · 중지"}` : "식별자 종류 확인 필요"}
+                        </NativeSelectOption>;
+                      })}
+                    </NativeSelect>
+                    {automatic && <p role="status" className="text-sm text-muted-foreground">저장 시 자동 발급</p>}
+                    {automatic && onGenerate && <Button type="button" variant="outline" disabled={disabled} onClick={() => {
+                      set(key, `${kindId}:`);
+                      onGenerate(key, undefined);
+                    }}>기존 번호 입력</Button>}
+                    {rawEditable && <Input {...props} disabled={disabled} value={raw} autoComplete="off" onChange={event => {
+                        onGenerate?.(key, undefined);
+                        const next = event.target.value;
+                        set(key, next === "" && !required ? nullable ? null : undefined : `${kindId}:${next}`);
+                      }} />}
+                    {kind?.generation === "automatic" && rawEditable && onGenerate &&
+                      <Button type="button" variant="outline" disabled={disabled || !kind.active} onClick={() => { set(key, undefined); onGenerate(key, kindId); }}>새 번호 발급</Button>}
+                  </>;
+                })() : fieldChoices(field) || fieldType(field) === "boolean"
                   ? (
                     <NativeSelect
                       {...props}

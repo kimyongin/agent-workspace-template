@@ -142,7 +142,8 @@ export function CreateRelatedEntityForm(
       submitLabel="작성하고 연결"
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
-      onSave={async (entity, key) => {
+      onSave={async (command, key) => {
+        if (command.action === "update") throw new Error("연결할 자료는 새 작성 또는 복원으로 저장하세요.");
         if (!writableNow.current) throw new ApiError(403, "forbidden", "양쪽 자료 종류의 쓰기 권한이 필요합니다.");
         if (reading || contextChanged) {
           throw new ApiError(
@@ -153,7 +154,7 @@ export function CreateRelatedEntityForm(
             false,
           );
         }
-        if (entity.entity_type_id !== typeId) {
+        if (command.action === "create" && command.input.entity_type_id !== typeId) {
           throw new ApiError(
             409,
             "conflict",
@@ -171,7 +172,9 @@ export function CreateRelatedEntityForm(
               expected_version: context.origin.version,
               previous_other_id: context.previous?.id ?? null,
               expected_previous_version: context.previous?.version ?? null,
-              entity,
+              entity: command.action === "restore"
+                ? { action: "restore", id: command.id, ...command.input }
+                : { action: "create", ...command.input },
             },
             undefined,
             key(),
