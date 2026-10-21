@@ -132,6 +132,8 @@ export type EntityType = {
   updated_at: string;
 };
 export type EntitySchemaVersion = {
+  /** Advisory current membership; absent historical metadata keeps selection locked. */
+  identity_change_allowed?: boolean;
   identifier_kinds?: IdentifierKindMetadata[];
   type_id: string;
   schema_version: number;

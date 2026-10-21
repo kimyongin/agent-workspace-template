@@ -222,6 +222,9 @@ export function useSchemaChangeEditor(
     if (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(saved.schema)) {
       next.schema["x-title-template"] = effectiveEntityTitleTemplate(draft.schema);
     }
+    if (draft.schema["x-identity-property"] !== saved.schema["x-identity-property"]) {
+      next.schema["x-identity-property"] = draft.schema["x-identity-property"];
+    }
     const migrationEdited =
       draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] });
     setPlan(null);
@@ -357,6 +360,10 @@ export function useSchemaChangeEditor(
           (key) => refs[key] ? `new_${refs[key]}` : key,
         ),
       });
+    }
+    const selected = draft.schema["x-identity-property"];
+    if (selected && selected !== definition.schema["x-identity-property"]) {
+      result.push({ op: "set_metadata", "x-identity-property": refs[selected] ? `new_${refs[selected]}` : selected });
     }
     for (const [key, field] of Object.entries(draft.schema.properties)) {
       const required = draft.schema.required.includes(key);
@@ -661,7 +668,7 @@ export function useSchemaChangeEditor(
   const canDiscard = actionReady && !dirty && !!plan && !["applied", "cancelled"].includes(plan.status);
   const editField = (key: string, field: EntityField) => {
     if (
-      key === definition.schema["x-identity-property"] &&
+      key === draft.schema["x-identity-property"] &&
       (field.type !== "string" || !field["x-identifier"] || field.default !== undefined || field.deprecated ||
         field.readOnly)
     ) return;
@@ -683,11 +690,11 @@ export function useSchemaChangeEditor(
     });
   };
   const editFlag = (key: string, name: "required" | "archived", value: boolean) => {
-    if (key === definition.schema["x-identity-property"]) return;
+    if (key === draft.schema["x-identity-property"]) return;
     if (editable() && !plan?.recovery) flag(key, name, value);
   };
   const setFieldInactive = (key: string, value: boolean) => {
-    if (key === definition.schema["x-identity-property"]) return;
+    if (key === draft.schema["x-identity-property"]) return;
     if (
       !editable() || plan?.recovery
     ) return;
@@ -715,7 +722,7 @@ export function useSchemaChangeEditor(
     }));
   };
   const removeField = (key: string) => {
-    if (key === definition.schema["x-identity-property"]) return;
+    if (key === draft.schema["x-identity-property"]) return;
     if (!editable() || plan?.recovery) return;
     if (definition.schema.properties[key] && draft.schema.properties[key]) {
       deletedDrafts.current[key] = {
@@ -907,6 +914,7 @@ export function useSchemaChangeEditor(
     fieldOrder.splice(Math.min(removed.index, fieldOrder.length), 0, removed.key);
   }
   const changeCount = changedFields.length +
+    (draft.schema["x-identity-property"] !== saved.schema["x-identity-property"] ? 1 : 0) +
     (effectiveEntityTitleTemplate(draft.schema) !== effectiveEntityTitleTemplate(saved.schema) ? 1 : 0) +
     Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
     (draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
@@ -1001,6 +1009,15 @@ export function useSchemaChangeEditor(
       planSyncNeeded,
       migrationEdited:
         draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }),
+    },
+    editIdentityProperty: (value: string) => {
+      const field = draft.schema.properties[value];
+      if (
+        !editable() || plan?.recovery || definition.identity_change_allowed !== true || !field ||
+        field.type !== "string" || !field["x-identifier"] || field.deprecated || field.readOnly ||
+        field.default !== undefined || !draft.schema.required.includes(value)
+      ) return;
+      setDraft((draft) => ({ ...draft, schema: { ...draft.schema, "x-identity-property": value } }));
     },
     editTitleTemplate: (value: string) => {
       if (editable() && !plan?.recovery) {

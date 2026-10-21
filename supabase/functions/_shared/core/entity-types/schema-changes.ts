@@ -1,3 +1,4 @@
+import { assertIdentifierEvolution } from "./identifier-evolution.ts";
 import { publicationDefinition } from "./schema-rules.ts";
 import { findRetainedSchemaRequest } from "./retained-requests.ts";
 import {
@@ -33,6 +34,8 @@ type ChangeInput = z.infer<typeof schemaChangeCreate>;
 export type SchemaChangeDraftContext = {
   type: { id: string; version: number; schema_version: number; archived: boolean; schema_write_locked: boolean };
   definition: SchemaDefinition;
+  has_entities: boolean;
+  identifier_usage: Record<string, string[]>;
   previous:
     | Pick<
       EntitySchemaChange,
@@ -179,6 +182,7 @@ export async function prepareSchemaChange(
   const reservations = await s.reserveSchemaChangeProperties(typeId, input.edits, previous?.reservations ?? {});
   const resolved = resolveSchemaEdits(context.definition, input.edits, reservations);
   publicationDefinition(resolved.target, t.id, t.schema_version + 1);
+  assertIdentifierEvolution(context.definition, resolved.target, context);
   if (t.archived && input.edits.some((e) => e.op !== "set_metadata") && resolved.target.schema.deprecated !== false) {
     throw new AppError("entity_type_archived", "속성 변경과 함께 보관 해제를 게시하세요");
   }
