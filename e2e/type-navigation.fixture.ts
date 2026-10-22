@@ -341,12 +341,17 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
   await page.mouse.move(navBox.x + navBox.width / 2, navBox.y + navBox.height / 2);
   await page.mouse.wheel(0, wheelDistance);
   await expect(profile).toBeInViewport({ ratio: 1 });
+  const close = navigation.getByRole("button", { name: "메뉴 닫기", exact: true });
+  await expect(close).toBeInViewport({ ratio: 1 });
+  const closeBounds = (await close.boundingBox())!;
+  expect(closeBounds.width).toBeGreaterThanOrEqual(44); expect(closeBounds.height).toBeGreaterThanOrEqual(44);
   await page.screenshot({ path: info.outputPath("short-navigation-wheel-bottom.png") });
   await page.mouse.wheel(0, -wheelDistance);
   await expect(switcher).toBeInViewport({ ratio: 1 });
   await switcher.focus();
   await expect(switcher).toBeFocused();
   const visited = ["공간 선택"];
+  await expect(close).toBeInViewport({ ratio: 1 });
   const controls = await navigation.getByRole("button").or(navigation.getByRole("link")).count();
   let reachedProfile = false;
   for (let step = 0; step < controls; step++) {
@@ -361,12 +366,13 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
     if (await lastDestination.evaluate(element => element === document.activeElement)) { reachedProfile = true; break; }
   }
   expect(reachedProfile).toBe(true);
-  expect(visited).toEqual(expect.arrayContaining(["공간 선택", "메뉴 닫기", long.label, products.label, "할 일", "기록", "전체 자료", "로그아웃"]));
+  expect(visited).toEqual(expect.arrayContaining(["공간 선택", long.label, products.label, "할 일", "기록", "전체 자료", "로그아웃"]));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("short-navigation-keyboard.png") });
   await openMainNavigation(page);
   await page.getByRole("link", { name: "로그아웃", exact: true }).focus();
-  await closeMainNavigation(page);
+  await close.focus(); await expect(close).toBeInViewport({ ratio: 1 });
+  await close.press("Enter");
   await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "주 메뉴 열기", exact: true })).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
