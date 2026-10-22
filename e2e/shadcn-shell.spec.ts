@@ -1,3 +1,4 @@
+import { openMainNavigation } from "./ui-actions.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { expect, test, type Page } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";

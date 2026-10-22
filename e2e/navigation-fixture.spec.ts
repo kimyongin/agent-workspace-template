@@ -398,3 +398,19 @@ for (const width of [390, 1440]) test(`자료 그룹 통합과 펼친 드로어 
   await nav.getByRole("link", { name: "기록 설정", exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: info.outputPath(`drawer-merged-${width}.png`), animations: "disabled" });
 });
+
+test("종류 수가 줄어도 남은 검색 조건을 같은 자리에서 해제할 수 있다", async ({ page }) => {
+  const types = Array.from({ length: 9 }, (_, index) => ({ ...fixtureType, id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, label: `검수 종류 ${index + 1}` }));
+  let visible = types;
+  await page.route("**/api/entity-types", route => route.fulfill({ json: { items: visible, next_cursor: null } }));
+  await page.goto(fixtureWorkspacePath("/settings"));
+  await openNavigation(page);
+  const nav = profileMenu(page), search = nav.getByRole("searchbox", { name: "자료 종류 검색", exact: true });
+  await search.fill("검수 종류 9");
+  visible = types.slice(0, 8);
+  await nav.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  await openNavigation(page);
+  await expect(search).toHaveValue("검수 종류 9");
+  await search.fill("");
+  await expect(nav.getByRole("link", { name: "검수 종류 8", exact: true })).toHaveCount(1);
+});

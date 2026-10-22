@@ -1,3 +1,4 @@
+import { closeMainNavigation } from "./ui-actions.ts";
 import { openDialogs, openMainNavigation } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entityKey, fixtureType, id, stamp } from "./support/workspace-data.ts";

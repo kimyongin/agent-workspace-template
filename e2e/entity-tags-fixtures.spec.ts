@@ -67,6 +67,9 @@ async function settings(page: Page) {
   await revealNavigation(page);
   const link = page.getByRole("link", { name: "기본 설정", exact: true, includeHidden: inert });
   if (inert) await link.evaluate((el: HTMLAnchorElement) => el.click()); else await link.click();
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
+  await expect(page.getByRole("heading", { name: "기본 설정", exact: true, level: 1 }).or(discard)).toBeVisible();
+  if (!await discard.count()) await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true })).toHaveCount(0);
 }
 async function closeMainNavigation(page: Page) {
   // The closing confirmation temporarily aria-hides the still-open navigation Sheet.
@@ -157,7 +160,7 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   // 로그아웃 진입은 설정을 먼저 거친다. 그 이동도 태그 초안을 버리지 않는다.
   await page.getByRole("textbox",{name:/태그 이름/}).focus();await settings(page);
   await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/settings\/tags$/);
-  await expect(page.getByRole("link", { name: "로그아웃", exact: true })).toBeFocused();
+  await expect(page.getByRole("link", { name: "기본 설정", exact: true })).toBeFocused();
   await closeMainNavigation(page);
   expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(true); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("앱 초안");
   await page.goBack(); await discard.getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/settings$/);
@@ -429,8 +432,7 @@ test("태그 설정의 인라인 초안은 대상 전환·탐색 취소와 histo
   await settingsCategory(page, "기본");
   await discard.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "기본 설정", exact: true })).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("link", { name: "기본 설정", exact: true })).toBeFocused();
+  await closeMainNavigation(page);
   await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("탐색 보존 초안");
   await settingsCategory(page, "기본");
   await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();

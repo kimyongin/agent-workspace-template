@@ -193,11 +193,11 @@ export function Navigation({ brand }: { brand: string }) {
                     <SidebarMenu>{entries.map(renderLink)}</SidebarMenu>
                   </SidebarGroup>
                 )}
-                {(!!otherBuiltin.length || !!otherTypes?.length || catalog.error) && (
+                {(!!otherBuiltin.length || !!otherTypes?.length || !!keyword || catalog.error) && (
                   <SidebarGroup aria-label="자료">
                     <SidebarGroupLabel>자료</SidebarGroupLabel>
                     <SidebarMenu>{otherBuiltin.map(renderLink)}</SidebarMenu>
-                    {(otherTypes?.length ?? 0) > 6 && (
+                    {((otherTypes?.length ?? 0) > 6 || !!keyword) && (
                       <FieldGroup>
                         <Field>
                           <FieldLabel htmlFor="navigation-type-search">자료 종류 검색</FieldLabel>

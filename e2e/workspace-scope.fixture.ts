@@ -137,6 +137,7 @@ test("workspace selection has one entry and settings owns management for the sel
 
 test("account space entry remains available without a space or settings permission", async ({ page }) => {
   const api = await fixture(page);
+  const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
   await page.route(`**/api/workspaces/${a}`, route => route.fulfill({ json: {
     workspace: { id: a, name: "공간 A", deleted_at: null }, membership_version: 1, can_manage: false,
     grants: [{ target_kind: "tasks", target_id: "*", access: "read" }],
@@ -151,7 +152,7 @@ test("account space entry remains available without a space or settings permissi
   await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
   await openMainNavigation(page);
   await expect(navigation.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
-  await page.getByRole("link", { name: "공간 목록 · 새 공간", exact: true }).click();
+  await navigation.getByRole("link", { name: "공간 목록 · 새 공간", exact: true }).click();
   await expect(page.getByRole("button", { name: "새 공간 만들기", exact: true })).toBeVisible();
 });
 
