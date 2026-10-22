@@ -196,8 +196,8 @@ function Sidebar({
           side={side}
         >
           <div className="flex h-full min-h-0 w-full flex-col" role={props.role} aria-label={props["aria-label"]} id={props.id}>
-            <SheetHeader className="shrink-0 flex-row items-center justify-between gap-2 border-b px-3 py-1">
-              <SheetTitle>주 메뉴</SheetTitle>
+            <SheetHeader className="shrink-0 flex-row items-center justify-between gap-1 border-b py-1 pl-3 pr-1">
+              <SheetTitle className="min-w-0 truncate">주 메뉴</SheetTitle>
               <SheetDescription className="sr-only">업무 화면과 개인 설정으로 이동합니다.</SheetDescription>
               <SheetClose asChild>
                 <Button variant="ghost" size="icon" aria-label="메뉴 닫기"><XIcon /></Button>
