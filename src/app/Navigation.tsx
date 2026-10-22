@@ -128,7 +128,7 @@ export function Navigation({ brand }: { brand: string }) {
   }, { to: "/logout", label: "로그아웃", icon: LogOutIcon }];
   const renderDestination = (
     { to, label, icon: Icon }: { to: string; label: string; icon: typeof BookOpenIcon },
-    active = location.pathname === to,
+    active = currentPath === to,
     keepCurrent = false,
   ) => (
     <SidebarMenuItem key={to}>
@@ -250,7 +250,7 @@ export function Navigation({ brand }: { brand: string }) {
                   (category) =>
                     renderDestination(
                       category,
-                      settingsCategoryCurrent(location.pathname, category.to),
+                      settingsCategoryCurrent(currentPath, category.to),
                       category.to === "/settings/materials",
                     ),
                 )}
@@ -262,7 +262,7 @@ export function Navigation({ brand }: { brand: string }) {
                 {workspaceSettingsDestinations(workspaceId, capability?.can_manage ?? false).map((destination) =>
                   renderDestination(
                     { ...destination, icon: destination.to === "/workspaces" ? UsersIcon : HouseIcon },
-                    location.pathname === businessPath(destination.to),
+                    currentPath === businessPath(destination.to),
                   )
                 )}
               </SidebarMenu>

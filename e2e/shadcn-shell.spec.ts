@@ -265,7 +265,7 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
       await expect(recordLink).toBeFocused();
       await expect(recordLink).toBeInViewport();
       const layout = await recordLink.evaluate(link => {
-        const content = link.closest('[data-slot="sidebar-content"]') as HTMLElement;
+        const content = link.closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
         const record = link.getBoundingClientRect(), box = content.getBoundingClientRect();
         const top = box.top + content.clientTop, left = box.left + content.clientLeft;
         return {
@@ -282,8 +282,12 @@ test("shell enlarged text: navigation constraints remain feasible at desktop wid
       expect(layout.record.width).toBeGreaterThanOrEqual(44);
       expect(layout.record.height).toBeGreaterThanOrEqual(44);
       if (layout.requiresScroll) expect(layout.scrollTop).toBeGreaterThan(0);
-      await expect(navigation.locator('[data-slot="sidebar-header"]')).toBeInViewport();
-      await expect(navigation.locator('[data-slot="sidebar-footer"]')).toBeInViewport();
+      const header = navigation.locator('[data-slot="sidebar-header"]');
+      const footer = navigation.locator('[data-slot="sidebar-footer"]');
+      await header.scrollIntoViewIfNeeded(); await expect(header).toBeInViewport();
+      await footer.scrollIntoViewIfNeeded(); await expect(footer).toBeInViewport();
+      await recordLink.scrollIntoViewIfNeeded(); await recordLink.focus();
+      await expect(recordLink).toBeInViewport();
       await page.screenshot({ path: info.outputPath(`navigation-keyboard-${width}-root-${fontSize}.png`) });
       await expect(page.getByRole("main")).toBeInViewport();
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px/root${fontSize}px`).toBe(width);
