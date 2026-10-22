@@ -16,8 +16,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu.tsx";
-import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-import appIcon from "../../app/app-icon.svg";
+import { CheckIcon, ChevronsUpDownIcon, PanelsTopLeftIcon } from "lucide-react";
 export function WorkspaceSwitcher({ brand }: { brand: string }) {
   const api = useApi(),
     { workspaceId } = useRequestScope(),
@@ -48,7 +47,7 @@ export function WorkspaceSwitcher({ brand }: { brand: string }) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton aria-label="공간 선택" className="min-h-12">
-              <img className="size-6 shrink-0" src={appIcon} alt="" />
+              <PanelsTopLeftIcon aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate">
                 {items.find((item) => item.id === workspaceId)?.name ??
                   brand}
