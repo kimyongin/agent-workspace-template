@@ -1,5 +1,6 @@
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
+import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import { closeMainNavigation, listHeader, openMainNavigation } from "./ui-actions.ts";
 import {
   fixtureSchema,
@@ -43,6 +44,90 @@ const profileDisplay = (page: Page) => page.getByRole("group", { name: /^내 프
 const mainMenu = (page: Page) => page.getByRole("navigation", { name: "주 메뉴", exact: true });
 const profileIcon = (page: Page) => profileDisplay(page).locator("[aria-hidden=true]").first();
 const openNavigation = openMainNavigation;
+
+for (const width of [390, 1440]) test(`공간 선택이 헤더에 있는 모바일 탐색 ${width}px`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 844 });
+  await page.goto(fixtureWorkspacePath("/tasks"));
+  const banner = page.getByRole("banner");
+  await expect(banner.getByText("Workspace", { exact: true })).toBeVisible();
+  if (width < 1024) {
+    await expect(banner.getByText("테스트 공간", { exact: true })).toBeVisible();
+    await expect(banner.locator("img")).toHaveCount(1);
+    const brand = (await banner.getByText("Workspace", { exact: true }).boundingBox())!;
+    const name = (await banner.getByText("테스트 공간", { exact: true }).boundingBox())!;
+    expect(name.y).toBeCloseTo(brand.y, 0);
+  } else await expect(banner.getByText("테스트 공간", { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath(`identity-${width}.png`), animations: "disabled" });
+  await openNavigation(page);
+  const nav = mainMenu(page), switcher = nav.getByRole("button", { name: "공간 선택", exact: true });
+  await expect(switcher).toHaveCount(1);
+  await expect(switcher).toContainText("테스트 공간");
+  if (width < 1024) {
+    const header = nav.locator('[data-slot="sheet-header"]');
+    await expect(header.getByRole("button", { name: "공간 선택", exact: true })).toHaveCount(1);
+    await expect(nav.getByText("Workspace", { exact: true })).toHaveCount(0);
+    const a = (await switcher.boundingBox())!, b = (await nav.getByRole("button", { name: "메뉴 닫기", exact: true }).boundingBox())!;
+    expect(a.y + a.height / 2).toBeCloseTo(b.y + b.height / 2, 0);
+  }
+  await page.screenshot({ path: info.outputPath(`drawer-identity-${width}.png`), animations: "disabled" });
+  await nav.getByRole("link", { name: "로그아웃", exact: true }).scrollIntoViewIfNeeded();
+  if (width < 1024) await expect(switcher).toBeInViewport({ ratio: 1 });
+  else await switcher.scrollIntoViewIfNeeded();
+  await switcher.click();
+  await expect(page.getByRole("menuitem", { name: "테스트 공간", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Escape");
+  await expect(switcher).toBeFocused();
+  await closeMainNavigation(page);
+});
+
+test("긴 공간 이름과 200% 확대에서도 모바일 헤더와 고정 선택·닫기가 넘치지 않는다", async ({ page }, info) => {
+  const name = "긴워크스페이스이름".repeat(12);
+  const workspace = { id: fixtureWorkspaceId, name, deleted_at: null };
+  await page.route("**/api/workspaces**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/workspaces") return route.fulfill({ json: { items: [workspace] } });
+    if (path === `/api/workspaces/${fixtureWorkspaceId}`) return route.fulfill({ json: {
+      workspace, can_manage: true, membership_version: 1,
+      grants: [{ target_kind: "settings", target_id: "*", access: "write" }, { target_kind: "tasks", target_id: "*", access: "write" }],
+    } });
+    await route.fallback();
+  });
+  await page.setViewportSize({ width: 320, height: 400 });
+  await page.goto(fixtureWorkspacePath("/tasks"));
+  const label = page.getByRole("banner").getByText(name, { exact: true });
+  await expect(label).toBeVisible();
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  await expect(label).toBeVisible();
+  expect((await label.boundingBox())!.width).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath("identity-long-200.png"), animations: "disabled" });
+  await openNavigation(page);
+  const nav = mainMenu(page), switcher = nav.getByRole("button", { name: "공간 선택", exact: true });
+  await expect(switcher).toContainText(name);
+  await expect(switcher).toHaveAccessibleDescription(name);
+  expect((await switcher.getByText(name, { exact: true }).boundingBox())!.width).toBeGreaterThanOrEqual(44);
+  await nav.getByRole("link", { name: "로그아웃", exact: true }).scrollIntoViewIfNeeded();
+  for (const control of [switcher, nav.getByRole("button", { name: "메뉴 닫기", exact: true })]) {
+    await expect(control).toBeInViewport({ ratio: 1 });
+    const box = (await control.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath("drawer-long-200.png"), animations: "disabled" });
+  await closeMainNavigation(page);
+});
+
+test("공간 문맥 없는 계정 화면은 모바일 헤더에 앱만 표시한다", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/settings");
+  const banner = page.getByRole("banner");
+  await expect(banner.getByText("Workspace", { exact: true })).toBeVisible();
+  await expect(banner.getByText("테스트 공간", { exact: true })).toHaveCount(0);
+  await expect(banner.getByText("·", { exact: true })).toHaveCount(0);
+  await expect(banner.locator("img")).toHaveCount(1);
+  await openNavigation(page);
+  await expect(mainMenu(page).getByRole("button", { name: "공간 선택", exact: true })).toHaveText("공간 선택");
+});
 async function settings(page: Page) { await openNavigation(page); await mainMenu(page).getByRole("link", { name: "기본 설정", exact:true }).click(); }
 async function requestLogout(page: Page) {
   await openNavigation(page);

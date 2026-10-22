@@ -17,7 +17,7 @@ function Probe() {
   const [result, setResult] = useState("idle");
   return (
     <SidebarProvider>
-      <Navigation brand="Workspace" />
+      <Navigation />
       <main className="min-w-0 flex-1 p-4">
         <SidebarTrigger aria-label="주 메뉴 열기" className="lg:hidden" />
         <output data-testid="provider-account">{loading ? "loading" : session?.user.id ?? "signed-out"}</output>

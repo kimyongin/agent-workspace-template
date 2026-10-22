@@ -1,5 +1,4 @@
 import { WorkspaceSwitcher } from "../features/workspaces/WorkspaceSwitcher.tsx";
-import appIcon from "./app-icon.svg";
 import { useRequestScope } from "../lib/api-context.tsx";
 import { useApi } from "../lib/api-context.tsx";
 import { useEffect, useState } from "react";
@@ -70,7 +69,7 @@ function retainNavigationFocusVisibility(content: HTMLDivElement | null) {
   };
 }
 
-export function Navigation({ brand }: { brand: string }) {
+export function Navigation() {
   const api = useApi();
   const location = useLocation();
   const { session } = useAuth();
@@ -160,12 +159,7 @@ export function Navigation({ brand }: { brand: string }) {
   return (
     <Sidebar
       collapsible={isMobile ? "offcanvas" : "none"}
-      mobileTitle={
-        <>
-          <img className="size-6 shrink-0" src={appIcon} alt="" />
-          <span className="truncate">{brand}</span>
-        </>
-      }
+      mobileHeader={<SidebarHeader className="p-0"><WorkspaceSwitcher /></SidebarHeader>}
       className="h-full min-w-0"
       aria-label="주 메뉴"
       role="navigation"
@@ -177,9 +171,7 @@ export function Navigation({ brand }: { brand: string }) {
       >
         {/* Keep one scroll owner so all destinations remain reachable at short heights and large text sizes. */}
         <div className="flex min-h-full w-full min-w-0 flex-col">
-          <SidebarHeader>
-            <WorkspaceSwitcher brand={brand} />
-          </SidebarHeader>
+          {!isMobile && <SidebarHeader><WorkspaceSwitcher /></SidebarHeader>}
           <SidebarContent className="flex-none overflow-visible">
             {workspaceId && (
               <>
