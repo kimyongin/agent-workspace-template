@@ -151,6 +151,7 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  mobileTitle = "주 메뉴",
   className,
   children,
   dir,
@@ -159,6 +160,7 @@ function Sidebar({
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
+  mobileTitle?: React.ReactNode
 }) {
   const { isMobile, state, openMobile, setOpenMobile, triggerRef } = useSidebar()
 
@@ -197,7 +199,7 @@ function Sidebar({
         >
           <div className="flex h-full min-h-0 w-full flex-col" role={props.role} aria-label={props["aria-label"]} id={props.id}>
             <SheetHeader className="shrink-0 flex-row items-center justify-between gap-1 border-b py-1 pl-3 pr-1">
-              <SheetTitle className="min-w-0 truncate">주 메뉴</SheetTitle>
+              <SheetTitle aria-label={props["aria-label"] ?? "주 메뉴"} className="flex min-w-0 items-center gap-2">{mobileTitle}</SheetTitle>
               <SheetDescription className="sr-only">업무 화면과 개인 설정으로 이동합니다.</SheetDescription>
               <SheetClose asChild>
                 <Button variant="ghost" size="icon" aria-label="메뉴 닫기"><XIcon /></Button>

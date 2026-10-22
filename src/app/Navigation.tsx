@@ -1,4 +1,5 @@
 import { WorkspaceSwitcher } from "../features/workspaces/WorkspaceSwitcher.tsx";
+import appIcon from "./app-icon.svg";
 import { useRequestScope } from "../lib/api-context.tsx";
 import { useApi } from "../lib/api-context.tsx";
 import { useEffect, useState } from "react";
@@ -159,6 +160,12 @@ export function Navigation({ brand }: { brand: string }) {
   return (
     <Sidebar
       collapsible={isMobile ? "offcanvas" : "none"}
+      mobileTitle={
+        <>
+          <img className="size-6 shrink-0" src={appIcon} alt="" />
+          <span className="truncate">{brand}</span>
+        </>
+      }
       className="h-full min-w-0"
       aria-label="주 메뉴"
       role="navigation"
