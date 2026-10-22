@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 import type { Workspace } from "@contracts/workspace.ts";
 import { useApi, useRequestScope } from "../../lib/api-context.tsx";
 import { workspacePath } from "../../lib/workspace-route.tsx";
+import { useWorkspaceCapabilities } from "./workspace-context.tsx";
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -17,10 +18,11 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu.tsx";
 import { CheckIcon, ChevronsUpDownIcon, PanelsTopLeftIcon } from "lucide-react";
-export function WorkspaceSwitcher({ brand }: { brand: string }) {
+export function WorkspaceSwitcher() {
   const api = useApi(),
     { workspaceId } = useRequestScope(),
     location = useLocation();
+  const current = useWorkspaceCapabilities()?.workspace;
   const [items, setItems] = useState<Workspace[]>([]),
     [failed, setFailed] = useState(false),
     [revision, setRevision] = useState(0);
@@ -41,18 +43,18 @@ export function WorkspaceSwitcher({ brand }: { brand: string }) {
     });
     return () => controller.abort();
   }, [api, location.key, revision]);
+  const name = items.find((item) => item.id === workspaceId)?.name ?? current?.name ?? "공간 선택";
   return (
-    <SidebarMenu>
+    <SidebarMenu className="@container/workspace-picker">
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton aria-label="공간 선택" className="min-h-12">
-              <PanelsTopLeftIcon aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate">
-                {items.find((item) => item.id === workspaceId)?.name ??
-                  brand}
+            <SidebarMenuButton aria-label="공간 선택" aria-description={name} className="min-h-12">
+              <PanelsTopLeftIcon aria-hidden="true" className="hidden @min-[10rem]/workspace-picker:block" />
+              <span className="min-w-0 flex-1 truncate" title={name}>
+                {name}
               </span>
-              <ChevronsUpDownIcon />
+              <ChevronsUpDownIcon aria-hidden="true" className="hidden @min-[10rem]/workspace-picker:block" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">

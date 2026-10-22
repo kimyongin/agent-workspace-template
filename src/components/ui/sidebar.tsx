@@ -21,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { PanelLeftIcon, XIcon } from "lucide-react"
+import { MenuIcon, XIcon } from "lucide-react"
 
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
@@ -151,7 +151,7 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
-  mobileTitle = "주 메뉴",
+  mobileHeader = "주 메뉴",
   className,
   children,
   dir,
@@ -160,7 +160,7 @@ function Sidebar({
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
-  mobileTitle?: React.ReactNode
+  mobileHeader?: React.ReactNode
 }) {
   const { isMobile, state, openMobile, setOpenMobile, triggerRef } = useSidebar()
 
@@ -198,9 +198,10 @@ function Sidebar({
           side={side}
         >
           <div className="flex h-full min-h-0 w-full flex-col" role={props.role} aria-label={props["aria-label"]} id={props.id}>
-            <SheetHeader className="shrink-0 flex-row items-center justify-between gap-1 border-b py-1 pl-3 pr-1">
-              <SheetTitle aria-label={props["aria-label"] ?? "주 메뉴"} className="flex min-w-0 items-center gap-2">{mobileTitle}</SheetTitle>
+            <SheetHeader className="shrink-0 flex-row items-center gap-1 border-b py-1 pl-2 pr-1">
+              <SheetTitle className="sr-only">{props["aria-label"] ?? "주 메뉴"}</SheetTitle>
               <SheetDescription className="sr-only">업무 화면과 개인 설정으로 이동합니다.</SheetDescription>
+              <div className="min-w-0 flex-1">{mobileHeader}</div>
               <SheetClose asChild>
                 <Button variant="ghost" size="icon" aria-label="메뉴 닫기"><XIcon /></Button>
               </SheetClose>
@@ -279,7 +280,7 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      <MenuIcon />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )

@@ -92,6 +92,7 @@ test("workspace selection has one entry and settings owns management for the sel
   await fixture(page);
   await page.goto(`/w/${a}/settings`);
   await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+  if (info.project.name === "mobile") await expect(page.getByRole("banner").getByText("공간 A", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("workspace-settings-entry.png"), fullPage: true, animations: "disabled" });
   await openMainNavigation(page);
   const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
@@ -106,6 +107,10 @@ test("workspace selection has one entry and settings owns management for the sel
   await expect(navigation.getByRole("link", { name: "워크스페이스", exact: true })).toHaveCount(0);
   await page.getByRole("menuitem", { name: "공간 B", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/w/${b}/tasks$`));
+  if (info.project.name === "mobile") {
+    await expect(page.getByRole("banner").getByText("공간 B", { exact: true })).toBeVisible();
+    await expect(page.getByRole("banner").getByText("공간 A", { exact: true })).toHaveCount(0);
+  }
   await page.goto(`/w/${b}/settings`);
   const section = page.getByRole("region", { name: "워크스페이스", exact: true });
   await expect(section).toContainText("현재 공간 · 공간 B");

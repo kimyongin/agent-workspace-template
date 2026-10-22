@@ -6,6 +6,7 @@ import {
 import {
   WorkspaceCapabilitiesProvider,
   WorkspaceGate,
+  useWorkspaceCapabilities,
 } from "../features/workspaces/workspace-context.tsx";
 import {
   InvitationPage,
@@ -50,6 +51,7 @@ import {
 } from "react-router";
 import { DetailWorkspace } from "../features/details/DetailWorkspace.tsx";
 import { Navigation } from "./Navigation.tsx";
+import appIcon from "./app-icon.svg";
 import { useNavigationResize } from "./useNavigationResize.ts";
 import { DisplayScaleProvider } from "../features/settings/display-scale.tsx";
 import { LogoutPage } from "../features/auth/LogoutPage.tsx";
@@ -167,6 +169,7 @@ function ScopedLayout(
   const { session } = useAuth();
   const location = useLocation();
   const navigation = useNavigationResize(session?.user.id ?? null);
+  const workspace = useWorkspaceCapabilities()?.workspace;
   const constraintSize = (pixels: number) =>
     navigation.axisSize
       ? `${100 * pixels / navigation.axisSize}%`
@@ -209,7 +212,7 @@ function ScopedLayout(
             : 0}
           onResize={(size) => navigation.remember(size.inPixels)}
         >
-          {session && <Navigation brand={APP_NAME} />}
+          {session && <Navigation />}
         </ResizablePanel>
         {session && navigation.desktop && (
           <ResizableHandle
@@ -229,11 +232,22 @@ function ScopedLayout(
           className="min-w-0"
         >
           <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
-            <header className="flex min-h-14 shrink-0 items-center gap-2 border-b px-4">
+            <header className="flex min-h-14 min-w-0 shrink-0 items-center gap-2 border-b px-4">
               {session && !navigation.desktop && (
                 <SidebarTrigger aria-label="주 메뉴 열기" />
               )}
-              <span className="font-medium">{APP_NAME}</span>
+              {session && !navigation.desktop
+                ? <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <img className="size-5 shrink-0" src={appIcon} alt="" />
+                  <span className="min-w-0 truncate text-sm" title={workspace ? `${APP_NAME} · ${workspace.name}` : APP_NAME}>
+                    <span className="font-medium">{APP_NAME}</span>
+                    {workspace && <>
+                      <span className="text-muted-foreground" aria-hidden="true"> · </span>
+                      <span className="text-muted-foreground">{workspace.name}</span>
+                    </>}
+                  </span>
+                </div>
+                : <span className="font-medium">{APP_NAME}</span>}
             </header>
             <main
               ref={attachMain}

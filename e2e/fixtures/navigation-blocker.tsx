@@ -21,7 +21,7 @@ function DirtyPage() {
   </>;
 }
 
-const router = createMemoryRouter([{ element: <SidebarProvider><Outlet /><Navigation brand="Workspace" /></SidebarProvider>, children: [
+const router = createMemoryRouter([{ element: <SidebarProvider><Outlet /><Navigation /></SidebarProvider>, children: [
   { path: "/tags", element: <DirtyPage /> },
   { path: "/logout", element: <h1>로그아웃 경로 진입</h1> },
 ] }], { initialEntries: ["/tags"] });
