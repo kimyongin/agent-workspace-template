@@ -1,5 +1,6 @@
 import { BusinessTable, BusinessRow, BusinessCell } from "../components/BusinessTable.tsx";
 import { useState } from "react";
+import { PageStack } from "../components/PageHeading.tsx";
 import { FilterPanel } from "../components/TabSearch.tsx";
 import { Notice } from "../components/Field.tsx";
 import { TagSelection } from "../features/tags/TagSelection.tsx";
@@ -72,7 +73,7 @@ export function FilterSamples() {
   );
   if (applied.sort === "title") rows.sort((a, b) => a.prop_1.localeCompare(b.prop_1, "ko"));
   return (
-    <div className="grid min-w-0 gap-4">
+    <PageStack>
       <div className="flex min-w-0 flex-wrap items-end gap-3">
         <div className="min-w-0">
           <FilterPanel
@@ -109,13 +110,13 @@ export function FilterSamples() {
           </FilterPanel>
         </div>
       </div>
-      <section aria-label="적용된 조건의 자료 목록">
+      <section className="flex min-w-0 flex-col gap-3" aria-label="적용된 조건의 자료 목록">
         <h3 className="text-base font-semibold">자료 · {rows.length}개</h3>
         <BusinessTable label="필터 결과 예시" columns={["이름"]} disclosureColumn={false}>
           {rows.map(row => <BusinessRow key={row.id}><BusinessCell index={0}>{row.prop_1}</BusinessCell></BusinessRow>)}
         </BusinessTable>
         {!rows.length && <p className="text-sm text-muted-foreground">조건에 맞는 자료가 없습니다.</p>}
       </section>
-    </div>
+    </PageStack>
   );
 }

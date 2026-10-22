@@ -111,7 +111,7 @@ export function SearchPage() {
       return next;
     });
   return (
-    <section data-page-ready={!busy && (!!result || !!error || !q) ? "" : undefined} className="@container flex min-w-0 flex-col gap-6" aria-labelledby="search-title">
+    <section data-page-ready={!busy && (!!result || !!error || !q) ? "" : undefined} className="@container flex min-w-0 flex-col gap-5" aria-labelledby="search-title">
       <PageHeading
         title="검색"
         id="search-title"
@@ -128,7 +128,7 @@ export function SearchPage() {
             if (value === q) setRetry((n) => n + 1);
             else change("q", value);
           }}
-        ><FieldGroup>
+        ><FieldGroup className="grid min-w-0 grid-cols-1 items-end gap-3 @min-[18rem]:grid-cols-[minmax(0,1fr)_auto]">
           <Field label="검색어" required>
             {(p) => (
               <Input
