@@ -1,4 +1,4 @@
-import { openMainNavigation } from "./ui-actions.ts";
+import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { chooseSetting } from "./settings-actions.ts";
@@ -428,7 +428,7 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
     .click();
-  await page.keyboard.press("Escape");
+  await closeMainNavigation(page);
   await expect(form.getByLabel("메모 템플릿")).toHaveText("할 일 초안");
   await saveTemplate(page, form);
   await expect(form.getByRole("status")).toContainText("저장했습니다");
