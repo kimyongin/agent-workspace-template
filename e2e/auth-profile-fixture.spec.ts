@@ -1,4 +1,4 @@
-import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
+import { openMainNavigation } from "./ui-actions.ts";
 import { expect, type Page, test } from "@playwright/test";
 
 const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { full_name: "기존 계정 이름", workspace_avatar_id: "person", provider_value: "preserved" } };
@@ -367,12 +367,12 @@ for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크
   await otherTab.getByRole("form",{name:"프로필 설정"}).getByRole("button",{name:"변경 취소",exact:true}).click();
   await expect(otherTab.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
   await page.reload(); await expect(page.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
-  await openProfileMenu(page);
-  const popup=page.locator('[role="menu"]');await expect(popup).toContainText("새 닉네임");await expect(popup).not.toContainText(user.email);await expect(page.getByRole("button", { name: "내 프로필", exact: true, includeHidden: true }).locator("[aria-hidden=true]").first()).toHaveText("🎯");
+  await openMainNavigation(page);
+  const popup=page.getByRole("navigation", { name: "주 메뉴", exact: true });await expect(popup).toContainText("새 닉네임");await expect(popup).not.toContainText(user.email);await expect(page.getByRole("group", { name: "내 프로필", exact: true, includeHidden: true }).locator("[aria-hidden=true]").first()).toHaveText("🎯");
   await page.screenshot({path:info.outputPath(`profile-popup-${width}.png`)});
   await page.keyboard.press("Escape");
   await closeNavigation(page);
   await page.getByLabel("닉네임",{exact:true}).fill(" ");await page.getByRole("button",{name:"프로필 저장",exact:true}).click();await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("설정을 저장했습니다");
   expect(writes.at(-1)).toEqual({workspace_nickname:null});
-  await openProfileMenu(page);await expect(popup).toContainText("기존 계정 이름");
+  await openMainNavigation(page);await expect(popup).toContainText("기존 계정 이름");
 });

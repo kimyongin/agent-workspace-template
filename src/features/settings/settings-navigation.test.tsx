@@ -1,24 +1,25 @@
 import { expect, it } from "vitest";
-import { MemoryRouter } from "react-router";
-import { renderToStaticMarkup } from "react-dom/server";
-import { SettingsMenu } from "./SettingsMenu.tsx";
+import { settingsCategoryCurrent, workspaceSettingsDestinations } from "./SettingsNavigation.tsx";
 
-it("업무 화면에는 설정 범주 메뉴를 반복하지 않는다", () => {
-  const html = renderToStaticMarkup(
-    <MemoryRouter initialEntries={["/tasks"]}>
-      <SettingsMenu />
-    </MemoryRouter>,
-  );
-  expect(html).not.toContain("설정 메뉴");
+it("자료 설정의 직접·구 경로에서도 정확한 현재 범주를 표시한다", () => {
+  for (
+    const path of [
+      "/settings/materials",
+      "/settings/entity-types/type-id/migrations",
+      "/settings/relations",
+      "/settings/issuers",
+      "/settings/data-model",
+    ]
+  ) {
+    expect(settingsCategoryCurrent(path, "/settings/materials")).toBe(true);
+    expect(settingsCategoryCurrent(path, "/settings")).toBe(false);
+  }
+  expect(settingsCategoryCurrent("/settings/navigation", "/settings")).toBe(true);
+  expect(settingsCategoryCurrent("/settings/tags", "/settings/materials")).toBe(false);
 });
 
-it("설정 화면에서는 이름 있는 메뉴 버튼만 먼저 보여준다", () => {
-  const html = renderToStaticMarkup(
-    <MemoryRouter initialEntries={["/settings/records"]}>
-      <SettingsMenu />
-    </MemoryRouter>,
-  );
-  expect(html).toContain('aria-label="설정 메뉴"');
-  expect(html).toContain('aria-expanded="false"');
-  expect(html).not.toContain('href="/settings/materials"');
+it("공간 없음과 관리 권한 없음에도 공간 목록은 유지한다", () => {
+  expect(workspaceSettingsDestinations(null, true)).toEqual([{ to: "/workspaces", label: "공간 목록 · 새 공간" }]);
+  expect(workspaceSettingsDestinations("space", false)).toEqual([{ to: "/workspaces", label: "공간 목록 · 새 공간" }]);
+  expect(workspaceSettingsDestinations("space", true)).toHaveLength(2);
 });

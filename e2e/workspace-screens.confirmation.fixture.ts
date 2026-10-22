@@ -1,5 +1,5 @@
 import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
-import { executionDialog, openDialogs, openProfileMenu } from "./ui-actions.ts";
+import { executionDialog, openDialogs, openMainNavigation } from "./ui-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListDetail } from "./ui-actions.ts";
@@ -129,8 +129,8 @@ for (const revoked of ["read", "none"] as const) {
       method: "POST", path: `/tasks/${id(2)}/stop`, status: "unknown",
     });
     const requestWorkspace = async (exit = false) => {
-      await openProfileMenu(page);
-      await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+      await openMainNavigation(page);
+      await page.getByRole("link", { name: "기본 설정", exact: true }).click();
       if (exit) {
         await expect(page).toHaveURL(new URL(fixtureWorkspacePath("/settings"), page.url()).href);
         await page.getByRole("region", { name: "워크스페이스", exact: true }).getByRole("link", { name: "공간 목록 · 새 공간", exact: true }).click();

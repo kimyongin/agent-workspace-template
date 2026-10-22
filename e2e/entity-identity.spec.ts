@@ -1,3 +1,4 @@
+import { closeMainNavigation, openMainNavigation } from "./ui-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { executionDialog } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
@@ -484,24 +485,20 @@ test("seven settings workspaces retain real API selections and stay within the v
   ) {
     await page.goto(workspacePath(workspace.id, path));
     await expect(page.getByRole("heading", { name: title, exact: true, level: 1 })).toBeVisible();
-    await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
+    await openMainNavigation(page);
+    const menu = page.getByRole("navigation", { name: "주 메뉴", exact: true });
     const destinations = [
-      ["기본", "/settings"],
-      ["자료", "/settings/materials"],
-      ["태그", "/settings/tags"],
-      ["기록", "/settings/records"],
+      ["기본 설정", "/settings"],
+      ["자료 설정", "/settings/materials"],
+      ["태그 설정", "/settings/tags"],
+      ["기록 설정", "/settings/records"],
       ["이 공간 관리", "/manage"],
       ["공간 목록 · 새 공간", "/workspaces"],
     ] as const;
-    await expect(menu.getByRole("menuitem")).toHaveCount(6);
-    await expect(menu.getByRole("menuitem")).toHaveText(destinations.map(([label]) => label));
     for (const [label, href] of destinations) {
-      await expect(menu.getByRole("menuitem", { name: label, exact: true })).toHaveAttribute("href", href === "/workspaces" ? href : workspacePath(workspace.id, href));
+      await expect(menu.getByRole("link", { name: label, exact: true })).toHaveAttribute("href", href === "/workspaces" ? href : workspacePath(workspace.id, href));
     }
-    await page.keyboard.press("Escape");
-    await expect(menu).not.toBeVisible();
-    await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toBeFocused();
+    await closeMainNavigation(page);
     if (path === `/settings/entity-types/${fixtureType!.id}`) {
       const inputs = page.getByRole("region", { name: "입력 항목", exact: true });
       await inputs.getByRole("button", { name: "입력 항목", exact: true }).click();

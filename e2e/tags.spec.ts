@@ -1,5 +1,5 @@
 import { businessRows } from "./table-actions.ts";
-import { openProfileMenu } from "./ui-actions.ts";
+import { openMainNavigation } from "./ui-actions.ts";
 import { detailDialog, executionDialog, openDialogs } from "./ui-actions.ts";
 import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
@@ -68,10 +68,10 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
   try{
     const tag=await mcp.call("create_tag",{scope:"record",name:unique("지연 삭제").slice(0,30)});
     await page.goto(workspacePath(workspace.id, "/entities"));
-    await openProfileMenu(page);
-    await page.getByRole("menuitem",{name:"설정",exact:true}).click();
-    await page.getByRole("button",{name:"설정 메뉴",exact:true}).click();
-    await page.getByRole("menu",{name:"설정 메뉴",exact:true}).getByRole("menuitem",{name:"태그",exact:true}).click();
+    await openMainNavigation(page);
+    await page.getByRole("link", { name: "기본 설정",exact:true}).click();
+    await openMainNavigation(page);
+    await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "태그 설정",exact:true}).click();
     await page.getByRole("radiogroup", {name:"관리 대상",exact:true}).getByRole("radio", {name:"기록",exact:true}).click();
     await expect(page).toHaveURL(/settings\/tags\?scope=record$/);
     let arrived!:()=>void,finished!:()=>void,deletes=0;

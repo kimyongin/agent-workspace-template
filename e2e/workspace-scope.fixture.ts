@@ -77,11 +77,8 @@ test("workspace landing can return from management to settings through the profi
   await page.goto(`/w/${a}`);
   await expect(page.getByRole("heading", { name: "공간 관리", exact: true })).toBeVisible();
   await openMainNavigation(page);
-  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("button", {
-    name: "내 프로필",
-    exact: true,
-  }).click();
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/w/${a}/settings$`));
   await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible({ timeout: 5000 });
   const section = page.getByRole("region", { name: "워크스페이스", exact: true });
@@ -104,8 +101,8 @@ test("workspace selection has one entry and settings owns management for the sel
   await switcher.click();
   await page.screenshot({ path: info.outputPath("workspace-selection-menu.png"), fullPage: true, animations: "disabled" });
   await expect(page.getByRole("menuitem", { name: "공간 A", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("menu").getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("menu").getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveCount(0);
   await expect(navigation.getByRole("link", { name: "워크스페이스", exact: true })).toHaveCount(0);
   await page.getByRole("menuitem", { name: "공간 B", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/w/${b}/tasks$`));
@@ -114,9 +111,9 @@ test("workspace selection has one entry and settings owns management for the sel
   await expect(section).toContainText("현재 공간 · 공간 B");
   await expect(section.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveAttribute("href", `/w/${b}/manage`);
   await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await expect(page.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveAttribute("href", `/w/${b}/manage`);
-  await expect(page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
+  await openMainNavigation(page);
+  await expect(navigation.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveAttribute("href", `/w/${b}/manage`);
+  await expect(navigation.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
   await page.keyboard.press("Escape");
   if (info.project.name === "desktop") {
     for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
@@ -140,6 +137,7 @@ test("workspace selection has one entry and settings owns management for the sel
 
 test("account space entry remains available without a space or settings permission", async ({ page }) => {
   const api = await fixture(page);
+  const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
   await page.route(`**/api/workspaces/${a}`, route => route.fulfill({ json: {
     workspace: { id: a, name: "공간 A", deleted_at: null }, membership_version: 1, can_manage: false,
     grants: [{ target_kind: "tasks", target_id: "*", access: "read" }],
@@ -152,9 +150,9 @@ test("account space entry remains available without a space or settings permissi
   delete api.workspaces[a]; delete api.workspaces[b];
   await page.goto("/settings");
   await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await expect(page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
-  await page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true }).click();
+  await openMainNavigation(page);
+  await expect(navigation.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute("href", "/workspaces");
+  await navigation.getByRole("link", { name: "공간 목록 · 새 공간", exact: true }).click();
   await expect(page.getByRole("button", { name: "새 공간 만들기", exact: true })).toBeVisible();
 });
 

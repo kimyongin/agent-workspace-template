@@ -10,7 +10,7 @@ import {
   fixtureType,
 } from "./support/workspace-data.ts";
 import { settingsResponse } from "./support/preparation-api.ts";
-import { executionDialog, openProfileMenu, openDetailEditor, openListEditor } from "./ui-actions.ts";
+import { executionDialog, openMainNavigation, openDetailEditor, openListEditor } from "./ui-actions.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { beginTabAction, closeDetail, saveOnce } from "./ui-actions.ts";
 import { expect, type Page, test } from "@playwright/test";
@@ -62,23 +62,21 @@ async function entityCapabilities(page: Page, access: "read" | "write", settings
 }
 
 async function revealNavigation(page: Page) {
-  const profile=page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true,includeHidden:true});
-  const trigger=page.getByRole("button",{name:/Toggle Sidebar|탐색 메뉴|주 메뉴 열기/,includeHidden:true});
-  await expect(profile.or(trigger).first()).toBeVisible();
-  if(!await profile.count()) {
-    if(await page.getByRole("dialog").count())await trigger.evaluate((el:HTMLButtonElement)=>el.click());
-    else await trigger.click();
-  }
+  // Intent probes behind an editor modal still exercise the same router blocker.
+  if (await page.getByRole("dialog", { name: /^(?!주 메뉴$)/ }).count()) {
+    const nav = page.getByRole("navigation", { name: "주 메뉴", exact: true, includeHidden: true });
+    if (!await nav.count()) await page.getByRole("button", { name: "주 메뉴 열기", exact: true, includeHidden: true }).evaluate((button: HTMLButtonElement) => button.click());
+    await expect(nav).toBeVisible();
+  } else await openMainNavigation(page);
 }
 async function settings(page: Page) {
-  const inert=await page.getByRole("dialog").count()>0;
+  const inert = await page.getByRole("dialog").count() > 0;
   await revealNavigation(page);
-  const profile=page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true,includeHidden:inert});
-  if(await profile.getAttribute("aria-expanded")!=="true"){
-    if(inert)await profile.dispatchEvent("pointerdown", {button:0,ctrlKey:false,pointerType:"mouse",isPrimary:true});else await profile.click();
-  }
-  const link=page.getByRole("menuitem",{name:"설정",exact:true,includeHidden:inert});
-  if(inert)await link.evaluate((el:HTMLAnchorElement)=>el.click());else await link.click();
+  const link = page.getByRole("link", { name: "기본 설정", exact: true, includeHidden: inert });
+  if (inert) await link.evaluate((el: HTMLAnchorElement) => el.click()); else await link.click();
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
+  await expect(page.getByRole("heading", { name: "기본 설정", exact: true, level: 1 }).or(discard)).toBeVisible();
+  if (!await discard.count()) await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true })).toHaveCount(0);
 }
 async function closeMainNavigation(page: Page) {
   // The closing confirmation temporarily aria-hides the still-open navigation Sheet.
@@ -90,8 +88,8 @@ async function closeMainNavigation(page: Page) {
   }
 }
 async function settingsCategory(page: Page, name: string) {
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name, exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: `${name} 설정`, exact: true }).click();
 }
 async function tagManagement(page: Page, scope = "entity") {
   await settings(page);
@@ -169,7 +167,7 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   // 로그아웃 진입은 설정을 먼저 거친다. 그 이동도 태그 초안을 버리지 않는다.
   await page.getByRole("textbox",{name:/태그 이름/}).focus();await settings(page);
   await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/settings\/tags$/);
-  await expect(page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true})).toBeFocused();
+  await expect(page.getByRole("link", { name: "기본 설정", exact: true })).toBeFocused();
   await closeMainNavigation(page);
   expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(true); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("앱 초안");
   await page.goBack(); await discard.getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/settings$/);
@@ -277,11 +275,11 @@ test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그
   await settings(page); await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
   await expect(page).toHaveURL(/\/settings$/); expect(signOuts).toBe(0);
   // 새 위치의 로그아웃도 미저장 선택의 취소/승인을 지켜야 한다.
-  await page.getByRole("radio", { name: "별", exact: true }).click(); await revealNavigation(page); await openProfileMenu(page); await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
+  await page.getByRole("radio", { name: "별", exact: true }).click(); await revealNavigation(page); await openMainNavigation(page); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
   await closeMainNavigation(page);
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked(); expect(signOuts).toBe(0);
-  await revealNavigation(page); await openProfileMenu(page); await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
+  await revealNavigation(page); await openMainNavigation(page); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/login$/); expect(signOuts).toBe(1);
   expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(false); await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
 });
@@ -440,9 +438,8 @@ test("태그 설정의 인라인 초안은 대상 전환·탐색 취소와 histo
   await page.getByRole("textbox", { name: /태그 이름/ }).fill("탐색 보존 초안");
   await settingsCategory(page, "기본");
   await discard.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "기본", exact: true })).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toBeFocused();
+  await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "기본 설정", exact: true })).toBeFocused();
+  await closeMainNavigation(page);
   await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("탐색 보존 초안");
   await settingsCategory(page, "기본");
   await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();

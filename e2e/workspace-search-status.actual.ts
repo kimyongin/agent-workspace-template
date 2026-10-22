@@ -1,6 +1,6 @@
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, ownedWorkspace, test, workspacePath } from "./support.ts";
-import { closeDetail, detailDialog, openMainNavigation, openProfileMenu } from "./ui-actions.ts";
+import { closeDetail, detailDialog, openMainNavigation } from "./ui-actions.ts";
 
 async function setup(page: Page) {
   await devLogin(page);
@@ -32,7 +32,7 @@ async function setup(page: Page) {
 }
 
 async function navigate(page: Page, name: string) {
-  await openProfileMenu(page);
+  await openMainNavigation(page);
   await page.getByRole("menuitem", { name, exact: true }).click();
 }
 

@@ -1,5 +1,5 @@
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
-import { openProfileMenu } from "./ui-actions.ts";
+import { openMainNavigation } from "./ui-actions.ts";
 import { baseWorkspace, detailDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { expect, test, type Page } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
@@ -58,7 +58,7 @@ test("display scale: failed save keeps selection; retry persists only changed me
   await page.getByRole("form", { name: "화면 표시 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
   await navigate(page, "검사 자료"); await expect(page.getByRole("heading", { name: "검사 자료", exact: true, level: 1 })).toBeVisible();
   expect(await rootSize(page)).toBe(24);
-  await openProfileMenu(page); await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
+  await openMainNavigation(page); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   await expect(page).toHaveURL(/\/login/); await expect.poll(() => rootSize(page)).toBe(16);
 });
 test("display scale: 150% keeps main filters, details, confirmation and resize usable on desktop/mobile", async ({ page }, info) => {
@@ -116,14 +116,14 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
   for (const control of await scaleChoices.all()) {
     const box = (await control.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
   }
-  await openProfileMenu(page);
-  const destinations = page.getByRole("menu").getByRole("menuitem");
-  await expect(destinations).toHaveCount(4);
+  await openMainNavigation(page);
+  const destinations = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link");
+  expect(await destinations.count()).toBeGreaterThanOrEqual(8);
   for (const destination of await destinations.all()) {
     await expect.poll(async () => (await destination.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(44);
     await expect.poll(async () => (await destination.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
-  await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
+  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
   const installation = page.getByRole("button", { name: "설치·연결 정보", exact: true });
   await expect(installation).toBeVisible();
   const installationBox = (await installation.boundingBox())!;
@@ -137,8 +137,8 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
     await expect(page.locator("main h1")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
   }
-  await openProfileMenu(page);
-  await expect(page.getByRole("menuitem", { name: "설정", exact: true })).toBeVisible();
+  await openMainNavigation(page);
+  await expect(page.getByRole("link", { name: "기본 설정", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 test("display scale: external profile updates preserve dirty preview and cancel to latest saved size", async ({ page }) => {

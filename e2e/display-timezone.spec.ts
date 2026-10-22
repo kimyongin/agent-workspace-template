@@ -1,4 +1,4 @@
-import { openProfileMenu } from "./ui-actions.ts";
+import { openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { test, devLogin , ownedWorkspace, workspacePath} from "./support.ts";
 
@@ -47,7 +47,7 @@ test("실제 계정 닉네임·이모지 저장·다른 탭·새로고침·기�
     const after=await page.evaluate(async()=>{const path="/src/lib/supabase.ts",{supabase}=await import(path);const {data,error}=await supabase.auth.getUser();if(error)throw error;return data.user!.user_metadata;});
     expect(after).toEqual({...before,workspace_nickname:targetName,workspace_avatar_id:targetIcon});
     await page.screenshot({path:info.outputPath("profile-settings.png"),fullPage:true});
-    await openProfileMenu(page);const popup=page.locator('[role="menu"]');await expect(popup).toContainText(targetName);await expect(popup).not.toContainText("@");
+    await openMainNavigation(page);const popup=page.getByRole("navigation", { name: "주 메뉴", exact: true });await expect(popup).toContainText(targetName);await expect(popup).not.toContainText("@");
     await page.screenshot({path:info.outputPath("profile-popover.png")});
   } finally {
     await restorePreferences();
