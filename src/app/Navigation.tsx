@@ -20,7 +20,7 @@ import { Input } from "../components/ui/input.tsx";
 import { Alert, AlertDescription } from "../components/ui/alert.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { ScrollArea } from "../components/ui/scroll-area.tsx";
-import { BookOpenIcon, ChartNoAxesCombinedIcon, HouseIcon, LogOutIcon, UsersIcon, XIcon } from "lucide-react";
+import { BookOpenIcon, ChartNoAxesCombinedIcon, HouseIcon, LogOutIcon, UsersIcon } from "lucide-react";
 import { useNavigationPreview } from "../features/settings/navigation-preview.tsx";
 import { useAuth } from "../features/auth/AuthProvider.tsx";
 import { ProfileIcon } from "../features/settings/profile.tsx";
@@ -170,21 +170,8 @@ export function Navigation({ brand }: { brand: string }) {
       >
         {/* Keep one scroll owner so all destinations remain reachable at short heights and large text sizes. */}
         <div className="flex min-h-full w-full min-w-0 flex-col">
-          <SidebarHeader className="flex-row items-center">
-            <div className="min-w-0 flex-1">
-              <WorkspaceSwitcher brand={brand} />
-            </div>
-            {isMobile && (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="메뉴 닫기"
-                className="shrink-0"
-                onClick={() => setOpenMobile(false)}
-              >
-                <XIcon />
-              </Button>
-            )}
+          <SidebarHeader>
+            <WorkspaceSwitcher brand={brand} />
           </SidebarHeader>
           <SidebarContent className="flex-none overflow-visible">
             {workspaceId && (

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -20,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { PanelLeftIcon } from "lucide-react"
+import { PanelLeftIcon, XIcon } from "lucide-react"
 
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
@@ -185,7 +186,8 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground"
+          showCloseButton={false}
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -193,11 +195,16 @@ function Sidebar({
           }
           side={side}
         >
-          <SheetHeader className="sr-only">
-            <SheetTitle>주 메뉴</SheetTitle>
-            <SheetDescription>업무 화면과 개인 설정으로 이동합니다.</SheetDescription>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col" role={props.role} aria-label={props["aria-label"]} id={props.id}>{children}</div>
+          <div className="flex h-full min-h-0 w-full flex-col" role={props.role} aria-label={props["aria-label"]} id={props.id}>
+            <SheetHeader className="shrink-0 flex-row items-center justify-between gap-1 border-b py-1 pl-3 pr-1">
+              <SheetTitle className="min-w-0 truncate">주 메뉴</SheetTitle>
+              <SheetDescription className="sr-only">업무 화면과 개인 설정으로 이동합니다.</SheetDescription>
+              <SheetClose asChild>
+                <Button variant="ghost" size="icon" aria-label="메뉴 닫기"><XIcon /></Button>
+              </SheetClose>
+            </SheetHeader>
+            {children}
+          </div>
         </SheetContent>
       </Sheet>
     )
