@@ -207,7 +207,7 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await closeMainNavigation(page);
   await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toHaveCount(0);
   await expectShortcuts(page, ["기록", "할 일"]);
   await page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
