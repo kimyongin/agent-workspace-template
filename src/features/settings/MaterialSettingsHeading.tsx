@@ -36,7 +36,7 @@ export function MaterialSettingsHeading({ section, id }: {
 }) {
   const navigate = useNavigate();
   return (
-    <>
+    <div className="flex min-w-0 flex-col gap-3">
       <PageHeading title="자료 설정" description="자료 종류·연결 방법·번호 설정을 함께 관리합니다." id={id}>
       </PageHeading>
       <Tabs
@@ -61,6 +61,6 @@ export function MaterialSettingsHeading({ section, id }: {
         </TabsList>
       </Tabs>
       <CardDescription>{sections.find(({ key }) => key === section)?.description}</CardDescription>
-    </>
+    </div>
   );
 }

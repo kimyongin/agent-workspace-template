@@ -1,4 +1,10 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { cn } from "../lib/utils.ts";
+
+/** A page owns the spacing between its regions, independently of its route or detail shell. */
+export function PageStack({ className, ...props }: ComponentProps<"div">) {
+  return <div {...props} className={cn("flex min-w-0 flex-col gap-5", className)} />;
+}
 
 export function PageHeading({ title, description, id, tabIndex, children }: {
   title: string; description: string; id?: string; tabIndex?: number; children?: ReactNode;

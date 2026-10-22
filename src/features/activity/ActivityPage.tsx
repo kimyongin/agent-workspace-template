@@ -5,7 +5,7 @@ import { NativeSelectOption } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Button } from "../../components/ui/button.tsx";
 import { RotateCcwIcon } from "lucide-react";
-import { PageHeading } from "../../components/PageHeading.tsx";
+import { PageHeading, PageStack } from "../../components/PageHeading.tsx";
 
 import {
   CollectionHeading,
@@ -99,7 +99,7 @@ function ActivitySection(
   return (
     <ListExpansionProvider readiness={list.readiness}>
       <section
-        className="@container flex min-w-0 flex-col gap-4"
+        className="@container flex min-w-0 flex-col gap-3"
         aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -270,7 +270,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
     return <Navigate replace to={`${legacy.route}?${legacy.params}${legacy.hash}`} />;
   }
   return (
-    <>
+    <PageStack>
       {kind === "tasks" && !canRead && <WorkspacePermissionNotice />}
       <section hidden={kind === "tasks" && !canRead} className="@container flex min-w-0 flex-col gap-5" aria-labelledby={`${kind}-title`}>
         <PageHeading
@@ -463,6 +463,6 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
             }}
           />
         )}
-    </>
+    </PageStack>
   );
 }

@@ -5,7 +5,7 @@ import { EyeIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
 import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { displayedProperty } from "./property-fields.tsx";
-import { PageHeading } from "../../components/PageHeading.tsx";
+import { PageHeading, PageStack } from "../../components/PageHeading.tsx";
 import {
   changeEntityListQuery,
   detailListLink,
@@ -294,8 +294,8 @@ export function EntitiesPage() {
     }, { replace: name !== "entity_type_id" });
   };
   return (
-    <>
-      <section className="flex min-w-0 flex-col gap-5 border-b pb-6" aria-labelledby="entities-title">
+    <PageStack>
+      <section className="flex min-w-0 flex-col gap-5" aria-labelledby="entities-title">
         <PageHeading
           title={label}
           id="entities-title"
@@ -378,7 +378,7 @@ export function EntitiesPage() {
         </div>
       </section>
       <ListExpansionProvider readiness={readiness}>
-        <section className="flex min-w-0 flex-col gap-6" aria-label={`${label} 목록`}>
+        <section className="flex min-w-0 flex-col gap-3" aria-label={`${label} 목록`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CollectionHeading
               hideLabel
@@ -536,6 +536,6 @@ export function EntitiesPage() {
           )}
         </section>
       </ListExpansionProvider>
-    </>
+    </PageStack>
   );
 }
