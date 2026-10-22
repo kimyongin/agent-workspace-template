@@ -1,3 +1,4 @@
+import { closeMainNavigation } from "./ui-actions.ts";
 import { openMainNavigation } from "./ui-actions.ts";
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
@@ -353,7 +354,8 @@ test("pending save prevents duplicate submission and departure until authoritati
   await openMainNavigation(page);
   await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
   await expect(page).toHaveURL(/\/settings#settings-navigation$/);
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true })).toHaveCount(0);
+  await closeMainNavigation(page);
   release();
   await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
   await expect(page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true })).toBeDisabled();

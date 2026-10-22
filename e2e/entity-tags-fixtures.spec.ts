@@ -61,7 +61,14 @@ async function entityCapabilities(page: Page, access: "read" | "write", settings
   } }));
 }
 
-async function revealNavigation(page: Page) { await openMainNavigation(page); }
+async function revealNavigation(page: Page) {
+  // Intent probes behind an editor modal still exercise the same router blocker.
+  if (await page.getByRole("dialog", { name: /^(?!주 메뉴$)/ }).count()) {
+    const nav = page.getByRole("navigation", { name: "주 메뉴", exact: true, includeHidden: true });
+    if (!await nav.count()) await page.getByRole("button", { name: "주 메뉴 열기", exact: true, includeHidden: true }).evaluate((button: HTMLButtonElement) => button.click());
+    await expect(nav).toBeVisible();
+  } else await openMainNavigation(page);
+}
 async function settings(page: Page) {
   const inert = await page.getByRole("dialog").count() > 0;
   await revealNavigation(page);

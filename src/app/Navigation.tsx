@@ -170,14 +170,16 @@ export function Navigation({ brand }: { brand: string }) {
       >
         {/* Keep one scroll owner so all destinations remain reachable at short heights and large text sizes. */}
         <div className="flex min-h-full w-full min-w-0 flex-col">
-          <SidebarHeader>
-            <WorkspaceSwitcher brand={brand} />
+          <SidebarHeader className="flex-row items-center">
+            <div className="min-w-0 flex-1">
+              <WorkspaceSwitcher brand={brand} />
+            </div>
             {isMobile && (
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label="메뉴 닫기"
-                className="self-end"
+                className="shrink-0"
                 onClick={() => setOpenMobile(false)}
               >
                 <XIcon />

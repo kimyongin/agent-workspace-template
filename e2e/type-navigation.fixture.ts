@@ -251,8 +251,9 @@ test("settings profile route keeps drafts and treats settings as account locatio
   await page.goto(fixtureWorkspacePath("/settings"));
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { name: "기본 설정", exact: true, level: 1 })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "주 메뉴" }).locator('a[aria-current="page"]'))
-    .toHaveCount(0);
+  await openMainNavigation(page);
+  await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "기본 설정", exact: true })).toHaveAttribute("aria-current", "page");
+  await closeMainNavigation(page);
   await page.getByLabel("닉네임", { exact: true }).fill("자료 번호 초안");
   await openMainNavigation(page);
   await page.getByRole("link", { name: "할 일", exact: true }).click();
@@ -305,7 +306,6 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   const box = await menu.getByRole("link", { name: "로그아웃", exact: true }).boundingBox();
   expect(box!.y).toBeGreaterThanOrEqual(0);
   expect(box!.y + box!.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
-  await page.keyboard.press("Escape");
   await closeMainNavigation(page);
 });
 
@@ -366,9 +366,7 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
   await page.screenshot({ path: info.outputPath("short-navigation-keyboard.png") });
   await openMainNavigation(page);
   await page.getByRole("link", { name: "로그아웃", exact: true }).focus();
-  await page.keyboard.press("Escape");
   await closeMainNavigation(page);
-  await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "주 메뉴 열기", exact: true })).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -588,7 +586,7 @@ test("type selection remains scoped while a returned list catalog is loading", a
     await expect(page.getByLabel("자료 종류", { exact: true })).toBeDisabled();
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveAttribute("aria-busy", "true");
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue("자료 종류를 불러오는 중…");
-    await expect(page.getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
+    await expect(page.locator("main").getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
     release();
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.label);
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveAttribute("aria-busy", "false");
