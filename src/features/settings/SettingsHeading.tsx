@@ -1,4 +1,3 @@
-import { SettingsMenu } from "./SettingsMenu.tsx";
 import { PageHeading } from "../../components/PageHeading.tsx";
 
 export function SettingsHeading(
@@ -6,7 +5,6 @@ export function SettingsHeading(
 ) {
   return (
     <PageHeading title={title} description={description} id={id} tabIndex={tabIndex}>
-      <SettingsMenu />
     </PageHeading>
   );
 }

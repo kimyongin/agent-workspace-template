@@ -1,7 +1,7 @@
 import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { decodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { chooseSetting } from "./settings-actions.ts";
-import { openProfileMenu } from "./ui-actions.ts";
+import { openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { devLogin, test, unique, ownedWorkspace, workspacePath } from "./support.ts";
 import { closeDetail, saveOnce } from "./ui-actions.ts";
@@ -13,9 +13,8 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   const label = unique("탐색 자료"), title = unique("작성 자료");
   let typeId: string | undefined;
   await page.goto(workspacePath(workspace.id, "/settings"));
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", {
-    name: "자료",
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정",
     exact: true,
   }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill(label);
@@ -67,11 +66,10 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   await closeDetail(page, updatedTitle);
   await expect(page).toHaveURL(new RegExp(`entity_type_id=${typeId}`));
   expect(new URL(page.url()).searchParams.get("keyword")).toBe(title);
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", {
-    name: "자료",
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정",
     exact: true,
   }).click();
   await chooseSetting(page, page.getByLabel("자료 종류 선택", { exact: true }), label);

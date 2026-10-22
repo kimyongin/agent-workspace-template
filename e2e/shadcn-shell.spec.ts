@@ -337,13 +337,13 @@ test("shell blocked profile: discard cancellation restores the durable menu trig
   await page.goto(fixtureWorkspacePath("/settings/tags"));
   const name = page.getByRole("textbox", { name: /태그 이름/ });
   await name.fill("탐색 취소 뒤 유지할 태그 초안");
-  const profile = page.getByRole("button", { name: "내 프로필", exact: true });
-  await profile.click();
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  const destination = page.getByRole("link", { name: "기본 설정", exact: true });
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
   await expect(discard).toBeVisible();
   await discard.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(profile).toBeFocused();
+  await expect(destination).toBeFocused();
   await expect(name).toHaveValue("탐색 취소 뒤 유지할 태그 초안");
   await expect(page).toHaveURL(/\/settings\/tags$/);
   expect(state.writes).toEqual([]);

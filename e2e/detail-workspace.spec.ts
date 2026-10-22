@@ -1,7 +1,7 @@
 import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
-import { openProfileMenu } from "./ui-actions.ts";
+import { openMainNavigation } from "./ui-actions.ts";
 import { baseWorkspace, detailDialog, executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { fixtureSchema, fixtureType } from "./support/workspace-data.ts";
 import { expect, test, type Page, type Locator } from "@playwright/test";
@@ -351,8 +351,8 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
   await openTask(page);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   await panel(page).getByLabel("본문", { exact: true }).fill("메뉴를 이동해도 유지할 초안");
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   const left = baseWorkspace(page);
   await expect(left.getByRole("heading", { name: "기본 설정", level: 1, exact: true })).toBeVisible();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
@@ -360,10 +360,10 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
   await page.getByRole("tab", { name: "등심", exact: true }).click();
   await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
   await expect(left.getByLabel("닉네임", { exact: true })).toHaveValue("왼쪽 설정의 초안");
-  await left.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "기본", exact: true })).toHaveAttribute("aria-current", "page");
+  await openMainNavigation(page);
+  await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "기본 설정", exact: true })).toHaveAttribute("aria-current", "page");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true, includeHidden: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toHaveCount(0);
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
   for (const fontSize of [16, 32]) {
     await page.evaluate(value => document.documentElement.style.fontSize = `${value}px`, fontSize);
@@ -378,18 +378,18 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
     await page.screenshot({ path: info.outputPath(fontSize === 16 ? "settings-and-retained-detail.png" : "settings-and-retained-detail-font200.png") });
   }
   await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
   const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(left.getByLabel("닉네임", { exact: true })).toHaveValue("왼쪽 설정의 초안");
-  if (await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).getAttribute("aria-expanded") !== "true") await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "사용 가이드", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
   await confirm.getByRole("button", { name: "변경 버리기" }).click();
   await expect(left.getByRole("heading", { name: "사용 가이드", level: 1, exact: true })).toBeVisible();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("tab")).toHaveCount(2);
@@ -616,7 +616,7 @@ test("desktop: record tabs use distinct body previews and logout removes the ret
   await expect(page.getByRole("tab", {name:title,exact:true})).toHaveAttribute("aria-selected","true");
     await expect(page.getByRole("tab", { name: title, exact: true })).toHaveAttribute("aria-selected", "true");
   }
-  await expect(page.getByRole("tab")).toHaveCount(2); await openProfileMenu(page); await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
+  await expect(page.getByRole("tab")).toHaveCount(2); await openMainNavigation(page); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/); await expect(page.getByRole("tab")).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("sb-127-auth-token"))).toBeNull(); expect(state.errors).toEqual([]);
 });
@@ -1107,8 +1107,8 @@ test("desktop: opened detail tabs stay visible while navigating to another list"
 test("desktop: opened detail tabs stay visible when opening settings from the left menu", async ({ page }) => {
   await fixture(page);
   await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { name: "기본 설정", level: 1, exact: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "등심", exact: true })).toBeVisible();
@@ -1118,8 +1118,8 @@ test("desktop: a pending detail write remains protected while settings is the le
   const state = await fixture(page, { hold: true });
   await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
   await openTask(page);
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   await expect(page.getByRole("region", { name: "기본 작업 영역", exact: true, includeHidden: true }).getByRole("heading", { name: "기본 설정", exact: true, includeHidden: true })).toBeVisible();
   await panel(page).getByRole("button", { name: "편집", exact: true }).click();
   await panel(page).getByLabel("본문", { exact: true }).fill("설정 화면에서 상세 저장");
@@ -1150,8 +1150,8 @@ test("desktop: a pending base setting also prevents closing or hiding the retain
     await route.fulfill({ status: 400, json: { message: "Fixture profile save rejected" } });
   });
   await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   const form = page.getByRole("form", { name: "프로필 설정", exact: true });
   await form.getByLabel("닉네임", { exact: true }).fill("진행 중인 왼쪽 설정");
   await form.getByRole("button", { name: "프로필 저장", exact: true }).click();
@@ -1178,11 +1178,11 @@ for (const screen of ["materials", "relations"] as const) test(`desktop: uncerta
     return route.abort();
   });
   await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   const left = baseWorkspace(page);
-  await left.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
   if (screen === "materials") {
     await left.getByLabel("자료 종류 이름", { exact: true }).fill("미확정 종류");
     await left.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
@@ -1213,8 +1213,8 @@ test("desktop: closing the last detail retains the dirty base setting without a 
   await fixture(page);
   await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
   await openTask(page);
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   const nickname = baseWorkspace(page).getByLabel("닉네임", { exact: true });
   await nickname.fill("마지막 상세를 닫아도 유지");
   await page.getByRole("button", { name: "등심 구매하기 탭 닫기", exact: true }).click();
@@ -1542,8 +1542,8 @@ test("desktop: deferred settings loading and failure preserve the retained draft
     await editor.fill("설정 로딩 실패에도 보존할 초안");
     const originalEditor = await editor.elementHandle();
     const font = await page.locator("html").evaluate(node => getComputedStyle(node).fontSize);
-    await openProfileMenu(page);
-    await page.getByRole("menuitem", { name: "설정", exact: true }).click();
+    await openMainNavigation(page);
+    await page.getByRole("link", { name: "기본 설정", exact: true }).click();
     await expect(baseWorkspace(page).getByRole("status")).toContainText("기본 설정 화면을 불러오는 중");
     await expect(editor).toHaveValue("설정 로딩 실패에도 보존할 초안");
     expect(requests).toBe(1);

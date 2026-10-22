@@ -1,3 +1,4 @@
+import { openMainNavigation } from "./ui-actions.ts";
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { chooseSetting } from "./settings-actions.ts";
@@ -214,8 +215,8 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
   state.fail("lost");
   await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("button", { name: "같은 내용 다시 시도", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
   await expect(page).toHaveURL(/settings\/records$/);
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   await page.keyboard.press("Escape");
@@ -228,12 +229,12 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
 test("태그 관리는 설정 링크 하나에서 같은 화면의 대상을 전환한다", async ({ page }) => {
   await settingsFixture(page);
   await page.goto(fixtureWorkspacePath("/settings"));
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await expect(page.getByRole("menuitem", { name: "태그", exact: true })).toHaveCount(1);
+  await openMainNavigation(page);
+  await expect(page.getByRole("link", { name: "태그 설정", exact: true })).toHaveCount(1);
   for (const name of ["자료 태그", "할 일 태그", "기록 태그"]) {
     await expect(page.getByRole("link", { name, exact: true })).toHaveCount(0);
   }
-  await page.getByRole("menu", { name: "설정 메뉴" }).getByRole("menuitem", { name: "태그", exact: true }).click();
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "태그 설정", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/tags$/);
   await expect(page.getByRole("heading", { name: "태그 설정", exact: true })).toBeVisible();
   const target = page.getByRole("radiogroup", { name: "관리 대상", exact: true });
@@ -321,8 +322,8 @@ test("통합 태그는 접힌 섹션에도 조회 오류와 저장 미확정 상
   await page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true }).fill("응답 미확정");
   await page.getByRole("button", { name: "추가", exact: true }).click();
   await expect(section).toContainText("결과 확인 필요");
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", { name: "자료", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
   await expect(page).toHaveURL(/settings\/tags$/);
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   await page.keyboard.press("Escape");
@@ -423,8 +424,8 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   await expect(form.getByLabel("메모 템플릿")).toHaveText("수정 초안");
   await chooseSetting(page, form.getByLabel("액션", { exact: true }), "등록");
   await expect(form.getByLabel("메모 템플릿")).toHaveText("할 일 초안");
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("menuitem", { name: "기본", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "기본 설정", exact: true }).click();
   await page.getByRole("alertdialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
     .click();
   await page.keyboard.press("Escape");

@@ -1,6 +1,6 @@
 import { businessRows } from "./table-actions.ts";
 import { chooseSetting } from "./settings-actions.ts";
-import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
+import { openMainNavigation } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { test, devLogin, ownedWorkspace, workspacePath } from "./support.ts";
 // Serial real Auth metadata round trip, run by the integration owner.
@@ -49,8 +49,8 @@ test("personal navigation partial save survives reload and login without changin
     await openMainNavigation(page);
     await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link"))
       .toHaveText(["기록", "할 일"]);
-    await openProfileMenu(page);
-    await page.getByRole("menuitem", { name: "로그아웃", exact: true }).click();
+    await openMainNavigation(page);
+    await page.getByRole("link", { name: "로그아웃", exact: true }).click();
     await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
     await devLogin(page);
     await page.goto(workspacePath(workspace.id, "/tasks"));

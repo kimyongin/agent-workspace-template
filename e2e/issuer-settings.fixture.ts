@@ -1,3 +1,4 @@
+import { openMainNavigation } from "./ui-actions.ts";
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { chooseSetting } from "./settings-actions.ts";
@@ -291,19 +292,15 @@ test("issuer retry retains its hidden stable code and request key; builtin app s
   expect(state.writes[0].body.code).toMatch(/^issuer_[a-f0-9]{24}$/);
 });
 
-test("selecting the current settings category closes its menu without leaving the page", async ({ page, baseURL }) => {
+test("현재 자료 설정 범주를 눌러도 하위 화면과 초안을 유지한다", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
   await page.goto(fixtureWorkspacePath("/settings/issuers"));
   await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
-  const url = page.url(), trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
-  await trigger.click();
-  const current = page.getByRole("menu", { name: "설정 메뉴", exact: true })
-    .getByRole("menuitem", { name: "자료", exact: true });
+  const url = page.url();
+  await openMainNavigation(page);
+  const current = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true });
   await expect(current).toHaveAttribute("aria-current", "page");
   await current.click();
-  await expect(trigger).toHaveAttribute("aria-expanded", "false");
-  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true })).toHaveCount(0);
-  await expect(trigger).toBeFocused();
   await expect(page).toHaveURL(url);
   expect(state.writes).toEqual([]);
 });
@@ -319,25 +316,20 @@ test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
-  await expect(menu.getByRole("menuitem")).toHaveText([
-    "기본",
-    "자료",
-    "태그",
-    "기록",
-    "이 공간 관리",
-    "공간 목록 · 새 공간",
-  ]);
-  await expect(menu.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveAttribute(
+  await openMainNavigation(page);
+  const menu = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  for (const name of ["기본 설정", "자료 설정", "태그 설정", "기록 설정", "이 공간 관리", "공간 목록 · 새 공간"]) {
+    await expect(menu.getByRole("link", { name, exact: true })).toHaveCount(1);
+  }
+  await expect(menu.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveAttribute(
     "href",
     fixtureWorkspacePath("/manage"),
   );
-  await expect(menu.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute(
+  await expect(menu.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toHaveAttribute(
     "href",
     "/workspaces",
   );
-  await menu.getByRole("menuitem", { name: "자료", exact: true }).click();
+  await menu.getByRole("link", { name: "자료 설정", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/issuers$/);
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -380,51 +372,20 @@ test("자료 설정 안에서 종류·연결·번호와 전체 파일 교환을 
   expect(state.writes).toEqual([]);
 });
 
-test("settings menu supports directional keys and visibly identifies the current category", async ({ page, baseURL }) => {
+test("드로어 설정 링크는 Tab으로 이동하고 현재 범주를 강조한다", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
   await page.goto(fixtureWorkspacePath("/settings/issuers"));
-  const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
-  await trigger.focus();
-  await trigger.press("ArrowDown");
-  const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
-  const first = menu.getByRole("menuitem", { name: "기본", exact: true });
-  const current = menu.getByRole("menuitem", { name: "자료", exact: true });
-  await expect(first).toBeFocused();
-  await first.press("ArrowDown");
+  await openMainNavigation(page);
+  const menu = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  const first = menu.getByRole("link", { name: "기본 설정", exact: true });
+  const current = menu.getByRole("link", { name: "자료 설정", exact: true });
+  await first.focus(); await first.press("Tab");
   await expect(current).toBeFocused();
   await expect(current).toHaveAttribute("aria-current", "page");
-  expect(await current.evaluate((node) => getComputedStyle(node).backgroundColor))
-    .not.toBe(await first.evaluate((node) => getComputedStyle(node).backgroundColor));
-  await current.press("End");
-  const last = menu.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true });
-  await expect(last).toBeFocused();
-  await page.keyboard.press("Home");
-  await expect(first).toBeFocused();
-  await first.press("ArrowUp");
-  await expect(last).toBeFocused();
-  await last.press("ArrowDown");
-  await expect(first).toBeFocused();
-  await first.press("Escape");
-  await expect(trigger).toBeFocused();
-  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(await current.evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe(await first.evaluate(node => getComputedStyle(node).backgroundColor));
+  await current.press("Tab");
+  await expect(menu.getByRole("link", { name: "태그 설정", exact: true })).toBeFocused();
   expect(state.writes).toEqual([]);
-});
-
-test("closing settings menu on a noninteractive background restores its trigger focus", async ({ page, baseURL }) => {
-  await fixture(page, baseURL!);
-  await page.goto(fixtureWorkspacePath("/settings/issuers"));
-  const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
-  await trigger.focus();
-  await trigger.press("ArrowDown");
-  await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem").first())
-    .toBeFocused();
-  await page.getByRole("heading", { name: "자료 설정", exact: true }).click();
-  await expect(trigger).toHaveAttribute("aria-expanded", "false");
-  await expect(trigger).toBeFocused();
-  await trigger.click();
-  // The menu overlays the row's right side on a narrow viewport.
-  await page.getByRole("button", { name: "네이버", exact: true }).click({ position: { x: 12, y: 22 } });
-  await expect(page.getByRole("button", { name: "네이버", exact: true })).toBeFocused();
 });
 
 test("first number failure and unknown result preserve the saved issuer and retry only the number", async ({ page, baseURL }) => {
@@ -850,11 +811,11 @@ test("schema field drafts protect settings tabs and restore originating menu foc
   const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await discard.getByRole("button", { name: "취소", exact: true }).click();
   await expect(field.getByLabel("항목 이름", { exact: true })).toHaveValue("유지할 번호");
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  const menu = page.getByRole("menu", { name: "설정 메뉴", exact: true });
-  await menu.getByRole("menuitem", { name: "태그", exact: true }).click();
+  await openMainNavigation(page);
+  const menu = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  await menu.getByRole("link", { name: "태그 설정", exact: true }).click();
   await discard.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(menu.getByRole("menuitem", { name: "태그", exact: true })).toBeFocused();
+  await expect(menu.getByRole("link", { name: "태그 설정", exact: true })).toBeFocused();
   expect(state.writes).toEqual([]);
 });
 

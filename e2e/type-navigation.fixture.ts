@@ -3,7 +3,7 @@ import { encodeIdentifierValue } from "../supabase/functions/_shared/contracts/e
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
-import { openMainNavigation, openProfileMenu } from "./ui-actions.ts";
+import { openMainNavigation } from "./ui-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
 import { fixtureSchema } from "./support/workspace-data.ts";
@@ -299,14 +299,14 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   await openMainNavigation(page);
   await page.getByRole("searchbox", { name: "자료 종류 검색", exact: true }).fill("긴한국어");
   await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: items[11].label, exact: true })).toHaveCount(1);
-  await openProfileMenu(page);
-  const menu = page.getByRole("menu");
-  await menu.getByRole("menuitem", { name: "로그아웃", exact: true }).focus();
-  const box = await menu.getByRole("menuitem", { name: "로그아웃", exact: true }).boundingBox();
+  await openMainNavigation(page);
+  const menu = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  await menu.getByRole("link", { name: "로그아웃", exact: true }).focus();
+  const box = await menu.getByRole("link", { name: "로그아웃", exact: true }).boundingBox();
   expect(box!.y).toBeGreaterThanOrEqual(0);
   expect(box!.y + box!.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeFocused();
+  await closeMainNavigation(page);
 });
 
 test("short layouts and enlarged long labels keep controls inside viewport", async ({ page }, info) => {
@@ -333,7 +333,8 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
     expect(size[1]).toBeGreaterThanOrEqual(44);
   }
   const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
-  const profile = navigation.getByRole("button", { name: "내 프로필", exact: true });
+  const profile = navigation.getByRole("group", { name: "내 프로필", exact: true });
+  const lastDestination = navigation.getByRole("link", { name: "로그아웃", exact: true });
   const switcher = navigation.getByRole("button", { name: "공간 선택", exact: true });
   const wheelDistance = await navigation.evaluate(nav => Math.max(nav.scrollHeight, ...[...nav.querySelectorAll("*")].map(element => element.scrollHeight)));
   const navBox = (await navigation.boundingBox())!;
@@ -357,16 +358,16 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
     expect(target.width).toBeGreaterThanOrEqual(44);
     expect(target.height).toBeGreaterThanOrEqual(44);
     visited.push(await focused.getAttribute("aria-label") ?? (await focused.innerText()).trim());
-    if (await profile.evaluate(element => element === document.activeElement)) { reachedProfile = true; break; }
+    if (await lastDestination.evaluate(element => element === document.activeElement)) { reachedProfile = true; break; }
   }
   expect(reachedProfile).toBe(true);
-  expect(visited).toEqual(expect.arrayContaining(["공간 선택", "메뉴 닫기", long.label, products.label, "할 일", "기록", "전체 자료", "내 프로필"]));
+  expect(visited).toEqual(expect.arrayContaining(["공간 선택", "메뉴 닫기", long.label, products.label, "할 일", "기록", "전체 자료", "로그아웃"]));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("short-navigation-keyboard.png") });
-  await openProfileMenu(page);
-  await page.getByRole("menuitem", { name: "로그아웃", exact: true }).focus();
+  await openMainNavigation(page);
+  await page.getByRole("link", { name: "로그아웃", exact: true }).focus();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeFocused();
+  await closeMainNavigation(page);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "주 메뉴 열기", exact: true })).toBeFocused();
@@ -521,9 +522,8 @@ test("clean settings navigation proceeds while initial record templates are stil
   try {
     await page.goto(fixtureWorkspacePath("/settings/records"));
     await arrived;
-    await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    await page.getByRole("menu", { name: "설정 메뉴", exact: true }).getByRole("menuitem", {
-      name: "자료",
+    await openMainNavigation(page);
+    await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정",
       exact: true,
     }).click();
     await expect(page).toHaveURL(/\/settings\/materials$/, { timeout: 1500 });

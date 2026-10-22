@@ -1,3 +1,4 @@
+import { openMainNavigation } from "./ui-actions.ts";
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { businessRows } from "./table-actions.ts";
@@ -200,13 +201,13 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
   state.fail();
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("alert")).toContainText("선택한 메뉴를 유지");
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("menu", { name: "설정 메뉴" }).getByRole("menuitem", { name: "자료", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("alertdialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toHaveCount(0);
   await expectShortcuts(page, ["기록", "할 일"]);
   await page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
   await expectShortcuts(page, ["할 일", "기록"]);
@@ -278,9 +279,9 @@ test("invalid navigation reads fallback without hidden writes and all profile de
   for (const label of ["전체 자료", "기록"]) {
     const link = nav(page).getByRole("link", { name: label, exact: true }); await link.scrollIntoViewIfNeeded(); await expect(link).toBeVisible();
   }
-  await nav(page).getByRole("button", { name: "내 프로필", exact: true }).click();
+  await openMainNavigation(page);
   for (const label of ["설정", "사용 가이드", "로그아웃"]) {
-    const link = page.getByRole("menuitem", { name: label, exact: true }); await link.scrollIntoViewIfNeeded(); await expect(link).toBeVisible();
+    const link = page.getByRole("link", { name: label === "설정" ? "기본 설정" : label, exact: true }); await link.scrollIntoViewIfNeeded(); await expect(link).toBeVisible();
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(state.writes).toEqual([]);
@@ -349,8 +350,8 @@ test("pending save prevents duplicate submission and departure until authoritati
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("button", { name: "메뉴 바로가기 저장" })).toBeDisabled();
   await expect(page.getByRole("combobox", { name: "추가할 메뉴", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-  await page.getByRole("menu", { name: "설정 메뉴" }).getByRole("menuitem", { name: "자료", exact: true }).click();
+  await openMainNavigation(page);
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
   await expect(page).toHaveURL(/\/settings#settings-navigation$/);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   release();
@@ -386,7 +387,7 @@ test("late old account metadata cannot overwrite the new account navigation", as
     });
   });
   await page.goto(fixtureWorkspacePath("/tasks"));
-  await openNavigation(page); await expect(nav(page).getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeVisible();
+  await openNavigation(page); await expect(nav(page).getByRole("group", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeVisible();
   await page.evaluate(async (access_token) => {
     const path = "/src/lib/supabase.ts";
     const { supabase } = await import(path);

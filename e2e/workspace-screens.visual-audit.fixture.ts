@@ -118,11 +118,7 @@ for (const width of [390, 1440]) {
         await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(5);
       }
       if (name === "material") {
-        const menu = page.getByRole("button", { name: "설정 메뉴", exact: true });
-        await expect(menu.locator("svg")).toBeVisible();
-        const target = await menu.evaluate(node => node.getBoundingClientRect().toJSON());
-        expect(target.width).toBeGreaterThanOrEqual(44);
-        expect(target.height).toBeGreaterThanOrEqual(44);
+        await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toHaveCount(0);
         for (const title of ["기본 정보", "입력 항목"]) {
           await page.getByRole("button", { name: title, exact: true }).click();
         }
@@ -189,14 +185,13 @@ for (const width of [390, 1440]) {
       exact: true,
     }).click();
     await goApp(page, "/settings");
-    await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true })).toBeVisible();
-    await page.screenshot({ path: info.outputPath(`settings-menu-${width}.png`) });
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("menu", { name: "설정 메뉴", exact: true })).toHaveCount(0);
     await openMainNavigation(page);
-    await page.getByRole("button", { name: /^내 프로필/ }).click();
-    await expect(page.locator('[role="menu"]')).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath(`settings-menu-${width}.png`) });
+    await closeMainNavigation(page);
+    await openMainNavigation(page);
+    await expect(page.getByRole("group", { name: "내 프로필", exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath(`profile-menu-${width}.png`) });
     expect(state.errors).toEqual([]);
     expect(state.writes).toHaveLength(0);

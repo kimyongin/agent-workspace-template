@@ -2,7 +2,6 @@ import { useNavigate } from "../../lib/workspace-router.tsx";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CardDescription } from "@/components/ui/card";
 import { PageHeading } from "../../components/PageHeading.tsx";
-import { SettingsMenu } from "./SettingsMenu.tsx";
 
 const sections = [
   {
@@ -39,11 +38,26 @@ export function MaterialSettingsHeading({ section, id }: {
   return (
     <>
       <PageHeading title="자료 설정" description="자료 종류·연결 방법·번호 설정을 함께 관리합니다." id={id}>
-        <SettingsMenu />
       </PageHeading>
-      <Tabs value={section} activationMode="manual" onValueChange={key => { const target = sections.find(item => item.key === key); if(target) void navigate(target.to); }}>
+      <Tabs
+        value={section}
+        activationMode="manual"
+        onValueChange={(key) => {
+          const target = sections.find((item) => item.key === key);
+          if (target) void navigate(target.to);
+        }}
+      >
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4" aria-label="자료 설정 항목">
-          {sections.map(({ key, label }) => <TabsTrigger key={key} value={key} aria-current={section === key ? "page" : undefined} className="min-h-[max(2.75rem,44px)] whitespace-normal">{label}</TabsTrigger>)}
+          {sections.map(({ key, label }) => (
+            <TabsTrigger
+              key={key}
+              value={key}
+              aria-current={section === key ? "page" : undefined}
+              className="min-h-[max(2.75rem,44px)] whitespace-normal"
+            >
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
       </Tabs>
       <CardDescription>{sections.find(({ key }) => key === section)?.description}</CardDescription>

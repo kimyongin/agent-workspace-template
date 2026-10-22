@@ -97,13 +97,7 @@ async function openNavigation(page: Page) {
   await openMainNavigation(page);
   return page.getByRole("navigation", { name: "주 메뉴", exact: true });
 }
-async function openSettingsMenu(page: Page) {
-  const navigation = await openNavigation(page);
-  await navigation.getByRole("button", { name: "내 프로필", exact: true }).click();
-  await page.getByRole("menuitem", { name: "설정", exact: true }).click();
-  await routeReady(page, /\/settings$/, "기본 설정");
-  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-}
+async function openSettingsMenu(page: Page) { await openMainNavigation(page); }
 /** A route click commits before the old mobile Sheet's closing Presence is removed. */
 async function routeReady(page: Page, path: RegExp, heading: string) {
   await expect(page).toHaveURL(path);
@@ -378,8 +372,7 @@ test(
           sidebar.getByRole("button", { name: "공간 선택", exact: true }),
         ).toContainText(name);
         await openSettingsMenu(page);
-        await page.getByRole("menuitem", {
-          name: "공간 목록 · 새 공간",
+        await page.getByRole("link", { name: "공간 목록 · 새 공간",
           exact: true,
         }).click();
         await routeReady(page, /\/workspaces$/, "내 공간");
@@ -393,7 +386,7 @@ test(
       await selectWorkspace(page, names[0]);
       await routeReady(page, new RegExp(`/w/${created[0]}/manage$`), "공간 관리");
       await openSettingsMenu(page);
-      await page.getByRole("menuitem", { name: "이 공간 관리", exact: true })
+      await page.getByRole("link", { name: "이 공간 관리", exact: true })
         .click();
       await expect(page).toHaveURL(new RegExp(`/w/${created[0]}/manage$`));
       await expect(
@@ -439,7 +432,7 @@ test(
       });
       expect(owned.roots.size).toBe(2);
       await openSettingsMenu(page);
-      await page.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true }).click();
+      await page.getByRole("link", { name: "공간 목록 · 새 공간", exact: true }).click();
       await routeReady(page, /\/workspaces$/, "내 공간");
       const active = page.getByRole("table", { name: "공간 목록", exact: true });
       const deleted = page.getByRole("table", { name: "삭제한 공간", exact: true });
@@ -527,9 +520,9 @@ test(
       await expect(section).toContainText(name);
       await expect(section.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveCount(0);
       await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
-      await reader.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-      await expect(reader.getByRole("menuitem", { name: "이 공간 관리", exact: true })).toHaveCount(0);
-      await expect(reader.getByRole("menuitem", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
+      await openMainNavigation(reader);
+      await expect(reader.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveCount(0);
+      await expect(reader.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
       await reader.keyboard.press("Escape");
       await reader.screenshot({
         path: info.outputPath("actual-no-settings-workspace.png"),

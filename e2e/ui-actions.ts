@@ -43,33 +43,6 @@ export async function closeMainNavigation(page: Page) {
   }
   await expect(sheet).toHaveCount(0);
 }
-export async function openProfileMenu(page: Page) {
-  const compact = await compactNavigation(page);
-  const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
-  if (!compact) await expect(trigger).toHaveCount(0);
-  const popup = page.getByRole("menu", { includeHidden: true }).filter({ has: page.getByRole("menuitem", { name: "로그아웃", exact: true, includeHidden: true }) });
-  const alreadyOpen = await popup.evaluateAll(elements => {
-    const visible = (element: Element) => {
-      const box = element.getBoundingClientRect(), style = getComputedStyle(element);
-      return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.visibility !== "collapse";
-    };
-    const compact = matchMedia("(max-width: 1023px), (max-height: 319px)").matches;
-    const sheets = [...document.querySelectorAll('[role="dialog"][data-sidebar="sidebar"][data-mobile="true"]')];
-    const popupOpen = elements.some(element => element.getAttribute("data-state") === "open" && visible(element));
-    const sheetOpen = sheets.some(element => element.getAttribute("data-state") === "open" && visible(element));
-    return popupOpen && (compact ? sheetOpen : sheets.length === 0);
-  });
-  if (alreadyOpen) return;
-  // A responsive navigation owner may unmount its old popup; closing Presence is not an open menu.
-  await expect(popup).toHaveCount(0);
-  await openMainNavigation(page);
-  const profile = page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true });
-  await expect(profile).toBeVisible();
-  if (await profile.getAttribute("aria-expanded") !== "true") await profile.click();
-  await expect(popup).toHaveAttribute("data-state", "open");
-  await expect(popup).toBeVisible();
-}
-
 /** Searchable type selection is exercised through the displayed domain label. */
 export async function chooseEntityType(page: Page, label?: string, scope: Page | Locator = page) {
   const picker = scope.getByRole("combobox", { name: "자료 종류", exact: true });
