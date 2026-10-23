@@ -32,6 +32,8 @@
 
 공식 컴포넌트의 간격·곡률·타이포그래피를 기본으로 사용한다. 페이지 배치는 flex/grid와 gap, min-w-0, 유연한 열로 구성한다. 같은 역할의 수정은 공통 부품에서 처리한다. 카드에는 Header·Title·Description·Content·Footer를, 폼에는 FieldGroup·Field·FieldLabel·FieldError를 사용한다. 경계는 Separator와 공식 variant로 표현한다.
 
+확인된 빈 데이터의 `Empty` `placeholder` variant는 배경 채움 없이 `border-border`의 얇은 점선과 `text-muted-foreground`의 보통 굵기 상태·안내를 사용한다. 좌우 `px-4`·상하 `py-6`, 내용 사이 `gap-2`를 기본으로 하며 주 목록은 `min-h-36`으로 데이터 영역을 확보한다. 상세·설정의 빈 구획은 내용에 맞춰 낮게 유지한다. 버튼과 장식 아이콘을 박스 안에 넣거나 높이를 남는 영역까지 늘려 빈 상태를 강조하지 않는다.
+
 페이지 간격은 역할에 따라 정한다. 아래 값은 100%·기본 글자에서의 기준이며 rem 토큰으로 개인 배율·글자 확대에 함께 대응한다. 공식 Card·Field 등 부품 내부의 고유 간격은 유지한다.
 
 | 관계 | 기본 간격 | 소유자 |

@@ -1,6 +1,7 @@
 import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
 import { BusinessCell, BusinessDetails, BusinessDisclosureCell, BusinessRow } from "../../components/BusinessTable.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
 import { PlusIcon, RotateCcwIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -190,8 +191,8 @@ function IssuerSettingsPageContent() {
         </AlertDescription></Alert>
       )}
       {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
-      {issuers?.length === 0 && !loading && !error && <p className="text-sm text-muted-foreground">번호 출처가 없습니다.</p>}
-      <CollectionList view="table" label="번호 출처 목록" columns={["번호 출처", "상태"]}>
+      {issuers?.length === 0 && !loading && !error && <CollectionEmpty title="번호 출처가 없습니다." description={canWrite ? "번호 출처 추가로 사용할 번호의 출처를 등록하세요." : undefined} />}
+      {!!issuers?.length && (<CollectionList view="table" label="번호 출처 목록" columns={["번호 출처", "상태"]}>
         {issuers?.map((issuer) => (
           <IssuerRow
             key={issuer.code}
@@ -251,8 +252,8 @@ function IssuerSettingsPageContent() {
                   </div>
                 )}
                 </div>
-                {rules?.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
-                <CollectionList view="table" disclosureColumn={!issuer.system} label="번호 종류 목록" columns={["번호 종류 이름", "입력 방식", "사용"]}>
+                {rules?.length === 0 && !ruleError && <CollectionEmpty title="등록된 번호 종류가 없습니다." description={canWrite && !issuer.system && issuer.active ? "번호 종류 추가로 이 출처에서 사용할 번호를 설정하세요." : undefined} />}
+                {!!rules?.length && (<CollectionList view="table" disclosureColumn={!issuer.system} label="번호 종류 목록" columns={["번호 종류 이름", "입력 방식", "사용"]}>
                   {rules?.map((rule) => {
                     const generation = rule.generation === "automatic" ? "자동 생성" : "직접 입력";
                     const expanded = inline && editing.rule?.id === rule.id;
@@ -269,13 +270,13 @@ function IssuerSettingsPageContent() {
                       <BusinessDetails hidden={!expanded} id={`${ruleListId}-${rule.id}`}>{expanded && editing && renderEditor(editing, true)}</BusinessDetails>
                     </Fragment>;
                   })}
-                </CollectionList>
+                </CollectionList>)}
 
               </>
             )}
           </IssuerRow>
         ))}
-      </CollectionList>
+      </CollectionList>)}
       <p className="text-sm text-muted-foreground">
         실제 상품 번호·주문 번호 값은 각 자료에 입력합니다.
       </p>

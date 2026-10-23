@@ -1,7 +1,7 @@
 import { useApi } from "../../lib/api-context.tsx";
 import { FieldGroup } from "@/components/ui/field";
 import { BusinessCell, BusinessDisclosureCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
 import { Input } from "@/components/ui/input";
 import { Button } from "../../components/ui/button.tsx";
 import { surfaceFor } from "../../lib/surface-dom.ts";
@@ -410,14 +410,10 @@ export function TagManagement(
           </>
         )}
         {loading && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
-        {page?.items.length === 0 && (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>아직 태그가 없습니다.</EmptyTitle>
-            </EmptyHeader>
-          </Empty>
+        {page?.items.length === 0 && !draft?.initial && !loading && !error && (
+          <CollectionEmpty title="아직 태그가 없습니다." description="태그 이름을 입력하고 추가하세요." />
         )}
-        <BusinessTable disclosureColumn={false} label={`${tagScopeLabels[scope]} 태그 목록`} columns={["태그 이름", "작업"]}>
+        {!!(page?.items.length || draft?.initial) && (<BusinessTable disclosureColumn={false} label={`${tagScopeLabels[scope]} 태그 목록`} columns={["태그 이름", "작업"]}>
           {(draft?.initial && !page?.items.some((t) => t.id === draft.initial?.id)
             ? [draft.initial, ...(page?.items ?? [])]
             : page?.items ?? []).map((tag) => (
@@ -445,7 +441,7 @@ export function TagManagement(
                 )}</BusinessCell>
               </BusinessRow>
             ))}
-        </BusinessTable>
+        </BusinessTable>)}
         {page?.next_cursor && (
           <Button
             variant="ghost"

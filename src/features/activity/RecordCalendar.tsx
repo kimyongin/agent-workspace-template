@@ -9,7 +9,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
 import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import { todayIn } from "../../lib/format.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
@@ -163,11 +163,7 @@ export function RecordCalendar<T extends { id: string }>(
             </CollectionList>
           )
           : (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>이 날짜에 불러온 기록이 없습니다.</EmptyTitle>
-              </EmptyHeader>
-            </Empty>
+            <CollectionEmpty title="이 날짜에 불러온 기록이 없습니다." description="다른 날짜를 선택해 기록을 확인하세요." />
           )}
       </section>
     </section>

@@ -2,7 +2,7 @@ import { DataFields } from "./DataFields.tsx";
 import { type ReactNode, type ReactElement, useId } from "react";
 import { DetailLink, useDetailViewState } from "../lib/detail-exploration.tsx";
 import { CollectionHeading, type ItemView, RelatedCollectionView, useItemLayout } from "./Collection.tsx";
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "./ui/empty.tsx";
+import { CollectionEmpty } from "./CollectionEmpty.tsx";
 import { Button } from "./ui/button.tsx";
 import { Item, ItemContent, ItemHeader, ItemActions } from "./ui/item.tsx";
 import { BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "./BusinessTable.tsx";
@@ -65,12 +65,7 @@ export function RelatedEmpty({ title = "연결된 자료가 없습니다.", desc
   title?: string;
   description?: ReactNode;
 }) {
-  return <Empty className="flex-none items-start gap-2 p-0 text-left">
-    <EmptyHeader className="max-w-none items-start">
-      <EmptyTitle>{title}</EmptyTitle>
-      {description && <EmptyDescription>{description}</EmptyDescription>}
-    </EmptyHeader>
-  </Empty>;
+  return <CollectionEmpty title={title} description={description} />;
 }
 
 export function ItemExpansionProvider(

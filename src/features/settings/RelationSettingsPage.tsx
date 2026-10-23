@@ -1,6 +1,7 @@
 import { WorkspaceSettingsBoundary, useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
+import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldSet } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
@@ -165,7 +166,7 @@ function RelationSettingsPageContent() {
         </AlertDescription></Alert>
       )}
       {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
-      <CollectionList view="table" label="연결 설정 목록" columns={["연결 설정", "설정 요약"]}>
+      {(page.items.length > 0 || edit === "new") && (<CollectionList view="table" label="연결 설정 목록" columns={["연결 설정", "설정 요약"]}>
         {edit === "new" && <IssuerRow label="새 연결 설정" open>{editor()}</IssuerRow>}
         {page.items.map((row) => (
           <IssuerRow
@@ -182,9 +183,14 @@ function RelationSettingsPageContent() {
             {edit !== null && edit !== "new" && edit.id === row.id && editor(row)}
           </IssuerRow>
         ))}
-      </CollectionList>
+      </CollectionList>)}
       {!loading && !error && page.items.length === 0 && edit === null && (
-        <p className="text-sm text-muted-foreground">조건에 맞는 연결 설정이 없습니다.</p>
+        <CollectionEmpty
+          title={typeId || q || archived !== "active" ? "조건에 맞는 연결 설정이 없습니다." : "아직 연결 설정이 없습니다."}
+          description={typeId || q || archived !== "active"
+            ? "자료 종류나 검색어·상태를 바꿔 다른 연결 설정을 찾아보세요."
+            : canWrite && catalog.types ? "연결 설정 추가로 어떤 자료를 서로 연결할지 설정하세요." : undefined}
+        />
       )}
       {page.next_cursor && (
         <Button variant="ghost" type="button"

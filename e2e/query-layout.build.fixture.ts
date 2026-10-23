@@ -2,8 +2,8 @@ import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { readFileSync } from "node:fs";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { fixtures } from "./support/workspace-screens.ts";
-import { fixtureType } from "./support/workspace-data.ts";
-import { closeDetail } from "./ui-actions.ts";
+import { fixtureType, stamp } from "./support/workspace-data.ts";
+import { closeDetail, openDetailEditor } from "./ui-actions.ts";
 
 test.beforeAll(() => {
   const built = new URL("../test-results/query-layout-dist/", import.meta.url);
@@ -82,7 +82,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       expect(f.x + f.width - s.x).toBeLessThanOrEqual(width);
       const views = list.getByRole("radiogroup", { name: `${label} 보기 방식`, exact: true });
       await expect(views).toBeVisible();
-      await separated(page, views, list.getByText(/^(아직|조건에 맞는).+없습니다\.$/), 0.5, 1);
+      await separated(page, views, list.locator('[data-slot="empty"][data-variant="placeholder"]'), 0.5, 1);
       for (const toggle of await views.getByRole("radio").all()) {
         const box = (await toggle.boundingBox())!;
         expect(box.width).toBeGreaterThanOrEqual(44);
@@ -227,5 +227,87 @@ for (const width of [390, 1440]) {
       await page.screenshot({ path: info.outputPath(`audit-${path.replaceAll("/", "-")}-${width}.png`) });
     }
     expect(state.writes).toHaveLength(0);
+  });
+}
+
+for (const width of [390, 1440]) {
+  test(`빈 데이터 안내 ${width}px: 기존 행동 유지·조건 해제·설정과 상세`, async ({ page }, info) => {
+    const state = await fixtures(page);
+    await page.unroute("http://127.0.0.1:55580/**");
+    await page.setViewportSize({ width, height: 1000 });
+    state.rows.tags.length = 0;
+    const visit = (path: string) => page.goto(`/agent-workspace-template${fixtureWorkspacePath(path)}`);
+    const empty = page.locator('[data-slot="empty"][data-variant="placeholder"]');
+    const capture = async (name: string) => {
+      await expect(empty.first()).toBeVisible();
+      await expect(empty.getByRole("button")).toHaveCount(0);
+      await expect(empty.locator("svg")).toHaveCount(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`empty-${name}-${width}.png`), fullPage: true });
+    };
+    for (const kind of ["entities", "tasks", "records"] as const) {
+      const original = [...state.rows[kind]];
+      state.rows[kind].length = 0;
+      await visit(kind === "entities" ? `/entities?entity_type_id=${fixtureType.id}` : `/${kind}`);
+      await capture(kind);
+      if (kind !== "records") {
+        await expect(page.locator("[data-page-action]")).toHaveCount(1);
+        await page.locator("[data-page-action]").click();
+        await expect(page.getByRole("dialog").filter({ visible: true }).last()).toBeVisible();
+      } else {
+        await visit("/records?view=calendar");
+        await expect(page.getByText("이 날짜에 불러온 기록이 없습니다.", { exact: true })).toBeVisible();
+        await capture("record-calendar");
+      }
+      state.rows[kind].push(...original as never[]);
+    }
+    await visit(`/entities?entity_type_id=${fixtureType.id}&keyword=없는검색어`);
+    await capture("filtered");
+    await page.getByRole("button", { name: "검색 조건 해제", exact: true }).click();
+    await expect(empty).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /1개/ })).toBeVisible();
+
+    await visit("/settings/tags");
+    await capture("tags");
+    await expect(page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "추가", exact: true })).toHaveCount(1);
+    await visit("/settings/relations");
+    await capture("relations");
+    await expect(page.getByRole("button", { name: "연결 설정 추가", exact: true })).toHaveCount(1);
+    await page.getByRole("button", { name: "연결 설정 추가", exact: true }).click();
+    await expect(empty).toHaveCount(0);
+    await page.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(empty).toBeVisible();
+
+    await page.route("**/api/entity-issuers**", (route) =>
+      route.fulfill({
+        json: {
+          items: route.request().url().includes("/rules")
+            ? []
+            : [{ code: "external", label: "외부 시스템", active: true, system: false, version: 1 }],
+        },
+      }));
+    await visit("/settings/issuers");
+    await page.getByRole("button", { name: "외부 시스템", exact: true }).click();
+    await capture("number-kinds");
+    await expect(page.getByRole("button", { name: "번호 종류 추가", exact: true })).toHaveCount(1);
+
+    await visit(`/entities/${encodeURIComponent(state.rows.entities[0].id)}`);
+    await capture("detail");
+    await expect(page.getByRole("region", { name: "기록 (0개)", exact: true }).locator('[data-variant="placeholder"]'))
+      .toBeVisible();
+    await openDetailEditor(page);
+    await expect(page.getByRole("region", { name: "기록 (0개)", exact: true }).getByRole("table")).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath(`empty-detail-edit-${width}.png`), fullPage: true });
+    state.rows.entities[0].deleted_at = stamp;
+    await visit(`/entities/${encodeURIComponent(state.rows.entities[0].id)}`);
+    await capture("detail-deleted");
+    for (const name of ["할 일 (0개)", "기록 (0개)"]) {
+      const section = page.getByRole("region", { name, exact: true });
+      await expect(section.locator('[data-variant="placeholder"]')).toBeVisible();
+      await expect(section.getByRole("table")).toHaveCount(0);
+    }
+    expect(state.writes).toHaveLength(0);
+    expect(state.errors).toEqual([]);
   });
 }

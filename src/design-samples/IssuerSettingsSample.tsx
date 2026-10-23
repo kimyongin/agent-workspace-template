@@ -1,4 +1,5 @@
 import { DataFields } from "@/components/DataFields";
+import { CollectionEmpty } from "../components/CollectionEmpty.tsx";
 import { Fragment } from "react";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { BusinessTable, BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "../components/BusinessTable.tsx";
@@ -93,8 +94,8 @@ export function IssuerSettingsSample(
                 </Button>
               )}
             </div>
-            {source.numbers.length === 0 && <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
-            <BusinessTable label="번호 종류 예시" columns={["번호 종류 이름", "입력 방식", "사용"]} disclosureColumn={!source.system}>
+            {source.numbers.length === 0 && <CollectionEmpty title="등록된 번호 종류가 없습니다." description={!source.system ? "번호 종류 추가로 이 출처에서 사용할 번호를 설정하세요." : undefined} />}
+            {source.numbers.length > 0 && (<BusinessTable label="번호 종류 예시" columns={["번호 종류 이름", "입력 방식", "사용"]} disclosureColumn={!source.system}>
               {source.numbers.map((number, numberIndex) => {
                 const expanded = numberEdit?.source === index &&
                   numberEdit.number === numberIndex;
@@ -145,7 +146,7 @@ export function IssuerSettingsSample(
                   </Fragment>
                 );
               })}
-            </BusinessTable>
+            </BusinessTable>)}
           </IssuerRow>
         ))}
       </CollectionList>

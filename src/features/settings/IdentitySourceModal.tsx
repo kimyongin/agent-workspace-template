@@ -1,4 +1,5 @@
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
+import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
 import { PlusIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup } from "@/components/ui/field";
@@ -200,7 +201,7 @@ export function IdentitySourceModal({
                     {eligible[0].generation === "automatic" && eligible[0].label !== "자동 발급" ? " · 자동 발급" : ""}
                   </p>
                 )
-                : <p className="text-sm text-muted-foreground">등록된 번호 종류가 없습니다.</p>}
+                : !error && <CollectionEmpty title="등록된 번호 종류가 없습니다." description={canWrite && issuer && !issuer.system ? "번호 종류 추가로 이 출처에서 사용할 번호를 설정하세요." : undefined} />}
             </div>
             {issuer && !issuer.system && (
               <Button
