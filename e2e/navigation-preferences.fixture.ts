@@ -281,7 +281,7 @@ test("invalid navigation reads fallback without hidden writes and all profile de
     const link = nav(page).getByRole("link", { name: label, exact: true }); await link.scrollIntoViewIfNeeded(); await expect(link).toBeVisible();
   }
   await openMainNavigation(page);
-  for (const label of ["설정", "사용 가이드", "로그아웃"]) {
+  for (const label of ["설정", "로그아웃"]) {
     const link = page.getByRole("link", { name: label === "설정" ? "기본 설정" : label, exact: true }); await link.scrollIntoViewIfNeeded(); await expect(link).toBeVisible();
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

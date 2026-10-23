@@ -345,7 +345,7 @@ test("desktop: closing an inactive dirty tab asks once; cancel and discard prese
   await expect(page.getByRole("tab")).toHaveCount(1); await expect(confirm).not.toBeVisible();
   await expect(panel(page).getByRole("heading", { name: "등심", exact: true })).toBeVisible(); expect(state.errors).toEqual([]);
 });
-test("desktop: settings and guide preserve retained drafts; logout still protects them", async ({ page }, info) => {
+test("desktop: settings and record settings preserve retained drafts; logout still protects them", async ({ page }, info) => {
   const state = await fixture(page);
   await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
   await openTask(page);
@@ -379,14 +379,14 @@ test("desktop: settings and guide preserve retained drafts; logout still protect
   }
   await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
   await openMainNavigation(page);
-  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  await page.getByRole("link", { name: "기록 설정", exact: true }).click();
   const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(left.getByLabel("닉네임", { exact: true })).toHaveValue("왼쪽 설정의 초안");
   await openMainNavigation(page);
-  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  await page.getByRole("link", { name: "기록 설정", exact: true }).click();
   await confirm.getByRole("button", { name: "변경 버리기" }).click();
-  await expect(left.getByRole("heading", { name: "사용 가이드", level: 1, exact: true })).toBeVisible();
+  await expect(left.getByRole("heading", { name: "기록 설정", level: 1, exact: true })).toBeVisible();
   await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("메뉴를 이동해도 유지할 초안");
   await openMainNavigation(page);
   await page.getByRole("link", { name: "로그아웃", exact: true }).click();
