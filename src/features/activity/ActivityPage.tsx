@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
 import { useTaskAccess } from "./task-access.ts";
 import { NativeSelect } from "@/components/ui/native-select";
 import { NativeSelectOption } from "@/components/ui/native-select";
@@ -135,11 +136,17 @@ function ActivitySection(
         {list.busy && !list.items && <p role="status" className="text-sm text-muted-foreground">불러오는 중…</p>}
         {list.items?.length === 0 && !list.error && (
           <>
-            <p className="text-sm text-muted-foreground">
-              {filtered
+            <CollectionEmpty
+              className="min-h-36"
+              title={filtered
                 ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`
                 : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}
-            </p>
+              description={filtered
+                ? "검색어나 필터를 바꿔 다른 항목을 찾아보세요."
+                : kind === "records"
+                ? "할 일을 수행하면 결과와 변경 내역이 이곳에 쌓입니다."
+                : canWrite ? "작성으로 해야 할 일을 추가하세요." : undefined}
+            />
             {filtered && (
               <Button variant="ghost" type="button" onClick={onClear}>
                 <RotateCcwIcon data-icon="inline-start" />검색 조건 해제
@@ -147,7 +154,7 @@ function ActivitySection(
             )}
           </>
         )}
-        {list.items && (
+        {list.items && (list.items.length > 0 || view === "calendar") && (
           <TagReadProvider
             dictionary={dictionary}
             enabled={list.items.some((item) => item.tag_ids.length > 0)}

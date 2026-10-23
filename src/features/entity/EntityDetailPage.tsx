@@ -13,7 +13,7 @@ import { CollectionItem, CollectionList  } from "../../components/Collection.tsx
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
 import type { EntityContext } from "@contracts/entity-links.ts";
-import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedEmpty, RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
 import { RelatedTaskItem } from "../activity/RelatedTask.tsx";
 import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
@@ -169,6 +169,7 @@ export function EntityDetailPage() {
           count={entity[kind].count}
 
         >
+          {entity[kind].count === 0 && <RelatedEmpty title="연결된 기록이 없습니다." description="이 자료의 변경 내역이 이곳에 쌓입니다." />}
           {entity[kind].count > 0 && (
             <CollectionList columns={["본문 대표 문구"]}>
               {entity[kind].items.map((item) => (
@@ -242,22 +243,24 @@ export function EntityDetailPage() {
               {entity.deleted_at && (
                 <>
                   <RelatedSection title="할 일" count={taskAccess.canRead ? entity.tasks.count : 0}>
-                    <CollectionList columns={["제목"]}>
+                    {taskAccess.canRead && entity.tasks.count === 0 && <RelatedEmpty title="연결된 할 일이 없습니다." />}
+                    {taskAccess.canRead && entity.tasks.items.length > 0 && (<CollectionList columns={["제목"]}>
                       {(taskAccess.canRead ? entity.tasks.items : []).map((item) => (
                         <CollectionItem key={item.id}>
                           <RelatedTaskItem id={item.id} occurrence={null} />
                         </CollectionItem>
                       ))}
-                    </CollectionList>
+                    </CollectionList>)}
                   </RelatedSection>
                   <RelatedSection title="기록" count={entity.records.count}>
-                    <CollectionList columns={["본문 대표 문구"]}>
+                    {entity.records.count === 0 && <RelatedEmpty title="연결된 기록이 없습니다." description="이 자료의 변경 내역이 이곳에 쌓입니다." />}
+                    {entity.records.items.length > 0 && (<CollectionList columns={["본문 대표 문구"]}>
                       {entity.records.items.map((item) => (
                         <CollectionItem key={item.id}>
                           <RelatedRecordItem record={item} />
                         </CollectionItem>
                       ))}
-                    </CollectionList>
+                    </CollectionList>)}
                   </RelatedSection>
                 </>
               )}
@@ -310,13 +313,14 @@ export function EntityDetailPage() {
                     <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />
                     <EntityTaskRelations entity={entity} read={taskRead} readOnly />
                     <RelatedSection title="기록" count={entity.records.count} views={false}>
-                      <CollectionList columns={["본문 대표 문구"]}>
+                      {entity.records.count === 0 && <RelatedEmpty title="연결된 기록이 없습니다." description="이 자료의 변경 내역이 이곳에 쌓입니다." />}
+                      {entity.records.items.length > 0 && (<CollectionList columns={["본문 대표 문구"]}>
                         {entity.records.items.map((item) => (
                           <CollectionItem key={item.id}>
                             <RelatedItem title={recordDisplayText(item.body)} />
                           </CollectionItem>
                         ))}
-                      </CollectionList>
+                      </CollectionList>)}
                     </RelatedSection>
                   </div>
                 }

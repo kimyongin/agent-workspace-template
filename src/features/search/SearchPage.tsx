@@ -1,5 +1,5 @@
 import { BusinessCell, BusinessDisclosureCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
-import { Empty, EmptyHeader, EmptyDescription } from "../../components/ui/empty.tsx";
+import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { Input } from "../../components/ui/input.tsx";
@@ -283,8 +283,8 @@ export function SearchPage() {
               후에도 계속되면 관리자에게 색인 서비스 점검을 요청하세요. 처리 실패로 확정된 상태는 아닙니다.
             </p>
           )}
-          {!result.items.length && <Empty><EmptyHeader><EmptyDescription>검색 결과가 없습니다.</EmptyDescription></EmptyHeader></Empty>}
-          <BusinessTable disclosureColumn={false} label="검색 결과" columns={["제목 / 본문 대표 문구", "종류", "시각", "일치 구간", "검색 상태"]}>
+          {!result.items.length && <CollectionEmpty title="검색 결과가 없습니다." description="검색어나 필터를 바꿔 다시 검색하세요." />}
+          {!!result.items.length && (<BusinessTable disclosureColumn={false} label="검색 결과" columns={["제목 / 본문 대표 문구", "종류", "시각", "일치 구간", "검색 상태"]}>
             {result.items.map((r) => (
               <BusinessRow key={`${r.kind}:${r.id}`}>
                 <BusinessDisclosureCell />
@@ -310,7 +310,7 @@ export function SearchPage() {
                 <BusinessCell index={4}><SearchMatch item={r} /></BusinessCell>
               </BusinessRow>
             ))}
-          </BusinessTable>
+          </BusinessTable>)}
           {result.next_cursor && <Button variant="ghost" type="button" disabled={busy} onClick={() => more?.()}>더 보기</Button>}
         </>
       )}

@@ -1,4 +1,5 @@
 import { useSettingsAccess } from "../settings/workspace-settings-access.tsx";
+import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { EyeIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
@@ -330,7 +331,6 @@ export function EntitiesPage() {
           {selectedType?.archived && (
             <Notice>보관된 자료 종류입니다. 기존 자료를 읽을 수 있으며 새 자료를 추가하려면 보관을 해제하세요.</Notice>
           )}
-          {types?.length === 0 && <p className="text-sm text-muted-foreground">아직 자료 종류가 없습니다.</p>}
           {types && types.length > 0 && types.every((type) => type.archived) && (
             <p className="text-sm text-muted-foreground">모든 자료 종류가 보관되어 있습니다.</p>
           )}
@@ -442,9 +442,17 @@ export function EntitiesPage() {
           )}
           {page && visibleRows.length === 0 && !error && (
             <>
-              <p className="text-sm text-muted-foreground">
-                {hasConditions ? "조건에 맞는 자료가 없습니다." : "아직 자료가 없습니다."}
-              </p>
+              <CollectionEmpty
+                className="min-h-36"
+                title={hasConditions ? "조건에 맞는 자료가 없습니다." : types?.length === 0 ? "아직 자료 종류가 없습니다." : "아직 자료가 없습니다."}
+                description={hasConditions
+                  ? "검색어나 필터를 바꿔 다른 자료를 찾아보세요."
+                  : canCreate
+                  ? "작성으로 첫 자료를 등록하고, 할 일·기록을 함께 관리하세요."
+                  : canReadSettings && types?.length === 0
+                  ? "자료 종류 추가로 먼저 자료의 종류를 설정하세요."
+                  : undefined}
+              />
               {!hasConditions && <GuideLink />}
               {hasConditions && (
                 <Button
@@ -467,7 +475,7 @@ export function EntitiesPage() {
             dictionary={dictionary}
             enabled={!!page?.items.some((e) => (e as EntitySummary & { tag_ids?: string[] }).tag_ids?.length)}
           >
-            <CollectionList
+            {visibleRows.length > 0 && (<CollectionList
               view={view === "calendar" ? "table" : view}
               label={`${label} 목록`}
               columns={displaySchema ? ["제목"] : ["제목", "자료 종류"]}
@@ -484,7 +492,7 @@ export function EntitiesPage() {
                   />
                 </CollectionItem>
               ))}
-            </CollectionList>
+            </CollectionList>)}
           </TagReadProvider>
           {page && (page.next_cursor || page.pages > 1) && (
             <Button
