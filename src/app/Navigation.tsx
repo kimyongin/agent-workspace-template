@@ -20,7 +20,7 @@ import { Input } from "../components/ui/input.tsx";
 import { Alert, AlertDescription } from "../components/ui/alert.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { ScrollArea } from "../components/ui/scroll-area.tsx";
-import { BookOpenIcon, ChartNoAxesCombinedIcon, HouseIcon, LogOutIcon, UsersIcon } from "lucide-react";
+import { ChartNoAxesCombinedIcon, HouseIcon, LogOutIcon, UsersIcon } from "lucide-react";
 import { useNavigationPreview } from "../features/settings/navigation-preview.tsx";
 import { useAuth } from "../features/auth/AuthProvider.tsx";
 import { ProfileIcon } from "../features/settings/profile.tsx";
@@ -121,13 +121,10 @@ export function Navigation() {
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
-  const destinations = [{ to: "/status", label: "상태", icon: ChartNoAxesCombinedIcon }, {
-    to: "/guide",
-    label: "사용 가이드",
-    icon: BookOpenIcon,
-  }, { to: "/logout", label: "로그아웃", icon: LogOutIcon }];
+  const destinations = [{ to: "/status", label: "상태", icon: ChartNoAxesCombinedIcon },
+    { to: "/logout", label: "로그아웃", icon: LogOutIcon }];
   const renderDestination = (
-    { to, label, icon: Icon }: { to: string; label: string; icon: typeof BookOpenIcon },
+    { to, label, icon: Icon }: { to: string; label: string; icon: typeof HouseIcon },
     active = currentPath === to,
     keepCurrent = false,
   ) => (

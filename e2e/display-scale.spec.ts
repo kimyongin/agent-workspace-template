@@ -123,14 +123,16 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
     await expect.poll(async () => (await destination.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(44);
     await expect.poll(async () => (await destination.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
-  await page.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  await smallFont.evaluate(node => (node as HTMLStyleElement).remove());
+  await page.goto(fixtureWorkspacePath("/guide"));
+  const guideSmallFont = await page.addStyleTag({ content: ":root { font-size: 12px; }" });
   const installation = page.getByRole("button", { name: "설치·연결 정보", exact: true });
   await expect(installation).toBeVisible();
   const installationBox = (await installation.boundingBox())!;
   expect(installationBox.width).toBeGreaterThanOrEqual(44); expect(installationBox.height).toBeGreaterThanOrEqual(44);
   await installation.click();
   await expect(installation).toHaveAttribute("aria-expanded", "true");
-  await smallFont.evaluate(node => (node as HTMLStyleElement).remove());
+  await guideSmallFont.evaluate(node => (node as HTMLStyleElement).remove());
   await page.setViewportSize({ width: 320, height: 844 });
   for (const path of ["/entities", "/tasks", "/records", "/guide"]) {
     await page.goto(fixtureWorkspacePath(path));

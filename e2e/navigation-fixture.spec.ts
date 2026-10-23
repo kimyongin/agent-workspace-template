@@ -175,7 +175,7 @@ test("자료 메뉴와 계정 정보는 320~1440px와 200%에서 조작 가능�
   for (const [width, height, text] of [[320, 844, "200%"], [720, 450, ""]] as const) {
     await page.setViewportSize({ width, height }); await page.goto(fixtureWorkspacePath("/settings"));
     await page.evaluate(text => document.documentElement.style.fontSize = text, text);
-    await openNavigation(page); await expect(mainMenu(page).getByRole("link", { name: "사용 가이드", exact: true })).toBeVisible();
+    await openNavigation(page); await expect(mainMenu(page).getByRole("link", { name: "기록 설정", exact: true })).toBeVisible();
     await mainMenu(page).getByRole("link", { name: "로그아웃", exact: true }).focus(); await expect(mainMenu(page).getByRole("link", { name: "로그아웃", exact: true })).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`settings-reflow-${width}.png`) });
@@ -191,16 +191,17 @@ test("설정과 계정 목적지는 드로어에 펼치고 현재 위치를 표�
   await expect(page.getByRole("button", { name: "설정 메뉴", exact: true })).toHaveCount(0);
   await expect(navigation.getByRole("button", { name: "내 프로필", exact: true })).toHaveCount(0);
   await expect(navigation.locator('[aria-haspopup="menu"]')).toHaveCount(1);
-  for (const name of ["기본 설정", "자료 설정", "태그 설정", "기록 설정", "공간 목록 · 새 공간", "상태", "사용 가이드", "로그아웃"]) {
+  for (const name of ["기본 설정", "자료 설정", "태그 설정", "기록 설정", "공간 목록 · 새 공간", "상태", "로그아웃"]) {
     await expect(navigation.getByRole("link", { name, exact: true })).toHaveCount(1);
   }
   await expect(navigation.getByRole("link", { name: "기본 설정", exact: true })).toHaveAttribute("aria-current", "page");
-  await navigation.getByRole("link", { name: "사용 가이드", exact: true }).focus();
+  await expect(navigation.getByRole("link", { name: "사용 가이드", exact: true })).toHaveCount(0);
+  await navigation.getByRole("link", { name: "상태", exact: true }).focus();
   await page.keyboard.press("Tab");
   await expect(navigation.getByRole("link", { name: "로그아웃", exact: true })).toBeFocused();
-  await navigation.getByRole("link", { name: "사용 가이드", exact: true }).click();
-  await expect(page).toHaveURL(/\/guide$/);
-  await expect(page.getByRole("heading", { name: "사용 가이드", exact: true })).toBeVisible();
+  await navigation.getByRole("link", { name: "기록 설정", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings\/records$/);
+  await expect(page.getByRole("heading", { name: "기록 설정", exact: true })).toBeVisible();
 });
 
 test("저장 실패의 초안을 보존하고 서버 성공 응답·재조회·기본 복원을 반영한다", async ({ page }) => {
@@ -259,11 +260,11 @@ test("미저장 설정의 탭·프로필·뒤로가기·로그아웃은 같은 �
   await page.goto(fixtureWorkspacePath("/guide")); await settings(page); await page.getByRole("radio", { name: "별", exact: true }).check();
   const confirm = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
   let step = 0;
-  for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click(), async () => { await openNavigation(page); await mainMenu(page).getByRole("link", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
+  for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click(), async () => { await openNavigation(page); await mainMenu(page).getByRole("link", { name: "기록 설정", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
     await requestLogout(page);
   }]) {
     await action(); await expect(confirm).toBeVisible(); await confirm.getByRole("button", { name: "취소", exact: true }).click(); await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
-    if (step === 1) await expect(mainMenu(page).getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused();
+    if (step === 1) await expect(mainMenu(page).getByRole("link", { name: "기록 설정", exact: true })).toBeFocused();
     if (step === 3) {
       await expect(mainMenu(page).getByRole("link", { name: "로그아웃", exact: true })).toBeFocused();
     }
@@ -425,9 +426,8 @@ test("#217 아이콘 선택은 가용 폭에서 조작 가능하고 펼친 드�
     expect(tiles).toHaveLength(20); columns.push(tiles.filter(tile => Math.abs(tile.y - tiles[0].y) < 1).length);
     for (const tile of tiles) { expect(tile.width).toBeGreaterThanOrEqual(44); expect(tile.height).toBeGreaterThanOrEqual(44); }
     await openNavigation(page); const popup = mainMenu(page);
-    for (const name of ["기본 설정", "자료 설정", "태그 설정", "기록 설정", "상태", "사용 가이드", "로그아웃"]) await expect(popup.getByRole("link", { name, exact: true })).toHaveCount(1);
+    for (const name of ["기본 설정", "자료 설정", "태그 설정", "기록 설정", "상태", "로그아웃"]) await expect(popup.getByRole("link", { name, exact: true })).toHaveCount(1);
     await popup.getByRole("link", { name: "상태", exact: true }).focus();
-    await page.keyboard.press("Tab"); await expect(popup.getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused();
     await page.keyboard.press("Tab"); await expect(popup.getByRole("link", { name: "로그아웃", exact: true })).toBeFocused();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width === 390 || width === 1440) await page.screenshot({ path: info.outputPath(`profile-${width}.png`) });
@@ -497,7 +497,7 @@ test("종류 수가 줄어도 남은 검색 조건을 같은 자리에서 해제
   const nav = mainMenu(page), search = nav.getByRole("searchbox", { name: "자료 종류 검색", exact: true });
   await search.fill("검수 종류 9");
   visible = types.slice(0, 8);
-  await nav.getByRole("link", { name: "사용 가이드", exact: true }).click();
+  await nav.getByRole("link", { name: "기록 설정", exact: true }).click();
   await openNavigation(page);
   await expect(search).toHaveValue("검수 종류 9");
   await search.fill("");

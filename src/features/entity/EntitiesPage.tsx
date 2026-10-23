@@ -50,7 +50,6 @@ import { Notice } from "../../components/Field.tsx";
 import { scrollOwner } from "../../lib/surface-dom.ts";
 import { ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
-import { GuideLink } from "../../components/GuideLink.tsx";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 
 export function EntitiesPage() {
@@ -453,7 +452,6 @@ export function EntitiesPage() {
                   ? "자료 종류 추가로 먼저 자료의 종류를 설정하세요."
                   : undefined}
               />
-              {!hasConditions && <GuideLink />}
               {hasConditions && (
                 <Button
                   variant="ghost"

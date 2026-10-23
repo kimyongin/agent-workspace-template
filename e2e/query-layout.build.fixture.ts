@@ -240,6 +240,7 @@ for (const width of [390, 1440]) {
     const empty = page.locator('[data-slot="empty"][data-variant="placeholder"]');
     const capture = async (name: string) => {
       await expect(empty.first()).toBeVisible();
+      await expect(page.getByRole("link", { name: "사용 가이드", exact: true })).toHaveCount(0);
       await expect(empty.getByRole("button")).toHaveCount(0);
       await expect(empty.locator("svg")).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
