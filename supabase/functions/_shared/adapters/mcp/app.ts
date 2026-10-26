@@ -35,6 +35,8 @@ export interface McpConfig {
   /** MCP 서버의 정식 URL. 토큰 audience이자 보호 자원 식별자. */
   resource: string;
   token: TokenPolicy;
+  /** 브라우저 출처의 스킴·호스트·포트를 포함한 정확한 허용 목록. */
+  allowedOrigins: string[];
 }
 
 /** 모든 도구 응답과 함께 클라이언트에 주는 짧은 공통 안내(제품 스킬이 없는 클라이언트용). */
@@ -95,8 +97,16 @@ export function createMcpApp(
     }, { onerror: (e) => console.error("mcp request failed", e) });
     return await mcp.fetch(req);
   };
-  return withOAuthProtectedResource(
+  const protectedHandler = withOAuthProtectedResource(
     { resourceServer: config.resource, authorizationServer: config.token.issuer },
     handler,
   );
+  return (req: Request): Promise<Response> => {
+    // 메타데이터·인증보다 먼저 검사한다. Origin이 없는 네이티브 클라이언트는 계속 허용한다.
+    const origin = req.headers.get("origin");
+    if (origin !== null && !config.allowedOrigins.includes(origin)) {
+      return Promise.resolve(new Response(null, { status: 403 }));
+    }
+    return protectedHandler(req);
+  };
 }

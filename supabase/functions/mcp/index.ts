@@ -21,7 +21,7 @@ const resource = env.mcpUrl();
 Deno.serve(
   createMcpApp(
     activityDeps(),
-    { resource, token: { audience: resource, issuer: env.authIssuer() } },
+    { resource, token: { audience: resource, issuer: env.authIssuer() }, allowedOrigins: env.webOrigins() },
     tagDeps(),
     searchDeps(),
     entityDeps(),

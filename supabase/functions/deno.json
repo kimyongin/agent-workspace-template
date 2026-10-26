@@ -10,6 +10,7 @@
   "imports": {
     "zod": "npm:zod@4.6.5",
     "postgres": "npm:postgres@3.4.9",
+    "smol-toml": "npm:smol-toml@1.9.0",
     "hono": "npm:hono@4.13.12",
     "hono/cors": "npm:hono@4.13.12/cors",
     "@modelcontextprotocol/server": "npm:@modelcontextprotocol/server@2.2.0",
