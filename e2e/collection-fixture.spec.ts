@@ -144,80 +144,171 @@ test("calendar uses display dates, keyboard month edges, partial pages and saved
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
 
-test("all layouts fit narrow/wide screens and large text, with quiet icon controls", async ({ page }, info) => {
-  // Forty viewport/layout combinations include screenshots; keep their full assertions.
+// Forty viewport/layout combinations retain their assertions and captures in independent width cases.
+for (const width of [320, 390, 640, 1440]) {
+  test(
+    `all layouts fit narrow/wide screens and large text, with quiet icon controls · ${width}px`,
+    async ({ page }, info) => {
+      test.setTimeout(60_000);
+      const state = await fixture(page);
+      for (const kind of ["entities", "tasks", "records"]) {
+        await page.setViewportSize({ width, height: 844 });
+        for (const view of ["list", "cards", "table", ...(kind === "records" ? ["calendar"] : [])]) {
+          await page.goto(fixtureWorkspacePath(`/${kind}?view=${view}`));
+          await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toContainText(
+            "1개",
+          );
+          expect(
+            await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+            `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() =>
+              [...document.querySelectorAll("body *")].filter((el) => el.getBoundingClientRect().right > innerWidth + 1)
+                .slice(0, 8).map((el) =>
+                  `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${
+                    Math.round(el.getBoundingClientRect().right)
+                  }`
+                ).join(", ")
+            )}`,
+          ).toBe(true);
+          if (view === "calendar") {
+            const target = await page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first()
+              .boundingBox();
+            expect(target!.width).toBeGreaterThanOrEqual(44);
+            expect(target!.height).toBeGreaterThanOrEqual(44);
+          }
+          if (view === "table") {
+            for (const cell of await page.locator('[data-slot="table-cell"][class*="tabular-nums"]').all()) {
+              const reflowed = await cell.evaluate((el) => getComputedStyle(el.parentElement!).display === "grid");
+              expect(
+                await cell.evaluate((el) => getComputedStyle(el).textAlign),
+              ).toBe(reflowed ? "left" : "right");
+              expect(await cell.evaluate((el) => getComputedStyle(el).fontVariantNumeric)).toBe("tabular-nums");
+            }
+          }
+          await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
+        }
+      }
+      expect(state.errors).toEqual([]);
+      expect(state.writes).toEqual([]);
+    },
+  );
+}
+
+test("all layouts fit narrow/wide screens and large text, with quiet icon controls · 200% keyboard", async ({ page }) => {
   test.setTimeout(60_000);
   const state = await fixture(page);
-  for (const width of [320, 390, 640, 1440]) for (const kind of ["entities", "tasks", "records"]) {
-    await page.setViewportSize({ width, height: 844 });
-    for (const view of ["list", "cards", "table", ...(kind === "records" ? ["calendar"] : [])]) {
-      await page.goto(fixtureWorkspacePath(`/${kind}?view=${view}`)); await expect(page.getByRole("region", { name: / 목록$/ }).getByRole("heading", { level: 2 })).toContainText("1개");
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
-      if (view === "calendar") {
-        const target = await page.getByRole("button", { name: /^\d{4}-\d{2}-\d{2}, 불러온 기록/ }).first().boundingBox();
-        expect(target!.width).toBeGreaterThanOrEqual(44); expect(target!.height).toBeGreaterThanOrEqual(44);
-      }
-      if (view === "table") for (const cell of await page.locator('[data-slot="table-cell"][class*="tabular-nums"]').all()) {
-        const reflowed = await cell.evaluate(el => getComputedStyle(el.parentElement!).display === "grid");
-        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe(reflowed ? "left" : "right");
-        expect(await cell.evaluate(el => getComputedStyle(el).fontVariantNumeric)).toBe("tabular-nums");
-      }
-      await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
-    }
-  }
-  await page.setViewportSize({ width: 390, height: 844 }); await page.goto(fixtureWorkspacePath("/tasks?view=table"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(fixtureWorkspacePath("/tasks?view=table"));
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() =>
+      [...document.querySelectorAll("body *")].filter((el) => el.getBoundingClientRect().right > innerWidth + 1).slice(
+        0,
+        8,
+      ).map((el) =>
+        `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`
+      ).join(", ")
+    )}`,
+  ).toBe(true);
   const modes = page.getByRole("radiogroup", { name: "할 일 보기 방식" });
   await modes.getByRole("radio", { name: "테이블" }).press("Home");
   await expect(modes.getByRole("radio", { name: "테이블" })).toBeFocused();
-  const style = await modes.getByRole("radio", { name: "테이블" }).evaluate(el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; });
-  expect(style.width).toBeGreaterThanOrEqual(44); expect(style.height).toBeGreaterThanOrEqual(44);
-  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+  const style = await modes.getByRole("radio", { name: "테이블" }).evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { width: r.width, height: r.height };
+  });
+  expect(style.width).toBeGreaterThanOrEqual(44);
+  expect(style.height).toBeGreaterThanOrEqual(44);
+  expect(state.errors).toEqual([]);
+  expect(state.writes).toEqual([]);
 });
 
-test("table rows and headers share the same columns across wrapper types and viewports", async ({ page }) => {
-  const rows = [record, { ...record, ...base(4), body: "짧은 기록" }, { ...record, ...base(5), body: "아주 긴 한국어 기록을 제목처럼 표시할 때에도 날짜와 종류의 열은 흔들리지 않아야 합니다." }];
-  const state = await fixture(page, rows);
-  addEntityRecord(state);
-  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) for (const kind of ["entities", "tasks", "records"]) {
-    await page.setViewportSize({ width, height: 900 }); await page.goto(fixtureWorkspacePath(`/${kind}?view=table`));
-    const table = page.getByRole("table").first();
-    await expect(table.getByRole("columnheader").first()).toHaveCount(1);
-    const geometry = await table.evaluate(table => {
-      const box = (el: Element) => { const rect = el.getBoundingClientRect(); return { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width }; };
-      const headers = [...table.querySelectorAll<HTMLTableCellElement>("thead th")];
-      return { columns: headers.map(box), rows: [...table.querySelectorAll("tbody tr")].filter(row => !row.querySelector("td[colspan]")).map(row => ({ reflowed: getComputedStyle(row).display === "grid", cells: [...row.children].map(box), labels: [...row.querySelectorAll<HTMLTableCellElement>(":scope > td")].slice(1).map((cell, index) => ({ actual: cell.headers, expected: headers[index + 1].id })) })) };
-    });
-    expect(geometry.rows.length).toBeGreaterThan(0);
-    for (const row of geometry.rows) {
-      if (width <= 390) expect(row.reflowed).toBe(true);
-      if (width === 1440) expect(row.reflowed).toBe(false);
-      expect(row.cells).toHaveLength(geometry.columns.length);
-      for (const relation of row.labels) expect(relation.actual).toBe(relation.expected);
-      if (!row.reflowed) {
-        for (const [index, cell] of row.cells.entries()) {
-          expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
-          expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
-        }
-      } else {
-        const title = row.cells[1];
-        for (const [index, cell] of row.cells.slice(2).entries()) {
-          expect(Math.abs(cell.left - title.left)).toBeLessThan(1);
-          expect(Math.abs(cell.width - title.width)).toBeLessThan(1);
-          expect(cell.top).toBeGreaterThanOrEqual(row.cells[index + 1].bottom);
+function tableAlignmentRecords() {
+  return [record, { ...record, ...base(4), body: "짧은 기록" }, {
+    ...record,
+    ...base(5),
+    body: "아주 긴 한국어 기록을 제목처럼 표시할 때에도 날짜와 종류의 열은 흔들리지 않아야 합니다.",
+  }];
+}
+
+for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+  test(`table rows and headers share the same columns across wrapper types and viewports · ${width}px`, async ({ page }) => {
+    const state = await fixture(page, tableAlignmentRecords());
+    addEntityRecord(state);
+    for (const kind of ["entities", "tasks", "records"]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(fixtureWorkspacePath(`/${kind}?view=table`));
+      const table = page.getByRole("table").first();
+      await expect(table.getByRole("columnheader").first()).toHaveCount(1);
+      const geometry = await table.evaluate((table) => {
+        const box = (el: Element) => {
+          const rect = el.getBoundingClientRect();
+          return { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width };
+        };
+        const headers = [...table.querySelectorAll<HTMLTableCellElement>("thead th")];
+        return {
+          columns: headers.map(box),
+          rows: [...table.querySelectorAll("tbody tr")].filter((row) => !row.querySelector("td[colspan]")).map(
+            (row) => ({
+              reflowed: getComputedStyle(row).display === "grid",
+              cells: [...row.children].map(box),
+              labels: [...row.querySelectorAll<HTMLTableCellElement>(":scope > td")].slice(1).map((cell, index) => ({
+                actual: cell.headers,
+                expected: headers[index + 1].id,
+              })),
+            })
+          ),
+        };
+      });
+      expect(geometry.rows.length).toBeGreaterThan(0);
+      for (const row of geometry.rows) {
+        if (width <= 390) expect(row.reflowed).toBe(true);
+        if (width === 1440) expect(row.reflowed).toBe(false);
+        expect(row.cells).toHaveLength(geometry.columns.length);
+        for (const relation of row.labels) expect(relation.actual).toBe(relation.expected);
+        if (!row.reflowed) {
+          for (const [index, cell] of row.cells.entries()) {
+            expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
+            expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
+          }
+        } else {
+          const title = row.cells[1];
+          for (const [index, cell] of row.cells.slice(2).entries()) {
+            expect(Math.abs(cell.left - title.left)).toBeLessThan(1);
+            expect(Math.abs(cell.width - title.width)).toBeLessThan(1);
+            expect(cell.top).toBeGreaterThanOrEqual(row.cells[index + 1].bottom);
+          }
         }
       }
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+        `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() =>
+          [...document.querySelectorAll("body *")].filter((el) => el.getBoundingClientRect().right > innerWidth + 1)
+            .slice(0, 8).map((el) =>
+              `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${
+                Math.round(el.getBoundingClientRect().right)
+              }`
+            ).join(", ")
+        )}`,
+      ).toBe(true);
     }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
-  }
+    expect(state.errors).toEqual([]);
+    expect(state.writes).toEqual([]);
+  });
+}
+
+test("table rows and headers share the same columns across wrapper types and viewports · related records", async ({ page }) => {
+  const state = await fixture(page, tableAlignmentRecords());
+  addEntityRecord(state);
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(fixtureWorkspacePath(`/entities/${entity.id}`));
   const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
   await section.getByRole("radio", { name: "테이블", exact: true }).click();
   const table = section.getByRole("table");
   await expect(table.getByRole("columnheader")).toHaveCount(2);
-  expect(await table.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
-  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+  expect(await table.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  expect(state.errors).toEqual([]);
+  expect(state.writes).toEqual([]);
 });
 
 test("calendar reflows at enlarged text without shrinking day targets", async ({ page }, info) => {
