@@ -33,7 +33,6 @@ test("personal navigation partial save survives reload and login without changin
     } });
     for (const label of ["기록", "할 일"]) {
       await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), label);
-      await page.getByRole("button", { name: `${label} 추가`, exact: true }).click();
     }
     await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
     await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");

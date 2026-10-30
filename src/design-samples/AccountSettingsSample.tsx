@@ -4,10 +4,11 @@ import { Card, CardHeader, CardTitle, CardContent, CardAction } from "../compone
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group.tsx";
 import { FieldGroup } from "../components/ui/field.tsx";
 import { RotateCcwIcon } from "lucide-react";
-import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "../components/ui/combobox.tsx";
 import { Input } from "../components/ui/input.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { TimezoneSelect } from "../components/TimezoneSelect.tsx";
+import { browserTimezone } from "../lib/timezone.ts";
 import { useRef, useState } from "react";
 
 import { Field } from "../components/Field.tsx";
@@ -26,12 +27,13 @@ const initialMenus = menuChoices.map((entry) => entry.id);
 export function AccountSettingsSample({ standalone = false }: { standalone?: boolean }) {
   const Heading = standalone ? "h1" : "h2";
   const SectionHeading = standalone ? "h2" : "h3";
-  const addSelect = useRef<HTMLSelectElement>(null);
+  const addSelect = useRef<HTMLInputElement>(null);
+  const section = useRef<HTMLElement>(null);
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
   const [savedMenus, setSavedMenus] = useState(initialMenus);
   const [menus, setMenus] = useState(initialMenus);
-  const [candidate, setCandidate] = useState("");
+  const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
   const menuDirty = JSON.stringify(menus) !== JSON.stringify(savedMenus);
   const field = (key: keyof typeof initial, label: string, choices?: string[]) => (
@@ -39,11 +41,16 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
       {(props) =>
         key === "timezone"
           ? (
-            <TimezoneSelect
+            <div className="flex min-w-0 flex-col items-start gap-2"><TimezoneSelect
               {...props}
+              deviceDefault
               value={draft.timezone}
               onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}
             />
+            <Button variant="outline" type="button" className="h-auto min-h-11 max-w-full whitespace-normal wrap-anywhere py-2 text-left" disabled={!draft.timezone} onClick={event => {
+              setDraft(value => ({...value, timezone: ""}));
+              event.currentTarget.parentElement?.querySelector("select")?.focus();
+            }}>기기 시간대 사용 ({browserTimezone()})</Button></div>
           )
           : choices
           ? (
@@ -62,7 +69,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
     </Field>
   );
   return (
-    <section className="flex flex-col gap-6 min-w-0" aria-label="기본 설정 예시">
+    <section ref={section} className="flex flex-col gap-6 min-w-0" aria-label="기본 설정 예시">
       <header className="flex min-w-0 flex-col gap-2">
         <Heading className="text-2xl font-semibold tracking-tight wrap-anywhere">기본 설정</Heading>
         <p className="text-sm text-muted-foreground">프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다.</p>
@@ -166,28 +173,30 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
           </BusinessTable>
           {menus.length === 0 && <p className="text-sm text-muted-foreground">내 프로필만 표시합니다.</p>}
           <div className="flex min-w-0 flex-wrap items-end gap-3">
-            <NativeSelect
-              ref={addSelect}
-              aria-label="추가할 메뉴"
-              disabled={menus.length >= 4}
-              value={candidate}
-              onChange={(event) => setCandidate(event.target.value)}
-            >
-              <NativeSelectOption value="">{menus.length >= 4 ? "최대 4개 선택" : "메뉴 선택"}</NativeSelectOption>
-              {menuChoices.filter((entry) => !menus.includes(entry.id)).map((entry) => (
-                <NativeSelectOption key={entry.id} value={entry.id}>{entry.label}</NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <Button variant="outline"
-              type="button"
-              disabled={!candidate || menus.length >= 4}
-              onClick={() => {
-                setMenus([...menus, candidate]);
-                setCandidate("");
+            <Combobox<(typeof menuChoices)[number]>
+              items={menuChoices.filter(entry => !menus.includes(entry.id))}
+              value={null}
+              inputValue={query}
+              onInputValueChange={setQuery}
+              isItemEqualToValue={(a,b) => a.id === b.id}
+              itemToStringLabel={entry => entry.label}
+              disabled={menus.length >= 4 || menus.length === menuChoices.length}
+              onValueChange={entry => {
+                if (!entry || menus.length >= 4 || menus.includes(entry.id)) return;
+                setMenus([...menus, entry.id]);
+                setQuery("");
+                setMessage(`${entry.label} · 초안에 추가`);
+                requestAnimationFrame(() => {
+                  const destination = menus.length + 1 >= menuChoices.length
+                    ? section.current?.querySelectorAll<HTMLButtonElement>('button[title="바로가기에서 제거"]').item(menus.length)
+                    : addSelect.current;
+                  destination?.focus();
+                });
               }}
             >
-              추가
-            </Button>
+              <ComboboxInput ref={addSelect} aria-label="추가할 메뉴" placeholder={menus.length === menuChoices.length ? "추가할 메뉴 없음" : "메뉴를 골라 초안에 추가"} />
+              <ComboboxContent><ComboboxEmpty>추가할 메뉴가 없습니다.</ComboboxEmpty><ComboboxList>{entry => <ComboboxItem key={entry.id} value={entry}>{entry.label} · 초안에 추가</ComboboxItem>}</ComboboxList></ComboboxContent>
+            </Combobox>
           </div>
           <CardFooter className="-mx-4 mt-4 flex-wrap justify-end gap-3">
             <Button variant="ghost" type="button"
@@ -202,7 +211,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
                 disabled={!menuDirty}
                 onClick={() => {
                   setMenus(savedMenus);
-                  setCandidate("");
+                  setQuery("");
                 }}
               >
                 취소

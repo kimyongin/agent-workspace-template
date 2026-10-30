@@ -141,7 +141,6 @@ test("shortcut editing has its own section with compact rows, bounded selection 
   await section.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(section.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
   await chooseSetting(page, select, "전체 자료");
-  await section.getByRole("button", { name: "전체 자료 추가", exact: true }).click();
   await expect(select).toHaveValue("");
   await expect(select).toBeDisabled();
   await expectShortcuts(page, ["재료", "할 일", "기록", "전체 자료"]);
@@ -157,10 +156,8 @@ test("shortcut editing has its own section with compact rows, bounded selection 
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
     }
-    const [input, button] = await Promise.all([
-      select.boundingBox(), section.getByRole("button", { name: "메뉴 추가", exact: true }).boundingBox(),
-    ]);
-    expect(input!.height).toBeCloseTo(button!.height);
+    expect((await select.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(section.getByRole("button", { name: "메뉴 추가", exact: true })).toHaveCount(0);
   }
   await page.setViewportSize({ width: info.project.name === "mobile" ? 390 : 1440, height: 900 });
   await section.scrollIntoViewIfNeeded();
@@ -221,7 +218,7 @@ test("shortcut search retains its query while external metadata reports a draft 
   const control = section.getByRole("combobox", { name: "추가할 메뉴", exact: true });
   await chooseSetting(page, control, "재료");
   await control.fill("상품");
-  await expect(page.getByRole("option", { name: "상품", exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: "상품 · 초안에 추가", exact: true })).toBeVisible();
   state.setMetadata({ version: 1, refs: [ref("records")] });
   await page.evaluate(id => {
     const channel = new BroadcastChannel("workspace-decorative-profile");
@@ -230,8 +227,9 @@ test("shortcut search retains its query while external metadata reports a draft 
   }, account.id);
   await expect(section.getByRole("alert", { includeHidden: true })).toContainText("다른 탭");
   await expect(control).toHaveValue("상품");
-  await page.getByRole("option", { name: "상품", exact: true }).click();
-  await expect(section.getByRole("button", { name: "상품 추가", exact: true })).toBeEnabled();
+  await page.getByRole("option", { name: "상품 · 초안에 추가", exact: true }).click();
+  await expect(section.getByRole("table", { name: "선택한 바로가기" })).toContainText("상품");
+  await expect(control).toHaveValue("");
   await expect(section.getByRole("alert")).toContainText("다른 탭");
   expect(state.writes).toEqual([]);
 });
@@ -313,7 +311,8 @@ test(
     await expect(page.getByRole("combobox", { name: "추가할 메뉴", exact: true })).toBeDisabled();
     await page.getByRole("button", { name: "할 일 숨기기", exact: true }).click();
     await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), "자료 10");
-    await expect(page.getByRole("button", { name: "자료 10 추가", exact: true })).toBeEnabled();
+    await expect(page.getByRole("table", { name: "선택한 바로가기" })).toContainText("자료 10");
+    await expect(page.getByRole("button", { name: "자료 10 숨기기", exact: true })).toBeFocused();
     await openNavigation(page);
     const search = page.getByLabel("자료 종류 검색", { exact: true });
     await search.dispatchEvent("compositionstart");
@@ -336,7 +335,6 @@ test("pending save prevents duplicate submission and departure until authoritati
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] });
   await page.goto(fixtureWorkspacePath("/settings/navigation"));
   await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), "기록");
-  await page.getByRole("button", { name: "기록 추가", exact: true }).click();
   let release!: () => void;
   const held = new Promise<void>((resolve) => {
     release = resolve;

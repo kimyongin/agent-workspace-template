@@ -87,8 +87,8 @@ test("account settings sample keeps independent drafts and clear row actions", a
   ]);
   await navigation.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(navigation.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
-  await navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption("products");
-  await navigation.getByRole("button", { name: "추가", exact: true }).click();
+  await navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true }).click();
+  await page.getByRole("option", { name: "상품 · 초안에 추가", exact: true }).click();
   await navigation.getByRole("button", { name: "저장", exact: true }).click();
   await expect(businessRows(navigation.getByRole("table", { name: "선택한 바로가기" })).locator(":scope > td:first-child")).toHaveText([
     "할 일",
