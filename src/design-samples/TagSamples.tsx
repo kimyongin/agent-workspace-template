@@ -55,7 +55,7 @@ export function TagSamples() {
       </Field>
       <FieldSet disabled={mode === "busy"} className="min-w-0 border-0 p-0">
         <TagSelection
-          action={<Button type="button" variant="ghost" disabled={mode === "busy"} className="h-auto min-h-11 whitespace-normal" onClick={() => setManaging(true)}>기록 태그 관리</Button>}
+          action={<Button type="button" variant="ghost" disabled={mode === "busy"} className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => setManaging(true)}>기록 태그 관리</Button>}
           disabled={mode === "busy"}
           label="기본 기록 태그"
           tags={mode === "loading" || mode === "failure"
@@ -87,8 +87,8 @@ function TagManagementSample({ onClose, onAdd }: { onClose: () => void; onAdd: (
   const [saved, setSaved] = useState<string[]>([]);
   const close = () => { if (name) setDiscarding(true); else onClose(); };
   return <>
-    <ConfirmationSurface open title="기록 태그 관리" closeButton onCancel={close}
-      footer={<Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={close}>기록 자동 완성으로 돌아가기</Button>}>
+    <ConfirmationSurface open title="기록 태그 관리" closeButton className="max-w-[calc(100%-1rem)]" onCancel={close}
+      footer={<Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={close}>기록 자동 완성으로 돌아가기</Button>}>
       <p className="mb-4 text-sm text-muted-foreground">같은 화면에서 태그를 추가하는 예시입니다. 추가한 뒤 돌아가서 태그를 직접 선택하세요. 실제 데이터는 저장하지 않습니다.</p>
       <form className="grid min-w-0 gap-3" onSubmit={event => {
         event.preventDefault();

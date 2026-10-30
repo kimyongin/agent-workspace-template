@@ -1093,6 +1093,34 @@ test("#611 보조 태그 편집의 버전 충돌은 초안을 보존하고 최�
   await expect(input).toHaveValue("다른 사람이 바꾼 이름"); expect(business.writes).toHaveLength(0);
 });
 
+test("#611 작은 키보드 화면과 확대에서도 태그 입력·독립 저장·폐기 취소·복귀를 완료한다", async ({ page }, info) => {
+  const business = await settingsFixture(page), tag = await tagDialogFixture(page);
+  await page.goto(fixtureWorkspacePath("/settings/records")); const address = page.url();
+  const form = page.getByRole("form", { name: "기록 자동 완성", exact: true }), memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await memo.fill("작은 화면에서도 보존할 부모 초안"); const manage = form.getByRole("button", { name: "기록 태그 관리", exact: true });
+  const meter = await tagAuditMeter(page);
+  // Allow1% for fractional intersection rounding; the original clipped input remains a failure.
+  for (const [height, scale] of [[568, 200], [300, 100], [300, 200]]) {
+    await page.setViewportSize({ width: 320, height }); await page.evaluate(value => document.documentElement.style.fontSize = value + "%", scale); await meter.settle();
+    await manage.click(); const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+    await expect(dialog).toHaveAccessibleDescription(/태그 사전의 변경은 따로 저장됩니다/);
+    const input = dialog.getByRole("textbox", { name: /^태그 이름/ }), add = dialog.getByRole("button", { name: "추가", exact: true }), back = dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true });
+    await expect(back).toBeInViewport({ ratio: 0.99 }); await input.scrollIntoViewIfNeeded(); await expect(input).toBeInViewport({ ratio: 0.99 });
+    const name = "키보드 " + height + " " + scale; await input.fill(name);
+    if (height === 300 && scale === 200) {
+      await input.press("Escape"); const discard = page.getByRole("alertdialog");
+      await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(input).toHaveValue(name);
+    }
+    await add.scrollIntoViewIfNeeded(); await expect(add).toBeInViewport({ ratio: 0.99 }); await add.click();
+    await expect.poll(() => tag.tags.some(t => t.name === name)).toBe(true); expect(business.writes).toHaveLength(0);
+    await expect(back).toBeEnabled(); await expect(back).toBeInViewport({ ratio: 0.99 });
+    await dialog.screenshot({ path: info.outputPath("tag-keyboard-" + height + "-" + scale + ".png") }); await back.click();
+    expect(page.url()).toBe(address); await expect(memo).toHaveText("작은 화면에서도 보존할 부모 초안"); await expect(manage).toBeFocused();
+    await expect(form.getByRole("button", { name: name + " 선택 해제", exact: true })).toHaveCount(0);
+  }
+  expect(tag.writes).toHaveLength(3); expect(business.writes).toHaveLength(0);
+});
+
 test("#611 태그 관리의 320px·200%·긴 이름도 부모 URI와 조작 크기를 보존한다", async ({ page }, info) => {
   await settingsFixture(page); await tagDialogFixture(page, true); await page.goto(fixtureWorkspacePath("/settings/records")); const address = page.url();
   await page.getByRole("button", { name: "기록 태그 관리", exact: true }).click(); const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true }); await dialog.getByRole("textbox", { name: /^태그 이름/ }).fill("공백없이길게이어진태그이름으로확인");

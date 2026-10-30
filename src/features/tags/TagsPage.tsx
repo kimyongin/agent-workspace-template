@@ -508,6 +508,7 @@ export function TagManagement(
     <ModalShell
       open
       ready={!loading}
+      scrollHeaderWithBody={mode === "dialog"}
       title={`${tagScopeLabels[scope]} 태그 관리`}
       description={mode === "dialog"
         ? "태그 사전의 변경은 따로 저장됩니다. 돌아간 뒤 태그를 선택하고 원래 설정을 저장하세요."

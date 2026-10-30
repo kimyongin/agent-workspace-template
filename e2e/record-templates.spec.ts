@@ -22,6 +22,8 @@ test("#611 기록 태그의 실제 독립 저장과 같은 화면 복귀는 템�
   await memo.fill(memoText);
   const manage = form.getByRole("button", { name: "기록 태그 관리", exact: true }); await manage.click();
   const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  const viewport = page.viewportSize()!, fontSize = await page.evaluate(() => document.documentElement.style.fontSize);
+  await page.setViewportSize({ width: 320, height: 300 }); await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   await dialog.getByRole("textbox", { name: /^태그 이름/ }).fill(tagName);
   await dialog.getByRole("button", { name: "추가", exact: true }).click();
   await expect(dialog.getByText("태그를 저장했습니다.", { exact: true })).toBeVisible();
@@ -30,6 +32,7 @@ test("#611 기록 태그의 실제 독립 저장과 같은 화면 복귀는 템�
   expect((await api("GET", "/settings/business")).settings.record_templates).toEqual(initial.settings.record_templates);
   expect(page.url()).toBe(address);
   await dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true }).click();
+  await page.setViewportSize(viewport); await page.evaluate(value => document.documentElement.style.fontSize = value, fontSize);
   await expect(manage).toBeFocused(); await expect(memo).toHaveText(memoText);
   await form.getByRole("button", { name: "태그 선택", exact: true }).click();
   await page.getByRole("option", { name: tagName, exact: true }).click();

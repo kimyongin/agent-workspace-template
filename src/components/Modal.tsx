@@ -2,6 +2,7 @@ import { WriteOutcomeNotice } from "./WriteOutcomeNotice.tsx";
 import { PopupContainerContext } from "./ui/portal-container.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.tsx";
 import { Button } from "./ui/button.tsx";
+import { cn } from "../lib/utils.ts";
 import { ArrowLeftIcon, XIcon } from "lucide-react";
 import { captureFocusOrigin, type FocusOrigin, firstField, hasActiveConfirmation, registerSurface, surfaceFor } from "../lib/surface-dom.ts";
 // Official Dialog owns mobile modality; a stable portal host retains the same editor in the desktop panel.
@@ -18,6 +19,8 @@ import { DetailTabContext, WorkspaceContext, type WorkspaceGuard } from "../feat
 export interface ModalProps {
   title: string;
   description?: string;
+  /** Auxiliary headings share body scrolling and the viewport's available height. */
+  scrollHeaderWithBody?: boolean;
   /** Stable visible domain heading; the accessible name retains the current operation. */
   domain?: string;
   headingLevel?: 1 | 2;
@@ -113,7 +116,7 @@ export function ModalShell(props: ModalProps) {
   return props.open ? <ActiveModalShell {...props} /> : null;
 }
 
-function ActiveModalShell({ title, description, domain, headingLevel=2, open, visible = true, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children, ready = true, navigationTitle = title }: ModalProps) {
+function ActiveModalShell({ title, description, scrollHeaderWithBody = false, domain, headingLevel=2, open, visible = true, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children, ready = true, navigationTitle = title }: ModalProps) {
   const tab = useContext(DetailTabContext);
   const workspace = useContext(WorkspaceContext);
   const active = visible && (tab?.active ?? true);
@@ -226,22 +229,26 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, vi
     control?.focus({ preventScroll: true });
   };
   useEffect(() => { if (active && dialogDocked) initialFocus(); }, [active, dialogDocked]);
-  const contents = <>
-    <DialogHeader className="shrink-0 p-4">
+  const header = <DialogHeader className="shrink-0 p-4">
       <div className="flex min-w-0 items-start gap-2">
         {previous && <Button type="button" variant="ghost" size="icon" aria-label={previous.label} disabled={busy} onClick={event => tab ? previous.back() : requestLeave(previous.back, event.currentTarget)}><ArrowLeftIcon /></Button>}
         <DialogTitle asChild>{headingLevel === 1 ? <h1 ref={headingRef} id={titleId} className="min-w-0 flex-1 break-words outline-none" tabIndex={-1}>{domain ?? title}</h1> : <h2 ref={headingRef} id={titleId} className="min-w-0 flex-1 break-words outline-none" tabIndex={-1}>{domain ?? title}</h2>}</DialogTitle>
         {!dialogDocked && <Button type="button" variant="ghost" size="icon" aria-label="닫기" onClick={requestClose} disabled={busy || action?.busy}><XIcon /></Button>}
       </div>
       {description && <DialogDescription id={`${titleId}-description`}>{description}</DialogDescription>}
-    </DialogHeader>
-    <div ref={bodyRef} role="region" aria-label="상세 내용" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4" aria-busy={!ready || undefined} tabIndex={0}>{!dialogDocked && active && <WriteOutcomeNotice />}{children}</div>
+    </DialogHeader>;
+  const body = <>{!dialogDocked && active && <WriteOutcomeNotice />}{children}</>;
+  const contents = <>
+    {!scrollHeaderWithBody && header}
+    <div ref={bodyRef} role="region" aria-label="상세 내용" className={scrollHeaderWithBody ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4"} aria-busy={!ready || undefined} tabIndex={0}>
+      {scrollHeaderWithBody ? <>{header}<div className="px-4 pb-4">{body}</div></> : body}
+    </div>
     {footer && <DialogFooter ref={footerRef} className="m-0 shrink-0 rounded-none">{typeof footer === "function" ? footer(requestCancelEdit) : footer}</DialogFooter>}
   </>;
   return <SurfaceActionContext.Provider value={registerAction}><Dialog open={open && active && !dialogDocked} onOpenChange={next => { if (!next) requestClose(); }}>
     <div ref={desktopSlot} hidden={!dialogDocked || !active} role={dialogDocked ? "dialog" : undefined} aria-label={domain ? title : undefined} aria-labelledby={domain ? undefined : titleId} aria-describedby={description ? `${titleId}-description` : undefined} className="flex h-full min-h-0 flex-col" />
     <DialogContent ref={setMobileContent} aria-modal={true} showCloseButton={false} aria-label={domain ? title : undefined} aria-labelledby={domain ? undefined : titleId} aria-describedby={description ? `${titleId}-description` : undefined}
-      className="flex h-[min(48rem,calc(100dvh-2rem))] max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+      className={cn("flex max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl", scrollHeaderWithBody ? "h-[min(48rem,calc(100dvh-1rem))]" : "h-[min(48rem,calc(100dvh-2rem))]")}
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
       onOpenAutoFocus={event => { event.preventDefault(); initialFocus(); }}
       onCloseAutoFocus={event => { event.preventDefault(); }}

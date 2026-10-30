@@ -380,6 +380,22 @@ test("history expansion preserves the same section surface as other settings", a
   }
 });
 
+test("#611 샘플 태그도 작은 키보드 화면과 확대에서 입력·저장·복귀할 수 있다", async ({ page }, info) => {
+  await page.goto(direct); const address = page.url();
+  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true }), manage = tags.getByRole("button", { name: "기록 태그 관리", exact: true });
+  // Allow1% for fractional intersection rounding; the original clipped input remains a failure.
+  for (const [height, scale] of [[568, 200], [300, 100], [300, 200]]) {
+    await page.setViewportSize({ width: 320, height }); await page.evaluate(value => document.documentElement.style.fontSize = value + "%", scale);
+    await manage.click(); const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+    const input = dialog.getByRole("textbox", { name: /^태그 이름/ }), add = dialog.getByRole("button", { name: "추가", exact: true }), back = dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true });
+    await expect(back).toBeInViewport({ ratio: 0.99 }); await input.scrollIntoViewIfNeeded(); await expect(input).toBeInViewport({ ratio: 0.99 });
+    const name = "키보드 예시 " + height + " " + scale; await input.fill(name);
+    await add.scrollIntoViewIfNeeded(); await expect(add).toBeInViewport({ ratio: 0.99 }); await add.click(); await expect(dialog.getByRole("status")).toContainText(name);
+    await expect(back).toBeInViewport({ ratio: 0.99 }); await dialog.screenshot({ path: info.outputPath("sample-tag-keyboard-" + height + "-" + scale + ".png") }); await back.click();
+    await expect(manage).toBeFocused(); expect(page.url()).toBe(address); await expect(tags.getByRole("button", { name: name + " 선택 해제", exact: true })).toHaveCount(0);
+  }
+});
+
 test("#611 샘플 태그 추가는 화면 이동·자동 선택 없이 복귀하고 미저장 이름을 보호한다", async ({ page }, info) => {
   await page.goto(direct);
   const address = page.url(), tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
