@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from "@playwright/test";
-import { baseWorkspace, detailDialog } from "./ui-actions.ts";
+import { detailDialog } from "./ui-actions.ts";
 import { fixtures } from "./support/workspace-screens.ts";
 import { fixtureType } from "./support/workspace-data.ts";
 
@@ -30,7 +30,7 @@ for (const width of [390, 1440]) {
         await click(`${scenario.menu} 메뉴 링크`, page.getByRole("navigation", { name: "주 메뉴", exact: true })
           .getByRole("link", { name: scenario.menu, exact: true }));
       }
-      await click("대상 제목 링크", baseWorkspace(page).getByRole("link", { name: `${scenario.title} 상세`, exact: true }));
+      await click("대상 제목 링크", page.getByRole("main").getByRole("link", { name: `${scenario.title} 상세`, exact: true }));
       const region = detailDialog(page).getByRole("region", { name: "태그 연결", exact: true });
       await click("태그 연결", region.getByRole("button", { name: "태그 연결", exact: true }));
       const picker = page.getByRole("dialog", { name: "태그 선택", exact: true });
