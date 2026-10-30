@@ -18,6 +18,7 @@ import { useLocation, useParams, useSearchParams } from "../../lib/workspace-rou
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { TaskDataFields } from "./TaskDataFields.tsx";
+import { TaskResultContext } from "./TaskResultContext.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { ApiError, query } from "../../lib/api.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
@@ -418,6 +419,7 @@ export function TaskDetailPage() {
         {dialog === "complete" && (
           <RecordFormModal
             title="할 일 완료"
+            intro={<TaskResultContext task={task} />}
             visible={canRead}
             readonly={!canWrite || !!task.deleted_at}
             submitLabel="완료하고 기록 저장"
@@ -442,6 +444,7 @@ export function TaskDetailPage() {
         {dialog && typeof dialog === "object" && (
           <RecordFormModal
             title={`${dialog.occurrence} 회차 기록`}
+            intro={<TaskResultContext task={task} occurrence={dialog.occurrence} />}
             visible={canRead}
             readonly={!canWrite || !!task.deleted_at}
             submitLabel="기록 저장"

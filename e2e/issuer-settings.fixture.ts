@@ -267,6 +267,71 @@ async function fieldEditor(page: Page, property = "prop_3", title = "고객 번�
   return page.locator(`#schema-field-${property}`);
 }
 
+test("번호 종류 조회 실패는 같은 출처에서 복구하고 부모 항목 초안을 유지한다", async ({ page, baseURL }, info) => {
+  const state = await fixture(page, baseURL!), field = await fieldEditor(page);
+  await field.getByLabel("항목 이름", { exact: true }).fill("유지할 고객 번호");
+  await expect(field.getByRole("checkbox", { name: "네이버 · 상품 ID", exact: true })).toBeEnabled();
+  let failures = 2;
+  await page.route(
+    "**/api/entity-issuers/coupang/rules",
+    (route) =>
+      failures-- > 0
+        ? route.fulfill({ status: 503, json: { code: "internal", message: "번호 종류 일시 조회 실패" } })
+        : route.fallback(),
+  );
+  await field.getByRole("button", { name: "식별자 종류 추가", exact: true }).click();
+  const binding = page.getByRole("dialog", { name: "식별자 종류 추가", exact: true });
+  await binding.getByLabel("번호 출처", { exact: true }).selectOption("coupang");
+  await expect(binding.getByRole("alert")).toContainText("번호 종류 일시 조회 실패");
+  await page.screenshot({ path: info.outputPath("identifier-retry.png"), fullPage: true });
+  await expect(binding.getByRole("button", { name: "연결", exact: true })).toBeDisabled();
+  await binding.getByRole("button", { name: "번호 종류 다시 조회", exact: true }).click();
+  await expect(binding.getByRole("alert")).toContainText("번호 종류 일시 조회 실패");
+  await expect(binding.getByLabel("번호 출처", { exact: true })).toHaveValue("coupang");
+  await binding.getByRole("button", { name: "번호 종류 다시 조회", exact: true }).click();
+  await binding.getByLabel("번호 종류", { exact: true }).selectOption("33333333-3333-4333-8333-333333333333");
+  await binding.getByRole("button", { name: "연결", exact: true }).click();
+  await expect(field.getByLabel("항목 이름", { exact: true })).toHaveValue("유지할 고객 번호");
+  await expect(field.getByLabel("기본 식별자 종류", { exact: true })).toHaveValue(productRule);
+  await expect(field.getByRole("checkbox", { name: "쿠팡 · 판매자 번호", exact: true })).toBeChecked();
+  expect(state.writes).toEqual([]);
+});
+
+test("번호 종류 재조회 중 출처를 바꾸면 이전 응답이 후보와 선택을 덮지 않는다", async ({ page, baseURL }) => {
+  const state = await fixture(page, baseURL!), field = await fieldEditor(page);
+  await expect(field.getByRole("checkbox", { name: "네이버 · 상품 ID", exact: true })).toBeEnabled();
+  let fail = true, release = () => {}, started = () => {};
+  const held = new Promise<void>((resolve) => release = resolve),
+    arrived = new Promise<void>((resolve) => started = resolve);
+  await page.route("**/api/entity-issuers/coupang/rules", async (route) => {
+    if (fail) {
+      fail = false;
+      return route.fulfill({ status: 503, json: { code: "internal", message: "출처 조회 실패" } });
+    }
+    started();
+    await held;
+    await route.fulfill({ json: { items: [] } }).catch(() => {});
+  });
+  try {
+    await field.getByRole("button", { name: "식별자 종류 추가", exact: true }).click();
+    const binding = page.getByRole("dialog", { name: "식별자 종류 추가", exact: true });
+    await binding.getByLabel("번호 출처", { exact: true }).selectOption("coupang");
+    await binding.getByRole("button", { name: "번호 종류 다시 조회", exact: true }).click();
+    await arrived;
+    await expect(binding.getByRole("button", { name: "번호 종류 다시 조회", exact: true })).toHaveCount(0);
+    await expect(binding.getByRole("button", { name: "연결", exact: true })).toBeDisabled();
+    await binding.getByLabel("번호 출처", { exact: true }).selectOption("naver");
+    await expect(binding.getByRole("button", { name: "연결", exact: true })).toBeEnabled();
+    release();
+    await binding.getByRole("button", { name: "연결", exact: true }).click();
+    await expect(field.getByRole("checkbox", { name: "네이버 · 상품 ID", exact: true })).toBeChecked();
+    await expect(field.getByLabel("기본 식별자 종류", { exact: true })).toHaveValue(productRule);
+    expect(state.writes).toEqual([]);
+  } finally {
+    release();
+  }
+});
+
 test("issuer retry retains its hidden stable code and request key; builtin app stays read only", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
   await page.goto(fixtureWorkspacePath("/settings/issuers"));

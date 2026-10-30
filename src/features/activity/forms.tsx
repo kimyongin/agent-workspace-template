@@ -94,6 +94,7 @@ export function RecordFormModal(props: {
   return (
     <FormModal
       domain="기록"
+      scrollHeaderWithBody={!!props.intro}
       visible={active && props.visible !== false}
       submitDisabled={!active || props.readonly}
       description={props.systemRecord
@@ -123,7 +124,13 @@ export function RecordFormModal(props: {
     >
       {(errors, frozen) => {
         const body = (
-          <Field fullWidth label="본문" required error={errors.body} changed={!!props.editing && draft.body !== initial.body}>
+          <Field
+            fullWidth
+            label="본문"
+            required
+            error={errors.body}
+            changed={!!props.editing && draft.body !== initial.body}
+          >
             {(p) => (
               <Textarea
                 {...p}
@@ -136,7 +143,11 @@ export function RecordFormModal(props: {
           </Field>
         );
         const occurredAt = (
-          <Field label={recordLabels.occurred_at} error={errors.occurred_at} changed={!!props.editing && JSON.stringify(draft.occurred_at) !== JSON.stringify(initial.occurred_at)}>
+          <Field
+            label={recordLabels.occurred_at}
+            error={errors.occurred_at}
+            changed={!!props.editing && JSON.stringify(draft.occurred_at) !== JSON.stringify(initial.occurred_at)}
+          >
             {(p) => (
               <DateTimeInput
                 {...p}
@@ -149,26 +160,32 @@ export function RecordFormModal(props: {
           </Field>
         );
         return (
-          <FieldSet disabled={frozen || props.readonly}>
-            {props.readonly && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
+          <>
             {props.intro}
-            {props.record
-              ? (
-                <RecordDataFields
-                  record={props.record}
-                  body={body}
-                  occurredAt={props.systemRecord ? undefined : occurredAt}
-                />
-              )
-              : (
-                <DataFieldGroup>
-                  {body}
-                  {!props.systemRecord && occurredAt}
-                </DataFieldGroup>
+            <FieldSet disabled={frozen || props.readonly}>
+              {props.readonly && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
+              {props.record
+                ? (
+                  <RecordDataFields
+                    record={props.record}
+                    body={body}
+                    occurredAt={props.systemRecord ? undefined : occurredAt}
+                  />
+                )
+                : (
+                  <DataFieldGroup>
+                    {body}
+                    {!props.systemRecord && occurredAt}
+                  </DataFieldGroup>
+                )}
+              {props.editing && (
+                <FieldGroup>
+                  <ReadonlyTags scope="record" ids={props.record?.tag_ids ?? []} />
+                </FieldGroup>
               )}
-            {props.editing && <FieldGroup><ReadonlyTags scope="record" ids={props.record?.tag_ids ?? []} /></FieldGroup>}
-            {props.details}
-          </FieldSet>
+              {props.details}
+            </FieldSet>
+          </>
         );
       }}
     </FormModal>
