@@ -18,7 +18,8 @@ import { registerSurface } from "../../lib/surface-dom.ts";
 
 /** Selection belongs to the parent's draft; closing the chooser never saves it. */
 export function TagSelection(
-  { label, tags, value, onChange, error, status, excludeId, maxSelected = 10, disabled = false, visible = true }: {
+  { label, tags, value, onChange, error, status, excludeId, maxSelected = 10, disabled = false, visible = true,
+    defaultOpen = false }: {
     label: string;
     tags: { id: string; name: string }[] | null;
     value: string[];
@@ -29,13 +30,14 @@ export function TagSelection(
     maxSelected?: number;
     disabled?: boolean;
     visible?: boolean;
+    defaultOpen?: boolean;
   },
 ) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const knownNames = useRef(new Map<string, string>());
   if (tags !== null) knownNames.current = new Map(tags.map((tag) => [tag.id, tag.name]));
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const focusTrigger = () => {
     const control = trigger.current;
     const destination = control?.disabled

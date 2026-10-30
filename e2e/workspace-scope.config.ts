@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "workspace-scope.fixture.ts",
+  testMatch: ["workspace-scope.fixture.ts", "invitation-copy.fixture.ts"],
   workers: 1,
   retries: 0,
   timeout: 60_000,
