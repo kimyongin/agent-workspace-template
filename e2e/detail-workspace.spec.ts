@@ -1405,34 +1405,50 @@ for (const width of [320, 1440]) for (const [kind, parent] of [["result", "task"
   });
 }
 
-for (const width of [320,360,390,639,640,768,1024,1440]) {
-  test(`record responsive parity: ${width}px shares the body value area`,async({page},info)=>{
-    const state=await fixture(page);
-    state.rows.records[0].body="긴본문과근거".repeat(80);
-    await page.setViewportSize({width,height:900});
-    await page.goto(fixtureWorkspacePath(`/records/${state.rows.records[0].id}`));
-    const surface=width<1100?openDialogs(page).first():panel(page);
-    const key=surface.locator("dt:visible").filter({hasText:/^본문$/});
-    await expect(key).toBeVisible();
-    await settleSurface(surface);
-    const beforeKey=(await key.boundingBox())!,beforeValue=(await key.locator("../dd").boundingBox())!;
-    const readingSize=await surface.locator(".markdown:visible").evaluate(el=>getComputedStyle(el).fontSize);
-    await page.screenshot({path:info.outputPath(`record-view-${width}.png`)});
-    await surface.getByRole("button",{name:"편집",exact:true}).click();
-    const input=surface.getByLabel("본문");
-    await settleSurface(surface);
-    const afterKey=(await surface.locator("label:visible").filter({hasText:/^본문/}).boundingBox())!,afterValue=(await input.boundingBox())!;
-    expect(afterKey.x).toBeCloseTo(beforeKey.x,0);
-    expect(afterValue.x).toBeCloseTo(beforeValue.x,0);
-    expect(afterValue.width).toBeCloseTo(beforeValue.width,0);
-    expect(parseFloat(readingSize)).toBeGreaterThanOrEqual(14);
-    expect(await input.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(width < 768 ? 16 : 14);
-    await expect(input).toHaveValue(state.rows.records[0].body);
-    await input.focus();await expect(input).toBeFocused();
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-    await page.screenshot({path:info.outputPath(`record-edit-${width}.png`)});
-    expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
-  });
+for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+  test(
+    `record responsive parity: ${width}px keeps read labels and gives editing the full body width`,
+    async ({ page }, info) => {
+      const state = await fixture(page);
+      state.rows.records[0].body = "긴본문과근거".repeat(80);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(fixtureWorkspacePath(`/records/${state.rows.records[0].id}`));
+      const surface = width < 1100 ? openDialogs(page).first() : panel(page);
+      const key = surface.locator("dt:visible").filter({ hasText: /^본문$/ });
+      await expect(key).toBeVisible();
+      await settleSurface(surface);
+      const beforeKey = (await key.boundingBox())!, beforeValue = (await key.locator("../dd").boundingBox())!;
+      const readingSize = await surface.locator(".markdown:visible").evaluate((el) => getComputedStyle(el).fontSize);
+      await page.screenshot({ path: info.outputPath(`record-view-${width}.png`) });
+      await surface.getByRole("button", { name: "편집", exact: true }).click();
+      const input = surface.getByLabel("본문");
+      await settleSurface(surface);
+      const afterKey = (await surface.locator("label:visible").filter({ hasText: /^본문/ }).boundingBox())!,
+        afterValue = (await input.boundingBox())!;
+      expect(afterKey.x).toBeCloseTo(beforeKey.x, 0);
+      // #596 keeps readable key/value viewing and gives long-form editing the full row.
+      const field = await input.evaluate((el) => {
+        const box = el.closest('[data-slot="field"]')!.getBoundingClientRect();
+        return { x: box.x, width: box.width };
+      });
+      expect(afterValue.x).toBeCloseTo(afterKey.x, 0);
+      expect(afterKey.y + afterKey.height).toBeLessThanOrEqual(afterValue.y);
+      expect(afterValue.x).toBeCloseTo(field.x, 0);
+      expect(afterValue.width).toBeCloseTo(field.width, 0);
+      expect(afterValue.width).toBeGreaterThan(beforeValue.width);
+      expect(parseFloat(readingSize)).toBeGreaterThanOrEqual(14);
+      expect(await input.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(
+        width < 768 ? 16 : 14,
+      );
+      await expect(input).toHaveValue(state.rows.records[0].body);
+      await input.focus();
+      await expect(input).toBeFocused();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`record-edit-${width}.png`) });
+      expect(state.writes).toEqual([]);
+      expect(state.errors).toEqual([]);
+    },
+  );
 }
 
 test("record responsive parity: panel resize and 200% text enlargement keep the body draft",async({page},info)=>{

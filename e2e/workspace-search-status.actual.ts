@@ -33,7 +33,7 @@ async function setup(page: Page) {
 
 async function navigate(page: Page, name: string) {
   await openMainNavigation(page);
-  await page.getByRole("menuitem", { name, exact: true }).click();
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name, exact: true }).click();
 }
 
 async function snapshot(page: Page, info: TestInfo, name: string) {
@@ -158,6 +158,9 @@ test("actual status: delayed previous-workspace response never replaces the new 
     await openMainNavigation(page);
     await page.getByRole("button", { name: "공간 선택", exact: true }).click();
     await page.getByRole("menu").locator(`a[href="${workspacePath(other.id)}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/w/${other.id}/tasks$`));
+    await expect(page.getByRole("heading", { name: "할 일", exact: true, level: 1 })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true })).toHaveCount(0);
     await navigate(page, "상태");
     await expect(page.getByText("아직 보관한 자료가 없습니다.", { exact: true })).toBeVisible();
     release.resolve();

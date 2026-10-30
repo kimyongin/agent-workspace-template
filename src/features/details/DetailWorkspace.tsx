@@ -125,7 +125,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     <ResizablePanelGroup elementRef={groupElement} orientation="horizontal" style={{ height: desktop && shown ? "100%" : "auto" }} className={cn("min-h-0 min-w-0", desktop && shown ? "h-[calc(100dvh-3.5rem)]" : "h-auto")} resizeTargetMinimumSize={{ coarse: 44, fine: 44 }}>
       <ResizablePanel id="list" minSize={desktop && shown ? minimums.list : 0} className="min-w-0">
         <div className={cn("flex min-w-0 flex-col gap-5 p-4 lg:p-6", desktop && shown && "h-full overflow-y-auto overscroll-contain")} ref={listRef} role="region" aria-label="기본 작업 영역">
-          {render(base)}
+          {/* The first retained page must not mount a stale landing redirect before route acceptance. */}
+          {render(started ? base : location)}
           {desktop && !visible && tabs.length > 0 && <Button variant="outline" className="self-end" onClick={() => visits.setVisible(true)}>상세 탭 보기 ({tabs.length}개)</Button>}
         </div>
       </ResizablePanel>

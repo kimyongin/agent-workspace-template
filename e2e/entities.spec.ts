@@ -116,7 +116,7 @@ test("Entity 연결 활동 검색·목록과 상세 복귀·편집의 자료 연
     const unrelated = await mcp.call("create_task", { kind: "once", title: task.title + " 외부", body: "별도" });
     await page.goto(workspacePath(workspace.id, `/search?q=${encodeURIComponent(task.title)}&mode=keyword&kind=task`));
     await openTabFilters(page);
-    await page.getByLabel("자료", { exact: true }).selectOption(id);
+    await page.getByRole("combobox", { name: "자료", exact: true }).selectOption(id);
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
     await expect(page.locator("[data-list-anchor]")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);

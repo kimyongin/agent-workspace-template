@@ -148,7 +148,7 @@
   .markdown code { @apply rounded bg-muted px-1 py-0.5 font-mono text-xs; }
   .markdown pre { @apply max-w-full overflow-x-auto rounded-lg bg-muted p-4 whitespace-pre; }
   .markdown pre code { @apply bg-transparent p-0; }
-  .markdown table { @apply block max-w-full overflow-x-auto border-collapse; }
+  .markdown table { @apply block max-w-full overflow-x-auto border-collapse whitespace-normal break-keep; overflow-wrap: normal; }
   .markdown :is(th, td) { @apply border px-3 py-2 text-left; }
   .markdown th { @apply bg-muted font-medium; }
   .markdown hr { @apply my-4 border-border; }

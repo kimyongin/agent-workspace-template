@@ -503,3 +503,37 @@ test("종류 수가 줄어도 남은 검색 조건을 같은 자리에서 해제
   await search.fill("");
   await expect(nav.getByRole("link", { name: "검수 종류 8", exact: true })).toHaveCount(1);
 });
+
+// Public mobile menu navigation must render the same base page as its URL.
+test.describe("모바일 상태 탐색", () => {
+  test.use({ viewport: { width: 393, height: 851 }, isMobile: true, hasTouch: true });
+  test("주 메뉴에서 선택한 상태 화면과 URL이 일치한다", async ({ page }) => {
+    const counts = {
+      total: 0,
+      indexed: 0,
+      preparing: 0,
+      attention: 0,
+      excluded: 0,
+      waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 },
+    };
+    const empty = {
+      timezone: "Asia/Seoul",
+      queried_at: "2026-10-30T00:00:00Z",
+      period: { from: "2026-10-30", to: "2026-10-30", days: 1 },
+      entities: { total: 0, active: 0, deleted: 0 },
+      tasks: { total: 0, open: 0, done: 0, active: 0, stopped: 0 },
+      records: { total: 0, result: 0, change: 0 },
+      indexing: counts,
+      entity_indexing: counts,
+      daily: [],
+    };
+    await page.route("**/api/status", (route) => route.fulfill({ json: empty }));
+    await page.goto(fixtureWorkspacePath(""));
+    await expect(page.getByRole("heading", { name: "할 일", exact: true, level: 1 })).toBeVisible();
+    await openMainNavigation(page);
+    await mainMenu(page).getByRole("link", { name: "상태", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/w/${fixtureWorkspaceId}/status$`));
+    await expect(page.getByRole("heading", { name: "상태", exact: true, level: 1 })).toBeVisible();
+    await expect(page.getByText("아직 보관한 자료가 없습니다.", { exact: true })).toBeVisible();
+  });
+});

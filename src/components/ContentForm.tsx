@@ -110,11 +110,30 @@ function FormContents({title, description, domain, open, visible = true, submitL
     if (local) return confirmation.reject(local, "입력을 확인하세요.");
     if (mutation) confirmation.begin("save", (e.nativeEvent as SubmitEvent).submitter); else await confirmation.write("save");
   };
-  const footer = (requestCancel:(event?: MouseEvent<HTMLElement>)=>void) => <>
-    {deletion && !uncertain && <Button variant="destructive" type="button" key="delete" className="sm:mr-auto" disabled={busy || submitDisabled} onClick={event=>confirmation.begin("delete", event.currentTarget)}>삭제</Button>}
-    <Button variant="outline" key="cancel" type="button"  disabled={busy} onClick={requestCancel}>취소</Button>
-    <Button variant="default" key="save" type="submit" form={formId}  disabled={busy || submitDisabled}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</Button>
-  </>;
+  const footer = (requestCancel: (event?: MouseEvent<HTMLElement>) => void) => (
+    <>
+      <div className="flex min-w-0 flex-1 basis-48 flex-wrap justify-end gap-2">
+        <Button variant="outline" key="cancel" type="button" disabled={busy} onClick={requestCancel}>취소</Button>
+        <Button variant="default" key="save" type="submit" form={formId} disabled={busy || submitDisabled}>
+          {busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}
+        </Button>
+      </div>
+      {deletion && !uncertain && (
+        <div className="ml-4 flex shrink-0">
+          <Button
+            variant="destructive"
+            type="button"
+            key="delete"
+            disabled={busy || submitDisabled}
+            onClick={(event) => confirmation.begin("delete", event.currentTarget)}
+          >
+            삭제
+          </Button>
+        </div>
+      )}
+    </>
+  );
+
   const register = surface?.register;
   useLayoutEffect(() => {
     if (!open || !visible) return;

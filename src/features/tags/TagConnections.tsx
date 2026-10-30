@@ -90,7 +90,7 @@ export function TagConnections({ scope, target, readonly = false, visible = true
                 }}
               >
                 <PlusIcon data-icon="inline-start" />
-                연결
+                태그 연결
               </Button>
             )}
           </>

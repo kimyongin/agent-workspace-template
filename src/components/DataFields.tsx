@@ -19,8 +19,14 @@ export function DataField({ label, children, className, ...props }: Omit<Compone
 
 /** Editing keeps the reading axis while controls retain their own labels and errors. */
 export function DataFieldGroup({ className, ...props }: ComponentProps<typeof FieldGroup>) {
-  return <FieldGroup {...props} className={cn(
-    "@container/data-edit min-w-0 [&>[data-slot=field]>[data-slot=field-label]]:min-w-0 [&>[data-slot=field]>[data-slot=field-label]]:max-w-full [&>[data-slot=field]>[data-slot=field-label]]:wrap-anywhere [&>[data-slot=field]>[data-slot=field-label]]:text-xs @min-[16rem]/data-edit:[&>[data-slot=field]>[data-slot=field-label]]:text-sm [&>[data-slot=field]:has(>.sr-only)>[data-slot=field-content]]:col-span-full [&>[data-slot=field]]:grid [&>[data-slot=field]]:grid-cols-1 [&>[data-slot=field]]:items-start [&>[data-slot=field]]:gap-x-4 [&>[data-slot=field]]:gap-y-1 @min-[16rem]/data-edit:[&>[data-slot=field]]:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)] @min-[16rem]/data-edit:[&>[data-slot=field]>[data-slot=field-label]]:pt-3",
-    className,
-  )} />;
+  return (
+    <FieldGroup
+      {...props}
+      className={cn(
+        "@container/data-edit min-w-0 [&>[data-slot=field]>[data-slot=field-label]]:min-w-0 [&>[data-slot=field]>[data-slot=field-label]]:max-w-full [&>[data-slot=field]>[data-slot=field-label]]:wrap-anywhere [&>[data-slot=field]>[data-slot=field-label]]:text-xs @min-[16rem]/data-edit:[&>[data-slot=field]>[data-slot=field-label]]:text-sm [&>[data-slot=field]:has(>.sr-only)>[data-slot=field-content]]:col-span-full [&>[data-slot=field]]:grid [&>[data-slot=field]]:grid-cols-1 [&>[data-slot=field]]:items-start [&>[data-slot=field]]:gap-x-4 [&>[data-slot=field]]:gap-y-1 @min-[16rem]/data-edit:[&>[data-slot=field]]:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)] @min-[16rem]/data-edit:[&>[data-slot=field]>[data-slot=field-label]]:pt-3",
+        "[&>[data-slot=field][data-full-width]:has(textarea)]:grid-cols-1 [&>[data-slot=field][data-full-width]:has(textarea)>[data-slot=field-label]]:pt-0",
+        className,
+      )}
+    />
+  );
 }

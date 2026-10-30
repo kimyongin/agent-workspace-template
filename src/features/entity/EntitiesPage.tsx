@@ -378,16 +378,14 @@ export function EntitiesPage() {
       </section>
       <ListExpansionProvider readiness={readiness}>
         <section className="flex min-w-0 flex-col gap-3" aria-label={`${label} 목록`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CollectionHeading
-              hideLabel
-              label={label}
-              count={page ? visibleRows.length : undefined}
-              hasMore={!!page?.next_cursor}
-              view={view}
-              onChange={changeView}
-            />
-            {!invalidType && canCreate
+          <CollectionHeading
+            hideLabel
+            label={label}
+            count={page ? visibleRows.length : undefined}
+            hasMore={!!page?.next_cursor}
+            view={view}
+            onChange={changeView}
+            action={!invalidType && canCreate
               ? <TabCreateButton label={`${selectedType?.label ?? "자료"} 추가`} onClick={create.begin} />
               : canReadSettings && types && !typeError && !invalidType &&
                 (selectedType?.archived || !types.some((type) => !type.archived)) && (
@@ -407,7 +405,7 @@ export function EntitiesPage() {
                   </Link>
                 </Button>
               )}
-          </div>
+          />
           {error && (
             <>
               <Notice kind="error">{error}</Notice>
@@ -484,6 +482,7 @@ export function EntitiesPage() {
                     kind="entities"
                     id={e.id}
                     title={e.title}
+                    shownType={displaySchema ? undefined : e.type}
                     cells={displaySchema ? [] : [
                       <span key="type"><EntityTypeIcon id={e.type.icon_id} /> {e.type.label}</span>,
                     ]}

@@ -1,4 +1,5 @@
-import { FieldSet, FieldLegend } from "../../components/ui/field.tsx";
+import { FieldSet, FieldLegend, FieldGroup } from "../../components/ui/field.tsx";
+import { cn } from "../../lib/utils.ts";
 import { Button } from "../../components/ui/button.tsx";
 import { XIcon, PlusIcon } from "lucide-react";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
@@ -65,7 +66,6 @@ export function TypedEntityFilters(
         {(props) => (
           <NativeSelect
             {...props}
-
             value={sort}
             onChange={(event) => onChange(raw ?? "", event.target.value)}
           >
@@ -100,12 +100,17 @@ export function TypedEntityFilters(
               ? ["eq", "contains"]
               : ["eq", "gt", "gte", "lt", "lte"];
             return (
-              <div className="grid min-w-0 grid-cols-2 items-end gap-3 @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" key={index}>
+              <FieldGroup
+                key={index}
+                className={cn(
+                  "grid min-w-0 grid-cols-1 items-end gap-3 @min-[14rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]",
+                  "value" in row && "@xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]",
+                )}
+              >
                 <Field hideLabel label={`조건 ${index + 1} 속성`}>
                   {(props) => (
                     <NativeSelect
                       {...props}
-
                       value={row.key}
                       onChange={(event) => {
                         const next = schema.schema.properties[event.target.value];
@@ -127,7 +132,9 @@ export function TypedEntityFilters(
                       }}
                     >
                       {keys.map((key) => (
-                        <NativeSelectOption key={key} value={key}>{schema.schema.properties[key].title ?? key}</NativeSelectOption>
+                        <NativeSelectOption key={key} value={key}>
+                          {schema.schema.properties[key].title ?? key}
+                        </NativeSelectOption>
                       ))}
                     </NativeSelect>
                   )}
@@ -136,7 +143,6 @@ export function TypedEntityFilters(
                   {(props) => (
                     <NativeSelect
                       {...props}
-
                       value={row.operator}
                       onChange={(event) => update(index, { operator: event.target.value })}
                     >
@@ -147,13 +153,16 @@ export function TypedEntityFilters(
                   )}
                 </Field>
                 {"value" in row && (
-                  <Field hideLabel label={`조건 ${index + 1} 값`}>
+                  <Field
+                    hideLabel
+                    className="col-span-full @min-[14rem]:col-span-2 @min-[14rem]:col-start-1 @xl:col-span-1 @xl:col-start-auto"
+                    label={`조건 ${index + 1} 값`}
+                  >
                     {(props) =>
                       kind === "boolean"
                         ? (
                           <NativeSelect
                             {...props}
-
                             value={String(row.value)}
                             onChange={(event) => update(index, { value: event.target.value === "true" })}
                           >
@@ -165,7 +174,6 @@ export function TypedEntityFilters(
                         ? (
                           <NativeSelect
                             {...props}
-
                             value={String(row.value)}
                             onChange={(event) => update(index, { value: event.target.value })}
                           >
@@ -180,7 +188,6 @@ export function TypedEntityFilters(
                         : (
                           <Input
                             {...props}
-
                             type={field?.format === "date" ? "date" : "text"}
                             placeholder="값 입력"
                             inputMode={kind === "integer" || kind === "number" ? "decimal" : undefined}
@@ -190,21 +197,23 @@ export function TypedEntityFilters(
                         )}
                   </Field>
                 )}
-                <Button variant="ghost"
-
+                <Button
+                  variant="ghost"
+                  size="icon"
                   type="button"
                   className="justify-self-end"
                   aria-label={`조건 ${index + 1} 제거`}
                   onClick={() => setDraft((rows) => rows.filter((_, n) => n !== index))}
-                ><XIcon data-icon="inline-start" />
+                >
+                  <XIcon data-icon="inline-start" />
                   {null}
                 </Button>
-              </div>
+              </FieldGroup>
             );
           })}
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="ghost"
-
+            <Button
+              variant="ghost"
               type="button"
               className="justify-self-start"
               disabled={!keys.length || draft.length >= 32}
@@ -212,7 +221,8 @@ export function TypedEntityFilters(
                 const key = keys[0];
                 setDraft((rows) => [...rows, { key, operator: "eq", value: "" }]);
               }}
-            ><PlusIcon data-icon="inline-start" />
+            >
+              <PlusIcon data-icon="inline-start" />
               속성 조건 추가
             </Button>
           </div>

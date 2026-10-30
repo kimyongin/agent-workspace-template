@@ -16,13 +16,14 @@ export function previewKind(path: string): PreviewKind | undefined {
 }
 /** Domain read adapters own content; disclosure and request lifetimes do not know its fields. */
 export function PreviewContents(
-  { kind, item, main, onTagsReady, onPropertiesReady, shownTitle }: {
+  { kind, item, main, onTagsReady, onPropertiesReady, shownTitle, shownType }: {
     kind: PreviewKind;
     item: Preview;
     main: boolean;
     onTagsReady: (ready: boolean) => void;
     onPropertiesReady: (ready: boolean) => void;
     shownTitle?: string;
+    shownType?: { id: string; label: string };
   },
 ) {
   const tags = (scope: "entity" | "task" | "record", ids: string[]) => (
@@ -38,6 +39,8 @@ export function PreviewContents(
   );
   if (kind === "entities") {
     const entity = item as EntityDetail;
+    const showType = entity.type.id !== shownType?.id || entity.type.label !== shownType.label;
+    const showCurrentTitle = !main && entity.title !== shownTitle;
     return (
       <>
         <EntityProperties
@@ -45,19 +48,28 @@ export function PreviewContents(
           activeOnly
           onReadyChange={onPropertiesReady}
         />
-        <DataFields>
-          {!main && entity.title !== shownTitle && <div className="col-span-full"><dt>현재 제목</dt><dd>{entity.title}</dd></div>}
-          <div>
-            <dt>자료 종류</dt>
-            <dd>{entity.type.label}</dd>
-          </div>
-          {entity.deleted_at && (
-            <div>
-              <dt>상태</dt>
-              <dd>삭제됨</dd>
-            </div>
-          )}
-        </DataFields>
+        {(showType || showCurrentTitle || entity.deleted_at) && (
+          <DataFields>
+            {showCurrentTitle && (
+              <div className="col-span-full">
+                <dt>현재 제목</dt>
+                <dd>{entity.title}</dd>
+              </div>
+            )}
+            {showType && (
+              <div>
+                <dt>자료 종류</dt>
+                <dd>{entity.type.label}</dd>
+              </div>
+            )}
+            {entity.deleted_at && (
+              <div>
+                <dt>상태</dt>
+                <dd>삭제됨</dd>
+              </div>
+            )}
+          </DataFields>
+        )}
         {tags("entity", entity.tag_ids)}
       </>
     );
