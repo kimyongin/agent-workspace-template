@@ -70,6 +70,9 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     await page.goto(workspacePath(workspace.id, "/entities"));
     await openMainNavigation(page);
     await page.getByRole("link", { name: "기본 설정",exact:true}).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true })).toHaveCount(0);
     await openMainNavigation(page);
     await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "태그 설정",exact:true}).click();
     await page.getByRole("radiogroup", {name:"관리 대상",exact:true}).getByRole("radio", {name:"기록",exact:true}).click();

@@ -68,6 +68,9 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   expect(new URL(page.url()).searchParams.get("keyword")).toBe(title);
   await openMainNavigation(page);
   await page.getByRole("link", { name: "기본 설정", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("heading", { name: "기본 설정", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "주 메뉴", exact: true, includeHidden: true })).toHaveCount(0);
   await openMainNavigation(page);
   await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정",
     exact: true,

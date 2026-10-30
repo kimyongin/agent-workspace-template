@@ -522,7 +522,7 @@ test(
       await expect(section.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
       await openMainNavigation(reader);
       await expect(reader.getByRole("link", { name: "이 공간 관리", exact: true })).toHaveCount(0);
-      await expect(reader.getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
+      await expect(reader.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "공간 목록 · 새 공간", exact: true })).toBeVisible();
       await reader.keyboard.press("Escape");
       await reader.screenshot({
         path: info.outputPath("actual-no-settings-workspace.png"),

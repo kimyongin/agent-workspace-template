@@ -62,6 +62,7 @@ test("색인 대기: 문제 목록이 비어도 오래 갱신되지 않은 준�
   prolonged = false;
   await page.getByRole("button", { name: "새로고침", exact: true }).click();
   await expect(waiting).toHaveCount(0);
+  await page.unrouteAll({ behavior: "wait" });
 });
 
 test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트 키보드 선택과 정확한 값·색인 문제 탐색", async ({ page }) => {

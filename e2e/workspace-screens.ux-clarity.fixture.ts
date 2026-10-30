@@ -136,6 +136,7 @@ for (const width of [320, 1440]) {
 for (const archived of [false, true]) {
   test(`direct create: ${archived ? "archived types offer management" : "no types offer creation"}`, async ({ page }) => {
     const state = await fixtures(page);
+    state.rows.entities = [];
     await page.route(
       (url) => url.pathname === "/api/entity-types",
       (route) =>
