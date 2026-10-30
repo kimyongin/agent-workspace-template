@@ -132,7 +132,7 @@ function InvitationLink({ invitation, showAcceptanceLink = false }: {
         초대 링크 복사
       </Button>
       {status && <p role="status" className="break-keep">{message}</p>}
-      {(status === "denied" || status === "unavailable") && (
+      {status && (!showAcceptanceLink || status !== "copied") && (
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor={inputId}>초대 수락 링크</FieldLabel>

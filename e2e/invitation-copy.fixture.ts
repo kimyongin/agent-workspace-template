@@ -40,7 +40,9 @@ test("administrator copies the existing invitation from its row without a busine
   await page.screenshot({ path: info.outputPath("invitation-before-copy.png"), fullPage: true });
   await row.getByRole("button", { name: "초대 링크 복사", exact: true }).click({ timeout: 5000 });
   await expect(row.getByRole("status")).toHaveText("초대 링크를 복사했습니다.");
-  await expect(row.getByRole("textbox", { name: "초대 수락 링크", exact: true })).toHaveCount(0);
+  const link = row.getByRole("textbox", { name: "초대 수락 링크", exact: true });
+  await expect(link).toHaveValue("http://127.0.0.1:55612/invitations/00000000-0000-4000-8000-000000000990");
+  await expect(link).toHaveAttribute("readonly", "");
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(
     "http://127.0.0.1:55612/invitations/00000000-0000-4000-8000-000000000990",
   );
