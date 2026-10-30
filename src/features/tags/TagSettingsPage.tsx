@@ -1,4 +1,5 @@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { WorkspaceSettingsBoundary, useSettingsAccess } from "../settings/workspace-settings-access.tsx";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
 import { SettingsHeading } from "../settings/SettingsHeading.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +13,10 @@ import { TagManagement } from "./TagsPage.tsx";
 
 /** One settings surface; each target keeps its independent tag dictionary. */
 export function TagSettingsPage() {
+  return <WorkspaceSettingsBoundary><TagSettingsContent /></WorkspaceSettingsBoundary>;
+}
+function TagSettingsContent() {
+  const { canWrite } = useSettingsAccess();
   const [params] = useSearchParams(), navigate = useNavigate();
   const rawScope = params.get("scope");
   const scope: TagScope = rawScope === "task" || rawScope === "record" ? rawScope : "entity";
@@ -65,7 +70,7 @@ export function TagSettingsPage() {
       </div>
       <MaterialSettingsSection title="태그" initialOpen state={state}>
         <SurfaceActionContext.Provider value={setAction}>
-          <TagManagement key={scope} scope={scope} inline onStateChange={setState} />
+          <TagManagement key={scope} scope={scope} mode="inline" readOnly={!canWrite} onStateChange={setState} />
         </SurfaceActionContext.Provider>
       </MaterialSettingsSection>
       {action && (

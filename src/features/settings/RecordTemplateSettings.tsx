@@ -1,6 +1,6 @@
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { useApi, useRequestScope } from "../../lib/api-context.tsx";
-import { RotateCcwIcon, EyeIcon } from "lucide-react";
+import { RotateCcwIcon, EyeIcon, Settings2Icon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select";
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
@@ -30,6 +30,7 @@ import {
 } from "@contracts/record-template.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 import { TagPicker } from "../tags/TagPicker.tsx";
+import { TagManagement } from "../tags/TagsPage.tsx";
 import { ApiError } from "../../lib/api.ts";
 import { useSettingsDraft } from "./useSettingsDraft.ts";
 import { createRecordTemplatesDraft, unavailableTemplateTags } from "./business-settings-drafts.ts";
@@ -154,6 +155,8 @@ function RecordTemplateForm({
   const [fields, setFields] = useState<Record<string, string>>({});
   const missing = unavailableTemplateTags(editor.saved, draft);
   const text = useRef<TemplateMemoHandle>(null);
+  const [managingTags, setManagingTags] = useState(false);
+  const manageTagsButton = useRef<HTMLButtonElement>(null);
   const read = async () => {
     const refreshing = !!saved;
     setMessage("");
@@ -431,6 +434,9 @@ function RecordTemplateForm({
 
             <div className="min-w-0 col-span-full">
               <TagPicker
+                action={canWrite && <Button ref={manageTagsButton} variant="ghost" type="button" className="h-auto min-h-11 max-w-full whitespace-normal" disabled={busy || uncertain} onClick={() => setManagingTags(true)}>
+                  <Settings2Icon data-icon="inline-start" />기록 태그 관리
+                </Button>}
                 disabled={!canWrite || busy || uncertain}
                 label="기본 기록 태그"
                 scope="record"
@@ -503,6 +509,20 @@ function RecordTemplateForm({
           </div>
         </form>
       )}
+      {managingTags && <TagManagement
+        scope="record"
+        mode="dialog"
+        readOnly={!canWrite}
+        returnLabel="기록 자동 완성으로 돌아가기"
+        onClose={() => {
+          setManagingTags(false);
+          requestAnimationFrame(() => {
+            const button = manageTagsButton.current;
+            if (button && !button.disabled) button.focus({ preventScroll: true });
+            else text.current?.focus();
+          });
+        }}
+      />}
     </section>
   );
 }

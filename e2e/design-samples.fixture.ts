@@ -380,6 +380,28 @@ test("history expansion preserves the same section surface as other settings", a
   }
 });
 
+test("#611 샘플 태그 추가는 화면 이동·자동 선택 없이 복귀하고 미저장 이름을 보호한다", async ({ page }, info) => {
+  await page.goto(direct);
+  const address = page.url(), tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
+  const manage = tags.getByRole("button", { name: "기록 태그 관리", exact: true });
+  await manage.click();
+  const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  await dialog.getByRole("textbox", { name: /^태그 이름/ }).fill("새 예시 태그");
+  await dialog.press("Escape");
+  await page.getByRole("alertdialog").getByRole("button", { name: "취소", exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: /^태그 이름/ })).toHaveValue("새 예시 태그");
+  await dialog.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(dialog.getByRole("status")).toContainText("새 예시 태그");
+  await dialog.screenshot({ path: info.outputPath("sample-tag-management.png") });
+  await dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true }).click();
+  await expect(manage).toBeFocused(); expect(page.url()).toBe(address);
+  await expect(tags.getByRole("button", { name: "새 예시 태그 선택 해제", exact: true })).toHaveCount(0);
+  await tags.getByRole("button", { name: "태그 선택", exact: true }).click();
+  await checkTag(page.getByRole("option", { name: "새 예시 태그", exact: true }));
+  await page.getByRole("button", { name: "선택 완료", exact: true }).click();
+  await expect(tags.getByRole("button", { name: "새 예시 태그 선택 해제", exact: true })).toBeVisible();
+});
+
 test("tag modal searches and retains draft selections on Escape with focus restoration", async ({ page }, info) => {
   await page.goto(direct);
   const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });

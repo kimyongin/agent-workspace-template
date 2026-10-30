@@ -6,6 +6,40 @@ import { expect } from "@playwright/test";
 import { devLogin, unique , ownedWorkspace, workspacePath} from "./support.ts";
 import { beginTabAction, chooseTag } from "./ui-actions.ts";
 
+test("#611 기록 태그의 실제 독립 저장과 같은 화면 복귀는 템플릿 초안을 자동 저장하지 않는다", async ({ page }) => {
+  await devLogin(page);
+  const workspace = await ownedWorkspace(page);
+  const api = async (method: string, path: string) => {
+    const response = await workspace.fetch(method, path);
+    expect(response.ok(), `${method} ${path}: ${response.status()}`).toBeTruthy();
+    return response.json();
+  };
+  const initial = await api("GET", "/settings/business");
+  const memoText = unique("왕복 없이 보존한 문구"), tagName = unique("같은 화면 태그");
+  await page.goto(workspacePath(workspace.id, "/settings/records"));
+  const address = page.url(), form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
+  const memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await memo.fill(memoText);
+  const manage = form.getByRole("button", { name: "기록 태그 관리", exact: true }); await manage.click();
+  const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  await dialog.getByRole("textbox", { name: /^태그 이름/ }).fill(tagName);
+  await dialog.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(dialog.getByText("태그를 저장했습니다.", { exact: true })).toBeVisible();
+  const tags = await api("GET", "/tags?scope=record&limit=100"), tag = tags.items.find((value: { name: string }) => value.name === tagName);
+  expect(tag).toBeDefined();
+  expect((await api("GET", "/settings/business")).settings.record_templates).toEqual(initial.settings.record_templates);
+  expect(page.url()).toBe(address);
+  await dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true }).click();
+  await expect(manage).toBeFocused(); await expect(memo).toHaveText(memoText);
+  await form.getByRole("button", { name: "태그 선택", exact: true }).click();
+  await page.getByRole("option", { name: tagName, exact: true }).click();
+  await page.getByRole("button", { name: "선택 완료", exact: true }).click();
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await expect(form.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toBeVisible();
+  expect((await api("GET", "/settings/business")).settings.record_templates.task.create).toEqual({ memo: memoText, tag_ids: [tag.id] });
+  // The automatic owned-workspace fixture cleans this test's settings and tag together.
+});
+
 test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·수정 메모 보존·고정 재시도", async ({page}) => {
   await devLogin(page);
   const workspace = await ownedWorkspace(page);
