@@ -1,6 +1,8 @@
 import { BusinessCell, BusinessDisclosureCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
 import { Spinner } from "../../components/ui/spinner.tsx";
+import { XIcon } from "lucide-react";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "../../components/ui/input-group.tsx";
 import { FieldGroup } from "../../components/ui/field.tsx";
 import { Input } from "../../components/ui/input.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -19,11 +21,14 @@ import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { useSearchRead } from "./useSearchRead.ts";
 import { activityTags } from "../activity/activity-filters.ts";
+import { taskLabels } from "@contracts/task.ts";
+import { recordKindNames } from "../activity/ChangeContext.tsx";
 const kinds = { entity: "자료", task: "할 일", record: "기록" } as const;
 export function SearchPage() {
   const { formatDateTime } = useDisplayTime();
   useDetailExploration();
   const composing = useRef(false);
+  const searchInput = useRef<HTMLInputElement>(null);
   const [params, setParams] = useSearchParams(), [draft, setDraft] = useState(params.get("q") ?? "");
   const [retry, setRetry] = useState(0);
   const q = params.get("q") ?? "";
@@ -110,6 +115,39 @@ export function SearchPage() {
       next.delete("tag_ids");
       return next;
     });
+  const summaryFields: [string, string, Readonly<Record<string, string>>][] = [
+    ["kind", "대상", kinds],
+    ["mode", "방식", { auto: "자동", keyword: "키워드" }],
+    ["record_kind", "기록 종류", recordKindNames],
+    ["task_kind", "할 일 종류", { once: taskLabels.once, recurring: taskLabels.recurring }],
+    ["task_status", "할 일 상태", {
+      open: taskLabels.open,
+      done: taskLabels.done,
+      active: taskLabels.active,
+      stopped: taskLabels.stopped,
+    }],
+  ];
+  const appliedSummary = summaryFields.flatMap(([key, label, labels]) => {
+    const value = params.get(key);
+    return value ? [`${label}: ${Object.hasOwn(labels, value) ? labels[value] : "확인 필요"}`] : [];
+  });
+  const appliedTags = activityTags(params);
+  if (appliedTags.length) appliedSummary.push(`태그: ${appliedTags.length}개`);
+  if (params.get("entity_id")) appliedSummary.push("선택한 자료");
+  for (const [key, label] of [["from", "시작"], ["to", "종료"]]) {
+    const value = params.get(key);
+    if (value) {
+      appliedSummary.push(`${label}: ${Number.isFinite(Date.parse(value)) ? formatDateTime(value) : "확인 필요"}`);
+    }
+  }
+  let filterAttention = false;
+  try {
+    const validation = new URLSearchParams(params);
+    validation.set("q", "검사");
+    workspaceSearchScope(validation);
+  } catch {
+    filterAttention = true;
+  }
   return (
     <section data-page-ready={!busy && (!!result || !!error || !q) ? "" : undefined} className="@container flex min-w-0 flex-col gap-5" aria-labelledby="search-title">
       <PageHeading
@@ -131,23 +169,41 @@ export function SearchPage() {
         ><FieldGroup className="grid min-w-0 grid-cols-1 items-end gap-3 @min-[18rem]:grid-cols-[minmax(0,1fr)_auto]">
           <Field label="검색어" required>
             {(p) => (
-              <Input
-                {...p}
-
-                placeholder="검색어 입력"
-                value={draft}
-                onCompositionStart={() => {
-                  composing.current = true;
-                }}
-                onCompositionEnd={() => {
-                  composing.current = false;
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.nativeEvent.isComposing || e.keyCode === 229)) e.preventDefault();
-                }}
-                onChange={(e) => setDraft(e.target.value)}
-                required
-              />
+              <InputGroup>
+                <InputGroupInput
+                  {...p}
+                  ref={searchInput}
+                  placeholder="검색어 입력"
+                  value={draft}
+                  onCompositionStart={() => {
+                    composing.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    composing.current = false;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.nativeEvent.isComposing || e.keyCode === 229)) e.preventDefault();
+                  }}
+                  onChange={(e) => setDraft(e.target.value)}
+                  required
+                />
+                {!!draft && (
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      size="icon-sm"
+                      type="button"
+                      aria-label="입력한 검색어 지우기"
+                      onClick={() => {
+                        setDraft("");
+                        composing.current = false;
+                        searchInput.current?.focus();
+                      }}
+                    >
+                      <XIcon />
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                )}
+              </InputGroup>
             )}
           </Field>
           <Button variant="default"  type="submit" disabled={busy}>검색</Button>
@@ -170,6 +226,8 @@ export function SearchPage() {
         )}
         <TabFilters
           active={filterKeys.some((key) => params.has(key))}
+          summary={appliedSummary}
+          attention={filterAttention}
           dirty={editing.dirty}
           onReset={() => {
             editing.reset();
@@ -254,6 +312,9 @@ export function SearchPage() {
           </div>
         </TabFilters>
       </div>
+      {result && draft.trim() !== q && (
+        <p className="text-sm text-muted-foreground wrap-anywhere" role="status">현재 결과의 검색어: {q}</p>
+      )}
       {error && (
         <>
           <Notice kind="error">{error}</Notice>

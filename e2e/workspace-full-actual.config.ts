@@ -12,6 +12,7 @@ export default defineConfig(ownedActual, {
     "workspace-activity.actual.ts",
     "workspace-task-viewer-access.actual.ts",
     "workspace-search-status.actual.ts",
+    "workspace-search-guide.actual.ts",
   ],
   testIgnore: defaultActual.testIgnore,
   outputDir: "test-results/workspace-full-actual",
