@@ -26,7 +26,7 @@ export function ViewPicker({ label, value, onChange, calendar = false }: {
 }
 
 export function CollectionHeading(
-  { id, label, count, hasMore = false, view, onChange, calendar, hideLabel = false }: {
+  { id, label, count, hasMore = false, view, onChange, calendar, hideLabel = false, action }: {
     id?: string;
     label: string;
     hideLabel?: boolean;
@@ -35,20 +35,43 @@ export function CollectionHeading(
     view: CollectionView;
     onChange: (view: CollectionView) => void;
     calendar?: boolean;
+    action?: ReactNode;
   },
 ) {
   const expansion = useCollectionExpansion();
   const Icon = expansion?.allOpen ? ChevronsUpIcon : ChevronsDownIcon;
-  return <div className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-3">
-    <h2 id={id} className="text-base font-semibold" aria-label={hideLabel && count !== undefined ? `${label} (${count}개${hasMore ? "+" : ""})` : undefined}>
-      {hideLabel && count !== undefined ? `${count}개${hasMore ? "+" : ""}` : <>{label}{count === undefined ? "" : ` (${count}개${hasMore ? "+" : ""})`}</>}
-    </h2>
-    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-      {expansion && <Button type="button" variant="ghost" size="icon" aria-label={`${label} ${expansion.allOpen ? "전체 닫기" : "전체 열기"}`}
-        title={expansion.allOpen ? "전체 닫기" : "전체 열기"} aria-expanded={expansion.allOpen} onClick={expansion.toggle}><Icon /></Button>}
-      <ViewPicker label={label} value={view} onChange={onChange} calendar={calendar} />
+  return (
+    <div className="flex w-full min-w-0 max-w-full flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <h2
+          id={id}
+          className="text-base font-semibold"
+          aria-label={hideLabel && count !== undefined ? `${label} (${count}개${hasMore ? "+" : ""})` : undefined}
+        >
+          {hideLabel && count !== undefined
+            ? `${count}개${hasMore ? "+" : ""}`
+            : <>{label}{count === undefined ? "" : ` (${count}개${hasMore ? "+" : ""})`}</>}
+        </h2>
+        {expansion && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={`${label} ${expansion.allOpen ? "전체 닫기" : "전체 열기"}`}
+            title={expansion.allOpen ? "전체 닫기" : "전체 열기"}
+            aria-expanded={expansion.allOpen}
+            onClick={expansion.toggle}
+          >
+            <Icon />
+          </Button>
+        )}
+      </div>
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+        <ViewPicker label={label} value={view} onChange={onChange} calendar={calendar} />
+        {action && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{action}</div>}
+      </div>
     </div>
-  </div>;
+  );
 }
 
 export function useMainCollectionView(calendar = false) {

@@ -53,20 +53,48 @@ export function ListExpansionProvider({children,readiness}:{children:ReactNode;r
   }}><ExpansionGroupProvider>{children}</ExpansionGroupProvider></ItemExpansionProvider></ListPreviewReadiness.Provider>;
 }
 
-export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityListKind;id:string;title:string;metadata?:ReactNode;cells?:ReactNode[]}) {
-  const location=useLocation(),navigate=useNavigate();
-  const workspace=useContext(WorkspaceContext);
-  const path=`/${kind}/${encodeURIComponent(id)}`;
+export function ListPreviewItem(
+  { kind, id, title, metadata, cells, shownType }: {
+    kind: ActivityListKind;
+    id: string;
+    title: string;
+    metadata?: ReactNode;
+    cells?: ReactNode[];
+    shownType?: { id: string; label: string };
+  },
+) {
+  const location = useLocation(), navigate = useNavigate();
+  const workspace = useContext(WorkspaceContext);
+  const path = `/${kind}/${encodeURIComponent(id)}`;
   const table = useItemLayout()?.view === "table";
   const Wrapper = table ? Fragment : "div";
-  const link=()=>{
-    return {to:listDetailVisit(kind,location,id,0).to,onClick:(event:MouseEvent<HTMLAnchorElement>)=>{
-      if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
-      event.preventDefault();
-      const visit=listDetailVisit(kind,location,id,scrollTop(event.currentTarget));
-      if(workspace){workspace.open(visit.to,{...location,...visit.origin});return;}
-      void Promise.resolve(navigate(visit.back,{replace:true,preventScrollReset:true})).then(()=>navigate(visit.to,{state:null}));
-    }};
+  const link = () => {
+    return {
+      to: listDetailVisit(kind, location, id, 0).to,
+      onClick: (event: MouseEvent<HTMLAnchorElement>) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        const visit = listDetailVisit(kind, location, id, scrollTop(event.currentTarget));
+        if (workspace) {
+          workspace.open(visit.to, { ...location, ...visit.origin });
+          return;
+        }
+        void Promise.resolve(navigate(visit.back, { replace: true, preventScrollReset: true })).then(() =>
+          navigate(visit.to, { state: null })
+        );
+      },
+    };
   };
-  return <Wrapper {...(table ? {} : {className: kind === "records" ? "related-record" : undefined})}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} titleLabel={kind==="tasks"?"제목":kind==="records"?"본문 대표 문구":undefined} cells={cells} list={{link,metadata}}/></Wrapper>;
+  return (
+    <Wrapper {...(table ? {} : { className: kind === "records" ? "related-record" : undefined })}>
+      <RelatedPreviewItem
+        id={listAnchor(kind, id)}
+        to={path}
+        title={title}
+        titleLabel={kind === "tasks" ? "제목" : kind === "records" ? "본문 대표 문구" : undefined}
+        cells={cells}
+        list={{ link, metadata, shownType }}
+      />
+    </Wrapper>
+  );
 }

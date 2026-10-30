@@ -27,7 +27,7 @@ import { ListPreviewReadiness } from "./preview-readiness.ts";
 /** Current content only, never another relationship graph or a write during disclosure. */
 export function RelatedPreviewItem(
   { list, fallback, resource, ...props }: ComponentProps<typeof RelatedItem> & {
-    list?: { link: () => LinkProps; metadata?: ReactNode };
+    list?: { link: () => LinkProps; metadata?: ReactNode; shownType?: { id: string; label: string } };
     fallback?: ReactNode;
     resource?: RelatedRead<Preview>;
   },
@@ -139,6 +139,7 @@ export function RelatedPreviewItem(
                   kind={kind}
                   item={item}
                   shownTitle={props.title}
+                  shownType={list?.shownType}
                   main={!!list}
                   onTagsReady={onTagsReady}
                   onPropertiesReady={onPropertiesReady}

@@ -103,18 +103,16 @@ function ActivitySection(
         className="@container flex min-w-0 flex-col gap-3"
         aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CollectionHeading
-            hideLabel
-            label={kind === "tasks" ? "할 일" : "기록"}
-            count={list.items?.length}
-            hasMore={!!list.cursor}
-            view={view}
-            onChange={changeView}
-            calendar={kind === "records"}
-          />
-          {kind === "tasks" && canWrite && <TabCreateButton label="할 일 등록" onClick={onCreate} />}
-        </div>
+        <CollectionHeading
+          hideLabel
+          label={kind === "tasks" ? "할 일" : "기록"}
+          count={list.items?.length}
+          hasMore={!!list.cursor}
+          view={view}
+          onChange={changeView}
+          calendar={kind === "records"}
+          action={kind === "tasks" && canWrite ? <TabCreateButton label="할 일 등록" onClick={onCreate} /> : undefined}
+        />
         {q && (
           <p className="text-sm text-muted-foreground">
             {list.semanticSearching ? "관련도순으로 회수한 검색 결과" : "키워드 검색 결과"}{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}

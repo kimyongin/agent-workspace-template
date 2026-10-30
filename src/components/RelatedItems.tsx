@@ -31,28 +31,27 @@ export function RelatedSection(
     <RelatedCollectionView.Provider value={view}>
       <ExpansionGroupProvider>
         <section className="flex min-w-0 flex-col gap-4" aria-labelledby={heading} aria-busy={busy || undefined}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              {views && count !== 0
-                ? (
-                  <CollectionHeading
-                    id={heading}
-                    label={title}
-                    count={count}
-                    hasMore={hasMore}
-                    view={view}
-                    onChange={(next) => setView(next as ItemView)}
-                  />
-                )
-                : (
-                  <h2 id={heading} className="text-base font-semibold">
-                    {title}
-                    {count !== undefined ? ` (${count}개${hasMore ? "+" : ""})` : ""}
-                  </h2>
-                )}
-            </div>
-            {action}
-          </div>
+          {views && count !== 0
+            ? (
+              <CollectionHeading
+                id={heading}
+                label={title}
+                count={count}
+                hasMore={hasMore}
+                view={view}
+                onChange={(next) => setView(next as ItemView)}
+                action={action}
+              />
+            )
+            : (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id={heading} className="text-base font-semibold">
+                  {title}
+                  {count !== undefined ? ` (${count}개${hasMore ? "+" : ""})` : ""}
+                </h2>
+                {action}
+              </div>
+            )}
           {children}
         </section>
       </ExpansionGroupProvider>

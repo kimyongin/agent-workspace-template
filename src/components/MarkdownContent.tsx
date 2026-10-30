@@ -15,10 +15,15 @@ export function MarkdownContent({ text, className = "" }: { text: string; classN
         skipHtml
         urlTransform={(url) => (SAFE.test(url) ? defaultUrlTransform(url) : "")}
         components={{
+          table: ({ children }) => <table tabIndex={0} aria-label="본문 표">{children}</table>,
           a: ({ href, children }) =>
-            href ? <a href={href} target="_blank" rel="noopener noreferrer nofollow">{children}</a> : <span>{children}</span>,
+            href
+              ? <a href={href} target="_blank" rel="noopener noreferrer nofollow">{children}</a>
+              : <span>{children}</span>,
           img: ({ src, alt }) =>
-            src ? <a href={String(src)} target="_blank" rel="noopener noreferrer nofollow">이미지: {alt || src}</a> : null,
+            src
+              ? <a href={String(src)} target="_blank" rel="noopener noreferrer nofollow">이미지: {alt || src}</a>
+              : null,
         }}
       >
         {text}
