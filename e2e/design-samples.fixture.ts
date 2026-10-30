@@ -96,6 +96,7 @@ test("account settings sample keeps independent drafts and clear row actions", a
     "상품",
   ]);
   await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
+  await expect(page.getByRole("listbox", { includeHidden: true })).toHaveCount(0);
   for (const width of [320, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
