@@ -5,6 +5,93 @@ import { expect, test } from "@playwright/test";
 import { id, record, stamp, task } from "./support/workspace-data.ts";
 import { fixtures, form, go } from "./support/workspace-screens.ts";
 
+test("결과 작성 320px·200%: 긴 지시를 키보드로 읽고 같은 결과 초안으로 돌아온다", async ({ page }, info) => {
+  const state = await fixtures(page);
+  state.rows.tasks[0].title = "장비별 냉장 보관 온도를 점검하고 측정 결과를 기록합니다.";
+  state.rows.tasks[0].body = `${"장비 번호와 측정값을 대조합니다.\n\n".repeat(80)}지시 마지막`;
+  await page.setViewportSize({ width: 320, height: 568 });
+  await go(page, `/tasks/${id(2)}?action=complete`);
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  const result = form(page), context = result.getByRole("region", { name: "기록할 할 일", exact: true });
+  const body = result.getByRole("textbox", { name: /^본문/ });
+  await body.fill("유지할 결과 초안");
+  await context.getByRole("button", { name: "할 일 내용 확인", exact: true }).click();
+  const instruction = context.getByRole("region", { name: "할 일 본문", exact: true });
+  await instruction.focus();
+  await page.keyboard.press("End");
+  await expect.poll(() => instruction.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+  await expect(instruction.getByText("지시 마지막", { exact: true })).toBeInViewport();
+  await page.keyboard.press("Tab");
+  await expect(body).toBeFocused();
+  await expect(body).toBeInViewport({ ratio: 0.99 });
+  await expect(body).toHaveValue("유지할 결과 초안");
+  const save = result.getByRole("button", { name: "완료하고 기록 저장", exact: true });
+  await expect(save).toBeInViewport({ ratio: 0.99 });
+  await page.screenshot({ path: info.outputPath("task-context-keyboard-200.png"), fullPage: true });
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+});
+
+for (const width of [320, 1440]) {
+  for (const kind of ["once", "recurring"] as const) {
+    test(
+      `결과 작성 ${kind} ${width}px: 할 일 내용 확인은 초안·시각·회차와 저장 경계를 유지한다`,
+      async ({ page }, info) => {
+        const state = await fixtures(page);
+        const title = "냉장 보관 온도 점검", instruction = "오전 측정값과 장비 번호를 확인하세요.";
+        Object.assign(state.rows.tasks[0], {
+          title,
+          body: instruction,
+          ...(kind === "recurring"
+            ? {
+              kind,
+              status: "active",
+              timezone: "Asia/Seoul",
+              recurrence: { freq: "daily", starts_on: "2026-10-01", ends_on: null },
+            }
+            : {}),
+        });
+        await page.setViewportSize({ width, height: 900 });
+        const action = kind === "once" ? "action=complete" : "occurrence=2026-10-07";
+        await go(page, `/tasks/${id(2)}?${action}`);
+        const result = form(page), context = result.getByRole("region", { name: "기록할 할 일", exact: true });
+        await expect(context.getByText(title, { exact: true })).toBeVisible();
+        if (kind === "recurring") await expect(context).toContainText("2026-10-07 · Asia/Seoul");
+        const url = page.url(), body = result.getByRole("textbox", { name: /^본문/ });
+        await body.fill("온도 4도, 작성 중인 결과");
+        const date = result.getByLabel("수행 시각 날짜", { exact: true });
+        await date.fill("2026-10-07");
+        await result.getByLabel("수행 시각 시간", { exact: true }).fill("09:30");
+        const toggle = context.getByRole("button", { name: "할 일 내용 확인", exact: true });
+        await toggle.focus();
+        await page.keyboard.press("Enter");
+        await expect(context.getByText(instruction, { exact: true })).toBeVisible();
+        await page.screenshot({ path: info.outputPath(`task-context-${kind}-${width}.png`), fullPage: true });
+        await page.keyboard.press("Enter");
+        await expect(toggle).toBeFocused();
+        await expect(context.getByText(instruction, { exact: true })).toBeHidden();
+        await expect(body).toHaveValue("온도 4도, 작성 중인 결과");
+        await expect(date).toHaveValue("2026-10-07");
+        await expect(page).toHaveURL(url);
+        expect(state.writes).toEqual([]);
+        await result.getByRole("button", { name: "취소", exact: true }).click();
+        const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?" });
+        await discard.getByRole("button", { name: "취소", exact: true }).click();
+        await expect(body).toHaveValue("온도 4도, 작성 중인 결과");
+        await result.getByRole("button", { name: kind === "once" ? "완료하고 기록 저장" : "기록 저장", exact: true })
+          .click();
+        await expect(page).not.toHaveURL(/action=|occurrence=/);
+        const write = state.writes.find((write) =>
+          write.path.endsWith(kind === "once" ? "/complete" : "/occurrences/2026-10-07/records")
+        );
+        expect(write?.body.body).toBe("온도 4도, 작성 중인 결과");
+        expect(write?.body).not.toHaveProperty("task_id");
+        expect(state.errors).toEqual([]);
+      },
+    );
+  }
+}
+
 test("할 일 연결 기록: 결과와 전체 기간 회차·페이지 오류 동일 cursor 재시도", async ({ page }) => {
   const state = await fixtures(page);
   const first = { ...record(20), body: "최근 수행 결과", record_kind: "result" as const, task_id: id(2) },

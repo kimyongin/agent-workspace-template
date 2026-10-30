@@ -1,6 +1,6 @@
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { CollectionEmpty } from "../../components/CollectionEmpty.tsx";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, RotateCcwIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup } from "@/components/ui/field";
 import { Button } from "../../components/ui/button.tsx";
@@ -36,6 +36,7 @@ export function IdentitySourceModal({
     [ruleId, setRuleId] = useState(""),
     [rules, setRules] = useState<IdentifierRule[] | null>(null),
     [error, setError] = useState("");
+  const [readRevision, setReadRevision] = useState(0);
   const [editing, setEditing] = useState<RegistryEditTarget | null>(null),
     [editState, setEditState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const report = useCallback((state: MaterialSectionState) => setEditState(state), []);
@@ -73,7 +74,7 @@ export function IdentitySourceModal({
       });
     }
     return () => c.abort();
-  }, [source]);
+  }, [source, readRevision]);
   useEffect(() => {
     onState({ dirty: !!source || editState.dirty, busy: editState.busy, uncertain: editState.uncertain });
   }, [source, editState, onState]);
@@ -109,6 +110,7 @@ export function IdentitySourceModal({
   return (
     <ModalShell
       open
+      scrollHeaderWithBody
       title="식별자 종류 추가"
       description="이 항목에 허용할 식별자 종류를 선택하거나 새로 만듭니다."
       dirty={!!source || editState.dirty || !!editState.uncertain}
@@ -150,6 +152,7 @@ export function IdentitySourceModal({
           </Field>
           <Button
             variant="outline"
+            className="h-auto max-w-full whitespace-normal"
             type="button"
             ref={issuerAdd}
             onClick={() => {
@@ -163,7 +166,21 @@ export function IdentitySourceModal({
         </div>
         {error && (
           <Alert variant="destructive" className="text-sm text-destructive" role="alert">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription className="flex flex-col items-start gap-2">
+              {error}
+              <Button
+                variant="outline"
+                className="h-auto max-w-full whitespace-normal"
+                type="button"
+                onClick={() => {
+                  // The error action disappears while reading; keep focus on the retained source.
+                  sourceSelect.current?.focus();
+                  setReadRevision((value) => value + 1);
+                }}
+              >
+                <RotateCcwIcon data-icon="inline-start" />번호 종류 다시 조회
+              </Button>
+            </AlertDescription>
           </Alert>
         )}
         {source && (
@@ -201,11 +218,19 @@ export function IdentitySourceModal({
                     {eligible[0].generation === "automatic" && eligible[0].label !== "자동 발급" ? " · 자동 발급" : ""}
                   </p>
                 )
-                : !error && <CollectionEmpty title="등록된 번호 종류가 없습니다." description={canWrite && issuer && !issuer.system ? "번호 종류 추가로 이 출처에서 사용할 번호를 설정하세요." : undefined} />}
+                : !error && (
+                  <CollectionEmpty
+                    title="등록된 번호 종류가 없습니다."
+                    description={canWrite && issuer && !issuer.system
+                      ? "번호 종류 추가로 이 출처에서 사용할 번호를 설정하세요."
+                      : undefined}
+                  />
+                )}
             </div>
             {issuer && !issuer.system && (
               <Button
                 variant="outline"
+                className="h-auto max-w-full whitespace-normal"
                 type="button"
                 ref={ruleAdd}
                 disabled={rules === null}

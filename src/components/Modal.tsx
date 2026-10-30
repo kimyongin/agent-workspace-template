@@ -19,7 +19,7 @@ import { DetailTabContext, WorkspaceContext, type WorkspaceGuard } from "../feat
 export interface ModalProps {
   title: string;
   description?: string;
-  /** Auxiliary headings share body scrolling and the viewport's available height. */
+  /** Headings share body scrolling and the viewport's available height. */
   scrollHeaderWithBody?: boolean;
   /** Stable visible domain heading; the accessible name retains the current operation. */
   domain?: string;
@@ -46,6 +46,7 @@ export interface ModalProps {
 export interface SurfaceEditor {
   title: string;
   description?: string;
+  scrollHeaderWithBody?: boolean;
   domain?: string;
   dirty: boolean;
   busy: boolean;
@@ -98,7 +99,7 @@ export function DetailSurface({title, description, tabTitle = title, onClose, ch
   // Remove the editor before navigating, so its dirty guard cannot ask a second time.
   useEffect(()=>{if(dismissing&&!editor&&!protection){setDismissing(false);if(tab)tab.close();else onClose();}},[dismissing,editor,protection,onClose,tab]);
   return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef, onError, protection: protectionRef, protect}}>
-    <ModalShell open visible={visible} ready={ready} navigationTitle={tabTitle} title={editor?.title ?? title} description={editor ? editor.description : description} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
+    <ModalShell open visible={visible} ready={ready} navigationTitle={tabTitle} title={editor?.title ?? title} description={editor ? editor.description : description} scrollHeaderWithBody={editor?.scrollHeaderWithBody} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard ?? (protection ? () => protectionRef.current?.discard() : undefined)} dirty={editor?.dirty || protection?.dirty} busy={busy || editor?.busy || protection?.busy}
       previous={tab?.previous ?? (editor ? null : previous)} footer={editor?.footer ?? (protection?.dirty ? <fieldset className="flex flex-wrap items-center gap-2 border-0 p-0" disabled>{footer}</fieldset> : footer)}>
       <div ref={root} hidden={!!editor}>{children}</div>
@@ -241,7 +242,9 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
   const contents = <>
     {!scrollHeaderWithBody && header}
     <div ref={bodyRef} role="region" aria-label="상세 내용" className={scrollHeaderWithBody ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4"} aria-busy={!ready || undefined} tabIndex={0}>
-      {scrollHeaderWithBody ? <>{header}<div className="px-4 pb-4">{body}</div></> : body}
+      {scrollHeaderWithBody && header}
+      {/* Keep the body mounted when an editor changes how its header scrolls. */}
+      <div className={scrollHeaderWithBody ? "px-4 pb-4" : "contents"}>{body}</div>
     </div>
     {footer && <DialogFooter ref={footerRef} className="m-0 shrink-0 rounded-none">{typeof footer === "function" ? footer(requestCancelEdit) : footer}</DialogFooter>}
   </>;

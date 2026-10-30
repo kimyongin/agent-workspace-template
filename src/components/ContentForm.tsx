@@ -41,6 +41,7 @@ export function TextFields(
 interface FormModalProps {
   title: string;
   description?: string;
+  scrollHeaderWithBody?: boolean;
   domain?: string;
   open: boolean;
   visible?: boolean;
@@ -65,13 +66,13 @@ export function FormModal(props: FormModalProps) {
   const [presentation, setPresentation] = useState<Presentation>({dirty: props.dirty, busy: false, footer: null});
   const present = useCallback((value: Presentation) => setPresentation(value), []);
   if (surface) return <FormContents {...props}/>;
-  return <ModalShell open={props.open} visible={props.visible} title={props.title} description={props.description} domain={props.domain} dirty={props.dirty || presentation.dirty} busy={presentation.busy}
+  return <ModalShell open={props.open} visible={props.visible} title={props.title} description={props.description} scrollHeaderWithBody={props.scrollHeaderWithBody} domain={props.domain} dirty={props.dirty || presentation.dirty} busy={presentation.busy}
     onClose={props.onClose} onRouteDiscard={props.onRouteDiscard} footer={presentation.footer}>
     <FormContents {...props} present={present}/>
   </ModalShell>;
 }
 
-function FormContents({title, description, domain, open, visible = true, submitLabel, submitDisabled = false, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
+function FormContents({title, description, scrollHeaderWithBody, domain, open, visible = true, submitLabel, submitDisabled = false, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
   const formId = useId();
   const surface = useContext(SurfaceContext);
   const callbacks = useRef({onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation,onPrepared});
@@ -138,11 +139,11 @@ function FormContents({title, description, domain, open, visible = true, submitL
   useLayoutEffect(() => {
     if (!open || !visible) return;
     const presentation = {dirty: dirty || confirmation.dirty, busy, footer};
-    if (register) register({title, description, domain, ...presentation,
+    if (register) register({title, description, scrollHeaderWithBody, domain, ...presentation,
       onClose: ()=>callbacks.current.onClose(), onRouteDiscard: ()=>(callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
     else present?.(presentation);
     return () => { register?.(null); };
-  }, [register,present,open,visible,title,description,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
+  }, [register,present,open,visible,title,description,scrollHeaderWithBody,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
   const form = <form id={formId} className="flex min-w-0 flex-col gap-5" onSubmit={submit} noValidate>
     {failure && !active && <Notice kind="error">{failure}</Notice>}
     <FieldSet disabled={busy || uncertain || active}><FieldGroup>{children(errors, busy || uncertain || active)}</FieldGroup></FieldSet>
