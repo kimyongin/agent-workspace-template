@@ -39,7 +39,7 @@ export function TagConnections({ scope, target, readonly = false, visible = true
 }) {
   const trigger = useRef<HTMLElement>(null);
   const wasEditing = useRef(false);
-  const [editing, setEditing] = useState<typeof target | null>(null);
+  const [editing, setEditing] = useState<(typeof target & { openPicker: boolean }) | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
     if (wasEditing.current && !editing) {
@@ -55,6 +55,7 @@ export function TagConnections({ scope, target, readonly = false, visible = true
           <TagConnectionDraft
             scope={scope}
             target={editing}
+            openPicker={editing.openPicker}
             readonly={readonly}
             visible={visible}
             onCancel={() => {
@@ -75,7 +76,7 @@ export function TagConnections({ scope, target, readonly = false, visible = true
               ids={target.tag_ids}
               onRemove={readonly ? undefined : (id) => {
                 setMessage(null);
-                setEditing({ ...target, tag_ids: target.tag_ids.filter((tag) => tag !== id) });
+                setEditing({ ...target, tag_ids: target.tag_ids.filter((tag) => tag !== id), openPicker: false });
               }}
             />
             {!readonly && (
@@ -85,7 +86,7 @@ export function TagConnections({ scope, target, readonly = false, visible = true
                 aria-label="태그 연결"
                 onClick={() => {
                   setMessage(null);
-                  setEditing({ ...target, tag_ids: [...target.tag_ids] });
+                  setEditing({ ...target, tag_ids: [...target.tag_ids], openPicker: true });
                 }}
               >
                 <PlusIcon data-icon="inline-start" />
@@ -99,9 +100,10 @@ export function TagConnections({ scope, target, readonly = false, visible = true
   );
 }
 
-function TagConnectionDraft({ scope, target, readonly, visible, onCancel, onSaved }: {
+function TagConnectionDraft({ scope, target, openPicker, readonly, visible, onCancel, onSaved }: {
   scope: TagScope;
   target: { id: string; version: number; tag_ids: string[] };
+  openPicker: boolean;
   readonly: boolean;
   visible: boolean;
   onCancel: () => void;
@@ -154,6 +156,7 @@ function TagConnectionDraft({ scope, target, readonly, visible, onCancel, onSave
           scope={scope}
           visible={visible}
           label="태그"
+          defaultOpen={openPicker}
           value={draft}
           onChange={setDraft}
           error={confirmation.errors.tag_ids}
