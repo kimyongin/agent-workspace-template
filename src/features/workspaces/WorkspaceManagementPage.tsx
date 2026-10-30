@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { usePageNavigationBlocker } from "../details/workspace-context.ts";
@@ -88,11 +88,63 @@ function GrantSummary(
     </ul>
   );
 }
+function InvitationLink({ invitation, showLink = false }: {
+  invitation: WorkspaceInvitation;
+  showLink?: boolean;
+}) {
+  const inputId = useId();
+  const [status, setStatus] = useState("");
+  const current = useRef(true);
+  useEffect(() => {
+    current.current = true;
+    return () => { current.current = false; };
+  }, []);
+  const url = new URL(`/invitations/${invitation.id}`, window.location.origin).href;
+  const copy = async () => {
+    if (
+      !current.current || invitation.revoked_at || invitation.accepted_at ||
+      Date.parse(invitation.expires_at) <= Date.now()
+    ) return;
+    if (!navigator.clipboard?.writeText) {
+      setStatus("이 브라우저는 링크 복사를 지원하지 않습니다. 아래 링크를 직접 선택해 복사하세요.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      if (current.current && Date.parse(invitation.expires_at) > Date.now()) {
+        setStatus("초대 링크를 복사했습니다.");
+      }
+    } catch {
+      if (current.current && Date.parse(invitation.expires_at) > Date.now()) {
+        setStatus("복사하지 못했습니다. 아래 링크를 직접 선택해 복사하세요.");
+      }
+    }
+  };
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-2">
+      <Button variant="outline" onClick={() => { void copy(); }}>
+        초대 링크 복사
+      </Button>
+      {(status || showLink) && (
+        <>
+          {status && <p role="status" className="break-keep">{status}</p>}
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor={inputId}>초대 수락 링크</FieldLabel>
+              <Input id={inputId} readOnly value={url} />
+            </Field>
+          </FieldGroup>
+        </>
+      )}
+    </div>
+  );
+}
 export function WorkspaceManagementPage() {
   const api = useApi(),
     { workspaceId, actorId } = useRequestScope(),
     capability = useWorkspaceCapabilities(),
     navigate = useDeferredNavigation();
+  const [now, setNow] = useState(Date.now);
   const [members, setMembers] = useState<WorkspaceMember[] | null>(null),
     [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]),
     [targets, setTargets] = useState<Target[]>([]),
@@ -103,10 +155,11 @@ export function WorkspaceManagementPage() {
   const [delivery, setDelivery] = useState<
     { path: string; status: string } | null
   >(null);
-  const deliveryStatus =
-    invitations.find((invitation) =>
-      invitation.id === delivery?.path.split("/").at(-1)
-    )?.delivery?.status ?? delivery?.status;
+  const deliveryInvitation = invitations.find((invitation) =>
+    invitation.id === delivery?.path.split("/").at(-1) &&
+    invitation.workspace_id === workspaceId
+  );
+  const deliveryStatus = deliveryInvitation?.delivery?.status ?? delivery?.status;
   const {
     attempt: removalAttempt,
     busy: removalBusy,
@@ -122,6 +175,16 @@ export function WorkspaceManagementPage() {
   >(null);
   const busy = removalBusy || deliveryBusy;
   usePageNavigationBlocker(false, busy);
+  useEffect(() => {
+    const nextExpiry = Math.min(...invitations
+      .filter((invitation) => !invitation.revoked_at && !invitation.accepted_at)
+      .map((invitation) => Date.parse(invitation.expires_at))
+      .filter((expiry) => expiry > now));
+    if (!Number.isFinite(nextExpiry)) return;
+    const timer = window.setTimeout(() => setNow(Date.now()),
+      Math.min(Math.max(0, nextExpiry - Date.now()), 2_147_483_647));
+    return () => window.clearTimeout(timer);
+  }, [invitations, now]);
   useEffect(() => {
     const controller = new AbortController();
     if (!capability?.can_manage) return;
@@ -302,21 +365,17 @@ export function WorkspaceManagementPage() {
               : deliveryStatus === "pending"
               ? "초대를 만들었습니다. 이메일 전달을 기다리는 중입니다."
               : "초대를 만들었습니다. 아래 링크를 초대받은 사람에게 직접 전달하세요."}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <a className="break-all underline" href={delivery.path}>
-                {new URL(delivery.path, window.location.origin).href}
-              </a>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  void navigator.clipboard.writeText(
-                    new URL(delivery.path, window.location.origin).href,
-                  );
-                }}
-              >
-                초대 링크 복사
-              </Button>
-            </div>
+            {capability?.can_manage && deliveryInvitation &&
+              !deliveryInvitation.revoked_at && !deliveryInvitation.accepted_at &&
+              Date.parse(deliveryInvitation.expires_at) > now && (
+              <div className="mt-2">
+                <InvitationLink
+                  key={`${deliveryInvitation.id}:${deliveryInvitation.version}`}
+                  invitation={deliveryInvitation}
+                  showLink
+                />
+              </div>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -431,7 +490,7 @@ export function WorkspaceManagementPage() {
                                 : invitation.accepted_at
                                 ? "수락됨"
                                 : Date.parse(invitation.expires_at) <=
-                                    Date.now()
+                                    now
                                 ? "만료됨"
                                 : "수락 대기"}
                             </Badge>
@@ -452,6 +511,14 @@ export function WorkspaceManagementPage() {
                         </BusinessCell>
                         <BusinessCell index={3}>
                           <div className="flex flex-wrap gap-2">
+                            {invitation.workspace_id === workspaceId &&
+                              !invitation.revoked_at && !invitation.accepted_at &&
+                              Date.parse(invitation.expires_at) > now && (
+                              <InvitationLink
+                                key={`${invitation.id}:${invitation.version}`}
+                                invitation={invitation}
+                              />
+                            )}
                             {!invitation.revoked_at &&
                               !invitation.accepted_at &&
                               ["failed", "unknown", "unconfigured"].includes(
