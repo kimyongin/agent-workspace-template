@@ -185,6 +185,7 @@ test("shortcut typing and Escape never add; Enter adds once and the fourth item 
   const picker = section.getByRole("combobox", { name: "추가할 메뉴", exact: true });
   const rows = businessRows(section.getByRole("table", { name: "선택한 바로가기" }));
   await picker.fill("기록");
+  await settle(page);
   await picker.press("ArrowDown");
   await picker.dispatchEvent("keydown", {
     key: "Enter",
@@ -201,6 +202,7 @@ test("shortcut typing and Escape never add; Enter adds once and the fourth item 
   await expect(rows).toHaveCount(0);
   await picker.press("Escape");
   await expect(rows).toHaveCount(0);
+  await expect(page.getByRole("listbox", { includeHidden: true })).toHaveCount(0);
   await picker.click();
   await picker.fill("기록");
   await picker.press("ArrowDown");
