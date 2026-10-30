@@ -5,6 +5,7 @@ import { captureFocusOrigin, firstField, registerSurface, restoreFocusOrigin, ty
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog.tsx";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.tsx";
 import { Button } from "./ui/button.tsx";
+import { cn } from "../lib/utils.ts";
 import { XIcon } from "lucide-react";
 
 interface ConfirmProps {
@@ -47,8 +48,8 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
 }
 
 /** Editable execution details use Dialog; simple discard choices use AlertDialog above. */
-export function ConfirmationSurface({ open, title, busy = false, onCancel, footer, children, closeButton = false, returnFocus }: {
-  open: boolean; title: string; busy?: boolean; onCancel: () => void; footer: ReactNode; children: ReactNode; closeButton?: boolean; returnFocus?: FocusOrigin | null;
+export function ConfirmationSurface({ open, title, busy = false, onCancel, footer, children, closeButton = false, returnFocus, className }: {
+  open: boolean; title: string; busy?: boolean; onCancel: () => void; footer: ReactNode; children: ReactNode; closeButton?: boolean; returnFocus?: FocusOrigin | null; className?: string;
 }) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const origin = useRef<FocusOrigin | null>(null);
@@ -61,7 +62,7 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
   const cancel = () => { if (!busy) onCancel(); };
   return <PopupContainerContext.Provider value={root}><Dialog open={open} onOpenChange={next => { if (!next) cancel(); }}>
     <DialogContent ref={setRoot} aria-modal={true} showCloseButton={false} aria-describedby={undefined}
-      className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+      className={cn("flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg", className)}
       style={{ maxHeight: "calc(var(--surface-height, 100dvh) - 1rem)", top: "calc(var(--surface-top, 0px) + var(--surface-height, 100dvh) / 2)" }}
       onOpenAutoFocus={event => {
         origin.current = returnFocus ?? captureFocusOrigin(document.activeElement);

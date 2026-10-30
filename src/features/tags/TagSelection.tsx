@@ -19,7 +19,7 @@ import { registerSurface } from "../../lib/surface-dom.ts";
 /** Selection belongs to the parent's draft; closing the chooser never saves it. */
 export function TagSelection(
   { label, tags, value, onChange, error, status, excludeId, maxSelected = 10, disabled = false, visible = true,
-    defaultOpen = false }: {
+    defaultOpen = false, action }: {
     label: string;
     tags: { id: string; name: string }[] | null;
     value: string[];
@@ -31,6 +31,7 @@ export function TagSelection(
     disabled?: boolean;
     visible?: boolean;
     defaultOpen?: boolean;
+    action?: ReactNode;
   },
 ) {
   const id = useId();
@@ -65,6 +66,7 @@ export function TagSelection(
         >
           <TagsIcon data-icon="inline-start" />태그 선택
         </Button>
+        {action}
         {value.length > 0 && (
           <Button
             type="button"

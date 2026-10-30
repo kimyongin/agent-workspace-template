@@ -45,13 +45,18 @@ function ScopedTagsPage({ scope }: { scope: TagScope }) {
   return <TagManagement scope={scope} />;
 }
 export function TagManagement(
-  { scope, inline = false, onClose, onStateChange }: {
+  { scope, mode = "route", onClose, onStateChange, readOnly = false, returnLabel = "닫기" }: {
     scope: TagScope;
-    inline?: boolean;
+    mode?: "route" | "inline" | "dialog";
+    readOnly?: boolean;
+    returnLabel?: string;
     onClose?: () => void;
     onStateChange?: (state: { dirty: boolean; busy: boolean; uncertain: boolean; error: boolean }) => void;
   },
 ) {
+  const routed = mode === "route";
+  const writable = useRef(!readOnly);
+  writable.current = !readOnly;
   const api = useApi();
   const tagRead = createTagRead(api);
   const location = useLocation(), [params] = useSearchParams(), navigateAfterClose = useDeferredNavigation();
@@ -78,11 +83,11 @@ export function TagManagement(
   useEffect(() => {
     if (closing && !busy) {
       setClosing(false);
-      if (inline) onClose?.();
+      if (!routed) onClose?.();
       else if (previous) previous.back();
       else void navigate(scope === "entity" ? "/entities" : scope === "task" ? "/tasks" : "/records");
     }
-  }, [closing, busy, previous, navigate, scope]);
+  }, [closing, busy, previous, navigate, scope, routed, onClose]);
   const [pending, setPending] = useState<(() => void) | null>(null);
   useEffect(() => {
     setDeletionState({ armed: false, busy: false, uncertain: false });
@@ -168,16 +173,16 @@ export function TagManagement(
       p.delete("create");
       p.delete("edit_from");
       p.set("edit", tag.id);
-      if (!inline) navigateAfterClose(`?${p}`, true);
+      if (routed) navigateAfterClose(`?${p}`, true);
       requestAnimationFrame(() => input.current?.focus());
     });
   const dismiss = () => {
     const p = new URLSearchParams(params);
     for (const key of ["view", "edit", "create", "edit_from"]) p.delete(key);
-    if (!inline) navigateAfterClose(`?${p}`, true);
+    if (routed) navigateAfterClose(`?${p}`, true);
   };
   useEffect(() => {
-    if (inline) return;
+    if (!routed) return;
     const controller = new AbortController();
     const selected = params.get("edit") ?? params.get("view");
     if (params.get("create") === "1") {
@@ -200,7 +205,7 @@ export function TagManagement(
       });
     }
     return () => controller.abort();
-  }, [location.key]);
+  }, [location.key, routed]);
   const cancel = () => {
     if (attempt.snapshot().uncertain) {
       setNotice("이전 저장 결과를 확인하지 못했습니다. 새 작업 전에 갱신된 태그 목록을 확인하세요.");
@@ -222,7 +227,7 @@ export function TagManagement(
     dismiss();
   };
   const save = async () => {
-    if (attempt.snapshot().busy || deletingBusy || conflict || deletionState.armed) return;
+    if (!writable.current || attempt.snapshot().busy || deletingBusy || conflict || deletionState.armed) return;
     const currentDraft = draft ?? { initial: null, name: "" };
     const parsed = tagCreate.safeParse({ name: currentDraft.name });
     if (!parsed.success) {
@@ -288,6 +293,7 @@ export function TagManagement(
     }
   };
   const deleteTag = async (target: TagResult, reason: string, tags: string[] | undefined, requestKey: () => string) => {
+    if (!writable.current) throw new ApiError(403, "forbidden", "태그를 변경하려면 설정 편집 권한이 필요합니다.");
     if (saving.current) return;
     saving.current = true;
     setDeletingBusy(true);
@@ -345,7 +351,7 @@ export function TagManagement(
       target={target.name}
       key={target.id}
       excludeTag={target.id}
-      disabled={busy || (deletionDirty && !deletions[target.id]?.armed && !deletions[target.id]?.uncertain) ||
+      disabled={readOnly || busy || (deletionDirty && !deletions[target.id]?.armed && !deletions[target.id]?.uncertain) ||
         (editor && (uncertain || conflict))}
       label={editor ? "삭제" : `${target.name} 삭제`}
       message="태그와 연결을 제거합니다. 원문은 보존합니다."
@@ -380,7 +386,7 @@ export function TagManagement(
               ref={input}
               placeholder="태그 이름"
               value={draft?.name ?? ""}
-              readOnly={busy || uncertain || deletionState.armed}
+              readOnly={readOnly || busy || uncertain || deletionState.armed}
               onChange={(e) => setDraft({ initial, name: e.target.value })}
             />
           )}
@@ -389,7 +395,7 @@ export function TagManagement(
       <div className="flex flex-wrap items-center gap-2">
         {initial && deleteAction(initial, true)}
         {draft && <Button type="button" variant="outline" disabled={busy} onClick={() => change(cancel)}>취소</Button>}
-        <Button type="submit" variant="default" disabled={busy || conflict || deletionState.armed}>
+        <Button type="submit" variant="default" disabled={readOnly || busy || conflict || deletionState.armed}>
           {writing ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : initial ? "저장" : "추가"}
         </Button>
       </div>
@@ -399,7 +405,7 @@ export function TagManagement(
   const body = (
     <>
       <div ref={root} className="@container flex min-w-0 flex-col gap-4">
-        {!draft?.initial && editor(null)}
+        {!draft?.initial && (!readOnly || draft) && editor(null)}
         {notice && <Notice>{notice}</Notice>}
         {error && (
           <>
@@ -411,9 +417,9 @@ export function TagManagement(
         )}
         {loading && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
         {page?.items.length === 0 && !draft?.initial && !loading && !error && (
-          <CollectionEmpty title="아직 태그가 없습니다." description="태그 이름을 입력하고 추가하세요." />
+          <CollectionEmpty title="아직 태그가 없습니다." description={readOnly ? "현재 범위에 등록된 태그가 없습니다." : "태그 이름을 입력하고 추가하세요."} />
         )}
-        {!!(page?.items.length || draft?.initial) && (<BusinessTable disclosureColumn={false} label={`${tagScopeLabels[scope]} 태그 목록`} columns={["태그 이름", "작업"]}>
+        {!!(page?.items.length || draft?.initial) && (<BusinessTable disclosureColumn={false} label={`${tagScopeLabels[scope]} 태그 목록`} columns={readOnly ? ["태그 이름"] : ["태그 이름", "작업"]}>
           {(draft?.initial && !page?.items.some((t) => t.id === draft.initial?.id)
             ? [draft.initial, ...(page?.items ?? [])]
             : page?.items ?? []).map((tag) => (
@@ -424,7 +430,7 @@ export function TagManagement(
                     <span className="font-medium wrap-anywhere">{tag.name}</span>
                   )}
                 </BusinessCell>
-                <BusinessCell index={1}>{draft?.initial?.id !== tag.id && (
+                <BusinessCell index={1} hidden={readOnly} className={readOnly ? "hidden" : undefined}>{draft?.initial?.id !== tag.id && (
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <Button
                       variant="ghost"
@@ -497,18 +503,24 @@ export function TagManagement(
       </div>
     </>
   );
-  if (inline) return <section aria-label={`${tagScopeLabels[scope]} 태그 관리`}>{body}</section>;
+  if (mode === "inline") return <section aria-label={`${tagScopeLabels[scope]} 태그 관리`}>{body}</section>;
   return (
     <ModalShell
       open
       ready={!loading}
+      scrollHeaderWithBody={mode === "dialog"}
       title={`${tagScopeLabels[scope]} 태그 관리`}
-      description="태그를 추가하거나 이름을 바꾸고, 사용하지 않는 태그를 정리합니다."
-      headingLevel={1}
-      previous={previous}
+      description={mode === "dialog"
+        ? "태그 사전의 변경은 따로 저장됩니다. 돌아간 뒤 태그를 선택하고 원래 설정을 저장하세요."
+        : "태그를 추가하거나 이름을 바꾸고, 사용하지 않는 태그를 정리합니다."}
+      headingLevel={routed ? 1 : 2}
+      previous={routed ? previous : null}
       dirty={dirty}
-      busy={busy}
+      busy={busy || mode === "dialog" && resultsUncertain}
       onClose={close}
+      footer={mode === "dialog" ? requestClose => (
+        <Button variant="outline" type="button" className="h-auto min-h-11 max-w-full whitespace-normal" disabled={busy || resultsUncertain} onClick={requestClose}>{returnLabel}</Button>
+      ) : undefined}
       onRouteDiscard={() => {
         setDraft(null);
         setDeletions({});

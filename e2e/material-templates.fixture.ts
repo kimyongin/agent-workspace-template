@@ -4,7 +4,7 @@ import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { chooseSetting } from "./settings-actions.ts";
 import { chooseTag } from "./ui-actions.ts";
 import { fixtureSchema } from "./support/workspace-data.ts";
-import { expect, test } from "@playwright/test";
+import { devices, expect, test } from "@playwright/test";
 import { type EntityType, initialEntityDefinition as baseDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 // Keep ordinary prop_2..4 semantics separate from the selected identifier.
@@ -854,4 +854,280 @@ test("변수 삽입 직후 그대로 문장을 입력하고 다음 변수를 이
   expect(state.writes[0].body.value.entity_types[materials.id].update.memo).toBe(
     "수량 $엔터티.이전.prop_2$ → $엔터티.이후.prop_2$",
   );
+});
+
+
+async function tagDialogFixture(page: import("@playwright/test").Page, seed = false) {
+  const tags: any[] = seed ? [{ id: "00000000-0000-4000-8000-000000000991", scope: "record", name: "기존 기록 태그", version: 1 }] : [];
+  const writes: { method: string; body: any; key?: string; url: string }[] = [], reads: string[] = [];
+  const receipts = new Map<string, any>();
+  let access: "none" | "read" | "write" = "write", failRead = false, drop = false, hold = false;
+  let release: (() => void) | null = null;
+  await page.route("**/api/**", async (route) => {
+    if (await fulfillFixtureWorkspace(route, access === "none" ? [] : [{ target_kind: "settings", target_id: "*", access }, ...[materials, products, retired].map(type => ({ target_kind: "entity_type" as const, target_id: type.id, access: "write" as const }))])) return;
+    return route.fallback();
+  });
+  await page.route("**/api/tags**", async (route) => {
+    const request = route.request(), url = new URL(request.url());
+    if (request.method() === "GET") {
+      reads.push(request.url());
+      if (failRead) return route.fulfill({ status: 503, json: { code: "unavailable", message: "태그 조회 실패" } });
+      return route.fulfill({ json: { items: tags.filter(t => t.scope === (url.searchParams.get("scope") ?? "record")), next_cursor: null } });
+    }
+    const method = request.method(), body = method === "DELETE" ? undefined : request.postDataJSON(), key = request.headers()["idempotency-key"];
+    writes.push({ method, body, key, url: request.url() });
+    if (access !== "write") return route.fulfill({ status: 403, json: { code: "forbidden", message: "설정 편집 권한이 필요합니다" } });
+    if (hold) { hold = false; await new Promise<void>(resolve => { release = resolve; }); }
+    if (method === "DELETE") {
+      if (!receipts.has(key)) {
+        const at = tags.findIndex(t => url.pathname.endsWith("/" + t.id)); expect(at).toBeGreaterThanOrEqual(0);
+        tags.splice(at, 1); receipts.set(key, { deleted: true });
+      }
+      if (drop) { drop = false; return route.abort(); }
+      return route.fulfill({ status: 204 });
+    }
+    let saved: any;
+    if (method === "POST") {
+      if (receipts.has(key)) saved = receipts.get(key);
+      else {
+        saved = { id: "00000000-0000-4000-8000-" + String(992 + tags.length).padStart(12, "0"), ...body, version: 1, created_at: "2026-10-30T00:00:00Z", updated_at: "2026-10-30T00:00:00Z" };
+        tags.push(saved); receipts.set(key, saved);
+      }
+    } else {
+      const current = tags.find(t => url.pathname.endsWith("/" + t.id));
+      expect(current).toBeDefined();
+      if (method === "PATCH") { expect(body.expected_version).toBe(current.version); Object.assign(current, { name: body.name, version: current.version + 1 }); saved = current; }
+      else { tags.splice(tags.indexOf(current), 1); return route.fulfill({ status: 204 }); }
+    }
+    if (drop) { drop = false; return route.abort(); }
+    return route.fulfill({ status: method === "POST" ? 201 : 200, json: saved });
+  });
+  return { tags, writes, reads, setAccess: (next: typeof access) => { access = next; }, failRead: (value: boolean) => { failRead = value; }, holdAndDrop: () => { hold = true; drop = true; }, release: () => { expect(release).not.toBeNull(); release!(); } };
+}
+
+async function tagAuditMeter(page: import("@playwright/test").Page) {
+  const actions: string[] = [];
+  const settle = async () => {
+    await page.evaluate(() => document.fonts.ready);
+    await expect.poll(() => page.evaluate(() => document.getAnimations().filter(a => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
+  };
+  const inView = (control: import("@playwright/test").Locator) => control.evaluate(element => {
+    const r = element.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0 || r.top < 0 || r.left < 0 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) return false;
+    for (let p = element.parentElement; p; p = p.parentElement) {
+      const style = getComputedStyle(p), b = p.getBoundingClientRect();
+      if (["auto", "scroll", "hidden", "clip"].includes(style.overflowY) && (r.top < b.top - 1 || r.bottom > b.bottom + 1)) return false;
+      if (["auto", "scroll", "hidden", "clip"].includes(style.overflowX) && (r.left < b.left - 1 || r.right > b.right + 1)) return false;
+    }
+    return true;
+  });
+  const reveal = async (label: string, control: import("@playwright/test").Locator) => {
+    await settle();
+    if (await inView(control)) return;
+    const positions = () => page.evaluate(() => [...document.querySelectorAll("*")].filter(e => e.scrollTop || e.scrollLeft).map(e => [e.tagName, e.scrollTop, e.scrollLeft]));
+    const before = await positions();
+    await control.scrollIntoViewIfNeeded(); await settle();
+    await expect.poll(() => inView(control)).toBe(true);
+    expect(await positions()).not.toEqual(before); actions.push(label + "까지 스크롤");
+  };
+  const click = async (label: string, control: import("@playwright/test").Locator) => { await reveal(label, control); await control.click(); actions.push(label); };
+  const fill = async (label: string, control: import("@playwright/test").Locator, value: string) => { await reveal(label, control); await control.fill(value); actions.push(label); };
+  return { actions, click, fill, reveal, settle };
+}
+
+test.describe("#611 same-origin action accounting", () => {
+  test.use({ userAgent: devices["Desktop Chrome"].userAgent, viewport: devices["Desktop Chrome"].viewport, deviceScaleFactor: 1, isMobile: false, hasTouch: false, reducedMotion: "reduce", timezoneId: "Asia/Seoul" });
+  test("새 기록 태그를 만들고 선택해 템플릿을 저장할 때 왕복 링크가 필요 없다", async ({ page }, info) => {
+    const business = await settingsFixture(page, { task: { create: { memo: "기존 문구", tag_ids: [] } } }), tag = await tagDialogFixture(page);
+    const width = info.project.name === "mobile" ? 390 : 1440;
+    await page.setViewportSize({ width, height: 900 });
+    const m = await tagAuditMeter(page);
+    await page.goto("/workspaces");
+    await m.click("공간 열기 링크", page.getByRole("link", { name: "열기", exact: true }));
+    await expect(page.getByRole("heading", { name: "재료", exact: true })).toBeVisible();
+    const menu = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
+    if (await menu.isVisible()) await m.click("주 메뉴 펼침", menu);
+    await m.click("기록 설정 링크", page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "기록 설정", exact: true }));
+    const form = page.getByRole("form", { name: "기록 자동 완성", exact: true }), memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+    await m.fill("템플릿 초안 입력", memo, "왕복 중 보존할 문구");
+    const address = page.url();
+    const manage = form.getByRole("button", { name: "기록 태그 관리", exact: true });
+    await m.click("기록 태그 관리 열기", manage);
+    const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+    await m.fill("태그 이름 입력", dialog.getByRole("textbox", { name: /^태그 이름/ }), "신규 업무 태그");
+    await m.click("태그 추가", dialog.getByRole("button", { name: "추가", exact: true }));
+    await expect(dialog.getByRole("status").filter({ hasText: "태그를 저장했습니다." })).toBeVisible();
+    expect(tag.writes).toHaveLength(1); expect(tag.writes[0].body.scope).toBe("record"); expect(business.writes).toHaveLength(0); expect(page.url()).toBe(address);
+    await m.click("기록 자동 완성으로 복귀", dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true }));
+    await expect(manage).toBeFocused(); await expect(memo).toHaveText("왕복 중 보존할 문구");
+    expect(business.writes).toHaveLength(0);
+    await m.click("태그 선택 열기", form.getByRole("button", { name: "태그 선택", exact: true }));
+    await m.click("신규 태그 선택", page.getByRole("option", { name: "신규 업무 태그", exact: true }));
+    await m.click("태그 선택 완료", page.getByRole("button", { name: "선택 완료", exact: true }));
+    await m.click("템플릿과 태그 저장", form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }));
+    await expect.poll(() => business.writes.length).toBe(1);
+    expect(business.writes[0].body.value.task.create).toEqual({ memo: "왕복 중 보존할 문구", tag_ids: [tag.tags[0].id] });
+    const status = form.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." }); await expect(status).toBeVisible(); await m.reveal("저장 결과 확인", status);
+    expect(m.actions.filter(a => a.endsWith(" 링크"))).toHaveLength(2);
+    expect(m.actions.length).toBeLessThan(width === 390 ? 17 : 13);
+    await info.attach("actions", { body: JSON.stringify({ width, height: 900, actions: m.actions, count: m.actions.length, links: 2, parentWrites: business.writes.length, tagWrites: tag.writes.length }, null, 2), contentType: "application/json" });
+    await page.screenshot({ path: info.outputPath("tag-management-" + width + ".png") });
+  });
+});
+
+test("#611 자료 종류와 다른 대상의 초안은 태그 사전의 독립 저장·복귀 뒤에도 유지된다", async ({ page }) => {
+  const business = await settingsFixture(page), tag = await tagDialogFixture(page);
+  await page.goto(fixtureWorkspacePath("/settings/records"));
+  const form = () => page.getByRole("form", { name: "기록 자동 완성", exact: true }), memo = () => form().getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await memo().fill("할 일 미저장 문구");
+  await chooseSetting(page, page.getByLabel("대상", { exact: true }), "재료");
+  await memo().fill("재료 미저장 문구");
+  const address = page.url(); await form().getByRole("button", { name: "기록 태그 관리", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  await dialog.getByRole("textbox", { name: /^태그 이름/ }).fill("재료에서도 기록 태그");
+  await dialog.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(dialog.getByText("태그를 저장했습니다.", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true }).click();
+  await expect(memo()).toHaveText("재료 미저장 문구"); expect(page.url()).toBe(address);
+  expect(tag.writes[0].body.scope).toBe("record"); expect(business.writes).toHaveLength(0);
+  await chooseSetting(page, page.getByLabel("대상", { exact: true }), "할 일"); await expect(memo()).toHaveText("할 일 미저장 문구");
+});
+
+test("#611 하위 태그 초안의 닫기·폐기 취소는 부모 템플릿을 저장하거나 버리지 않는다", async ({ page }) => {
+  const business = await settingsFixture(page); const tag = await tagDialogFixture(page);
+  await page.goto(fixtureWorkspacePath("/settings/records"));
+  const form = page.getByRole("form", { name: "기록 자동 완성", exact: true }), memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await memo.fill("부모 미저장"); const manage = form.getByRole("button", { name: "기록 태그 관리", exact: true }); await manage.click();
+  const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  await dialog.getByRole("textbox", { name: /^태그 이름/ }).fill("취소할 태그"); await dialog.press("Escape");
+  const confirm = page.getByRole("alertdialog"); await expect(confirm).toBeVisible(); await confirm.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: /^태그 이름/ })).toHaveValue("취소할 태그");
+  await dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true }).click(); await page.getByRole("alertdialog").getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await expect(manage).toBeFocused(); await expect(memo).toHaveText("부모 미저장"); expect(business.writes).toHaveLength(0); expect(tag.writes).toHaveLength(0);
+});
+
+test("#611 처리 중·응답 미확정에는 닫기를 막고 같은 태그 요청만 재시도한다", async ({ page }) => {
+  const business = await settingsFixture(page), tag = await tagDialogFixture(page);
+  await page.goto(fixtureWorkspacePath("/settings/records"));
+  const form = page.getByRole("form", { name: "기록 자동 완성", exact: true }); await form.getByRole("textbox", { name: "메모 템플릿", exact: true }).fill("실패 중에도 보존");
+  await form.getByRole("button", { name: "기록 태그 관리", exact: true }).click(); const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  const input = dialog.getByRole("textbox", { name: /^태그 이름/ }); await input.fill("같은 요청 태그"); tag.holdAndDrop(); await dialog.getByRole("button", { name: "추가", exact: true }).click();
+  await expect.poll(() => tag.writes.length).toBe(1); await expect(dialog.getByRole("button", { name: "닫기", exact: true })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true })).toBeDisabled(); tag.release();
+  const retry = dialog.getByRole("button", { name: "같은 내용 다시 시도", exact: true }); await expect(retry).toBeEnabled(); await expect(input).toHaveAttribute("readonly", "");
+  await expect(dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true })).toBeDisabled(); await retry.click();
+  await expect(dialog.getByText("태그를 저장했습니다.", { exact: true })).toBeVisible(); expect(tag.writes).toHaveLength(2); expect(tag.writes[1]).toEqual(tag.writes[0]); expect(tag.tags).toHaveLength(1); expect(business.writes).toHaveLength(0);
+  await dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true }).click(); await expect(form.getByRole("textbox", { name: "메모 템플릿", exact: true })).toHaveText("실패 중에도 보존");
+});
+
+for (const access of ["none", "read"] as const) test("#612 태그 설정 " + access + " 권한은 변경을 유도하거나 mutation을 보내지 않는다", async ({ page }) => {
+  const tag = await tagDialogFixture(page, true); tag.setAccess(access);
+  await page.goto(fixtureWorkspacePath("/settings/tags?scope=record"));
+  if (access === "none") { await expect(page.getByText("설정 조회 권한이 필요합니다", { exact: true })).toBeVisible(); expect(tag.reads).toHaveLength(0); }
+  else { await expect(page.getByText("읽기 전용 설정", { exact: true })).toBeVisible(); await expect(page.getByText("기존 기록 태그", { exact: true })).toBeVisible(); tag.failRead(true); await page.getByRole("radiogroup", { name: "관리 대상", exact: true }).getByRole("radio", { name: "할 일", exact: true }).click(); await expect(page.getByRole("button", { name: "목록 다시 시도", exact: true })).toBeVisible(); tag.failRead(false); await page.getByRole("button", { name: "목록 다시 시도", exact: true }).click(); await expect(page.getByText("현재 범위에 등록된 태그가 없습니다.", { exact: true })).toBeVisible(); }
+  await expect(page.getByRole("textbox", { name: /^태그 이름/ })).toHaveCount(0); await expect(page.getByRole("button", { name: /추가|이름 변경|삭제/ })).toHaveCount(0); expect(tag.writes).toHaveLength(0);
+});
+
+test("#612 편집 중 권한이 내려가도 태그 초안과 취소는 남고 Enter 쓰기는 막는다", async ({ page }) => {
+  const tag = await tagDialogFixture(page, true); await page.goto(fixtureWorkspacePath("/settings/tags?scope=record"));
+  const input = page.getByRole("textbox", { name: /^태그 이름/ }); await input.fill("권한 변경 중 초안"); tag.setAccess("read"); await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText("읽기 전용 설정", { exact: true })).toBeVisible(); await expect(input).toHaveValue("권한 변경 중 초안"); await expect(input).toHaveAttribute("readonly", ""); await expect(page.getByRole("button", { name: "추가", exact: true })).toBeDisabled(); await input.press("Enter"); expect(tag.writes).toHaveLength(0);
+  await page.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("alertdialog").getByRole("button", { name: "변경 버리기", exact: true }).click(); await expect(page.getByRole("textbox", { name: /^태그 이름/ })).toHaveCount(0); await expect(page.getByText("기존 기록 태그", { exact: true })).toBeVisible();
+});
+
+test("#612 열린 태그 삭제 확인은 읽기 전용 강등에도 메모와 취소를 보존한다", async ({ page }) => {
+  const tag = await tagDialogFixture(page, true); await page.goto(fixtureWorkspacePath("/settings/tags?scope=record"));
+  await page.getByRole("button", { name: "기존 기록 태그 삭제", exact: true }).click();
+  const confirmation = page.getByRole("dialog", { name: "정말 삭제하시겠습니까?", exact: true });
+  await confirmation.getByRole("textbox", { name: "기록 메모", exact: true }).fill("삭제 전에 남긴 메모");
+  tag.setAccess("read"); await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText("읽기 전용 설정", { exact: true })).toBeVisible();
+  await expect(confirmation.getByRole("textbox", { name: "기록 메모", exact: true })).toHaveValue("삭제 전에 남긴 메모");
+  await expect(confirmation.getByRole("button", { name: "삭제하고 기록", exact: true })).toBeDisabled();
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(confirmation).toHaveCount(0); expect(tag.writes).toHaveLength(0);
+  await expect(page.getByRole("button", { name: "기존 기록 태그 삭제", exact: true })).toHaveCount(0);
+});
+
+test("#611 #612 삭제 응답 미확정과 같은 요청은 권한 강등·복구 후에도 유지된다", async ({ page }) => {
+  const business = await settingsFixture(page), tag = await tagDialogFixture(page, true);
+  await page.goto(fixtureWorkspacePath("/settings/records"));
+  const form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
+  await form.getByRole("textbox", { name: "메모 템플릿", exact: true }).fill("삭제 확인과 독립된 부모 초안");
+  await form.getByRole("button", { name: "기록 태그 관리", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  await dialog.getByRole("button", { name: "기존 기록 태그 삭제", exact: true }).click();
+  const confirmation = page.getByRole("dialog", { name: "정말 삭제하시겠습니까?", exact: true });
+  await confirmation.getByRole("textbox", { name: "기록 메모", exact: true }).fill("요청이 유지할 삭제 메모");
+  tag.holdAndDrop(); await confirmation.getByRole("button", { name: "삭제하고 기록", exact: true }).click();
+  await expect.poll(() => tag.writes.length).toBe(1); tag.release();
+  const retry = confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true }); await expect(retry).toBeEnabled();
+  tag.setAccess("read"); await page.evaluate(() => window.dispatchEvent(new Event("focus"))); await expect(retry).toBeDisabled();
+  await expect(confirmation.getByRole("textbox", { name: "기록 메모", exact: true })).toHaveValue("요청이 유지할 삭제 메모"); expect(tag.writes).toHaveLength(1);
+  tag.setAccess("write"); await page.evaluate(() => window.dispatchEvent(new Event("focus"))); await expect(retry).toBeEnabled(); await retry.click();
+  await expect(dialog.getByText("태그를 삭제했습니다.", { exact: true })).toBeVisible();
+  expect(tag.writes).toHaveLength(2); expect(tag.writes[1]).toEqual(tag.writes[0]); expect(tag.tags).toHaveLength(0);
+  await dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true }).click();
+  await expect(form.getByRole("textbox", { name: "메모 템플릿", exact: true })).toHaveText("삭제 확인과 독립된 부모 초안"); expect(business.writes).toHaveLength(0);
+});
+
+test("#611 보조 태그 편집의 버전 충돌은 초안을 보존하고 최신 이름의 명시 재선택을 요구한다", async ({ page }) => {
+  const business = await settingsFixture(page), tag = await tagDialogFixture(page, true);
+  await page.route("**/api/tags/*", async route => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    expect(route.request().postDataJSON().expected_version).toBe(1);
+    tag.tags[0] = { ...tag.tags[0], name: "다른 사람이 바꾼 이름", version: 2 };
+    await route.fulfill({ status: 409, json: { code: "conflict", message: "버전이 달라졌습니다" } });
+  });
+  await page.goto(fixtureWorkspacePath("/settings/records"));
+  await page.getByRole("button", { name: "기록 태그 관리", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  await dialog.getByRole("button", { name: "기존 기록 태그 이름 변경", exact: true }).click();
+  const editor = dialog.getByRole("form", { name: "태그 이름 변경", exact: true }), input = editor.getByRole("textbox", { name: /^태그 이름/ });
+  await input.fill("내 이름 초안"); await editor.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(editor.getByText("다른 변경이 저장되었습니다. 초안을 유지합니다. 취소 후 최신 태그를 다시 선택하세요.", { exact: true })).toBeVisible();
+  await expect(input).toHaveValue("내 이름 초안"); await expect(editor.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+  await editor.getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await dialog.getByRole("button", { name: "다른 사람이 바꾼 이름 이름 변경", exact: true }).click();
+  await expect(input).toHaveValue("다른 사람이 바꾼 이름"); expect(business.writes).toHaveLength(0);
+});
+
+test("#611 작은 키보드 화면과 확대에서도 태그 입력·독립 저장·폐기 취소·복귀를 완료한다", async ({ page }, info) => {
+  const business = await settingsFixture(page), tag = await tagDialogFixture(page);
+  await page.goto(fixtureWorkspacePath("/settings/records")); const address = page.url();
+  const form = page.getByRole("form", { name: "기록 자동 완성", exact: true }), memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await memo.fill("작은 화면에서도 보존할 부모 초안"); const manage = form.getByRole("button", { name: "기록 태그 관리", exact: true });
+  const meter = await tagAuditMeter(page);
+  // Allow1% for fractional intersection rounding; the original clipped input remains a failure.
+  for (const [height, scale] of [[568, 200], [300, 100], [300, 200]]) {
+    await page.setViewportSize({ width: 320, height }); await page.evaluate(value => document.documentElement.style.fontSize = value + "%", scale); await meter.settle();
+    await manage.click(); const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+    await expect(dialog).toHaveAccessibleDescription(/태그 사전의 변경은 따로 저장됩니다/);
+    const input = dialog.getByRole("textbox", { name: /^태그 이름/ }), add = dialog.getByRole("button", { name: "추가", exact: true }), back = dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true });
+    await expect(back).toBeInViewport({ ratio: 0.99 }); await input.scrollIntoViewIfNeeded(); await expect(input).toBeInViewport({ ratio: 0.99 });
+    const name = "키보드 " + height + " " + scale; await input.fill(name);
+    if (height === 300 && scale === 200) {
+      await input.press("Escape"); const discard = page.getByRole("alertdialog");
+      await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(input).toHaveValue(name);
+    }
+    await add.scrollIntoViewIfNeeded(); await expect(add).toBeInViewport({ ratio: 0.99 }); await add.click();
+    await expect.poll(() => tag.tags.some(t => t.name === name)).toBe(true); expect(business.writes).toHaveLength(0);
+    await expect(back).toBeEnabled(); await expect(back).toBeInViewport({ ratio: 0.99 });
+    await dialog.screenshot({ path: info.outputPath("tag-keyboard-" + height + "-" + scale + ".png") }); await back.click();
+    expect(page.url()).toBe(address); await expect(memo).toHaveText("작은 화면에서도 보존할 부모 초안"); await expect(manage).toBeFocused();
+    await expect(form.getByRole("button", { name: name + " 선택 해제", exact: true })).toHaveCount(0);
+  }
+  expect(tag.writes).toHaveLength(3); expect(business.writes).toHaveLength(0);
+});
+
+test("#611 태그 관리의 320px·200%·긴 이름도 부모 URI와 조작 크기를 보존한다", async ({ page }, info) => {
+  await settingsFixture(page); await tagDialogFixture(page, true); await page.goto(fixtureWorkspacePath("/settings/records")); const address = page.url();
+  await page.getByRole("button", { name: "기록 태그 관리", exact: true }).click(); const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true }); await dialog.getByRole("textbox", { name: /^태그 이름/ }).fill("공백없이길게이어진태그이름으로확인");
+  const m = await tagAuditMeter(page);
+  for (const [width, scale] of [[320, 200], [390, 100], [1440, 100]]) {
+    await page.setViewportSize({ width, height: 900 }); await page.evaluate(value => document.documentElement.style.fontSize = value + "%", scale); await m.settle(); expect(page.url()).toBe(address); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true); expect(await dialog.evaluate(e => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+    for (const button of await dialog.getByRole("button").all()) { const box = (await button.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44); }
+    await dialog.screenshot({ path: info.outputPath("tag-dialog-" + width + "-" + scale + ".png") });
+  }
 });

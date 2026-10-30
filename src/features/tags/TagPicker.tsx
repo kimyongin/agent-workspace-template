@@ -104,7 +104,7 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
 }
 export function TagPicker(
   { value, onChange, error, scope = "record", label, excludeId, disabled = false, visible = true, purpose,
-    defaultOpen = false }: {
+    defaultOpen = false, action }: {
     value: string[];
     onChange: (ids: string[]) => void;
     error?: string;
@@ -115,11 +115,13 @@ export function TagPicker(
     visible?: boolean;
     purpose?: TagReadPurpose;
     defaultOpen?: boolean;
+    action?: ReactNode;
   },
 ) {
   const { tags, failed, retry } = useTagDictionary(true, false, scope, purpose);
   return (
     <TagSelection
+      action={action}
       label={label ?? `${tagScopeLabels[scope]} 태그`}
       tags={tags}
       value={value}

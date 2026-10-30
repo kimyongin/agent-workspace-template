@@ -17,6 +17,7 @@ export function DeleteAction({message,target,data,onConfirm,note=true,onStateCha
   onStateChange?: (state: DeletionState) => void; label?: string; disabled?: boolean; excludeTag?: string;
 }) {
   const confirmation = useRecordConfirmation({
+    disabled,
     clearOnCancel: true, closeOnSuccess: true,
     describe: () => ({
       title: "정말 삭제하시겠습니까?", label: "삭제하고 기록", pendingLabel: "삭제 중…",
