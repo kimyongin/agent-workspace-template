@@ -15,6 +15,8 @@ test("실제 계정 표시 저장·새로고침·다른 탭 반영 및 원래 �
   const target=original==="UTC"?"Asia/Seoul":"UTC";
   const restorePreferences = await workspace.preservePreferences({...metadata,workspace_timezone:target});
   const other=await context.newPage();await other.goto(workspacePath(workspace.id, "/settings"));
+  let restoreDevice: (() => Promise<void>) | undefined;
+  let bodyFailed = false;
   try {
     await select.selectOption(target);await page.getByRole("button",{name:"날짜와 시각 저장",exact:true}).click();
     await expect(page.getByRole("form",{name:"날짜와 시각 설정"}).getByRole("status")).toContainText("설정을 저장했습니다");
@@ -26,9 +28,36 @@ test("실제 계정 표시 저장·새로고침·다른 탭 반영 및 원래 �
     });
     expect(confirmed).toEqual({...metadata,workspace_timezone:target});
     await page.screenshot({path:info.outputPath("timezone-settings.png"),fullPage:true});
+    // Auth removes null-valued metadata keys; the app reads an absent preference as device-following.
+    const deviceExpected = {...metadata};
+    delete deviceExpected.workspace_timezone;
+    restoreDevice = await workspace.preservePreferences(deviceExpected);
+    await page.getByRole("button",{name:/^기기 시간대 사용/}).click();
+    await expect(select).toHaveValue("");
+    await expect(select).toBeFocused();
+    await expect(other.getByLabel("표시 시간대")).toHaveValue(target);
+    await page.getByRole("button",{name:"날짜와 시각 저장",exact:true}).click();
+    await expect(other.getByLabel("표시 시간대")).toHaveValue("");
+    await page.reload();await expect(select).toHaveValue("");
+    const deviceMetadata=await page.evaluate(async()=>{
+      const path="/src/lib/supabase.ts",{supabase}=await import(path);
+      const {data,error}=await supabase.auth.getUser();if(error)throw error;return data.user!.user_metadata;
+    });
+    expect(deviceMetadata).toEqual(deviceExpected);
+    await page.screenshot({path:info.outputPath("device-timezone-settings.png"),fullPage:true});
+  } catch(cause) {
+    bodyFailed = true;
+    throw cause;
   } finally {
-    await restorePreferences();
-    await other.close();
+    let cleanupError: unknown;
+    for(const restore of [restoreDevice,restorePreferences,()=>other.close()]) {
+      try { if(restore) await restore(); }
+      catch(cause) { cleanupError ??= cause; }
+    }
+    if(cleanupError) {
+      if(!bodyFailed) throw cleanupError;
+      test.info().annotations.push({type:"cleanup-failed",description:"Time-zone restoration also failed; original test error preserved."});
+    }
   }
 });
 

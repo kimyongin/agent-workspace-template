@@ -13,6 +13,7 @@ import { useLocation } from "../../lib/workspace-router.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 
 import { NavigationRowActions } from "./NavigationRowActions.tsx";
+import { preventShortcutSubmit, useShortcutImeGuard } from "./shortcut-input.ts";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
 import { defaultNavigationRefs, type NavigationRef, resolveNavigationRefs } from "../../app/type-navigation.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -40,9 +41,11 @@ export function NavigationSettings(
   const [conflict, setConflict] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
-  const [candidate, setCandidate] = useState("");
+  const [query, setQuery] = useState("");
+  const section = useRef<HTMLElement>(null);
   const pending = useRef(false), mounted = useRef(true);
   const addSelect = useRef<HTMLInputElement>(null);
+  const shortcutInput = useShortcutImeGuard();
   const { setPreview } = useNavigationPreview();
   const location = useLocation();
   const catalog = useEntityTypes(location.key);
@@ -54,7 +57,6 @@ export function NavigationSettings(
     ...types.map((type) => ({ kind: "type" as const, id: type.id })),
   ], types), [types]);
   const available = useMemo(() => choices.filter((entry) => !refs.some((ref) => key(ref) === entry.key)), [choices, refs]);
-  const selected = available.find((entry) => entry.key === candidate);
   useEffect(() => {
     onStateChange?.({ dirty, busy });
   }, [dirty, busy, onStateChange]);
@@ -119,6 +121,7 @@ export function NavigationSettings(
   };
   return (
     <section
+      ref={section}
       className={inline ? "flex min-w-0 flex-col gap-4" : "min-w-0 flex w-full flex-col gap-6"}
       id="settings-navigation"
       aria-label="메뉴 바로가기"
@@ -188,24 +191,30 @@ export function NavigationSettings(
             })}
           </BusinessTable>
           {refs.length === 0 && <p className="text-sm text-muted-foreground">바로가기를 표시하지 않습니다.</p>}
-          <div className="flex flex-wrap items-end gap-3">
-            <Combobox items={available} value={selected ?? null} isItemEqualToValue={(a,b) => a.key === b.key} itemToStringLabel={entry => entry.label} onValueChange={entry => setCandidate(entry?.key ?? "")} disabled={busy || refs.length >= 4 || available.length === 0}>
-              <ComboboxInput ref={addSelect} aria-label="추가할 메뉴" placeholder={refs.length >= 4 ? "최대 4개 선택" : available.length ? "메뉴 선택" : "추가할 메뉴 없음"} />
-              <ComboboxContent><ComboboxEmpty>추가할 메뉴가 없습니다.</ComboboxEmpty><ComboboxList>{entry => <ComboboxItem key={entry.key} value={entry}>{entry.label}{entry.archived ? " · 보관" : ""}</ComboboxItem>}</ComboboxList></ComboboxContent>
-            </Combobox>
-            <Button variant="outline"
-              type="button"
-
-              disabled={refs.length >= 4 || !selected}
-              aria-label={selected ? `${selected.label} 추가` : "메뉴 추가"}
-              onClick={() => {
-                if (!selected || refs.length >= 4) return;
-                edit([...refs, selected.ref]);
-                setCandidate("");
+          <div className="flex flex-wrap items-end gap-3" onKeyDown={preventShortcutSubmit}>
+            <Combobox<(typeof available)[number]>
+              items={available}
+              value={null}
+              inputValue={query}
+              onInputValueChange={setQuery}
+              isItemEqualToValue={(a,b) => a.key === b.key}
+              itemToStringLabel={entry => entry.label}
+              onValueChange={entry => {
+                if (!entry || busy || refs.length >= 4 || !available.some(item => item.key === entry.key)) return;
+                edit([...refs, entry.ref]);
+                setQuery("");
+                requestAnimationFrame(() => {
+                  const destination = refs.length + 1 >= 4 || available.length === 1
+                    ? section.current?.querySelectorAll<HTMLButtonElement>('button[title="바로가기에서 제거"]').item(refs.length)
+                    : addSelect.current;
+                  destination?.focus();
+                });
               }}
+              disabled={busy || refs.length >= 4 || available.length === 0}
             >
-              추가
-            </Button>
+              <ComboboxInput {...shortcutInput} ref={addSelect} aria-label="추가할 메뉴" placeholder={refs.length >= 4 ? "최대 4개 선택" : available.length ? "메뉴를 골라 초안에 추가" : "추가할 메뉴 없음"} />
+              <ComboboxContent><ComboboxEmpty>추가할 메뉴가 없습니다.</ComboboxEmpty><ComboboxList>{entry => <ComboboxItem key={entry.key} value={entry}>{entry.label}{entry.archived ? " · 보관" : ""} · 초안에 추가</ComboboxItem>}</ComboboxList></ComboboxContent>
+            </Combobox>
           </div>
           {catalog.error && (
             <Alert variant="destructive" role="alert"><AlertDescription>

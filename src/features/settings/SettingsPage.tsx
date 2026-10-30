@@ -13,6 +13,7 @@ import { NavigationSettings } from "./NavigationSettingsPage.tsx";
 import { SettingsHeading } from "./SettingsHeading.tsx";
 import { Field } from "../../components/Field.tsx";
 import { TimezoneSelect } from "../../components/TimezoneSelect.tsx";
+import { browserTimezone } from "../../lib/timezone.ts";
 import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -199,15 +200,30 @@ function AccountSettings() {
   const date = (
     <Field label="표시 시간대">
       {(props) => (
-        <TimezoneSelect
-          {...props}
-          deviceDefault
-          value={draft.timezone ?? ""}
-          onChange={(event) => {
-            setDraft((value) => ({ ...value, timezone: event.target.value || null }));
-            clearMessage("date");
-          }}
-        />
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] items-start gap-2">
+          <TimezoneSelect
+            {...props}
+            deviceDefault
+            value={draft.timezone ?? ""}
+            onChange={(event) => {
+              setDraft((value) => ({ ...value, timezone: event.target.value || null }));
+              clearMessage("date");
+            }}
+          />
+          <Button
+            variant="outline"
+            type="button"
+            className="h-auto min-h-11 max-w-full whitespace-normal wrap-anywhere py-2 text-left"
+            disabled={draft.timezone === null}
+            onClick={(event) => {
+              setDraft((value) => ({ ...value, timezone: null }));
+              clearMessage("date");
+              event.currentTarget.parentElement?.querySelector("select")?.focus();
+            }}
+          >
+            기기 시간대 사용 ({browserTimezone()})
+          </Button>
+        </div>
       )}
     </Field>
   );

@@ -87,8 +87,8 @@ test("account settings sample keeps independent drafts and clear row actions", a
   ]);
   await navigation.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(navigation.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
-  await navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption("products");
-  await navigation.getByRole("button", { name: "추가", exact: true }).click();
+  await navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true }).click();
+  await page.getByRole("option", { name: "상품 · 초안에 추가", exact: true }).click();
   await navigation.getByRole("button", { name: "저장", exact: true }).click();
   await expect(businessRows(navigation.getByRole("table", { name: "선택한 바로가기" })).locator(":scope > td:first-child")).toHaveText([
     "할 일",
@@ -96,6 +96,7 @@ test("account settings sample keeps independent drafts and clear row actions", a
     "상품",
   ]);
   await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
+  await expect(page.getByRole("listbox", { includeHidden: true })).toHaveCount(0);
   for (const width of [320, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
