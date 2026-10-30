@@ -28,7 +28,10 @@ test("실제 계정 표시 저장·새로고침·다른 탭 반영 및 원래 �
     });
     expect(confirmed).toEqual({...metadata,workspace_timezone:target});
     await page.screenshot({path:info.outputPath("timezone-settings.png"),fullPage:true});
-    restoreDevice = await workspace.preservePreferences({...metadata,workspace_timezone:null});
+    // Auth removes null-valued metadata keys; the app reads an absent preference as device-following.
+    const deviceExpected = {...metadata};
+    delete deviceExpected.workspace_timezone;
+    restoreDevice = await workspace.preservePreferences(deviceExpected);
     await page.getByRole("button",{name:/^기기 시간대 사용/}).click();
     await expect(select).toHaveValue("");
     await expect(select).toBeFocused();
@@ -40,7 +43,7 @@ test("실제 계정 표시 저장·새로고침·다른 탭 반영 및 원래 �
       const path="/src/lib/supabase.ts",{supabase}=await import(path);
       const {data,error}=await supabase.auth.getUser();if(error)throw error;return data.user!.user_metadata;
     });
-    expect(deviceMetadata).toEqual({...metadata,workspace_timezone:null});
+    expect(deviceMetadata).toEqual(deviceExpected);
     await page.screenshot({path:info.outputPath("device-timezone-settings.png"),fullPage:true});
   } catch(cause) {
     bodyFailed = true;

@@ -42,6 +42,7 @@ async function setup(page: Page) {
         return route.fulfill({ status: 500, json: { msg: "fixture save failed" } });
       }
       metadata = { ...metadata, ...data };
+      for (const [key, value] of Object.entries(data)) if (value === null) delete metadata[key];
     }
     return route.fulfill({ json: { ...user, user_metadata: metadata } });
   });
@@ -236,6 +237,7 @@ test("device timezone selection preserves other drafts and fixed-zone cancel, fa
   await date.getByRole("button", { name: "날짜와 시각 저장", exact: true }).click();
   await expect(date.getByRole("status")).toContainText("설정을 저장");
   expect(state.writes).toEqual([{ workspace_timezone: null }, { workspace_timezone: null }]);
+  expect(state.metadata()).not.toHaveProperty("workspace_timezone");
   await expect(useDevice).toBeDisabled();
   await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue("프로필 미저장");
 });
