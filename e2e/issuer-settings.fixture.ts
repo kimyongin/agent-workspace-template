@@ -332,6 +332,39 @@ test("번호 종류 재조회 중 출처를 바꾸면 이전 응답이 후보와
   }
 });
 
+test(
+  "식별자 종류 재조회 320px·200%: 긴 오류와 조작은 넘치지 않고 키보드로 복구한다",
+  async ({ page, baseURL }, info) => {
+    const state = await fixture(page, baseURL!), field = await fieldEditor(page);
+    await expect(field.getByRole("checkbox", { name: "네이버 · 상품 ID", exact: true })).toBeEnabled();
+    await field.getByRole("button", { name: "식별자 종류 추가", exact: true }).click();
+    const binding = page.getByRole("dialog", { name: "식별자 종류 추가", exact: true });
+    let fail = true;
+    await page.route("**/api/entity-issuers/coupang/rules", (route) => {
+      if (!fail) return route.fallback();
+      fail = false;
+      return route.fulfill({
+        status: 503,
+        json: { code: "internal", message: "선택한 번호 종류를 불러오지 못했습니다. 다시 조회하세요." },
+      });
+    });
+    await binding.getByLabel("번호 출처", { exact: true }).selectOption("coupang");
+    await expect(binding.getByRole("alert")).toContainText("불러오지 못했습니다");
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+    const retry = binding.getByRole("button", { name: "번호 종류 다시 조회", exact: true });
+    await retry.focus();
+    await expect(retry).toBeInViewport({ ratio: 0.99 });
+    await expect.poll(() => binding.evaluate((root) => root.scrollWidth <= root.clientWidth + 1)).toBe(true);
+    await page.screenshot({ path: info.outputPath("identifier-retry-200.png"), fullPage: true });
+    await page.keyboard.press("Enter");
+    await expect(binding.getByLabel("번호 종류", { exact: true })).toHaveValue("33333333-3333-4333-8333-333333333333");
+    await expect(binding.getByLabel("번호 출처", { exact: true })).toBeFocused();
+    await expect(binding.getByRole("button", { name: "연결", exact: true })).toBeEnabled();
+    expect(state.writes).toEqual([]);
+  },
+);
+
 test("issuer retry retains its hidden stable code and request key; builtin app stays read only", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
   await page.goto(fixtureWorkspacePath("/settings/issuers"));

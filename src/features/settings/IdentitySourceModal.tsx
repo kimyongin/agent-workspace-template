@@ -110,6 +110,7 @@ export function IdentitySourceModal({
   return (
     <ModalShell
       open
+      scrollHeaderWithBody
       title="식별자 종류 추가"
       description="이 항목에 허용할 식별자 종류를 선택하거나 새로 만듭니다."
       dirty={!!source || editState.dirty || !!editState.uncertain}
@@ -151,6 +152,7 @@ export function IdentitySourceModal({
           </Field>
           <Button
             variant="outline"
+            className="h-auto max-w-full whitespace-normal"
             type="button"
             ref={issuerAdd}
             onClick={() => {
@@ -164,10 +166,11 @@ export function IdentitySourceModal({
         </div>
         {error && (
           <Alert variant="destructive" className="text-sm text-destructive" role="alert">
-            <AlertDescription>
+            <AlertDescription className="flex flex-col items-start gap-2">
               {error}
               <Button
                 variant="outline"
+                className="h-auto max-w-full whitespace-normal"
                 type="button"
                 onClick={() => {
                   // The error action disappears while reading; keep focus on the retained source.
@@ -227,6 +230,7 @@ export function IdentitySourceModal({
             {issuer && !issuer.system && (
               <Button
                 variant="outline"
+                className="h-auto max-w-full whitespace-normal"
                 type="button"
                 ref={ruleAdd}
                 disabled={rules === null}
