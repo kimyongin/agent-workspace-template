@@ -9,7 +9,7 @@ for (const width of [390, 1440]) {
   for (const scenario of [
     { kind: "entity", menu: fixtureType.label, title: "자료", desktop: 8, mobile: 9 },
     { kind: "task", menu: null, title: "할 일", desktop: 7, mobile: 7 },
-    { kind: "record", menu: "기록", title: "내용", desktop: 7, mobile: 8 },
+    { kind: "record", menu: "기록", title: "기록", desktop: 7, mobile: 8 },
   ] as const) {
     test(`공간 목록부터 ${scenario.kind} 태그 연결 ${width}: 이동·선택·실행 전체 액션`, async ({ page }, info) => {
       const state = await fixtures(page);
@@ -30,7 +30,7 @@ for (const width of [390, 1440]) {
         await click(`${scenario.menu} 메뉴 링크`, page.getByRole("navigation", { name: "주 메뉴", exact: true })
           .getByRole("link", { name: scenario.menu, exact: true }));
       }
-      await click("대상 제목 링크", baseWorkspace(page).getByRole("link", { name: scenario.title, exact: true }));
+      await click("대상 제목 링크", baseWorkspace(page).getByRole("link", { name: `${scenario.title} 상세`, exact: true }));
       const region = detailDialog(page).getByRole("region", { name: "태그 연결", exact: true });
       await click("태그 연결", region.getByRole("button", { name: "태그 연결", exact: true }));
       const picker = page.getByRole("dialog", { name: "태그 선택", exact: true });
