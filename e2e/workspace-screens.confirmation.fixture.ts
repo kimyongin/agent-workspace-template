@@ -517,7 +517,7 @@ for (const [kind, label] of [["entities", "자료 태그"], ["tasks", "할 일 �
     const picker = form(page).getByRole("group", { name: "태그", exact: true });
     const choice = picker.getByRole("button", { name: "같은 이름 선택 해제", exact: true });
     const clear = picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
-    await expect(clear).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "태그 선택", exact: true })).toBeVisible();
     await chooseTag(page, picker, "같은 이름");
     await expect(choice).toHaveCount(1);
     await expect(picker).toHaveAccessibleName("태그");
@@ -527,6 +527,17 @@ for (const [kind, label] of [["entities", "자료 태그"], ["tasks", "할 일 �
     await expect(choice).toHaveCount(0);
     await expect(picker.getByRole("button", { name: "태그 선택", exact: true })).toBeFocused();
     expect(state.writes).toHaveLength(0);
+    await chooseTag(page, picker, "같은 이름");
+    await form(page).getByRole("button", { name: "연결 적용", exact: true }).click();
+    if (kind !== "records") {
+      const confirmation = executionDialog(page);
+      await expect(confirmation.getByRole("textbox", { name: "기록 메모", exact: true })).toBeVisible();
+      expect(state.writes).toHaveLength(0);
+      await confirmation.getByRole("button", { name: "연결하고 저장", exact: true }).click();
+    }
+    await expect(form(page)).toContainText("태그 연결을 저장했습니다.");
+    expect(state.writes).toHaveLength(1);
+    expect(state.writes[0]).toMatchObject({ path: "/api/tag-connections", body: { target_kind: kind === "entities" ? "entity" : kind === "tasks" ? "task" : "record" } });
     expect(state.errors).toEqual([]);
   });
 }

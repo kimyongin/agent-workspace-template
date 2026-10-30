@@ -200,8 +200,8 @@ export async function revealSetting(control: import("@playwright/test").Locator)
 
 /** Choose tags through the shared modal; parent filters/save remain the commit boundary. */
 export async function chooseTag(page: Page, scope: Page | Locator, name: string, checked = true) {
-  await scope.getByRole("button", { name: "태그 선택", exact: true }).click();
   const picker = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "선택 완료", exact: true }) });
+  if (!await picker.isVisible()) await scope.getByRole("button", { name: "태그 선택", exact: true }).click();
   const option = picker.getByRole("option", { name, exact: true });
   await expect(option).toBeVisible();
   if (await option.getAttribute("aria-checked") !== String(checked)) await option.click();

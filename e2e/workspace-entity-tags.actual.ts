@@ -296,7 +296,6 @@ test(
       await bPage.goto(`${env.web}/w/${w}/entities/${encodeURIComponent(entity.id)}`);
       await expect(region.getByText(tagName, { exact: true })).toBeVisible();
       await region.getByRole("button", { name: "태그 연결", exact: true }).click();
-      await region.getByRole("button", { name: "태그 선택", exact: true }).click();
       const savedChooser = bPage.getByRole("dialog", { name: "태그 선택", exact: true });
       await expect(savedChooser.getByRole("option", { name: tagName, exact: true })).toHaveAttribute(
         "aria-checked",
@@ -339,6 +338,7 @@ test(
       expect((await unlink).status()).toBe(200);
       await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
       await region.getByRole("button", { name: "태그 연결", exact: true }).click();
+      await bPage.getByRole("dialog", { name: "태그 선택", exact: true }).getByRole("button", { name: "닫기", exact: true }).click();
       expect(
         (await request(a.token, "PATCH", `/workspaces/${w}/members/${b.id}`, {
           expected_version: 5,
