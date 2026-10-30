@@ -88,12 +88,17 @@ function GrantSummary(
     </ul>
   );
 }
-function InvitationLink({ invitation, showLink = false }: {
+function InvitationLink({ invitation, showAcceptanceLink = false }: {
   invitation: WorkspaceInvitation;
-  showLink?: boolean;
+  showAcceptanceLink?: boolean;
 }) {
   const inputId = useId();
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<"copied" | "denied" | "unavailable" | null>(null);
+  const message = status === "copied"
+    ? "초대 링크를 복사했습니다."
+    : status === "denied"
+    ? "복사하지 못했습니다. 아래 링크를 직접 선택해 복사하세요."
+    : "이 브라우저는 링크 복사를 지원하지 않습니다. 아래 링크를 직접 선택해 복사하세요.";
   const current = useRef(true);
   useEffect(() => {
     current.current = true;
@@ -106,35 +111,34 @@ function InvitationLink({ invitation, showLink = false }: {
       Date.parse(invitation.expires_at) <= Date.now()
     ) return;
     if (!navigator.clipboard?.writeText) {
-      setStatus("이 브라우저는 링크 복사를 지원하지 않습니다. 아래 링크를 직접 선택해 복사하세요.");
+      setStatus("unavailable");
       return;
     }
     try {
       await navigator.clipboard.writeText(url);
       if (current.current && Date.parse(invitation.expires_at) > Date.now()) {
-        setStatus("초대 링크를 복사했습니다.");
+        setStatus("copied");
       }
     } catch {
       if (current.current && Date.parse(invitation.expires_at) > Date.now()) {
-        setStatus("복사하지 못했습니다. 아래 링크를 직접 선택해 복사하세요.");
+        setStatus("denied");
       }
     }
   };
   return (
     <div className="flex min-w-0 flex-col items-start gap-2">
+      {showAcceptanceLink && <a className="break-all underline" href={url}>{url}</a>}
       <Button variant="outline" onClick={() => { void copy(); }}>
         초대 링크 복사
       </Button>
-      {(status || showLink) && (
-        <>
-          {status && <p role="status" className="break-keep">{status}</p>}
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor={inputId}>초대 수락 링크</FieldLabel>
-              <Input id={inputId} readOnly value={url} />
-            </Field>
-          </FieldGroup>
-        </>
+      {status && <p role="status" className="break-keep">{message}</p>}
+      {(status === "denied" || status === "unavailable") && (
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor={inputId}>초대 수락 링크</FieldLabel>
+            <Input id={inputId} readOnly value={url} />
+          </Field>
+        </FieldGroup>
       )}
     </div>
   );
@@ -372,7 +376,7 @@ export function WorkspaceManagementPage() {
                 <InvitationLink
                   key={`${deliveryInvitation.id}:${deliveryInvitation.version}`}
                   invitation={deliveryInvitation}
-                  showLink
+                  showAcceptanceLink
                 />
               </div>
             )}
