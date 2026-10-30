@@ -430,7 +430,7 @@ export function TagManagement(
                     <span className="font-medium wrap-anywhere">{tag.name}</span>
                   )}
                 </BusinessCell>
-                {!readOnly && <BusinessCell index={1}>{draft?.initial?.id !== tag.id && (
+                <BusinessCell index={1} hidden={readOnly} className={readOnly ? "hidden" : undefined}>{draft?.initial?.id !== tag.id && (
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <Button
                       variant="ghost"
@@ -444,7 +444,7 @@ export function TagManagement(
                     </Button>
                     {deleteAction(tag)}
                   </div>
-                )}</BusinessCell>}
+                )}</BusinessCell>
               </BusinessRow>
             ))}
         </BusinessTable>)}

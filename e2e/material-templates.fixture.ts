@@ -859,7 +859,7 @@ test("변수 삽입 직후 그대로 문장을 입력하고 다음 변수를 이
 
 async function tagDialogFixture(page: import("@playwright/test").Page, seed = false) {
   const tags: any[] = seed ? [{ id: "00000000-0000-4000-8000-000000000991", scope: "record", name: "기존 기록 태그", version: 1 }] : [];
-  const writes: { method: string; body: any; key?: string }[] = [], reads: string[] = [];
+  const writes: { method: string; body: any; key?: string; url: string }[] = [], reads: string[] = [];
   const receipts = new Map<string, any>();
   let access: "none" | "read" | "write" = "write", failRead = false, drop = false, hold = false;
   let release: (() => void) | null = null;
@@ -875,9 +875,17 @@ async function tagDialogFixture(page: import("@playwright/test").Page, seed = fa
       return route.fulfill({ json: { items: tags.filter(t => t.scope === (url.searchParams.get("scope") ?? "record")), next_cursor: null } });
     }
     const method = request.method(), body = method === "DELETE" ? undefined : request.postDataJSON(), key = request.headers()["idempotency-key"];
-    writes.push({ method, body, key });
+    writes.push({ method, body, key, url: request.url() });
     if (access !== "write") return route.fulfill({ status: 403, json: { code: "forbidden", message: "설정 편집 권한이 필요합니다" } });
     if (hold) { hold = false; await new Promise<void>(resolve => { release = resolve; }); }
+    if (method === "DELETE") {
+      if (!receipts.has(key)) {
+        const at = tags.findIndex(t => url.pathname.endsWith("/" + t.id)); expect(at).toBeGreaterThanOrEqual(0);
+        tags.splice(at, 1); receipts.set(key, { deleted: true });
+      }
+      if (drop) { drop = false; return route.abort(); }
+      return route.fulfill({ status: 204 });
+    }
     let saved: any;
     if (method === "POST") {
       if (receipts.has(key)) saved = receipts.get(key);
@@ -1025,6 +1033,64 @@ test("#612 편집 중 권한이 내려가도 태그 초안과 취소는 남고 E
   const input = page.getByRole("textbox", { name: /^태그 이름/ }); await input.fill("권한 변경 중 초안"); tag.setAccess("read"); await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page.getByText("읽기 전용 설정", { exact: true })).toBeVisible(); await expect(input).toHaveValue("권한 변경 중 초안"); await expect(input).toHaveAttribute("readonly", ""); await expect(page.getByRole("button", { name: "추가", exact: true })).toBeDisabled(); await input.press("Enter"); expect(tag.writes).toHaveLength(0);
   await page.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("alertdialog").getByRole("button", { name: "변경 버리기", exact: true }).click(); await expect(page.getByRole("textbox", { name: /^태그 이름/ })).toHaveCount(0); await expect(page.getByText("기존 기록 태그", { exact: true })).toBeVisible();
+});
+
+test("#612 열린 태그 삭제 확인은 읽기 전용 강등에도 메모와 취소를 보존한다", async ({ page }) => {
+  const tag = await tagDialogFixture(page, true); await page.goto(fixtureWorkspacePath("/settings/tags?scope=record"));
+  await page.getByRole("button", { name: "기존 기록 태그 삭제", exact: true }).click();
+  const confirmation = page.getByRole("dialog", { name: "정말 삭제하시겠습니까?", exact: true });
+  await confirmation.getByRole("textbox", { name: "기록 메모", exact: true }).fill("삭제 전에 남긴 메모");
+  tag.setAccess("read"); await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText("읽기 전용 설정", { exact: true })).toBeVisible();
+  await expect(confirmation.getByRole("textbox", { name: "기록 메모", exact: true })).toHaveValue("삭제 전에 남긴 메모");
+  await expect(confirmation.getByRole("button", { name: "삭제하고 기록", exact: true })).toBeDisabled();
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(confirmation).toHaveCount(0); expect(tag.writes).toHaveLength(0);
+  await expect(page.getByRole("button", { name: "기존 기록 태그 삭제", exact: true })).toHaveCount(0);
+});
+
+test("#611 #612 삭제 응답 미확정과 같은 요청은 권한 강등·복구 후에도 유지된다", async ({ page }) => {
+  const business = await settingsFixture(page), tag = await tagDialogFixture(page, true);
+  await page.goto(fixtureWorkspacePath("/settings/records"));
+  const form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
+  await form.getByRole("textbox", { name: "메모 템플릿", exact: true }).fill("삭제 확인과 독립된 부모 초안");
+  await form.getByRole("button", { name: "기록 태그 관리", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  await dialog.getByRole("button", { name: "기존 기록 태그 삭제", exact: true }).click();
+  const confirmation = page.getByRole("dialog", { name: "정말 삭제하시겠습니까?", exact: true });
+  await confirmation.getByRole("textbox", { name: "기록 메모", exact: true }).fill("요청이 유지할 삭제 메모");
+  tag.holdAndDrop(); await confirmation.getByRole("button", { name: "삭제하고 기록", exact: true }).click();
+  await expect.poll(() => tag.writes.length).toBe(1); tag.release();
+  const retry = confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true }); await expect(retry).toBeEnabled();
+  tag.setAccess("read"); await page.evaluate(() => window.dispatchEvent(new Event("focus"))); await expect(retry).toBeDisabled();
+  await expect(confirmation.getByRole("textbox", { name: "기록 메모", exact: true })).toHaveValue("요청이 유지할 삭제 메모"); expect(tag.writes).toHaveLength(1);
+  tag.setAccess("write"); await page.evaluate(() => window.dispatchEvent(new Event("focus"))); await expect(retry).toBeEnabled(); await retry.click();
+  await expect(dialog.getByText("태그를 삭제했습니다.", { exact: true })).toBeVisible();
+  expect(tag.writes).toHaveLength(2); expect(tag.writes[1]).toEqual(tag.writes[0]); expect(tag.tags).toHaveLength(0);
+  await dialog.getByRole("button", { name: "기록 자동 완성으로 돌아가기", exact: true }).click();
+  await expect(form.getByRole("textbox", { name: "메모 템플릿", exact: true })).toHaveText("삭제 확인과 독립된 부모 초안"); expect(business.writes).toHaveLength(0);
+});
+
+test("#611 보조 태그 편집의 버전 충돌은 초안을 보존하고 최신 이름의 명시 재선택을 요구한다", async ({ page }) => {
+  const business = await settingsFixture(page), tag = await tagDialogFixture(page, true);
+  await page.route("**/api/tags/*", async route => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    expect(route.request().postDataJSON().expected_version).toBe(1);
+    tag.tags[0] = { ...tag.tags[0], name: "다른 사람이 바꾼 이름", version: 2 };
+    await route.fulfill({ status: 409, json: { code: "conflict", message: "버전이 달라졌습니다" } });
+  });
+  await page.goto(fixtureWorkspacePath("/settings/records"));
+  await page.getByRole("button", { name: "기록 태그 관리", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "기록 태그 관리", exact: true });
+  await dialog.getByRole("button", { name: "기존 기록 태그 이름 변경", exact: true }).click();
+  const editor = dialog.getByRole("form", { name: "태그 이름 변경", exact: true }), input = editor.getByRole("textbox", { name: /^태그 이름/ });
+  await input.fill("내 이름 초안"); await editor.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(editor.getByText("다른 변경이 저장되었습니다. 초안을 유지합니다. 취소 후 최신 태그를 다시 선택하세요.", { exact: true })).toBeVisible();
+  await expect(input).toHaveValue("내 이름 초안"); await expect(editor.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+  await editor.getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await dialog.getByRole("button", { name: "다른 사람이 바꾼 이름 이름 변경", exact: true }).click();
+  await expect(input).toHaveValue("다른 사람이 바꾼 이름"); expect(business.writes).toHaveLength(0);
 });
 
 test("#611 태그 관리의 320px·200%·긴 이름도 부모 URI와 조작 크기를 보존한다", async ({ page }, info) => {

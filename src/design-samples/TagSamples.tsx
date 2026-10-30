@@ -1,4 +1,4 @@
-import { FieldSet } from "../components/ui/field.tsx";
+import { FieldGroup, FieldSet } from "../components/ui/field.tsx";
 import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
 import { useState } from "react";
 import { Field, Notice } from "../components/Field.tsx";
@@ -96,7 +96,7 @@ function TagManagementSample({ onClose, onAdd }: { onClose: () => void; onAdd: (
         if (!trimmed) return;
         onAdd(trimmed); setSaved(current => [...current, trimmed]); setName("");
       }}>
-        <Field label="태그 이름" required>{props => <Input {...props} value={name} maxLength={30} onChange={event => setName(event.target.value)} />}</Field>
+        <FieldGroup><Field label="태그 이름" required>{props => <Input {...props} value={name} maxLength={30} onChange={event => setName(event.target.value)} />}</Field></FieldGroup>
         <Button type="submit" className="justify-self-start">추가</Button>
       </form>
       {saved.length > 0 && <p role="status" className="mt-4 text-sm wrap-anywhere">추가한 예시 태그: {saved.join(", ")}</p>}
