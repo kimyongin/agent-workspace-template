@@ -14,8 +14,12 @@ for (const width of [390, 1440]) {
     const viewer = page.getByRole("dialog", { name: "기록", exact: true });
     await viewer.getByRole("button", { name: "태그 연결", exact: true }).click();
     const trigger = viewer.getByRole("button", { name: "태그 선택", exact: true });
-    await trigger.click();
+    // Connection opens the chooser in the same user action.
     const chooser = page.getByRole("dialog", { name: "태그 선택", exact: true });
+    await expect(chooser).toBeVisible();
+    await expect(chooser.getByRole("combobox", { name: "태그 이름 검색" })).toBeFocused();
+    expect(state.writes).toHaveLength(0);
+    await page.screenshot({ path: info.outputPath(`record-tag-chooser-${width}.png`), fullPage: true });
     const option = chooser.getByRole("option", { name: "같은 이름", exact: true });
     await option.click();
     await expect(option).toHaveAttribute("aria-checked", "true");
@@ -24,6 +28,13 @@ for (const width of [390, 1440]) {
     await expect(trigger).toBeFocused();
     await expect(viewer.getByRole("button", { name: "같은 이름 선택 해제", exact: true })).toBeVisible();
     expect(state.writes).toHaveLength(0);
+    for (const close of ["닫기", "선택 완료"]) {
+      await trigger.click();
+      await expect(option).toHaveAttribute("aria-checked", "true");
+      await chooser.getByRole("button", { name: close, exact: true }).click();
+      await expect(trigger).toBeFocused();
+      expect(state.writes).toHaveLength(0);
+    }
     await viewer.getByRole("button", { name: "연결 적용", exact: true }).click();
     await expect(viewer).toContainText("태그 연결을 저장했습니다.");
     expect(state.writes).toHaveLength(1);

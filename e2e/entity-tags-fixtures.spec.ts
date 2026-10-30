@@ -647,7 +647,6 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   await expect(page.getByText("기록 (1개)", { exact: true })).toBeVisible();
   await capture("saved-entity-before-tag-connection");
   await region.getByRole("button", { name: "태그 연결", exact: true }).click();
-  await region.getByRole("button", { name: "태그 선택", exact: true }).click();
   await page.getByRole("option", { name: "첫 태그", exact: true }).click();
   await page.getByRole("button", { name: "선택 완료", exact: true }).click();
   await region.getByRole("button", { name: "연결 적용", exact: true }).click();
@@ -682,14 +681,12 @@ test("보기에서 태그 연결 초안을 취소하거나 독립 적용한다",
   await page.getByRole("link", { name: "자료 fixture", exact: true ,includeHidden:true}).evaluate((el:HTMLAnchorElement) => el.click());
   const region = page.getByRole("region", { name: "태그 연결" });
   await region.getByRole("button", { name: "태그 연결", exact: true }).click();
-  await region.getByRole("button", { name: "태그 선택", exact: true }).click();
   await page.getByRole("option", { name: "첫 태그", exact: true }).click();
   await page.getByRole("button", { name: "선택 완료", exact: true }).click();
   expect(writes).toHaveLength(0);
   await region.getByRole("button", { name: "연결 취소", exact: true }).click();
   await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
   await region.getByRole("button", { name: "태그 연결", exact: true }).click();
-  await region.getByRole("button", { name: "태그 선택", exact: true }).click();
   await page.getByRole("option", { name: "첫 태그", exact: true }).click();
   await page.getByRole("button", { name: "선택 완료", exact: true }).click();
   await region.getByRole("button", { name: "연결 적용", exact: true }).click();
@@ -747,6 +744,7 @@ test("기록 태그 연결 응답 불명은 같은 입력·버전·요청 키로
   await page.getByRole("link",{name:"기록 fixture",exact:true,includeHidden:true}).evaluate((el:HTMLAnchorElement)=>el.click());
   const region=page.getByRole("region",{name:"태그 연결"});
   await region.getByRole("button",{name:"첫 태그 연결 해제",exact:true}).click();
+  await expect(page.getByRole("dialog", { name: "태그 선택", exact: true })).toHaveCount(0);
   await region.getByRole("button",{name:"연결 적용",exact:true}).click();
   await expect(region.getByText(/저장 여부를 알 수 없습니다/)).toBeVisible();
   await expect(region.getByRole("button",{name:"태그 선택",exact:true})).toBeDisabled();
@@ -770,7 +768,6 @@ test("기록 태그 연결 버전 충돌은 원문과 선택 초안을 보존한
   await page.getByRole("link",{name:"기록 fixture",exact:true,includeHidden:true}).evaluate((el:HTMLAnchorElement)=>el.click());
   const region=page.getByRole("region",{name:"태그 연결"});
   await region.getByRole("button",{name:"태그 연결",exact:true}).click();
-  await region.getByRole("button",{name:"태그 선택",exact:true}).click();
   await page.getByRole("option",{name:"다른 태그",exact:true}).click();
   await page.getByRole("button",{name:"선택 완료",exact:true}).click();
   await region.getByRole("button",{name:"연결 적용",exact:true}).click();
@@ -1040,7 +1037,6 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
     const region = page.getByRole("region", { name: "태그 연결" });
     await region.getByRole("button", { name: "태그 연결", exact: true }).click();
     const picker = region.getByRole("button", { name: "태그 선택", exact: true });
-    await picker.click();
     const chooser = page.getByRole("dialog", { name: "태그 선택", exact: true });
     await expect(chooser.getByRole("option", { name: "첫 태그", exact: true })).toHaveAttribute("aria-checked", "true");
     await refresh("none");
@@ -1073,7 +1069,6 @@ test("열린 자료 태그 초안은 WRITE에서 READ로 바뀌면 잠기고 미
     await expect(region.getByText("첫 태그", { exact: true })).toBeVisible();
     await refresh("write");
     await region.getByRole("button", { name: "태그 연결", exact: true }).click();
-    await picker.click();
     await page.getByRole("option", { name: "다른 태그", exact: true }).click();
     await page.getByRole("button", { name: "선택 완료", exact: true }).click();
     await region.getByRole("button", { name: "연결 적용", exact: true }).click();
