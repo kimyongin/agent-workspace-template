@@ -40,6 +40,7 @@ test("administrator copies the existing invitation from its row without a busine
   await page.screenshot({ path: info.outputPath("invitation-before-copy.png"), fullPage: true });
   await row.getByRole("button", { name: "초대 링크 복사", exact: true }).click({ timeout: 5000 });
   await expect(row.getByRole("status")).toHaveText("초대 링크를 복사했습니다.");
+  await expect(row.getByRole("textbox", { name: "초대 수락 링크", exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(
     "http://127.0.0.1:55612/invitations/00000000-0000-4000-8000-000000000990",
   );
@@ -108,7 +109,7 @@ test("only active invitations offer copy and an open page removes expired link a
   await expect(page.getByRole("button", { name: "초대 링크 복사", exact: true })).toHaveCount(1);
   const row = page.getByRole("row").filter({ hasText: "guest@example.test" });
   await row.getByRole("button", { name: "초대 링크 복사", exact: true }).click();
-  await expect(row.getByRole("textbox", { name: "초대 수락 링크", exact: true })).toBeVisible();
+  await expect(row.getByRole("status")).toHaveText("초대 링크를 복사했습니다.");
   await page.clock.fastForward(60_001);
   await expect(row.getByText("만료됨", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "초대 링크 복사", exact: true })).toHaveCount(0);
@@ -133,9 +134,20 @@ test("newly created invitation shares clipboard feedback and clears link control
   await page.getByRole("button", { name: "초대 만들기", exact: true }).click();
   const delivery = page.getByRole("alert").filter({ hasText: "초대를 만들었습니다." });
   await expect(delivery).toBeVisible();
+  const acceptanceUrl = "http://127.0.0.1:55612/invitations/00000000-0000-4000-8000-000000000990";
+  const acceptance = delivery.getByRole("link", { name: acceptanceUrl, exact: true });
+  await expect(acceptance).toBeVisible();
+  await expect(acceptance).toHaveAttribute("href", acceptanceUrl);
+  await delivery.getByRole("button", { name: "초대 링크 복사", exact: true }).click();
+  await expect(delivery.getByRole("status")).toHaveText("초대 링크를 복사했습니다.");
+  await expect(acceptance).toHaveAttribute("href", acceptanceUrl);
+  await expect(delivery.getByRole("textbox", { name: "초대 수락 링크", exact: true })).toHaveCount(0);
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined }));
   await delivery.getByRole("button", { name: "초대 링크 복사", exact: true }).click();
   await expect(delivery.getByRole("status")).toHaveText("이 브라우저는 링크 복사를 지원하지 않습니다. 아래 링크를 직접 선택해 복사하세요.");
+  await expect(acceptance).toHaveAttribute("href", acceptanceUrl);
+  await expect(delivery.getByRole("textbox", { name: "초대 수락 링크", exact: true })).toHaveValue(acceptanceUrl);
+  await page.screenshot({ path: info.outputPath("invitation-created-anchor-fallback.png"), fullPage: true });
   await page.route(`**/api/workspaces/${a}`, route => route.fulfill({ json: {
     workspace: { id: a, name: "공간 A", deleted_at: null }, membership_version: 2,
     can_manage: false, grants: [],
