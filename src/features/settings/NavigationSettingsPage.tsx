@@ -13,6 +13,7 @@ import { useLocation } from "../../lib/workspace-router.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 
 import { NavigationRowActions } from "./NavigationRowActions.tsx";
+import { preventShortcutSubmit, useShortcutImeGuard } from "./shortcut-input.ts";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
 import { defaultNavigationRefs, type NavigationRef, resolveNavigationRefs } from "../../app/type-navigation.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -44,6 +45,7 @@ export function NavigationSettings(
   const section = useRef<HTMLElement>(null);
   const pending = useRef(false), mounted = useRef(true);
   const addSelect = useRef<HTMLInputElement>(null);
+  const shortcutInput = useShortcutImeGuard();
   const { setPreview } = useNavigationPreview();
   const location = useLocation();
   const catalog = useEntityTypes(location.key);
@@ -189,7 +191,7 @@ export function NavigationSettings(
             })}
           </BusinessTable>
           {refs.length === 0 && <p className="text-sm text-muted-foreground">바로가기를 표시하지 않습니다.</p>}
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-end gap-3" onKeyDown={preventShortcutSubmit}>
             <Combobox<(typeof available)[number]>
               items={available}
               value={null}
@@ -211,7 +213,7 @@ export function NavigationSettings(
               }}
               disabled={busy || refs.length >= 4 || available.length === 0}
             >
-              <ComboboxInput ref={addSelect} aria-label="추가할 메뉴" placeholder={refs.length >= 4 ? "최대 4개 선택" : available.length ? "메뉴를 골라 초안에 추가" : "추가할 메뉴 없음"} />
+              <ComboboxInput {...shortcutInput} ref={addSelect} aria-label="추가할 메뉴" placeholder={refs.length >= 4 ? "최대 4개 선택" : available.length ? "메뉴를 골라 초안에 추가" : "추가할 메뉴 없음"} />
               <ComboboxContent><ComboboxEmpty>추가할 메뉴가 없습니다.</ComboboxEmpty><ComboboxList>{entry => <ComboboxItem key={entry.key} value={entry}>{entry.label}{entry.archived ? " · 보관" : ""} · 초안에 추가</ComboboxItem>}</ComboboxList></ComboboxContent>
             </Combobox>
           </div>

@@ -14,6 +14,7 @@ import { useRef, useState } from "react";
 import { Field } from "../components/Field.tsx";
 import { EntityTypeIcon } from "../features/entity/EntityTypeIcon.tsx";
 import { NavigationRowActions } from "../features/settings/NavigationRowActions.tsx";
+import { preventShortcutSubmit, useShortcutImeGuard } from "../features/settings/shortcut-input.ts";
 
 const initial = { nickname: "김용인", timezone: "Asia/Seoul", mobile: "100", desktop: "100" };
 const menuChoices = [
@@ -28,6 +29,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
   const Heading = standalone ? "h1" : "h2";
   const SectionHeading = standalone ? "h2" : "h3";
   const addSelect = useRef<HTMLInputElement>(null);
+  const shortcutInput = useShortcutImeGuard();
   const section = useRef<HTMLElement>(null);
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
@@ -172,7 +174,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
             })}
           </BusinessTable>
           {menus.length === 0 && <p className="text-sm text-muted-foreground">내 프로필만 표시합니다.</p>}
-          <div className="flex min-w-0 flex-wrap items-end gap-3">
+          <div className="flex min-w-0 flex-wrap items-end gap-3" onKeyDown={preventShortcutSubmit}>
             <Combobox<(typeof menuChoices)[number]>
               items={menuChoices.filter(entry => !menus.includes(entry.id))}
               value={null}
@@ -194,7 +196,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
                 });
               }}
             >
-              <ComboboxInput ref={addSelect} aria-label="추가할 메뉴" placeholder={menus.length === menuChoices.length ? "추가할 메뉴 없음" : "메뉴를 골라 초안에 추가"} />
+              <ComboboxInput {...shortcutInput} ref={addSelect} aria-label="추가할 메뉴" placeholder={menus.length === menuChoices.length ? "추가할 메뉴 없음" : "메뉴를 골라 초안에 추가"} />
               <ComboboxContent><ComboboxEmpty>추가할 메뉴가 없습니다.</ComboboxEmpty><ComboboxList>{entry => <ComboboxItem key={entry.id} value={entry}>{entry.label} · 초안에 추가</ComboboxItem>}</ComboboxList></ComboboxContent>
             </Combobox>
           </div>

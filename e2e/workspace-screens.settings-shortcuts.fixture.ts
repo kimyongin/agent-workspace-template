@@ -163,6 +163,18 @@ test("shortcut typing and Escape never add; Enter adds once and the fourth item 
   const rows = businessRows(section.getByRole("table", { name: "선택한 바로가기" }));
   await picker.fill("기록");
   await picker.press("ArrowDown");
+  await picker.dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    keyCode: 13,
+    which: 13,
+    isComposing: true,
+  });
+  await expect(rows).toHaveCount(0);
+  await picker.dispatchEvent("compositionstart");
+  await picker.press("Enter");
+  await expect(rows).toHaveCount(0);
+  await picker.dispatchEvent("compositionend");
   await expect(rows).toHaveCount(0);
   await picker.press("Escape");
   await expect(rows).toHaveCount(0);
@@ -174,6 +186,13 @@ test("shortcut typing and Escape never add; Enter adds once and the fourth item 
   await expect(picker).toHaveValue("");
   await expect(picker).toBeFocused();
   expect(writes).toHaveLength(0);
+  await picker.fill("없는 메뉴");
+  await expect(page.getByRole("option")).toHaveCount(0);
+  await picker.press("Enter");
+  await expect(section.getByRole("button", { name: "메뉴 바로가기 저장", exact: true })).toBeEnabled();
+  expect(writes).toHaveLength(0);
+  await expect(rows).toHaveCount(1);
+  await picker.fill("");
   for (const label of ["할 일", "전체 자료", fixtureType.label]) await chooseSetting(page, picker, label);
   await expect(rows).toHaveCount(4);
   await expect(picker).toBeDisabled();
@@ -183,6 +202,15 @@ test("shortcut typing and Escape never add; Enter adds once and the fourth item 
   await expect(rows).toHaveCount(0);
   await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue("다른 구획의 초안");
   expect(writes).toHaveLength(0);
+  await chooseSetting(page, picker, "기록");
+  const save = section.getByRole("button", { name: "메뉴 바로가기 저장", exact: true });
+  await save.focus();
+  await save.press("Enter");
+  await expect.poll(() => writes.length).toBe(1);
+  expect(writes[0]).toEqual({
+    workspace_navigation: { version: 1, refs: [{ kind: "builtin", id: "records" }] },
+  });
+  await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue("다른 구획의 초안");
 });
 
 test("device timezone selection preserves other drafts and fixed-zone cancel, failure and retry", async ({ page }) => {
