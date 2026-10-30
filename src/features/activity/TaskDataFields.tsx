@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "../../components/DateInput.tsx";
@@ -105,20 +106,28 @@ export function TaskDataFields({ task, draft, initialDraft, set, errors = {}, di
               ? (
                 <Field label={taskLabels.recurrence} changed={!!initialDraft && initialDraft.freq !== draft.freq}>
                   {(p) => (
-                    <ToggleGroup
-                      {...p}
-                      type="single"
-                      variant="outline"
-                      value={freq}
-                      aria-label={taskLabels.recurrence}
-                      onValueChange={(value) => {
-                        if (value) set!({ freq: value as TaskDraft["freq"] });
-                      }}
-                    >
-                      {(["daily", "weekly", "monthly"] as const).map((value) => (
-                        <ToggleGroupItem key={value} value={value}>{taskLabels[value]}</ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ToggleGroup
+                        {...p}
+                        type="single"
+                        variant="outline"
+                        value={freq}
+                        aria-label={taskLabels.recurrence}
+                        onValueChange={(value) => {
+                          if (value) set!({ freq: value as TaskDraft["freq"] });
+                        }}
+                      >
+                        {(["daily", "weekly", "monthly"] as const).map((value) => (
+                          <ToggleGroupItem key={value} value={value}>{taskLabels[value]}</ToggleGroupItem>
+                        ))}
+                      </ToggleGroup>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={disabled}
+                        onClick={() => set!({ freq: "weekly", weekdays: [1, 2, 3, 4, 5] })}
+                      >평일로 설정</Button>
+                    </div>
                   )}
                 </Field>
               )
