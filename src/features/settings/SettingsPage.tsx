@@ -200,7 +200,7 @@ function AccountSettings() {
   const date = (
     <Field label="표시 시간대">
       {(props) => (
-        <div className="flex min-w-0 flex-col items-start gap-2">
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] items-start gap-2">
           <TimezoneSelect
             {...props}
             deviceDefault

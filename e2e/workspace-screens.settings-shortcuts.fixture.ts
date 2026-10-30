@@ -57,6 +57,7 @@ async function setup(page: Page) {
 }
 
 async function settle(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
   await expect.poll(() =>
     page.evaluate(() =>
       document.getAnimations().filter((animation) =>
@@ -66,94 +67,115 @@ async function settle(page: Page) {
   ).toBe(0);
 }
 
-for (const width of [390, 1440]) {
-  test(
-    `space-to-settings shortcuts count navigation, disclosure, scrolling and independent saves ${width}`,
-    async ({ page }, info) => {
-      const { writes, state } = await setup(page);
-      await page.setViewportSize({ width, height: 900 });
-      const actions: string[] = [];
-      const click = async (label: string, control: Locator) => {
-        await control.click();
-        actions.push(label);
-      };
-      await page.goto("/workspaces");
-      await click("공간 열기", page.getByRole("link", { name: "열기", exact: true }));
-      const menu = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
-      if (await menu.isVisible()) await click("주 메뉴 열기", menu);
-      await click(
-        "기본 설정 링크",
-        page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", {
-          name: "기본 설정",
-          exact: true,
-        }),
-      );
-      const common = [...actions];
-      const navigation = page.getByRole("region", { name: "메뉴 바로가기", exact: true });
-      await navigation.scrollIntoViewIfNeeded();
-      actions.push("메뉴 바로가기 영역으로 스크롤");
-      const picker = navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true });
-      await click("추가할 메뉴 열기", picker);
-      await click(
-        "기록을 바로가기 초안에 추가",
-        page.getByRole("option", { name: "기록 · 초안에 추가", exact: true }),
-      );
-      await expect(navigation.getByRole("table", { name: "선택한 바로가기" })).toContainText("기록");
-      await expect(picker).toHaveValue("");
-      expect(writes).toHaveLength(0);
-      await expect(navigation.getByRole("status")).toContainText("초안에 추가");
-      await settle(page);
-      await navigation.screenshot({ path: info.outputPath(`menu-draft-${width}.png`) });
-      await click(
-        "메뉴 바로가기 저장",
-        navigation.getByRole("button", { name: "메뉴 바로가기 저장", exact: true }),
-      );
-      await expect.poll(() => writes.length).toBe(1);
-      expect(writes[0]).toEqual({
-        workspace_navigation: { version: 1, refs: [{ kind: "builtin", id: "records" }] },
-      });
-      expect(actions).toHaveLength(width === 390 ? 7 : 6);
-      await info.attach("menu-actions", {
-        body: JSON.stringify({
-          start: "내 공간 목록",
-          end: "기록 바로가기 저장",
-          width,
-          actions,
-          count: actions.length,
-          scroll: "목표 구획 이동1회 포함, 추가 수동 스크롤/검색은 별도",
-        }),
-        contentType: "application/json",
-      });
-
-      await goApp(page, "/settings");
-      const date = page.getByRole("region", { name: "날짜와 시각", exact: true });
-      await date.scrollIntoViewIfNeeded();
-      const timezoneActions = [...common, "날짜와 시각 영역으로 스크롤"];
-      const useDevice = date.getByRole("button", { name: /^기기 시간대 사용/ });
-      await useDevice.click();
-      timezoneActions.push("기기 시간대 사용 선택");
-      await expect(date.getByLabel("표시 시간대", { exact: true })).toBeFocused();
-      await expect(date.getByLabel("표시 시간대", { exact: true })).toHaveValue("");
-      expect(writes).toHaveLength(1);
-      await date.getByRole("button", { name: "날짜와 시각 저장", exact: true }).click();
-      timezoneActions.push("날짜와 시각 저장");
-      await expect.poll(() => writes.length).toBe(2);
-      expect(writes[1]).toEqual({ workspace_timezone: null });
-      expect(timezoneActions).toHaveLength(width === 390 ? 6 : 5);
-      await info.attach("device-timezone-actions", {
-        body: JSON.stringify({
-          start: "내 공간 목록",
-          end: "기기 추종 시간대 저장",
-          width,
-          actions: timezoneActions,
-          count: timezoneActions.length,
-        }),
-        contentType: "application/json",
-      });
-      expect(state.writes).toHaveLength(0);
-    },
-  );
+async function inViewport(control: Locator) {
+  return control.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    if (
+      rect.width <= 0 || rect.height <= 0 || rect.top < 0 || rect.left < 0 ||
+      rect.right > innerWidth + 1 || rect.bottom > innerHeight + 1
+    ) return false;
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      const style = getComputedStyle(parent), bounds = parent.getBoundingClientRect();
+      if (
+        ["auto", "scroll", "hidden", "clip"].includes(style.overflowY) &&
+        (rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1)
+      ) return false;
+      if (
+        ["auto", "scroll", "hidden", "clip"].includes(style.overflowX) &&
+        (rect.left < bounds.left - 1 || rect.right > bounds.right + 1)
+      ) return false;
+    }
+    return true;
+  });
 }
+
+test.describe("complete settings journeys include actual scrolling", () => {
+  test.use({ timezoneId: "Asia/Seoul" });
+  for (const width of [390, 1440]) {
+    for (const scenario of ["menu", "timezone"]) {
+      test(`space-to-settings ${scenario} counts navigation, disclosure and save ${width}`, async ({ page }, info) => {
+        const { writes, state } = await setup(page);
+        await page.setViewportSize({ width, height: 900 });
+        const actions: string[] = [];
+        const scrollPositions = () =>
+          page.evaluate(() =>
+            [...document.querySelectorAll("*")].filter((element) => element.scrollTop || element.scrollLeft)
+              .map((element) => [element.tagName, element.scrollTop, element.scrollLeft])
+          );
+        const reveal = async (label: string, control: Locator) => {
+          await settle(page);
+          if (await inViewport(control)) return;
+          const before = await scrollPositions();
+          await control.scrollIntoViewIfNeeded();
+          await settle(page);
+          await expect.poll(() => inViewport(control)).toBe(true);
+          expect(await scrollPositions()).not.toEqual(before);
+          actions.push(`${label}까지 스크롤`);
+        };
+        const click = async (label: string, control: Locator) => {
+          await reveal(label, control);
+          await control.click();
+          actions.push(label);
+        };
+        await page.goto("/workspaces");
+        await click("공간 열기", page.getByRole("link", { name: "열기", exact: true }));
+        const menu = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
+        if (await menu.isVisible()) await click("주 메뉴 열기", menu);
+        await click(
+          "기본 설정 링크",
+          page.getByRole("navigation", { name: "주 메뉴", exact: true })
+            .getByRole("link", { name: "기본 설정", exact: true }),
+        );
+        const section = page.getByRole("region", {
+          name: scenario === "menu" ? "메뉴 바로가기" : "날짜와 시각",
+          exact: true,
+        });
+        if (scenario === "menu") {
+          const picker = section.getByRole("combobox", { name: "추가할 메뉴", exact: true });
+          await click("추가할 메뉴 열기", picker);
+          await click("기록을 초안에 추가", page.getByRole("option", { name: "기록 · 초안에 추가", exact: true }));
+          await expect(section.getByRole("table", { name: "선택한 바로가기" })).toContainText("기록");
+          await expect(picker).toHaveValue("");
+          await expect(section.getByRole("button", { name: "메뉴 바로가기 저장", exact: true })).toBeEnabled();
+          expect(writes).toHaveLength(0);
+          await click("메뉴 바로가기 저장", section.getByRole("button", { name: "메뉴 바로가기 저장", exact: true }));
+          await expect.poll(() => writes.length).toBe(1);
+          expect(writes[0]).toEqual({
+            workspace_navigation: { version: 1, refs: [{ kind: "builtin", id: "records" }] },
+          });
+          await expect(section.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
+        } else {
+          await click("기기 시간대 사용 선택", section.getByRole("button", { name: /^기기 시간대 사용/ }));
+          const select = section.getByLabel("표시 시간대", { exact: true });
+          await expect(select).toBeFocused();
+          await expect(select).toHaveValue("");
+          expect(writes).toHaveLength(0);
+          await click("날짜와 시각 저장", section.getByRole("button", { name: "날짜와 시각 저장", exact: true }));
+          await expect.poll(() => writes.length).toBe(1);
+          expect(writes[0]).toEqual({ workspace_timezone: null });
+          await expect(section.getByRole("status")).toContainText("설정을 저장했습니다");
+        }
+        await reveal("저장 결과 확인", section.getByRole("status"));
+        const expected = scenario === "menu" ? (width === 390 ? 8 : 6) : (width === 390 ? 6 : 5);
+        expect(actions).toHaveLength(expected);
+        expect(state.writes).toHaveLength(0);
+        await info.attach("all-actions", {
+          body: JSON.stringify({
+            start: "내 공간 목록",
+            end: scenario === "menu" ? "기록 바로가기 저장 결과 확인" : "기기 추종 시간대 저장 결과 확인",
+            width,
+            height: 900,
+            actions,
+            count: actions.length,
+            scroll: "조작 또는 저장 결과가 보이지 않아 실제 위치가 바뀐 스크롤만1회씩 계산; 캡처는 완료 후",
+          }),
+          contentType: "application/json",
+        });
+        await page.screenshot({ path: info.outputPath(`${scenario}-${width}.png`) });
+      });
+    }
+  }
+});
 
 test("shortcut typing and Escape never add; Enter adds once and the fourth item retains keyboard focus", async ({ page }) => {
   const { writes } = await setup(page);

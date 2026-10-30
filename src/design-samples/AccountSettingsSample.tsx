@@ -43,7 +43,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
       {(props) =>
         key === "timezone"
           ? (
-            <div className="flex min-w-0 flex-col items-start gap-2"><TimezoneSelect
+            <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] items-start gap-2"><TimezoneSelect
               {...props}
               deviceDefault
               value={draft.timezone}
@@ -187,7 +187,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
                 if (!entry || menus.length >= 4 || menus.includes(entry.id)) return;
                 setMenus([...menus, entry.id]);
                 setQuery("");
-                setMessage(`${entry.label} · 초안에 추가`);
+                setMessage("");
                 requestAnimationFrame(() => {
                   const destination = menus.length + 1 >= menuChoices.length
                     ? section.current?.querySelectorAll<HTMLButtonElement>('button[title="바로가기에서 제거"]').item(menus.length)

@@ -203,7 +203,6 @@ export function NavigationSettings(
                 if (!entry || busy || refs.length >= 4 || !available.some(item => item.key === entry.key)) return;
                 edit([...refs, entry.ref]);
                 setQuery("");
-                setMessage({ text: `${entry.label} · 초안에 추가` });
                 requestAnimationFrame(() => {
                   const destination = refs.length + 1 >= 4 || available.length === 1
                     ? section.current?.querySelectorAll<HTMLButtonElement>('button[title="바로가기에서 제거"]').item(refs.length)
