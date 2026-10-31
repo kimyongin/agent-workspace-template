@@ -86,7 +86,18 @@ export function TaskDetailPage() {
     navigateAfterClose(`?${next}`, true);
   };
   const [busy, setBusy] = useState(false);
-  const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
+  const [occurrenceRead, setOccurrenceRead] = useState<
+    {
+      api: typeof api;
+      task: TaskResult;
+      end: string | null;
+      period: { from: string; to: string };
+      value: { today: string; items: Occurrence[] } | null;
+      loading: boolean;
+      error: "failed" | "unavailable" | null;
+    } | null
+  >(null);
+  const [occurrenceRetry, setOccurrenceRetry] = useState<{ api: typeof api; id: string; end: string | null } | null>(null);
   const [recordRefresh, setRecordRefresh] = useState(0);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
 
@@ -117,31 +128,48 @@ export function TaskDetailPage() {
     if (!detail.confirmed && detail.value) relationSaved.current = false;
   }, [detail.value, detail.confirmed]);
 
-  const occurrenceGeneration = useRef(0);
-  useEffect(() => () => {
-    occurrenceGeneration.current++;
-  }, [api, id]);
-  const loadOccurrences = useCallback(async (t: TaskResult, end: string | null) => {
-    const started = ++occurrenceGeneration.current;
+  const occurrenceRequest = useRef<AbortController | null>(null);
+  const currentOccurrences = occurrenceRead?.api === api && occurrenceRead.task === task &&
+      occurrenceRead.end === rangeEnd
+    ? occurrenceRead
+    : null;
+  const occurrences = currentOccurrences?.value ?? null;
+  const occurrencesLoading = !currentOccurrences || currentOccurrences.loading;
+  const occurrencesFailed = currentOccurrences?.error;
+  const loadOccurrences = useCallback(async (t: TaskResult, end: string | null, period?: { from: string; to: string }) => {
+    occurrenceRequest.current?.abort();
+    const controller = new AbortController();
+    occurrenceRequest.current = controller;
+    // A retry reuses its attempted window even if the task's midnight has passed.
+    const to = period?.to ?? end ?? addDays(todayIn(t.timezone ?? "UTC"), 7);
+    const from = period?.from ?? addDays(to, -20);
+    const owner = { api, task: t, end, period: { from, to } };
+    setOccurrenceRead({ ...owner, value: null, loading: true, error: null });
     try {
       // 할 일 시간대의 오늘 기준 앞 13일과 뒤 7일. 이전 기간으로 옮길 수 있다.
-      const to = end ?? addDays(todayIn(t.timezone ?? "UTC"), 7);
-      const from = addDays(to, -20);
       const res = await api<{ today: string; items: Occurrence[] }>(
         "GET",
         `/tasks/${t.id}/occurrences?from=${from}&to=${to}`,
+        undefined,
+        controller.signal,
       );
-      if (started !== occurrenceGeneration.current) return;
-      setOccurrences({ today: res.today, items: [...res.items].reverse() });
-    } catch {
-      if (started !== occurrenceGeneration.current) return;
-      setOccurrences(null);
-      setActionError("회차를 불러오지 못했습니다.");
+      if (controller.signal.aborted) return;
+      setOccurrenceRead({
+        ...owner,
+        value: { today: res.today, items: [...res.items].reverse() },
+        loading: false,
+        error: null,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setOccurrenceRead({ ...owner, value: null, loading: false,
+        error: error instanceof ApiError && (error.status === 403 || error.status === 404) ? "unavailable" : "failed" });
     }
   }, [api]);
 
   useEffect(() => {
     if (task?.kind === "recurring") loadOccurrences(task, rangeEnd);
+    return () => occurrenceRequest.current?.abort();
   }, [task, rangeEnd, loadOccurrences]);
 
   const run = async (action: () => Promise<void>, done: string) => {
@@ -217,29 +245,47 @@ export function TaskDetailPage() {
         <section className="flex min-w-0 flex-col gap-4" aria-labelledby={readOnly ? "occ-edit-title" : "occ-title"}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id={readOnly ? "occ-edit-title" : "occ-title"} className="text-base font-semibold">회차</h2>
-            {occurrences && !readOnly && (
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="ghost"
-                  type="button"
-                  onClick={() => setRangeEnd(addDays(occurrences.items.at(-1)?.date ?? occurrences.today, -1))}
-                >
-                  이전 기간
-                </Button>
-                {rangeEnd && (
+            <div className="flex flex-wrap items-center gap-2">
+              {occurrences && !readOnly && (
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     variant="ghost"
                     type="button"
-                    onClick={() => setRangeEnd(null)}
+                    onClick={() => setRangeEnd(addDays(occurrences.items.at(-1)?.date ?? occurrences.today, -1))}
                   >
-                    최근으로
+                    이전 기간
                   </Button>
-                )}
-              </div>
-            )}
+                  {rangeEnd && (
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      onClick={() => setRangeEnd(null)}
+                    >
+                      최근으로
+                    </Button>
+                  )}
+                </div>
+              )}
+              {(occurrencesFailed || occurrenceRetry?.api === api && occurrenceRetry.id === task.id && occurrenceRetry.end === rangeEnd) && <Button
+                variant="ghost"
+                type="button"
+                aria-disabled={occurrencesLoading}
+                onClick={() => {
+                  if (!occurrencesLoading) {
+                    setOccurrenceRetry({ api, id: task.id, end: rangeEnd });
+                    void loadOccurrences(task, rangeEnd, currentOccurrences?.period);
+                  }
+                }}
+              >
+                회차 다시 조회
+              </Button>}
+            </div>
           </div>
           {task.status === "stopped" && <Notice>중단된 할 일입니다. 재개하면 그날부터 회차가 생깁니다.</Notice>}
-          {!occurrences && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
+          {occurrencesLoading && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
+          {occurrencesFailed && <Notice kind="error">{occurrencesFailed === "unavailable"
+            ? "회차를 조회할 수 없습니다. 현재 할 일의 접근 권한과 상태를 확인하세요."
+            : "회차를 불러오지 못했습니다. 같은 기간을 다시 조회하세요."}</Notice>}
           {occurrences?.items.length === 0 && (
             <p className="text-sm text-muted-foreground">이 기간에는 회차가 없습니다.</p>
           )}
@@ -465,7 +511,7 @@ export function TaskDetailPage() {
               closeManagement();
               setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
               setRecordRefresh((n) => n + 1);
-              await loadOccurrences(task, rangeEnd);
+              await loadOccurrences(task, rangeEnd, currentOccurrences?.period);
             }}
           />
         )}
