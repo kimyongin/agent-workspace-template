@@ -353,3 +353,50 @@ test("회차 재조회: 할 일 시간대 자정을 지나도 실패한 기간�
   expect(queries).toEqual(["?from=2026-09-24&to=2026-10-14", "?from=2026-09-24&to=2026-10-14"]);
   expect(state.writes).toEqual([]);
 });
+
+for (const parentKind of ["result", "task-change", "entity-change"] as const) {
+  test(`기록 ${parentKind} 편집 403: 접근 불가를 일시 장애와 구분한다`, async ({ page }) => {
+    const state = await fixtures(page), record = state.rows.records[0], isEntity = parentKind === "entity-change";
+    const parent = isEntity ? state.rows.entities[0] : state.rows.tasks[0];
+    Object.assign(record, { entity_id: isEntity ? parent.id : null, task_id: isEntity ? null : parent.id });
+    if (parentKind !== "result") {
+      Object.assign(record, {
+        record_kind: "change",
+        change: {
+          event_id: id(30),
+          target_kind: isEntity ? "entity" : "task",
+          target_id: parent.id,
+          target_title: "당시 소속 이름",
+          action: "update",
+          source: "http",
+          before: null,
+          after: null,
+          path: null,
+        },
+      });
+    }
+    let forbidden = false;
+    await page.route(
+      `**/api/${isEntity ? "entities" : "tasks"}/${encodeURIComponent(parent.id)}`,
+      (route) =>
+        forbidden
+          ? route.fulfill({ status: 403, json: { code: "forbidden", message: "접근 불가" } })
+          : route.fulfill({ json: parent }),
+    );
+    await go(page, `/records/${record.id}`);
+    await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+    forbidden = true;
+    await form(page).getByRole("button", { name: "편집", exact: true }).click();
+    const body = form(page).getByRole("textbox", { name: /^본문/ });
+    await body.fill("접근 상태와 독립적인 초안");
+    const target = form(page).getByRole("region", { name: `${isEntity ? "자료" : "할 일"} (1개)`, exact: true });
+    await expect(target).toContainText(
+      parentKind === "result" ? "삭제된 할 일 또는 접근할 수 없는 할 일입니다." : "현재 항목을 조회할 수 없습니다.",
+    );
+    await expect(target).not.toContainText("불러오지 못했습니다.");
+    await expect(target.getByRole("link")).toHaveCount(0);
+    await expect(body).toHaveValue("접근 상태와 독립적인 초안");
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  });
+}

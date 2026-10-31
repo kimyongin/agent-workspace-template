@@ -47,7 +47,7 @@ function ChangedRelation(
   const [retriedPath, setRetriedPath] = useState<string>();
   const probe = read.probe;
   const missingError = probe.error instanceof ApiError &&
-    probe.error.status === 404 && probe.error.code === "not_found";
+    (probe.error.status === 403 || probe.error.status === 404 && probe.error.code === "not_found");
   const value = probe.value;
   const retainedTask = change.target_kind === "task" && !!value && "deleted_at" in value && !!value.deleted_at;
   const state = probe.loading
@@ -152,6 +152,7 @@ function ReadonlyTask(
   const read = useRelatedRead<TaskResult>(`/tasks/${id}`, { probe: true });
   const [retriedId, setRetriedId] = useState<string>();
   const task = !read.probe.loading && !read.probe.error ? read.probe.value : null, cause = read.probe.error;
+  const unavailable = cause instanceof ApiError && (cause.status === 403 || cause.status === 404);
   return (
     <RelatedItem
       title={task?.title ?? "할 일"}
@@ -177,13 +178,13 @@ function ReadonlyTask(
             : (
               <p className="text-sm text-muted-foreground" role={cause ? undefined : "status"}>
                 {cause
-                  ? cause instanceof ApiError && cause.status === 404
+                  ? unavailable
                     ? "삭제된 할 일 또는 접근할 수 없는 할 일입니다."
                     : "연결된 할 일을 불러오지 못했습니다."
                   : "불러오는 중…"}
               </p>
             )}
-          {(cause && !(cause instanceof ApiError && cause.status === 404) || retriedId === id) && (
+          {(cause && !unavailable || retriedId === id) && (
             <Button
               variant="ghost"
               type="button"
