@@ -155,7 +155,12 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect.poll(() => issuesRequests).toBe(2);
     const freshTable = page.getByRole("table", { name: "색인 문제 항목", exact: true });
-    await expect(freshTable).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "색인 문제 페이지", exact: true })).toBeVisible();
+    if (freshIssues.items.length === 0) {
+      await expect(page.getByText("현재 확인이 필요한 색인 문제가 없습니다.", { exact: true })).toBeVisible();
+    } else {
+      await expect(freshTable).toBeVisible();
+    }
     await expect(freshTable.getByRole("link")).toHaveCount(freshIssues.items.length);
     await expect(page.getByRole("button", { name: "이전", exact: true })).toBeDisabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
