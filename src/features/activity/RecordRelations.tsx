@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { DataFields } from "@/components/DataFields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CollectionItem, CollectionList, CollectionMessage } from "../../components/Collection.tsx";
+import { CollectionItem, CollectionList } from "../../components/Collection.tsx";
 import type { RecordResult } from "@contracts/record.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
@@ -43,6 +44,7 @@ function ChangedRelation(
   },
 ) {
   const read = useRelatedRead<Preview>(path, { probe: true });
+  const [retriedPath, setRetriedPath] = useState<string>();
   const probe = read.probe;
   const missingError = probe.error instanceof ApiError &&
     probe.error.status === 404 && probe.error.code === "not_found";
@@ -110,6 +112,21 @@ function ChangedRelation(
               </DataFields>
             )}
             {fallback}
+            {(state === "failed" || retriedPath === path) && (
+              <Button
+                variant="ghost"
+                type="button"
+                aria-disabled={probe.loading}
+                onClick={() => {
+                  if (!probe.loading) {
+                    setRetriedPath(path);
+                    void read.resource.read("probe");
+                  }
+                }}
+              >
+                현재 대상 다시 조회
+              </Button>
+            )}
           </>
         }
       />
@@ -133,37 +150,56 @@ function ReadonlyTask(
   { id, occurrence }: { id: string; occurrence: string | null },
 ) {
   const read = useRelatedRead<TaskResult>(`/tasks/${id}`, { probe: true });
-  const task = read.probe.value, cause = read.probe.error;
-  if (task) {
-    return (
-      <RelatedItem
-        title={task.title}
-        metadata={
-          <DataFields>
-            <div>
-              <dt>상태</dt>
-              <dd>
-                {task.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : <StatusBadge status={task.status} />}
-              </dd>
-            </div>
-            {occurrence && (
-              <div>
-                <dt>회차</dt>
-                <dd>{occurrence}</dd>
-              </div>
-            )}
-          </DataFields>
-        }
-      />
-    );
-  }
+  const [retriedId, setRetriedId] = useState<string>();
+  const task = !read.probe.loading && !read.probe.error ? read.probe.value : null, cause = read.probe.error;
   return (
-    <CollectionMessage className="text-sm text-muted-foreground" role={cause ? undefined : "status"}>
-      {cause
-        ? cause instanceof ApiError && cause.status === 404
-          ? "삭제된 할 일 또는 접근할 수 없는 할 일입니다."
-          : "연결된 할 일을 불러오지 못했습니다."
-        : "불러오는 중…"}
-    </CollectionMessage>
+    <RelatedItem
+      title={task?.title ?? "할 일"}
+      metadata={
+        <>
+          {task
+            ? (
+              <DataFields>
+                <div>
+                  <dt>상태</dt>
+                  <dd>
+                    {task.deleted_at ? <Badge variant="secondary">삭제됨</Badge> : <StatusBadge status={task.status} />}
+                  </dd>
+                </div>
+                {occurrence && (
+                  <div>
+                    <dt>회차</dt>
+                    <dd>{occurrence}</dd>
+                  </div>
+                )}
+              </DataFields>
+            )
+            : (
+              <p className="text-sm text-muted-foreground" role={cause ? undefined : "status"}>
+                {cause
+                  ? cause instanceof ApiError && cause.status === 404
+                    ? "삭제된 할 일 또는 접근할 수 없는 할 일입니다."
+                    : "연결된 할 일을 불러오지 못했습니다."
+                  : "불러오는 중…"}
+              </p>
+            )}
+          {(cause && !(cause instanceof ApiError && cause.status === 404) || retriedId === id) && (
+            <Button
+              variant="ghost"
+              type="button"
+              aria-disabled={read.probe.loading}
+              onClick={() => {
+                if (!read.probe.loading) {
+                  setRetriedId(id);
+                  void read.resource.read("probe");
+                }
+              }}
+            >
+              할 일 다시 조회
+            </Button>
+          )}
+        </>
+      }
+    />
   );
 }

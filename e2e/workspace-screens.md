@@ -10,6 +10,7 @@
 | 초안·uncertain 재시도/폐기·busy·직접 링크 보호 | [draft-protection](workspace-screens.draft-protection.fixture.ts) |
 | 상세 보기/편집·관련 탐색·닫기와 처음 목록 복귀 | [detail-navigation](workspace-screens.detail-navigation.fixture.ts) |
 | 엔터티 관계·연결 검색·IME·추가/해제·늦은 응답 | [relations](workspace-screens.relations.fixture.ts) |
+| 회차 오류·기간 재조회·기록 편집의 소속 조회 복구·초안/초점 유지 | [recovery-context](workspace-screens.recovery-context.fixture.ts) |
 | 연결 기록/할 일의 회차·페이지·귀속 작성 | [related-records](workspace-screens.related-records.fixture.ts) |
 | 문서 본문·markdown·표·스크롤·변경 정보 표시 | [content-display](workspace-screens.content-display.fixture.ts) |
 | 폭별 시각 위계·shell/reflow·공통 카드·필터 정렬 | [responsive-layout](workspace-screens.responsive-layout.fixture.ts) |
