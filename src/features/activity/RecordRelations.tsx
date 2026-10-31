@@ -48,7 +48,7 @@ function ChangedRelation(
   const probe = read.probe;
   const missingError = probe.error instanceof ApiError &&
     (probe.error.status === 403 || probe.error.status === 404 && probe.error.code === "not_found");
-  const value = probe.value;
+  const value = !probe.loading && !probe.error ? probe.value : null;
   const retainedTask = change.target_kind === "task" && !!value && "deleted_at" in value && !!value.deleted_at;
   const state = probe.loading
     ? "loading"

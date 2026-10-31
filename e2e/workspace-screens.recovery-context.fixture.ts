@@ -412,3 +412,48 @@ for (const parentKind of ["result", "task-change", "entity-change"] as const) {
     expect(state.errors).toEqual([]);
   });
 }
+
+test("변경 기록 재조회 실패: 마지막 성공의 현재 삭제 상태를 새 결과처럼 남기지 않는다", async ({ page }) => {
+  const state = await fixtures(page), record = state.rows.records[0];
+  Object.assign(record, {
+    task_id: id(2),
+    entity_id: null,
+    record_kind: "change",
+    change: {
+      event_id: id(30),
+      target_kind: "task",
+      target_id: id(2),
+      target_title: "당시 소속 이름",
+      action: "update",
+      source: "http",
+      before: null,
+      after: null,
+      path: null,
+    },
+  });
+  let fail = true;
+  await page.route(
+    `**/api/tasks/${id(2)}`,
+    (route) =>
+      fail
+        ? route.fulfill({ status: 503, json: { code: "internal", message: "일시 실패" } })
+        : route.fulfill({ json: { ...state.rows.tasks[0], deleted_at: "2026-10-07T00:00:00Z" } }),
+  );
+  await go(page, `/records/${record.id}?edit=1`);
+  const target = form(page).getByRole("region", { name: "할 일 (1개)", exact: true }),
+    body = form(page).getByRole("textbox", { name: /^본문/ });
+  await body.fill("현재 조회와 분리할 초안");
+  await expect(target).toContainText("현재 항목을 불러오지 못했습니다.");
+  const retry = target.getByRole("button", { name: "현재 대상 다시 조회", exact: true });
+  fail = false;
+  await retry.click();
+  await expect(target.getByText("삭제됨", { exact: true })).toBeVisible();
+  fail = true;
+  await retry.click();
+  await expect(target).toContainText("현재 항목을 불러오지 못했습니다.");
+  await expect(target.getByText("삭제됨", { exact: true })).toHaveCount(0);
+  await expect(target).toContainText("당시 소속 이름");
+  await expect(body).toHaveValue("현재 조회와 분리할 초안");
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+});
