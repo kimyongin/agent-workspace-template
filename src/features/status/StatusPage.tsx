@@ -10,8 +10,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { RefreshCwIcon } from "lucide-react";
 import { WorkspaceContext } from "../details/workspace-context.ts";
+import { useWorkspaceCapabilities } from "../workspaces/workspace-context.tsx";
 import { readApiKey } from "./read-api-key.ts";
-import { IndexingIssues } from "./IndexingIssues.tsx";
+import { IndexingIssues, type IndexingIssuesView } from "./IndexingIssues.tsx";
 
 export function StatusPage() {
   const api = useApi();
@@ -22,9 +23,14 @@ export function StatusPage() {
 function StatusSession() {
   const api = useApi();
   const revision = useContext(WorkspaceContext)?.revision;
+  const membershipVersion = useWorkspaceCapabilities()?.membership_version ?? 0;
   const [data, setData] = useState<StatusOverview | null>(null);
   const [busy, setBusy] = useState(true), [error, setError] = useState("");
-  const [issuesRevision, setIssuesRevision] = useState(0);
+  const [issues, setIssues] = useState<{ membershipVersion: number; view: IndexingIssuesView }>(() => ({
+    membershipVersion,
+    view: { open: false, expanded: [] },
+  }));
+  const issuesView = issues.membershipVersion === membershipVersion ? issues.view : { open: false, expanded: [] };
   const [selectedDates, setSelectedDates] = useState<Record<string, string>>({});
   const controller = useRef<AbortController | null>(null);
   async function refresh() {
@@ -33,7 +39,6 @@ function StatusSession() {
     controller.current = request;
     setData(null);
     setBusy(true);
-    setIssuesRevision((revision) => revision + 1);
     setError("");
     try {
       const next = await api<StatusOverview>("GET", "/status", undefined, request.signal);
@@ -79,8 +84,18 @@ function StatusSession() {
         </div>
       )}
       {data && (
-        <StatusContent data={data} selectedDates={selectedDates} onDateSelect={(chart, date) => setSelectedDates((previous) => ({ ...previous, [chart]: date }))}>
-          <IndexingIssues key={issuesRevision} count={data.indexing.attention + data.entity_indexing.attention} disabled={busy || !!error} />
+        <StatusContent
+          data={data}
+          selectedDates={selectedDates}
+          onDateSelect={(chart, date) => setSelectedDates((previous) => ({ ...previous, [chart]: date }))}
+        >
+          <IndexingIssues
+            key={membershipVersion}
+            count={data.indexing.attention + data.entity_indexing.attention}
+            disabled={busy || !!error}
+            view={issuesView}
+            onViewChange={(view) => setIssues({ membershipVersion, view })}
+          />
         </StatusContent>
       )}
     </section>

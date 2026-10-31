@@ -1,6 +1,7 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 import { fixtures, goApp } from "./support/workspace-screens.ts";
-import { stamp } from "./support/workspace-data.ts";
+import { fixtureType, stamp } from "./support/workspace-data.ts";
+import { fixtureWorkspaceId } from "./support/workspace-scope.ts";
 import type { StatusOverview } from "../supabase/functions/_shared/contracts/status.ts";
 
 function overview(): StatusOverview {
@@ -103,6 +104,201 @@ test("빈 날짜 응답과 새로고침 실패는 수치를 만들거나 이전 
   await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(0);
 });
 
+for (const width of [390, 1440]) {
+  test(`상태 재조회 ${width}px: 문제 목록과 행의 펼침을 보존하고 새 결과만 읽는다`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fixture(page);
+    let issueReads = 0;
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/") && !["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+        writes.push(request.method());
+      }
+    });
+    await page.route("**/api/status/indexing/issues**", (route) => {
+      issueReads++;
+      return route.fulfill({
+        json: {
+          items: [{
+            kind: "record",
+            path: "/records/20261011-ABCDEF99",
+            id: "20261011-ABCDEF99",
+            created_at: "2026-10-11T00:00:00.000Z",
+            title: "확인할 문제 기록",
+            reason: "provider_unknown",
+            attempts: issueReads,
+            chunks: { total: 2, succeeded: 1, preparing: 0, unknown: 1, failed: 0 },
+          }],
+          next_cursor: null,
+        },
+      });
+    });
+    const issues = page.getByRole("button", { name: /^색인 문제/ });
+    await expect(issues).toHaveAttribute("aria-expanded", "false");
+    await issues.click();
+    const row = page.getByRole("button", { name: /^(열기|접기): 확인할 문제 기록$/ });
+    await row.click();
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    await page.screenshot({ path: info.outputPath(`issues-before-refresh-${width}.png`), fullPage: true });
+    await page.getByRole("button", { name: "새로고침", exact: true }).click();
+    await expect(page.getByRole("button", { name: "새로고침", exact: true })).toBeEnabled();
+    await expect(issues).toHaveAttribute("aria-expanded", "true");
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("table", { name: "색인 문제 항목", exact: true })).toContainText("2회");
+    expect(issueReads).toBe(2);
+    expect(writes).toEqual([]);
+    await page.screenshot({ path: info.outputPath(`issues-after-refresh-${width}.png`), fullPage: true });
+  });
+}
+
+test("같은 권한의 창 복귀는 문제 펼침을 유지하고 권한 버전 변경은 읽기 세션을 새로 시작한다", async ({ page }) => {
+  await fixtures(page);
+  await page.unroute("http://127.0.0.1:55580/**");
+  let version = 1;
+  let issueReads = 0;
+  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, (route) =>
+    route.fulfill({
+      json: {
+        workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null },
+        membership_version: version,
+        can_manage: true,
+        grants: [{ target_kind: "tasks", target_id: "*", access: "read" }, {
+          target_kind: "entity_type",
+          target_id: fixtureType.id,
+          access: "read",
+        }],
+      },
+    }));
+  await page.route("**/api/status", (route) => route.fulfill({ json: overview() }));
+  await page.route("**/api/status/indexing/issues**", (route) => {
+    issueReads++;
+    return route.fulfill({
+      json: {
+        items: [{
+          kind: "record",
+          path: "/records/20261011-ABCDEF99",
+          id: "20261011-ABCDEF99",
+          created_at: stamp,
+          title: "권한별 문제",
+          reason: "provider_unknown",
+          attempts: issueReads,
+          chunks: { total: 2, succeeded: 1, preparing: 0, unknown: 1, failed: 0 },
+        }],
+        next_cursor: null,
+      },
+    });
+  });
+  await goApp(page, "/status");
+  const graph = page.getByRole("group", { name: "일별 등록 그래프: 막대를 누르거나 방향키로 날짜 선택", exact: true });
+  const date = graph.locator("..").locator("time");
+  await graph.press("Home");
+  const selectedDate = await date.getAttribute("datetime");
+  const issues = page.getByRole("button", { name: /^색인 문제/ });
+  await issues.click();
+  const row = page.getByRole("button", { name: /^(열기|접기): 권한별 문제$/ });
+  await row.click();
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => issueReads).toBeGreaterThan(1);
+  await expect(row).toHaveAttribute("aria-expanded", "true");
+  version = 2;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(issues).toHaveAttribute("aria-expanded", "false");
+  await expect(row).toHaveCount(0);
+  await expect(date).toHaveAttribute("datetime", selectedDate!);
+});
+
+test("색인 문제의 큰 건수도 320px·200%에서 펼침 조작과 함께 읽을 수 있다", async ({ page }, info) => {
+  const data = overview();
+  data.entities.total =
+    data.entities.active =
+    data.entity_indexing.total =
+    data.entity_indexing.attention =
+      2_000_000;
+  data.entity_indexing.indexed = data.entity_indexing.preparing = data.entity_indexing.excluded = 0;
+  await page.setViewportSize({ width: 320, height: 900 });
+  await fixture(page, data);
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  const issues = page.getByRole("button", { name: /^색인 문제/ });
+  await issues.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("issues-large-count-320-text200.png"), animations: "disabled" });
+  expect(await issues.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await issues.focus();
+  await expect(issues).toBeFocused();
+  expect((await issues.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+});
+
+test("상태 재조회 실패·지연·문제 재시도는 이전 결과를 숨기고 읽기 의도만 복원한다", async ({ page }, info) => {
+  const data = await fixture(page);
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  let issueReads = 0;
+  let mode: "normal" | "failed" | "empty" = "normal";
+  let attempts = 1;
+  await page.route("**/api/status/indexing/issues**", (route) => {
+    issueReads++;
+    if (mode === "failed") {
+      return route.fulfill({ status: 503, json: { code: "unavailable", message: "문제 조회 실패" } });
+    }
+    return route.fulfill({
+      json: {
+        items: mode === "empty" ? [] : [{
+          kind: "record",
+          path: "/records/20261011-ABCDEF99",
+          id: "20261011-ABCDEF99",
+          created_at: stamp,
+          title: "긴 문제 제목 ".repeat(10),
+          reason: "provider_unknown",
+          attempts,
+          chunks: { total: 2, succeeded: 1, preparing: 0, unknown: 1, failed: 0 },
+        }],
+        next_cursor: null,
+      },
+    });
+  });
+  const issues = page.getByRole("button", { name: /^색인 문제/ });
+  await issues.click();
+  const row = page.getByRole("button", { name: /^(열기|접기): 긴 문제 제목/ });
+  await row.press("Enter");
+  await expect(row).toHaveAttribute("aria-expanded", "true");
+  let held: Route | null = null;
+  await page.route("**/api/status", (route) => {
+    held = route;
+  });
+  await page.getByRole("button", { name: "새로고침", exact: true }).click();
+  await expect.poll(() => !!held).toBe(true);
+  await expect(page.getByRole("table", { name: "색인 문제 항목", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("table", { name: /날짜별 수치$/ })).toHaveCount(0);
+  await held!.fulfill({ status: 503, json: { code: "unavailable", message: "요약 조회 실패" } });
+  await expect(page.getByRole("alert")).toContainText("상태를 조회하지 못했습니다");
+  await page.route("**/api/status", (route) => route.fulfill({ json: data }));
+  mode = "failed";
+  await page.getByRole("button", { name: "새로고침", exact: true }).click();
+  await expect(issues).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("alert")).toContainText("색인 문제를 조회하지 못했습니다");
+  await expect(row).toHaveCount(0);
+  mode = "normal";
+  attempts = 3;
+  await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect(row).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("table", { name: "색인 문제 항목", exact: true })).toContainText("3회");
+  const card = page.getByRole("region", { name: "자료·기록 색인 문제", exact: true });
+  await card.evaluate((node) => node.scrollIntoView({ block: "start" }));
+  await page.screenshot({ path: info.outputPath("issues-recovered-header-320-text200.png"), animations: "disabled" });
+  await card.getByText("3회", { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("issues-recovered-details-320-text200.png"), animations: "disabled" });
+  expect(await card.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  mode = "empty";
+  data.indexing.attention = data.entity_indexing.attention = 0;
+  await page.getByRole("button", { name: "새로고침", exact: true }).click();
+  await expect(row).toHaveCount(0);
+  await expect(page.getByText("현재 확인이 필요한 색인 문제가 없습니다.", { exact: true })).toBeVisible();
+  await issues.click();
+  const beforeRefresh = issueReads;
+  await page.getByRole("button", { name: "새로고침", exact: true }).click();
+  await expect(issues).toHaveAttribute("aria-expanded", "false");
+  expect(issueReads).toBe(beforeRefresh);
+});
 test.describe("차트 직접 선택", () => {
   test.use({ hasTouch: true });
   test("그래프를 클릭하거나 터치하면 선택 날짜의 정확한 값이 바뀐다", async ({ page }, info) => {

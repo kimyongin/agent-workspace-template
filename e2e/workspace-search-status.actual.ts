@@ -91,12 +91,55 @@ test(
     await graph.press("Home");
     await graph.press("ArrowRight");
     const selectedDate = await date.getAttribute("datetime");
+    const readWrites: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/functions/v1/api/") && !["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+        readWrites.push(request.method());
+      }
+    });
+    const issues = page.getByRole("button", { name: /^색인 문제/ });
+    const firstIssues = page.waitForResponse((response) =>
+      response.request().method() === "GET" && new URL(response.url()).pathname.endsWith("/status/indexing/issues")
+    );
+    await issues.click();
+    const firstResponse = await firstIssues;
+    expect(firstResponse.status()).toBe(200);
+    const firstPage = await firstResponse.json();
+    await firstResponse.finished();
+    await expect(page.getByRole("region", { name: "색인 문제 목록", exact: true })).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
+    await expect(page.getByRole("table", { name: "색인 문제 항목", exact: true }).getByRole("link")).toHaveCount(
+      firstPage.items.length,
+    );
     const statusRefresh = page.waitForResponse((response) =>
       response.request().method() === "GET" && new URL(response.url()).pathname.endsWith("/api/status")
     );
+    const freshIssues = page.waitForResponse((response) =>
+      response.request().method() === "GET" && new URL(response.url()).pathname.endsWith("/status/indexing/issues")
+    );
     await page.getByRole("button", { name: "새로고침", exact: true }).click();
     await (await statusRefresh).finished();
+    const freshResponse = await freshIssues;
+    expect(freshResponse.status()).toBe(200);
+    const freshPage = await freshResponse.json();
+    await freshResponse.finished();
     await expect(page.locator('[aria-busy="true"]').filter({ visible: true })).toHaveCount(0);
+    await expect(issues).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("table", { name: "색인 문제 항목", exact: true }).getByRole("link")).toHaveCount(
+      freshPage.items.length,
+    );
+    expect(readWrites).toEqual([]);
+    await info.attach("actual-issues-refresh", {
+      body: JSON.stringify({
+        beforeCount: firstPage.items.length,
+        afterCount: freshPage.items.length,
+        disclosureOpen: true,
+        writes: readWrites.length,
+      }),
+      contentType: "application/json",
+    });
     await expect(date).toHaveAttribute("datetime", selectedDate!);
     const initialViewport = page.viewportSize()!;
     for (const [width, scale] of [[320, 150], [1440, 100]]) {
@@ -113,15 +156,17 @@ test(
         expect(await table.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
       }
       // Page width alone misses SVG labels clipped inside their chart viewport.
-      await expect.poll(() => page.locator('[data-slot="chart"]').evaluateAll((charts) =>
-        charts.every((chart) => {
-          const viewport = chart.querySelector("svg.recharts-surface")?.getBoundingClientRect();
-          return viewport && [...chart.querySelectorAll(".recharts-cartesian-axis-tick-value")].every((tick) => {
-            const bounds = tick.getBoundingClientRect();
-            return bounds.left >= viewport.left - 1 && bounds.right <= viewport.right + 1;
-          });
-        })
-      )).toBe(true);
+      await expect.poll(() =>
+        page.locator('[data-slot="chart"]').evaluateAll((charts) =>
+          charts.every((chart) => {
+            const viewport = chart.querySelector("svg.recharts-surface")?.getBoundingClientRect();
+            return viewport && [...chart.querySelectorAll(".recharts-cartesian-axis-tick-value")].every((tick) => {
+              const bounds = tick.getBoundingClientRect();
+              return bounds.left >= viewport.left - 1 && bounds.right <= viewport.right + 1;
+            });
+          })
+        )
+      ).toBe(true);
       await page.getByRole("heading", { name: "상태", exact: true, level: 1 }).scrollIntoViewIfNeeded();
       await snapshot(page, info, `current-status-${width}-${scale}`);
       await page.getByRole("region", { name: "자료 색인 현황", exact: true }).scrollIntoViewIfNeeded();

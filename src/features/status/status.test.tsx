@@ -63,7 +63,7 @@ it("상태 화면은 다섯 그래프에서 날짜와 실제 값을 제공하며
 });
 
 it("색인 문제는 기본 접힘이며 펼치기 전에 문제 제목이나 페이지 조작을 렌더하지 않는다", () => {
-  const html = renderToStaticMarkup(<IndexingIssues count={23} />);
+  const html = renderToStaticMarkup(<IndexingIssues count={23} view={{ open: false, expanded: [] }} onViewChange={() => {}} />);
   expect(html).toContain("색인 문제 23개");
   expect(html).toContain('aria-expanded="false"');
   expect(html).not.toContain("본문 구간");
