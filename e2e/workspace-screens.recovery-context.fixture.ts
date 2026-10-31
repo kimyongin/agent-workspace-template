@@ -221,6 +221,18 @@ for (const kind of ["result", "task-change", "entity-change"] as const) {
     await retry.scrollIntoViewIfNeeded();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: info.outputPath(`record-recovery-${kind}-320-200.png`), fullPage: true });
+    const bounds = await section.boundingBox(), button = await retry.boundingBox();
+    expect(button!.x).toBeGreaterThanOrEqual(bounds!.x - 1);
+    expect(button!.x + button!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width + 1);
+    const labelLayout = await retry.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        height: node.getBoundingClientRect().height,
+        maxHeight: 2 * parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) +
+          parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth),
+      };
+    });
+    expect(labelLayout.height).toBeLessThanOrEqual(labelLayout.maxHeight + 1);
     expect(state.writes).toEqual([]);
     expect(state.errors).toEqual([]);
   });

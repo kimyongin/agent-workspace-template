@@ -23,7 +23,7 @@ export function RecordRelations({ record, readOnly = false }: { record: RecordRe
   const change = record.change?.target_kind === kind && record.change.target_id === id ? record.change : null;
   const route = kind === "task" ? "tasks" : "entities";
   return <RelatedSection views={!readOnly} title={kind === "task" ? "할 일" : "자료"} count={1}>
-    <CollectionList columns={[kind === "task" ? "제목" : "자료 이름"]}>
+    <CollectionList disclosureColumn={!readOnly} columns={[kind === "task" ? "제목" : "자료 이름"]}>
       <CollectionItem>
         {change
           ? <ChangedRelation readOnly={readOnly} change={change} path={`/${route}/${encodeURIComponent(id)}`} occurrence={record.occurrence_on} />
@@ -114,6 +114,7 @@ function ChangedRelation(
             {fallback}
             {(state === "failed" || retriedPath === path) && (
               <Button
+                className="h-auto max-w-full whitespace-normal wrap-anywhere"
                 variant="ghost"
                 type="button"
                 aria-disabled={probe.loading}
@@ -186,6 +187,7 @@ function ReadonlyTask(
             )}
           {(cause && !unavailable || retriedId === id) && (
             <Button
+              className="h-auto max-w-full whitespace-normal wrap-anywhere"
               variant="ghost"
               type="button"
               aria-disabled={read.probe.loading}
