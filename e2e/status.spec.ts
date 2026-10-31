@@ -147,8 +147,17 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트
     expect(mcpIssues.items.length).toBeLessThanOrEqual(5);
     expect(await page.getByRole("table", { name: "색인 문제 항목", exact: true }).getByRole("heading").count())
       .toBeLessThanOrEqual(5);
-    await page.getByRole("button", { name: "새로고침", exact: true }).click();
-    await expect(page.getByRole("button", { name: /^색인 문제/ })).toHaveAttribute("aria-expanded", "false");
+    const refreshedIssues = page.waitForResponse((response) =>
+      response.url().startsWith(`${env.VITE_API_URL}/status/indexing/issues`) && response.status() === 200
+    );
+    await refresh.click();
+    const freshIssues = await (await refreshedIssues).json();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect.poll(() => issuesRequests).toBe(2);
+    const freshTable = page.getByRole("table", { name: "색인 문제 항목", exact: true });
+    await expect(freshTable).toBeVisible();
+    await expect(freshTable.getByRole("link")).toHaveCount(freshIssues.items.length);
+    await expect(page.getByRole("button", { name: "이전", exact: true })).toBeDisabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     for (const width of [320, 639, 640, 1440]) {
       await page.setViewportSize({ width, height: originalViewport.height });
@@ -164,7 +173,7 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 차트
 test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이전·오류 재시도·긴 제목", async ({ page }) => {
   await devLogin(page);
   const workspace = await ownedWorkspace(page);
-  let calls = 0, fail = true;
+  let calls = 0, fail = true, attempts = 5;
   const item = (n: number) => ({
     kind: "record",
     path: `/records/20261011-ABCDEF${n}${n}`,
@@ -172,7 +181,7 @@ test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이
     created_at: "2026-10-11T00:00:00.000Z",
     title: `문제${n} ` + "긴제목".repeat(24),
     reason: "provider_unknown",
-    attempts: 5,
+    attempts,
     chunks: { total: 2, succeeded: 1, preparing: 0, unknown: 1, failed: 0 },
   });
   // Mock only the network boundary for otherwise hard-to-reproduce diagnostic/error states.
@@ -222,8 +231,23 @@ test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이
   const size = await page.getByRole("button", { name: "다음", exact: true }).boundingBox();
   expect(size!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(page.getByRole("link", { name: /^문제5 / })).toHaveCount(1);
+  attempts = 3;
+  const beforeRefresh = calls;
   await page.getByRole("button", { name: "새로고침", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^색인 문제/ })).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect.poll(() => calls).toBe(beforeRefresh + 1);
+  await expect(page.getByRole("link", { name: /^문제\d / })).toHaveCount(5);
+  await expect(page.getByRole("button", { name: "이전", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^접기: 문제0 / })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("table", { name: "색인 문제 항목", exact: true })).toContainText("3회");
+  await toggle.click();
+  const beforeClosedRefresh = calls;
+  await page.getByRole("button", { name: "새로고침", exact: true }).click();
+  await expect(page.getByRole("button", { name: "새로고침", exact: true })).toBeEnabled();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(calls).toBe(beforeClosedRefresh);
 });
 
 test("색인 문제: 접기와 새로고침은 오래된 요청을 취소하고 늦은 결과를 표시하지 않는다", async ({ page }) => {
@@ -266,6 +290,8 @@ test("색인 문제: 접기와 새로고침은 오래된 요청을 취소하고 
   release();
   await page.getByRole("button", { name: "새로고침", exact: true }).click();
   await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^색인 문제/ })).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect.poll(() => calls).toBe(3);
+  await expect(page.getByText("새 조회의 문제", { exact: true })).toBeVisible();
   await expect(page.getByText("오래된 요청의 문제")).toHaveCount(0);
 });
