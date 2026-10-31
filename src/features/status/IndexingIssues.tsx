@@ -2,8 +2,8 @@ import { DataFields } from "@/components/DataFields";
 import { useApi } from "../../lib/api-context.tsx";
 import { useContext, useEffect, useId, useRef, useState } from "react";
 import {
-  type IndexingIssuesPage,
   type IndexingIssue,
+  type IndexingIssuesPage,
   indexingIssuesPage,
   indexingReasonExplanations,
   indexingReasonLabels,
@@ -13,7 +13,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Fragment } from "react";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { BusinessTable, BusinessRow, BusinessCell, BusinessDisclosureCell, BusinessDetails } from "../../components/BusinessTable.tsx";
+import {
+  BusinessCell,
+  BusinessDetails,
+  BusinessDisclosureCell,
+  BusinessRow,
+  BusinessTable,
+} from "../../components/BusinessTable.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
@@ -21,20 +27,34 @@ import { WorkspaceContext } from "../details/workspace-context.ts";
 import { readApiKey } from "./read-api-key.ts";
 import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
 
+export type IndexingIssuesView = { open: boolean; expanded: string[] };
+type IndexingIssuesProps = {
+  count: number;
+  disabled?: boolean;
+  view: IndexingIssuesView;
+  onViewChange: (view: IndexingIssuesView) => void;
+};
 
-export function IndexingIssues({ count, disabled = false }: { count: number; disabled?: boolean }) {
+export function IndexingIssues({ count, disabled = false, view, onViewChange }: IndexingIssuesProps) {
   const api = useApi();
   const revision = useContext(WorkspaceContext)?.revision;
-  return <IndexingIssuesSession key={`${readApiKey(api)}:${revision ?? 0}`} count={count} disabled={disabled} />;
+  return (
+    <IndexingIssuesSession
+      key={`${readApiKey(api)}:${revision ?? 0}`}
+      count={count}
+      disabled={disabled}
+      view={view}
+      onViewChange={onViewChange}
+    />
+  );
 }
 
-function IndexingIssuesSession({ count, disabled }: { count: number; disabled: boolean }) {
+function IndexingIssuesSession({ count, disabled, view, onViewChange }: IndexingIssuesProps) {
   const api = useApi();
   const revision = useContext(WorkspaceContext)?.revision;
   const [focusRevision, setFocusRevision] = useState(0);
   const id = useId();
-  const [open, setOpen] = useState(false);
-  const [expanded, setExpanded] = useState<string[]>([]);
+  const { open, expanded } = view;
   const [page, setPage] = useState<IndexingIssuesPage | null>(null);
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
   const [position, setPosition] = useState(0);
@@ -44,7 +64,6 @@ function IndexingIssuesSession({ count, disabled }: { count: number; disabled: b
     const refresh = () => {
       request.current?.abort();
       setPage(null);
-      setExpanded([]);
       setCursors([undefined]);
       setPosition(0);
       setFocusRevision((value) => value + 1);
@@ -81,7 +100,7 @@ function IndexingIssuesSession({ count, disabled }: { count: number; disabled: b
   }, [api, open, disabled, cursors, position, revision, focusRevision]);
   function toggle(nextOpen: boolean) {
     request.current?.abort();
-    setOpen(nextOpen);
+    onViewChange({ ...view, open: nextOpen });
     setBusy(false);
   }
   function next() {
@@ -92,9 +111,16 @@ function IndexingIssuesSession({ count, disabled }: { count: number; disabled: b
   return (
     <Collapsible open={open} onOpenChange={toggle} className="flex min-w-0 flex-col gap-4">
       <CollapsibleTrigger asChild>
-        <Button variant="outline" className="w-full justify-between" disabled={disabled} aria-controls={id}>
-          <span>색인 문제 {count.toLocaleString("ko-KR")}개</span>
-          <span>{open ? "접기" : "펼치기"}</span>
+        <Button
+          variant="outline"
+          className="h-auto min-h-11 w-full justify-between py-2"
+          disabled={disabled}
+          aria-controls={id}
+        >
+          <span className="min-w-0 text-left whitespace-normal wrap-anywhere">
+            색인 문제 {count.toLocaleString("ko-KR")}개
+          </span>
+          <span className="shrink-0">{open ? "접기" : "펼치기"}</span>
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent
@@ -126,7 +152,18 @@ function IndexingIssuesSession({ count, disabled }: { count: number; disabled: b
                 </EmptyHeader>
               </Empty>
             )}
-            <IndexingIssueRows items={page.items} expanded={expanded} id={id} onToggle={(key) => setExpanded((prior) => prior.includes(key) ? prior.filter((value) => value !== key) : [...prior, key])} />
+            <IndexingIssueRows
+              items={page.items}
+              expanded={expanded}
+              id={id}
+              onToggle={(key) =>
+                onViewChange({
+                  ...view,
+                  expanded: expanded.includes(key)
+                    ? expanded.filter((value) => value !== key)
+                    : [...expanded, key],
+                })}
+            />
             <nav className="flex flex-wrap items-center justify-between gap-2" aria-label="색인 문제 페이지">
               <Button variant="outline" disabled={busy || position === 0} onClick={() => setPosition(position - 1)}>
                 이전
@@ -140,8 +177,6 @@ function IndexingIssuesSession({ count, disabled }: { count: number; disabled: b
     </Collapsible>
   );
 }
-
-
 /** The safe public diagnostics view; request lifetime and pagination remain with its parent. */
 export function IndexingIssueRows({ items, expanded, id, onToggle }: {
   items: IndexingIssue[];
@@ -166,7 +201,11 @@ export function IndexingIssueRows({ items, expanded, id, onToggle }: {
                     <BusinessCell index={0}><Badge variant="outline">{label}</Badge><h3><Button asChild variant="link" className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"><Link to={issue.path} aria-label={`${title} 상세`}>{title}</Link></Button></h3></BusinessCell>
                     <BusinessCell index={1}><Badge variant="secondary" className="h-auto max-w-full whitespace-normal wrap-anywhere">{indexingReasonLabels[issue.reason]}</Badge></BusinessCell>
                   </BusinessRow>
-                  <BusinessDetails hidden={!isOpen} id={panel}>
+                  <BusinessDetails
+                    hidden={!isOpen}
+                    id={panel}
+                    className="@max-[12rem]/business:-ml-14"
+                  >
                     <p>{indexingReasonExplanations[issue.reason]}</p>
                     {issue.chunks.unknown > 0 && (
                       <Alert>

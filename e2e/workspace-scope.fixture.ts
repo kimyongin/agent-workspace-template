@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 import { fixtureType, task } from "./support/workspace-data.ts";
 import { a, b, actor, rows, fixture } from "./support/workspace-control-fixture.ts";
 import { openMainNavigation } from "./ui-actions.ts";
@@ -7,6 +7,210 @@ async function choose(page: Page, name: string) {
   await page.getByRole("button", { name: "공간 선택", exact: true }).click();
   await page.getByRole("menuitem", { name, exact: true }).click();
 }
+
+test("공간 목록 재조회는 선택 메뉴를 유지하고 같은 자리에서 다른 공간으로 이동한다", async ({ page }, info) => {
+  await fixture(page);
+  let reads = 0;
+  let recovered = false;
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/") && !["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+      writes.push(request.method());
+    }
+  });
+  await page.route("**/api/workspaces", (route) => {
+    reads++;
+    return !recovered
+      ? route.fulfill({ status: 503, json: { code: "unavailable", message: "공간 목록 조회 실패" } })
+      : route.fulfill({
+        json: { items: [{ id: a, name: "공간 A", deleted_at: null }, { id: b, name: "공간 B", deleted_at: null }] },
+      });
+  });
+  await page.goto(`/w/${a}/tasks`);
+  await expect(page.getByRole("heading", { name: "할 일", level: 1, exact: true })).toBeVisible();
+  await openMainNavigation(page);
+  await page.getByRole("button", { name: "공간 선택", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "목록 다시 불러오기", exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("workspace-retry-before.png"), animations: "disabled" });
+  const beforeRetry = reads;
+  recovered = true;
+  await page.getByRole("menuitem", { name: "목록 다시 불러오기", exact: true }).click();
+  await expect.poll(() => reads).toBe(beforeRetry + 1);
+  await expect(page.getByRole("menu")).toBeVisible();
+  await expect(page.getByRole("menu")).toHaveAttribute("data-state", "open");
+  await expect(page.getByRole("menuitem", { name: "공간 A", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.screenshot({ path: info.outputPath("workspace-retry-recovered.png"), animations: "disabled" });
+  await page.getByRole("menuitem", { name: "공간 B", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/w/${b}/tasks$`));
+  expect(writes).toEqual([]);
+});
+
+test("공간 목록 재실패와 지연 응답도 메뉴의 중복 요청·키보드 초점을 보존한다", async ({ page }) => {
+  await fixture(page);
+  let retrying = false;
+  let reads = 0;
+  let held: Route | null = null;
+  await page.route("**/api/workspaces", (route) => {
+    reads++;
+    if (retrying) held = route;
+    else return route.fulfill({ status: 503, json: { code: "unavailable", message: "공간 목록 조회 실패" } });
+  });
+  await page.goto(`/w/${a}/tasks`);
+  await openMainNavigation(page);
+  const trigger = page.getByRole("button", { name: "공간 선택", exact: true });
+  await trigger.click();
+  const retry = page.getByRole("menuitem", { name: "목록 다시 불러오기", exact: true });
+  await expect(retry).toBeVisible();
+  const beforeRetry = reads;
+  retrying = true;
+  await retry.focus();
+  await retry.press("Enter");
+  await expect.poll(() => !!held).toBe(true);
+  await expect(retry).toBeDisabled();
+  await retry.press("Enter");
+  expect(reads).toBe(beforeRetry + 1);
+  await held!.fulfill({ status: 503, json: { code: "unavailable", message: "재조회도 실패" } });
+  await expect(retry).toBeEnabled();
+  await expect(retry).toBeFocused();
+  held = null;
+  await retry.press("Enter");
+  await expect.poll(() => !!held).toBe(true);
+  await held!.fulfill({
+    json: { items: [{ id: a, name: "공간 A", deleted_at: null }, { id: b, name: "공간 B", deleted_at: null }] },
+  });
+  const current = page.getByRole("menuitem", { name: "공간 A", exact: true });
+  await expect(current).toBeFocused();
+  await current.press("ArrowDown");
+  await expect(page.getByRole("menuitem", { name: "공간 B", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(page).toHaveURL(new RegExp(`/w/${a}/tasks$`));
+});
+
+for (const width of [320, 390, 1440]) {
+  test(`공간 선택 ${width}px: 긴 공통 이름의 끝까지 읽고 키보드로 구분한다`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fixture(page);
+    const names = [
+      "이름이 비슷한 고객의 업무 공간 ".repeat(3) + "서울",
+      "이름이 비슷한 고객의 업무 공간 ".repeat(3) + "부산",
+    ];
+    await page.route(
+      "**/api/workspaces",
+      (route) =>
+        route.fulfill({
+          json: { items: [{ id: a, name: names[0], deleted_at: null }, { id: b, name: names[1], deleted_at: null }] },
+        }),
+    );
+    await page.goto(`/w/${a}/tasks`);
+    if (width === 320) await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+    await openMainNavigation(page);
+    const trigger = page.getByRole("button", { name: "공간 선택", exact: true });
+    await expect(trigger).toHaveAccessibleDescription(names[0]);
+    await trigger.click();
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitem")).toHaveCount(2);
+    await page.screenshot({ path: info.outputPath(`workspace-option-names-${width}.png`), animations: "disabled" });
+    for (const name of names) {
+      expect(await menu.getByText(name, { exact: true }).evaluate((node) => node.scrollWidth <= node.clientWidth + 1))
+        .toBe(true);
+      const box = await menu.getByRole("menuitem", { name, exact: true }).boundingBox();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+    }
+    await menu.press("End");
+    await expect(menu.getByRole("menuitem", { name: names[1], exact: true })).toBeFocused();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
+  });
+}
+
+test("닫은 공간 메뉴의 늦은 재조회 응답은 다른 탐색 링크의 초점을 빼앗지 않는다", async ({ page }) => {
+  await fixture(page);
+  let retrying = false;
+  let held: Route | null = null;
+  await page.route("**/api/workspaces", (route) => {
+    if (retrying) held = route;
+    else return route.fulfill({ status: 503, json: { code: "unavailable", message: "공간 목록 조회 실패" } });
+  });
+  await page.goto(`/w/${a}/tasks`);
+  await openMainNavigation(page);
+  await page.getByRole("button", { name: "공간 선택", exact: true }).click();
+  retrying = true;
+  await page.getByRole("menuitem", { name: "목록 다시 불러오기", exact: true }).click();
+  await expect.poll(() => !!held).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  const other = page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", {
+    name: "기본 설정",
+    exact: true,
+  });
+  await other.focus();
+  const response = page.waitForResponse((response) =>
+    response.url().endsWith("/api/workspaces") && response.status() === 200
+  );
+  await held!.fulfill({
+    json: { items: [{ id: a, name: "공간 A", deleted_at: null }, { id: b, name: "공간 B", deleted_at: null }] },
+  });
+  await (await response).finished();
+  await page.evaluate(() =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  );
+  await expect(other).toBeFocused();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`/w/${a}/tasks$`));
+});
+
+test("공간 재조회가 빈 결과여도 메뉴에서 이유를 읽고 Escape로 돌아온다", async ({ page }) => {
+  await fixture(page);
+  let recovered = false;
+  await page.route(
+    "**/api/workspaces",
+    (route) =>
+      recovered
+        ? route.fulfill({ json: { items: [] } })
+        : route.fulfill({ status: 503, json: { code: "unavailable", message: "공간 목록 조회 실패" } }),
+  );
+  await page.goto(`/w/${a}/tasks`);
+  await openMainNavigation(page);
+  const trigger = page.getByRole("button", { name: "공간 선택", exact: true });
+  await trigger.click();
+  recovered = true;
+  await page.getByRole("menuitem", { name: "목록 다시 불러오기", exact: true }).click();
+  const menu = page.getByRole("menu");
+  await expect(menu.getByRole("status").filter({ hasText: "참여 중인 공간이 없습니다." })).toBeVisible();
+  await expect(menu).toBeFocused();
+  await expect(menu.getByRole("menuitem")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await expect(page).toHaveURL(new RegExp(`/w/${a}/tasks$`));
+});
+
+test("동명 공간 두 개도 현재 선택과 실제 이동 주소를 구분한다", async ({ page }) => {
+  await fixture(page);
+  await page.route(
+    "**/api/workspaces",
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [{ id: a, name: "같은 공간 이름", deleted_at: null }, {
+            id: b,
+            name: "같은 공간 이름",
+            deleted_at: null,
+          }],
+        },
+      }),
+  );
+  await page.goto(`/w/${a}/tasks`);
+  await openMainNavigation(page);
+  await page.getByRole("button", { name: "공간 선택", exact: true }).click();
+  const items = page.getByRole("menuitem", { name: "같은 공간 이름", exact: true });
+  await expect(items).toHaveCount(2);
+  await expect(items.and(page.locator('[aria-current="page"]'))).toHaveAttribute("href", `/w/${a}`);
+  await items.and(page.locator(`a[href="/w/${b}"]`)).click();
+  await expect(page).toHaveURL(new RegExp(`/w/${b}/tasks$`));
+});
 test("workspace landing can return from management to settings through the profile menu", async ({ page }) => {
   await fixture(page);
   await page.route(`**/api/workspaces/${a}`, (route) =>

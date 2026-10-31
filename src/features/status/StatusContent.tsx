@@ -285,10 +285,15 @@ export function StatusContent({ data, children, selectedDates = {}, onDateSelect
         <IndexingCard label="자료" indexing={entity_indexing} daily={daily} series={entityIndexSeries} timezone={data.timezone} days={data.period.days}
           chartTitle="등록일별 현재 자료 색인 상태" {...selection("등록일별 현재 자료 색인 상태")} />
       </div>
-      {children && <Card role="region" aria-label="자료·기록 색인 문제" className="min-w-0">
-        <CardHeader><CardTitle>자료·기록 색인 문제</CardTitle><CardDescription>확인이 필요한 자료와 기록을 원문과 함께 확인합니다.</CardDescription></CardHeader>
-        <CardContent>{children}</CardContent>
-      </Card>}
+      {children && (
+        <Card role="region" aria-label="자료·기록 색인 문제" className="@container/problem-card min-w-0">
+          <CardHeader className="@max-[16rem]/problem-card:px-1">
+            <CardTitle>자료·기록 색인 문제</CardTitle>
+            <CardDescription>확인이 필요한 자료와 기록을 원문과 함께 확인합니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="@max-[16rem]/problem-card:px-1">{children}</CardContent>
+        </Card>
+      )}
     </div>
   );
 }
