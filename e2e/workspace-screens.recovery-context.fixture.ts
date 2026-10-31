@@ -301,3 +301,55 @@ test("기록 편집: 재조회 중 취소한 뒤 늦은 결과가 다음 편집�
   expect(state.writes).toEqual([]);
   expect(state.errors).toEqual([]);
 });
+
+for (const status of [403, 404]) {
+  test(`회차 ${status}: 일시 실패와 구분하고 오래된 회차를 표시하지 않는다`, async ({ page }) => {
+    const state = await fixtures(page);
+    Object.assign(state.rows.tasks[0], {
+      kind: "recurring",
+      status: "active",
+      timezone: "Asia/Seoul",
+      recurrence: { freq: "daily", starts_on: "2026-10-01", ends_on: null },
+    });
+    await page.route(
+      "**/api/tasks/*/occurrences?**",
+      (route) =>
+        route.fulfill({
+          status,
+          json: { code: status === 404 ? "not_found" : "forbidden", message: "현재 조회 불가" },
+        }),
+    );
+    await go(page, `/tasks/${id(2)}`);
+    const section = form(page).getByRole("heading", { name: "회차", exact: true }).locator("..").locator("..");
+    await expect(section.getByRole("alert")).toContainText("현재 할 일의 접근 권한과 상태를 확인하세요.");
+    await expect(section.getByRole("status")).toHaveCount(0);
+    await expect(section.getByRole("table")).toHaveCount(0);
+    expect(state.writes).toEqual([]);
+  });
+}
+
+test("회차 재조회: 할 일 시간대 자정을 지나도 실패한 기간을 그대로 읽는다", async ({ page }) => {
+  const state = await fixtures(page);
+  Object.assign(state.rows.tasks[0], {
+    kind: "recurring",
+    status: "active",
+    timezone: "Asia/Seoul",
+    recurrence: { freq: "daily", starts_on: "2026-10-01", ends_on: null },
+  });
+  await page.clock.setFixedTime(new Date("2026-10-07T14:59:00Z"));
+  const queries: string[] = [];
+  await page.route("**/api/tasks/*/occurrences?**", (route) => {
+    queries.push(new URL(route.request().url()).search);
+    return queries.length === 1
+      ? route.fulfill({ status: 503, json: { code: "internal", message: "실패" } })
+      : route.fulfill({ json: { today: "2026-10-08", items: [] } });
+  });
+  await go(page, `/tasks/${id(2)}`);
+  const section = form(page).getByRole("heading", { name: "회차", exact: true }).locator("..").locator("..");
+  await expect(section.getByRole("alert")).toBeVisible();
+  await page.clock.setFixedTime(new Date("2026-10-07T15:01:00Z"));
+  await section.getByRole("button", { name: "회차 다시 조회", exact: true }).click();
+  await expect(section).toContainText("이 기간에는 회차가 없습니다.");
+  expect(queries).toEqual(["?from=2026-09-24&to=2026-10-14", "?from=2026-09-24&to=2026-10-14"]);
+  expect(state.writes).toEqual([]);
+});

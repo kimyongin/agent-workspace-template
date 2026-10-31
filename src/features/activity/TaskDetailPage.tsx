@@ -91,9 +91,10 @@ export function TaskDetailPage() {
       api: typeof api;
       task: TaskResult;
       end: string | null;
+      period: { from: string; to: string };
       value: { today: string; items: Occurrence[] } | null;
       loading: boolean;
-      error: boolean;
+      error: "failed" | "unavailable" | null;
     } | null
   >(null);
   const [occurrenceRetry, setOccurrenceRetry] = useState<{ api: typeof api; id: string; end: string | null } | null>(null);
@@ -134,17 +135,18 @@ export function TaskDetailPage() {
     : null;
   const occurrences = currentOccurrences?.value ?? null;
   const occurrencesLoading = !currentOccurrences || currentOccurrences.loading;
-  const occurrencesFailed = currentOccurrences?.error ?? false;
-  const loadOccurrences = useCallback(async (t: TaskResult, end: string | null) => {
+  const occurrencesFailed = currentOccurrences?.error;
+  const loadOccurrences = useCallback(async (t: TaskResult, end: string | null, period?: { from: string; to: string }) => {
     occurrenceRequest.current?.abort();
     const controller = new AbortController();
     occurrenceRequest.current = controller;
-    const owner = { api, task: t, end };
-    setOccurrenceRead({ ...owner, value: null, loading: true, error: false });
+    // A retry reuses its attempted window even if the task's midnight has passed.
+    const to = period?.to ?? end ?? addDays(todayIn(t.timezone ?? "UTC"), 7);
+    const from = period?.from ?? addDays(to, -20);
+    const owner = { api, task: t, end, period: { from, to } };
+    setOccurrenceRead({ ...owner, value: null, loading: true, error: null });
     try {
       // 할 일 시간대의 오늘 기준 앞 13일과 뒤 7일. 이전 기간으로 옮길 수 있다.
-      const to = end ?? addDays(todayIn(t.timezone ?? "UTC"), 7);
-      const from = addDays(to, -20);
       const res = await api<{ today: string; items: Occurrence[] }>(
         "GET",
         `/tasks/${t.id}/occurrences?from=${from}&to=${to}`,
@@ -156,11 +158,12 @@ export function TaskDetailPage() {
         ...owner,
         value: { today: res.today, items: [...res.items].reverse() },
         loading: false,
-        error: false,
+        error: null,
       });
-    } catch {
+    } catch (error) {
       if (controller.signal.aborted) return;
-      setOccurrenceRead({ ...owner, value: null, loading: false, error: true });
+      setOccurrenceRead({ ...owner, value: null, loading: false,
+        error: error instanceof ApiError && (error.status === 403 || error.status === 404) ? "unavailable" : "failed" });
     }
   }, [api]);
 
@@ -270,7 +273,7 @@ export function TaskDetailPage() {
                 onClick={() => {
                   if (!occurrencesLoading) {
                     setOccurrenceRetry({ api, id: task.id, end: rangeEnd });
-                    void loadOccurrences(task, rangeEnd);
+                    void loadOccurrences(task, rangeEnd, currentOccurrences?.period);
                   }
                 }}
               >
@@ -280,7 +283,9 @@ export function TaskDetailPage() {
           </div>
           {task.status === "stopped" && <Notice>중단된 할 일입니다. 재개하면 그날부터 회차가 생깁니다.</Notice>}
           {occurrencesLoading && <p className="text-sm text-muted-foreground" role="status">불러오는 중…</p>}
-          {occurrencesFailed && <Notice kind="error">회차를 불러오지 못했습니다. 같은 기간을 다시 조회하세요.</Notice>}
+          {occurrencesFailed && <Notice kind="error">{occurrencesFailed === "unavailable"
+            ? "회차를 조회할 수 없습니다. 현재 할 일의 접근 권한과 상태를 확인하세요."
+            : "회차를 불러오지 못했습니다. 같은 기간을 다시 조회하세요."}</Notice>}
           {occurrences?.items.length === 0 && (
             <p className="text-sm text-muted-foreground">이 기간에는 회차가 없습니다.</p>
           )}
@@ -506,7 +511,7 @@ export function TaskDetailPage() {
               closeManagement();
               setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
               setRecordRefresh((n) => n + 1);
-              await loadOccurrences(task, rangeEnd);
+              await loadOccurrences(task, rangeEnd, currentOccurrences?.period);
             }}
           />
         )}
