@@ -397,8 +397,10 @@ test("responsive workspace brand and list heading remain reachable at every widt
     const title = page.getByRole("heading", { name: "전체 자료", level: 1, exact: true });
     const brand = page.getByRole("banner").getByText("Workspace", { exact: true });
     await expect(title).toBeVisible(); await expect(brand).toBeVisible();
-    const titleBox = (await title.boundingBox())!, banner = (await page.getByRole("banner").boundingBox())!;
-    expect(titleBox.y).toBeGreaterThanOrEqual(banner.y + banner.height - 1);
+    await expect.poll(async () => {
+      const titleBox = await title.boundingBox(), banner = await page.getByRole("banner").boundingBox();
+      return titleBox && banner ? titleBox.y - banner.y - banner.height : Number.NEGATIVE_INFINITY;
+    }).toBeGreaterThanOrEqual(-1);
     await openMainNavigation(page);
     const navigation = page.getByRole("navigation", { name: "주 메뉴", exact: true });
     const switcher = navigation.getByRole("button", { name: "공간 선택", exact: true });
