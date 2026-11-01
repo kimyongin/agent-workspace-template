@@ -157,6 +157,7 @@ export function WorkspaceManagementPage() {
     [revision, setRevision] = useState(0),
     [edit, setEdit] = useState<Edit | null>(null),
     [removal, setRemoval] = useState<Removal | null>(null);
+  const [verifyingCapabilities, setVerifyingCapabilities] = useState(false);
   const [delivery, setDelivery] = useState<
     { path: string; status: string } | null
   >(null);
@@ -178,7 +179,7 @@ export function WorkspaceManagementPage() {
   const [pendingDelivery, setPendingDelivery] = useState<
     WorkspaceInvitation | null
   >(null);
-  const busy = removalBusy || deliveryBusy;
+  const busy = removalBusy || deliveryBusy || verifyingCapabilities;
   usePageNavigationBlocker(false, busy);
   useEffect(() => {
     const nextExpiry = Math.min(...invitations
@@ -581,9 +582,17 @@ export function WorkspaceManagementPage() {
           key={edit.kind === "member" ? edit.member.user_id : "invite"}
           edit={edit}
           targets={targets}
+          verifying={verifyingCapabilities}
           onClose={() => setEdit(null)}
-          onSaved={(value) => {
-            if (edit.kind === "member" && edit.member.user_id === actorId) refreshCapabilities?.();
+          onSaved={async (value) => {
+            if (edit.kind === "member" && edit.member.user_id === actorId && refreshCapabilities) {
+              setVerifyingCapabilities(true);
+              try {
+                if (!await refreshCapabilities()) return;
+              } finally {
+                setVerifyingCapabilities(false);
+              }
+            }
             setEdit(null);
             setRevision((revision) => revision + 1);
             if (value) setDelivery(value);
@@ -621,11 +630,12 @@ export function WorkspaceManagementPage() {
   );
 }
 function GrantEditor(
-  { edit, targets, onClose, onSaved }: {
+  { edit, targets, onClose, onSaved, verifying }: {
     edit: Edit;
     targets: Target[];
     onClose: () => void;
-    onSaved: (delivery?: { path: string; status: string }) => void;
+    onSaved: (delivery?: { path: string; status: string }) => void | Promise<void>;
+    verifying: boolean;
   },
 ) {
   const api = useApi(),
@@ -637,9 +647,10 @@ function GrantEditor(
         : structuredClone(defaults)
     ),
     [error, setError] = useState("");
-  const { attempt, busy, uncertain } = useWriteAttempt<
+  const { attempt, busy: writing, uncertain } = useWriteAttempt<
     { acceptance_path?: string; delivery?: { status: string } }
   >();
+  const busy = writing || verifying;
   const allTargets = [
     ...targets,
     ...grants.filter((grant) =>
@@ -687,7 +698,7 @@ function GrantEditor(
             attempt.requestKey(),
           )
       );
-      onSaved(
+      await onSaved(
         result?.acceptance_path
           ? {
             path: result.acceptance_path,
@@ -720,7 +731,9 @@ function GrantEditor(
             disabled={busy || edit.kind === "invite" && !email.trim()}
           >
             {busy && <Spinner data-icon="inline-start" />}
-            {uncertain
+            {verifying
+              ? "권한 확인 중…"
+              : uncertain
               ? "같은 요청 다시 확인"
               : edit.kind === "invite"
               ? "초대 만들기"
