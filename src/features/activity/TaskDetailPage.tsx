@@ -146,7 +146,14 @@ export function TaskDetailPage() {
     const to = period?.to ?? end ?? addDays(todayIn(t.timezone ?? "UTC"), 7);
     const from = period?.from ?? addDays(to, -20);
     const owner = { api, task: t, end, period: { from, to } };
-    setOccurrenceRead({ ...owner, value: null, loading: true, error: null });
+    setOccurrenceRead(previous => ({
+      ...owner,
+      value: previous?.api === api && previous.task === t && previous.end === end &&
+          previous.period.from === from && previous.period.to === to
+        ? previous.value : null,
+      loading: true,
+      error: null,
+    }));
     try {
       // 할 일 시간대의 오늘 기준 앞 13일과 뒤 7일. 이전 기간으로 옮길 수 있다.
       const res = await api<{ today: string; items: Occurrence[] }>(
