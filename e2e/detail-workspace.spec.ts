@@ -162,6 +162,10 @@ async function fixtureLaboratoryRegistry(page: Page) {
   origin.identity_label = "내부 연구실 · 실험 번호 · LAB-001";
   origin.properties.prop_5 = encodeIdentifierValue(kind, "LAB-001");
   origin.properties.prop_6 = encodeIdentifierValue(auxiliaryKind, "V-00a.가");
+  state.rows.tasks[0].entity_ids = [entityId];
+  state.rows.tasks[0].entity_context = [{ id: entityId, title: origin.title, type: fixtureType,
+    schema_version: 1, source: "selection", captured_at: stamp }];
+  state.rows.records.filter(row => row.entity_id === entityKey(1)).forEach(row => { row.entity_id = entityId; });
   const issuers = [{ code: "issuer_lab", label: "내부 연구실", active: true, system: false, version: 1 },
     { code: "issuer_partner", label: "협력 연구실", active: true, system: false, version: 1 }];
   const rules = [{ id: kind, source: "issuer_lab", label: "실험 번호", meaning: "실험 번호", generation: "direct", active: true, version: 1 },
@@ -171,12 +175,13 @@ async function fixtureLaboratoryRegistry(page: Page) {
   schema.schema.properties.prop_6 = { type: ["string", "null"], title: "협력 보조번호", "x-order": 60,
     "x-identifier": { allowed_kind_ids: [auxiliaryKind], default_kind_id: auxiliaryKind } };
   const writes: { path: string; body: Record<string, unknown> }[] = [];
-  let failDefinition = false;
+  let definitionFailure = 0;
   await page.route("**/api/entity-types/*/schema**", route => {
     expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
-    if (failDefinition) {
-      failDefinition = false;
-      return route.fulfill({ status: 503, json: { code: "unavailable", message: "정의를 다시 읽으세요." } });
+    if (definitionFailure) {
+      const status = definitionFailure;
+      definitionFailure = 0;
+      return route.fulfill({ status, json: { code: status === 403 ? "forbidden" : "unavailable", message: "정의를 다시 읽으세요." } });
     }
     return route.fulfill({ json: { ...schema, identifier_kinds: rules.map(rule => {
       const issuer = issuers.find(issuer => issuer.code === rule.source)!;
@@ -198,7 +203,7 @@ async function fixtureLaboratoryRegistry(page: Page) {
     Object.assign(target!, { label: body.label, active: body.active, version: target!.version + 1 });
     return route.fulfill({ json: target });
   });
-  return { state, origin, entityId, writes, failNextDefinition: () => { failDefinition = true; } };
+  return { state, origin, entityId, schema, writes, failNextDefinition: (status = 503) => { definitionFailure = status; } };
 }
 test("#660 saving a number kind refreshes the already selected detail without tab navigation", async ({ page }, info) => {
   const { state, origin, entityId, writes } = await fixtureLaboratoryRegistry(page);
@@ -263,6 +268,61 @@ test("#660 source and auxiliary names refresh in the selected detail and a faile
   expect(state.writes).toEqual([]);
   expect(state.errors).toEqual([]);
   await page.screenshot({ path: info.outputPath("selected-detail-current-sources.png"), fullPage: true });
+});
+test("#660 transient refresh failure preserves a deeply scrolled property view through retry", async ({ page }) => {
+  const { origin, entityId, schema, writes, failNextDefinition } = await fixtureLaboratoryRegistry(page);
+  for (let n = 7; n <= 18; n++) {
+    schema.schema.properties[`prop_${n}`] = { type: "string", title: `관찰 ${n}`, "x-order": n * 10 };
+    origin.properties[`prop_${n}`] = "긴 관찰 원문을 보존한다.\n".repeat(8);
+  }
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityId)}`));
+  await expect(detailDialog(page).getByRole("term").filter({ hasText: /^관찰 18$/ })).toBeVisible();
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
+  await baseWorkspace(page).getByRole("tab", { name: "번호 설정", exact: true }).click();
+  await baseWorkspace(page).getByRole("button", { name: "내부 연구실 열기", exact: true }).click();
+  const source = baseWorkspace(page).getByRole("region", { name: "내부 연구실", exact: true });
+  await source.getByRole("button", { name: "실험 번호 편집", exact: true }).click();
+  await source.getByRole("textbox", { name: "번호 종류 이름 (필수)", exact: true }).fill("실험 관리번호");
+  const anchor = detailDialog(page).getByRole("term").filter({ hasText: /^관찰 18$/ });
+  const before = await anchor.evaluate(node => {
+    const body = node.closest<HTMLElement>('[aria-label="상세 내용"]')!;
+    body.scrollTop += node.getBoundingClientRect().top - body.getBoundingClientRect().top - 100;
+    return { scroll: body.scrollTop, top: node.getBoundingClientRect().top - body.getBoundingClientRect().top };
+  });
+  expect(before.scroll).toBeGreaterThan(1000);
+  failNextDefinition();
+  await source.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(detailDialog(page)).toContainText("속성 정의를 불러오지 못했습니다.");
+  await expect(anchor).toBeVisible();
+  const anchorTop = () => anchor.evaluate(node => node.getBoundingClientRect().top - node.closest('[aria-label="상세 내용"]')!.getBoundingClientRect().top);
+  await expect.poll(async () => Math.abs(await anchorTop() - before.top)).toBeLessThan(2);
+  await expect(detailDialog(page)).toContainText("마지막으로 읽은 내용을 표시합니다.");
+  await detailDialog(page).getByRole("button", { name: "속성 정의 다시 조회", exact: true }).click();
+  await expect(detailDialog(page).getByText("마지막으로 읽은 내용을 표시합니다.", { exact: false })).toHaveCount(0);
+  await expect(anchor).toBeVisible();
+  await expect.poll(async () => Math.abs(await anchorTop() - before.top)).toBeLessThan(2);
+  expect(writes).toHaveLength(1);
+  expect(origin.version).toBe(1);
+});
+test("#660 forbidden definition refresh removes cached properties instead of treating them as a transient failure", async ({ page }) => {
+  const { state, entityId, writes, failNextDefinition } = await fixtureLaboratoryRegistry(page);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityId)}`));
+  await expect(detailDialog(page)).toContainText("협력 연구실 · 시료 번호 · V-00a.가");
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
+  await baseWorkspace(page).getByRole("tab", { name: "번호 설정", exact: true }).click();
+  await baseWorkspace(page).getByRole("button", { name: "내부 연구실 열기", exact: true }).click();
+  const source = baseWorkspace(page).getByRole("region", { name: "내부 연구실", exact: true });
+  await source.getByRole("button", { name: "실험 번호 편집", exact: true }).click();
+  await source.getByRole("textbox", { name: "번호 종류 이름 (필수)", exact: true }).fill("실험 관리번호");
+  failNextDefinition(403);
+  await source.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(detailDialog(page)).toContainText("속성 정의를 불러오지 못했습니다.");
+  await expect(detailDialog(page).getByRole("term").filter({ hasText: /^협력 보조번호$/ })).toHaveCount(0);
+  await expect(detailDialog(page)).not.toContainText("V-00a.가");
+  await expect(detailDialog(page)).not.toContainText("마지막으로 읽은 내용을 표시합니다.");
+  expect(writes).toHaveLength(1);
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
 });
 test("occurrence reactivation preserves a scrolled parent while the refresh is pending", async ({ page }) => {
   const state = await fixture(page);
