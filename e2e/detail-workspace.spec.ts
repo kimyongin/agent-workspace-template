@@ -23,6 +23,37 @@ async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<s
 }
 const workspaceGroup = (page: Page) => baseWorkspace(page).locator("xpath=ancestor::*[@data-slot='resizable-panel-group'][1]");
 const panel = (page: Page) => page.getByRole("tabpanel").filter({ visible: true });
+for (const width of [1440, 390]) test(`deleted occurrence refreshes the retained selected period at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.clock.setFixedTime(new Date("2026-11-01T03:00:00Z"));
+  const state = await fixture(page);
+  Object.assign(state.rows.tasks[0], { kind: "recurring", title: "주간 점검", status: "active", recurrence: { freq: "weekly", weekdays: [7], starts_on: "2026-10-01" }, timezone: "Asia/Seoul" });
+  Object.assign(state.rows.records[0], { body: "주간 점검 결과", occurrence_on: "2026-10-11" });
+  const windows: string[] = [];
+  await page.route(/\/api\/tasks\/[^/]+\/occurrences\?/, route => {
+    const url = new URL(route.request().url()), from = url.searchParams.get("from")!, to = url.searchParams.get("to")!;
+    windows.push(`${from}/${to}`);
+    const ids = state.rows.records.filter(record => record.task_id === id(2) && record.occurrence_on === "2026-10-11").map(record => record.id);
+    return route.fulfill({ json: { today: "2026-11-01", items: from <= "2026-10-11" && to >= "2026-10-11" ? [{ date: "2026-10-11", status: ids.length ? "done" : "missed", record_ids: ids, in_rule: true }] : [] } });
+  });
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
+  await expect(detailDialog(page).getByRole("heading", { name: "주간 점검", exact: true })).toBeVisible();
+  await page.setViewportSize({ width, height: 900 });
+  await detailDialog(page).getByRole("button", { name: "이전 기간", exact: true }).click();
+  const row = () => detailDialog(page).getByRole("table", { name: "반복 할 일 회차 목록", exact: true }).getByRole("row").filter({ hasText: "2026-10-11" });
+  await expect(row()).toContainText("기록 1개");
+  const selectedWindow = windows.at(-1);
+  await detailDialog(page).getByRole("link", { name: "주간 점검 결과 상세", exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await detailDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: "주간 점검", exact: true })).toBeVisible();
+  await expect(row()).toContainText("기록 없음");
+  expect(windows.at(-1)).toBe(selectedWindow);
+  expect(state.rows.tasks[0].status).toBe("active");
+  expect(state.errors).toEqual([]);
+});
 test("long detail tab titles fit their group and select beside a later tab", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const state = await fixture(page);

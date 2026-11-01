@@ -13,7 +13,8 @@ import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { DetailTabContext } from "../details/workspace-context.ts";
 import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
@@ -41,6 +42,7 @@ function requestedDialog(params: URLSearchParams): Dialog {
 export function TaskDetailPage() {
   const api = useApi();
   const { canRead, canWrite } = useTaskAccess();
+  const tabActive = useContext(DetailTabContext)?.active ?? true;
   const location = useLocation();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
@@ -168,9 +170,9 @@ export function TaskDetailPage() {
   }, [api]);
 
   useEffect(() => {
-    if (task?.kind === "recurring") loadOccurrences(task, rangeEnd);
+    if (canRead && tabActive && task?.kind === "recurring") loadOccurrences(task, rangeEnd);
     return () => occurrenceRequest.current?.abort();
-  }, [task, rangeEnd, loadOccurrences]);
+  }, [task, rangeEnd, loadOccurrences, tabActive, canRead]);
 
   const run = async (action: () => Promise<void>, done: string) => {
     setBusy(true);
