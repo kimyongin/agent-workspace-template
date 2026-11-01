@@ -1,6 +1,6 @@
 import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
-import { fixtureWorkspacePath } from "./support/workspace-scope.ts";
+import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
 import { openMainNavigation } from "./ui-actions.ts";
 import { baseWorkspace, detailDialog, executionDialog, openDialogs, shortDialog } from "./ui-actions.ts";
 import { fixtureSchema, fixtureType } from "./support/workspace-data.ts";
@@ -154,6 +154,115 @@ for (const width of [1440, 390]) test(`#652 ${width}px retained entity reactivat
   expect(origin.version).toBe(1);
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
+});
+async function fixtureLaboratoryRegistry(page: Page) {
+  const state = await fixture(page), kind = id(870), auxiliaryKind = id(871);
+  const origin = state.rows.entities[0], entityId = encodeIdentifierReference(fixtureType.id, kind, "LAB-001");
+  origin.id = entityId;
+  origin.identity_label = "내부 연구실 · 실험 번호 · LAB-001";
+  origin.properties.prop_5 = encodeIdentifierValue(kind, "LAB-001");
+  origin.properties.prop_6 = encodeIdentifierValue(auxiliaryKind, "V-00a.가");
+  const issuers = [{ code: "issuer_lab", label: "내부 연구실", active: true, system: false, version: 1 },
+    { code: "issuer_partner", label: "협력 연구실", active: true, system: false, version: 1 }];
+  const rules = [{ id: kind, source: "issuer_lab", label: "실험 번호", meaning: "실험 번호", generation: "direct", active: true, version: 1 },
+    { id: auxiliaryKind, source: "issuer_partner", label: "시료 번호", meaning: "시료 번호", generation: "direct", active: true, version: 1 }];
+  const schema = structuredClone(fixtureSchema);
+  schema.schema.properties.prop_5["x-identifier"] = { allowed_kind_ids: [kind], default_kind_id: kind };
+  schema.schema.properties.prop_6 = { type: ["string", "null"], title: "협력 보조번호", "x-order": 60,
+    "x-identifier": { allowed_kind_ids: [auxiliaryKind], default_kind_id: auxiliaryKind } };
+  const writes: { path: string; body: Record<string, unknown> }[] = [];
+  let failDefinition = false;
+  await page.route("**/api/entity-types/*/schema**", route => {
+    expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
+    if (failDefinition) {
+      failDefinition = false;
+      return route.fulfill({ status: 503, json: { code: "unavailable", message: "정의를 다시 읽으세요." } });
+    }
+    return route.fulfill({ json: { ...schema, identifier_kinds: rules.map(rule => {
+      const issuer = issuers.find(issuer => issuer.code === rule.source)!;
+      return { ...rule, source_label: issuer.label, source_version: issuer.version };
+    }) } });
+  });
+  await page.route(/\/api\/entity-(?:issuers|identifier-rules)(?:\/|\?|$)/, route => {
+    const request = route.request(), path = new URL(request.url()).pathname, parts = path.split("/");
+    expect(request.headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
+    if (request.method() === "GET") return route.fulfill({ json: {
+      items: parts[4] === "rules" ? rules.filter(rule => rule.source === parts[3]) : issuers,
+    } });
+    if (request.method() !== "PATCH") return route.fallback();
+    const target = parts[2] === "entity-issuers" ? issuers.find(issuer => issuer.code === parts[3]) : rules.find(rule => rule.id === parts[3]);
+    expect(target).toBeTruthy();
+    const body = request.postDataJSON();
+    expect(body.expected_version).toBe(target!.version);
+    writes.push({ path, body });
+    Object.assign(target!, { label: body.label, active: body.active, version: target!.version + 1 });
+    return route.fulfill({ json: target });
+  });
+  return { state, origin, entityId, writes, failNextDefinition: () => { failDefinition = true; } };
+}
+test("#660 saving a number kind refreshes the already selected detail without tab navigation", async ({ page }, info) => {
+  const { state, origin, entityId, writes } = await fixtureLaboratoryRegistry(page);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityId)}`));
+  await expect(detailDialog(page)).toContainText("내부 연구실 · 실험 번호 · LAB-001");
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
+  await baseWorkspace(page).getByRole("tab", { name: "번호 설정", exact: true }).click();
+  await baseWorkspace(page).getByRole("button", { name: "내부 연구실 열기", exact: true }).click();
+  const source = baseWorkspace(page).getByRole("region", { name: "내부 연구실", exact: true });
+  await source.getByRole("button", { name: "실험 번호 편집", exact: true }).click();
+  await source.getByRole("textbox", { name: "번호 종류 이름 (필수)", exact: true }).fill("실험 관리번호");
+  const savedUrl = page.url();
+  const detailScroll = await detailDialog(page).getByRole("region", { name: "상세 내용", exact: true }).evaluate(node => node.scrollTop);
+  await source.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(source.getByRole("button", { name: "실험 관리번호 편집", exact: true })).toBeVisible();
+  await expect(detailDialog(page)).toContainText("내부 연구실 · 실험 관리번호 · LAB-001");
+  await expect(source.getByRole("button", { name: "실험 관리번호 편집", exact: true })).toBeFocused();
+  await expect(page).toHaveURL(savedUrl);
+  expect(await detailDialog(page).getByRole("region", { name: "상세 내용", exact: true }).evaluate(node => node.scrollTop)).toBe(detailScroll);
+  expect(origin.id).toBe(entityId);
+  expect(origin.version).toBe(1);
+  expect(origin.schema_version).toBe(1);
+  expect(origin.properties.prop_5).toBe(encodeIdentifierValue(id(870), "LAB-001"));
+  expect(writes).toHaveLength(1);
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+  await page.screenshot({ path: info.outputPath("selected-detail-number-name.png"), fullPage: true });
+});
+test("#660 source and auxiliary names refresh in the selected detail and a failed definition read retries without another write", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const { state, origin, entityId, writes, failNextDefinition } = await fixtureLaboratoryRegistry(page);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityId)}`));
+  await expect(detailDialog(page)).toContainText("협력 연구실 · 시료 번호 · V-00a.가");
+  await page.getByRole("navigation", { name: "주 메뉴", exact: true }).getByRole("link", { name: "자료 설정", exact: true }).click();
+  await baseWorkspace(page).getByRole("tab", { name: "번호 설정", exact: true }).click();
+  await baseWorkspace(page).getByRole("button", { name: "내부 연구실 열기", exact: true }).click();
+  await baseWorkspace(page).getByRole("button", { name: "내부 연구실 편집", exact: true }).click();
+  const edit = page.getByRole("dialog", { name: "번호 출처 편집", exact: true });
+  await edit.getByRole("textbox", { name: "번호 출처 이름 (필수)", exact: true }).fill("중앙 연구실");
+  const savedUrl = page.url();
+  failNextDefinition();
+  await edit.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(edit).toHaveCount(0);
+  await expect(detailDialog(page)).toContainText("속성 정의를 불러오지 못했습니다.");
+  await expect(baseWorkspace(page).getByRole("button", { name: "중앙 연구실 편집", exact: true })).toBeFocused();
+  await detailDialog(page).getByRole("button", { name: "속성 정의 다시 조회", exact: true }).click();
+  await expect(detailDialog(page)).toContainText("중앙 연구실 · 실험 번호 · LAB-001");
+  expect(writes).toHaveLength(1);
+  await baseWorkspace(page).getByRole("button", { name: "협력 연구실 열기", exact: true }).click();
+  await baseWorkspace(page).getByRole("button", { name: "협력 연구실 편집", exact: true }).click();
+  await edit.getByRole("textbox", { name: "번호 출처 이름 (필수)", exact: true }).fill("공동 연구실");
+  await edit.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(edit).toHaveCount(0);
+  await expect(detailDialog(page)).toContainText("공동 연구실 · 시료 번호 · V-00a.가");
+  await expect(page).toHaveURL(savedUrl);
+  await expect(page.getByRole("tab", { name: "등심", exact: true })).toHaveAttribute("aria-selected", "true");
+  expect(origin.id).toBe(entityId);
+  expect(origin.version).toBe(1);
+  expect(origin.schema_version).toBe(1);
+  expect(origin.properties.prop_6).toBe(encodeIdentifierValue(id(871), "V-00a.가"));
+  expect(writes).toHaveLength(2);
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+  await page.screenshot({ path: info.outputPath("selected-detail-current-sources.png"), fullPage: true });
 });
 test("occurrence reactivation preserves a scrolled parent while the refresh is pending", async ({ page }) => {
   const state = await fixture(page);

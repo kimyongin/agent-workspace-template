@@ -3,7 +3,7 @@ import { DataFields } from "../../components/DataFields.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { useContext, useEffect, useLayoutEffect, useState } from "react";
-import { DetailTabContext } from "../details/workspace-context.ts";
+import { DetailTabContext, WorkspaceContext } from "../details/workspace-context.ts";
 import type { EntityValues } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 
@@ -18,6 +18,7 @@ export function EntityProperties(
 ) {
   const api = useApi();
   const active = useContext(DetailTabContext)?.active ?? true;
+  const workspaceRevision = useContext(WorkspaceContext)?.revision ?? 0;
   const [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [failed, setFailed] = useState(false),
     [refreshing, setRefreshing] = useState(true),
@@ -34,7 +35,7 @@ export function EntityProperties(
     if (!active) return;
     const c = new AbortController();
     // Current number names can change without a schema or material version change.
-    // Keep the layout while reactivation or a fresh material read refreshes the names.
+    // Keep the layout while reactivation, a material read or a saved registry update refreshes names.
     setRefreshing(true);
     setFailed(false);
     void api<EntitySchemaResult>(
@@ -50,7 +51,7 @@ export function EntityProperties(
       if (!c.signal.aborted) setRefreshing(false);
     });
     return () => c.abort();
-  }, [api, entity, retry, active]);
+  }, [api, entity, retry, active, workspaceRevision]);
   if (failed) {
     return (
       <>
