@@ -2,7 +2,7 @@ import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/
 import { encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
-import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { openMainNavigation } from "./ui-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
@@ -673,7 +673,7 @@ test("definition history reads beyond the first hundred versions and opens the i
   const definition = oldestContent.getByRole("region", { name: "입력 항목 정의", exact: true });
   await expect(definition.getByRole("term").filter({ hasText: /^종류 이름$/ }).locator("..").getByRole("definition")).toHaveText("최초 이름");
   const field = definition.getByRole("row", { name: "최초 이름 정의", exact: true });
-  await expect((await valueCell(field, "필수 입력")).getByText("예", { exact: true })).toBeVisible();
+  await expect(field.getByRole("term").filter({ hasText: /^필수 입력$/ }).locator("..").getByRole("definition")).toHaveText("예");
   await expect(definition.locator("input,select,textarea")).toHaveCount(0);
   await expect(oldestContent.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
   expect(readVersions).toContain(101);
@@ -706,8 +706,14 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
     return route.fulfill({ json: { items: [], next_before: null } });
   });
   await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
-  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-  await page.getByRole("button", { name: /^정확한 수량 항목 (?:펼치기|접기)$/, exact: true }).click();
+  await expect(page.getByText("3개 항목", { exact: true })).toBeVisible();
+  const properties = page.getByRole("button", { name: "입력 항목", exact: true });
+  await expect(properties).toHaveAttribute("aria-expanded", "false");
+  await properties.click();
+  await expect(properties).toHaveAttribute("aria-expanded", "true");
+  const fieldToggle = page.getByRole("button", { name: "정확한 수량 항목 펼치기", exact: true });
+  await expect(fieldToggle).toHaveAttribute("aria-expanded", "false");
+  await fieldToggle.click();
   const section = page.getByRole("region", { name: "정확한 수량 입력 항목", exact: true });
   await section.getByText("추가 설정", { exact: true }).click();
   const input = section.getByLabel("최소값", { exact: true });
