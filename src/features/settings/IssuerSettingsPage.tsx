@@ -6,8 +6,8 @@ import { PlusIcon, RotateCcwIcon, ChevronDownIcon, ChevronRightIcon } from "luci
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { Button } from "../../components/ui/button.tsx";
-import { usePageNavigationBlocker } from "../details/workspace-context.ts";
-import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
+import { usePageNavigationBlocker, WorkspaceContext } from "../details/workspace-context.ts";
+import { Fragment, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
@@ -22,6 +22,7 @@ export function IssuerSettingsPage() {
 }
 function IssuerSettingsPageContent() {
   const { canWrite } = useSettingsAccess();
+  const workspace = useContext(WorkspaceContext);
   const issuerRegistry = useIssuerRegistry();
   const [issuers, setIssuers] = useState<EntityIssuer[] | null>(null),
     [selected, setSelected] = useState("");
@@ -111,6 +112,7 @@ function IssuerSettingsPageContent() {
     });
   };
   const saved = (row: EntityIssuer | IdentifierRule) => {
+    if (editing?.kind === "issuer" ? !!editing.issuer : !!editing?.rule) workspace?.saved();
     if ("code" in row) {
       setIssuers((current) =>
         current?.some((i) => i.code === row.code)

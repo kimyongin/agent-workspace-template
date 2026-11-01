@@ -101,11 +101,6 @@ async function fixture(page: Page, baseURL: string, initial: unknown = null) {
 }
 const ref = (id: string) => ({ kind: "builtin", id });
 const nav = (page: Page) => page.getByRole("navigation", { name: "주 메뉴", exact: true });
-async function openNavigation(page: Page) {
-  const trigger = page.getByRole("button", { name: "주 메뉴 열기", exact: true });
-  if (await trigger.isVisible() && !await nav(page).isVisible()) await trigger.click();
-  await expect(nav(page)).toBeVisible();
-}
 async function closeNavigation(page: Page) {
   const close = page.getByRole("button", { name: "메뉴 닫기", exact: true });
   if (await close.isVisible()) {
@@ -115,13 +110,13 @@ async function closeNavigation(page: Page) {
 }
 const shortcuts = (page: Page) => nav(page).locator('[data-slot="sidebar-group"]').filter({ has: page.getByText("바로가기", { exact: true }) }).getByRole("link");
 async function expectShortcuts(page: Page, expected: string[] | number) {
-  await openNavigation(page);
+  await openMainNavigation(page);
   if (typeof expected === "number") await expect(shortcuts(page)).toHaveCount(expected);
   else await expect(shortcuts(page)).toHaveText(expected);
   await closeNavigation(page);
 }
 async function expectWorkLink(page: Page, label: string) {
-  await openNavigation(page); await expect(nav(page).getByRole("link", { name: label, exact: true })).toBeVisible(); await closeNavigation(page);
+  await openMainNavigation(page); await expect(nav(page).getByRole("link", { name: label, exact: true })).toBeVisible(); await closeNavigation(page);
 }
 
 test("shortcut editing has its own section with compact rows, bounded selection and independent cancel", async ({ page, baseURL }, info) => {
@@ -263,7 +258,7 @@ test("unknown refs remain explicit and live rename archive restore do not rewrit
   state.setTypes([{ ...material, label: "새 재료 이름", archived: true }, product]);
   await page.reload();
   await expect(businessRows(page.getByRole("table", { name: "선택한 바로가기" })).first()).toContainText("새 재료 이름 · 보관");
-  await openNavigation(page); await expect(shortcuts(page).filter({ hasText: "새 재료 이름" })).toHaveCount(0); await closeNavigation(page);
+  await openMainNavigation(page); await expect(shortcuts(page).filter({ hasText: "새 재료 이름" })).toHaveCount(0); await closeNavigation(page);
   expect(state.metadata().workspace_navigation).toEqual(preference);
   expect(state.writes).toEqual([]);
   await expectWorkLink(page, "기록");
@@ -274,7 +269,7 @@ test("invalid navigation reads fallback without hidden writes and all profile de
   await expectShortcuts(page, 4);
   await page.setViewportSize({ width: 320, height: 300 });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  await openNavigation(page);
+  await openMainNavigation(page);
   for (const label of ["전체 자료", "기록"]) {
     const link = nav(page).getByRole("link", { name: label, exact: true }); await link.scrollIntoViewIfNeeded(); await expect(link).toBeVisible();
   }
@@ -313,7 +308,7 @@ test(
     await chooseSetting(page, page.getByRole("combobox", { name: "추가할 메뉴", exact: true }), "자료 10");
     await expect(page.getByRole("table", { name: "선택한 바로가기" })).toContainText("자료 10");
     await expect(page.getByRole("button", { name: "자료 10 숨기기", exact: true })).toBeFocused();
-    await openNavigation(page);
+    await openMainNavigation(page);
     const search = page.getByLabel("자료 종류 검색", { exact: true });
     await search.dispatchEvent("compositionstart");
     await search.fill("자료 11");
@@ -328,7 +323,7 @@ test(
 );
 test("navigation identifies current location when its shortcut is hidden", async ({ page, baseURL }) => {
   await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] }); await page.goto(fixtureWorkspacePath("/records"));
-  await openNavigation(page); await expect(nav(page).getByRole("link", { name: "기록", exact: true })).toHaveAttribute("aria-current", "page");
+  await openMainNavigation(page); await expect(nav(page).getByRole("link", { name: "기록", exact: true })).toHaveAttribute("aria-current", "page");
 });
 
 test("pending save prevents duplicate submission and departure until authoritative GET", async ({ page, baseURL }) => {
@@ -387,7 +382,7 @@ test("late old account metadata cannot overwrite the new account navigation", as
     });
   });
   await page.goto(fixtureWorkspacePath("/tasks"));
-  await openNavigation(page); await expect(nav(page).getByRole("group", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeVisible();
+  await openMainNavigation(page); await expect(nav(page).getByRole("group", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeVisible();
   await page.evaluate(async (access_token) => {
     const path = "/src/lib/supabase.ts";
     const { supabase } = await import(path);
@@ -440,7 +435,7 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("새 재료");
   await page.getByRole("radio", { name: "별", exact: true }).check();
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
-  await openNavigation(page); await expect(nav(page).getByRole("link", { name: "새 재료", exact: true }).locator("svg")).toHaveAttribute("data-icon", "star"); await closeNavigation(page);
+  await openMainNavigation(page); await expect(nav(page).getByRole("link", { name: "새 재료", exact: true }).locator("svg")).toHaveAttribute("data-icon", "star"); await closeNavigation(page);
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)", { exact: true }).check();
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expectWorkLink(page, "새 재료 · 보관");
