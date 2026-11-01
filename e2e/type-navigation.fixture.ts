@@ -214,6 +214,7 @@ test("invalid and archived type URLs never widen or offer creation", async ({ pa
   });
   await page.goto(fixtureWorkspacePath("/entities?entity_type_id=invalid"));
   await expect(page.getByRole("alert")).toContainText("자료 종류를 찾을 수 없습니다");
+  await expect(page.getByRole("heading", { name: "찾을 수 없는 자료 종류", exact: true, level: 1 })).toBeVisible();
   expect(listRequests).toHaveLength(0);
   await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${retired.id}`));
   await expect(page.getByText("보관된 자료 종류입니다.", { exact: false })).toBeVisible();
@@ -443,6 +444,23 @@ test("type catalog failure and all archived types have distinct recovery paths",
   await expect(page.getByRole("button", { name: "자료 추가", exact: true })).toHaveCount(0);
 });
 
+test("typed catalog failure keeps the selected scope and recovers its heading on retry", async ({ page }, info) => {
+  let failing = true;
+  await page.route("**/api/entity-types{,?**}", (route) => failing
+    ? route.abort()
+    : route.fulfill({ json: { items: [materials, products], next_cursor: null } }));
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}&keyword=필터유지`));
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("자료 종류를 불러오지 못했습니다");
+  await expect(page.getByRole("heading", { name: "자료 종류를 확인할 수 없습니다", exact: true, level: 1 })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("catalog-heading-failure.png") });
+  await expect(page.getByRole("heading", { name: "찾을 수 없는 자료 종류", exact: true })).toHaveCount(0);
+  failing = false;
+  await page.getByRole("button", { name: "종류 다시 시도", exact: true }).click();
+  await expect(page.getByRole("heading", { name: materials.label, exact: true, level: 1 })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("entity_type_id")).toBe(materials.id);
+  expect(new URL(page.url()).searchParams.get("keyword")).toBe("필터유지");
+});
+
 test("save blocks duplicate submission and Back until typed detail is ready", async ({ page }) => {
   let release!: () => void, started!: () => void, writes = 0;
   const hold = new Promise<void>((resolve) => {
@@ -537,7 +555,7 @@ test("clean settings navigation proceeds while initial record templates are stil
   }
 });
 
-test("type selection remains scoped while a returned list catalog is loading", async ({ page }) => {
+test("type selection remains scoped while a returned list catalog is loading", async ({ page }, info) => {
   const requestedTypes: (string | null)[] = [];
   const writes: string[] = [];
   page.on("request", request => {
@@ -592,9 +610,13 @@ test("type selection remains scoped while a returned list catalog is loading", a
     await expect(page.getByLabel("자료 종류", { exact: true })).toBeDisabled();
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveAttribute("aria-busy", "true");
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue("자료 종류를 불러오는 중…");
+    await expect(page.getByRole("heading", { name: "자료 종류를 확인하는 중…", exact: true, level: 1 })).toBeVisible();
+    await page.screenshot({ path: info.outputPath("catalog-heading-pending.png") });
+    await expect(page.getByRole("heading", { name: "찾을 수 없는 자료 종류", exact: true })).toHaveCount(0);
     await expect(page.locator("main").getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
     release();
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.label);
+    await expect(page.getByRole("heading", { name: materials.label, exact: true, level: 1 })).toBeVisible();
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveAttribute("aria-busy", "false");
     await expect.poll(() => requestedTypes.length).toBeGreaterThan(0);
     expect(requestedTypes.every(type => type === materials.id)).toBe(true);
