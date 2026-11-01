@@ -23,6 +23,58 @@ async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<s
 }
 const workspaceGroup = (page: Page) => baseWorkspace(page).locator("xpath=ancestor::*[@data-slot='resizable-panel-group'][1]");
 const panel = (page: Page) => page.getByRole("tabpanel").filter({ visible: true });
+for (const width of [1440, 390]) test(`#652 ${width}px retained entity reactivation refreshes current source and kind names without changing identity`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  const state = await fixture(page);
+  const kind = id(870), raw = "LAB-001", entityId = encodeIdentifierReference(fixtureType.id, kind, raw);
+  const origin = state.rows.entities[0];
+  origin.id = entityId;
+  origin.properties.prop_5 = encodeIdentifierValue(kind, raw);
+  origin.identity_label = "내부 연구실 · 실험 번호 · LAB-001";
+  state.rows.tasks[0].entity_ids = [entityId];
+  state.rows.tasks[0].entity_context = [{ id: entityId, title: origin.title, type: fixtureType,
+    schema_version: 1, source: "selection", captured_at: stamp }];
+  const auxiliaryKind = id(871);
+  origin.properties.prop_6 = encodeIdentifierValue(auxiliaryKind, "V-00a.가");
+  let source = "내부 연구실", label = "실험 번호", auxiliarySource = "협력 연구실";
+  const schema = structuredClone(fixtureSchema);
+  schema.schema.properties.prop_5["x-identifier"] = { allowed_kind_ids: [kind], default_kind_id: kind };
+  schema.schema.properties.prop_6 = { type: ["string", "null"], title: "협력 보조번호", "x-order": 60,
+    "x-identifier": { allowed_kind_ids: [auxiliaryKind], default_kind_id: auxiliaryKind } };
+  await page.route("**/api/entity-types/*/schema**", route => route.fulfill({ json: {
+    ...schema, identifier_kinds: [{ id: kind, source: "issuer_lab", source_label: source,
+      source_version: source === "내부 연구실" ? 1 : 2, label, version: label === "실험 번호" ? 1 : 2,
+      generation: "direct", active: true }, { id: auxiliaryKind, source: "issuer_partner", source_label: auxiliarySource,
+      source_version: auxiliarySource === "협력 연구실" ? 1 : 2, label: "시료 번호", version: 1, generation: "direct", active: true }],
+  } }));
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityId)}`));
+  await expect(detailDialog(page)).toContainText("내부 연구실 · 실험 번호 · LAB-001");
+  const openTask = () => detailDialog(page).getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
+  const returnToEntity = () => page.getByRole("tab", { name: "등심", exact: true })
+    .or(detailDialog(page).getByRole("button", { name: "이전: 등심", exact: true })).filter({ visible: true }).first().click();
+  await openTask();
+  await expect(detailDialog(page).getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
+  source = "중앙 연구실";
+  origin.identity_label = "중앙 연구실 · 실험 번호 · LAB-001";
+  await returnToEntity();
+  await expect(detailDialog(page)).toContainText("중앙 연구실 · 실험 번호 · LAB-001");
+  await openTask();
+  await expect(detailDialog(page).getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
+  label = "실험 관리번호";
+  origin.identity_label = "중앙 연구실 · 실험 관리번호 · LAB-001";
+  await returnToEntity();
+  await expect(detailDialog(page)).toContainText("중앙 연구실 · 실험 관리번호 · LAB-001");
+  await openTask();
+  await expect(detailDialog(page).getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
+  auxiliarySource = "공동 연구실";
+  await returnToEntity();
+  await expect(detailDialog(page)).toContainText("공동 연구실 · 시료 번호 · V-00a.가");
+  await page.screenshot({ path: info.outputPath("current-identifier-names.png"), fullPage: true });
+  expect(new URL(page.url()).pathname).toContain(encodeURIComponent(entityId));
+  expect(origin.version).toBe(1);
+  expect(state.writes).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
 test("occurrence reactivation preserves a scrolled parent while the refresh is pending", async ({ page }) => {
   const state = await fixture(page);
   await page.clock.setFixedTime(new Date("2026-11-01T03:00:00Z"));

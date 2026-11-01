@@ -2,7 +2,8 @@ import { useApi } from "../../lib/api-context.tsx";
 import { DataFields } from "../../components/DataFields.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { schemaPresentation } from "../../lib/schema-document.ts";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useState } from "react";
+import { DetailTabContext } from "../details/workspace-context.ts";
 import type { EntityValues } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 
@@ -16,20 +17,25 @@ export function EntityProperties(
   },
 ) {
   const api = useApi();
+  const active = useContext(DetailTabContext)?.active ?? true;
   const [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [failed, setFailed] = useState(false),
+    [refreshing, setRefreshing] = useState(true),
     [retry, setRetry] = useState(0);
   const key = `${entity.entity_type_id}:${entity.current_schema_version}:${retry}`;
-  const [readKey, setReadKey] = useState(key);
-  if (readKey !== key) {
-    setReadKey(key);
+  const [readKey, setReadKey] = useState({ api, key });
+  if (readKey.key !== key || readKey.api !== api) {
+    setReadKey({ api, key });
     setDefinition(null);
     setFailed(false);
   }
-  useLayoutEffect(() => onReadyChange?.(!!definition || failed), [definition, failed, onReadyChange]);
+  useLayoutEffect(() => onReadyChange?.(!refreshing && (!!definition || failed)), [definition, failed, refreshing, onReadyChange]);
   useEffect(() => {
+    if (!active) return;
     const c = new AbortController();
-    setDefinition(null);
+    // Current number names can change without a schema or material version change.
+    // Keep the layout while reactivation or a fresh material read refreshes the names.
+    setRefreshing(true);
     setFailed(false);
     void api<EntitySchemaResult>(
       "GET",
@@ -40,9 +46,11 @@ export function EntityProperties(
       if (!c.signal.aborted) setDefinition(value);
     }).catch(() => {
       if (!c.signal.aborted) setFailed(true);
+    }).finally(() => {
+      if (!c.signal.aborted) setRefreshing(false);
     });
     return () => c.abort();
-  }, [entity.entity_type_id, entity.current_schema_version, retry]);
+  }, [api, entity, retry, active]);
   if (failed) {
     return (
       <>
@@ -54,7 +62,7 @@ export function EntityProperties(
   }
   if (!definition) return <p role="status">속성 정의를 불러오는 중…</p>;
   return (
-    <DataFields>
+    <DataFields aria-busy={refreshing || undefined}>
       {schemaPresentation(definition).order.filter((key) =>
         !activeOnly || !definition.schema.properties[key].deprecated
       ).map((key) => (

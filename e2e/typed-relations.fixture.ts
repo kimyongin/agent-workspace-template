@@ -124,6 +124,9 @@ test(
     await single.getByRole("button", { name: "변경", exact: true }).click();
     await single.getByLabel("자료 제목 검색", { exact: true }).fill("새 주문");
     await single.getByRole("button", { name: "새 주문 연결", exact: true }).click();
+    await expect(executionDialog(page)).toContainText(origin.identity_label);
+    await expect(executionDialog(page)).toContainText(old.identity_label);
+    await expect(executionDialog(page)).toContainText(candidate.identity_label);
     await page.getByRole("button", { name: "수정하고 저장", exact: true }).click();
     await expect(
       executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true }),
@@ -142,6 +145,8 @@ test(
     await page.screenshot({ path: `/private/tmp/typed-relations-${info.project.name}.png`, fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await single.getByRole("button", { name: "해제", exact: true }).click();
+    await expect(executionDialog(page)).toContainText(origin.identity_label);
+    await expect(executionDialog(page)).toContainText(candidate.identity_label);
     await page.getByRole("button", { name: "해제하고 저장", exact: true }).click();
     await expect(single).toContainText("연결된 자료가 없습니다");
     expect(state.errors).toEqual([]);
