@@ -13,7 +13,7 @@ import type { EntityDetail, EntitySummary } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { useDetailViewState } from "../../lib/detail-exploration.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
-import { RelatedItem } from "../../components/RelatedItems.tsx";
+import { ItemExpansionProvider, RelatedItem } from "../../components/RelatedItems.tsx";
 import { ExpansionGroupProvider } from "../../components/item-expansion.tsx";
 import { RelatedPreviewItem } from "./RelatedPreviewItem.tsx";
 import { query } from "../../lib/api.ts";
@@ -79,9 +79,13 @@ export function RelationSearch(
     {
       draft: "",
       pages: 1,
+      expanded: [] as string[],
     },
   );
-  const draft = view.draft, setDraft = (draft: string) => setView({ draft, pages: 1 });
+  const draft = view.draft, setDraft = (draft: string) => setView({ draft, pages: 1, expanded: [] });
+  useEffect(() => {
+    setView(prior => prior.expanded?.length ? { ...prior, expanded: [] } : prior);
+  }, [revision]);
   const [composing, setComposing] = useState(false), [retry, setRetry] = useState(0);
   const immediate = useRef(false), keyword = draft.trim();
   const session = useMemo(() =>
@@ -191,7 +195,17 @@ export function RelationSearch(
       )}
       {result && (
         <div className="flex min-w-0 max-h-[28rem] flex-col gap-3 overflow-y-auto" role="group" aria-label={`${label} 검색 결과`}>
-          {candidates.length > 0 && <ExpansionGroupProvider><CollectionList disclosureColumn={!draftMode} view="table" label={`${label} 검색 결과`} columns={kind === "entity" ? ["자료 이름", "자료 종류", "자료 식별", "선택"] : ["제목", "선택"]}>
+          {candidates.length > 0 && <ItemExpansionProvider
+            value={view.expanded ?? []}
+            toggle={key => setView(prior => {
+              const expanded = prior.expanded ?? [];
+              return { ...prior, expanded: expanded.includes(key) ? expanded.filter(value => value !== key) : [...expanded, key] };
+            })}
+            setMany={(keys, open) => setView(prior => {
+              const expanded = prior.expanded ?? [];
+              return { ...prior, expanded: open ? [...new Set([...expanded, ...keys])] : expanded.filter(value => !keys.includes(value)) };
+            })}
+          ><ExpansionGroupProvider><CollectionList disclosureColumn={!draftMode} view="table" label={`${label} 검색 결과`} columns={kind === "entity" ? ["자료 이름", "자료 종류", "자료 식별", "선택"] : ["제목", "선택"]}>
             {candidates.map((item) => {
               const choose = <Button variant="ghost" type="button" aria-disabled={disabled} aria-label={`${item.title} 연결`} onClick={() => { if (!disabled && readable(item)) onChoose(item); }}><LinkIcon data-icon="inline-start" />연결</Button>;
               const CandidateItem = draftMode ? RelatedItem : RelatedPreviewItem;
@@ -202,7 +216,7 @@ export function RelationSearch(
                 cells={kind === "entity" ? [item.type ? item.type.label : "—", item.identity ?? "—", choose] : [choose]}
               /></CollectionItem>;
             })}
-          </CollectionList></ExpansionGroupProvider>}
+          </CollectionList></ExpansionGroupProvider></ItemExpansionProvider>}
           {!candidates.length && !pending && !failed && (
             <p className="text-sm text-muted-foreground">
               {!result.items.some(readable)

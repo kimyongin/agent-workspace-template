@@ -22,21 +22,39 @@ for (const width of [320, 390, 1440]) test(`#650 ${width}px 관계 후보의 동
     { type_id: fixtureType.id, label: "시료", cardinality: "many" },
     { type_id: fixtureType.id, label: "실험", cardinality: "many" },
   ] };
-  await page.route("**/api/entity-relation-definitions**", route => route.fulfill({ json: { items: [definition], next_cursor: null } }));
+  let linked = true;
+  const relationWrites: string[] = [];
+  await page.route("**/api/entity-relation-definitions**", route => route.fulfill({ json:
+    new URL(route.request().url()).pathname.endsWith(definition.id) ? definition : { items: [definition], next_cursor: null } }));
   await page.route("**/api/entity-relations/**", route => {
     const url = new URL(route.request().url());
+    if (route.request().method() === "POST") {
+      relationWrites.push(url.pathname);
+      linked = false;
+      state.rows.entities[0].version++;
+      first.version++;
+      return route.fulfill({ json: { changed: true, definition_id: definition.id, side: 0, origin_id: entityKey(1),
+        other_id: first.id, endpoint_versions: [{ id: entityKey(1), version: state.rows.entities[0].version }, { id: first.id, version: first.version }] } });
+    }
     return route.fulfill({ json: { definition, side: Number(url.pathname.split("/")[4]), origin_id: entityKey(1),
-      items: url.pathname.endsWith("/candidates") ? [first, second] : [], next_cursor: null } });
+      items: url.pathname.endsWith("/candidates") ? [first, second] : linked && url.pathname.split("/")[4] === "0" ? [first] : [], next_cursor: null } });
   });
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
   const section = page.getByLabel("시료 관계", { exact: true });
+  await section.getByRole("button", { name: "표준액 A", exact: true }).click();
+  await expect(section).toContainText("냉장 A-01");
+  await section.getByRole("button", { name: "표준액 A 연결 해제", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "해제하고 저장", exact: true }).click();
+  await expect(section).toContainText("연결된 자료가 없습니다.");
+  const priorReads = state.requests.filter(r => r.path === `/api/entities/${encodeURIComponent(first.id)}`).length;
   await section.getByRole("button", { name: "연결", exact: true }).click();
   await section.getByRole("searchbox", { name: "자료 제목 검색", exact: true }).fill("표준액");
   const results = section.getByRole("group", { name: "자료 검색 결과", exact: true });
   await expect(results.getByRole("button", { name: "표준액 A 연결", exact: true })).toHaveCount(2);
   const before = page.url();
-  expect(state.requests.filter(r => r.path === `/api/entities/${encodeURIComponent(first.id)}`)).toHaveLength(0);
   const candidate = results.getByRole("row").filter({ hasText: id(81) });
+  await expect(candidate.getByRole("button", { name: "표준액 A", exact: true })).toHaveAttribute("aria-expanded", "false");
+  expect(state.requests.filter(r => r.path === `/api/entities/${encodeURIComponent(first.id)}`)).toHaveLength(priorReads);
   await candidate.getByRole("button", { name: "표준액 A", exact: true }).press("Enter");
   await expect(results).toContainText("보관위치");
   await expect(results).toContainText("냉장 A-01");
@@ -54,6 +72,7 @@ for (const width of [320, 390, 1440]) test(`#650 ${width}px 관계 후보의 동
   await page.screenshot({ path: info.outputPath("candidate-preview.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(state.writes).toHaveLength(0);
+  expect(relationWrites).toEqual([`/api/entity-relations/${definition.id}/0/${encodeURIComponent(entityKey(1))}/unlink`]);
   expect(state.errors).toEqual([]);
 });
 
