@@ -673,7 +673,9 @@ test("definition history reads beyond the first hundred versions and opens the i
   const definition = oldestContent.getByRole("region", { name: "입력 항목 정의", exact: true });
   await expect(definition.getByRole("term").filter({ hasText: /^종류 이름$/ }).locator("..").getByRole("definition")).toHaveText("최초 이름");
   const field = definition.getByRole("row", { name: "최초 이름 정의", exact: true });
-  await expect(field.getByRole("term").filter({ hasText: /^필수 입력$/ }).locator("..").getByRole("definition")).toHaveText("예");
+  const requiredValue = field.getByRole("term").filter({ hasText: /^필수 입력$/ }).locator("..").getByRole("definition");
+  await expect(requiredValue).toHaveText("예");
+  await expect(requiredValue).toBeVisible();
   await expect(definition.locator("input,select,textarea")).toHaveCount(0);
   await expect(oldestContent.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
   expect(readVersions).toContain(101);
