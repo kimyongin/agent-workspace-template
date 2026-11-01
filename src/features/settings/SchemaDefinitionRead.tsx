@@ -57,7 +57,7 @@ export function SchemaDefinitionRead(
       ["읽기 전용", field.readOnly ? "예" : "아니요"],
       ["검색에 사용", field["x-search-text"] ? "예" : "아니요"],
     );
-    if (schemaPresentation(definition).archived.includes(key)) values.push(["사용 상태", "사용 중지"]);
+    values.push(["사용 상태", schemaPresentation(definition).archived.includes(key) ? "사용 중지" : "사용 중"]);
     if (field.examples?.length) {
       values.push([
         "입력 예시",
