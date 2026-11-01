@@ -1311,7 +1311,7 @@ test("first review includes reordered new fields, choice names and the title tem
   });
 });
 
-test("an exact empty analysis offers direct definition apply without conversion controls or a job", async ({ page }) => {
+test("an exact empty analysis offers direct definition apply without conversion controls or a job", async ({ page }, info) => {
   const current: EntitySchemaChange = {
     ...plan("b"),
     status: "ready",
@@ -1336,7 +1336,9 @@ test("an exact empty analysis offers direct definition apply without conversion 
     },
   };
   let applied = false;
+  const writes: string[] = [];
   await page.route(`**${base}**`, (route) => {
+    if (route.request().method() !== "GET") writes.push(new URL(route.request().url()).pathname);
     if (route.request().url().endsWith("/apply")) {
       applied = true;
       return route.fulfill({ json: { ...current, status: "applied" } });
@@ -1347,9 +1349,80 @@ test("an exact empty analysis offers direct definition apply without conversion 
   const history = page.getByRole("region", { name: "변경 이력", exact: true });
   await expect(history.getByRole("region", { name: "변환 규칙과 영향 미리보기" })).toHaveCount(0);
   await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toHaveCount(0);
+  await expect(history).toContainText("검토한 자료가 0개입니다. 값 변환 없이 새 설정을 적용할 수 있습니다.");
+  await expect(history).not.toContainText("값 변환 작업을 준비하세요.");
+  await page.screenshot({ path: info.outputPath("empty-definition-review.png"), fullPage: true });
   await history.getByRole("button", { name: "변경 적용", exact: true }).click();
   await expect(history).toContainText("적용됨");
   expect(applied).toBe(true);
+  expect(writes).toEqual([`${base}/b/apply`]);
+});
+
+for (const scenario of ["existing", "queued", "failed", "stale", "recovery"] as const) {
+  test(`#662 ${scenario} review does not advertise empty direct publication`, async ({ page }) => {
+    const current: EntitySchemaChange = { ...readyActionPlan(), change_kind: "migration_required" };
+    if (scenario !== "existing") Object.assign(current.analysis!, { total: 0, processed: 0, unchanged: 0 });
+    if (scenario === "queued") {
+      current.status = "analyzing";
+      current.analysis!.status = "queued";
+    }
+    if (scenario === "failed") {
+      current.status = "invalid";
+      current.analysis!.status = "failed";
+      current.analysis!.failure_reason = "analysis_worker_failed";
+    }
+    if (scenario === "stale") current.status = "stale";
+    if (scenario === "recovery") {
+      current.recovery = { source_job_id: "source-job", source_expires_at: "2026-11-12T00:00:00Z" };
+    }
+    const writes: string[] = [];
+    await page.route(`**${base}**`, route => {
+      if (route.request().method() !== "GET") writes.push(route.request().method());
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith("/rows")) return route.fulfill({ json: {
+        analysis_id: current.analysis!.id,
+        items: scenario === "existing" ? [{
+          entity_id: "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:R-1",
+          before: { prop_1: "기존 자료", prop_2: "00000000-0000-4000-8000-000000000001:R-1" },
+          after: { prop_1: "기존 자료", prop_2: "00000000-0000-4000-8000-000000000001:R-1" }, after_bytes: 128,
+          changed: false, removed: 0, replacements: 0, errors: [],
+        }] : [], next_after: null,
+      } });
+      return route.fulfill({ json: path === base ? { items: [current] } : current });
+    });
+    await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
+    const history = page.getByRole("region", { name: "변경 이력", exact: true });
+    await expect(history).toContainText("값 변환 작업을 준비하세요.");
+    await expect(history).not.toContainText("값 변환 없이 새 설정을 적용할 수 있습니다.");
+    await expect(history.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
+    if (scenario === "existing" || scenario === "recovery") {
+      await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toBeVisible();
+    }
+    expect(writes).toEqual([]);
+  });
+}
+
+test("#662 editing after empty review requires another review and preserves the input", async ({ page }) => {
+  const current: EntitySchemaChange = { ...readyActionPlan(), change_kind: "migration_required" };
+  Object.assign(current.analysis!, { total: 0, processed: 0, unchanged: 0 });
+  const writes: string[] = [];
+  await page.route(`**${base}**`, route => {
+    if (route.request().method() !== "GET") writes.push(route.request().method());
+    return route.fulfill({ json: new URL(route.request().url()).pathname === base ? { items: [current] } : current });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
+  const history = page.getByRole("region", { name: "변경 이력", exact: true });
+  await expect(history).toContainText("값 변환 없이 새 설정을 적용할 수 있습니다.");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await businessRows(page.getByRole("table", { name: "입력 항목 목록", exact: true })).first()
+    .getByRole("button", { name: / 입력 항목 편집$/ }).click();
+  const name = await initialNameInput(page);
+  await name.fill("아직 검토하지 않은 이름");
+  await expect(history).toContainText("검토 이후 입력이 바뀌었습니다.");
+  await expect(history).not.toContainText("값 변환 없이 새 설정을 적용할 수 있습니다.");
+  await expect(history.getByRole("button", { name: "보완 내용 검토", exact: true })).toBeEnabled();
+  await expect(name).toHaveValue("아직 검토하지 않은 이름");
+  expect(writes).toEqual([]);
 });
 
 test("입력 항목 이름과 조건은 좁은 폼에서도 라벨과 값을 읽고 편집한다", async ({ page }, info) => {
