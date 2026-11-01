@@ -2102,3 +2102,122 @@ test("#659 pending confirmation keeps the same enlarged scroll layout when field
   await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
   expect(state.writes).toHaveLength(1); expect(state.errors).toEqual([]);
 });
+
+async function scrollingViewport(control: Locator) {
+  return control.evaluate(node => {
+    for (let p = node.parentElement; p; p = p.parentElement) {
+      if (/auto|scroll/.test(getComputedStyle(p).overflowY) && p.scrollHeight > p.clientHeight + 1) {
+        const r = p.getBoundingClientRect(), b = node.getBoundingClientRect();
+        return { offset: b.top - r.top, height: r.height, scrollTop: p.scrollTop };
+      }
+    }
+    throw new Error("The observed field has no scrolling viewport");
+  });
+}
+
+test("#659 height-only scroll-owner transitions retain a visible middle field relative to its scrolling viewport", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await fixture(page), schema = structuredClone(fixtureSchema);
+  for (let index = 6; index <= 25; index++) {
+    schema.schema.properties[`prop_${index}`] = { type: "string", title: `중간 항목 ${index}`, "x-order": index * 10 };
+    state.rows.entities[0].properties[`prop_${index}`] = `읽던 값 ${index}`;
+  }
+  await page.route("**/api/entity-types/*/schema**", route => route.fulfill({ json: schema }));
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const anchor = detailDialog(page).getByRole("textbox", { name: "중간 항목 12", exact: true });
+  await anchor.scrollIntoViewIfNeeded();
+  await expect.poll(() => fullyExposed(anchor)).toBe(true);
+  const original = await scrollingViewport(anchor);
+  expect(original.scrollTop).toBeGreaterThan(0);
+  await page.screenshot({ path: info.outputPath("middle-before.png") });
+  for (const height of [568, 900]) {
+    await page.setViewportSize({ width: 320, height });
+    if (height === 568) await expect.poll(async () => (await scrollingViewport(anchor)).height).toBeGreaterThan(original.height);
+    else await expect.poll(async () => (await scrollingViewport(anchor)).height).toBeCloseTo(original.height, 0);
+    await expect.poll(async () => (await scrollingViewport(anchor)).offset).toBeCloseTo(original.offset, 0);
+    await expect.poll(() => fullyExposed(anchor)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`middle-height-${height}.png`) });
+  }
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("#659 a later input growing beyond the fixed body remains completely exposable", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await fixture(page);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const form = detailDialog(page), title = form.getByRole("textbox", { name: "제목 (필수)", exact: true });
+  const body = form.getByRole("textbox", { name: "본문", exact: true });
+  await body.fill("짧은 본문"); await body.scrollIntoViewIfNeeded();
+  await expect.poll(() => fullyExposed(body)).toBe(true);
+  const fixedHeight = (await scrollingViewport(body)).height;
+  const titleHeight = (await title.boundingBox())!.height;
+  const draft = Array.from({ length: 10 }, (_, index) => `본문 ${index + 1}`).join("\n");
+  await body.fill(draft);
+  await expect(title).toHaveValue("등심 구매하기");
+  expect((await title.boundingBox())!.height).toBe(titleHeight);
+  expect((await body.boundingBox())!.height).toBeGreaterThan(fixedHeight);
+  expect((await body.boundingBox())!.height).toBeLessThan((await form.boundingBox())!.height);
+  await expect.poll(async () => (await scrollingViewport(body)).height).toBeGreaterThan((await body.boundingBox())!.height);
+  await body.evaluate(node => node.scrollIntoView({ block: "center" }));
+  await expect.poll(() => fullyExposed(body)).toBe(true);
+  await page.screenshot({ path: info.outputPath("growing-later-input.png") });
+  for (const name of ["저장", "취소", "삭제"]) {
+    const button = form.getByRole("button", { name, exact: true });
+    await button.scrollIntoViewIfNeeded(); await expect.poll(() => fullyExposed(button)).toBe(true);
+  }
+  await expect(body).toHaveValue(draft);
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("#659 an input taller than the viewport keeps every line reachable by its keyboard caret and exposes all actions", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await fixture(page);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const form = detailDialog(page), body = form.getByRole("textbox", { name: "본문", exact: true });
+  const draft = Array.from({ length: 40 }, (_, index) => `행 ${String(index + 1).padStart(2, "0")}`).join("\n");
+  await body.fill(draft);
+  expect((await body.boundingBox())!.height).toBeGreaterThan((await form.boundingBox())!.height);
+  await body.press("Home");
+  for (let row = 0; row < 40; row++) await body.press("ArrowUp");
+  await expect.poll(() => body.evaluate(node => (node as HTMLTextAreaElement).selectionStart)).toBe(0);
+  const observations = [];
+  for (let row = 0; row < 40; row++) {
+    if (row) await body.press("ArrowDown");
+    const caret = () => body.evaluate(node => {
+      const input = node as HTMLTextAreaElement, style = getComputedStyle(input), r = input.getBoundingClientRect();
+      const scale = r.width / input.offsetWidth, line = input.value.slice(0, input.selectionStart).split("\n").length - 1;
+      // The inline font box represents the caret/text line; line-height also contains leading.
+      const probe = document.createElement("div"), text = document.createElement("span");
+      Object.assign(probe.style, { position: "fixed", visibility: "hidden", font: style.font, lineHeight: style.lineHeight, whiteSpace: "pre" });
+      text.textContent = "행"; probe.appendChild(text); document.body.appendChild(probe);
+      const lineTop = text.getBoundingClientRect().top - probe.getBoundingClientRect().top, caretHeight = text.getBoundingClientRect().height;
+      probe.remove();
+      const top = r.top + (parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop) + line * parseFloat(style.lineHeight) - input.scrollTop) * scale + lineTop;
+      const bottom = top + caretHeight;
+      let clipTop = 0, clipBottom = innerHeight;
+      for (let p: HTMLElement | null = input; p; p = p.parentElement) {
+        if (/auto|scroll|hidden|clip/.test(getComputedStyle(p).overflowY)) {
+          const rect = p.getBoundingClientRect(); clipTop = Math.max(clipTop, rect.top); clipBottom = Math.min(clipBottom, rect.bottom);
+        }
+      }
+      return { line, top, bottom, clipTop, clipBottom, visible: top >= clipTop - 1 && bottom <= clipBottom + 1 };
+    });
+    await expect.poll(async () => (await caret()).visible, { message: `keyboard caret exposes line ${row + 1}` }).toBe(true);
+    const observed = await caret(); expect(observed.line).toBe(row); observations.push(observed);
+  }
+  await info.attach("unbounded-caret-lines.json", { body: JSON.stringify(observations, null, 2), contentType: "application/json" });
+  await page.screenshot({ path: info.outputPath("unbounded-last-line.png") });
+  for (const name of ["저장", "취소", "삭제"]) {
+    const button = form.getByRole("button", { name, exact: true });
+    await button.scrollIntoViewIfNeeded(); await expect.poll(() => fullyExposed(button)).toBe(true);
+  }
+  await page.screenshot({ path: info.outputPath("unbounded-actions.png") });
+  await expect(body).toHaveValue(draft);
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
