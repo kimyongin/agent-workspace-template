@@ -2132,14 +2132,29 @@ test("#659 height-only scroll-owner transitions retain a visible middle field re
   const original = await scrollingViewport(anchor);
   expect(original.scrollTop).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath("middle-before.png") });
-  for (const height of [568, 900]) {
+  for (const height of [568, 300, 568, 900]) {
+    const previousHeight = (await scrollingViewport(anchor)).height;
     await page.setViewportSize({ width: 320, height });
-    if (height === 568) await expect.poll(async () => (await scrollingViewport(anchor)).height).toBeGreaterThan(original.height);
-    else await expect.poll(async () => (await scrollingViewport(anchor)).height).toBeCloseTo(original.height, 0);
+    await expect.poll(async () => Math.abs((await scrollingViewport(anchor)).height - previousHeight)).toBeGreaterThan(1);
+    if (height === 900) await expect.poll(async () => (await scrollingViewport(anchor)).height).toBeCloseTo(original.height, 0);
     await expect.poll(async () => (await scrollingViewport(anchor)).offset).toBeCloseTo(original.offset, 0);
     await expect.poll(() => fullyExposed(anchor)).toBe(true);
     await page.screenshot({ path: info.outputPath(`middle-height-${height}.png`) });
   }
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("#659 releasing an oversized header keeps input and every footer action exposed together", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  const state = await fixture(page);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const form = detailDialog(page), input = form.getByRole("textbox", { name: "수량", exact: true });
+  await input.scrollIntoViewIfNeeded(); await input.focus();
+  await expect.poll(() => fullyExposed(input)).toBe(true);
+  for (const name of ["취소", "저장", "삭제"]) await expect.poll(() => fullyExposed(form.getByRole("button", { name, exact: true }))).toBe(true);
+  await page.screenshot({ path: info.outputPath("header-released-fixed-actions.png") });
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
 
@@ -2164,6 +2179,7 @@ test("#659 a later input growing beyond the fixed body remains completely exposa
   await expect.poll(async () => (await scrollingViewport(body)).height).toBeGreaterThan((await body.boundingBox())!.height);
   await body.evaluate(node => node.scrollIntoView({ block: "center" }));
   await expect.poll(() => fullyExposed(body)).toBe(true);
+  await expect.poll(() => fullyExposed(form.getByRole("button", { name: "저장", exact: true }))).toBe(true);
   await page.screenshot({ path: info.outputPath("growing-later-input.png") });
   for (const name of ["저장", "취소", "삭제"]) {
     const button = form.getByRole("button", { name, exact: true });
@@ -2181,15 +2197,17 @@ test("#659 an input taller than the viewport keeps every line reachable by its k
   await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
   const form = detailDialog(page), body = form.getByRole("textbox", { name: "본문", exact: true });
   const draft = Array.from({ length: 40 }, (_, index) => `행 ${String(index + 1).padStart(2, "0")}`).join("\n");
-  await body.fill(draft);
+  const beginning = draft.split("\n").slice(0, 10).join("\n");
+  await body.fill(beginning);
+  await expect.poll(async () => (await scrollingViewport(body)).height).toBeGreaterThan((await body.boundingBox())!.height);
+  const previousHeight = (await scrollingViewport(body)).height;
+  await body.press("End");
+  await page.keyboard.insertText(draft.slice(beginning.length));
+  await expect(body).toHaveValue(draft);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect.poll(async () => (await scrollingViewport(body)).height).toBeCloseTo(previousHeight, 0);
   expect((await body.boundingBox())!.height).toBeGreaterThan((await form.boundingBox())!.height);
-  await body.press("Home");
-  for (let row = 0; row < 40; row++) await body.press("ArrowUp");
-  await expect.poll(() => body.evaluate(node => (node as HTMLTextAreaElement).selectionStart)).toBe(0);
-  const observations = [];
-  for (let row = 0; row < 40; row++) {
-    if (row) await body.press("ArrowDown");
-    const caret = () => body.evaluate(node => {
+  const caret = () => body.evaluate(node => {
       const input = node as HTMLTextAreaElement, style = getComputedStyle(input), r = input.getBoundingClientRect();
       const scale = r.width / input.offsetWidth, line = input.value.slice(0, input.selectionStart).split("\n").length - 1;
       // The inline font box represents the caret/text line; line-height also contains leading.
@@ -2208,8 +2226,16 @@ test("#659 an input taller than the viewport keeps every line reachable by its k
       }
       return { line, top, bottom, clipTop, clipBottom, visible: top >= clipTop - 1 && bottom <= clipBottom + 1 };
     });
+  await expect.poll(async () => (await caret()).visible, { message: "growing past the viewport retains the current caret" }).toBe(true);
+  await body.press("Home");
+  for (let row = 0; row < 40; row++) await body.press("ArrowUp");
+  await expect.poll(() => body.evaluate(node => (node as HTMLTextAreaElement).selectionStart)).toBe(0);
+  const observations = [];
+  for (let row = 0; row < 40; row++) {
+    if (row) await body.press("ArrowDown");
     await expect.poll(async () => (await caret()).visible, { message: `keyboard caret exposes line ${row + 1}` }).toBe(true);
     const observed = await caret(); expect(observed.line).toBe(row); observations.push(observed);
+    await expect.poll(() => fullyExposed(form.getByRole("button", { name: "저장", exact: true })), { message: `save remains exposed while reading line ${row + 1}` }).toBe(true);
   }
   await info.attach("unbounded-caret-lines.json", { body: JSON.stringify(observations, null, 2), contentType: "application/json" });
   await page.screenshot({ path: info.outputPath("unbounded-last-line.png") });

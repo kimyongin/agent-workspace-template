@@ -125,13 +125,14 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
   const ref = useRef<HTMLElement>(host);
   const desktopSlot = useRef<HTMLDivElement>(null);
   const mobileSlot = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [mobileContent, setMobileContent] = useState<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLElement | null>(null); viewportRef.current = mobileContent;
   const bodyRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
-  const [scrollWholeSurface, setScrollWholeSurface] = useState(false);
-  const wholeSurface = useRef(false), transferredPosition = useRef<number | null>(null);
+  const [scrollMode, setScrollMode] = useState<"body" | "header" | "surface">("body");
+  const currentScrollMode = useRef(scrollMode), transferredPosition = useRef<number | null>(null);
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const discardDestination=useRef(onClose);
@@ -158,7 +159,7 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
   }, [active, dialogDocked, mobileContent]);
   const confirmationActive = active && (dialogDocked || (!!mobileContent && admittedMobileContent === mobileContent));
   const elements = useRef({ title: navigationTitle, body: bodyRef.current, heading: headingRef.current, footer: footerRef.current, active: false, modal: false, confirmation: false, ready });
-  useLayoutEffect(() => { elements.current = { title: navigationTitle, body: scrollWholeSurface ? host : bodyRef.current, heading: headingRef.current, footer: footerRef.current, active: open && active, modal: !dialogDocked, confirmation: false, ready }; });
+  useLayoutEffect(() => { elements.current = { title: navigationTitle, body: scrollMode === "surface" ? host : scrollMode === "header" ? contentRef.current : bodyRef.current, heading: headingRef.current, footer: footerRef.current, active: open && active, modal: !dialogDocked, confirmation: false, ready }; });
   useLayoutEffect(() => registerSurface(host, () => elements.current), [host, open, active]);
   const attach = useCallback((slot: HTMLDivElement | null) => {
     if (!slot) return;
@@ -168,18 +169,18 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
     if (focused?.isConnected) focused.focus({ preventScroll: true });
   }, [host]);
   useLayoutEffect(() => {
-    host.className = cn("flex h-full min-h-0 flex-col", scrollWholeSurface && "overflow-y-auto overscroll-contain");
+    host.className = cn("flex h-full min-h-0 flex-col", scrollMode === "surface" && "overflow-y-auto overscroll-contain");
     host.hidden = !active;
     if (dialogDocked) attach(desktopSlot.current); else attach(mobileSlot.current);
     if (transferredPosition.current !== null && bodyRef.current && host.clientHeight) {
-      const body = bodyRef.current, owner = scrollWholeSurface ? host : body;
+      const body = bodyRef.current, owner = scrollMode === "surface" ? host : scrollMode === "header" ? contentRef.current! : body;
       const scale = host.getBoundingClientRect().height / host.clientHeight;
       const position = (body.getBoundingClientRect().top - owner.getBoundingClientRect().top) / scale - body.scrollTop;
       owner.scrollTop += position - transferredPosition.current;
       transferredPosition.current = null;
     }
-  }, [host, attach, active, dialogDocked, scrollWholeSurface]);
-  // Retain the content point at the scroll viewport's top when releasing fixed chrome.
+  }, [host, attach, active, dialogDocked, scrollMode]);
+  // Release the header before the footer; long text needs a usable line, not its entire rectangle.
   useLayoutEffect(() => {
     const body = bodyRef.current;
     if (!active || !body) return;
@@ -187,18 +188,25 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
     const measure = () => {
       const height = host.getBoundingClientRect().height;
       if (!height || !host.clientHeight) return;
-      const scale = height / host.clientHeight, style = getComputedStyle(body);
+      const scale = height / host.clientHeight;
       const controls = [...body.querySelectorAll<HTMLElement>("[data-field-control]")].filter(control => control.getClientRects().length);
-      const minimumBody = Math.max(44 * scale, ...controls.map(control => control.getBoundingClientRect().height))
-        + (parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)) * scale;
-      const fixedHeight = (scrollHeaderWithBody ? 0 : heading?.getBoundingClientRect().height ?? 0)
-        + (footerRef.current?.getBoundingClientRect().height ?? 0);
-      const next = fixedHeight + minimumBody > height + 1;
-      if (next === wholeSurface.current) return;
-      const owner = wholeSurface.current ? host : body;
+      const fullBody = Math.max(44 * scale, ...controls.map(control => control.getBoundingClientRect().height));
+      const footerHeight = footerRef.current?.getBoundingClientRect().height ?? 0;
+      const withoutHeader = height - footerHeight;
+      const minimumBody = Math.max(44 * scale, ...controls.map(control => {
+        const controlHeight = control.getBoundingClientRect().height;
+        if (!(control instanceof HTMLTextAreaElement) || controlHeight <= withoutHeader + 1) return controlHeight;
+        const style = getComputedStyle(control);
+        return ((parseFloat(style.lineHeight) || parseFloat(style.fontSize)) + parseFloat(style.paddingTop)
+          + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)) * scale;
+      }));
+      const next = minimumBody > withoutHeader + 1 ? "surface"
+        : scrollHeaderWithBody || (heading?.getBoundingClientRect().height ?? 0) + fullBody > withoutHeader + 1 ? "header" : "body";
+      if (next === currentScrollMode.current) return;
+      const owner = currentScrollMode.current === "surface" ? host : currentScrollMode.current === "header" ? contentRef.current! : body;
       transferredPosition.current = (body.getBoundingClientRect().top - owner.getBoundingClientRect().top) / scale - body.scrollTop;
-      wholeSurface.current = next;
-      setScrollWholeSurface(next);
+      currentScrollMode.current = next;
+      setScrollMode(next);
     };
     const observer = new ResizeObserver(measure);
     for (const element of [host, heading, footerRef.current]) if (element) observer.observe(element);
@@ -284,11 +292,11 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
     </DialogHeader>;
   const body = <>{!dialogDocked && active && <WriteOutcomeNotice />}{children}</>;
   const contents = <>
-    {!scrollHeaderWithBody && header}
-    <div ref={bodyRef} role="region" aria-label="상세 내용" className={cn("min-h-0", scrollWholeSurface ? "shrink-0 overflow-visible" : "flex-1 overflow-y-auto overscroll-contain", !scrollHeaderWithBody && "px-4 pb-4")} aria-busy={!ready || undefined} tabIndex={0}>
-      {scrollHeaderWithBody && header}
-      {/* Keep the body mounted when an editor changes how its header scrolls. */}
-      <div className={scrollHeaderWithBody ? "px-4 pb-4" : "contents"}>{body}</div>
+    <div ref={contentRef} className={cn("flex min-h-0 flex-col", scrollMode === "surface" ? "shrink-0 overflow-visible" : "flex-1", scrollMode === "header" && "overflow-y-auto overscroll-contain")}>
+      {header}
+      <div ref={bodyRef} role="region" aria-label="상세 내용" className={cn("min-h-0 px-4 pb-4", scrollMode === "body" ? "flex-1 overflow-y-auto overscroll-contain" : "shrink-0 overflow-visible")} aria-busy={!ready || undefined} tabIndex={0}>
+        <div className="contents">{body}</div>
+      </div>
     </div>
     {footer && <DialogFooter ref={footerRef} className="m-0 shrink-0 rounded-none">{typeof footer === "function" ? footer(requestCancelEdit) : footer}</DialogFooter>}
   </>;
