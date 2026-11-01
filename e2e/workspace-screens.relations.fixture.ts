@@ -6,7 +6,7 @@ import { entityKey, fixtureSchema, fixtureType } from "./support/workspace-data.
 import { openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
-import { entity, id, stamp, task } from "./support/workspace-data.ts";
+import { entity, id, record, stamp, task } from "./support/workspace-data.ts";
 import { fixtures, form, go } from "./support/workspace-screens.ts";
 
 for (const width of [320, 390, 1440]) test(`#650 ${width}px 관계 후보의 동명 시료를 이동 없이 펼쳐 위치를 확인하고 조회 실패를 재시도한다`, async ({ page }, info) => {
@@ -79,6 +79,10 @@ for (const width of [320, 390, 1440]) test(`#650 ${width}px 관계 후보의 동
 for (const width of [320, 390, 1024]) {
   test(`자료 연결 목록 ${width}px: 본문 대표 문구·오른쪽 행동과 간결한 상세`, async ({ page }, info) => {
     const state = await fixtures(page), title = "memo-edd743a2-2a0c-455b-b3ad-312e05d47d4e 등록";
+    state.rows.records = [
+      { ...record(3), body: "상담 판단 정리", entity_id: entityKey(1), task_id: null, record_kind: "change" },
+      { ...record(30), body: title, entity_id: entityKey(1), task_id: null, record_kind: "change" },
+    ];
     Object.assign(state.rows.entities[0], {
       records: {
         count: 2,
@@ -142,6 +146,9 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
   }
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
   await expect(form(page).getByRole("link", { name: "전체 할 일 보기", exact: true })).toHaveCount(0);
+  await expect.poll(() => reads.filter(read => read.kind === "records").length).toBe(1);
+  // The material now reads its own history. Start the task-list probe after that read.
+  reads.length = 0;
   await go(page, `/tasks?entity_id=${encodeURIComponent(entityKey(1))}`);
   await openTabFilters(page);
   await expect(page.getByText("연결된 자료: 검사 자료: 자료", { exact: true })).toBeVisible();
