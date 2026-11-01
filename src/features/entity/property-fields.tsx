@@ -1,6 +1,7 @@
 import { DataFields } from "../../components/DataFields.tsx";
 import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select.tsx";
 import { Input } from "../../components/ui/input.tsx";
+import { Textarea } from "../../components/ui/textarea.tsx";
 import { DateInput } from "../../components/DateInput.tsx";
 import { fieldChoiceLabels, fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
@@ -97,6 +98,12 @@ export function displayedProperty(field: EntityField, value: unknown, labels: Re
   }
   return String(value);
 }
+/** Long prose gets the content width; short names and specialized values keep their reading axis. */
+export function longPropertyText(field: EntityField, value: unknown): boolean {
+  return fieldType(field) === "string" && !field["x-identifier"] && !field.format && !fieldChoices(field) &&
+    typeof value === "string" && (value.includes("\n") || codePointLength(value) > 120);
+}
+
 export function PropertyFields(
   { definition, values, initialValues, onChange, errors, disabled = false, identityLocked = false, generations = {}, onGenerate }: {
     disabled?: boolean;
@@ -129,11 +136,11 @@ export function PropertyFields(
         if (archived || field.readOnly || selected && identityLocked) {
           return (
             <DataFields key={key} className="col-span-full">
-              <div>
+              <div data-full-width={longPropertyText(field, value) || undefined}>
                 <dt>
                   {field.title ?? key} <span className="text-sm text-muted-foreground">· {archived ? "보관" : selected && identityLocked ? "자료 식별자" : "읽기 전용"}</span>
                 </dt>
-                <dd>
+                <dd className="whitespace-pre-wrap">
                   {displayedProperty(field, value, schemaPresentation(definition).option_labels[key], definition.identifier_kinds)}
                 </dd>
               </div>
@@ -144,6 +151,7 @@ export function PropertyFields(
           <Field
             key={key}
             label={field.title ?? key}
+            fullWidth={longPropertyText(field, value)}
             changed={initialValues !== undefined && initialValues[key] !== value}
             required={required}
             error={errors[`properties.${key}`]}
@@ -239,6 +247,18 @@ export function PropertyFields(
                       disabled={disabled}
                       value={typeof value === "string" ? value : ""}
                       onValueChange={(next) => set(key, next === "" ? nullable ? null : required ? "" : undefined : next)}
+                    />
+                  ) : fieldType(field) === "string" ? (
+                    <Textarea
+                      {...props}
+                      rows={1}
+                      className="min-h-11 max-h-[40dvh]"
+                      disabled={disabled}
+                      value={typeof value === "string" ? value : ""}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        set(key, next === "" ? nullable ? null : required ? "" : undefined : next);
+                      }}
                     />
                   ) : (
                     <Input

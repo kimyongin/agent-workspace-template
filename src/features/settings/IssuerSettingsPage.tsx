@@ -198,7 +198,7 @@ function IssuerSettingsPageContent() {
             key={issuer.code}
             label={issuer.label}
             open={selected === issuer.code}
-            summary={!issuer.active ? "사용 중지" : issuer.system ? "자동 생성" : undefined}
+            summary={!issuer.active ? "사용 중지" : issuer.system ? "자동 생성" : "사용 중"}
             disabled={locked}
             action={issuer.system ? undefined : selected !== issuer.code ? <span /> : (
               <Button variant="ghost" type="button"

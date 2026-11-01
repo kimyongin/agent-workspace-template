@@ -8,7 +8,7 @@ import type {
   WorkspaceMember,
 } from "@contracts/workspace.ts";
 import { useApi, useRequestScope } from "../../lib/api-context.tsx";
-import { useWorkspaceCapabilities } from "./workspace-context.tsx";
+import { useRefreshWorkspaceCapabilities, useWorkspaceCapabilities } from "./workspace-context.tsx";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { Button } from "../../components/ui/button.tsx";
 import {
@@ -147,6 +147,7 @@ export function WorkspaceManagementPage() {
   const api = useApi(),
     { workspaceId, actorId } = useRequestScope(),
     capability = useWorkspaceCapabilities(),
+    refreshCapabilities = useRefreshWorkspaceCapabilities(),
     navigate = useDeferredNavigation();
   const [now, setNow] = useState(Date.now);
   const [members, setMembers] = useState<WorkspaceMember[] | null>(null),
@@ -582,6 +583,7 @@ export function WorkspaceManagementPage() {
           targets={targets}
           onClose={() => setEdit(null)}
           onSaved={(value) => {
+            if (edit.kind === "member" && edit.member.user_id === actorId) refreshCapabilities?.();
             setEdit(null);
             setRevision((revision) => revision + 1);
             if (value) setDelivery(value);

@@ -8,6 +8,8 @@ import { Link } from "react-router";
 export const WorkspaceCapabilitiesContext = createContext<WorkspaceCapabilities | null>(null);
 export const useWorkspaceCapabilities = () => useContext(WorkspaceCapabilitiesContext);
 const WorkspaceLoadContext = createContext<{ error: string; retry: () => void } | null>(null);
+/** Refresh the shell's server snapshot after a confirmed membership change in this workspace. */
+export const useRefreshWorkspaceCapabilities = () => useContext(WorkspaceLoadContext)?.retry;
 /** One current capability snapshot is shared by the shell and its gated business content. */
 export function WorkspaceCapabilitiesProvider({ children }: { children: ReactNode }) {
   const api = useApi(), { actorId, workspaceId } = useRequestScope();

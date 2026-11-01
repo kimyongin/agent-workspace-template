@@ -51,16 +51,27 @@ function OrderIcon({ direction }: { direction: "up" | "down" }) {
 }
 
 function PropertyList(
-  { fields, current, onChange, errors }: {
+  { fields, current, onChange, errors, addedField }: {
     fields: Property[];
     current: Property[];
     onChange: (fields: Property[]) => void;
     errors: Record<string, string>;
+    addedField: string | null;
   },
 ) {
   const [advanced, setAdvanced] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<string[]>(["prop_2"]);
   const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!addedField) return;
+    setExpanded((values) => values.includes(addedField) ? values : [...values, addedField]);
+    const frame = requestAnimationFrame(() => {
+      const name = root.current?.querySelector<HTMLInputElement>(`#sample-${addedField}-body input`);
+      name?.focus();
+      name?.select();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [addedField]);
   const movement = useRef<{ id: string; direction: number } | null>(null);
   useLayoutEffect(() => {
     const moved = movement.current;
@@ -292,6 +303,7 @@ export function MaterialWorkspaceSample() {
     afterTitle: "$prop_1$",
   }]);
   const nextField = useRef(3), nextPlan = useRef(2);
+  const [addedField, setAddedField] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -305,8 +317,10 @@ export function MaterialWorkspaceSample() {
   const [typeName, setTypeName] = useState("상품"), [savedTypeName, setSavedTypeName] = useState("상품");
   const addField = () => {
     setPropertiesOpen(true);
+    const id = `prop_${nextField.current++}`;
+    setAddedField(id);
     setDraft([...draft, {
-      id: `prop_${nextField.current++}`,
+      id,
       label: "새 항목",
       type: "text",
       required: false,
@@ -438,6 +452,7 @@ export function MaterialWorkspaceSample() {
         <SchemaTitleTemplateSetting draft={propertyDefinition(draft, titleTemplate)} saved={propertyDefinition(current, currentTitle)} disabled={false} readOnly={false} onChange={setTitleTemplate} />
         <PropertyList
           fields={draft}
+          addedField={addedField}
           current={current}
           errors={errors}
           onChange={(fields) => {
@@ -445,6 +460,9 @@ export function MaterialWorkspaceSample() {
             setErrors({});
           }}
         />
+        <div className="flex justify-start">
+          <Button variant="ghost" type="button" onClick={addField}><PlusIcon data-icon="inline-start" />다음 항목 추가</Button>
+        </div>
         <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" type="button"  onClick={() => { setDraft(structuredClone(current)); setTitleTemplate(currentTitle); }}>변경 취소</Button>

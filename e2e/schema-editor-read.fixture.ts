@@ -49,6 +49,39 @@ async function initialNameInput(page: Page) {
   const details = await disclosureContent(page, row.getByRole("button", { name: / 입력 항목 편집$/ }));
   return details.getByLabel("항목 이름", { exact: true });
 }
+test("항목을 이어 추가할 때 새 이름에 초점을 두고 앞 항목의 초안과 펼침을 보존한다", async ({ page }) => {
+  let posted: { edits: SchemaEdit[] } | undefined;
+  await page.route(`**${base}`, (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { items: [] } });
+    posted = route.request().postDataJSON();
+    return route.fulfill({ status: 400, json: { code: "invalid_input", message: "제출 경계 확인" } });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await page.getByRole("button", { name: "항목 추가", exact: true }).click();
+  let added = page.getByRole("region", { name: "새 항목 입력 항목", exact: true });
+  await expect(added.getByRole("textbox", { name: "항목 이름", exact: true })).toBeFocused();
+  await added.getByRole("textbox", { name: "항목 이름", exact: true }).fill("점검 절차");
+  const procedure = page.getByRole("region", { name: "점검 절차 입력 항목", exact: true });
+  await procedure.getByRole("button", { name: "추가 설정", exact: true }).click();
+  await procedure.getByRole("textbox", { name: "최대 길이", exact: true }).fill("4096");
+  await page.getByRole("button", { name: "다음 항목 추가", exact: true }).press("Enter");
+  added = page.getByRole("region", { name: "새 항목 입력 항목", exact: true });
+  await expect(added.getByRole("textbox", { name: "항목 이름", exact: true })).toBeFocused();
+  await page.keyboard.type("합격 조건");
+  await expect(page.getByRole("textbox", { name: "항목 이름", exact: true }).last()).toHaveValue("합격 조건");
+  await expect(procedure.getByRole("textbox", { name: "최대 길이", exact: true })).toHaveValue("4096");
+  await expect(page.getByRole("button", { name: "점검 절차 항목 접기", exact: true })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await page.getByRole("button", { name: "변경 검토", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText("제출 경계 확인");
+  expect(JSON.stringify(posted)).toContain("점검 절차");
+  expect(JSON.stringify(posted)).toContain("합격 조건");
+  expect(JSON.stringify(posted)).toContain("4096");
+});
+
 function plan(id: string): EntitySchemaChange {
   const target = initialEntityDefinition(id === "a" ? "이전 이름" : "현재 이름");
   return {

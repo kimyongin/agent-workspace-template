@@ -8,6 +8,69 @@ async function choose(page: Page, name: string) {
   await page.getByRole("menuitem", { name, exact: true }).click();
 }
 
+test("본인 권한 저장을 서버에서 다시 읽어 새로고침 없이 업무 작성 진입을 갱신한다", async ({ page }) => {
+  await fixture(page);
+  let access: "read" | "write" = "read", version = 1, capabilityReads = 0, failRefresh = false;
+  const grants = () => [{ target_kind: "settings", target_id: "*", access: "write" }, {
+    target_kind: "entity_type",
+    target_id: fixtureType.id,
+    access,
+  }];
+  await page.route(`**/api/workspaces/${a}`, (route) => {
+    capabilityReads++;
+    if (failRefresh) {
+      return route.fulfill({ status: 503, json: { code: "unavailable", message: "권한 재조회 시험 실패" } });
+    }
+    return route.fulfill({
+      json: {
+        workspace: { id: a, name: "공간 A", deleted_at: null },
+        can_manage: true,
+        membership_version: version,
+        grants: grants(),
+      },
+    });
+  });
+  await page.route(
+    `**/api/workspaces/${a}/members`,
+    (route) =>
+      route.fulfill({ json: { items: [{ user_id: actor, display_name: "시험 담당자", version, grants: grants() }] } }),
+  );
+  await page.route(`**/api/workspaces/${a}/invitations`, (route) => route.fulfill({ json: { items: [] } }));
+  await page.route(`**/api/workspaces/${a}/members/${actor}`, (route) => {
+    const body = route.request().postDataJSON();
+    access = body.grants.find((grant: { target_kind: string }) => grant.target_kind === "entity_type").access;
+    if (access === "read") failRefresh = true;
+    version++;
+    return route.fulfill({ json: { user_id: actor, display_name: "시험 담당자", version, grants: grants() } });
+  });
+  await page.goto(`/w/${a}/manage`);
+  for (const next of ["읽기·쓰기", "읽기"]) {
+    await page.getByRole("button", { name: "권한 편집", exact: true }).click();
+    await page.getByRole("radiogroup", { name: fixtureType.label, exact: true }).getByRole("radio", {
+      name: next,
+      exact: true,
+    }).click();
+    const before = capabilityReads;
+    await page.getByRole("button", { name: "권한 저장", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "참여자 권한 편집", exact: true })).toHaveCount(0);
+    await expect.poll(() => capabilityReads).toBeGreaterThan(before);
+    if (next === "읽기") {
+      await expect(page.getByRole("alert")).toContainText("권한 재조회 시험 실패");
+      failRefresh = false;
+      await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+      await expect(page.getByRole("button", { name: "권한 편집", exact: true })).toBeVisible();
+    }
+    await openMainNavigation(page);
+    await page.getByRole("link", { name: fixtureType.label, exact: true }).click();
+    await expect(page.getByRole("heading", { name: fixtureType.label, level: 1, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: `${fixtureType.label} 추가`, exact: true })).toHaveCount(
+      next === "읽기·쓰기" ? 1 : 0,
+    );
+    await openMainNavigation(page);
+    await page.getByRole("link", { name: "이 공간 관리", exact: true }).click();
+  }
+});
+
 test("공간 목록 재조회는 선택 메뉴를 유지하고 같은 자리에서 다른 공간으로 이동한다", async ({ page }, info) => {
   await fixture(page);
   let reads = 0;

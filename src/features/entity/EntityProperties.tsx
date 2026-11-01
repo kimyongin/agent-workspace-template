@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import type { EntityValues } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 
-import { displayedProperty } from "./property-fields.tsx";
+import { displayedProperty, longPropertyText } from "./property-fields.tsx";
 import { Notice } from "../../components/Field.tsx";
 export function EntityProperties(
   { entity, onReadyChange, activeOnly = false }: {
@@ -58,7 +58,10 @@ export function EntityProperties(
       {schemaPresentation(definition).order.filter((key) =>
         !activeOnly || !definition.schema.properties[key].deprecated
       ).map((key) => (
-        <div key={key}>
+        <div
+          key={key}
+          data-full-width={longPropertyText(definition.schema.properties[key], entity.properties[key]) || undefined}
+        >
           <dt>
             {definition.schema.properties[key].title ?? key}
             {definition.schema["x-identity-property"] === key
@@ -69,7 +72,7 @@ export function EntityProperties(
               ? " · 읽기 전용"
               : ""}
           </dt>
-          <dd>
+          <dd className="whitespace-pre-wrap">
             {displayedProperty(
               definition.schema.properties[key],
               entity.properties[key],
