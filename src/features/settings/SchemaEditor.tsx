@@ -2,6 +2,7 @@ import { APP_IDENTIFIER_RULE_ID } from "@contracts/entity-issuer.ts";
 import { IdentifierFieldSettings } from "./IdentifierFieldSettings.tsx";
 import { IdentitySourceModal } from "./IdentitySourceModal.tsx";
 import { useIdentifierCatalog } from "./useIdentifierCatalog.ts";
+
 import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { isCivilDateInput } from "../../lib/civil-date-input.ts";
@@ -39,7 +40,7 @@ import { schemaPresentation } from "../../lib/schema-document.ts";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
-import { fieldTypeLabel, schemaChangeLabels, schemaDiffValueLabel } from "./schema-labels.ts";
+import { fieldTypeLabel, schemaChangeLabels, schemaDiffValueLabel, schemaIdentifierKinds } from "./schema-labels.ts";
 import { SchemaSearchTextSetting } from "./SchemaSearchTextSetting.tsx";
 import { SchemaTitleTemplateSetting } from "./SchemaTitleTemplateSetting.tsx";
 import { migrationActive, migrationLabels, SchemaMigrationJob, useMigrationHistory } from "./SchemaMigrationJobs.tsx";
@@ -78,6 +79,18 @@ const numericConditionNames: Record<string, string> = {
   multipleOf: "배수",
   default: "기본값",
 };
+function IdentifierNamesStatus({ catalog, context }: {
+  catalog: Pick<ReturnType<typeof useIdentifierCatalog>, "loading" | "error" | "reload">;
+  context: string;
+}) {
+  if (catalog.loading) return <Alert role="status"><AlertDescription>번호 출처·종류 이름을 읽는 중…</AlertDescription></Alert>;
+  if (!catalog.error) return null;
+  return <Alert variant="destructive" role="alert"><AlertDescription>
+    번호 출처·종류 이름을 읽지 못했습니다. {catalog.error} 표시된 이름은 마지막 조회 기준이며, 이름을 확인할 수 없는 종류는 ID로 표시합니다.
+    <Button variant="outline" type="button" aria-label={`${context}의 번호 이름 다시 조회`} onClick={catalog.reload}>번호 이름 다시 조회</Button>
+  </AlertDescription></Alert>;
+}
+
 export function SchemaEditor(
   {
     type,
@@ -119,7 +132,7 @@ export function SchemaEditor(
     historyInitiallyOpen?: boolean;
   },
 ) {
-  const { canWrite } = useSettingsAccess();
+  const { canRead, canWrite } = useSettingsAccess();
   disabled = disabled || !canWrite;
   jobDisabled = jobDisabled || !canWrite;
   const location = useLocation(), navigate = useNavigate();
@@ -130,7 +143,11 @@ export function SchemaEditor(
     {},
   );
   const [propertiesOpen, setPropertiesOpen] = useState(false);
-  const catalog = useIdentifierCatalog(propertiesOpen && canWrite);
+  const [historyOpen, setHistoryOpen] = useState(historyInitiallyOpen);
+  const catalog = useIdentifierCatalog((propertiesOpen || historyOpen) && canRead);
+  const identifierKinds = catalog.kinds.length
+    ? catalog.kinds.map((kind) => ({ id: kind.id, label: `${kind.source_label} · ${kind.label}` }))
+    : schemaIdentifierKinds(definition);
   const [addingKindFor, setAddingKindFor] = useState<string | null>(null);
   const [kindModalState, setKindModalState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const reportKindModal = useCallback((state: MaterialSectionState) => setKindModalState(state), []);
@@ -145,7 +162,6 @@ export function SchemaEditor(
       }),
     [onState, schemaEditState, kindModalState],
   );
-  const [historyOpen, setHistoryOpen] = useState(historyInitiallyOpen);
   const [reviewOpen, setReviewOpen] = useState(true);
   const [discardConfirm, setDiscardConfirm] = useState(false);
   const [openFields, setOpenFields] = useState<string[]>([]);
@@ -420,7 +436,8 @@ export function SchemaEditor(
             hidden={!propertiesOpen}
             className="flex min-w-0 flex-col gap-4 @max-[16rem]/material-section:px-0.5"
           >
-            {propertiesOpen && !canWrite && <SchemaDefinitionRead definition={definition} />}
+            <IdentifierNamesStatus catalog={catalog} context="입력 항목" />
+            {propertiesOpen && !canWrite && <SchemaDefinitionRead definition={definition} identifierKinds={identifierKinds} />}
             <div hidden={!propertiesOpen || !canWrite} className="min-w-0">
               <FieldSet
                 id="schema-property-inputs"
@@ -460,14 +477,6 @@ export function SchemaEditor(
                   readOnly={!canWrite}
                   onChange={editor.editTitleTemplate}
                 />
-                {catalog.error && (
-                  <Alert variant="destructive" role="alert">
-                    <AlertDescription>
-                      식별자 종류를 읽지 못했습니다. {catalog.error}{" "}
-                      <Button variant="outline" type="button" onClick={catalog.reload}>다시 조회</Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
                 <CollectionList view="table" label="입력 항목 목록" columns={["입력 항목", "설정", "순서"]}>
                   {fieldOrder.map((key) => {
                     const removed = removedFields.find((field) => field.key === key);
@@ -1144,6 +1153,7 @@ export function SchemaEditor(
         open={historyOpen}
         onOpenChange={setHistoryOpen}
       >
+        <IdentifierNamesStatus catalog={catalog} context="변경 이력" />
         <SchemaExport definition={definition} current />
         <div className="flex min-w-0 flex-col gap-4">
           <CollectionList view="table" label="입력 항목 변경 이력" columns={["변경", "시각", "상태"]}>
@@ -1278,7 +1288,7 @@ export function SchemaEditor(
                         />
                       )}
                       {!row.version && plan && plan.id === row.changeId &&
-                        !transforming && <SchemaDefinitionRead definition={plan.target} />}
+                        !transforming && <SchemaDefinitionRead definition={plan.target} identifierKinds={identifierKinds} />}
                       {!row.version && jobs.selectedChange &&
                         jobs.selectedChange.id === row.changeId &&
                         (plan?.id !== row.changeId || transforming) &&
@@ -1286,6 +1296,7 @@ export function SchemaEditor(
                           <SchemaChangeRead
                             change={jobs.selectedChange}
                             definition={definition}
+                            identifierKinds={identifierKinds}
                           />
                         )}
                       {row.jobs.length > 0 && (
@@ -1417,6 +1428,7 @@ export function SchemaEditor(
                           <SchemaChangeDiff
                             change={plan}
                             definition={definition}
+                            identifierKinds={identifierKinds}
                           />
                           {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
                             <Alert role="status">

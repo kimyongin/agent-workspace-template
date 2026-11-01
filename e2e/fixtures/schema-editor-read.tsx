@@ -5,7 +5,11 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Link, useLocation, useNavigate } from "react-router";
 import { SchemaEditor } from "../../src/features/settings/SchemaEditor.tsx";
 import { useSchemaChangeEditor } from "../../src/features/settings/schema-change-editor.ts";
-import { type EntityType, initialEntityDefinition } from "../../supabase/functions/_shared/contracts/entity-type.ts";
+import {
+  type EntitySchemaVersion,
+  type EntityType,
+  initialEntityDefinition,
+} from "../../supabase/functions/_shared/contracts/entity-type.ts";
 import type { EntitySchemaMigration } from "../../supabase/functions/_shared/contracts/entity-schema-migration.ts";
 import "../../src/styles/app.css";
 const noJobs: EntitySchemaMigration[] = [];
@@ -19,12 +23,36 @@ const type: EntityType = {
   created_at: "2026-10-12T00:00:00Z",
   updated_at: "2026-10-12T00:00:00Z",
 };
-const definition = {
+const definition: EntitySchemaVersion = {
   ...initialEntityDefinition("이름", { id: type.id, title: type.label, icon: type.icon_id }),
   type_id: type.id,
   schema_version: 1,
   created_at: type.created_at,
 };
+if (new URLSearchParams(location.search).has("identifier-review")) {
+  definition.identifier_kinds = [
+    {
+      id: "00000000-0000-4000-8000-000000000001",
+      source: "app",
+      source_label: "앱",
+      label: "자동 발급",
+      active: true,
+      generation: "automatic",
+      version: 1,
+      source_version: 1,
+    },
+    ...["A", "B"].map((source, index) => ({
+      id: `10000000-0000-4000-8000-00000000000${index + 1}`,
+      source: `market${source}`,
+      source_label: `마켓${source}`,
+      label: "상품 번호",
+      active: true,
+      generation: "direct" as const,
+      version: 1,
+      source_version: 1,
+    })),
+  ];
+}
 if (new URLSearchParams(location.search).has("display-example")) {
   definition.schema.properties.prop_4 = { ...definition.schema.properties.prop_2, "x-order": 40 };
   definition.schema["x-identity-property"] = "prop_4";
@@ -35,8 +63,6 @@ if (new URLSearchParams(location.search).has("display-example")) {
     prop_2: { "x-order": 20, type: "number", title: "수량" },
     prop_3: { "x-order": 30, type: "string", title: "단위", oneOf: [{ const: "kg" }, { const: "g" }] },
   });
-
-
 
   definition.schema.properties.prop_3.oneOf = Object.entries({ kg: "킬로그램", g: "그램" }).map(([value, title]) => ({
     const: value,
@@ -122,19 +148,21 @@ function ReviewActionsFixture() {
 const onState = () => {};
 const onApplied = async () => "";
 createRoot(document.getElementById("root")!).render(
-  <FixtureWorkspace actorId="fixture-actor"><BrowserRouter>
-    <nav aria-label="Fixture navigation">
-      <Link to="?change_id=a">변경안 A</Link>
-      <Link to="?change_id=b">변경안 B</Link>
-    </nav>
-    {new URLSearchParams(location.search).has("action-probe")
-      ? <ReviewActionsFixture />
-      : new URLSearchParams(location.search).has("empty-inputs")
-      ? <EmptyInputsFixture />
-      : (
-        <div>
-          <SchemaEditor type={type} definition={definition} onState={onState} onApplied={onApplied} />
-        </div>
-      )}
-  </BrowserRouter></FixtureWorkspace>,
+  <FixtureWorkspace actorId="fixture-actor" settingsAccess={new URLSearchParams(location.search).has("identifier-reader") ? "read" : "write"}>
+    <BrowserRouter>
+      <nav aria-label="Fixture navigation">
+        <Link to="?change_id=a">변경안 A</Link>
+        <Link to="?change_id=b">변경안 B</Link>
+      </nav>
+      {new URLSearchParams(location.search).has("action-probe")
+        ? <ReviewActionsFixture />
+        : new URLSearchParams(location.search).has("empty-inputs")
+        ? <EmptyInputsFixture />
+        : (
+          <div>
+            <SchemaEditor type={type} definition={definition} onState={onState} onApplied={onApplied} />
+          </div>
+        )}
+    </BrowserRouter>
+  </FixtureWorkspace>,
 );

@@ -2,7 +2,7 @@ import { APP_IDENTIFIER_RULE_ID } from "../supabase/functions/_shared/contracts/
 import { encodeIdentifierValue } from "../supabase/functions/_shared/contracts/entity-identifiers.ts";
 import { fulfillFixtureWorkspace } from "./support/workspace-scope.ts";
 import { fixtureWorkspaceId, fixtureWorkspacePath } from "./support/workspace-scope.ts";
-import { businessRows, disclosureContent, valueCell } from "./table-actions.ts";
+import { businessRows, disclosureContent } from "./table-actions.ts";
 import { openMainNavigation } from "./ui-actions.ts";
 import { chooseEntityType } from "./ui-actions.ts";
 import { detailDialog, executionDialog } from "./ui-actions.ts";
@@ -214,6 +214,7 @@ test("invalid and archived type URLs never widen or offer creation", async ({ pa
   });
   await page.goto(fixtureWorkspacePath("/entities?entity_type_id=invalid"));
   await expect(page.getByRole("alert")).toContainText("자료 종류를 찾을 수 없습니다");
+  await expect(page.getByRole("heading", { name: "찾을 수 없는 자료 종류", exact: true, level: 1 })).toBeVisible();
   expect(listRequests).toHaveLength(0);
   await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${retired.id}`));
   await expect(page.getByText("보관된 자료 종류입니다.", { exact: false })).toBeVisible();
@@ -443,6 +444,23 @@ test("type catalog failure and all archived types have distinct recovery paths",
   await expect(page.getByRole("button", { name: "자료 추가", exact: true })).toHaveCount(0);
 });
 
+test("typed catalog failure keeps the selected scope and recovers its heading on retry", async ({ page }, info) => {
+  let failing = true;
+  await page.route("**/api/entity-types{,?**}", (route) => failing
+    ? route.abort()
+    : route.fulfill({ json: { items: [materials, products], next_cursor: null } }));
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${materials.id}&keyword=필터유지`));
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("자료 종류를 불러오지 못했습니다");
+  await expect(page.getByRole("heading", { name: "자료 종류를 확인할 수 없습니다", exact: true, level: 1 })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("catalog-heading-failure.png") });
+  await expect(page.getByRole("heading", { name: "찾을 수 없는 자료 종류", exact: true })).toHaveCount(0);
+  failing = false;
+  await page.getByRole("button", { name: "종류 다시 시도", exact: true }).click();
+  await expect(page.getByRole("heading", { name: materials.label, exact: true, level: 1 })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("entity_type_id")).toBe(materials.id);
+  expect(new URL(page.url()).searchParams.get("keyword")).toBe("필터유지");
+});
+
 test("save blocks duplicate submission and Back until typed detail is ready", async ({ page }) => {
   let release!: () => void, started!: () => void, writes = 0;
   const hold = new Promise<void>((resolve) => {
@@ -537,7 +555,7 @@ test("clean settings navigation proceeds while initial record templates are stil
   }
 });
 
-test("type selection remains scoped while a returned list catalog is loading", async ({ page }) => {
+test("type selection remains scoped while a returned list catalog is loading", async ({ page }, info) => {
   const requestedTypes: (string | null)[] = [];
   const writes: string[] = [];
   page.on("request", request => {
@@ -592,9 +610,13 @@ test("type selection remains scoped while a returned list catalog is loading", a
     await expect(page.getByLabel("자료 종류", { exact: true })).toBeDisabled();
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveAttribute("aria-busy", "true");
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue("자료 종류를 불러오는 중…");
+    await expect(page.getByRole("heading", { name: "자료 종류를 확인하는 중…", exact: true, level: 1 })).toBeVisible();
+    await page.screenshot({ path: info.outputPath("catalog-heading-pending.png") });
+    await expect(page.getByRole("heading", { name: "찾을 수 없는 자료 종류", exact: true })).toHaveCount(0);
     await expect(page.locator("main").getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
     release();
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.label);
+    await expect(page.getByRole("heading", { name: materials.label, exact: true, level: 1 })).toBeVisible();
     await expect(page.getByLabel("자료 종류", { exact: true })).toHaveAttribute("aria-busy", "false");
     await expect.poll(() => requestedTypes.length).toBeGreaterThan(0);
     expect(requestedTypes.every(type => type === materials.id)).toBe(true);
@@ -651,7 +673,9 @@ test("definition history reads beyond the first hundred versions and opens the i
   const definition = oldestContent.getByRole("region", { name: "입력 항목 정의", exact: true });
   await expect(definition.getByRole("term").filter({ hasText: /^종류 이름$/ }).locator("..").getByRole("definition")).toHaveText("최초 이름");
   const field = definition.getByRole("row", { name: "최초 이름 정의", exact: true });
-  await expect((await valueCell(field, "필수 입력")).getByText("예", { exact: true })).toBeVisible();
+  const requiredValue = field.getByRole("term").filter({ hasText: /^필수 입력$/ }).locator("..").getByRole("definition");
+  await expect(requiredValue).toHaveText("예");
+  await expect(requiredValue).toBeVisible();
   await expect(definition.locator("input,select,textarea")).toHaveCount(0);
   await expect(oldestContent.getByRole("region", { name: "변경 결과", exact: true }).getByRole("term").filter({ hasText: /^버전$/ }).locator("..").getByRole("definition")).toHaveText("1 · 최초 생성");
   expect(readVersions).toContain(101);
@@ -684,8 +708,14 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
     return route.fulfill({ json: { items: [], next_before: null } });
   });
   await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}`));
-  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-  await page.getByRole("button", { name: /^정확한 수량 항목 (?:펼치기|접기)$/, exact: true }).click();
+  await expect(page.getByText("3개 항목", { exact: true })).toBeVisible();
+  const properties = page.getByRole("button", { name: "입력 항목", exact: true });
+  await expect(properties).toHaveAttribute("aria-expanded", "false");
+  await properties.click();
+  await expect(properties).toHaveAttribute("aria-expanded", "true");
+  const fieldToggle = page.getByRole("button", { name: "정확한 수량 항목 펼치기", exact: true });
+  await expect(fieldToggle).toHaveAttribute("aria-expanded", "false");
+  await fieldToggle.click();
   const section = page.getByRole("region", { name: "정확한 수량 입력 항목", exact: true });
   await section.getByText("추가 설정", { exact: true }).click();
   const input = section.getByLabel("최소값", { exact: true });

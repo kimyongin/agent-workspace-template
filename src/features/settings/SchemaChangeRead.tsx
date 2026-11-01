@@ -1,18 +1,25 @@
 import { DataFields } from "@/components/DataFields";
-import { BusinessTable, BusinessRow, BusinessCell } from "../../components/BusinessTable.tsx";
+import { BusinessCell, BusinessRow, BusinessTable } from "../../components/BusinessTable.tsx";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import type { EntitySchemaVersion } from "@contracts/entity-type.ts";
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
-import { schemaDiffLabel, schemaDiffValueLabel, schemaEntityLabel } from "./schema-labels.ts";
+import {
+  type IdentifierKindLabel,
+  schemaDiffLabel,
+  schemaDiffValueLabel,
+  schemaEntityLabel,
+  schemaIdentifierKinds,
+} from "./schema-labels.ts";
 
 export function SchemaChangeDiff(
-  { change, definition }: {
+  { change, definition, identifierKinds = schemaIdentifierKinds(definition) }: {
     change: EntitySchemaChange;
     definition: EntitySchemaVersion;
+    identifierKinds?: ReadonlyArray<IdentifierKindLabel>;
   },
 ) {
   const source = definition.schema_version === change.source_schema_version ? definition : {
@@ -20,14 +27,14 @@ export function SchemaChangeDiff(
     schema: { ...definition.schema, properties: {} },
   };
   return (
-<BusinessTable label="변경안 차이 목록" columns={["설정", "변경 전후"]} disclosureColumn={false}>
+    <BusinessTable label="변경안 차이 목록" columns={["설정", "변경 전후"]} disclosureColumn={false}>
       {change.diff.map((d, i) => (
         <BusinessRow key={i}>
           <BusinessCell index={0}>{schemaDiffLabel(d.path, change.target, definition)}</BusinessCell>
           <BusinessCell index={1}>
-            {d.before_present ? schemaDiffValueLabel(d.path, d.before, source) : "설정 안 함"}
+            {d.before_present ? schemaDiffValueLabel(d.path, d.before, source, identifierKinds) : "설정 안 함"}
             {" → "}
-            {d.after_present ? schemaDiffValueLabel(d.path, d.after, change.target) : "설정 안 함"}
+            {d.after_present ? schemaDiffValueLabel(d.path, d.after, change.target, identifierKinds) : "설정 안 함"}
             {d.kind === "migration_required" && <span className="text-sm text-muted-foreground">· 값 변환 필요</span>}
           </BusinessCell>
         </BusinessRow>
@@ -37,14 +44,15 @@ export function SchemaChangeDiff(
 }
 /** A job visit reads its proposal without adopting it as the user's input draft. */
 export function SchemaChangeRead(
-  { change, definition }: {
+  { change, definition, identifierKinds = schemaIdentifierKinds(definition) }: {
     change: EntitySchemaChange;
     definition: EntitySchemaVersion;
+    identifierKinds?: ReadonlyArray<IdentifierKindLabel>;
   },
 ) {
   return (
     <section className="min-w-0" aria-label="변환 작업의 변경 내용">
-      <SchemaDefinitionRead definition={change.target} />
+      <SchemaDefinitionRead definition={change.target} identifierKinds={identifierKinds} />
       <h3 className="text-base font-semibold">변경 결과</h3>
       <DataFields>
         <div>
@@ -52,46 +60,57 @@ export function SchemaChangeRead(
           <dd>{change.source_schema_version} → {change.source_schema_version + 1}</dd>
         </div>
       </DataFields>
-      <SchemaChangeDiff change={change} definition={definition} />
+      <SchemaChangeDiff change={change} definition={definition} identifierKinds={identifierKinds} />
       {change.analysis && (
         <Collapsible>
-          <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left">검토 결과</Button></CollapsibleTrigger><CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
-          <DataFields>
-            <div>
-              <dt>확인한 자료</dt>
-              <dd>{change.analysis.processed}/{change.analysis.total}개</dd>
-            </div>
-            <div>
-              <dt>문제</dt>
-              <dd>{change.analysis.failed}개</dd>
-            </div>
-          </DataFields>
-          <DataFields>
-            <div>
-              <dt>변경</dt>
-              <dd>{change.analysis.changed}개</dd>
-            </div>
-            <div>
-              <dt>무변경</dt>
-              <dd>{change.analysis.unchanged}개</dd>
-            </div>
-            <div>
-              <dt>값 제거</dt>
-              <dd>{change.analysis.removed}개</dd>
-            </div>
-            <div>
-              <dt>값 보완</dt>
-              <dd>{change.analysis.replacements}개</dd>
-            </div>
-          </DataFields>
-          {change.analysis.failure_reason && <p className="text-sm text-destructive">{change.analysis.failure_reason}</p>}
-          <SchemaAnalysisErrors change={change} definition={definition} />
-        </CollapsibleContent></Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto min-h-[max(2.75rem,44px)] w-full justify-start whitespace-normal text-left"
+            >
+              검토 결과
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent forceMount className="min-w-0 pt-3 data-[state=closed]:hidden">
+            <DataFields>
+              <div>
+                <dt>확인한 자료</dt>
+                <dd>{change.analysis.processed}/{change.analysis.total}개</dd>
+              </div>
+              <div>
+                <dt>문제</dt>
+                <dd>{change.analysis.failed}개</dd>
+              </div>
+            </DataFields>
+            <DataFields>
+              <div>
+                <dt>변경</dt>
+                <dd>{change.analysis.changed}개</dd>
+              </div>
+              <div>
+                <dt>무변경</dt>
+                <dd>{change.analysis.unchanged}개</dd>
+              </div>
+              <div>
+                <dt>값 제거</dt>
+                <dd>{change.analysis.removed}개</dd>
+              </div>
+              <div>
+                <dt>값 보완</dt>
+                <dd>{change.analysis.replacements}개</dd>
+              </div>
+            </DataFields>
+            {change.analysis.failure_reason && (
+              <p className="text-sm text-destructive">{change.analysis.failure_reason}</p>
+            )}
+            <SchemaAnalysisErrors change={change} definition={definition} />
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </section>
   );
 }
-
 
 /** Both current review and historical jobs show the same complete per-material problems. */
 export function SchemaAnalysisErrors({ change, definition }: {
@@ -99,16 +118,22 @@ export function SchemaAnalysisErrors({ change, definition }: {
   definition: EntitySchemaVersion;
 }) {
   if (!change.analysis?.errors.length) return null;
-  return <BusinessTable label="자료별 검토 문제" columns={["자료", "검토 문제"]} disclosureColumn={false}>
-    {change.analysis.errors.map(result => <BusinessRow key={result.entity_id}>
-      <BusinessCell index={0}>{schemaEntityLabel(result.entity_id)}</BusinessCell>
-      <BusinessCell index={1}>
-        <ul role="list" className="flex min-w-0 flex-col gap-2 wrap-anywhere">
-          {result.fields.map((field, index) => <li key={index}>
-            {schemaDiffLabel(field.path, change.target, definition)}: {field.message}
-          </li>)}
-        </ul>
-      </BusinessCell>
-    </BusinessRow>)}
-  </BusinessTable>;
+  return (
+    <BusinessTable label="자료별 검토 문제" columns={["자료", "검토 문제"]} disclosureColumn={false}>
+      {change.analysis.errors.map((result) => (
+        <BusinessRow key={result.entity_id}>
+          <BusinessCell index={0}>{schemaEntityLabel(result.entity_id)}</BusinessCell>
+          <BusinessCell index={1}>
+            <ul role="list" className="flex min-w-0 flex-col gap-2 wrap-anywhere">
+              {result.fields.map((field, index) => (
+                <li key={index}>
+                  {schemaDiffLabel(field.path, change.target, definition)}: {field.message}
+                </li>
+              ))}
+            </ul>
+          </BusinessCell>
+        </BusinessRow>
+      ))}
+    </BusinessTable>
+  );
 }

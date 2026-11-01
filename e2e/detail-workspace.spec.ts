@@ -23,6 +23,117 @@ async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<s
 }
 const workspaceGroup = (page: Page) => baseWorkspace(page).locator("xpath=ancestor::*[@data-slot='resizable-panel-group'][1]");
 const panel = (page: Page) => page.getByRole("tabpanel").filter({ visible: true });
+test("occurrence reactivation preserves a scrolled parent while the refresh is pending", async ({ page }) => {
+  const state = await fixture(page);
+  await page.clock.setFixedTime(new Date("2026-11-01T03:00:00Z"));
+  Object.assign(state.rows.tasks[0], { kind: "recurring", title: "매일 재고 점검", status: "active", recurrence: { freq: "daily", starts_on: "2026-10-01" }, timezone: "Asia/Seoul" });
+  Object.assign(state.rows.records[0], { body: "점검 결과", occurrence_on: "2026-11-01" });
+  let hold = false, release!: () => void, arrived!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const waiting = new Promise<void>(resolve => { arrived = resolve; });
+  await page.route(/\/api\/tasks\/[^/]+\/occurrences\?/, async route => {
+    if (hold) { arrived(); await held; }
+    const url = new URL(route.request().url()), from = url.searchParams.get("from")!, to = url.searchParams.get("to")!;
+    const items = [];
+    for (let value = new Date(from + "T00:00:00Z"); value.toISOString().slice(0, 10) <= to; value.setUTCDate(value.getUTCDate() + 1)) {
+      const date = value.toISOString().slice(0, 10);
+      const ids = state.rows.records.filter(record => record.task_id === id(2) && record.occurrence_on === date).map(record => record.id);
+      items.push({ date, status: ids.length ? "done" : date > "2026-11-01" ? "upcoming" : date === "2026-11-01" ? "due" : "missed", record_ids: ids, in_rule: true });
+    }
+    await route.fulfill({ json: { today: "2026-11-01", items } });
+  });
+  try {
+    await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
+    await detailDialog(page).getByRole("link", { name: "점검 결과 상세", exact: true }).click();
+    await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "매일 재고 점검", exact: true }).click();
+    const occurrences = () => detailDialog(page).getByRole("region", { name: "회차", exact: true });
+    await expect(occurrences().getByRole("table")).toBeVisible();
+    await expect(occurrences().getByRole("status")).toHaveCount(0);
+    const scroll = () => detailDialog(page).getByRole("region", { name: "상세 내용", exact: true });
+    const position = await scroll().evaluate(element => { element.scrollTop = element.scrollHeight - element.clientHeight - 200; return element.scrollTop; });
+    expect(position).toBeGreaterThan(500);
+    const anchor = await scroll().evaluate(element => {
+      const bounds = element.getBoundingClientRect();
+      const row = [...element.querySelectorAll('table[aria-label="반복 할 일 회차 목록"] tr')].find(row => {
+        const box = row.getBoundingClientRect();
+        return box.top > bounds.top + 50 && box.bottom < bounds.bottom - 50;
+      })!;
+      return { date: row.querySelector("td")!.textContent!.trim().slice(0, 10), top: row.getBoundingClientRect().top - bounds.top };
+    });
+    const anchorTop = () => occurrences().getByRole("row").filter({ hasText: anchor.date }).evaluate(element =>
+      element.getBoundingClientRect().top - element.closest('[aria-label="상세 내용"]')!.getBoundingClientRect().top);
+    await page.getByRole("tab", { name: "점검 결과", exact: true }).click();
+    await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
+    await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+    await detailDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+    hold = true;
+    await executionDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+    await waiting;
+    await expect(occurrences().getByRole("status")).toHaveText("불러오는 중…");
+    await expect(occurrences().getByRole("button", { name: "2026-11-01 회차 기록", exact: true })).toBeDisabled();
+    await expect.poll(async () => Math.abs(await anchorTop() - anchor.top)).toBeLessThan(2);
+    release();
+    await expect(occurrences().getByRole("status")).toHaveCount(0);
+    await expect(occurrences().getByRole("button", { name: "2026-11-01 회차 기록", exact: true })).toBeEnabled();
+    await expect.poll(async () => Math.abs(await anchorTop() - anchor.top)).toBeLessThan(2);
+    expect(state.errors).toEqual([]);
+  } finally { release(); }
+});
+for (const width of [1440, 390]) test(`deleted occurrence refreshes the retained selected period at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.clock.setFixedTime(new Date("2026-11-01T03:00:00Z"));
+  const state = await fixture(page);
+  Object.assign(state.rows.tasks[0], { kind: "recurring", title: "주간 점검", status: "active", recurrence: { freq: "weekly", weekdays: [7], starts_on: "2026-10-01" }, timezone: "Asia/Seoul" });
+  Object.assign(state.rows.records[0], { body: "주간 점검 결과", occurrence_on: "2026-10-11" });
+  const windows: string[] = [];
+  await page.route(/\/api\/tasks\/[^/]+\/occurrences\?/, route => {
+    const url = new URL(route.request().url()), from = url.searchParams.get("from")!, to = url.searchParams.get("to")!;
+    windows.push(`${from}/${to}`);
+    const ids = state.rows.records.filter(record => record.task_id === id(2) && record.occurrence_on === "2026-10-11").map(record => record.id);
+    return route.fulfill({ json: { today: "2026-11-01", items: from <= "2026-10-11" && to >= "2026-10-11" ? [{ date: "2026-10-11", status: ids.length ? "done" : "missed", record_ids: ids, in_rule: true }] : [] } });
+  });
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
+  await expect(detailDialog(page).getByRole("heading", { name: "주간 점검", exact: true })).toBeVisible();
+  await page.setViewportSize({ width, height: 900 });
+  await detailDialog(page).getByRole("button", { name: "이전 기간", exact: true }).click();
+  const row = () => detailDialog(page).getByRole("table", { name: "반복 할 일 회차 목록", exact: true }).getByRole("row").filter({ hasText: "2026-10-11" });
+  await expect(row()).toContainText("기록 1개");
+  const selectedWindow = windows.at(-1);
+  await detailDialog(page).getByRole("link", { name: "주간 점검 결과 상세", exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await detailDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: "주간 점검", exact: true })).toBeVisible();
+  await expect(row()).toContainText("기록 없음");
+  expect(windows.at(-1)).toBe(selectedWindow);
+  expect(state.rows.tasks[0].status).toBe("active");
+  expect(state.errors).toEqual([]);
+});
+test("long detail tab titles fit their group and select beside a later tab", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const state = await fixture(page);
+  const title = "O01 수납함 2개와 조명 1개 포장 완료. 정정: 조명은 품절 안내 동봉 후 별도 출고 대기한다.";
+  state.rows.entities.push(entity(200, { prop_1: title }));
+  await page.goto(fixtureWorkspacePath("/entities"));
+  await openEntity(page, title);
+  await openEntity(page, "버섯");
+  const tab = page.getByRole("tab", { name: title, exact: true });
+  const bounds = await tab.evaluate(element => {
+    const trigger = element.getBoundingClientRect(), group = element.parentElement!.getBoundingClientRect();
+    return { right: trigger.right, groupRight: group.right };
+  });
+  expect(bounds.right).toBeLessThanOrEqual(bounds.groupRight + 1);
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+  await expect(tab).toHaveAttribute("title", title);
+  await tab.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "버섯", exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.screenshot({ path: info.outputPath("long-tab-fits.png") });
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+});
 /** Compare settled surface geometry without suppressing the official entrance animation. */
 async function settleSurface(surface: Locator) {
   await expect.poll(() => surface.evaluate(element => element.getAnimations({ subtree: true })

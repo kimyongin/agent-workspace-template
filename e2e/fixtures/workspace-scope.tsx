@@ -11,7 +11,7 @@ import {
 import { fixtureWorkspaceId } from "../support/workspace-scope.ts";
 export { fixtureWorkspaceId } from "../support/workspace-scope.ts";
 export function FixtureWorkspace(
-  { children, actorId }: { children: ReactNode; actorId?: string },
+  { children, actorId, settingsAccess = "write" }: { children: ReactNode; actorId?: string; settingsAccess?: "read" | "write" },
 ) {
   const existing = useContext(AuthContext);
   const actor = existing.session?.user.id ?? actorId;
@@ -43,7 +43,7 @@ export function FixtureWorkspace(
       <ApiSessionContext.Provider value={readSession}>
         <WorkspaceRouteContext.Provider value={fixtureWorkspaceId}>
           <WorkspacePathPrefixContext.Provider value={false}>
-            <WorkspaceCapabilitiesContext.Provider value={{ workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null }, grants: [{ target_kind: "settings", target_id: "*", access: "write" }], can_manage: true, membership_version: 1 }}>{children}</WorkspaceCapabilitiesContext.Provider>
+            <WorkspaceCapabilitiesContext.Provider value={{ workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null }, grants: [{ target_kind: "settings", target_id: "*", access: settingsAccess }], can_manage: true, membership_version: 1 }}>{children}</WorkspaceCapabilitiesContext.Provider>
           </WorkspacePathPrefixContext.Provider>
         </WorkspaceRouteContext.Provider>
       </ApiSessionContext.Provider>

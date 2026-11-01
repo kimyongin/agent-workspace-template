@@ -113,8 +113,10 @@ export function EntitiesPage() {
     }
   };
   const { types, error: typeError, retry: retryTypes } = useEntityTypes();
+  const unresolvedTypeLabel = typeError ? "자료 종류를 확인할 수 없습니다"
+    : types === null ? "자료 종류를 확인하는 중…" : "찾을 수 없는 자료 종류";
   const selectedType = types?.find((type) => type.id === filter.entity_type_id),
-    label = selectedType?.label ?? (filter.entity_type_id ? "찾을 수 없는 자료 종류" : "전체 자료");
+    label = selectedType?.label ?? (filter.entity_type_id ? unresolvedTypeLabel : "전체 자료");
   const [schema, setSchema] = useState<EntitySchemaResult | null>(null),
     [schemaReadError, setSchemaReadError] = useState(false),
     [schemaRetry, setSchemaRetry] = useState(0);

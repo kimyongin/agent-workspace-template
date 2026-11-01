@@ -13,7 +13,8 @@ import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { DetailTabContext } from "../details/workspace-context.ts";
 import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
@@ -41,6 +42,7 @@ function requestedDialog(params: URLSearchParams): Dialog {
 export function TaskDetailPage() {
   const api = useApi();
   const { canRead, canWrite } = useTaskAccess();
+  const tabActive = useContext(DetailTabContext)?.active ?? true;
   const location = useLocation();
   const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
@@ -144,7 +146,14 @@ export function TaskDetailPage() {
     const to = period?.to ?? end ?? addDays(todayIn(t.timezone ?? "UTC"), 7);
     const from = period?.from ?? addDays(to, -20);
     const owner = { api, task: t, end, period: { from, to } };
-    setOccurrenceRead({ ...owner, value: null, loading: true, error: null });
+    setOccurrenceRead(previous => ({
+      ...owner,
+      value: previous?.api === api && previous.task === t && previous.end === end &&
+          previous.period.from === from && previous.period.to === to
+        ? previous.value : null,
+      loading: true,
+      error: null,
+    }));
     try {
       // 할 일 시간대의 오늘 기준 앞 13일과 뒤 7일. 이전 기간으로 옮길 수 있다.
       const res = await api<{ today: string; items: Occurrence[] }>(
@@ -168,9 +177,9 @@ export function TaskDetailPage() {
   }, [api]);
 
   useEffect(() => {
-    if (task?.kind === "recurring") loadOccurrences(task, rangeEnd);
+    if (canRead && tabActive && task?.kind === "recurring") loadOccurrences(task, rangeEnd);
     return () => occurrenceRequest.current?.abort();
-  }, [task, rangeEnd, loadOccurrences]);
+  }, [task, rangeEnd, loadOccurrences, tabActive, canRead]);
 
   const run = async (action: () => Promise<void>, done: string) => {
     setBusy(true);
@@ -310,6 +319,7 @@ export function TaskDetailPage() {
                       type="button"
                       onClick={() => manage("occurrence", o.date)}
                       aria-label={`${o.date} 회차 기록`}
+                      disabled={occurrencesLoading}
                     >
                       기록
                     </Button>

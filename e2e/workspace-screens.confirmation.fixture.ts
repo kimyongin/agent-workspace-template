@@ -351,7 +351,7 @@ test("#181 수행 결과는 바로 저장하고 삭제 확인에 새 변경 메�
   await expect(form(page).getByLabel("기록 메모")).toHaveCount(0);
   await expect(form(page).getByRole("group", { name: "기록 태그", exact: true })).toHaveCount(0);
   await expect(openDialogs(page)).toHaveCount(2);
-  await form(page).getByRole("button", { name: "삭제하고 기록", exact: true }).click();
+  await form(page).getByRole("button", { name: "삭제", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(2);
   expect(state.writes[1].params.has("change_note")).toBe(false);
   expect(state.errors).toEqual([]);
@@ -443,7 +443,8 @@ for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const
     const before = state.writes.length;
     await form(page).getByRole("button", { name: "삭제", exact: true }).click();
     const confirm = executionDialog(page);
-    await expect(confirm.getByRole("button", { name: "삭제하고 기록", exact: true })).toBeVisible();
+    const deleteLabel = kind === "records" ? "삭제" : "삭제하고 기록";
+    await expect(confirm.getByRole("button", { name: deleteLabel, exact: true })).toBeVisible();
     await expect(openDialogs(page)).toHaveCount(2);
     expect(state.writes).toHaveLength(before);
     await expect(form(page).getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
@@ -452,7 +453,7 @@ for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const
     await expect(form(page).getByRole("button", { name: "삭제", exact: true })).toBeFocused();
     expect(state.writes).toHaveLength(before);
     await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-    await form(page).getByRole("button", { name: "삭제하고 기록", exact: true }).click();
+    await form(page).getByRole("button", { name: deleteLabel, exact: true }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe(`/${kind}`);
     expect(state.writes).toHaveLength(before + 1);
     expect(state.errors).toEqual([]);

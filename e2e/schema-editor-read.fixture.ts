@@ -4,6 +4,46 @@ import { expect, test, type Page } from "@playwright/test";
 import type { EntitySchemaChange, SchemaEdit } from "../supabase/functions/_shared/contracts/entity-schema-change.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 const base = "/api/entity-types/00000000-0000-4000-8000-000000000001/schema-changes";
+test("read-only identifier history distinguishes registry failure from a missing reference and retries", async ({ page }) => {
+  const current = plan("b"), kind = "10000000-0000-4000-8000-000000000001";
+  const before = current.target.schema.properties.prop_2["x-identifier"]!;
+  const after = { allowed_kind_ids: [kind], default_kind_id: kind };
+  current.target.schema.properties.prop_2["x-identifier"] = after;
+  current.diff = [{ path: "properties.prop_2.x-identifier", before, after, before_present: true, after_present: true, kind: "compatible" }];
+  let fail = true;
+  await page.route(`**${base}/b`, route => route.fulfill({ json: current }));
+  await page.route("**/api/entity-issuers", route => fail
+    ? route.fulfill({ status: 503, json: { code: "unavailable", message: "번호 이름 조회 시험 실패" } })
+    : route.fulfill({ json: { items: [{ code: "marketA", label: "마켓A", active: true, version: 1 }] } }));
+  await page.route("**/api/entity-issuers/marketA/rules", route => route.fulfill({ json: { items: [{ id: kind, source: "marketA", label: "상품 번호", active: true, generation: "direct", version: 1 }] } }));
+  await page.goto("/e2e/fixtures/schema-editor-read.html?identifier-reader&change_id=b");
+  const history = page.getByRole("region", { name: "변경 이력", exact: true });
+  await expect(history).toContainText("번호 출처·종류 이름을 읽지 못했습니다.");
+  await expect(history).toContainText(`이름 확인 불가 (${kind})`);
+  fail = false;
+  await history.getByRole("button", { name: "변경 이력의 번호 이름 다시 조회", exact: true }).click();
+  await expect(history.getByRole("table", { name: "변경안 차이 목록", exact: true })).toContainText("허용: 마켓A · 상품 번호 · 기본: 마켓A · 상품 번호");
+  await expect(history).not.toContainText(`이름 확인 불가 (${kind})`);
+  await expect(history).not.toContainText("번호 출처·종류 이름을 읽지 못했습니다.");
+});
+test("identifier review uses source-qualified names through the actual editor caller", async ({ page }, testInfo) => {
+  const current = plan("b");
+  const before = current.target.schema.properties.prop_2["x-identifier"]!;
+  const after = { allowed_kind_ids: ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002"], default_kind_id: "10000000-0000-4000-8000-000000000002" };
+  current.target.schema.properties.prop_2["x-identifier"] = after;
+  current.diff = [{ path: "properties.prop_2.x-identifier", before, after, before_present: true, after_present: true, kind: "compatible" }];
+  await page.route(`**${base}/b`, route => route.fulfill({ json: current }));
+  await page.goto("/e2e/fixtures/schema-editor-read.html?identifier-review&change_id=b");
+  const diff = page.getByRole("table", { name: "변경안 차이 목록", exact: true });
+  await expect(diff).toContainText("허용: 앱 · 자동 발급 · 기본: 앱 · 자동 발급");
+  await expect(diff).toContainText("허용: 마켓A · 상품 번호, 마켓B · 상품 번호 · 기본: 마켓B · 상품 번호");
+  const definition = page.getByRole("region", { name: "입력 항목 정의", exact: true });
+  await expect(definition).toContainText("마켓B · 상품 번호");
+  await expect(definition.getByRole("row", { name: "현재 이름 정의", exact: true })).not.toContainText("허용 식별자 종류");
+  await expect(page.getByRole("link", { name: "이 변경안 직접 링크" })).toHaveAttribute("href", /change_id=b/);
+  await diff.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("identifier-review.png"), fullPage: true });
+});
 async function initialNameInput(page: Page) {
   const row = businessRows(page.getByRole("table", { name: "입력 항목 목록", exact: true })).first();
   const details = await disclosureContent(page, row.getByRole("button", { name: / 입력 항목 편집$/ }));

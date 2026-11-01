@@ -1,17 +1,21 @@
 import { expect, it } from "vitest";
+import { Window } from "happy-dom";
 import { renderToStaticMarkup } from "react-dom/server";
 import { initialEntityDefinition } from "@contracts/entity-type.ts";
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { SchemaChangeDiff } from "./SchemaChangeRead.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 
-/** Read the native column association, independently of desktop/mobile cell decoration. */
+/** Read labels within each field independently of responsive cell decoration. */
 function definitionValue(html: string, field: string, column: string) {
-  const heading = html.match(new RegExp(`<th\\b[^>]*id="([^"]+)"[^>]*>${column}</th>`));
-  expect(heading, column).not.toBeNull();
-  const row = html.split(/<tr\b/).find(part => part.includes(`aria-label="${field} 정의"`));
-  expect(row, field).toBeDefined();
-  return row!.match(new RegExp(`<td\\b[^>]*headers="${heading![1]}"[^>]*>(.*?)</td>`))?.[1];
+  const document = new Window().document;
+  document.body.innerHTML = html;
+  const row = document.querySelector(`[aria-label="${field} 정의"]`)!;
+  expect(row, field).not.toBeNull();
+  if (column === "항목 이름") return row.querySelector("td")?.textContent;
+  const label = [...row.querySelectorAll("dt")].find((node) => node.textContent === column);
+  expect(label, column).toBeDefined();
+  return label?.nextElementSibling?.textContent;
 }
 
 it("역사 입력 항목은 이름을 키와 결합해 한 번 읽고 0·거짓 기본값을 보존한다", () => {
@@ -19,10 +23,10 @@ it("역사 입력 항목은 이름을 키와 결합해 한 번 읽고 0·거짓 
   definition.schema.properties.prop_2 = { type: "number", title: "과거 가격", "x-order": 20, minimum: 0, default: 0 };
   definition.schema.properties.prop_3 = { type: "boolean", title: "과거 판매 여부", "x-order": 30, default: false };
   const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
-  expect(definitionValue(html, "과거 가격", "항목 이름")).toContain(">과거 가격</div>");
+  expect(definitionValue(html, "과거 가격", "항목 이름")).toContain("과거 가격");
   expect(html.match(/>과거 가격</g)).toHaveLength(1);
-  expect(definitionValue(html, "과거 가격", "최소값")).toContain(">0</div>");
-  expect(definitionValue(html, "과거 판매 여부", "생성 기본값")).toContain(">아니오</div>");
+  expect(definitionValue(html, "과거 가격", "최소값")).toContain("0");
+  expect(definitionValue(html, "과거 판매 여부", "생성 기본값")).toContain("아니오");
 });
 
 it("reads a saved definition using option labels without exposing storage codes", () => {
@@ -103,12 +107,14 @@ it("saved definition keeps the null branch title for defaults choices and exampl
     examples: [null, "null"],
   };
   const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
-  expect(definitionValue(html, "진행 상태", "생성 기본값")).toContain(">미정</div>");
+  expect(definitionValue(html, "진행 상태", "생성 기본값")).toContain("미정");
   expect(html).toContain("진행, 미정, 문자 코드");
   expect(html).toContain("미정, 문자 코드");
   expect(html).not.toContain("비워 두기");
   definition.schema.properties.prop_2.default = "null";
-  expect(definitionValue(renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />), "진행 상태", "생성 기본값")).toContain(">문자 코드</div>");
+  expect(
+    definitionValue(renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />), "진행 상태", "생성 기본값"),
+  ).toContain("문자 코드");
 });
 
 it("saved definitions show selected search text and unselected fields independently", () => {
@@ -116,6 +122,6 @@ it("saved definitions show selected search text and unselected fields independen
   definition.schema.properties.prop_1["x-search-text"] = true;
   definition.schema.properties.prop_2 = { type: "string", title: "비공개 메모", "x-order": 20 };
   const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
-  expect(definitionValue(html, "이름", "검색에 사용")).toContain(">예</div>");
-  expect(definitionValue(html, "비공개 메모", "검색에 사용")).toContain(">아니요</div>");
+  expect(definitionValue(html, "이름", "검색에 사용")).toContain("예");
+  expect(definitionValue(html, "비공개 메모", "검색에 사용")).toContain("아니요");
 });

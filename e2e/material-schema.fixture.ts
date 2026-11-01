@@ -1491,8 +1491,11 @@ test(
     ).toContainText("아니오");
     await expect(definition.getByRole("row", { name: "단위 정의", exact: true })).toContainText("킬로그램");
     await expect(definition.getByRole("row", { name: "단위 정의", exact: true })).toContainText("그램");
-    await expect((await valueCell(definition.getByRole("row", { name: "재고 정의", exact: true }), "사용 상태")).getByText("사용 중", { exact: true })).toBeVisible();
-    await expect((await valueCell(definition.getByRole("row", { name: "단위 정의", exact: true }), "사용 상태")).getByText("사용 중지", { exact: true })).toBeVisible();
+    for (const [name, state] of [["재고", "사용 중"], ["단위", "사용 중지"]]) {
+      const row = definition.getByRole("row", { name: `${name} 정의`, exact: true });
+      const setting = row.getByRole("term").filter({ hasText: /^사용 상태$/ }).locator("..");
+      await expect(setting.getByRole("definition")).toHaveText(state);
+    }
     await expect(definition).not.toContainText("(kg)");
     await expect(definition).not.toContainText("(g)");
     for (const heading of await definition.getByRole("heading").all()) await expect(heading).toBeVisible();

@@ -85,7 +85,7 @@ function FormContents({title, description, scrollHeaderWithBody, domain, open, v
       const action = kind === "delete" ? "삭제" : current.mutation?.action ?? "저장";
       return {
         title: `${action}하시겠습니까?`,
-        label: kind === "delete" ? "삭제하고 기록" : `${action}하고 저장`,
+        label: kind === "delete" ? current.deletion?.note === false ? "삭제" : "삭제하고 기록" : `${action}하고 저장`,
         defaultNote: `${current.mutation?.target ?? title} ${kind === "delete" ? "삭제" : current.mutation?.action ?? "수정"}`,
         preparation: kind === "delete" ? current.deletion?.preparation : current.preparation,
         onPrepared:current.onPrepared,
