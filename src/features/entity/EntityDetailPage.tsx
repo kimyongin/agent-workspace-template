@@ -3,7 +3,6 @@ import { useTaskAccess } from "../activity/task-access.ts";
 import { useEntityReadAccess, useEntityWriteAccess } from "./entity-access.ts";
 import { useApi } from "../../lib/api-context.tsx";
 import { Button } from "../../components/ui/button.tsx";
-import { recordDisplayText } from "@contracts/record-display.ts";
 import { CreateRelatedEntityForm } from "./CreateRelatedEntityForm.tsx";
 import { EntityTypedRelations } from "./EntityTypedRelations.tsx";
 import { detailModeLink } from "../../lib/entity-list-url.ts";
@@ -13,8 +12,8 @@ import { CollectionItem, CollectionList  } from "../../components/Collection.tsx
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
 import type { EntityContext } from "@contracts/entity-links.ts";
-import { RelatedEmpty, RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
-import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
+import { RelatedEmpty, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedRecords } from "../activity/RelatedRecords.tsx";
 import { RelatedTaskItem } from "../activity/RelatedTask.tsx";
 import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
@@ -162,25 +161,7 @@ export function EntityDetailPage() {
           navigate(detailModeLink(location.pathname, p, location.hash));
         }}
       />
-      {([["records", "기록"]] as const).map(([kind, label]) => (
-        <RelatedSection
-          key={kind}
-          title={label}
-          count={entity[kind].count}
-
-        >
-          {entity[kind].count === 0 && <RelatedEmpty title="연결된 기록이 없습니다." description="이 자료의 변경 내역이 이곳에 쌓입니다." />}
-          {entity[kind].count > 0 && (
-            <CollectionList columns={["본문 대표 문구"]}>
-              {entity[kind].items.map((item) => (
-                <CollectionItem key={item.id}>
-                  <RelatedRecordItem record={item} />
-                </CollectionItem>
-              ))}
-            </CollectionList>
-          )}
-        </RelatedSection>
-      ))}
+      <RelatedRecords entityId={entity.id} revision={entity.version} />
     </div>
   );
   return (
@@ -252,16 +233,7 @@ export function EntityDetailPage() {
                       ))}
                     </CollectionList>)}
                   </RelatedSection>
-                  <RelatedSection title="기록" count={entity.records.count}>
-                    {entity.records.count === 0 && <RelatedEmpty title="연결된 기록이 없습니다." description="이 자료의 변경 내역이 이곳에 쌓입니다." />}
-                    {entity.records.items.length > 0 && (<CollectionList columns={["본문 대표 문구"]}>
-                      {entity.records.items.map((item) => (
-                        <CollectionItem key={item.id}>
-                          <RelatedRecordItem record={item} />
-                        </CollectionItem>
-                      ))}
-                    </CollectionList>)}
-                  </RelatedSection>
+                  <RelatedRecords readOnly entityId={entity.id} revision={entity.version} />
                 </>
               )}
               {entity.deleted_at && <p className="text-sm text-muted-foreground">삭제됨</p>}
@@ -312,16 +284,7 @@ export function EntityDetailPage() {
                   <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
                     <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />
                     <EntityTaskRelations entity={entity} read={taskRead} readOnly />
-                    <RelatedSection title="기록" count={entity.records.count} views={false}>
-                      {entity.records.count === 0 && <RelatedEmpty title="연결된 기록이 없습니다." description="이 자료의 변경 내역이 이곳에 쌓입니다." />}
-                      {entity.records.items.length > 0 && (<CollectionList columns={["본문 대표 문구"]}>
-                        {entity.records.items.map((item) => (
-                          <CollectionItem key={item.id}>
-                            <RelatedItem title={recordDisplayText(item.body)} />
-                          </CollectionItem>
-                        ))}
-                      </CollectionList>)}
-                    </RelatedSection>
+                    <RelatedRecords readOnly entityId={entity.id} revision={entity.version} />
                   </div>
                 }
                 deletion={!canWrite || entity.deleted_at ? undefined : {

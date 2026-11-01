@@ -147,6 +147,8 @@ export function RecordDetailPage() {
                 <p>
                   이 기록을 삭제합니다. {record.record_kind === "change"
                     ? "대상의 업무 상태는 되돌리지 않습니다."
+                    : record.occurrence_on
+                    ? "반복 할 일의 설정과 상태는 바뀌지 않습니다. 같은 회차에 다른 기록이 남아 있으면 기록한 회차로 표시됩니다."
                     : "일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
                 </p>
               ),

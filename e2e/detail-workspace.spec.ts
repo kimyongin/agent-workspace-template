@@ -23,6 +23,86 @@ async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<s
 }
 const workspaceGroup = (page: Page) => baseWorkspace(page).locator("xpath=ancestor::*[@data-slot='resizable-panel-group'][1]");
 const panel = (page: Page) => page.getByRole("tabpanel").filter({ visible: true });
+for (const width of [1440, 390]) test(`#655 ${width}px entity history continues past five records and refreshes after deletion`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  const state = await fixture(page, { pageSize: 20 });
+  const history = Array.from({ length: 21 }, (_, index) => ({ ...record(1000 + index), body: `시료 변경 근거 ${index + 1}`,
+    record_kind: "change" as const, entity_id: entityKey(1), task_id: null }));
+  state.rows.records = [...history, { ...record(1100), body: "다른 자료의 기록", entity_id: entityKey(6), task_id: null }];
+  state.rows.entities[0].records = { count: 21, items: history.slice(0, 5) };
+  let fail = true;
+  const retried: string[] = [];
+  await page.route(/\/api\/records\?.*cursor=/, route => {
+    retried.push(new URL(route.request().url()).searchParams.get("cursor")!);
+    if (fail) { fail = false; return route.fulfill({ status: 503, json: { code: "unavailable", message: "다시 시도하세요." } }); }
+    return route.fallback();
+  });
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+  const records = () => detailDialog(page).getByRole("region", { name: /^기록 \(/ });
+  await expect(records().getByRole("link", { name: "시료 변경 근거 20 상세", exact: true })).toBeVisible();
+  await records().getByRole("button", { name: "기록 더 보기", exact: true }).click();
+  await expect(records()).toContainText("연결된 기록을 불러오지 못했습니다.");
+  await records().getByRole("button", { name: "기록 다시 시도", exact: true }).click();
+  await expect(records().getByRole("link", { name: "시료 변경 근거 21 상세", exact: true })).toBeVisible();
+  expect(retried).toEqual(["20", "20"]);
+  await expect(records()).not.toContainText("다른 자료의 기록");
+  await records().getByRole("link", { name: "시료 변경 근거 21 상세", exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await detailDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+  await expect(records()).not.toContainText("시료 변경 근거 21");
+  await expect(records().getByRole("heading", { name: "기록 (20개)", exact: true })).toBeVisible();
+  state.rows.records.unshift({ ...record(1200), body: "편집 중 새 변경 기록", record_kind: "change", entity_id: entityKey(1), task_id: null });
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await detailDialog(page).getByRole("textbox", { name: "제목 (필수)", exact: true }).fill("보존할 자료 초안");
+  const editUrl = page.url();
+  await records().getByRole("button", { name: "기록 더 보기", exact: true }).click();
+  await expect(records()).toContainText("시료 변경 근거 20");
+  await expect(detailDialog(page).getByRole("textbox", { name: "제목 (필수)", exact: true })).toHaveValue("보존할 자료 초안");
+  await expect(page).toHaveURL(editUrl);
+  expect(state.rows.entities[0].properties.prop_1).toBe("등심");
+  expect(state.errors).toEqual([]);
+});
+for (const width of [1440, 390]) test(`#654 ${width}px occurrence feedback follows creation, cancellation and deletion`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.clock.setFixedTime(new Date("2026-11-01T03:00:00Z"));
+  const state = await fixture(page);
+  Object.assign(state.rows.tasks[0], { kind: "recurring", title: "주간 시료 점검", status: "active",
+    recurrence: { freq: "weekly", weekdays: [7], starts_on: "2026-11-01" }, timezone: "Asia/Seoul" });
+  state.rows.records = state.rows.records.filter(record => record.task_id !== id(2));
+  await page.route(/\/api\/tasks\/[^/]+\/occurrences\?/, route => {
+    const ids = state.rows.records.filter(record => record.task_id === id(2) && record.occurrence_on === "2026-11-01").map(record => record.id);
+    return route.fulfill({ json: { today: "2026-11-01", items: [{ date: "2026-11-01", status: ids.length ? "done" : "due", record_ids: ids, in_rule: true }] } });
+  });
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
+  const create = async (body: string) => {
+    await detailDialog(page).getByRole("button", { name: "2026-11-01 회차 기록", exact: true }).click();
+    await detailDialog(page).getByRole("textbox", { name: "본문 (필수)", exact: true }).fill(body);
+    await detailDialog(page).getByRole("button", { name: "기록 저장", exact: true }).click();
+    await expect(detailDialog(page)).toContainText("2026-11-01 회차에 기록했습니다.");
+  };
+  await create("냉장 A-01 시료 확인");
+  await detailDialog(page).getByRole("link", { name: "냉장 A-01 시료 확인 상세", exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await detailDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+  await expect(executionDialog(page)).toContainText("반복 할 일의 설정과 상태는 바뀌지 않습니다.");
+  await expect(executionDialog(page)).toContainText("같은 회차에 다른 기록이 남아 있으면 기록한 회차로 표시됩니다.");
+  await settleSurface(executionDialog(page));
+  await page.screenshot({ path: info.outputPath("occurrence-delete-explanation.png"), fullPage: true });
+  await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
+  expect(state.rows.records.filter(record => record.task_id === id(2))).toHaveLength(1);
+  await detailDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: "주간 시료 점검", exact: true })).toBeVisible();
+  await expect(detailDialog(page)).not.toContainText("2026-11-01 회차에 기록했습니다.");
+  await expect(detailDialog(page).getByRole("table", { name: "반복 할 일 회차 목록", exact: true })).toContainText("기록 없음");
+  await create("냉장 A-01 재확인");
+  expect(state.rows.tasks[0].status).toBe("active");
+  expect(state.rows.records.filter(record => record.task_id === id(2))).toHaveLength(1);
+  expect(state.errors).toEqual([]);
+});
 for (const width of [1440, 390]) test(`#652 ${width}px retained entity reactivation refreshes current source and kind names without changing identity`, async ({ page }, info) => {
   await page.setViewportSize({ width, height: 900 });
   const state = await fixture(page);

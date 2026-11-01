@@ -63,6 +63,9 @@ export function TaskDetailPage() {
   const navigateAfterClose = useDeferredNavigation();
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!tabActive) setMessage(null);
+  }, [tabActive]);
   const relationSaved = useRef(false);
   const directEdit = params.get("edit") === "1";
   const [dialog, setDialog] = useState<Dialog>(requestedDialog(params));
