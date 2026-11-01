@@ -148,7 +148,7 @@ function ReviewActionsFixture() {
 const onState = () => {};
 const onApplied = async () => "";
 createRoot(document.getElementById("root")!).render(
-  <FixtureWorkspace actorId="fixture-actor">
+  <FixtureWorkspace actorId="fixture-actor" settingsAccess={new URLSearchParams(location.search).has("identifier-reader") ? "read" : "write"}>
     <BrowserRouter>
       <nav aria-label="Fixture navigation">
         <Link to="?change_id=a">변경안 A</Link>

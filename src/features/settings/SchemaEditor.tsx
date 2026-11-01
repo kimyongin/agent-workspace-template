@@ -2,6 +2,7 @@ import { APP_IDENTIFIER_RULE_ID } from "@contracts/entity-issuer.ts";
 import { IdentifierFieldSettings } from "./IdentifierFieldSettings.tsx";
 import { IdentitySourceModal } from "./IdentitySourceModal.tsx";
 import { useIdentifierCatalog } from "./useIdentifierCatalog.ts";
+
 import { DataFields } from "@/components/DataFields";
 import { useSettingsAccess } from "./workspace-settings-access.tsx";
 import { isCivilDateInput } from "../../lib/civil-date-input.ts";
@@ -78,6 +79,18 @@ const numericConditionNames: Record<string, string> = {
   multipleOf: "배수",
   default: "기본값",
 };
+function IdentifierNamesStatus({ catalog, context }: {
+  catalog: Pick<ReturnType<typeof useIdentifierCatalog>, "loading" | "error" | "reload">;
+  context: string;
+}) {
+  if (catalog.loading) return <Alert role="status"><AlertDescription>번호 출처·종류 이름을 읽는 중…</AlertDescription></Alert>;
+  if (!catalog.error) return null;
+  return <Alert variant="destructive" role="alert"><AlertDescription>
+    번호 출처·종류 이름을 읽지 못했습니다. {catalog.error} 표시된 이름은 마지막 조회 기준이며, 이름을 확인할 수 없는 종류는 ID로 표시합니다.
+    <Button variant="outline" type="button" aria-label={`${context}의 번호 이름 다시 조회`} onClick={catalog.reload}>번호 이름 다시 조회</Button>
+  </AlertDescription></Alert>;
+}
+
 export function SchemaEditor(
   {
     type,
@@ -119,7 +132,7 @@ export function SchemaEditor(
     historyInitiallyOpen?: boolean;
   },
 ) {
-  const { canWrite } = useSettingsAccess();
+  const { canRead, canWrite } = useSettingsAccess();
   disabled = disabled || !canWrite;
   jobDisabled = jobDisabled || !canWrite;
   const location = useLocation(), navigate = useNavigate();
@@ -131,7 +144,7 @@ export function SchemaEditor(
   );
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(historyInitiallyOpen);
-  const catalog = useIdentifierCatalog((propertiesOpen || historyOpen) && canWrite);
+  const catalog = useIdentifierCatalog((propertiesOpen || historyOpen) && canRead);
   const identifierKinds = catalog.kinds.length
     ? catalog.kinds.map((kind) => ({ id: kind.id, label: `${kind.source_label} · ${kind.label}` }))
     : schemaIdentifierKinds(definition);
@@ -423,6 +436,7 @@ export function SchemaEditor(
             hidden={!propertiesOpen}
             className="flex min-w-0 flex-col gap-4 @max-[16rem]/material-section:px-0.5"
           >
+            <IdentifierNamesStatus catalog={catalog} context="입력 항목" />
             {propertiesOpen && !canWrite && <SchemaDefinitionRead definition={definition} identifierKinds={identifierKinds} />}
             <div hidden={!propertiesOpen || !canWrite} className="min-w-0">
               <FieldSet
@@ -463,14 +477,6 @@ export function SchemaEditor(
                   readOnly={!canWrite}
                   onChange={editor.editTitleTemplate}
                 />
-                {catalog.error && (
-                  <Alert variant="destructive" role="alert">
-                    <AlertDescription>
-                      식별자 종류를 읽지 못했습니다. {catalog.error}{" "}
-                      <Button variant="outline" type="button" onClick={catalog.reload}>다시 조회</Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
                 <CollectionList view="table" label="입력 항목 목록" columns={["입력 항목", "설정", "순서"]}>
                   {fieldOrder.map((key) => {
                     const removed = removedFields.find((field) => field.key === key);
@@ -1147,6 +1153,7 @@ export function SchemaEditor(
         open={historyOpen}
         onOpenChange={setHistoryOpen}
       >
+        <IdentifierNamesStatus catalog={catalog} context="변경 이력" />
         <SchemaExport definition={definition} current />
         <div className="flex min-w-0 flex-col gap-4">
           <CollectionList view="table" label="입력 항목 변경 이력" columns={["변경", "시각", "상태"]}>

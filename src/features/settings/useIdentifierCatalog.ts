@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { EntityIssuer, IdentifierKindMetadata, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { useIssuerRegistry } from "./issuer-registry-api.ts";
-import { writeErrorMessage } from "../../lib/write-attempt.ts";
 /** Full registry access is used only inside the settings-authorized schema editor. */
 export function useIdentifierCatalog(enabled: boolean) {
   const registry = useIssuerRegistry();
@@ -29,7 +28,7 @@ export function useIdentifierCatalog(enabled: boolean) {
       }
     }).catch((error) => {
       if (!controller.signal.aborted) {
-        setState((previous) => ({ ...previous, loading: false, error: writeErrorMessage(error) }));
+        setState((previous) => ({ ...previous, loading: false, error: error instanceof Error ? error.message : "번호 이름 조회 실패" }));
       }
     });
     return () => controller.abort();
