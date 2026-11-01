@@ -105,7 +105,7 @@ export function longPropertyText(field: EntityField, value: unknown): boolean {
 }
 
 export function PropertyFields(
-  { definition, values, initialValues, onChange, errors, disabled = false, identityLocked = false, generations = {}, onGenerate }: {
+  { definition, values, initialValues, storedValues, onChange, errors, disabled = false, identityLocked = false, generations = {}, onGenerate }: {
     disabled?: boolean;
     definition: Pick<EntitySchemaVersion, "schema" | "identifier_kinds">;
     identityLocked?: boolean;
@@ -113,6 +113,7 @@ export function PropertyFields(
     onGenerate?: (key: string, kind: string | undefined) => void;
     values: PropertyDraft;
     initialValues?: PropertyDraft;
+    storedValues?: EntityProperties;
     onChange: (values: PropertyDraft) => void;
     errors: Record<string, string>;
   },
@@ -147,6 +148,8 @@ export function PropertyFields(
             </DataFields>
           );
         }
+        const emptyScalar = nullable && !field["x-identifier"] && !fieldChoices(field) &&
+          fieldType(field) !== "boolean" && (value === undefined || value === null || value === "");
         return (
           <Field
             key={key}
@@ -154,6 +157,20 @@ export function PropertyFields(
             fullWidth={longPropertyText(field, value)}
             changed={initialValues !== undefined && initialValues[key] !== value}
             required={required}
+            labelAction={emptyScalar ? ({ id }) => <>
+              {value === null && <span className="text-sm text-muted-foreground">값 없음</span>}
+              {(value !== null || storedValues?.[key] === undefined) && <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+                aria-label={`${field.title ?? key} ${value === null ? "미입력으로 되돌리기" : "값 없음 지정"}`}
+                onClick={() => {
+                  if (value !== null && storedValues?.[key] !== undefined) document.getElementById(id)?.focus();
+                  set(key, value === null ? undefined : null);
+                }}
+              >{value === null ? "되돌리기" : "값 없음 지정"}</Button>}
+            </> : undefined}
             error={errors[`properties.${key}`]}
           >
             {(props) => (

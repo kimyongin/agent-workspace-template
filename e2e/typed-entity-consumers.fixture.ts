@@ -282,6 +282,151 @@ test(
   },
 );
 
+test("empty nullable scalar fields choose no value directly, undo omission and preserve drafts through confirmation", async ({ page }) => {
+  const definition = structuredClone(fixtureSchema);
+  definition.schema.properties.prop_2 = { "x-order": 20, type: ["number", "null"], title: "측정값" };
+  definition.schema.properties.prop_3 = { "x-order": 30, type: ["string", "null"], title: "실행일", format: "date" };
+  definition.schema.properties.prop_6 = { "x-order": 60, type: ["string", "null"], title: "메모" };
+  definition.schema.properties.prop_7 = { "x-order": 70, type: ["number", "null"], title: "기준값", default: 0 };
+  definition.schema.properties.prop_8 = { "x-order": 80, type: "boolean", title: "확정 여부", default: false };
+  definition.schema.required.push("prop_2");
+  await page.route("**/api/entity-types/*/schema", route => route.fulfill({ json: definition }));
+  const prepared: Record<string, unknown>[] = [], saved: Record<string, unknown>[] = [];
+  await page.route("**/api/records/prepare", route => {
+    const input = route.request().postDataJSON().input;
+    prepared.push(input);
+    return route.fulfill({ json: { change_note: "등록", change_tag_ids: [], missing_tag_ids: [], settings_version: 0, prepared_input: input } });
+  });
+  await page.route("**/api/entities", route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    const input = route.request().postDataJSON();
+    saved.push(input);
+    return route.fulfill({ json: entity(1, input.properties) });
+  });
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
+  await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
+  await form.getByRole("textbox", { name: "제목 (필수)", exact: true }).fill("빈 값의 의미 보존");
+  const missing = (name: string) => form.getByRole("button", { name: `${name} 값 없음 지정`, exact: true });
+  const undo = (name: string) => form.getByRole("button", { name: `${name} 미입력으로 되돌리기`, exact: true });
+  await missing("측정값").click();
+  await undo("측정값").click();
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(form.getByRole("textbox", { name: "측정값 (필수)", exact: true })).toHaveAttribute("aria-invalid", "true");
+  expect(prepared).toEqual([]);
+  await missing("측정값").click();
+  await missing("실행일").click();
+  await missing("메모").click();
+  await undo("메모").click();
+  await expect(form.getByRole("textbox", { name: "기준값", exact: true })).toHaveValue("0");
+  await expect(missing("기준값")).toHaveCount(0);
+  await expect(missing("확정 여부")).toHaveCount(0);
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(undo("측정값")).toBeVisible();
+  await expect(undo("실행일")).toBeVisible();
+  await expect(missing("메모")).toBeVisible();
+  await expect(form.getByRole("textbox", { name: "제목 (필수)", exact: true })).toHaveValue("빈 값의 의미 보존");
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await executionDialog(page).getByRole("button", { name: "등록하고 저장", exact: true }).click();
+  await expect.poll(() => saved.length).toBe(1);
+  expect(saved[0].properties).toEqual({ prop_1: "빈 값의 의미 보존", prop_2: null, prop_3: null, prop_4: "a", prop_7: 0, prop_8: false });
+  await expect(form).not.toBeVisible();
+});
+
+test("nullable edits keep stored-value omission protection and keyboard undo without hiding normal input", async ({ page }) => {
+  const definition = structuredClone(fixtureSchema);
+  definition.schema.properties.prop_6 = { "x-order": 60, type: ["string", "null"], title: "메모" };
+  definition.schema.properties.prop_7 = { "x-order": 70, type: ["string", "null"], title: "보관 메모", deprecated: true };
+  definition.schema.properties.prop_8 = { "x-order": 80, type: ["string", "null"], title: "자동 메모", readOnly: true };
+  const current = entity(1, { prop_7: null, prop_8: null });
+  await page.route("**/api/entity-types/*/schema", route => route.fulfill({ json: definition }));
+  await page.route("**/api/entities/*", route => route.fulfill({ json: current }));
+  const inputs: Record<string, unknown>[] = [];
+  await page.route("**/api/records/prepare", route => {
+    const input = route.request().postDataJSON().input;
+    inputs.push(input);
+    return route.fulfill({ json: { change_note: "수정", change_tag_ids: [], missing_tag_ids: [], settings_version: 0, prepared_input: input } });
+  });
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(current.id)}`));
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
+  await expect(form.getByRole("button", { name: /^(수량|날짜|보관 메모|자동 메모|식별자) (값 없음 지정|미입력으로 되돌리기)$/ })).toHaveCount(0);
+  const quantity = form.getByRole("textbox", { name: "수량", exact: true });
+  await quantity.fill("abc");
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(quantity).toHaveAttribute("aria-invalid", "true");
+  expect(inputs).toEqual([]);
+  await quantity.fill("");
+  await expect(form.getByRole("button", { name: "수량 미입력으로 되돌리기", exact: true })).toHaveCount(0);
+  const choose = form.getByRole("button", { name: "메모 값 없음 지정", exact: true });
+  const undo = form.getByRole("button", { name: "메모 미입력으로 되돌리기", exact: true });
+  await choose.click();
+  await expect(undo).toBeFocused();
+  await undo.press("Enter");
+  await expect(choose).toBeFocused();
+  await expect(form.getByRole("textbox", { name: "메모", exact: true })).toBeEnabled();
+  for (const scale of [1, 2]) {
+    await page.evaluate(scale => { document.documentElement.style.zoom = String(scale); }, scale);
+    await choose.scrollIntoViewIfNeeded();
+    const box = await choose.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44 * scale - 1);
+    expect(box!.height).toBeGreaterThanOrEqual(44 * scale - 1);
+    expect(await choose.evaluate(node => !!node.closest("label"))).toBe(false);
+    await expect.poll(() => form.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`nullable-form-scale${scale}.png`), animations: "disabled" });
+  }
+  await page.evaluate(() => { document.documentElement.style.zoom = "1"; });
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect.poll(() => inputs.length).toBe(1);
+  expect(inputs[0].properties).toEqual({ prop_1: "자료", prop_2: null, prop_3: null, prop_4: "a", prop_5: current.properties.prop_5 });
+  await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(quantity).toHaveValue("");
+  await expect(choose).toBeVisible();
+});
+
+test("stored empty text moves focus to its input when no-value selection removes its action", async ({ page }) => {
+  const definition = structuredClone(fixtureSchema);
+  definition.schema.properties.prop_6 = { "x-order": 60, type: ["string", "null"], title: "메모" };
+  const current = entity(1, { prop_6: "" });
+  await page.route("**/api/entity-types/*/schema", route => route.fulfill({ json: definition }));
+  await page.route("**/api/entities/*", route => route.fulfill({ json: current }));
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(current.id)}`));
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 편집", exact: true });
+  await form.getByRole("button", { name: "메모 값 없음 지정", exact: true }).press("Enter");
+  await expect(form.getByRole("textbox", { name: "메모", exact: true })).toBeFocused();
+  await expect(form.getByRole("button", { name: "메모 미입력으로 되돌리기", exact: true })).toHaveCount(0);
+});
+
+test("restore keeps saved nullable values explicit instead of offering an omission that would restore old text", async ({ page }) => {
+  const definition = structuredClone(fixtureSchema);
+  definition.schema.properties.prop_6 = { "x-order": 60, type: ["string", "null"], title: "메모" };
+  const archived = { ...entity(1, { prop_6: "복원 원문" }), deleted_at: stamp };
+  await page.route("**/api/entity-types/*/schema", route => route.fulfill({ json: definition }));
+  await page.route("**/api/entities/lookup?**", route => route.fulfill({ json: archived }));
+  const prepared: Record<string, unknown>[] = [];
+  await page.route("**/api/records/prepare", route => {
+    const input = route.request().postDataJSON().input;
+    prepared.push(input);
+    return route.fulfill({ json: { change_note: "복원", change_tag_ids: [], missing_tag_ids: [], settings_version: 0, prepared_input: input } });
+  });
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
+  await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
+  const form = page.getByRole("dialog", { name: /^검사 자료 (추가|복원)$/ });
+  await form.getByRole("button", { name: "기존 번호 입력", exact: true }).click();
+  await form.getByRole("textbox", { name: "식별자 (필수)", exact: true }).fill(id(1));
+  await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
+  await expect(form.getByRole("textbox", { name: "메모", exact: true })).toHaveValue("복원 원문");
+  await form.getByRole("textbox", { name: "메모", exact: true }).fill("");
+  await expect(form.getByRole("button", { name: /^(메모|날짜) 미입력으로 되돌리기$/ })).toHaveCount(0);
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect.poll(() => prepared.length).toBe(1);
+  expect((prepared[0].properties as Record<string, unknown>).prop_6).toBeNull();
+  await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(form.getByRole("textbox", { name: "메모", exact: true })).toHaveValue("");
+});
+
 for (const serverDefault of [true, false]) {
   test(`required nullable choice ${serverDefault ? "default" : "selection"} creates with explicit null and keeps choice labels`, async ({ page }) => {
     const definition = structuredClone(fixtureSchema);
