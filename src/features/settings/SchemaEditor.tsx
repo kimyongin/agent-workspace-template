@@ -1520,7 +1520,10 @@ export function SchemaEditor(
                           {!row.version &&
                             plan.change_kind === "migration_required" && (
                             <p>
-                              현재 자료와 활성 정의는 유지됩니다. 영향 분석 결과를 확인하고 값 변환 작업을 준비하세요.
+                              {primaryAction?.kind === "publish" && !primaryAction.disabled && !plan.recovery &&
+                                  plan.analysis?.total === 0
+                                ? "검토한 자료가 0개입니다. 값 변환 없이 새 설정을 적용할 수 있습니다."
+                                : "현재 자료와 활성 정의는 유지됩니다. 영향 분석 결과를 확인하고 값 변환 작업을 준비하세요."}
                             </p>
                           )}
                           {!planSyncNeeded && plan.analysis?.status === "failed" &&
