@@ -131,7 +131,7 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
   const headingRef = useRef<HTMLHeadingElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const [scrollWholeSurface, setScrollWholeSurface] = useState(false);
-  const wholeSurface = useRef(false), transferredScroll = useRef<number | null>(null);
+  const wholeSurface = useRef(false), transferredPosition = useRef<number | null>(null);
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const discardDestination=useRef(onClose);
@@ -171,12 +171,15 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
     host.className = cn("flex h-full min-h-0 flex-col", scrollWholeSurface && "overflow-y-auto overscroll-contain");
     host.hidden = !active;
     if (dialogDocked) attach(desktopSlot.current); else attach(mobileSlot.current);
-    if (transferredScroll.current !== null) {
-      (scrollWholeSurface ? host : bodyRef.current)!.scrollTop = transferredScroll.current;
-      transferredScroll.current = null;
+    if (transferredPosition.current !== null && bodyRef.current && host.clientHeight) {
+      const body = bodyRef.current, owner = scrollWholeSurface ? host : body;
+      const scale = host.getBoundingClientRect().height / host.clientHeight;
+      const position = (body.getBoundingClientRect().top - owner.getBoundingClientRect().top) / scale - body.scrollTop;
+      owner.scrollTop += position - transferredPosition.current;
+      transferredPosition.current = null;
     }
   }, [host, attach, active, dialogDocked, scrollWholeSurface]);
-  // Keep the same DOM and scroll offset; only release fixed chrome when one control no longer fits.
+  // Retain the content point at the scroll viewport's top when releasing fixed chrome.
   useLayoutEffect(() => {
     const body = bodyRef.current;
     if (!active || !body) return;
@@ -185,21 +188,31 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
       const height = host.getBoundingClientRect().height;
       if (!height || !host.clientHeight) return;
       const scale = height / host.clientHeight, style = getComputedStyle(body);
-      const control = body.querySelector<HTMLElement>("[data-field-control]") ?? footerRef.current?.querySelector<HTMLElement>("button");
-      const minimumBody = (control?.getBoundingClientRect().height ?? 44 * scale)
+      const controls = [...body.querySelectorAll<HTMLElement>("[data-field-control]")].filter(control => control.getClientRects().length);
+      const minimumBody = Math.max(44 * scale, ...controls.map(control => control.getBoundingClientRect().height))
         + (parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)) * scale;
       const fixedHeight = (scrollHeaderWithBody ? 0 : heading?.getBoundingClientRect().height ?? 0)
         + (footerRef.current?.getBoundingClientRect().height ?? 0);
       const next = fixedHeight + minimumBody > height + 1;
       if (next === wholeSurface.current) return;
-      transferredScroll.current = (wholeSurface.current ? host : body).scrollTop;
+      const owner = wholeSurface.current ? host : body;
+      transferredPosition.current = (body.getBoundingClientRect().top - owner.getBoundingClientRect().top) / scale - body.scrollTop;
       wholeSurface.current = next;
       setScrollWholeSurface(next);
     };
     const observer = new ResizeObserver(measure);
     for (const element of [host, heading, footerRef.current]) if (element) observer.observe(element);
-    measure();
-    return () => observer.disconnect();
+    const controls = new Set<HTMLElement>();
+    const observeControls = () => {
+      const current = new Set(body.querySelectorAll<HTMLElement>("[data-field-control]"));
+      for (const control of controls) if (!current.has(control)) { observer.unobserve(control); controls.delete(control); }
+      for (const control of current) if (!controls.has(control)) { observer.observe(control); controls.add(control); }
+      measure();
+    };
+    const mutations = new MutationObserver(observeControls);
+    mutations.observe(body, { childList: true, subtree: true });
+    observeControls();
+    return () => { observer.disconnect(); mutations.disconnect(); };
   }, [host, active, dialogDocked, title, description, scrollHeaderWithBody, ready, footer]);
   useEffect(() => {
     if (!actionOpen) ref.current?.querySelector<HTMLElement>("form [aria-invalid='true']")?.focus();
