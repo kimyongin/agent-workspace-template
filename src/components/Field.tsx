@@ -14,7 +14,7 @@ interface FieldProps {
   help?: string;
   error?: string;
   changed?: boolean;
-  labelAction?: ReactNode;
+  labelAction?: (props: { id: string }) => ReactNode;
   children: (props: { id: string; "aria-describedby"?: string; "aria-invalid"?: boolean; "data-field-control": "" }) => ReactNode;
 }
 
@@ -48,7 +48,7 @@ export function Field(
           <div data-slot="field-label" className="flex min-w-0 flex-wrap items-center gap-2">
             {fieldLabel}
             {changed && <Badge aria-hidden="true">수정 중</Badge>}
-            {labelAction}
+            {labelAction?.({ id })}
           </div>
         )
         : fieldLabel}

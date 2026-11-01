@@ -511,6 +511,7 @@ export function EntityForm({
                     }}
                     definition={definition}
                     values={effectiveProperties}
+                    storedValues={(archived ?? initial)?.properties}
                   initialValues={initial && !archived ? baseline.current.properties : undefined}
                     errors={errors}
                     onChange={changeProperties}
