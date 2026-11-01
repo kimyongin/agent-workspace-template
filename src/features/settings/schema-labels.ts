@@ -5,6 +5,23 @@ import type { EntityField } from "@contracts/entity-type.ts";
 import type { EntitySchemaChange, SchemaDefinition } from "@contracts/entity-schema-change.ts";
 import { fieldType } from "../entity/property-fields.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
+import { decodeIdentifierValue } from "@contracts/entity-identifiers.ts";
+import type { IdentifierKindMetadata } from "@contracts/entity-issuer.ts";
+
+export type IdentifierKindLabel = { id: string; label: string };
+export function schemaIdentifierKinds(
+  definition: SchemaDefinition & { identifier_kinds?: IdentifierKindMetadata[] },
+): IdentifierKindLabel[] {
+  return definition.identifier_kinds?.map((kind) => ({ id: kind.id, label: `${kind.source_label} · ${kind.label}` })) ??
+    [];
+}
+export function identifierKindLabel(id: string, kinds: ReadonlyArray<IdentifierKindLabel>): string {
+  const kind = kinds.find((kind) => kind.id === id);
+  if (!kind) return `이름 확인 불가 (${id})`;
+  return kinds.some((candidate) => candidate.id !== id && candidate.label === kind.label)
+    ? `${kind.label} (${id})`
+    : kind.label;
+}
 
 /** A readable reference without guessing a current title for a historical result. */
 export function schemaEntityLabel(id: string) {
@@ -28,7 +45,9 @@ export const schemaChangeLabels: Record<EntitySchemaChange["status"], string> = 
 };
 export function fieldTypeLabel(field: EntityField) {
   const kind = fieldType(field);
-  const label = field["x-identifier"] ? "식별자" : fieldChoices(field)
+  const label = field["x-identifier"]
+    ? "식별자"
+    : fieldChoices(field)
     ? "단일 선택"
     : field.format === "date"
     ? "날짜"
@@ -65,9 +84,9 @@ export function schemaDiffLabel(path: string, target: SchemaDefinition, source: 
     "x-icon": "아이콘",
     "x-title-template": "제목 템플릿",
     "x-identity-property": "자료 식별자",
-    "x-identifier": "식별자 규칙",
-    allowed_kind_ids: "허용 규칙",
-    default_kind_id: "기본 규칙",
+    "x-identifier": "식별자 종류",
+    allowed_kind_ids: "허용 식별자 종류",
+    default_kind_id: "기본 식별자 종류",
     deprecated: "사용 중지",
     readOnly: "읽기 전용",
     examples: "입력 예시",
@@ -100,9 +119,29 @@ export function schemaValueLabel(value: unknown, definition?: SchemaDefinition):
 }
 
 /** Review values use the input labels rather than schema storage spellings. */
-export function schemaDiffValueLabel(path: string, value: unknown, definition: SchemaDefinition): string {
+export function schemaDiffValueLabel(
+  path: string,
+  value: unknown,
+  definition: SchemaDefinition,
+  kinds: ReadonlyArray<IdentifierKindLabel> = schemaIdentifierKinds(definition),
+): string {
+  const kindLabel = (id: string) => identifierKindLabel(id, kinds);
+  if (
+    path.endsWith(".x-identifier") && value && typeof value === "object" && "allowed_kind_ids" in value &&
+    "default_kind_id" in value
+  ) {
+    const config = value as { allowed_kind_ids: string[]; default_kind_id: string };
+    return `허용: ${config.allowed_kind_ids.map(kindLabel).join(", ") || "없음"} · 기본: ${
+      kindLabel(config.default_kind_id)
+    }`;
+  }
+  if (path.endsWith(".allowed_kind_ids") && Array.isArray(value)) return value.map(kindLabel).join(", ") || "없음";
+  if (path.endsWith(".default_kind_id") && typeof value === "string") return kindLabel(value);
   if (path.endsWith("x-title-template") && typeof value === "string") {
-    return memoDocument(value, Object.entries(definition.schema.properties).map(([key, field]) => ({ value: key, label: field.title || key })))
+    return memoDocument(
+      value,
+      Object.entries(definition.schema.properties).map(([key, field]) => ({ value: key, label: field.title || key })),
+    )
       .map((part) => part.variable ? `$${part.variable.label}$` : part.text).join("");
   }
   if (path.endsWith(".required") && typeof value === "boolean") return value ? "필수" : "선택";
@@ -110,6 +149,16 @@ export function schemaDiffValueLabel(path: string, value: unknown, definition: S
     return fieldTypeLabel({ type: value as EntityField["type"], "x-order": 1 });
   }
   const key = path.split(".").find((part) => /^prop_[0-9]+$/.test(part));
+  if (
+    key && path.endsWith(".default") && definition.schema.properties[key]?.["x-identifier"] && typeof value === "string"
+  ) {
+    try {
+      const pair = decodeIdentifierValue(value);
+      return `${kindLabel(pair.kind_id)} · ${pair.raw}`;
+    } catch {
+      return schemaValueLabel(value);
+    }
+  }
   if (key && /\.(oneOf|default)$/.test(path)) {
     const option = (item: unknown) =>
       fieldChoiceTitle(definition.schema.properties[key], item) ??

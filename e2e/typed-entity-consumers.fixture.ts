@@ -9,6 +9,28 @@ import { encodeIdentifierReference, encodeIdentifierValue } from "../supabase/fu
 import { openTabFilters } from "./ui-actions.ts";
 import { disclosureContent } from "./table-actions.ts";
 const second = { ...fixtureType, id: id(901), label: "다른 자료" };
+test("active duplicate identifier returns to its field without losing the creation draft", async ({ page }) => {
+  const kindId = id(333), schema = structuredClone(fixtureSchema), key = schema.schema["x-identity-property"]!;
+  schema.schema.properties[key]["x-identifier"] = { allowed_kind_ids: [kindId], default_kind_id: kindId };
+  schema.identifier_kinds = [{ id: kindId, source: "market", source_label: "마켓A", label: "상품 번호", generation: "direct", active: true, version: 1, source_version: 1 }];
+  await page.route("**/api/entity-types/*/schema", route => route.fulfill({ json: schema }));
+  await page.route("**/api/entities/lookup?**", route => route.fulfill({ json: entity() }));
+  const writes: string[] = [];
+  page.on("request", request => { if (request.method() === "POST") writes.push(new URL(request.url()).pathname); });
+  await page.goto(fixtureWorkspacePath(`/entities?entity_type_id=${fixtureType.id}`));
+  await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
+  await form.getByRole("textbox", { name: /^제목/ }).fill("보존할 상품 초안");
+  await form.getByRole("textbox", { name: /^수량/ }).fill("12");
+  await form.getByRole("textbox", { name: /^식별자/ }).fill("A-0001");
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(executionDialog(page)).toContainText("같은 자료 식별자의 활성 자료가 있습니다.");
+  await executionDialog(page).getByRole("button", { name: "입력 수정", exact: true }).click();
+  await expect(form.getByRole("textbox", { name: /^제목/ })).toHaveValue("보존할 상품 초안");
+  await expect(form.getByRole("textbox", { name: /^수량/ })).toHaveValue("12");
+  await expect(form.getByRole("textbox", { name: /^식별자/ })).toHaveAttribute("aria-invalid", "true");
+  expect(writes).toEqual([]);
+});
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());

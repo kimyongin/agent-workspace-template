@@ -4,6 +4,24 @@ import { expect, test, type Page } from "@playwright/test";
 import type { EntitySchemaChange, SchemaEdit } from "../supabase/functions/_shared/contracts/entity-schema-change.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 const base = "/api/entity-types/00000000-0000-4000-8000-000000000001/schema-changes";
+test("identifier review uses source-qualified names through the actual editor caller", async ({ page }, testInfo) => {
+  const current = plan("b");
+  const before = current.target.schema.properties.prop_2["x-identifier"]!;
+  const after = { allowed_kind_ids: ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002"], default_kind_id: "10000000-0000-4000-8000-000000000002" };
+  current.target.schema.properties.prop_2["x-identifier"] = after;
+  current.diff = [{ path: "properties.prop_2.x-identifier", before, after, before_present: true, after_present: true, kind: "compatible" }];
+  await page.route(`**${base}/b`, route => route.fulfill({ json: current }));
+  await page.goto("/e2e/fixtures/schema-editor-read.html?identifier-review&change_id=b");
+  const diff = page.getByRole("table", { name: "변경안 차이 목록", exact: true });
+  await expect(diff).toContainText("허용: 앱 · 자동 발급 · 기본: 앱 · 자동 발급");
+  await expect(diff).toContainText("허용: 마켓A · 상품 번호, 마켓B · 상품 번호 · 기본: 마켓B · 상품 번호");
+  const definition = page.getByRole("region", { name: "입력 항목 정의", exact: true });
+  await expect(definition).toContainText("마켓B · 상품 번호");
+  await expect(definition.getByRole("row", { name: "현재 이름 정의", exact: true })).not.toContainText("허용 식별자 종류");
+  await expect(page.getByRole("link", { name: "이 변경안 직접 링크" })).toHaveAttribute("href", /change_id=b/);
+  await diff.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("identifier-review.png"), fullPage: true });
+});
 async function initialNameInput(page: Page) {
   const row = businessRows(page.getByRole("table", { name: "입력 항목 목록", exact: true })).first();
   const details = await disclosureContent(page, row.getByRole("button", { name: / 입력 항목 편집$/ }));

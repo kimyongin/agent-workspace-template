@@ -39,7 +39,7 @@ import { schemaPresentation } from "../../lib/schema-document.ts";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
-import { fieldTypeLabel, schemaChangeLabels, schemaDiffValueLabel } from "./schema-labels.ts";
+import { fieldTypeLabel, schemaChangeLabels, schemaDiffValueLabel, schemaIdentifierKinds } from "./schema-labels.ts";
 import { SchemaSearchTextSetting } from "./SchemaSearchTextSetting.tsx";
 import { SchemaTitleTemplateSetting } from "./SchemaTitleTemplateSetting.tsx";
 import { migrationActive, migrationLabels, SchemaMigrationJob, useMigrationHistory } from "./SchemaMigrationJobs.tsx";
@@ -130,7 +130,11 @@ export function SchemaEditor(
     {},
   );
   const [propertiesOpen, setPropertiesOpen] = useState(false);
-  const catalog = useIdentifierCatalog(propertiesOpen && canWrite);
+  const [historyOpen, setHistoryOpen] = useState(historyInitiallyOpen);
+  const catalog = useIdentifierCatalog((propertiesOpen || historyOpen) && canWrite);
+  const identifierKinds = catalog.kinds.length
+    ? catalog.kinds.map((kind) => ({ id: kind.id, label: `${kind.source_label} · ${kind.label}` }))
+    : schemaIdentifierKinds(definition);
   const [addingKindFor, setAddingKindFor] = useState<string | null>(null);
   const [kindModalState, setKindModalState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const reportKindModal = useCallback((state: MaterialSectionState) => setKindModalState(state), []);
@@ -145,7 +149,6 @@ export function SchemaEditor(
       }),
     [onState, schemaEditState, kindModalState],
   );
-  const [historyOpen, setHistoryOpen] = useState(historyInitiallyOpen);
   const [reviewOpen, setReviewOpen] = useState(true);
   const [discardConfirm, setDiscardConfirm] = useState(false);
   const [openFields, setOpenFields] = useState<string[]>([]);
@@ -420,7 +423,7 @@ export function SchemaEditor(
             hidden={!propertiesOpen}
             className="flex min-w-0 flex-col gap-4 @max-[16rem]/material-section:px-0.5"
           >
-            {propertiesOpen && !canWrite && <SchemaDefinitionRead definition={definition} />}
+            {propertiesOpen && !canWrite && <SchemaDefinitionRead definition={definition} identifierKinds={identifierKinds} />}
             <div hidden={!propertiesOpen || !canWrite} className="min-w-0">
               <FieldSet
                 id="schema-property-inputs"
@@ -1278,7 +1281,7 @@ export function SchemaEditor(
                         />
                       )}
                       {!row.version && plan && plan.id === row.changeId &&
-                        !transforming && <SchemaDefinitionRead definition={plan.target} />}
+                        !transforming && <SchemaDefinitionRead definition={plan.target} identifierKinds={identifierKinds} />}
                       {!row.version && jobs.selectedChange &&
                         jobs.selectedChange.id === row.changeId &&
                         (plan?.id !== row.changeId || transforming) &&
@@ -1286,6 +1289,7 @@ export function SchemaEditor(
                           <SchemaChangeRead
                             change={jobs.selectedChange}
                             definition={definition}
+                            identifierKinds={identifierKinds}
                           />
                         )}
                       {row.jobs.length > 0 && (
@@ -1417,6 +1421,7 @@ export function SchemaEditor(
                           <SchemaChangeDiff
                             change={plan}
                             definition={definition}
+                            identifierKinds={identifierKinds}
                           />
                           {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
                             <Alert role="status">

@@ -215,7 +215,10 @@ export function EntityForm({
       );
       c.signal.throwIfAborted();
       if (!stored) { setIdentityMessage("새로운 자료 식별자입니다."); return null; }
-      if (!stored.deleted_at) throw new Error("같은 자료 식별자의 활성 자료가 있습니다.");
+      if (!stored.deleted_at) {
+        const message = "같은 자료 식별자의 활성 자료가 있습니다.";
+        throw new ApiError(400, "invalid_input", message, [{ path: `properties.${key}`, message }]);
+      }
       if (stored.entity_type_id !== typeId) {
         throw new Error("삭제된 자료의 종류가 다릅니다. 원래 자료 종류에서 복원하세요.");
       }

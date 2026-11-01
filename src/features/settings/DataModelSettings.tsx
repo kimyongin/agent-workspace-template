@@ -251,11 +251,11 @@ function ReviewRow({ item, confirmed, onConfirmRemoval, disabled, identifierKind
               <BusinessCell index={1}>
                 {d.before_present
                   ? item.schema
-                    ? schemaDiffValueLabel(d.path, d.before, { schema: item.current_schema ?? item.schema })
+                    ? schemaDiffValueLabel(d.path, d.before, { schema: item.current_schema ?? item.schema }, identifierKinds)
                     : JSON.stringify(d.before)
                   : "설정 안 함"} → {d.after_present
                   ? item.schema
-                    ? schemaDiffValueLabel(d.path, d.after, { schema: item.schema })
+                    ? schemaDiffValueLabel(d.path, d.after, { schema: item.schema }, identifierKinds)
                     : JSON.stringify(d.after)
                   : "설정 안 함"}
               </BusinessCell>

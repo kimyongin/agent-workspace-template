@@ -23,6 +23,29 @@ async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<s
 }
 const workspaceGroup = (page: Page) => baseWorkspace(page).locator("xpath=ancestor::*[@data-slot='resizable-panel-group'][1]");
 const panel = (page: Page) => page.getByRole("tabpanel").filter({ visible: true });
+test("long detail tab titles fit their group and select beside a later tab", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const state = await fixture(page);
+  const title = "O01 수납함 2개와 조명 1개 포장 완료. 정정: 조명은 품절 안내 동봉 후 별도 출고 대기한다.";
+  state.rows.entities.push(entity(200, { prop_1: title }));
+  await page.goto(fixtureWorkspacePath("/entities"));
+  await openEntity(page, title);
+  await openEntity(page, "버섯");
+  const tab = page.getByRole("tab", { name: title, exact: true });
+  const bounds = await tab.evaluate(element => {
+    const trigger = element.getBoundingClientRect(), group = element.parentElement!.getBoundingClientRect();
+    return { right: trigger.right, groupRight: group.right };
+  });
+  expect(bounds.right).toBeLessThanOrEqual(bounds.groupRight + 1);
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+  await expect(tab).toHaveAttribute("title", title);
+  await tab.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "버섯", exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.screenshot({ path: info.outputPath("long-tab-fits.png") });
+  expect(state.writes).toEqual([]);
+  expect(state.errors).toEqual([]);
+});
 /** Compare settled surface geometry without suppressing the official entrance animation. */
 async function settleSurface(surface: Locator) {
   await expect.poll(() => surface.evaluate(element => element.getAnimations({ subtree: true })
