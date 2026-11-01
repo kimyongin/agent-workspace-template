@@ -129,6 +129,23 @@ export function TaskDetailPage() {
       : "할 일을 불러오지 못했습니다."
     : null;
   const reload = detail.reload;
+  const previousVisit = useRef({ api, id, active: tabActive });
+  const refreshAfterVisit = useRef(false);
+  useLayoutEffect(() => {
+    const previous = previousVisit.current;
+    previousVisit.current = { api, id, active: tabActive };
+    if (previous.api !== api || previous.id !== id) refreshAfterVisit.current = false;
+    else if (!previous.active && tabActive && task?.kind === "once" && task.status === "done" && task.result_record_id) {
+      // A deleted result advances its parent while this read surface is retained.
+      refreshAfterVisit.current = true;
+    }
+    // Existing forms keep their admitted version. Read the parent after they close.
+    if (refreshAfterVisit.current && tabActive && canRead && !editor.active && !dialog) {
+      refreshAfterVisit.current = false;
+      void reload();
+    }
+  }, [api, id, tabActive, canRead, editor.active, dialog, task, reload]);
+  const readBlocked = detail.loading || !!loadError;
   useEffect(() => {
     if (!detail.confirmed && detail.value) relationSaved.current = false;
   }, [detail.value, detail.confirmed]);
@@ -223,6 +240,7 @@ export function TaskDetailPage() {
       <section className="flex min-w-0 flex-col gap-4">
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
+        {detail.loading && <p role="status" className="text-sm text-muted-foreground">할 일을 다시 불러오는 중…</p>}
         {loadError && (
           <>
             <Notice kind="error">
@@ -242,6 +260,7 @@ export function TaskDetailPage() {
           scope="task"
           target={task}
           readonly={!canWrite || !!task.deleted_at || transitionLocked}
+          disabled={readBlocked}
           visible={canRead}
           onSaved={(saved) => detail.confirm((current) => current ? { ...current, ...saved } : current)}
         />
@@ -349,13 +368,13 @@ export function TaskDetailPage() {
         onError={detail.failed}
         busy={busy || transitionState.busy || transitionState.uncertain && canWrite}
         footer={canWrite && (
-          task.deleted_at ? <Button type="button" disabled={busy || transitionLocked} onClick={() => manage("restore")}>복원</Button> : <>
-            <Button variant="outline" type="button" disabled={busy || transitionLocked} onClick={editor.start}>편집</Button>
+          task.deleted_at ? <Button type="button" disabled={busy || transitionLocked || readBlocked} onClick={() => manage("restore")}>복원</Button> : <>
+            <Button variant="outline" type="button" disabled={busy || transitionLocked || readBlocked} onClick={editor.start}>편집</Button>
             {task.kind === "once" && task.status === "open" && (
               <Button
                 variant="default"
                 type="button"
-                disabled={busy || transitionLocked}
+                disabled={busy || transitionLocked || readBlocked}
                 onClick={() => manage("complete")}
               >
                 완료하고 기록
@@ -365,7 +384,7 @@ export function TaskDetailPage() {
               <Button
                 variant="default"
                 type="button"
-                disabled={busy || transitionState.busy}
+                disabled={busy || transitionState.busy || readBlocked}
                 onClick={() => manage("transition")}
               >
                 {task.status === "active" ? "중단" : "재개"}
