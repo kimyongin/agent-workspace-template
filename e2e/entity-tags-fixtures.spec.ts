@@ -607,7 +607,13 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
   };
   let current = { ...makeEntity(301, { prop_1: "독립 태그 자료" }), tag_ids: [] as string[] };
   const creations: Record<string, unknown>[] = [], connections: Record<string, unknown>[] = [];
-  const history = [{ id: "tag-fixture-create", body: "최초 등록 기록", updated_at: current.updated_at, record_kind: "change", occurred_at: current.created_at }];
+  const history = [{ ...makeRecord(401), body: "최초 등록 기록", entity_id: current.id, task_id: null, record_kind: "change" as const }];
+  await page.route("**/api/records?**", route => {
+    expect(route.request().method()).toBe("GET");
+    expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
+    expect(new URL(route.request().url()).searchParams.get("entity_id")).toBe(current.id);
+    return route.fulfill({ json: { items: history, next_cursor: null } });
+  });
   await page.route("**/api/entity-types**", route => route.fulfill({
     json: new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema
       : new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : fixtureType,
@@ -626,7 +632,7 @@ test("새 자료는 태그 선택 없이 저장하고 보기에서 독립 연결
     const input = route.request().postDataJSON();
     expect(route.request().headers()["x-workspace-id"]).toBe(fixtureWorkspaceId);
     connections.push(input);
-    history.push({ id: "tag-fixture-connect", body: "태그 연결 변경 기록", updated_at: current.updated_at, record_kind: "change", occurred_at: current.updated_at });
+    history.push({ ...makeRecord(402), body: "태그 연결 변경 기록", entity_id: current.id, task_id: null, record_kind: "change" });
     current = { ...current, tag_ids: input.tag_ids, version: current.version + 1 };
     return route.fulfill({ json: { tag_ids: current.tag_ids, version: current.version, updated_at: current.updated_at } });
   });

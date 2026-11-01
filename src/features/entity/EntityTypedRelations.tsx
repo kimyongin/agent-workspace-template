@@ -8,7 +8,7 @@ import { useLocation } from "../../lib/workspace-router.tsx";
 import type { EntityDetail, EntitySummary } from "@contracts/entity.ts";
 import type { EntityRelationDefinition, EntityRelationDefinitionPage } from "@contracts/entity-relation.ts";
 import type { RelationMutationResult } from "@contracts/entity-relation-links.ts";
-import { entityPath } from "@contracts/entity-identity.ts";
+import { entityIdentityLabel, entityPath } from "@contracts/entity-identity.ts";
 import { query } from "../../lib/api.ts";
 import { DetailLink, useDetailViewState } from "../../lib/detail-exploration.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
@@ -362,10 +362,17 @@ export function EntityRelationSection(
             target: `${mutation.origin.title} → ${mutation.definition.ends[side].label} → ${mutation.other.title}`,
             action: mutation.remove ? "해제" : single ? "수정" : "연결",
             message: !canWrite ? "현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다." : undefined,
-            data: single && !mutation.remove ? [
-              { label: "기존", value: mutation.previous?.title ?? "연결 없음", fullWidth: true },
-              { label: "변경", value: mutation.other.title, fullWidth: true },
-            ] : undefined,
+            data: [
+              { label: "기준 자료 식별", value: entityIdentityLabel(mutation.origin), fullWidth: true },
+              ...(single && !mutation.remove ? [
+                { label: "기존", value: mutation.previous
+                  ? `${mutation.previous.title} · ${entityIdentityLabel(mutation.previous)}`
+                  : "연결 없음", fullWidth: true },
+                { label: "변경", value: `${mutation.other.title} · ${entityIdentityLabel(mutation.other)}`, fullWidth: true },
+              ] : [
+                { label: "상대 자료 식별", value: entityIdentityLabel(mutation.other), fullWidth: true },
+              ]),
+            ],
           }}
           validate={() => null}
           onClose={() => {

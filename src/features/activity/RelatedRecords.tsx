@@ -24,30 +24,17 @@ export function RelatedRecordItem({ record }: { record: Pick<RecordResult, "id" 
   );
 }
 
+type RecordsOwner = { taskId: string; entityId?: never } | { entityId: string; taskId?: never };
+type RelatedRecordsProps = RecordsOwner & { revision: number; action?: ReactNode; readOnly?: boolean };
+
 export function RelatedRecords(
-  { taskId, revision, action, readOnly = false }: {
-    taskId: string;
-    revision: number;
-    action?: ReactNode;
-    readOnly?: boolean;
-  },
-) {
-  // Refresh data without replacing the record creation trigger or its focus.
-  return <TaskRecords taskId={taskId} revision={revision} action={action} readOnly={readOnly} />;
-}
-function TaskRecords(
-  { taskId, revision, action, readOnly = false }: {
-    taskId: string;
-    revision: number;
-    action?: ReactNode;
-    readOnly?: boolean;
-  },
+  { taskId, entityId, revision, action, readOnly = false }: RelatedRecordsProps,
 ) {
   const api = useApi();
   const surface = useContext(SurfaceContext);
   const [params] = useSearchParams(), navigate = useDetailNavigate();
   const requested = requestedPages(new URLSearchParams({ pages: params.get("related_record_pages") ?? "1" }));
-  const scope = `${taskId}|${revision}`;
+  const scope = `${taskId !== undefined ? `task:${taskId}` : `entity:${entityId}`}|${revision}`;
   const initial = useRef({ scope, pages: requested });
   if (initial.current.scope !== scope) initial.current = { scope, pages: requested };
   const list = usePagedList<RecordResult, ListPage<RecordResult>>({
@@ -55,7 +42,7 @@ function TaskRecords(
     pages: initial.current.pages,
     restoreRetry: "resume",
     retainOnDecrease: true,
-    load: (cursor, signal) => api("GET", `/records${query({ task_id: taskId, limit: 20, cursor })}`, undefined, signal),
+    load: (cursor, signal) => api("GET", `/records${query({ task_id: taskId, entity_id: entityId, limit: 20, cursor })}`, undefined, signal),
   });
   const { page, busy, error } = list;
   // A background read must not navigate or interrupt a dirty management form.
@@ -91,7 +78,7 @@ function TaskRecords(
       )}
       {page && !page.items.length && !page.next_cursor && !busy && !error && <RelatedEmpty title="연결된 기록이 없습니다." description={action ? "작성으로 기록을 추가하세요." : undefined} />}
       {!!error && <Notice kind="error">연결된 기록을 불러오지 못했습니다.</Notice>}
-      {!readOnly && (page?.next_cursor || !!error) && (
+      {(page?.next_cursor || !!error) && (
         <Button
           variant="ghost"
           type="button"
