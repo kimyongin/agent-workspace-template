@@ -319,6 +319,7 @@ export function TaskDetailPage() {
                       type="button"
                       onClick={() => manage("occurrence", o.date)}
                       aria-label={`${o.date} 회차 기록`}
+                      disabled={occurrencesLoading}
                     >
                       기록
                     </Button>

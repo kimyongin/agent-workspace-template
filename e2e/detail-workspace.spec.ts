@@ -71,9 +71,11 @@ test("occurrence reactivation preserves a scrolled parent while the refresh is p
     await executionDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
     await waiting;
     await expect(occurrences().getByRole("status")).toHaveText("불러오는 중…");
+    await expect(occurrences().getByRole("button", { name: "2026-11-01 회차 기록", exact: true })).toBeDisabled();
     await expect.poll(async () => Math.abs(await anchorTop() - anchor.top)).toBeLessThan(2);
     release();
     await expect(occurrences().getByRole("status")).toHaveCount(0);
+    await expect(occurrences().getByRole("button", { name: "2026-11-01 회차 기록", exact: true })).toBeEnabled();
     await expect.poll(async () => Math.abs(await anchorTop() - anchor.top)).toBeLessThan(2);
     expect(state.errors).toEqual([]);
   } finally { release(); }
