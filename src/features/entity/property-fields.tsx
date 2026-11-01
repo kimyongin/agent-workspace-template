@@ -147,6 +147,8 @@ export function PropertyFields(
             </DataFields>
           );
         }
+        const emptyScalar = nullable && !field["x-identifier"] && !fieldChoices(field) &&
+          fieldType(field) !== "boolean" && (value === undefined || value === null || value === "");
         return (
           <Field
             key={key}
@@ -154,6 +156,17 @@ export function PropertyFields(
             fullWidth={longPropertyText(field, value)}
             changed={initialValues !== undefined && initialValues[key] !== value}
             required={required}
+            labelAction={emptyScalar ? <>
+              {value === null && <span className="text-sm text-muted-foreground">값 없음</span>}
+              {(value !== null || initialValues?.[key] === undefined) && <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+                aria-label={`${field.title ?? key} ${value === null ? "미입력으로 되돌리기" : "값 없음 지정"}`}
+                onClick={() => set(key, value === null ? undefined : null)}
+              >{value === null ? "되돌리기" : "값 없음 지정"}</Button>}
+            </> : undefined}
             error={errors[`properties.${key}`]}
           >
             {(props) => (

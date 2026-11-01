@@ -14,11 +14,12 @@ interface FieldProps {
   help?: string;
   error?: string;
   changed?: boolean;
+  labelAction?: ReactNode;
   children: (props: { id: string; "aria-describedby"?: string; "aria-invalid"?: boolean; "data-field-control": "" }) => ReactNode;
 }
 
 export function Field(
-  { label, hideLabel = false, required, help, error, changed = false, children, fullWidth = false, className }:
+  { label, hideLabel = false, required, help, error, changed = false, labelAction, children, fullWidth = false, className }:
     FieldProps,
 ) {
   const id = useId();
@@ -42,11 +43,12 @@ export function Field(
       data-full-width={fullWidth || undefined}
       className={cn("min-w-0", fullWidth && "col-span-full", className)}
     >
-      {changed && !hideLabel
+      {(changed || labelAction) && !hideLabel
         ? (
           <div data-slot="field-label" className="flex min-w-0 flex-wrap items-center gap-2">
             {fieldLabel}
-            <Badge aria-hidden="true">수정 중</Badge>
+            {changed && <Badge aria-hidden="true">수정 중</Badge>}
+            {labelAction}
           </div>
         )
         : fieldLabel}
