@@ -237,7 +237,7 @@ function EditDialog(
     <ConfirmDialog open={stage === "discard"} title="변경을 버릴까요?" message="저장하지 않은 상품명 변경을 버립니다. 취소하면 입력한 내용과 편집 위치를 유지합니다."
       confirmLabel="변경 버리기" danger onCancel={() => setStage("edit")} onConfirm={onClose} />
     <ConfirmationSurface open={stage === "review"} title="변경을 저장할까요?" busy={busy || uncertain} onCancel={() => setStage("edit")} closeButton
-      footer={<><Button type="button" variant="outline" disabled={busy || uncertain} onClick={() => setStage("edit")}>취소</Button><Button type="button" disabled={busy} onClick={execute}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}</Button></>}>
+      footer={<><Button type="button" variant="outline" disabled={busy || uncertain} onClick={() => setStage("edit")}>취소</Button><Button className="break-keep" type="button" disabled={busy} onClick={execute}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}</Button></>}>
               <FieldGroup className="flex min-w-0 flex-col gap-5">
                 <DataFields>
                   {([["name", "상품명"], ["quantity", "수량"], ["sale", "판매 중"], ["memo", "메모"]] as const).map(([key, label]) => {
