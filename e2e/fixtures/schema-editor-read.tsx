@@ -69,6 +69,12 @@ if (new URLSearchParams(location.search).has("display-example")) {
     title,
   }));
 }
+if (new URLSearchParams(location.search).has("default-choice")) {
+  definition.schema.properties.prop_3 = { type: "string", title: "분류", "x-order": 30,
+    oneOf: [{ const: "option_1", title: "결함" }, { const: "option_2", title: "개선" }, { const: "option_3", title: "문의" }], default: "option_1" };
+  definition.schema.required.push("prop_3");
+  type.next_property_number = 4;
+}
 function EmptyInputsFixture() {
   const [values, setValues] = useState<PropertyDraft>({
     prop_1: "자료",

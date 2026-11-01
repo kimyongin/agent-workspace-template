@@ -4,6 +4,125 @@ import { expect, test, type Page } from "@playwright/test";
 import type { EntitySchemaChange, SchemaEdit } from "../supabase/functions/_shared/contracts/entity-schema-change.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 const base = "/api/entity-types/00000000-0000-4000-8000-000000000001/schema-changes";
+test("#665 an already open default never presents the first remaining choice as its removed value", async ({ page }, info) => {
+  await page.goto("/e2e/fixtures/schema-editor-read.html?default-choice");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await page.getByRole("button", { name: /^분류 항목 (?:펼치기|접기)$/ }).click();
+  const field = page.getByRole("region", { name: "분류 입력 항목", exact: true });
+  await field.getByRole("button", { name: "추가 설정", exact: true }).click();
+  const input = field.getByRole("combobox", { name: "기본값", exact: true });
+  await expect(input.locator("option:checked")).toHaveText("결함");
+  await field.getByRole("button", { name: "선택 항목 1 제거", exact: true }).click();
+  await input.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("open-removed-default-choice.png"), fullPage: true });
+  await page.screenshot({ path: info.outputPath("open-removed-default-choice-viewport.png") });
+  await info.attach("public-selection.json", { body: JSON.stringify(await input.evaluate(node => ({ value: (node as HTMLSelectElement).value,
+    selected: [...(node as HTMLSelectElement).selectedOptions].map(option => ({ value: option.value, label: option.label })), invalid: node.getAttribute("aria-invalid") })), null, 2), contentType: "application/json" });
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(input.locator("option:checked")).toHaveText("제거된 선택 항목");
+});
+test("#665 removing the default choice reveals its invalid input without silently choosing a remaining value", async ({ page }, info) => {
+  const posts: unknown[] = [];
+  await page.route(`**${base}`, route => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { items: [] } });
+    posts.push(route.request().postDataJSON());
+    return route.fulfill({ status: 400, json: { code: "invalid_input", message: "제출 경계 확인" } });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?default-choice");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await page.getByRole("button", { name: /^분류 항목 (?:펼치기|접기)$/ }).click();
+  const field = page.getByRole("region", { name: "분류 입력 항목", exact: true });
+  await expect(field.getByRole("button", { name: "추가 설정", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await field.getByRole("button", { name: "선택 항목 1 제거", exact: true }).press("Enter");
+  const input = field.getByRole("combobox", { name: "기본값", exact: true });
+  await expect(input).toBeVisible();
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(input.locator("option:checked")).toHaveText("제거된 선택 항목");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveAccessibleDescription(/다른 값을 선택하거나 생성 기본값을 설정 안 함으로 바꾸세요/);
+  await input.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("removed-default-choice.png"), fullPage: true });
+  expect(posts).toEqual([]);
+});
+test("#665 review restores keyboard focus to a collapsed invalid default and explicit correction reaches the HTTP boundary", async ({ page }) => {
+  const posts: { edits: SchemaEdit[] }[] = [];
+  await page.route(`**${base}`, route => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { items: [] } });
+    posts.push(route.request().postDataJSON());
+    return route.fulfill({ status: 400, json: { code: "invalid_input", message: "제출 경계 확인" } });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?default-choice");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await page.getByRole("button", { name: /^분류 항목 (?:펼치기|접기)$/ }).click();
+  const field = page.getByRole("region", { name: "분류 입력 항목", exact: true });
+  await field.getByRole("button", { name: "선택 항목 1 제거", exact: true }).click();
+  await field.getByRole("button", { name: "추가 설정", exact: true }).click();
+  const input = field.getByRole("combobox", { name: "기본값", exact: true });
+  await expect(input).toBeHidden();
+  await page.getByRole("button", { name: "변경 검토", exact: true }).press("Enter");
+  await expect(input).toBeFocused(); expect(posts).toEqual([]);
+  await page.keyboard.press("Tab");
+  await expect(input).not.toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(input).toBeFocused();
+  await input.selectOption("option_2");
+  await expect(input).toHaveValue("option_2");
+  await expect(input).not.toHaveAttribute("aria-invalid", "true");
+  await expect(input.locator("option:checked")).toHaveText("개선");
+  await page.getByRole("button", { name: "변경 검토", exact: true }).press("Enter");
+  await expect(page.getByRole("alert")).toHaveText("제출 경계 확인");
+  expect(posts).toHaveLength(1);
+  const edit = posts[0].edits.find(edit => "key" in edit && edit.key === "prop_3");
+  expect(edit).toMatchObject({ op: "update_property", key: "prop_3", field: { default: "option_2", oneOf: [{ const: "option_2", title: "개선" }, { const: "option_3", title: "문의" }] } });
+});
+test("#665 unsetting a removed default submits only the explicit field change", async ({ page }) => {
+  const posts: { edits: SchemaEdit[] }[] = [];
+  await page.route(`**${base}`, route => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { items: [] } });
+    posts.push(route.request().postDataJSON());
+    return route.fulfill({ status: 400, json: { code: "invalid_input", message: "제출 경계 확인" } });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?default-choice");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await page.getByRole("button", { name: /^분류 항목 (?:펼치기|접기)$/ }).click();
+  const field = page.getByRole("region", { name: "분류 입력 항목", exact: true });
+  await field.getByRole("button", { name: "선택 항목 1 제거", exact: true }).click();
+  await field.getByRole("combobox", { name: "생성 기본값 (기존 자료에는 채우지 않음)", exact: true }).selectOption("unset");
+  await expect(field.getByRole("combobox", { name: "기본값", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "변경 검토", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText("제출 경계 확인");
+  expect(posts).toHaveLength(1);
+  expect(posts[0].edits).toHaveLength(1);
+  expect(posts[0].edits[0]).toMatchObject({ op: "update_property", key: "prop_3", required: true,
+    field: { type: "string", title: "분류", oneOf: [{ const: "option_2", title: "개선" }, { const: "option_3", title: "문의" }] } });
+  expect("field" in posts[0].edits[0] && posts[0].edits[0].field.default).toBeUndefined();
+});
+test("#665 removing another choice preserves the valid default and cancel restores an invalid unsaved removal", async ({ page }, info) => {
+  const writes: string[] = [];
+  page.on("request", request => { if (request.method() !== "GET" && request.url().includes("/api/")) writes.push(request.url()); });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?default-choice");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await page.getByRole("button", { name: /^분류 항목 (?:펼치기|접기)$/ }).click();
+  const field = page.getByRole("region", { name: "분류 입력 항목", exact: true }), advanced = field.getByRole("button", { name: "추가 설정", exact: true });
+  await field.getByRole("button", { name: "선택 항목 3 제거", exact: true }).click();
+  await expect(advanced).toHaveAttribute("aria-expanded", "false");
+  await advanced.click();
+  const input = field.getByRole("combobox", { name: "기본값", exact: true });
+  await expect(input).toHaveValue("option_1"); await expect(input).not.toHaveAttribute("aria-invalid", "true");
+  await expect(input.locator("option:checked")).toHaveText("결함");
+  await page.getByRole("button", { name: "변경 취소", exact: true }).press("Enter");
+  await expect(field.getByRole("textbox", { name: "선택 항목 3", exact: true })).toHaveValue("문의");
+  await field.getByRole("button", { name: "선택 항목 1 제거", exact: true }).press("Enter");
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(input).toBeFocused();
+  await page.getByRole("button", { name: "변경 취소", exact: true }).press("Enter");
+  await expect(field.getByRole("textbox", { name: "선택 항목 1", exact: true })).toHaveValue("결함");
+  await expect(input).toHaveValue("option_1"); await expect(input).not.toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
+  await input.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("cancel-restored-valid-default.png"), fullPage: true });
+  expect(writes).toEqual([]);
+});
 test("read-only identifier history distinguishes registry failure from a missing reference and retries", async ({ page }) => {
   const current = plan("b"), kind = "10000000-0000-4000-8000-000000000001";
   const before = current.target.schema.properties.prop_2["x-identifier"]!;
@@ -1311,7 +1430,7 @@ test("first review includes reordered new fields, choice names and the title tem
   });
 });
 
-test("an exact empty analysis offers direct definition apply without conversion controls or a job", async ({ page }) => {
+test("an exact empty analysis offers direct definition apply without conversion controls or a job", async ({ page }, info) => {
   const current: EntitySchemaChange = {
     ...plan("b"),
     status: "ready",
@@ -1336,7 +1455,9 @@ test("an exact empty analysis offers direct definition apply without conversion 
     },
   };
   let applied = false;
+  const writes: string[] = [];
   await page.route(`**${base}**`, (route) => {
+    if (route.request().method() !== "GET") writes.push(new URL(route.request().url()).pathname);
     if (route.request().url().endsWith("/apply")) {
       applied = true;
       return route.fulfill({ json: { ...current, status: "applied" } });
@@ -1347,9 +1468,80 @@ test("an exact empty analysis offers direct definition apply without conversion 
   const history = page.getByRole("region", { name: "변경 이력", exact: true });
   await expect(history.getByRole("region", { name: "변환 규칙과 영향 미리보기" })).toHaveCount(0);
   await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toHaveCount(0);
+  await expect(history).toContainText("검토한 자료가 0개입니다. 값 변환 없이 새 설정을 적용할 수 있습니다.");
+  await expect(history).not.toContainText("값 변환 작업을 준비하세요.");
+  await page.screenshot({ path: info.outputPath("empty-definition-review.png"), fullPage: true });
   await history.getByRole("button", { name: "변경 적용", exact: true }).click();
   await expect(history).toContainText("적용됨");
   expect(applied).toBe(true);
+  expect(writes).toEqual([`${base}/b/apply`]);
+});
+
+for (const scenario of ["existing", "queued", "failed", "stale", "recovery"] as const) {
+  test(`#662 ${scenario} review does not advertise empty direct publication`, async ({ page }) => {
+    const current: EntitySchemaChange = { ...readyActionPlan(), change_kind: "migration_required" };
+    if (scenario !== "existing") Object.assign(current.analysis!, { total: 0, processed: 0, unchanged: 0 });
+    if (scenario === "queued") {
+      current.status = "analyzing";
+      current.analysis!.status = "queued";
+    }
+    if (scenario === "failed") {
+      current.status = "invalid";
+      current.analysis!.status = "failed";
+      current.analysis!.failure_reason = "analysis_worker_failed";
+    }
+    if (scenario === "stale") current.status = "stale";
+    if (scenario === "recovery") {
+      current.recovery = { source_job_id: "source-job", source_expires_at: "2026-11-12T00:00:00Z" };
+    }
+    const writes: string[] = [];
+    await page.route(`**${base}**`, route => {
+      if (route.request().method() !== "GET") writes.push(route.request().method());
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith("/rows")) return route.fulfill({ json: {
+        analysis_id: current.analysis!.id,
+        items: scenario === "existing" ? [{
+          entity_id: "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000001:R-1",
+          before: { prop_1: "기존 자료", prop_2: "00000000-0000-4000-8000-000000000001:R-1" },
+          after: { prop_1: "기존 자료", prop_2: "00000000-0000-4000-8000-000000000001:R-1" }, after_bytes: 128,
+          changed: false, removed: 0, replacements: 0, errors: [],
+        }] : [], next_after: null,
+      } });
+      return route.fulfill({ json: path === base ? { items: [current] } : current });
+    });
+    await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
+    const history = page.getByRole("region", { name: "변경 이력", exact: true });
+    await expect(history).toContainText("값 변환 작업을 준비하세요.");
+    await expect(history).not.toContainText("값 변환 없이 새 설정을 적용할 수 있습니다.");
+    await expect(history.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
+    if (scenario === "existing" || scenario === "recovery") {
+      await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toBeVisible();
+    }
+    expect(writes).toEqual([]);
+  });
+}
+
+test("#662 editing after empty review requires another review and preserves the input", async ({ page }) => {
+  const current: EntitySchemaChange = { ...readyActionPlan(), change_kind: "migration_required" };
+  Object.assign(current.analysis!, { total: 0, processed: 0, unchanged: 0 });
+  const writes: string[] = [];
+  await page.route(`**${base}**`, route => {
+    if (route.request().method() !== "GET") writes.push(route.request().method());
+    return route.fulfill({ json: new URL(route.request().url()).pathname === base ? { items: [current] } : current });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
+  const history = page.getByRole("region", { name: "변경 이력", exact: true });
+  await expect(history).toContainText("값 변환 없이 새 설정을 적용할 수 있습니다.");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await businessRows(page.getByRole("table", { name: "입력 항목 목록", exact: true })).first()
+    .getByRole("button", { name: / 입력 항목 편집$/ }).click();
+  const name = await initialNameInput(page);
+  await name.fill("아직 검토하지 않은 이름");
+  await expect(history).toContainText("검토 이후 입력이 바뀌었습니다.");
+  await expect(history).not.toContainText("값 변환 없이 새 설정을 적용할 수 있습니다.");
+  await expect(history.getByRole("button", { name: "보완 내용 검토", exact: true })).toBeEnabled();
+  await expect(name).toHaveValue("아직 검토하지 않은 이름");
+  expect(writes).toEqual([]);
 });
 
 test("입력 항목 이름과 조건은 좁은 폼에서도 라벨과 값을 읽고 편집한다", async ({ page }, info) => {

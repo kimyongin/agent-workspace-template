@@ -1990,3 +1990,260 @@ test("desktop: deferred settings loading and failure preserve the retained draft
     expect(state.errors).toEqual([]);
   } finally { release(); }
 });
+
+async function fullyExposed(control: Locator) {
+  return control.evaluate(node => {
+    const b = node.getBoundingClientRect();
+    let top = 0, bottom = innerHeight, left = 0, right = innerWidth;
+    for (let p = node.parentElement; p; p = p.parentElement) {
+      const s = getComputedStyle(p), r = p.getBoundingClientRect();
+      if (/auto|scroll|hidden|clip/.test(s.overflowY)) { top = Math.max(top, r.top); bottom = Math.min(bottom, r.bottom); }
+      if (/auto|scroll|hidden|clip/.test(s.overflowX)) { left = Math.max(left, r.left); right = Math.min(right, r.right); }
+    }
+    return b.top >= top - 1 && b.bottom <= bottom + 1 && b.left >= left - 1 && b.right <= right + 1;
+  });
+}
+
+for (const [width, height] of [[320, 300], [320, 568], [320, 900], [390, 844], [1440, 900]]) {
+  test(`#659 ${width}x${height} enlarged editor exposes its input and every footer action`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height });
+    const state = await fixture(page);
+    await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+    await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+    const form = detailDialog(page);
+    await expect(form.getByRole("textbox", { name: "수량", exact: true })).toHaveValue("0");
+    for (const zoom of [1, 2]) {
+      await page.evaluate(zoom => { document.documentElement.style.zoom = String(zoom); }, zoom);
+      for (const [role, name] of [["textbox", "수량"], ["button", "저장"], ["button", "취소"], ["button", "삭제"]] as const) {
+        const control = form.getByRole(role, { name, exact: true });
+        await control.scrollIntoViewIfNeeded();
+        await expect.poll(() => fullyExposed(control), { message: `${zoom}x ${name} is fully exposed after scrolling` }).toBe(true);
+        if (role === "textbox") await page.screenshot({ path: info.outputPath(`short-input-${zoom}x.png`), animations: "disabled" });
+      }
+      await page.screenshot({ path: info.outputPath(`short-editor-${zoom}x.png`), animations: "disabled" });
+    }
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+test("#659 short enlarged editing keeps keyboard focus, selection, validation and confirmation drafts through docking", async ({ page }, info) => {
+  const state = await fixture(page);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  const form = detailDialog(page), title = form.getByRole("textbox", { name: "제목 (필수)", exact: true });
+  await title.fill("낮은 화면에서도 유지할 초안");
+  await title.press("Home"); await title.press("Shift+ArrowRight");
+  const selection = () => title.evaluate(node => [(node as HTMLTextAreaElement).selectionStart, (node as HTMLTextAreaElement).selectionEnd]);
+  const before = await selection();
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  await expect(title).toBeFocused(); await expect.poll(selection).toEqual(before);
+  const seen = new Set<string>();
+  for (let i = 0; i < 40 && seen.size < 3; i++) {
+    await page.keyboard.press("Tab");
+    const active = page.locator(":focus");
+    await expect.poll(() => fullyExposed(active)).toBe(true);
+    for (const name of ["저장", "취소", "삭제"]) if (await form.getByRole("button", { name, exact: true }).evaluate(node => node === document.activeElement)) seen.add(name);
+  }
+  expect([...seen].sort()).toEqual(["삭제", "저장", "취소"].sort());
+  await page.keyboard.press("Shift+Tab");
+  const save = form.getByRole("button", { name: "저장", exact: true });
+  await expect(save).toBeFocused(); await expect.poll(() => fullyExposed(save)).toBe(true);
+  await save.press("Enter");
+  const confirm = executionDialog(page);
+  await expect(confirm.getByRole("button", { name: "수정하고 저장", exact: true })).toBeVisible();
+  await confirm.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(save).toBeFocused(); await expect(title).toHaveValue("낮은 화면에서도 유지할 초안");
+  const quantity = form.getByRole("textbox", { name: "수량", exact: true });
+  await quantity.fill("abc"); await save.click();
+  await expect(quantity).toHaveAttribute("aria-invalid", "true"); await expect(quantity).toBeFocused();
+  await expect.poll(() => fullyExposed(quantity)).toBe(true);
+  await quantity.fill("0");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => { document.documentElement.style.zoom = "1"; });
+  await expect(title).toHaveValue("낮은 화면에서도 유지할 초안"); await expect(quantity).toHaveValue("0");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(title).toHaveValue("낮은 화면에서도 유지할 초안");
+  await page.screenshot({ path: info.outputPath("short-editor-retained-draft.png"), animations: "disabled" });
+  await form.getByRole("button", { name: "취소", exact: true }).click();
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
+  await discard.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(title).toHaveValue("낮은 화면에서도 유지할 초안");
+  await form.getByRole("button", { name: "취소", exact: true }).click();
+  await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toBeFocused();
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("#659 pending confirmation keeps the same enlarged scroll layout when fields become disabled", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await fixture(page, { hold: true });
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  const form = detailDialog(page), title = "확인 중에도 읽던 입력을 유지합니다 ".repeat(4);
+  await form.getByRole("textbox", { name: "제목 (필수)", exact: true }).fill(title);
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const save = form.getByRole("button", { name: "저장", exact: true });
+  await save.scrollIntoViewIfNeeded();
+  const heading = form.getByRole("heading", { name: fixtureType.label, level: 2, exact: true, includeHidden: true });
+  const headingTop = () => heading.evaluate(node => node.getBoundingClientRect().top);
+  const before = await headingTop();
+  await save.click();
+  const confirmation = executionDialog(page);
+  await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeVisible();
+  await expect.soft.poll(headingTop, { message: "opening confirmation preserves the retained editor position" }).toBeCloseTo(before, 0);
+  try {
+    await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
+    await state.pending;
+    await expect.soft.poll(headingTop, { message: "disabled fields preserve the retained editor position" }).toBeCloseTo(before, 0);
+    await expect(confirmation.getByRole("button", { name: "처리 중…", exact: true })).toBeDisabled();
+  } finally { state.release(); }
+  await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  expect(state.writes).toHaveLength(1); expect(state.errors).toEqual([]);
+});
+
+async function scrollingViewport(control: Locator) {
+  return control.evaluate(node => {
+    for (let p = node.parentElement; p; p = p.parentElement) {
+      if (/auto|scroll/.test(getComputedStyle(p).overflowY) && p.scrollHeight > p.clientHeight + 1) {
+        const r = p.getBoundingClientRect(), b = node.getBoundingClientRect();
+        return { offset: b.top - r.top, height: r.height, scrollTop: p.scrollTop };
+      }
+    }
+    throw new Error("The observed field has no scrolling viewport");
+  });
+}
+
+test("#659 height-only scroll-owner transitions retain a visible middle field relative to its scrolling viewport", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await fixture(page), schema = structuredClone(fixtureSchema);
+  for (let index = 6; index <= 25; index++) {
+    schema.schema.properties[`prop_${index}`] = { type: "string", title: `중간 항목 ${index}`, "x-order": index * 10 };
+    state.rows.entities[0].properties[`prop_${index}`] = `읽던 값 ${index}`;
+  }
+  await page.route("**/api/entity-types/*/schema**", route => route.fulfill({ json: schema }));
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const anchor = detailDialog(page).getByRole("textbox", { name: "중간 항목 12", exact: true });
+  await anchor.scrollIntoViewIfNeeded();
+  await expect.poll(() => fullyExposed(anchor)).toBe(true);
+  const original = await scrollingViewport(anchor);
+  expect(original.scrollTop).toBeGreaterThan(0);
+  await page.screenshot({ path: info.outputPath("middle-before.png") });
+  for (const height of [568, 300, 568, 900]) {
+    const previousHeight = (await scrollingViewport(anchor)).height;
+    await page.setViewportSize({ width: 320, height });
+    await expect.poll(async () => Math.abs((await scrollingViewport(anchor)).height - previousHeight)).toBeGreaterThan(1);
+    if (height === 900) await expect.poll(async () => (await scrollingViewport(anchor)).height).toBeCloseTo(original.height, 0);
+    await expect.poll(async () => (await scrollingViewport(anchor)).offset).toBeCloseTo(original.offset, 0);
+    await expect.poll(() => fullyExposed(anchor)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`middle-height-${height}.png`) });
+  }
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("#659 releasing an oversized header keeps input and every footer action exposed together", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  const state = await fixture(page);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const form = detailDialog(page), input = form.getByRole("textbox", { name: "수량", exact: true });
+  await input.scrollIntoViewIfNeeded(); await input.focus();
+  await expect.poll(() => fullyExposed(input)).toBe(true);
+  for (const name of ["취소", "저장", "삭제"]) await expect.poll(() => fullyExposed(form.getByRole("button", { name, exact: true }))).toBe(true);
+  await page.screenshot({ path: info.outputPath("header-released-fixed-actions.png") });
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("#659 a later input growing beyond the fixed body remains completely exposable", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await fixture(page);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const form = detailDialog(page), title = form.getByRole("textbox", { name: "제목 (필수)", exact: true });
+  const body = form.getByRole("textbox", { name: "본문", exact: true });
+  await body.fill("짧은 본문"); await body.scrollIntoViewIfNeeded();
+  await expect.poll(() => fullyExposed(body)).toBe(true);
+  const fixedHeight = (await scrollingViewport(body)).height;
+  const titleHeight = (await title.boundingBox())!.height;
+  const draft = Array.from({ length: 10 }, (_, index) => `본문 ${index + 1}`).join("\n");
+  await body.fill(draft);
+  await expect(title).toHaveValue("등심 구매하기");
+  expect((await title.boundingBox())!.height).toBe(titleHeight);
+  expect((await body.boundingBox())!.height).toBeGreaterThan(fixedHeight);
+  expect((await body.boundingBox())!.height).toBeLessThan((await form.boundingBox())!.height);
+  await expect.poll(async () => (await scrollingViewport(body)).height).toBeGreaterThan((await body.boundingBox())!.height);
+  await body.evaluate(node => node.scrollIntoView({ block: "center" }));
+  await expect.poll(() => fullyExposed(body)).toBe(true);
+  await expect.poll(() => fullyExposed(form.getByRole("button", { name: "저장", exact: true }))).toBe(true);
+  await page.screenshot({ path: info.outputPath("growing-later-input.png") });
+  for (const name of ["저장", "취소", "삭제"]) {
+    const button = form.getByRole("button", { name, exact: true });
+    await button.scrollIntoViewIfNeeded(); await expect.poll(() => fullyExposed(button)).toBe(true);
+  }
+  await expect(body).toHaveValue(draft);
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("#659 an input taller than the viewport keeps every line reachable by its keyboard caret and exposes all actions", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await fixture(page);
+  await page.goto(fixtureWorkspacePath(`/tasks/${id(2)}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const form = detailDialog(page), body = form.getByRole("textbox", { name: "본문", exact: true });
+  const draft = Array.from({ length: 40 }, (_, index) => `행 ${String(index + 1).padStart(2, "0")}`).join("\n");
+  const beginning = draft.split("\n").slice(0, 10).join("\n");
+  await body.fill(beginning);
+  await expect.poll(async () => (await scrollingViewport(body)).height).toBeGreaterThan((await body.boundingBox())!.height);
+  const previousHeight = (await scrollingViewport(body)).height;
+  await body.press("End");
+  await page.keyboard.insertText(draft.slice(beginning.length));
+  await expect(body).toHaveValue(draft);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect.poll(async () => (await scrollingViewport(body)).height).toBeCloseTo(previousHeight, 0);
+  expect((await body.boundingBox())!.height).toBeGreaterThan((await form.boundingBox())!.height);
+  const caret = () => body.evaluate(node => {
+      const input = node as HTMLTextAreaElement, style = getComputedStyle(input), r = input.getBoundingClientRect();
+      const scale = r.width / input.offsetWidth, line = input.value.slice(0, input.selectionStart).split("\n").length - 1;
+      // The inline font box represents the caret/text line; line-height also contains leading.
+      const probe = document.createElement("div"), text = document.createElement("span");
+      Object.assign(probe.style, { position: "fixed", visibility: "hidden", font: style.font, lineHeight: style.lineHeight, whiteSpace: "pre" });
+      text.textContent = "행"; probe.appendChild(text); document.body.appendChild(probe);
+      const lineTop = text.getBoundingClientRect().top - probe.getBoundingClientRect().top, caretHeight = text.getBoundingClientRect().height;
+      probe.remove();
+      const top = r.top + (parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop) + line * parseFloat(style.lineHeight) - input.scrollTop) * scale + lineTop;
+      const bottom = top + caretHeight;
+      let clipTop = 0, clipBottom = innerHeight;
+      for (let p: HTMLElement | null = input; p; p = p.parentElement) {
+        if (/auto|scroll|hidden|clip/.test(getComputedStyle(p).overflowY)) {
+          const rect = p.getBoundingClientRect(); clipTop = Math.max(clipTop, rect.top); clipBottom = Math.min(clipBottom, rect.bottom);
+        }
+      }
+      return { line, top, bottom, clipTop, clipBottom, visible: top >= clipTop - 1 && bottom <= clipBottom + 1 };
+    });
+  await expect.poll(async () => (await caret()).visible, { message: "growing past the viewport retains the current caret" }).toBe(true);
+  await body.press("Home");
+  for (let row = 0; row < 40; row++) await body.press("ArrowUp");
+  await expect.poll(() => body.evaluate(node => (node as HTMLTextAreaElement).selectionStart)).toBe(0);
+  const observations = [];
+  for (let row = 0; row < 40; row++) {
+    if (row) await body.press("ArrowDown");
+    await expect.poll(async () => (await caret()).visible, { message: `keyboard caret exposes line ${row + 1}` }).toBe(true);
+    const observed = await caret(); expect(observed.line).toBe(row); observations.push(observed);
+    await expect.poll(() => fullyExposed(form.getByRole("button", { name: "저장", exact: true })), { message: `save remains exposed while reading line ${row + 1}` }).toBe(true);
+  }
+  await info.attach("unbounded-caret-lines.json", { body: JSON.stringify(observations, null, 2), contentType: "application/json" });
+  await page.screenshot({ path: info.outputPath("unbounded-last-line.png") });
+  for (const name of ["저장", "취소", "삭제"]) {
+    const button = form.getByRole("button", { name, exact: true });
+    await button.scrollIntoViewIfNeeded(); await expect.poll(() => fullyExposed(button)).toBe(true);
+  }
+  await page.screenshot({ path: info.outputPath("unbounded-actions.png") });
+  await expect(body).toHaveValue(draft);
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
