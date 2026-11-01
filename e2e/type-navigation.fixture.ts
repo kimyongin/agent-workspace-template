@@ -861,6 +861,8 @@ test("entity edit preserves draft and tags while schema metadata refresh is dela
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await expect(form.getByRole("button", { name: "현재 정의 확인 중…", exact: true })).toBeDisabled();
     await name.press("Enter");
+    const draft = "保持する下書き\n";
+    await expect(name).toHaveValue(draft);
     expect(preparations).toEqual([]);
     expect(writes).toEqual([]);
     release();
@@ -868,7 +870,7 @@ test("entity edit preserves draft and tags while schema metadata refresh is dela
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await form.getByRole("button", { name: "확인한 정의로 편집", exact: true }).click();
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
-    await expect(name).toHaveValue("保持する下書き");
+    await expect(name).toHaveValue(draft);
     await expect(form.getByLabel("태그", { exact: true }).filter({ visible: true })).toHaveText("保留タグ");
     await form.getByRole("button", { name: "저장", exact: true }).click();
     const confirmation = executionDialog(page);
@@ -881,7 +883,7 @@ test("entity edit preserves draft and tags while schema metadata refresh is dela
       expected_version: 1,
       input: {
         schema_version: 1,
-        properties: { prop_1: "保持する下書き" },
+        properties: { prop_1: draft },
       },
     });
     expect(preparations[0].input).not.toHaveProperty("tag_ids");
@@ -893,14 +895,14 @@ test("entity edit preserves draft and tags while schema metadata refresh is dela
     expect(writes[0]).toMatchObject({
       expected_version: 1,
       schema_version: 1,
-      properties: { prop_1: "保持する下書き" },
+      properties: { prop_1: draft },
     });
     expect(writes[0]).not.toHaveProperty("tag_ids");
     const viewer = detailDialog(page);
     await expect(viewer.getByRole("heading", { name: "保持する下書き", exact: true })).toBeVisible();
     const nameProperty = viewer.getByRole("term").filter({ hasText: /^이름$/ });
     await expect(nameProperty).toHaveCount(1);
-    await expect(nameProperty.locator("..").getByRole("definition")).toHaveText("保持する下書き");
+    await expect(nameProperty.locator("..").getByRole("definition")).toHaveJSProperty("textContent", draft);
     const connections = detailDialog(page).getByRole("region", { name: "태그 연결", exact: true });
     const assigned = connections.getByLabel("태그", { exact: true });
     await expect(assigned).toBeVisible();

@@ -165,6 +165,7 @@ export function SchemaEditor(
   const [reviewOpen, setReviewOpen] = useState(true);
   const [discardConfirm, setDiscardConfirm] = useState(false);
   const [openFields, setOpenFields] = useState<string[]>([]);
+  const [addedFieldFocus, setAddedFieldFocus] = useState<string | null>(null);
   const [advancedFields, setAdvancedFields] = useState<string[]>([]);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   const propertiesHeading = useRef<HTMLHeadingElement>(null);
@@ -336,6 +337,27 @@ export function SchemaEditor(
     requestAnimationFrame(() => fieldElements.current[selectedProperty]?.body?.scrollIntoView({ block: "nearest" }));
   }, [selectedProperty, definition.schema_version]);
   const draftOrder = schemaPresentation(draft).order;
+  const addDisabled = inputsDisabled || Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64;
+  const addField = () => {
+    if (addDisabled) return;
+    setPropertiesOpen(true);
+    const key = editor.addField();
+    if (key) {
+      setOpenFields((keys) => [...keys, key]);
+      setAddedFieldFocus(key);
+    }
+  };
+  useEffect(() => {
+    if (!addedFieldFocus) return;
+    const name = fieldElements.current[addedFieldFocus]?.body?.querySelector<HTMLInputElement>(
+      '[data-schema-setting="title"]',
+    );
+    if (!name) return;
+    name.focus();
+    name.select();
+    setAddedFieldFocus(null);
+  }, [addedFieldFocus, draft]);
+
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {addingKindFor && draft.schema.properties[addingKindFor] && (
@@ -415,13 +437,8 @@ export function SchemaEditor(
                 <Button
                   variant="ghost"
                   type="button"
-                  disabled={inputsDisabled ||
-                    Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
-                  onClick={() => {
-                    setPropertiesOpen(true);
-                    const key = editor.addField();
-                    if (key) setOpenFields((keys) => [...keys, key]);
-                  }}
+                  disabled={addDisabled}
+                  onClick={addField}
                 >
                   <PlusIcon data-icon="inline-start" />
                   항목 추가
@@ -1056,6 +1073,13 @@ export function SchemaEditor(
                   })}
                 </CollectionList>
               </FieldSet>
+              {canWrite && (
+                <div className="flex justify-start">
+                  <Button variant="ghost" type="button" disabled={addDisabled} onClick={addField}>
+                    <PlusIcon data-icon="inline-start" />다음 항목 추가
+                  </Button>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
               {plan && !["applied", "cancelled"].includes(plan.status) && !actions.review.visible && (
                 <div

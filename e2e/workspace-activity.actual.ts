@@ -566,10 +566,37 @@ test(
       record_kind: "change",
     });
     expect(committedEvents.items).toHaveLength(beforeEvents.items.length + 1);
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+    });
+    await page.screenshot({ path: info.outputPath("actual-retry-320-200.png"), animations: "disabled" });
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe("32px");
+    const retryBounds = await retry.evaluate((element) => {
+      const button = element.getBoundingClientRect();
+      const footer = element.closest('[data-slot="dialog-footer"]')!.getBoundingClientRect();
+      return {
+        left: button.left,
+        right: button.right,
+        min: footer.left,
+        max: footer.right,
+        width: button.width,
+        height: button.height,
+        clipped: element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight,
+      };
+    });
+    expect(retryBounds.left).toBeGreaterThanOrEqual(retryBounds.min);
+    expect(retryBounds.right).toBeLessThanOrEqual(retryBounds.max);
+    expect(retryBounds.width).toBeGreaterThanOrEqual(44);
+    expect(retryBounds.height).toBeGreaterThanOrEqual(44);
+    expect(retryBounds.clipped).toBe(false);
+    expect(attempts).toHaveLength(1);
+    await retry.focus();
+    await expect(retry).toBeFocused();
     await snapshot(page, info, "task-unknown-response-frozen");
 
     const replayed = writeResponse(page, "PATCH", `/tasks/${task.id}`);
-    await retry.click();
+    await retry.press("Enter");
     const response = await replayed;
     const replay = await scopedWrite(response, workspace.id);
     expect(attempts).toHaveLength(2);

@@ -6,6 +6,7 @@ import { cn } from "../lib/utils.ts";
 export function DataFields({ className, ...props }: ComponentProps<"dl">) {
   return <dl {...props} className={cn(
     "@container/data-fields flex min-w-0 flex-col gap-3 [&>div]:grid [&>div]:min-w-0 [&>div]:grid-cols-1 [&>div]:gap-x-4 [&>div]:gap-y-1 [&>div>dt]:min-w-0 [&>div>dt]:text-xs @min-[16rem]/data-fields:[&>div>dt]:text-sm [&>div>dt]:text-muted-foreground [&>div>dt]:wrap-anywhere [&>div>dd]:min-w-0 [&>div>dd]:wrap-anywhere @min-[16rem]/data-fields:[&>div]:grid-cols-[minmax(5rem,28%)_minmax(0,1fr)]",
+    "[&>div[data-full-width]]:grid-cols-1",
     className,
   )} />;
 }

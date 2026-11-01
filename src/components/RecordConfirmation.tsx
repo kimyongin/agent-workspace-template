@@ -172,7 +172,13 @@ export function useRecordConfirmation(options: {
         errors={errors} failure={failure} frozen={!!options.disabled || busy || uncertain || preparing} record={description.record}
         data={description.data} message={description.message} excludeTag={description.excludeTag}/>,
       footer: <><Button variant="outline" type="button"  disabled={busy || retaining} onClick={cancel}>{Object.keys(errors).some(key => key.startsWith("properties.")) ? "입력 수정" : "취소"}</Button>
-        <Button variant={description.danger ? "destructive" : "default"} type="button" disabled={!!options.disabled || busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)} onClick={() => void write(stage)}>
+        <Button
+          className="break-keep"
+          variant={description.danger ? "destructive" : "default"}
+          type="button"
+          disabled={!!options.disabled || busy || preparing || (!!description.preparation && !preparationReady.current && !uncertain)}
+          onClick={() => void write(stage)}
+        >
           {busy ? description.pendingLabel ?? "처리 중…" : uncertain ? "같은 내용 다시 시도" : description.label}
         </Button></>,
       onCancel: cancel,

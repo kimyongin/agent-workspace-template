@@ -10,6 +10,7 @@ export default defineConfig(ownedActual, {
     "workspace-model.actual.ts",
     "workspace-entity-tags.actual.ts",
     "workspace-activity.actual.ts",
+    "workspace-text.actual.ts",
     "workspace-task-viewer-access.actual.ts",
     "workspace-search-status.actual.ts",
     "workspace-search-guide.actual.ts",

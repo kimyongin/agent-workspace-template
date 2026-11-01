@@ -194,7 +194,7 @@ function EditDialog(
       if (first && outcome === "uncertain") {
         setUncertain(true);
         setFailure(
-          "응답을 확인하지 못했습니다. 제출한 내용을 유지합니다. 결과 확인을 눌러 같은 실행의 완료 여부를 확인하세요.",
+          "응답을 확인하지 못했습니다. 제출한 내용을 유지합니다. 같은 내용 다시 시도를 눌러 같은 실행의 완료 여부를 확인하세요.",
         );
         return;
       }
@@ -237,7 +237,7 @@ function EditDialog(
     <ConfirmDialog open={stage === "discard"} title="변경을 버릴까요?" message="저장하지 않은 상품명 변경을 버립니다. 취소하면 입력한 내용과 편집 위치를 유지합니다."
       confirmLabel="변경 버리기" danger onCancel={() => setStage("edit")} onConfirm={onClose} />
     <ConfirmationSurface open={stage === "review"} title="변경을 저장할까요?" busy={busy || uncertain} onCancel={() => setStage("edit")} closeButton
-      footer={<><Button type="button" variant="outline" disabled={busy || uncertain} onClick={() => setStage("edit")}>취소</Button><Button type="button" disabled={busy} onClick={execute}>{busy ? "처리 중…" : uncertain ? "결과 확인" : "저장"}</Button></>}>
+      footer={<><Button type="button" variant="outline" disabled={busy || uncertain} onClick={() => setStage("edit")}>취소</Button><Button className="break-keep" type="button" disabled={busy} onClick={execute}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}</Button></>}>
               <FieldGroup className="flex min-w-0 flex-col gap-5">
                 <DataFields>
                   {([["name", "상품명"], ["quantity", "수량"], ["sale", "판매 중"], ["memo", "메모"]] as const).map(([key, label]) => {

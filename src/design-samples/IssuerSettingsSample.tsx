@@ -70,7 +70,7 @@ export function IssuerSettingsSample(
           <IssuerRow
             key={index}
             label={source.label}
-            summary={source.system ? "자동 발급" : undefined}
+            summary={source.system ? "자동 생성" : "사용 중"}
             open={selected === index}
             disabled={!!numberEdit}
             action={source.system ? undefined : selected !== index ? <span /> : (

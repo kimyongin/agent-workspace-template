@@ -372,6 +372,9 @@ test("issuer retry retains its hidden stable code and request key; builtin app s
   await expect(page.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "기본 정보", exact: false })).toHaveCount(0);
   await expect(page.getByText("자동 생성", { exact: true })).toHaveCount(1);
+  await expect(page.getByRole("row").filter({
+    has: page.getByRole("button", { name: "쿠팡", exact: true }),
+  })).toContainText("사용 중");
   await page.getByRole("button", { name: "번호 출처 추가", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "번호 출처 추가", exact: true });
   await modal.getByLabel("이름").fill("새 마켓");

@@ -236,9 +236,9 @@ for (const outcome of ["success", "failure", "uncertain"]) {
         await expect(dialog.getByRole("button", { name: "닫기" })).toBeDisabled();
         await dialog.press("Escape");
         await expect(dialog.getByLabel("기록 메모")).toHaveValue("초안을 유지합니다");
-        await expect(dialog.getByRole("button", { name: "결과 확인" })).toBeEnabled();
+        await expect(dialog.getByRole("button", { name: "같은 내용 다시 시도" })).toBeEnabled();
       }
-      await dialog.getByRole("button", { name: outcome === "uncertain" ? "결과 확인" : "저장", exact: true }).click();
+      await dialog.getByRole("button", { name: outcome === "uncertain" ? "같은 내용 다시 시도" : "저장", exact: true }).click();
     }
     await expect(openDialogs(page)).toHaveCount(0);
     await expect(

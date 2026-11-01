@@ -5,6 +5,7 @@ import { PlusIcon, RotateCcwIcon, UnlinkIcon } from "lucide-react";
 import { Button } from "../components/ui/button.tsx";
 import { NativeSelect, NativeSelectOption } from "../components/ui/native-select.tsx";
 import { Input } from "../components/ui/input.tsx";
+import { Textarea } from "../components/ui/textarea.tsx";
 import { RelationSettingsSample } from "./RelationSettingsSample.tsx";
 import { type CSSProperties, useRef, useState } from "react";
 
@@ -282,6 +283,7 @@ function ButtonSamples() {
 }
 
 function FormSamples() {
+  const [procedure, setProcedure] = useState("1. 전원 차단\n2. 잠금 표찰 확인\n3. 가드 복구 후 시험 운전");
   const [frequency, setFrequency] = useState("매일"), [zone, setZone] = useState("Asia/Seoul");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -330,6 +332,10 @@ function FormSamples() {
         </Field>
       </div>
       <DataFields>
+        <div data-full-width>
+          <dt>점검 절차</dt>
+          <dd className="whitespace-pre-wrap">{procedure}</dd>
+        </div>
         <div>
           <dt>수량</dt>
           <dd>0</dd>
@@ -343,6 +349,17 @@ function FormSamples() {
           <dd>공백없는아주긴상품이름도글자크기를줄이지않고자연스럽게줄바꿈합니다</dd>
         </div>
       </DataFields>
+      <Field fullWidth label="점검 절차 편집">
+        {(props) => (
+          <Textarea
+            {...props}
+            rows={1}
+            className="min-h-11 max-h-[40dvh]"
+            value={procedure}
+            onChange={(event) => setProcedure(event.target.value)}
+          />
+        )}
+      </Field>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="default"  type="submit">입력 확인</Button>
       </div>
