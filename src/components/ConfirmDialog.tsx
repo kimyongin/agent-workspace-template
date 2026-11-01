@@ -78,7 +78,12 @@ export function ConfirmationSurface({ open, title, busy = false, onCancel, foote
       </div></DialogHeader>
       <div className="p-4">{children}</div>
       </div>
-      <DialogFooter ref={footerElement} className="m-0 shrink-0">{footer}</DialogFooter>
+      <DialogFooter
+        ref={footerElement}
+        className="m-0 shrink-0 [&_button]:h-auto [&_button]:min-h-[max(2.75rem,44px)] [&_button]:max-w-full [&_button]:whitespace-normal [&_button]:break-keep [&_button]:wrap-anywhere"
+      >
+        {footer}
+      </DialogFooter>
     </DialogContent>
   </Dialog></PopupContainerContext.Provider>;
 }

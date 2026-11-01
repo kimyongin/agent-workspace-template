@@ -13,7 +13,8 @@ test("미확정 응답의 긴 재시도 행동도 큰 글자에서 잘리지 않
   await expect(retry).toBeVisible();
   await page.setViewportSize({ width: 320, height: 900 });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  await page.screenshot({ path: info.outputPath("retry-320-200.png"), fullPage: true });
+  await page.screenshot({ path: info.outputPath("retry-320-200.png"), fullPage: true, animations: "disabled" });
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe("32px");
   const bounds = await retry.evaluate((element) => {
     const box = element.getBoundingClientRect(),
       footer = element.closest('[data-slot="dialog-footer"]')!.getBoundingClientRect();
@@ -26,6 +27,7 @@ test("미확정 응답의 긴 재시도 행동도 큰 글자에서 잘리지 않
       height: box.height,
     };
   });
+  await info.attach("retry-final-layout", { body: JSON.stringify(bounds), contentType: "application/json" });
   expect(bounds.left).toBeGreaterThanOrEqual(bounds.min);
   expect(bounds.right).toBeLessThanOrEqual(bounds.max);
   expect(bounds.width).toBeGreaterThanOrEqual(44);
