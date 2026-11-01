@@ -412,6 +412,11 @@ export function useSchemaChangeEditor(
           condition = String(valid.error.issues[0].path[0]);
           throw new Error("입력 항목 조건을 확인하세요.");
         }
+        if (field.default !== undefined && field.default !== null && field.oneOf
+          && !field.oneOf.some(option => option.const === field.default)) {
+          condition = "default";
+          throw new Error("기본값에 사용할 선택 항목을 다시 선택하거나 생성 기본값을 설정 안 함으로 바꾸세요.");
+        }
         const settings = field["x-identifier"];
         if (settings) {
           if (field.minLength !== undefined || field.maxLength !== undefined) {

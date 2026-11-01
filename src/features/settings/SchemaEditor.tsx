@@ -193,7 +193,8 @@ export function SchemaEditor(
         element.querySelector<HTMLInputElement>(
           includeSelect ? "input:not([disabled]),select:not([disabled])" : "input:not([disabled])",
         );
-      input?.scrollIntoView({ block: "nearest" });
+      const target = condition === "default" ? input?.closest('[data-slot="field"]') ?? input : input;
+      target?.scrollIntoView({ block: "nearest" });
       input?.focus();
     });
   };
@@ -535,6 +536,8 @@ export function SchemaEditor(
                     const index = draftOrder.indexOf(key);
                     const f = draft.schema.properties[key],
                       scalar = fieldType(f) ?? "string";
+                    const invalidChoiceDefault = f.default !== undefined && f.default !== null && !!fieldChoices(f)
+                      && !fieldChoices(f)!.includes(String(f.default));
                     const toggleField = () =>
                       setOpenFields((keys) =>
                         keys.includes(key) ? keys.filter((value) => value !== key) : [...keys, key]
@@ -752,11 +755,13 @@ export function SchemaEditor(
                                       type="button"
                                       aria-label={`선택 항목 ${i + 1} 제거`}
                                       disabled={fieldChoices(f)!.filter((value) => value !== null).length <= 1}
-                                      onClick={() =>
+                                      onClick={() => {
                                         editField(key, {
                                           ...f,
                                           oneOf: f.oneOf!.filter((option) => option.const !== code),
-                                        })}
+                                        });
+                                        if (f.default === code) onInvalidField(key, true, "default");
+                                      }}
                                     >
                                       제거
                                     </Button>
@@ -956,7 +961,9 @@ export function SchemaEditor(
                                       {f.default !== undefined && f.default !== null && (
                                         <Field
                                           label="기본값"
-                                          error={f.format === "date" && !isCivilDateInput(String(f.default))
+                                          error={invalidChoiceDefault
+                                            ? "기본값으로 지정한 선택 항목이 제거되었습니다. 다른 값을 선택하거나 생성 기본값을 설정 안 함으로 바꾸세요."
+                                            : f.format === "date" && !isCivilDateInput(String(f.default))
                                             ? "올바른 날짜를 YYYY-MM-DD 형식으로 입력하세요."
                                             : undefined}
                                         >
@@ -980,13 +987,15 @@ export function SchemaEditor(
                                               ? (
                                                 <NativeSelect
                                                   {...p}
-                                                  value={String(f.default)}
+                                                  data-schema-setting="default"
+                                                  value={invalidChoiceDefault ? "" : String(f.default)}
                                                   onChange={(e) =>
                                                     editField(key, {
                                                       ...f,
                                                       default: e.target.value,
                                                     })}
                                                 >
+                                                  {invalidChoiceDefault && <NativeSelectOption value="" disabled>제거된 선택 항목</NativeSelectOption>}
                                                   {fieldChoices(f)!.filter((v) => v !== null).map((
                                                     code,
                                                   ) => (
