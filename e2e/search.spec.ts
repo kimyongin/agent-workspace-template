@@ -214,7 +214,7 @@ test("검색 대상 삭제·불일치 편집 후에는 저장한 페이지까지
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     requests = 0;
     await executionDialog(page).getByRole("button", {
-      name: "삭제하고 기록",
+      name: "삭제",
       exact: true,
     }).click();
     await expect(page).toHaveURL(/\/search\?/);

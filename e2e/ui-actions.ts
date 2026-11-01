@@ -68,9 +68,9 @@ export async function closeDetail(page: Page, title: string) {
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
 export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장", waitForWrite = true) {
   const final = executionDialog(page).getByRole("button", {
-    name: /^(등록|수정|중단|재개|복원|식별 정보 변경|연결|해제)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/,
+    name: /^(등록|수정|중단|재개|복원|식별 정보 변경|연결|해제)하고 저장$|^삭제(?:하고 기록)?$|^같은 내용 다시 시도$/,
   });
-  const requested = scope.getByRole("button", { name: label === "삭제 확인" ? "삭제하고 기록" : label, exact: true });
+  const requested = scope.getByRole("button", { name: label === "삭제 확인" ? /^삭제(?:하고 기록)?$/ : label, exact: true });
   let write: Request | undefined, settled = false;
   const started = (request: Request) => {
     const path = new URL(request.url()).pathname;
