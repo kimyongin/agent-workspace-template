@@ -1990,3 +1990,115 @@ test("desktop: deferred settings loading and failure preserve the retained draft
     expect(state.errors).toEqual([]);
   } finally { release(); }
 });
+
+async function fullyExposed(control: Locator) {
+  return control.evaluate(node => {
+    const b = node.getBoundingClientRect();
+    let top = 0, bottom = innerHeight, left = 0, right = innerWidth;
+    for (let p = node.parentElement; p; p = p.parentElement) {
+      const s = getComputedStyle(p), r = p.getBoundingClientRect();
+      if (/auto|scroll|hidden|clip/.test(s.overflowY)) { top = Math.max(top, r.top); bottom = Math.min(bottom, r.bottom); }
+      if (/auto|scroll|hidden|clip/.test(s.overflowX)) { left = Math.max(left, r.left); right = Math.min(right, r.right); }
+    }
+    return b.top >= top - 1 && b.bottom <= bottom + 1 && b.left >= left - 1 && b.right <= right + 1;
+  });
+}
+
+for (const [width, height] of [[320, 300], [320, 568], [320, 900], [390, 844], [1440, 900]]) {
+  test(`#659 ${width}x${height} enlarged editor exposes its input and every footer action`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height });
+    const state = await fixture(page);
+    await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+    await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+    const form = detailDialog(page);
+    await expect(form.getByRole("textbox", { name: "수량", exact: true })).toHaveValue("0");
+    for (const zoom of [1, 2]) {
+      await page.evaluate(zoom => { document.documentElement.style.zoom = String(zoom); }, zoom);
+      for (const [role, name] of [["textbox", "수량"], ["button", "저장"], ["button", "취소"], ["button", "삭제"]] as const) {
+        const control = form.getByRole(role, { name, exact: true });
+        await control.scrollIntoViewIfNeeded();
+        await expect.poll(() => fullyExposed(control), { message: `${zoom}x ${name} is fully exposed after scrolling` }).toBe(true);
+        if (role === "textbox") await page.screenshot({ path: info.outputPath(`short-input-${zoom}x.png`), animations: "disabled" });
+      }
+      await page.screenshot({ path: info.outputPath(`short-editor-${zoom}x.png`), animations: "disabled" });
+    }
+    expect(state.writes).toEqual([]);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+test("#659 short enlarged editing keeps keyboard focus, selection, validation and confirmation drafts through docking", async ({ page }, info) => {
+  const state = await fixture(page);
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  const form = detailDialog(page), title = form.getByRole("textbox", { name: "제목 (필수)", exact: true });
+  await title.fill("낮은 화면에서도 유지할 초안");
+  await title.press("Home"); await title.press("Shift+ArrowRight");
+  const selection = () => title.evaluate(node => [(node as HTMLTextAreaElement).selectionStart, (node as HTMLTextAreaElement).selectionEnd]);
+  const before = await selection();
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  await expect(title).toBeFocused(); await expect.poll(selection).toEqual(before);
+  const seen = new Set<string>();
+  for (let i = 0; i < 40 && seen.size < 3; i++) {
+    await page.keyboard.press("Tab");
+    const active = page.locator(":focus");
+    await expect.poll(() => fullyExposed(active)).toBe(true);
+    for (const name of ["저장", "취소", "삭제"]) if (await form.getByRole("button", { name, exact: true }).evaluate(node => node === document.activeElement)) seen.add(name);
+  }
+  expect([...seen].sort()).toEqual(["삭제", "저장", "취소"].sort());
+  await page.keyboard.press("Shift+Tab");
+  const save = form.getByRole("button", { name: "저장", exact: true });
+  await expect(save).toBeFocused(); await expect.poll(() => fullyExposed(save)).toBe(true);
+  await save.press("Enter");
+  const confirm = executionDialog(page);
+  await expect(confirm.getByRole("button", { name: "수정하고 저장", exact: true })).toBeVisible();
+  await confirm.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(save).toBeFocused(); await expect(title).toHaveValue("낮은 화면에서도 유지할 초안");
+  const quantity = form.getByRole("textbox", { name: "수량", exact: true });
+  await quantity.fill("abc"); await save.click();
+  await expect(quantity).toHaveAttribute("aria-invalid", "true"); await expect(quantity).toBeFocused();
+  await expect.poll(() => fullyExposed(quantity)).toBe(true);
+  await quantity.fill("0");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => { document.documentElement.style.zoom = "1"; });
+  await expect(title).toHaveValue("낮은 화면에서도 유지할 초안"); await expect(quantity).toHaveValue("0");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(title).toHaveValue("낮은 화면에서도 유지할 초안");
+  await page.screenshot({ path: info.outputPath("short-editor-retained-draft.png"), animations: "disabled" });
+  await form.getByRole("button", { name: "취소", exact: true }).click();
+  const discard = page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true });
+  await discard.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(title).toHaveValue("낮은 화면에서도 유지할 초안");
+  await form.getByRole("button", { name: "취소", exact: true }).click();
+  await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toBeFocused();
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("#659 pending confirmation keeps the same enlarged scroll layout when fields become disabled", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await fixture(page, { hold: true });
+  await page.goto(fixtureWorkspacePath(`/entities/${encodeURIComponent(entityKey(1))}`));
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  const form = detailDialog(page), title = "확인 중에도 읽던 입력을 유지합니다 ".repeat(4);
+  await form.getByRole("textbox", { name: "제목 (필수)", exact: true }).fill(title);
+  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  const save = form.getByRole("button", { name: "저장", exact: true });
+  await save.scrollIntoViewIfNeeded();
+  const heading = form.getByRole("heading", { name: fixtureType.label, level: 2, exact: true, includeHidden: true });
+  const headingTop = () => heading.evaluate(node => node.getBoundingClientRect().top);
+  const before = await headingTop();
+  await save.click();
+  const confirmation = executionDialog(page);
+  await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeVisible();
+  await expect.soft.poll(headingTop, { message: "opening confirmation preserves the retained editor position" }).toBeCloseTo(before, 0);
+  try {
+    await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
+    await state.pending;
+    await expect.soft.poll(headingTop, { message: "disabled fields preserve the retained editor position" }).toBeCloseTo(before, 0);
+    await expect(confirmation.getByRole("button", { name: "처리 중…", exact: true })).toBeDisabled();
+  } finally { state.release(); }
+  await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  expect(state.writes).toHaveLength(1); expect(state.errors).toEqual([]);
+});
