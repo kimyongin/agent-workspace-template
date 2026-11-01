@@ -1,5 +1,6 @@
 import { normalizeStoredEntityDefinition } from "../../core/entity-types/stored-definition.ts";
 import { authorizeWorkspace, requireWorkspaceActor } from "./workspace-context.ts";
+import { translate } from "./sql-context.ts";
 import type { WorkspaceRequirement } from "../../core/workspaces/application.ts";
 import { loadSchemaType } from "./schema-type.ts";
 import type {
@@ -336,6 +337,17 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   async saveSchemaChangeDraft(context: SchemaChangeDraftContext, prepared: PreparedSchemaChange) {
     const { type: t, previous } = context;
     const { edits, migration, reservations, target, diff, kind, fingerprint, source_template_fingerprint } = prepared;
+    if (kind !== "compatible") {
+      try {
+        await this.authorizeSchemaKinds([t.id], "read");
+      } catch (error) {
+        const translated = translate(error);
+        if (translated instanceof AppError && translated.code === "forbidden") {
+          throw new AppError("forbidden", "이 설정 변경안을 저장하려면 해당 자료 종류의 읽기 권한이 필요합니다");
+        }
+        throw translated;
+      }
+    }
     const [r] = previous
       ? await this
         .tx`update app.entity_schema_changes set version=version+1,status='draft',analysis_id=null,migration=${
