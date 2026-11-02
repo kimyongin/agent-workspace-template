@@ -12,7 +12,12 @@ import { useRecordConfirmation } from "../../components/RecordConfirmation.tsx";
 import { TagNames, TagPicker, type TagScope } from "./TagPicker.tsx";
 
 export function ReadonlyTags(
-  { ids, scope, onRemove, removeDisabled }: { ids: string[]; scope: TagScope; onRemove?: (id: string) => void; removeDisabled?: boolean },
+  { ids, scope, onRemove, removeDisabled }: {
+    ids: string[];
+    scope: TagScope;
+    onRemove?: (id: string) => void;
+    removeDisabled?: boolean;
+  },
 ) {
   return (
     <DataFields>
@@ -29,15 +34,17 @@ export function ReadonlyTags(
 }
 
 /** The chooser only changes this draft. A partial write owns its exact version and retry lifetime. */
-export function TagConnections({ scope, target, readonly = false, disabled = false, visible = true, onSaved, onDraftClosed }: {
-  scope: TagScope;
-  target: { id: string; version: number; tag_ids: string[]; title?: string };
-  readonly?: boolean;
-  disabled?: boolean;
-  visible?: boolean;
-  onDraftClosed?: () => void;
-  onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
-}) {
+export function TagConnections(
+  { scope, target, readonly = false, disabled = false, visible = true, onSaved, onDraftClosed }: {
+    scope: TagScope;
+    target: { id: string; version: number; tag_ids: string[]; title?: string };
+    readonly?: boolean;
+    disabled?: boolean;
+    visible?: boolean;
+    onDraftClosed?: () => void;
+    onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
+  },
+) {
   const trigger = useRef<HTMLElement>(null);
   const wasEditing = useRef(false);
   const [editing, setEditing] = useState<(typeof target & { openPicker: boolean }) | null>(null);
