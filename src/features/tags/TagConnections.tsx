@@ -47,15 +47,36 @@ export function TagConnections(
 ) {
   const trigger = useRef<HTMLElement>(null);
   const wasEditing = useRef(false);
+  const returnFocus = useRef(false);
   const [editing, setEditing] = useState<(typeof target & { openPicker: boolean }) | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
-    if (wasEditing.current && !editing) {
-      const destination = trigger.current?.querySelector<HTMLButtonElement>('[aria-label="태그 연결"]') ?? trigger.current;
-      destination?.focus();
-    }
+    if (wasEditing.current && !editing) returnFocus.current = true;
     wasEditing.current = !!editing;
-  }, [editing]);
+    if (editing || !visible) returnFocus.current = false;
+    if (!returnFocus.current) return;
+    if (disabled) {
+      // New user intent takes precedence over a return delayed by the latest read.
+      const cancel = () => {
+        returnFocus.current = false;
+      };
+      document.addEventListener("pointerdown", cancel, true);
+      document.addEventListener("keydown", cancel, true);
+      document.addEventListener("wheel", cancel, { capture: true, passive: true });
+      return () => {
+        document.removeEventListener("pointerdown", cancel, true);
+        document.removeEventListener("keydown", cancel, true);
+        document.removeEventListener("wheel", cancel, true);
+      };
+    }
+    returnFocus.current = false;
+    const destination = trigger.current?.querySelector<HTMLButtonElement>('[aria-label="태그 연결"]') ??
+      trigger.current;
+    if (destination?.getClientRects().length) destination.focus();
+  }, [editing, disabled, visible, scope, target.id]);
+  useEffect(() => () => {
+    returnFocus.current = false;
+  }, [scope, target.id]);
   return (
     <section ref={trigger} hidden={!visible} tabIndex={-1} className="flex min-w-0 flex-col gap-3" aria-label="태그 연결">
       {editing

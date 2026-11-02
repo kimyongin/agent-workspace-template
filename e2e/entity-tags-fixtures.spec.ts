@@ -787,13 +787,29 @@ test("기록 태그 연결 버전 충돌은 원문과 선택 초안을 보존한
   await expect(region.getByRole("button",{name:"태그 연결",exact:true})).toBeFocused();
 });
 
-test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 연결을 다시 시작한다", async ({ page }) => {
+async function tagConflictFocus(page: Page, focusIntent: "keyboard" | "wheel") {
   let current = {
     ...makeEntity(1, { prop_5: encodeIdentifierValue(APP_IDENTIFIER_RULE_ID, "10000000-0000-4000-8000-000000000000") }),
     id: `${fixtureType.id}:${APP_IDENTIFIER_RULE_ID}:10000000-0000-4000-8000-000000000000`, identity_label: "앱 · 자동 발급 · 10000000-0000-4000-8000-000000000000",
     tag_ids: [tags[0].id],
   };
+  if (focusIntent === "wheel") {
+    const records = Array.from({ length: 20 }, (_, i) => ({
+      ...makeRecord(500 + i),
+      entity_id: current.id,
+      task_id: null,
+      body: `스크롤 검증 기록 ${i + 1}`,
+    }));
+    await page.route("**/api/records?**", (route) => route.fulfill({ json: { items: records, next_cursor: null } }));
+  }
   const writes: Record<string, unknown>[] = [];
+  let releaseRead!: () => void, readStarted!: () => void;
+  const heldRead = new Promise<void>((resolve) => {
+    releaseRead = resolve;
+  });
+  const reading = new Promise<void>((resolve) => {
+    readStarted = resolve;
+  });
   await page.route(
     "**/api/entity-types**",
     (route) =>
@@ -819,6 +835,10 @@ test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 �
       }
       current = { ...current, tag_ids: input.tag_ids, version: 3 };
     }
+    if (route.request().method() === "GET" && writes.length === 2) {
+      readStarted();
+      await heldRead;
+    }
     return route.fulfill({ json: current });
   });
   await page.goto(url);
@@ -838,11 +858,45 @@ test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 �
   await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toBeFocused();
   await region.getByRole("button", { name: "다른 태그 연결 해제", exact: true }).click();
   await region.getByRole("button", { name: "연결 적용", exact: true }).click();
-  await action.getByRole("button", { name: "연결하고 저장", exact: true }).click();
-  await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+  try {
+    await action.getByRole("button", { name: "연결하고 저장", exact: true }).click();
+    await reading;
+    const connect = region.getByRole("button", { name: "태그 연결", exact: true });
+    await expect(connect).toBeDisabled();
+    if (focusIntent === "keyboard") {
+      const close = page.getByRole("button", { name: "닫기", exact: true });
+      await close.focus();
+      await page.keyboard.press("ArrowRight");
+      releaseRead();
+      await expect(connect).toBeEnabled();
+      await expect(close).toBeFocused();
+    } else {
+      const body = page.getByRole("region", { name: "상세 내용", exact: true });
+      const bounds = (await body.boundingBox())!;
+      await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+      await page.mouse.wheel(0, 1200);
+      await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+      await expect(connect).not.toBeInViewport();
+      const readingPosition = await body.evaluate((el) => el.scrollTop);
+      releaseRead();
+      await expect(connect).toBeEnabled();
+      await expect(connect).not.toBeFocused();
+      await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBe(readingPosition);
+    }
+    await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+  } finally {
+    releaseRead();
+  }
   expect(writes.map((input) => input.expected_version)).toEqual([1, 2]);
   expect(current.properties.prop_1).toBe("외부에서 바뀐 자료");
-});
+}
+for (const focusIntent of ["keyboard", "wheel"] as const) {
+  test(
+    "태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 연결을 다시 시작한다" +
+      (focusIntent === "wheel" ? " · 휠 스크롤 보존" : ""),
+    async ({ page }) => tagConflictFocus(page, focusIntent),
+  );
+}
 
 test("태그 연결 초안은 닫기·뒤로가기·경로 이동 취소에서 선택과 초점을 지키고 승인한 경로만 이동한다", async ({ page }) => {
   const record = { ...makeRecord(3), id: "30000000-0000-4000-8000-000000000000", tag_ids: [tags[0].id] };
