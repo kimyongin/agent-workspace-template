@@ -48,6 +48,7 @@ export function EntityForm({
   submitLabel = "저장",
   details,
   relations,
+  reading,
   deletion,
   onClose,
   onRouteDiscard,
@@ -63,6 +64,7 @@ export function EntityForm({
   submitLabel?: string;
   details?: ReactNode;
   relations?: ReactNode;
+  reading?: (disabled: boolean) => ReactNode;
   deletion?: DeletionOptions;
   onClose: () => void;
   onRouteDiscard?: () => void;
@@ -283,6 +285,7 @@ export function EntityForm({
         description="식별자 종류와 원본 값을 확인하고, 자료의 입력 항목을 작성합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel={submitLabel}
+        footerActions={reading}
         submitDisabled={!canWrite || !!typeId &&
           (!types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
