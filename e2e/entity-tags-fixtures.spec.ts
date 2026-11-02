@@ -794,6 +794,13 @@ test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 �
     tag_ids: [tags[0].id],
   };
   const writes: Record<string, unknown>[] = [];
+  let releaseRead!: () => void, readStarted!: () => void;
+  const heldRead = new Promise<void>((resolve) => {
+    releaseRead = resolve;
+  });
+  const reading = new Promise<void>((resolve) => {
+    readStarted = resolve;
+  });
   await page.route(
     "**/api/entity-types**",
     (route) =>
@@ -819,6 +826,10 @@ test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 �
       }
       current = { ...current, tag_ids: input.tag_ids, version: 3 };
     }
+    if (route.request().method() === "GET" && writes.length === 2) {
+      readStarted();
+      await heldRead;
+    }
     return route.fulfill({ json: current });
   });
   await page.goto(url);
@@ -838,8 +849,21 @@ test("태그 충돌 초안 취소는 최신 자료를 읽고 새 버전으로 �
   await expect(region.getByRole("button", { name: "태그 연결", exact: true })).toBeFocused();
   await region.getByRole("button", { name: "다른 태그 연결 해제", exact: true }).click();
   await region.getByRole("button", { name: "연결 적용", exact: true }).click();
-  await action.getByRole("button", { name: "연결하고 저장", exact: true }).click();
-  await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+  try {
+    await action.getByRole("button", { name: "연결하고 저장", exact: true }).click();
+    await reading;
+    const connect = region.getByRole("button", { name: "태그 연결", exact: true });
+    await expect(connect).toBeDisabled();
+    const close = page.getByRole("button", { name: "닫기", exact: true });
+    await close.focus();
+    await page.keyboard.press("ArrowRight");
+    releaseRead();
+    await expect(connect).toBeEnabled();
+    await expect(close).toBeFocused();
+    await expect(region.getByText("연결된 태그 없음", { exact: true })).toBeVisible();
+  } finally {
+    releaseRead();
+  }
   expect(writes.map((input) => input.expected_version)).toEqual([1, 2]);
   expect(current.properties.prop_1).toBe("외부에서 바뀐 자료");
 });
