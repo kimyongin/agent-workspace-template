@@ -198,12 +198,13 @@ export function TagReadProvider(
   return <TagReadContext.Provider value={state}>{children}</TagReadContext.Provider>;
 }
 export function TagNames(
-  { ids, compact = false, scope = "record", onReadyChange, onRemove }: {
+  { ids, compact = false, scope = "record", onReadyChange, onRemove, removeDisabled = false }: {
     ids: string[];
     compact?: boolean;
     scope?: TagScope;
     onReadyChange?: (ready: boolean) => void;
     onRemove?: (id: string) => void;
+    removeDisabled?: boolean;
   },
 ) {
   const context = useContext(TagReadContext);
@@ -255,6 +256,7 @@ export function TagNames(
                     variant="ghost"
                     size="sm"
                     aria-label={`${tags.find((t) => t.id === id)?.name ?? "이름 확인이 필요한 태그"} 연결 해제`}
+                    disabled={removeDisabled}
                     onClick={() => onRemove(id)}
                   >
                     해제

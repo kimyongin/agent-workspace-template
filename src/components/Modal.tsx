@@ -41,6 +41,8 @@ export interface ModalProps {
   children: ReactNode;
   ready?: boolean;
   navigationTitle?: string;
+  /** A nested reading surface keeps its parent modal layer through docking. */
+  holdPresentation?: boolean;
 }
 
 export interface SurfaceEditor {
@@ -54,7 +56,7 @@ export interface SurfaceEditor {
   onRouteDiscard?: () => void;
   footer: ModalProps["footer"];
 }
-export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor: RefObject<SurfaceEditor | null>; busy: RefObject<boolean>; register: (editor: SurfaceEditor | null) => void; onError?: (error: unknown) => void; protection: RefObject<SurfaceProtection | null>; protect: (value: SurfaceProtection | null) => void} | null>(null);
+export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor: RefObject<SurfaceEditor | null>; busy: RefObject<boolean>; register: (editor: SurfaceEditor | null) => void; onError?: (error: unknown) => void; protection: RefObject<SurfaceProtection | null>; protect: (value: SurfaceProtection | null) => void; holdPresentation: (held: boolean) => void} | null>(null);
 
 export interface SurfaceProtection { dirty: boolean; busy: boolean; discard: () => void }
 
@@ -76,6 +78,7 @@ export function DetailSurface({title, description, tabTitle = title, onClose, ch
   useLayoutEffect(() => { tab?.title(tabTitle); }, [tabTitle, tab?.title]);
   const [editor, setEditor] = useState<SurfaceEditor | null>(null);
   const [protection, setProtection] = useState<SurfaceProtection | null>(null);
+  const [presentationHeld, holdPresentation] = useState(false);
   const protectionRef = useRef(protection);
   protectionRef.current = protection;
   const protect = useCallback((value: SurfaceProtection | null) => { protectionRef.current = value; setProtection(value); }, []);
@@ -98,10 +101,10 @@ export function DetailSurface({title, description, tabTitle = title, onClose, ch
   };
   // Remove the editor before navigating, so its dirty guard cannot ask a second time.
   useEffect(()=>{if(dismissing&&!editor&&!protection){setDismissing(false);if(tab)tab.close();else onClose();}},[dismissing,editor,protection,onClose,tab]);
-  return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef, onError, protection: protectionRef, protect}}>
+  return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef, onError, protection: protectionRef, protect, holdPresentation}}>
     <ModalShell open visible={visible} ready={ready} navigationTitle={tabTitle} title={editor?.title ?? title} description={editor ? editor.description : description} scrollHeaderWithBody={editor?.scrollHeaderWithBody} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard ?? (protection ? () => protectionRef.current?.discard() : undefined)} dirty={editor?.dirty || protection?.dirty} busy={busy || editor?.busy || protection?.busy}
-      previous={tab?.previous ?? (editor ? null : previous)} footer={editor?.footer ?? (protection?.dirty ? <fieldset className="flex flex-wrap items-center gap-2 border-0 p-0" disabled>{footer}</fieldset> : footer)}>
+      previous={tab?.previous ?? (editor ? null : previous)} holdPresentation={presentationHeld} footer={editor?.footer ?? (protection?.dirty ? <fieldset className="flex flex-wrap items-center gap-2 border-0 p-0" disabled>{footer}</fieldset> : footer)}>
       <div ref={root} hidden={!!editor}>{children}</div>
       <div ref={setSlot} hidden={!editor} />
     </ModalShell>
@@ -117,7 +120,7 @@ export function ModalShell(props: ModalProps) {
   return props.open ? <ActiveModalShell {...props} /> : null;
 }
 
-function ActiveModalShell({ title, description, scrollHeaderWithBody = false, domain, headingLevel=2, open, visible = true, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children, ready = true, navigationTitle = title }: ModalProps) {
+function ActiveModalShell({ title, description, scrollHeaderWithBody = false, domain, headingLevel=2, open, visible = true, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children, ready = true, navigationTitle = title, holdPresentation = false }: ModalProps) {
   const tab = useContext(DetailTabContext);
   const workspace = useContext(WorkspaceContext);
   const active = visible && (tab?.active ?? true);
@@ -147,7 +150,7 @@ function ActiveModalShell({ title, description, scrollHeaderWithBody = false, do
   // The portal target never changes. Only its containing layout slot moves.
   // React therefore retains form state, DOM selection, scroll and nested guards.
   const [presentDocked, setPresentDocked] = useState(docked);
-  useLayoutEffect(() => { if (!actionOpen) setPresentDocked(docked); }, [docked, actionOpen]);
+  useLayoutEffect(() => { if (!actionOpen && !holdPresentation) setPresentDocked(docked); }, [docked, actionOpen, holdPresentation]);
   const dialogDocked = presentDocked;
   const [admittedMobileContent, setAdmittedMobileContent] = useState<HTMLDivElement | null>(null);
   // Radix's parent modal first hides its siblings in a passive mount effect.
