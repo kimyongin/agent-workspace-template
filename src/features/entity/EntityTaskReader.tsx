@@ -16,6 +16,7 @@ import {
 } from "../../components/ui/dialog.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { Notice } from "../../components/Field.tsx";
+import { RelatedEmpty } from "../../components/RelatedItems.tsx";
 import { useApi } from "../../lib/api-context.tsx";
 import { ApiError } from "../../lib/api.ts";
 import { useTaskAccess } from "../activity/task-access.ts";
@@ -223,7 +224,7 @@ export function EntityTaskReader({ entity, read, disabled }: {
                   </li>
                 ))}
               </ul>
-              {!read.items.length && !read.loading && !read.failed && <p>연결된 할 일이 없습니다.</p>}
+              {!read.items.length && !read.loading && !read.failed && <RelatedEmpty title="연결된 할 일이 없습니다." />}
               {read.failed && <Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
               {read.canReadMore && (
                 <Button type="button" variant="ghost" disabled={read.loading} onClick={read.more}>
