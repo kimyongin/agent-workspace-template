@@ -29,6 +29,7 @@ import { ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyTask, TaskFormModal } from "../activity/forms.tsx";
 import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
+import { EntityTaskReader } from "./EntityTaskReader.tsx";
 export function EntityDetailPage() {
   const taskAccess = useTaskAccess();
   const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
@@ -280,6 +281,7 @@ export function EntityDetailPage() {
             {editing && (
               <EntityForm
                 initial={entity}
+                reading={disabled => <EntityTaskReader entity={entity} read={taskRead} disabled={disabled} />}
                 relations={
                   <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
                     <EntityTypedRelations entity={entity} readOnly onSaved={() => {}} />

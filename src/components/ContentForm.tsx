@@ -47,6 +47,7 @@ interface FormModalProps {
   visible?: boolean;
   submitLabel: string;
   submitDisabled?: boolean;
+  footerActions?: (disabled: boolean) => ReactNode;
   dirty: boolean;
   onClose: () => void;
   onRouteDiscard?: () => void;
@@ -72,7 +73,7 @@ export function FormModal(props: FormModalProps) {
   </ModalShell>;
 }
 
-function FormContents({title, description, scrollHeaderWithBody, domain, open, visible = true, submitLabel, submitDisabled = false, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
+function FormContents({title, description, scrollHeaderWithBody, domain, open, visible = true, submitLabel, submitDisabled = false, footerActions, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
   const formId = useId();
   const surface = useContext(SurfaceContext);
   const callbacks = useRef({onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation,onPrepared});
@@ -113,6 +114,7 @@ function FormContents({title, description, scrollHeaderWithBody, domain, open, v
   };
   const footer = (requestCancel: (event?: MouseEvent<HTMLElement>) => void) => (
     <>
+      {footerActions?.(busy || uncertain || active || !visible)}
       <div className="flex min-w-0 flex-1 basis-48 flex-wrap justify-end gap-2">
         <Button variant="outline" key="cancel" type="button" disabled={busy} onClick={requestCancel}>취소</Button>
         <Button variant="default" key="save" type="submit" form={formId} disabled={busy || submitDisabled}>
@@ -143,7 +145,7 @@ function FormContents({title, description, scrollHeaderWithBody, domain, open, v
       onClose: ()=>callbacks.current.onClose(), onRouteDiscard: ()=>(callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
     else present?.(presentation);
     return () => { register?.(null); };
-  }, [register,present,open,visible,title,description,scrollHeaderWithBody,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
+  }, [register,present,open,visible,title,description,scrollHeaderWithBody,domain,dirty,confirmation.dirty,busy,uncertain,active,formId,submitLabel,submitDisabled,!!deletion,footerActions]);
   const form = <form id={formId} className="flex min-w-0 flex-col gap-5" onSubmit={submit} noValidate>
     {failure && !active && <Notice kind="error">{failure}</Notice>}
     <FieldSet disabled={busy || uncertain || active}><FieldGroup>{children(errors, busy || uncertain || active)}</FieldGroup></FieldSet>
