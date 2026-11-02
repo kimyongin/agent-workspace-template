@@ -295,7 +295,7 @@ export function EntityRelationSection(
           {error && <Notice kind="error">{error}</Notice>}
           {!!state.error && (
             <Notice kind="error">
-              연결을 읽지 못했습니다.<Button variant="ghost" type="button" onClick={() => setRetry((n) => n + 1)}>다시 조회</Button>
+              연결을 읽지 못했습니다.<Button variant="ghost" type="button" onClick={() => void session.retry()}>다시 조회</Button>
             </Notice>
           )}
           {reading && (
@@ -362,7 +362,7 @@ export function EntityRelationSection(
                   ))}
                 </CollectionList>}
                 {state.page?.next_cursor && (
-                  <Button variant="ghost" type="button" disabled={reading || readFailed} onClick={() => void session.more()}>더 보기</Button>
+                  <Button variant="ghost" type="button" disabled={reading || refreshFailed} onClick={() => void session.more()}>더 보기</Button>
                 )}
               </>
             )}

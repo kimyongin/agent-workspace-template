@@ -41,6 +41,8 @@ test(
       }],
     }];
     let selected = old.id;
+    let failMore = true;
+    const moreReads: number[] = [];
     let lost = true;
     const writes: { body: any; key: string | undefined }[] = [];
     const receipts = new Map<string, unknown>();
@@ -105,6 +107,16 @@ test(
         ? definition.id === id(700) ? selected ? [state.rows.entities.find((e) => e.id === selected)!] : [] : many
         : [];
       const start = Number(url.searchParams.get("cursor") ?? 0), limit = Number(url.searchParams.get("limit") ?? 20);
+      if (definition.id === id(701) && side === 0 && url.pathname.endsWith("/links")) {
+        moreReads.push(start);
+        if (start === 20 && failMore) {
+          failMore = false;
+          return route.fulfill({
+            status: 503,
+            json: { code: "internal", message: "다음 연결 구간을 읽지 못했습니다" },
+          });
+        }
+      }
       return route.fulfill({
         json: {
           definition,
@@ -139,7 +151,18 @@ test(
     expect(writes[0].body.previous_other_id).toBe(old.id);
     await single.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `/private/tmp/typed-relations-single-${info.project.name}.png`, fullPage: true });
-    for (let n = 0; n < 5; n++) await multi.getByRole("button", { name: "더 보기", exact: true }).click();
+    const more = multi.getByRole("button", { name: "더 보기", exact: true });
+    await expect(businessRows(multi.getByRole("table"))).toHaveCount(20);
+    await expect(more).toBeEnabled();
+    const acceptedReads = moreReads.length;
+    await more.click();
+    await expect(multi).toContainText("연결을 읽지 못했습니다");
+    await expect(businessRows(multi.getByRole("table"))).toHaveCount(20);
+    await expect(more).toBeEnabled();
+    await multi.getByRole("button", { name: "다시 조회", exact: true }).click();
+    await expect(businessRows(multi.getByRole("table"))).toHaveCount(40);
+    expect(moreReads.slice(acceptedReads)).toEqual([20, 20]);
+    for (let n = 0; n < 4; n++) await more.click();
     await expect(multi.getByRole("button", { name: "재료 101", exact: true })).toBeVisible();
     await expect(businessRows(multi.getByRole("table"))).toHaveCount(101);
     await page.screenshot({ path: `/private/tmp/typed-relations-${info.project.name}.png`, fullPage: true });
