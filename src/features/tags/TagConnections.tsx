@@ -12,7 +12,12 @@ import { useRecordConfirmation } from "../../components/RecordConfirmation.tsx";
 import { TagNames, TagPicker, type TagScope } from "./TagPicker.tsx";
 
 export function ReadonlyTags(
-  { ids, scope, onRemove }: { ids: string[]; scope: TagScope; onRemove?: (id: string) => void },
+  { ids, scope, onRemove, removeDisabled }: {
+    ids: string[];
+    scope: TagScope;
+    onRemove?: (id: string) => void;
+    removeDisabled?: boolean;
+  },
 ) {
   return (
     <DataFields>
@@ -20,7 +25,7 @@ export function ReadonlyTags(
         <dt>태그</dt>
         <dd>
           {ids.length
-            ? <TagNames compact scope={scope} ids={ids} onRemove={onRemove} />
+            ? <TagNames compact scope={scope} ids={ids} onRemove={onRemove} removeDisabled={removeDisabled} />
             : <span className="text-sm text-muted-foreground">연결된 태그 없음</span>}
         </dd>
       </div>
@@ -29,14 +34,17 @@ export function ReadonlyTags(
 }
 
 /** The chooser only changes this draft. A partial write owns its exact version and retry lifetime. */
-export function TagConnections({ scope, target, readonly = false, visible = true, onSaved, onDraftClosed }: {
-  scope: TagScope;
-  target: { id: string; version: number; tag_ids: string[]; title?: string };
-  readonly?: boolean;
-  visible?: boolean;
-  onDraftClosed?: () => void;
-  onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
-}) {
+export function TagConnections(
+  { scope, target, readonly = false, disabled = false, visible = true, onSaved, onDraftClosed }: {
+    scope: TagScope;
+    target: { id: string; version: number; tag_ids: string[]; title?: string };
+    readonly?: boolean;
+    disabled?: boolean;
+    visible?: boolean;
+    onDraftClosed?: () => void;
+    onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
+  },
+) {
   const trigger = useRef<HTMLElement>(null);
   const wasEditing = useRef(false);
   const [editing, setEditing] = useState<(typeof target & { openPicker: boolean }) | null>(null);
@@ -57,6 +65,7 @@ export function TagConnections({ scope, target, readonly = false, visible = true
             target={editing}
             openPicker={editing.openPicker}
             readonly={readonly}
+            disabled={disabled}
             visible={visible}
             onCancel={() => {
               setEditing(null);
@@ -74,6 +83,7 @@ export function TagConnections({ scope, target, readonly = false, visible = true
             <ReadonlyTags
               scope={scope}
               ids={target.tag_ids}
+              removeDisabled={disabled}
               onRemove={readonly ? undefined : (id) => {
                 setMessage(null);
                 setEditing({ ...target, tag_ids: target.tag_ids.filter((tag) => tag !== id), openPicker: false });
@@ -84,6 +94,7 @@ export function TagConnections({ scope, target, readonly = false, visible = true
                 variant="ghost"
                 type="button"
                 aria-label="태그 연결"
+                disabled={disabled}
                 onClick={() => {
                   setMessage(null);
                   setEditing({ ...target, tag_ids: [...target.tag_ids], openPicker: true });
@@ -100,11 +111,12 @@ export function TagConnections({ scope, target, readonly = false, visible = true
   );
 }
 
-function TagConnectionDraft({ scope, target, openPicker, readonly, visible, onCancel, onSaved }: {
+function TagConnectionDraft({ scope, target, openPicker, readonly, disabled, visible, onCancel, onSaved }: {
   scope: TagScope;
   target: { id: string; version: number; tag_ids: string[] };
   openPicker: boolean;
   readonly: boolean;
+  disabled: boolean;
   visible: boolean;
   onCancel: () => void;
   onSaved: (saved: { tag_ids: string[]; version: number; updated_at: string }) => void;
@@ -114,7 +126,7 @@ function TagConnectionDraft({ scope, target, openPicker, readonly, visible, onCa
   const [draft, setDraft] = useState(target.tag_ids);
   const confirmation = useRecordConfirmation({
     closeOnSuccess: true,
-    disabled: readonly,
+    disabled: readonly || disabled,
     visible,
     describe: () => {
       const input = { tag_ids: [...draft] };
@@ -150,9 +162,9 @@ function TagConnectionDraft({ scope, target, openPicker, readonly, visible, onCa
   return (
     <>
       {readonly && <Notice>현재 읽기 전용입니다. 초안과 처리 중인 요청은 유지됩니다.</Notice>}
-      <FieldSet disabled={readonly || frozen || confirmation.active}>
+      <FieldSet disabled={readonly || disabled || frozen || confirmation.active}>
         <TagPicker
-          disabled={readonly || frozen || confirmation.active}
+          disabled={readonly || disabled || frozen || confirmation.active}
           scope={scope}
           visible={visible}
           label="태그"
@@ -166,7 +178,7 @@ function TagConnectionDraft({ scope, target, openPicker, readonly, visible, onCa
         <Button variant="outline" type="button" disabled={frozen} onClick={onCancel}>연결 취소</Button>
         <Button
           type="button"
-          disabled={readonly || confirmation.busy || confirmation.active}
+          disabled={readonly || disabled || confirmation.busy || confirmation.active}
           onClick={event =>
             scope === "record" || confirmation.uncertain
               ? void confirmation.write("save")

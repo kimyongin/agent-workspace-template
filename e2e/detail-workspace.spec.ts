@@ -2247,3 +2247,325 @@ test("#659 an input taller than the viewport keeps every line reachable by its k
   await expect(body).toHaveValue(draft);
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
+
+
+async function completedResultFixture(page: Page) {
+  const state = await fixture(page);
+  const parent = state.rows.tasks[0], result = state.rows.records[0];
+  Object.assign(parent, {
+    status: "done",
+    completed_at: stamp,
+    result_record_id: result.id,
+    result_record: { id: result.id, body: result.body },
+    tag_ids: [id(70)],
+  });
+  state.rows.tags.push({ id: id(70), name: "검토중", scope: "task", version: 1, created_at: stamp, updated_at: stamp });
+  const prepared: number[] = [];
+  await page.route("**/api/records/prepare", (route) => {
+    const body = route.request().postDataJSON();
+    if (body.target_id === parent.id) {
+      prepared.push(body.expected_version);
+      if (body.expected_version !== parent.version) {
+        return route.fulfill({
+          status: 409,
+          json: { code: "conflict", message: "다른 변경이 저장되어 있습니다. 다시 조회하세요." },
+        });
+      }
+    }
+    return route.fallback();
+  });
+  await page.route("**/api/tag-connections", (route) => {
+    const body = route.request().postDataJSON();
+    if (body.target_id === parent.id && body.expected_version !== parent.version) {
+      return route.fulfill({
+        status: 409,
+        json: { code: "conflict", message: "다른 변경이 저장되어 있습니다. 다시 조회하세요." },
+      });
+    }
+    return route.fallback();
+  });
+  const deletes: { key: string | undefined; url: string }[] = [];
+  let unknownDelete = false, failParentRead = false;
+  let afterDelete = () => {};
+  await page.route(`**/api/records/${result.id}?**`, async (route) => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    if (Number(new URL(route.request().url()).searchParams.get("expected_version")) !== result.version) {
+      return route.fulfill({ status: 409, json: { code: "conflict", message: "기록이 변경되었습니다." } });
+    }
+    deletes.push({ key: route.request().headers()["idempotency-key"], url: route.request().url() });
+    if (deletes.length === 1) {
+      state.rows.records = state.rows.records.filter((row) => row.id !== result.id);
+      Object.assign(parent, { result_record_id: null, result_record: null, version: parent.version + 1 });
+      if (failParentRead) state.failRead({ kind: "tasks", id: parent.id });
+      afterDelete();
+      if (unknownDelete) return route.abort("connectionreset");
+    }
+    return route.fulfill({ status: 204 });
+  });
+  let parentTagHeight = 0;
+  const openResult = async () => {
+    await page.goto(fixtureWorkspacePath(`/tasks/${parent.id}`));
+    await expect(detailDialog(page)).toContainText(result.body);
+    await expect(detailDialog(page).getByRole("button", { name: "검토중 연결 해제", exact: true })).toBeVisible();
+    parentTagHeight =
+      (await detailDialog(page).getByRole("region", { name: "태그 연결", exact: true }).boundingBox())!.height;
+    await detailDialog(page).getByRole("link", { name: `${result.body} 상세`, exact: true }).first().click();
+    await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
+  };
+  const deleteResult = async () => {
+    await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+    await detailDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+    await executionDialog(page).getByRole("button", { name: "삭제", exact: true }).click();
+    if (unknownDelete) {
+      await executionDialog(page).getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
+    }
+    await expect(page).toHaveURL(new RegExp(`/tasks/${parent.id}(?:[?#]|$)`));
+    await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toHaveCount(0);
+  };
+  const prepareTags = async () => {
+    await detailDialog(page).getByRole("button", { name: "검토중 연결 해제", exact: true }).click();
+    await detailDialog(page).getByRole("button", { name: "연결 적용", exact: true }).click();
+  };
+  return {
+    state,
+    parent,
+    result,
+    prepared,
+    deletes,
+    openResult,
+    deleteResult,
+    prepareTags,
+    parentTagHeight: () => parentTagHeight,
+    loseDeleteResponse: () => {
+      unknownDelete = true;
+    },
+    failParentOnDelete: () => {
+      failParentRead = true;
+    },
+    afterDelete: (callback: () => void) => {
+      afterDelete = callback;
+    },
+  };
+}
+
+for (const width of [1440, 390]) {
+  test(
+    `#668 ${width}px retained completed task saves tags and body after its edited result is deleted`,
+    async ({ page }, info) => {
+      await page.setViewportSize({ width, height: 900 });
+      const scenario = await completedResultFixture(page);
+      scenario.result.tag_ids = [id(71)];
+      scenario.state.rows.tags.push({
+        id: id(71),
+        name: "기록확인",
+        scope: "record",
+        version: 1,
+        created_at: stamp,
+        updated_at: stamp,
+      });
+      await scenario.openResult();
+      await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+      await detailDialog(page).getByRole("textbox", { name: "본문 (필수)", exact: true }).fill("정정한 수행 결과");
+      await detailDialog(page).getByRole("button", { name: "저장", exact: true }).click();
+      await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+      await detailDialog(page).getByRole("button", { name: "기록확인 연결 해제", exact: true }).click();
+      await detailDialog(page).getByRole("button", { name: "연결 적용", exact: true }).click();
+      await expect(detailDialog(page).getByRole("button", { name: "태그 연결", exact: true })).toBeVisible();
+      await detailDialog(page).getByRole("button", { name: "태그 연결", exact: true }).click();
+      const chooser = page.getByRole("dialog", { name: "태그 선택", exact: true });
+      await chooser.getByRole("option", { name: "기록확인", exact: true }).click();
+      await chooser.getByRole("button", { name: "선택 완료", exact: true }).click();
+      await detailDialog(page).getByRole("button", { name: "연결 적용", exact: true }).click();
+      await detailDialog(page).getByRole("button", { name: "기록확인 연결 해제", exact: true }).click();
+      await detailDialog(page).getByRole("button", { name: "연결 취소", exact: true }).click();
+      await expect(detailDialog(page).getByRole("button", { name: "기록확인 연결 해제", exact: true })).toBeVisible();
+      expect(scenario.parent.version).toBe(1);
+      await scenario.deleteResult();
+      await expect(detailDialog(page)).toContainText("결과 기록이 삭제되었습니다.");
+      await scenario.prepareTags();
+      await expect(executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true })).toBeEnabled();
+      await executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true }).click();
+      await expect(detailDialog(page)).not.toContainText("검토중");
+      expect(scenario.prepared).toEqual([2]);
+      expect(scenario.parent.status).toBe("done");
+      expect(scenario.parent.result_record_id).toBeNull();
+      await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+      await detailDialog(page).getByRole("textbox", { name: "본문", exact: true }).fill("부모의 독립 본문 정정");
+      await detailDialog(page).getByRole("button", { name: "저장", exact: true }).click();
+      await executionDialog(page).getByRole("button", { name: "수정하고 저장", exact: true }).click();
+      await expect(executionDialog(page)).toHaveCount(0);
+      await expect(detailDialog(page).getByRole("textbox", { name: "본문", exact: true })).toHaveCount(0);
+      await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toBeEnabled();
+      await expect(detailDialog(page)).toContainText("부모의 독립 본문 정정");
+      expect(scenario.parent.tag_ids).toEqual([]);
+      expect(scenario.parent.status).toBe("done");
+      expect(scenario.state.errors).toEqual([]);
+      await page.screenshot({ path: info.outputPath(`parent-after-result-${width}.png`) });
+    },
+  );
+}
+
+test("#668 failed parent refresh keeps its read surface and retries before another tag write", async ({ page }) => {
+  const scenario = await completedResultFixture(page);
+  await scenario.openResult();
+  scenario.failParentOnDelete();
+  await scenario.deleteResult();
+  await expect(detailDialog(page)).toContainText("할 일을 불러오지 못했습니다.");
+  await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toBeDisabled();
+  await expect(detailDialog(page).getByRole("button", { name: "검토중 연결 해제", exact: true })).toBeDisabled();
+  expect(scenario.prepared).toEqual([]);
+  await detailDialog(page).getByRole("button", { name: "조회 다시 시도", exact: true }).click();
+  await expect(detailDialog(page)).toContainText("결과 기록이 삭제되었습니다.");
+  await scenario.prepareTags();
+  await expect(executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true })).toBeEnabled();
+  expect(scenario.prepared).toEqual([2]);
+});
+
+test("#668 genuine external changes after a tag draft still conflict and preserve that draft", async ({ page }) => {
+  const scenario = await completedResultFixture(page);
+  await scenario.openResult();
+  await scenario.deleteResult();
+  await expect(detailDialog(page)).toContainText("결과 기록이 삭제되었습니다.");
+  await detailDialog(page).getByRole("button", { name: "검토중 연결 해제", exact: true }).click();
+  Object.assign(scenario.parent, { version: 3, body: "다른 요청의 저장" });
+  await detailDialog(page).getByRole("button", { name: "연결 적용", exact: true }).click();
+  await expect(executionDialog(page)).toContainText("다른 변경이 저장되어 있습니다.");
+  await expect(executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true })).toBeDisabled();
+  expect(scenario.prepared).toEqual([2]);
+  await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(detailDialog(page).getByRole("button", { name: "연결 적용", exact: true })).toBeEnabled();
+  expect(scenario.parent.tag_ids).toEqual([id(70)]);
+  expect(scenario.parent.body).toBe("다른 요청의 저장");
+});
+
+test("#668 lost deletion response retries the same admitted request before refreshing its parent", async ({ page }) => {
+  const scenario = await completedResultFixture(page);
+  scenario.loseDeleteResponse();
+  await scenario.openResult();
+  await scenario.deleteResult();
+  await expect(detailDialog(page)).toContainText("결과 기록이 삭제되었습니다.");
+  await scenario.prepareTags();
+  await expect(executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true })).toBeEnabled();
+  expect(scenario.deletes).toHaveLength(2);
+  expect(scenario.deletes[0].key).toBeTruthy();
+  expect(scenario.deletes[1]).toEqual(scenario.deletes[0]);
+  expect(scenario.prepared).toEqual([2]);
+  expect(scenario.parent.status).toBe("done");
+});
+
+test("#668 a delayed parent refresh blocks stale writes until the current version arrives", async ({ page }) => {
+  const scenario = await completedResultFixture(page);
+  let held: ReturnType<typeof scenario.state.holdRead> | undefined;
+  scenario.afterDelete(() => {
+    held = scenario.state.holdRead({ kind: "tasks", id: scenario.parent.id });
+  });
+  await scenario.openResult();
+  try {
+    await scenario.deleteResult();
+    await held!.started;
+    await expect(detailDialog(page)).toContainText("할 일을 다시 불러오는 중…");
+    await expect.poll(async () =>
+      (await detailDialog(page).getByRole("region", { name: "태그 연결", exact: true }).boundingBox())!.height
+    ).toBeCloseTo(scenario.parentTagHeight(), 0);
+    await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toBeDisabled();
+    await expect(detailDialog(page).getByRole("button", { name: "검토중 연결 해제", exact: true })).toBeDisabled();
+    expect(scenario.prepared).toEqual([]);
+  } finally {
+    held?.release();
+  }
+  await expect(detailDialog(page)).toContainText("결과 기록이 삭제되었습니다.");
+  await scenario.prepareTags();
+  await expect(executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true })).toBeEnabled();
+  expect(scenario.prepared).toEqual([2]);
+});
+
+test("#668 an existing parent tag draft retains its admitted version across result deletion", async ({ page }) => {
+  const scenario = await completedResultFixture(page);
+  await page.goto(fixtureWorkspacePath(`/tasks/${scenario.parent.id}`));
+  await detailDialog(page).getByRole("button", { name: "검토중 연결 해제", exact: true }).click();
+  await detailDialog(page).getByRole("link", { name: `${scenario.result.body} 상세`, exact: true }).first().click();
+  await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
+  await scenario.deleteResult();
+  await expect(detailDialog(page).getByRole("button", { name: "연결 적용", exact: true })).toBeEnabled();
+  await detailDialog(page).getByRole("button", { name: "연결 적용", exact: true }).click();
+  await expect(executionDialog(page)).toContainText("다른 변경이 저장되어 있습니다.");
+  expect(scenario.prepared).toEqual([1]);
+  expect(scenario.parent.tag_ids).toEqual([id(70)]);
+  await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(detailDialog(page).getByRole("button", { name: "연결 적용", exact: true })).toBeEnabled();
+});
+
+test("#668 returning parent respects a write permission downgrade after result deletion", async ({ page }) => {
+  const scenario = await completedResultFixture(page);
+  await scenario.openResult();
+  await scenario.deleteResult();
+  await expect(detailDialog(page)).toContainText("결과 기록이 삭제되었습니다.");
+  await page.route(`**/api/workspaces/${fixtureWorkspaceId}`, (route) =>
+    route.fulfill({
+      json: {
+        workspace: { id: fixtureWorkspaceId, name: "테스트 공간", deleted_at: null },
+        membership_version: 2,
+        grants: [{ target_kind: "tasks", target_id: "*", access: "read" }],
+        can_manage: false,
+      },
+    }));
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(detailDialog(page).getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
+  await expect(detailDialog(page).getByRole("button", { name: "검토중 연결 해제", exact: true })).toHaveCount(0);
+  await expect(detailDialog(page)).toContainText("검토중");
+  expect(scenario.prepared).toEqual([]);
+  expect(scenario.parent.status).toBe("done");
+});
+
+test("#668 a retained parent body draft is not rebased or replaced by its result deletion", async ({ page }) => {
+  const scenario = await completedResultFixture(page);
+  await scenario.openResult();
+  await page.getByRole("tab", { name: scenario.parent.title, exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: scenario.parent.title, exact: true })).toBeVisible();
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  const body = detailDialog(page).getByRole("textbox", { name: "본문", exact: true });
+  await body.fill("보존할 부모 본문 초안");
+  await page.getByRole("tab", { name: scenario.result.body, exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
+  await scenario.deleteResult();
+  await expect(body).toHaveValue("보존할 부모 본문 초안");
+  await detailDialog(page).getByRole("button", { name: "저장", exact: true }).click();
+  await expect(executionDialog(page)).toContainText("다른 변경이 저장되어 있습니다.");
+  await expect(executionDialog(page).getByRole("button", { name: "수정하고 저장", exact: true })).toBeDisabled();
+  expect(scenario.prepared).toEqual([1]);
+  expect(scenario.parent.body).toBe("상세 본문");
+  await executionDialog(page).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(body).toHaveValue("보존할 부모 본문 초안");
+  await detailDialog(page).getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", {
+    name: "변경 버리기",
+    exact: true,
+  }).click();
+  await expect(detailDialog(page)).toContainText("결과 기록이 삭제되었습니다.");
+  await scenario.prepareTags();
+  await expect(executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true })).toBeEnabled();
+  expect(scenario.prepared).toEqual([1, 2]);
+});
+
+test("#668 discarding a retained body draft refreshes the deferred parent before a new tag draft", async ({ page }) => {
+  const scenario = await completedResultFixture(page);
+  await scenario.openResult();
+  await page.getByRole("tab", { name: scenario.parent.title, exact: true }).click();
+  await expect(detailDialog(page).getByRole("heading", { name: scenario.parent.title, exact: true })).toBeVisible();
+  await detailDialog(page).getByRole("button", { name: "편집", exact: true }).click();
+  const body = detailDialog(page).getByRole("textbox", { name: "본문", exact: true });
+  await body.fill("저장하지 않을 부모 초안");
+  await page.getByRole("tab", { name: scenario.result.body, exact: true }).click();
+  await scenario.deleteResult();
+  await expect(body).toHaveValue("저장하지 않을 부모 초안");
+  await detailDialog(page).getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", {
+    name: "변경 버리기",
+    exact: true,
+  }).click();
+  await expect(detailDialog(page)).toContainText("결과 기록이 삭제되었습니다.");
+  await scenario.prepareTags();
+  await expect(executionDialog(page).getByRole("button", { name: "연결하고 저장", exact: true })).toBeEnabled();
+  expect(scenario.prepared).toEqual([2]);
+  expect(scenario.parent.body).toBe("상세 본문");
+});
