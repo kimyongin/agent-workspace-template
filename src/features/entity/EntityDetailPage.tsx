@@ -213,6 +213,8 @@ export function EntityDetailPage() {
             <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
               <EntityTypedRelations
                 entity={entity}
+                refreshing={detail.loading}
+                refreshFailed={!!detail.error}
                 onCreate={(definition, side) => {
                   relationCreateTarget.current = `${definition.id}:${side}`;
                   const p = new URLSearchParams(params);

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
-  testMatch: "typed-relations.fixture.ts",
+  testMatch: ["typed-relations.fixture.ts", "retained-relations.fixture.ts"],
   workers: 1,
   timeout: 45000,
   projects: [{ name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 1000 } } }, {
