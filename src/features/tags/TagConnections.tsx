@@ -62,9 +62,11 @@ export function TagConnections(
       };
       document.addEventListener("pointerdown", cancel, true);
       document.addEventListener("keydown", cancel, true);
+      document.addEventListener("wheel", cancel, { capture: true, passive: true });
       return () => {
         document.removeEventListener("pointerdown", cancel, true);
         document.removeEventListener("keydown", cancel, true);
+        document.removeEventListener("wheel", cancel, true);
       };
     }
     returnFocus.current = false;
