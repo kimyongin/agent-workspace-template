@@ -235,7 +235,7 @@ export function SchemaEditor(
     uncertain,
     readBusy,
     startError,
-    inputsDisabled,
+    inputsDisabled: editorInputsDisabled,
     restartedFrom,
     planSyncNeeded,
   } = editor.view;
@@ -319,8 +319,9 @@ export function SchemaEditor(
           element?.querySelector<HTMLButtonElement>("[data-schema-disclosure]:not(:disabled)"))?.focus();}
     });
   };
+  const newEditingDisabled = busy || uncertain || dirty || readBusy || disabled;
   const newEditing = async () => {
-    if (busy || uncertain || dirty || readBusy || disabled || !await editor.refreshDefinition()) return;
+    if (newEditingDisabled || !await editor.refreshDefinition()) return;
     requestAnimationFrame(() => {
       if (!propertiesHeading.current) return;
       editor.startNewChange();
@@ -330,6 +331,9 @@ export function SchemaEditor(
       openEditing();
     });
   };
+  const discardedComparison = canWrite && plan?.status === "cancelled" && !dirty && !uncertain;
+  // Keep comparison disclosures available; only their editing controls become disabled.
+  const inputsDisabled = editorInputsDisabled || discardedComparison;
   const selectedProperty = new URLSearchParams(location.search).get("property");
   useEffect(() => {
     if (!selectedProperty || !draft.schema.properties[selectedProperty]) return;
@@ -435,19 +439,34 @@ export function SchemaEditor(
                 </h2>
               </CardTitle>
               <div className="flex max-w-full flex-wrap items-center gap-2">
-                <Button
-                  variant="ghost"
-                  type="button"
-                  disabled={addDisabled}
-                  onClick={addField}
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  항목 추가
-                </Button>
+                {discardedComparison
+                  ? (
+                    <Button
+                      variant="outline"
+                      type="button"
+                      disabled={newEditingDisabled}
+                      onClick={() => void newEditing()}
+                    >
+                      {readBusy ? "설정 읽는 중…" : "현재 설정 편집"}
+                    </Button>
+                  )
+                  : (
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      disabled={addDisabled}
+                      onClick={addField}
+                    >
+                      <PlusIcon data-icon="inline-start" />
+                      항목 추가
+                    </Button>
+                  )}
               </div>
             </div>
             <CardDescription>
-              상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다.
+              {discardedComparison
+                ? "폐기한 변경안 · 읽기 전용"
+                : "상품명·가격·조리 시간처럼 자료에 입력할 내용을 정합니다."}
             </CardDescription>
           </CardHeader>
           <CardContent
@@ -461,7 +480,7 @@ export function SchemaEditor(
                 id="schema-property-inputs"
                 hidden={!propertiesOpen}
                 className="min-w-0"
-                disabled={inputsDisabled}
+                disabled={editorInputsDisabled}
               >
                 <Field
                   fullWidth
@@ -513,7 +532,8 @@ export function SchemaEditor(
                               <Button
                                 variant="outline"
                                 type="button"
-                                disabled={Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
+                                disabled={inputsDisabled || Boolean(plan?.recovery) ||
+                                  Object.keys(draft.schema.properties).length >= 64}
                                 aria-label={`${removed.field.title || key} 삭제 취소`}
                                 onClick={() => {
                                   editor.restoreField(key);
@@ -588,7 +608,7 @@ export function SchemaEditor(
                                 variant="link"
                                 type="button"
                                 className="h-auto min-h-[max(2.75rem,44px)] max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere"
-                                aria-label={`${f.title || "새 항목"} 입력 항목 편집`}
+                                aria-label={`${f.title || "새 항목"} 입력 항목 ${discardedComparison ? "보기" : "편집"}`}
                                 aria-expanded={expanded}
                                 aria-controls={`schema-field-${key}`}
                                 onClick={() => {
@@ -615,7 +635,7 @@ export function SchemaEditor(
                                 variant="ghost"
                                 type="button"
                                 aria-label={`${f.title || "새 항목"} 위로`}
-                                disabled={index === 0 || Boolean(plan?.recovery)}
+                                disabled={inputsDisabled || index === 0 || Boolean(plan?.recovery)}
                                 onClick={() => moveInput(key, -1)}
                               >
                                 <ArrowUpIcon />
@@ -624,7 +644,7 @@ export function SchemaEditor(
                                 variant="ghost"
                                 type="button"
                                 aria-label={`${f.title || "새 항목"} 아래로`}
-                                disabled={index === schemaPresentation(draft).order.length - 1 ||
+                                disabled={inputsDisabled || index === schemaPresentation(draft).order.length - 1 ||
                                   Boolean(plan?.recovery)}
                                 onClick={() => moveInput(key, 1)}
                               >
@@ -649,7 +669,7 @@ export function SchemaEditor(
                                 maxLength={80}
                                 data-schema-setting="title"
                                 value={f.title ?? ""}
-                                disabled={Boolean(plan?.recovery)}
+                                disabled={inputsDisabled || Boolean(plan?.recovery)}
                                 onChange={(event) => editField(key, { ...f, title: event.target.value })}
                               />
                             )}
@@ -664,7 +684,7 @@ export function SchemaEditor(
                                 <NativeSelect
                                   {...p}
                                   data-schema-setting="type"
-                                  disabled={selectedIdentity}
+                                  disabled={inputsDisabled || selectedIdentity}
                                   value={f["x-identifier"]
                                     ? "identifier"
                                     : fieldChoices(f)
@@ -719,7 +739,7 @@ export function SchemaEditor(
                                 field={f}
                                 kinds={catalog.kinds.length ? catalog.kinds : definition.identifier_kinds ?? []}
                                 selected={selectedIdentity}
-                                disabled={Boolean(plan?.recovery) || catalog.loading}
+                                disabled={inputsDisabled || Boolean(plan?.recovery) || catalog.loading}
                                 onChange={(field) => editField(key, field)}
                                 onAddKind={() => setAddingKindFor(key)}
                               />
@@ -736,6 +756,7 @@ export function SchemaEditor(
                                       {(props) => (
                                         <Input
                                           {...props}
+                                          disabled={inputsDisabled}
                                           maxLength={80}
                                           value={optionLabel(
                                             schemaPresentation(draft).option_labels[key],
@@ -754,7 +775,8 @@ export function SchemaEditor(
                                       variant="outline"
                                       type="button"
                                       aria-label={`선택 항목 ${i + 1} 제거`}
-                                      disabled={fieldChoices(f)!.filter((value) => value !== null).length <= 1}
+                                      disabled={inputsDisabled ||
+                                        fieldChoices(f)!.filter((value) => value !== null).length <= 1}
                                       onClick={() => {
                                         editField(key, {
                                           ...f,
@@ -770,7 +792,8 @@ export function SchemaEditor(
                                 <Button
                                   variant="ghost"
                                   type="button"
-                                  disabled={fieldChoices(f)!.filter((value) => value !== null).length >= 128}
+                                  disabled={inputsDisabled ||
+                                    fieldChoices(f)!.filter((value) => value !== null).length >= 128}
                                   onClick={() => {
                                     let number = 1;
                                     while (fieldChoices(f)!.includes(`option_${number}`)) {
@@ -797,7 +820,7 @@ export function SchemaEditor(
                             )}
                             <SchemaSearchTextSetting
                               field={f}
-                              disabled={Boolean(plan?.recovery)}
+                              disabled={inputsDisabled || Boolean(plan?.recovery)}
                               onChange={(field) => editField(key, field)}
                             />
                             <Collapsible
@@ -824,7 +847,7 @@ export function SchemaEditor(
                                 <FieldGroup className="flex min-w-0 flex-col gap-5 grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
                                   <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                                     <Checkbox
-                                      disabled={selectedIdentity}
+                                      disabled={inputsDisabled || selectedIdentity}
                                       checked={draft.schema.required.includes(key)}
                                       onCheckedChange={(checked) => editFlag(key, "required", checked === true)}
                                     />{" "}
@@ -833,7 +856,7 @@ export function SchemaEditor(
 
                                   <FieldLabel className="flex min-h-11 cursor-pointer items-center gap-3">
                                     <Checkbox
-                                      disabled={selectedIdentity}
+                                      disabled={inputsDisabled || selectedIdentity}
                                       checked={!!f.readOnly}
                                       aria-label={`${f.title || "새 항목"} 읽기 전용`}
                                       onCheckedChange={(checked) =>
@@ -845,6 +868,7 @@ export function SchemaEditor(
                                     {(p) => (
                                       <Textarea
                                         {...p}
+                                        disabled={inputsDisabled}
                                         maxLength={1000}
                                         value={f.description ?? ""}
                                         onChange={(e) =>
@@ -868,12 +892,14 @@ export function SchemaEditor(
                                             {(props) => (
                                               <Input
                                                 {...props}
+                                                disabled={inputsDisabled}
                                                 value={raw}
                                                 readOnly
                                               />
                                             )}
                                           </Field>
                                           <Button
+                                            disabled={inputsDisabled}
                                             variant="ghost"
                                             type="button"
                                             aria-label={`${f.title ?? "입력 항목"} 이전 ${label} 입력 제거`}
@@ -897,6 +923,7 @@ export function SchemaEditor(
                                           {(p) => (
                                             <Input
                                               {...p}
+                                              disabled={inputsDisabled}
                                               type="text"
                                               inputMode="decimal"
                                               min={0}
@@ -917,6 +944,7 @@ export function SchemaEditor(
                                           {(p) => (
                                             <Input
                                               {...p}
+                                              disabled={inputsDisabled}
                                               type="text"
                                               inputMode="decimal"
                                               step="any"
@@ -935,6 +963,7 @@ export function SchemaEditor(
                                         {(p) => (
                                           <NativeSelect
                                             {...p}
+                                            disabled={inputsDisabled}
                                             value={f.default === undefined ||
                                                 f.default === null
                                               ? "unset"
@@ -972,6 +1001,7 @@ export function SchemaEditor(
                                               ? (
                                                 <NativeSelect
                                                   {...p}
+                                                  disabled={inputsDisabled}
                                                   value={String(f.default)}
                                                   onChange={(e) =>
                                                     editField(key, {
@@ -987,6 +1017,7 @@ export function SchemaEditor(
                                               ? (
                                                 <NativeSelect
                                                   {...p}
+                                                  disabled={inputsDisabled}
                                                   data-schema-setting="default"
                                                   value={invalidChoiceDefault ? "" : String(f.default)}
                                                   onChange={(e) =>
@@ -1022,6 +1053,7 @@ export function SchemaEditor(
                                               : (
                                                 <Input
                                                   {...p}
+                                                  disabled={inputsDisabled}
                                                   type="text"
                                                   inputMode={["integer", "number"].includes(
                                                       scalar,
@@ -1054,7 +1086,7 @@ export function SchemaEditor(
                                     <Button
                                       variant="ghost"
                                       type="button"
-                                      disabled={selectedIdentity}
+                                      disabled={inputsDisabled || selectedIdentity}
                                       onClick={() =>
                                         editor.setFieldInactive(
                                           key,
@@ -1066,7 +1098,7 @@ export function SchemaEditor(
                                     <Button
                                       variant="destructive"
                                       type="button"
-                                      disabled={selectedIdentity}
+                                      disabled={inputsDisabled || selectedIdentity}
                                       onClick={() => setDeleteKey(key)}
                                     >
                                       <Trash2Icon data-icon="inline-start" />항목 삭제
@@ -1559,6 +1591,16 @@ export function SchemaEditor(
                                 ["applied", "cancelled"].includes(plan.status))
                               ? (
                                 <>
+                                  {discardedComparison && (
+                                    <Button
+                                      variant="outline"
+                                      type="button"
+                                      disabled={newEditingDisabled}
+                                      onClick={() => void newEditing()}
+                                    >
+                                      {readBusy ? "설정 읽는 중…" : "현재 설정 편집"}
+                                    </Button>
+                                  )}
                                   {plan.status === "applied" &&
                                     definition.schema_version <=
                                       plan.source_schema_version &&
