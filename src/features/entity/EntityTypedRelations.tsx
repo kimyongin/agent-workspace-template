@@ -28,8 +28,10 @@ interface LinkPage {
   next_cursor: string | null;
 }
 export function EntityTypedRelations(
-  { entity, onSaved, onCreate, readOnly = false }: {
+  { entity, onSaved, onCreate, readOnly = false, refreshing = false, refreshFailed = false }: {
     readOnly?: boolean;
+    refreshing?: boolean;
+    refreshFailed?: boolean;
     entity: EntityDetail;
     onSaved: (version: number) => void;
     onCreate?: (definition: EntityRelationDefinition, side: 0 | 1) => void;
@@ -117,6 +119,8 @@ export function EntityTypedRelations(
           onSaved={onSaved}
           onCreate={onCreate}
           readOnly={readOnly}
+          refreshing={refreshing}
+          refreshFailed={refreshFailed}
           visible={readable(definition)}
           onMutationChange={retainMutation}
           ownerApi={api}
@@ -126,8 +130,22 @@ export function EntityTypedRelations(
   );
 }
 export function EntityRelationSection(
-  { entity, definition, side, onSaved, onCreate, readOnly = false, visible = true, onMutationChange, ownerApi }: {
+  {
+    entity,
+    definition,
+    side,
+    onSaved,
+    onCreate,
+    readOnly = false,
+    visible = true,
+    onMutationChange,
+    ownerApi,
+    refreshing = false,
+    refreshFailed = false,
+  }: {
     readOnly?: boolean;
+    refreshing?: boolean;
+    refreshFailed?: boolean;
     visible?: boolean;
     ownerApi?: ReturnType<typeof useApi>;
     onMutationChange?: (definition: EntityRelationDefinition | null, side: 0 | 1, api: ReturnType<typeof useApi>, originId: string, definitionId: string) => void;
@@ -204,9 +222,11 @@ export function EntityRelationSection(
     canWrite = canRead && [...requiredKinds].every(typeId => capability?.grants.some(grant =>
       grant.target_kind === "entity_type" && grant.target_id === typeId && grant.access === "write"
     )),
+    reading = refreshing || state.busy || !state.page && !state.error,
+    readFailed = refreshFailed || !!state.error,
     active = canRead && !readOnly && canWrite && !entity.deleted_at && !entity.type.archived && !def.archived;
   const prepare = async (item: Candidate, remove: boolean) => {
-    if (!canRead || !canWrite || preparing || surface?.editor.current) return;
+    if (!canRead || !canWrite || preparing || reading || readFailed || !state.page || surface?.editor.current) return;
     const started = locationKey.current, c = new AbortController();
     preparation.current?.abort();
     preparation.current = c;
@@ -241,7 +261,7 @@ export function EntityRelationSection(
               {active && onCreate && (
                 <Button variant="ghost" type="button"
 
-                  disabled={preparing}
+                  disabled={preparing || reading || readFailed}
                   aria-label={`${def.ends[side].label} 작성해서 연결`}
                   data-relation-create={`${def.id}:${side}`}
                   onClick={() => onCreate(def, side)}
@@ -254,7 +274,7 @@ export function EntityRelationSection(
 
                   aria-expanded={view.searching}
                   aria-controls={searchId}
-                  disabled={preparing || !!state.error || !state.page}
+                  disabled={preparing || !view.searching && (reading || readFailed || !state.page)}
                   onClick={() => setView((v) => ({ ...v, searching: !v.searching }))}
                 >{view.searching ? <XIcon data-icon="inline-start" /> : <LinkIcon data-icon="inline-start" />}
                   {view.searching ? "닫기" : single && current ? "변경" : "연결"}
@@ -263,7 +283,7 @@ export function EntityRelationSection(
               {!readOnly && canWrite && single && current && (
                 <Button variant="ghost" type="button"
 
-                  disabled={preparing}
+                  disabled={preparing || reading || readFailed}
                   onClick={() => void prepare(current, true)}
                 ><UnlinkIcon data-icon="inline-start" />
                   해제
@@ -278,8 +298,19 @@ export function EntityRelationSection(
               연결을 읽지 못했습니다.<Button variant="ghost" type="button" onClick={() => setRetry((n) => n + 1)}>다시 조회</Button>
             </Notice>
           )}
-          {state.busy && !state.page && <p role="status">불러오는 중…</p>}
-          {state.page && !state.page.items.length && !state.page.next_cursor && !state.busy && !state.error && <RelatedEmpty description={active ? onCreate ? "작성하거나 연결해 자료를 추가하세요." : "연결로 기존 자료를 선택하세요." : undefined} />}
+          {reading && (
+            <p role="status">{state.page ? "마지막 조회값입니다. 최신 연결을 불러오는 중…" : "불러오는 중…"}</p>
+          )}
+          {!reading && readFailed && state.page && (
+            <p role="status">마지막 조회값입니다. 최신 연결을 확인하지 못했습니다.</p>
+          )}
+          {state.page && !state.page.items.length && !state.page.next_cursor && !reading && !readFailed && (
+            <RelatedEmpty
+              description={active
+                ? onCreate ? "작성하거나 연결해 자료를 추가하세요." : "연결로 기존 자료를 선택하세요."
+                : undefined}
+            />
+          )}
           {single
             ? (
               current ? <p className="flex min-w-0 flex-col gap-3">
@@ -319,7 +350,7 @@ export function EntityRelationSection(
                               <Button variant="ghost" type="button"
 
                                 aria-label={`${item.title} 연결 해제`}
-                                disabled={preparing}
+                                disabled={preparing || reading || readFailed}
                                 onClick={() => void prepare(item, true)}
                               ><UnlinkIcon data-icon="inline-start" />
                                 해제
@@ -331,7 +362,7 @@ export function EntityRelationSection(
                   ))}
                 </CollectionList>}
                 {state.page?.next_cursor && (
-                  <Button variant="ghost" type="button" disabled={state.busy} onClick={() => void session.more()}>더 보기</Button>
+                  <Button variant="ghost" type="button" disabled={reading || readFailed} onClick={() => void session.more()}>더 보기</Button>
                 )}
               </>
             )}
@@ -342,7 +373,7 @@ export function EntityRelationSection(
                 relationContext={{ definition_id: def.id, side, origin_id: entity.id }}
                 revision={entity.version}
                 excluded={() => false}
-                disabled={preparing}
+                disabled={preparing || reading || readFailed}
                 onChoose={(item) => void prepare(item, false)}
               />
             )}
