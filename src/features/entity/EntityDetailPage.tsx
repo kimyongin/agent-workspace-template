@@ -21,15 +21,17 @@ import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagConnections } from "../tags/TagConnections.tsx";
 import { EntityProperties } from "./EntityProperties.tsx";
 import type { EntityDetail } from "@contracts/entity.ts";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "../../lib/workspace-router.tsx";
 import { Notice } from "../../components/Field.tsx";
-import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
+import { DetailSurface, DetailTitle, SurfaceContext } from "../../components/Modal.tsx";
 import { ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyTask, TaskFormModal } from "../activity/forms.tsx";
 import { EntityTaskRelations, useEntityTaskRead } from "./TaskEntityRelations.tsx";
 import { EntityTaskReader } from "./EntityTaskReader.tsx";
+import { DetailTabContext } from "../details/workspace-context.ts";
+
 export function EntityDetailPage() {
   const taskAccess = useTaskAccess();
   const api = useApi(), canWriteType = useEntityWriteAccess(), canReadType = useEntityReadAccess();
@@ -181,6 +183,7 @@ export function EntityDetailPage() {
           </Button>
         )}
       >
+        <RefreshRetainedEntity identity={id} api={api} canRead={canRead} reload={reload} />
         {error && !entity && (
           <>
             <Notice kind="error">{error}</Notice>
@@ -197,6 +200,7 @@ export function EntityDetailPage() {
                 onDraftClosed={detail.editClosed}
                 scope="entity"
                 target={entity}
+                disabled={detail.loading || !!detail.error}
                 readonly={!canWrite || !!entity.deleted_at}
                 visible={canRead}
                 onSaved={(saved) => {
@@ -209,6 +213,8 @@ export function EntityDetailPage() {
             <div className="flex min-w-0 flex-col gap-6 border-t pt-6">
               <EntityTypedRelations
                 entity={entity}
+                refreshing={detail.loading}
+                refreshFailed={!!detail.error}
                 onCreate={(definition, side) => {
                   relationCreateTarget.current = `${definition.id}:${side}`;
                   const p = new URLSearchParams(params);
@@ -343,4 +349,28 @@ export function EntityDetailPage() {
       </DetailSurface>
     </>
   );
+}
+
+/** A retained read waits until admitted editors and requests release their snapshots. */
+function RefreshRetainedEntity({ identity, api, canRead, reload }: {
+  identity: string;
+  api: ReturnType<typeof useApi>;
+  canRead: boolean;
+  reload: () => Promise<void>;
+}) {
+  const surface = useContext(SurfaceContext);
+  const active = useContext(DetailTabContext)?.active ?? true;
+  const previousVisit = useRef({ api, identity, active });
+  const pending = useRef(false);
+  useLayoutEffect(() => {
+    const previous = previousVisit.current;
+    previousVisit.current = { api, identity, active };
+    if (previous.api !== api || previous.identity !== identity) pending.current = false;
+    else if (!previous.active && active) pending.current = true;
+    if (pending.current && active && canRead && !surface?.editor.current && !surface?.protection.current) {
+      pending.current = false;
+      void reload();
+    }
+  }, [api, identity, active, canRead, surface, reload]);
+  return null;
 }
