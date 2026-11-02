@@ -139,6 +139,351 @@ const linkedChange = () => ({
   created_at: "2026-10-13T00:00:00Z",
   updated_at: "2026-10-13T00:00:00Z",
 });
+
+test(
+  "#666 discarded comparison returns directly to the latest settings without losing another section draft",
+  async ({ page }, info) => {
+    let current = { ...linkedChange(), status: "ready", target: initialEntityDefinition("폐기안의 이름") };
+    let discarded = false;
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() !== "GET" && request.url().includes("/api/")) writes.push(new URL(request.url()).pathname);
+    });
+    await page.route(`**/api/entity-types/${materials.id}/schema`, (route) =>
+      route.fulfill({
+        json: {
+          ...initialEntityDefinition(discarded ? "최신 게시 이름" : "이름"),
+          type: { ...materials, schema_version: discarded ? 2 : 1 },
+          type_id: materials.id,
+          schema_version: discarded ? 2 : 1,
+          identifier_kinds: fixtureSchema.identifier_kinds,
+        },
+      }));
+    await page.route(
+      `**/api/entity-types/${materials.id}/schema-changes/${current.id}`,
+      (route) => route.fulfill({ json: current }),
+    );
+    await page.route(`**/api/entity-types/${materials.id}/schema-changes/${current.id}/discard`, (route) => {
+      discarded = true;
+      current = { ...current, status: "cancelled", version: 2 };
+      return route.fulfill({ json: current });
+    });
+    await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?change_id=${current.id}`));
+    await page.getByRole("button", { name: /^기본 정보/ }).click();
+    await page.getByLabel("자료 종류 이름", { exact: true }).fill("남길 기본 초안");
+    await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+    await page.getByRole("button", { name: "폐기안의 이름 항목 펼치기", exact: true }).click();
+    const fields = page.getByRole("region", { name: "입력 항목", exact: true });
+    const history = page.getByRole("region", { name: "변경 이력", exact: true });
+    await history.getByRole("button", { name: "폐기", exact: true }).click();
+    await page.getByRole("alertdialog", { name: "변경안을 폐기할까요?", exact: true }).getByRole("button", {
+      name: "폐기",
+      exact: true,
+    }).click();
+    await expect(history).toContainText("폐기됨");
+    await expect(fields).toContainText("폐기한 변경안 · 읽기 전용");
+    await expect(fields.getByLabel("항목 이름", { exact: true }).first()).toHaveValue("폐기안의 이름");
+    await expect(fields.getByLabel("항목 이름", { exact: true }).first()).toBeDisabled();
+    const start = history.getByRole("button", { name: "현재 설정 편집", exact: true });
+    await expect(start).toBeEnabled();
+    await start.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath("discarded-settings.png") });
+    await start.press("Enter");
+    await expect.poll(() => new URL(page.url()).searchParams.has("change_id")).toBe(false);
+    await expect(fields.getByLabel("항목 이름", { exact: true }).first()).toHaveValue("최신 게시 이름");
+    await expect(fields.getByLabel("항목 이름", { exact: true }).first()).toBeEnabled();
+    await expect(fields.getByRole("heading", { name: /입력 항목/, level: 2 })).toBeFocused();
+    await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("남길 기본 초안");
+    await page.screenshot({ path: info.outputPath("current-settings-edit.png") });
+    expect(writes).toEqual([`/api/entity-types/${materials.id}/schema-changes/${current.id}/discard`]);
+  },
+);
+
+test(
+  "#666 a pending current-definition read stays locked and its failure preserves comparison and retry",
+  async ({ page }, info) => {
+    const current = { ...linkedChange(), status: "cancelled", target: initialEntityDefinition("폐기 비교 이름") };
+    let started = false, fail = true;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => release = resolve);
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() !== "GET" && request.url().includes("/api/")) writes.push(request.url());
+    });
+    await page.route(
+      `**/api/entity-types/${materials.id}/schema-changes/${current.id}`,
+      (route) => route.fulfill({ json: current }),
+    );
+    await page.route(`**/api/entity-types/${materials.id}/schema`, async (route) => {
+      if (started && fail) {
+        await held;
+        return route.fulfill({ status: 503, json: { code: "unavailable", message: "현재 설정 조회 시험 실패" } });
+      }
+      return route.fulfill({
+        json: {
+          ...initialEntityDefinition(started ? "최신 게시 이름" : "이름"),
+          type: materials,
+          type_id: materials.id,
+          schema_version: started ? 2 : 1,
+          identifier_kinds: fixtureSchema.identifier_kinds,
+        },
+      });
+    });
+    await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?change_id=${current.id}`));
+    await page.getByRole("button", { name: /^기본 정보/ }).click();
+    const basic = page.getByLabel("자료 종류 이름", { exact: true });
+    await basic.fill("조회 실패에도 남길 기본 초안");
+    const history = page.getByRole("region", { name: "변경 이력", exact: true });
+    const fields = page.getByRole("region", { name: "입력 항목", exact: true });
+    await expect(history).toContainText("폐기 비교 이름");
+    started = true;
+    await history.getByRole("button", { name: "현재 설정 편집", exact: true }).click();
+    try {
+      await expect(history.getByRole("button", { name: "설정 읽는 중…", exact: true })).toBeDisabled();
+      await expect(fields.getByRole("button", { name: "설정 읽는 중…", exact: true })).toBeDisabled();
+      await expect(history).toContainText("폐기 비교 이름");
+    } finally {
+      release();
+    }
+    await expect(page.getByRole("alert").filter({ hasText: "현재 설정 조회 시험 실패" })).toBeVisible();
+    await expect(history).toContainText("폐기 비교 이름");
+    await expect(basic).toHaveValue("조회 실패에도 남길 기본 초안");
+    await expect.poll(() => new URL(page.url()).searchParams.get("change_id")).toBe(current.id);
+    fail = false;
+    const retry = history.getByRole("button", { name: "현재 설정 편집", exact: true });
+    await expect(retry).toBeEnabled();
+    await retry.click();
+    await expect.poll(() => new URL(page.url()).searchParams.has("change_id")).toBe(false);
+    await page.getByRole("button", { name: "최신 게시 이름 항목 펼치기", exact: true }).click();
+    await expect(fields.getByLabel("항목 이름", { exact: true }).first()).toHaveValue("최신 게시 이름");
+    await expect(basic).toHaveValue("조회 실패에도 남길 기본 초안");
+    await page.screenshot({ path: info.outputPath("current-settings-retry.png") });
+    expect(writes).toEqual([]);
+  },
+);
+
+test(
+  "#666 discarded settings keep field and advanced reading available while every editing control is locked",
+  async ({ page }, info) => {
+    let current = { ...linkedChange(), status: "ready" };
+    current.target.schema.properties.prop_3 = {
+      type: "string",
+      title: "분류",
+      "x-order": 30,
+      oneOf: [{ const: "card", title: "카드" }, { const: "video", title: "영상" }],
+      default: "card",
+    };
+    await page.route(
+      `**/api/entity-types/${materials.id}/schema-changes/${current.id}`,
+      (route) => route.fulfill({ json: current }),
+    );
+    await page.route(`**/api/entity-types/${materials.id}/schema-changes/${current.id}/discard`, (route) => {
+      current = { ...current, status: "cancelled", version: 2 };
+      return route.fulfill({ json: current });
+    });
+    await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?change_id=${current.id}`));
+    await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+    const fields = page.getByRole("region", { name: "입력 항목", exact: true });
+    const history = page.getByRole("region", { name: "변경 이력", exact: true });
+    await history.getByRole("button", { name: "폐기", exact: true }).click();
+    await page.getByRole("alertdialog", { name: "변경안을 폐기할까요?", exact: true }).getByRole("button", {
+      name: "폐기",
+      exact: true,
+    }).click();
+    await expect(history).toContainText("폐기됨");
+    const disclosure = fields.getByRole("button", { name: "분류 항목 펼치기", exact: true });
+    await expect(disclosure).toBeEnabled();
+    await disclosure.press("Enter");
+    const field = page.getByRole("region", { name: "분류 입력 항목", exact: true });
+    await expect(field.getByRole("textbox", { name: "선택 항목 1", exact: true })).toHaveValue("카드");
+    for (const name of ["항목 이름", "선택 항목 1", "선택 항목 2"]) {
+      await expect(field.getByRole("textbox", { name, exact: true })).toBeDisabled();
+    }
+    await expect(field.getByRole("combobox", { name: "데이터 타입", exact: true })).toBeDisabled();
+    await expect(field.getByRole("button", { name: "선택 항목 1 제거", exact: true })).toBeDisabled();
+    await expect(field.getByRole("button", { name: "선택 항목 추가", exact: true })).toBeDisabled();
+    await expect(fields.getByRole("button", { name: "분류 위로", exact: true })).toBeDisabled();
+    await expect(fields.getByRole("button", { name: "분류 아래로", exact: true })).toBeDisabled();
+    await expect(fields.getByRole("combobox", { name: "자료 식별자 항목", exact: true })).toBeDisabled();
+    await expect(fields.getByRole("combobox", { name: "제목에 넣을 속성", exact: true })).toBeDisabled();
+    await expect(fields.getByRole("textbox", { name: "제목 템플릿", exact: true })).toBeDisabled();
+    await expect(fields.getByRole("button", { name: "다음 항목 추가", exact: true })).toBeDisabled();
+    await field.getByRole("button", { name: "추가 설정", exact: true }).press("Enter");
+    await expect(field.getByRole("combobox", { name: "기본값", exact: true })).toHaveValue("card");
+    await expect(field.getByRole("combobox", { name: "기본값", exact: true })).toBeDisabled();
+    await expect(field.getByRole("textbox", { name: "설명", exact: true })).toBeDisabled();
+    await expect(field.getByRole("button", { name: "사용 중지", exact: true })).toBeDisabled();
+    await expect(field.getByRole("button", { name: "항목 삭제", exact: true })).toBeDisabled();
+    await page.evaluate(() => document.fonts.ready);
+    expect(await page.evaluate(() => document.fonts.check('16px "Geist Variable"'))).toBe(true);
+    await page.screenshot({ path: info.outputPath("discarded-readable-settings.png") });
+    await fields.getByRole("button", { name: "식별자 항목 펼치기", exact: true }).press("Enter");
+    const identifier = page.getByRole("region", { name: "식별자 입력 항목", exact: true });
+    await expect(identifier.getByRole("button", { name: "식별자 종류 추가", exact: true })).toBeDisabled();
+    await expect(identifier.getByRole("combobox", { name: "기본 식별자 종류", exact: true })).toBeDisabled();
+  },
+);
+
+test("#666 current settings actions remain readable at 200 percent and short viewports", async ({ page }, info) => {
+  const current = {
+    ...linkedChange(),
+    status: "cancelled",
+    target: initialEntityDefinition("폐기한 긴 이름의 입력 항목"),
+  };
+  await page.route(
+    `**/api/entity-types/${materials.id}/schema-changes/${current.id}`,
+    (route) => route.fulfill({ json: current }),
+  );
+  for (const viewport of [{ width: 320, height: 568 }, { width: 1280, height: 320 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?change_id=${current.id}`));
+    await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+    await page.evaluate(() => document.fonts.ready);
+    const fields = page.getByRole("region", { name: "입력 항목", exact: true });
+    const history = page.getByRole("region", { name: "변경 이력", exact: true });
+    for (const [name, region] of [["header", fields], ["history", history]] as const) {
+      const action = region.getByRole("button", { name: "현재 설정 편집", exact: true });
+      await action.scrollIntoViewIfNeeded();
+      await action.focus();
+      const bounds = await action.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width + 1);
+      expect(bounds!.height).toBeGreaterThanOrEqual(44);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      if (name === "header") {
+        const title = fields.getByRole("button", { name: "입력 항목", exact: true }).getByText("입력 항목", {
+          exact: true,
+        });
+        const titleBounds = await title.evaluate((node) => ({
+          height: node.getBoundingClientRect().height,
+          line: Number.parseFloat(getComputedStyle(node).lineHeight),
+        }));
+        expect(titleBounds.height).toBeLessThanOrEqual(titleBounds.line * 2 + 1);
+      }
+      await page.screenshot({ path: info.outputPath(`discarded-${name}-${viewport.width}-200.png`) });
+    }
+    await history.getByRole("button", { name: "현재 설정 편집", exact: true }).press("Enter");
+    await expect(fields.getByRole("heading", { name: /입력 항목/, level: 2 })).toBeFocused();
+    await expect(fields.getByRole("button", { name: "항목 추가", exact: true })).toBeEnabled();
+    await page.screenshot({ path: info.outputPath(`current-edit-${viewport.width}-200.png`) });
+  }
+});
+
+test("#666 a read-only settings visitor can read the discarded comparison without an editing action", async ({ page }) => {
+  const current = { ...linkedChange(), status: "cancelled", target: initialEntityDefinition("폐기 비교 이름") };
+  await page.route("**/api/workspaces**", async (route) => {
+    await fulfillFixtureWorkspace(route, [{ target_kind: "settings", target_id: "*", access: "read" }]);
+  });
+  await page.route(
+    `**/api/entity-types/${materials.id}/schema-changes/${current.id}`,
+    (route) => route.fulfill({ json: current }),
+  );
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?change_id=${current.id}`));
+  const history = page.getByRole("region", { name: "변경 이력", exact: true });
+  await expect(history).toContainText("폐기 비교 이름");
+  await expect(page.getByRole("button", { name: "현재 설정 편집", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  const fields = page.getByRole("region", { name: "입력 항목", exact: true });
+  await expect(fields.getByRole("region", { name: "입력 항목 정의", exact: true })).toContainText("이름");
+  await expect(fields.getByRole("textbox")).toHaveCount(0);
+  await expect.poll(() => new URL(page.url()).searchParams.get("change_id")).toBe(current.id);
+});
+
+test("#666 leaving a delayed current-definition read never returns to the old type or moves its focus", async ({ page }) => {
+  const current = { ...linkedChange(), status: "cancelled" };
+  let started = false;
+  let release!: () => void, finished!: () => void;
+  const held = new Promise<void>((resolve) => release = resolve);
+  const completed = new Promise<void>((resolve) => finished = resolve);
+  await page.route(
+    `**/api/entity-types/${materials.id}/schema-changes/${current.id}`,
+    (route) => route.fulfill({ json: current }),
+  );
+  await page.route(`**/api/entity-types/${materials.id}/schema`, async (route) => {
+    if (started) await held;
+    try {
+      await route.fulfill({
+        json: {
+          ...initialEntityDefinition("이름"),
+          type: materials,
+          type_id: materials.id,
+          schema_version: 1,
+          identifier_kinds: fixtureSchema.identifier_kinds,
+        },
+      });
+    } finally {
+      if (started) finished();
+    }
+  });
+  await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?change_id=${current.id}`));
+  const action = page.getByRole("region", { name: "변경 이력", exact: true }).getByRole("button", {
+    name: "현재 설정 편집",
+    exact: true,
+  });
+  await expect(action).toBeEnabled();
+  started = true;
+  await action.click();
+  await expect(page.getByRole("button", { name: "설정 읽는 중…", exact: true }).first()).toBeDisabled();
+  await page.getByRole("combobox", { name: "자료 종류 선택", exact: true }).selectOption(products.id);
+  await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${products.id}$`));
+  const selector = page.getByRole("combobox", { name: "자료 종류 선택", exact: true });
+  await expect(selector).toHaveValue(products.id);
+  await selector.focus();
+  release();
+  await completed;
+  await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${products.id}$`));
+  await expect(selector).toBeFocused();
+  await expect(page.getByRole("button", { name: "현재 설정 편집", exact: true })).toHaveCount(0);
+});
+
+for (const failure of ["rejected", "unknown"] as const) {
+  test(`#666 a ${failure} discard cannot unlock a new edit before its result is confirmed`, async ({ page }) => {
+    const current = { ...linkedChange(), status: "ready" };
+    const keys: string[] = [];
+    await page.route(
+      `**/api/entity-types/${materials.id}/schema-changes/${current.id}`,
+      (route) => route.fulfill({ json: current }),
+    );
+    await page.route(`**/api/entity-types/${materials.id}/schema-changes/${current.id}/discard`, (route) => {
+      keys.push(route.request().headers()["idempotency-key"]);
+      if (keys.length === 1) {
+        return failure === "unknown" ? route.abort("failed") : route.fulfill({
+          status: 400,
+          json: { code: "invalid_input", message: "폐기 거부 시험" },
+        });
+      }
+      return route.fulfill({ json: { ...current, status: "cancelled", version: 2 } });
+    });
+    await page.goto(fixtureWorkspacePath(`/settings/entity-types/${materials.id}?change_id=${current.id}`));
+    const history = page.getByRole("region", { name: "변경 이력", exact: true });
+    await expect(page.getByRole("button", { name: "현재 설정 편집", exact: true })).toHaveCount(0);
+    await history.getByRole("button", { name: "폐기", exact: true }).click();
+    await page.getByRole("alertdialog", { name: "변경안을 폐기할까요?", exact: true }).getByRole("button", {
+      name: "폐기",
+      exact: true,
+    }).click();
+    if (failure === "unknown") {
+      await expect(history.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeEnabled();
+    } else {
+      await expect(page.getByRole("alert").filter({ hasText: "폐기 거부 시험" })).toBeVisible();
+    }
+    await expect(page.getByRole("button", { name: "현재 설정 편집", exact: true })).toHaveCount(0);
+    if (failure === "unknown") {
+      await history.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
+    } else {
+      await history.getByRole("button", { name: "폐기", exact: true }).click();
+      await page.getByRole("alertdialog", { name: "변경안을 폐기할까요?", exact: true }).getByRole("button", {
+        name: "폐기",
+        exact: true,
+      }).click();
+    }
+    await expect(history).toContainText("폐기됨");
+    if (failure === "unknown") expect(keys[1]).toBe(keys[0]);
+    await expect(history.getByRole("button", { name: "현재 설정 편집", exact: true })).toBeEnabled();
+  });
+}
+
 const job = (
   n: number,
   status: EntitySchemaMigration["status"] = "succeeded",

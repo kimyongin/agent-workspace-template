@@ -1005,7 +1005,9 @@ test("취소한 변경안에서는 항목 편집으로 현재 설정을 열고 �
   await page.route(`**${base}/b`, (route) => route.fulfill({ json: { ...plan("b"), status: "cancelled" } }));
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
   const review = page.getByRole("region", { name: "입력 항목 변경 요약", exact: true });
-  await expect(review.getByRole("group", { name: "변경안 동작", exact: true }).getByRole("button")).toHaveCount(0);
+  await expect(review.getByRole("group", { name: "변경안 동작", exact: true }).getByRole("button", {
+    name: "현재 설정 편집", exact: true,
+  })).toBeEnabled();
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("change_id")).toBe(false);
   await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
